@@ -30,10 +30,7 @@ import {
 } from "../../../ui/Table.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { McpStatusDialog } from "./McpStatusDialog.tsx";
-import { mcpStatusLabel, mcpStatusTone, mcpToolCount } from "./mcp-status-text.ts";
-
-const sourceLabel = (source: McpServerView["source"]): string =>
-	source === "project" ? "Project" : "User";
+import { mcpSourceLabel, mcpStatusLabel, mcpStatusTone, mcpToolCount } from "./mcp-status-text.ts";
 
 export interface McpServersSectionProps {
 	servers: McpServerView[];
@@ -147,7 +144,7 @@ export function McpServersSection({
 												)}
 											</div>
 										</TableCell>
-										<TableCell className="text-fg-muted">{sourceLabel(server.source)}</TableCell>
+										<TableCell className="text-fg-muted">{mcpSourceLabel(server.source)}</TableCell>
 										<TableCell>
 											<Badge tone={mcpStatusTone(server.status)}>
 												{mcpStatusLabel(server.status)}

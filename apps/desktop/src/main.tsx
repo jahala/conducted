@@ -100,6 +100,9 @@ export function createAppContainer(
 		placeNames: createPlaceNames(),
 		sound,
 		windowFocused: () => document.hasFocus(),
+		reportFailure: (title, error) => {
+			toastError(title, error);
+		},
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),
 		writeDiagnosticsReport: (capture, fileName) =>
 			writeRedactedReport(options.platform, capture, fileName),

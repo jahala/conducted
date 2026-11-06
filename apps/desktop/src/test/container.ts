@@ -55,6 +55,8 @@ export interface TestContainer {
 	container: Container;
 	memory: MemoryPlatform;
 	database: Database;
+	/** What the container told the user about background work that failed (`reportFailure`). */
+	reported: { title: string; message: string }[];
 	close(): void;
 }
 
@@ -71,6 +73,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		channel: "dev",
 		enforceFileScope: options.enforceFileScope,
 	});
+	const reported: { title: string; message: string }[] = [];
 	const container = createContainer({
 		platform: memory.platform,
 		clock,
@@ -80,6 +83,10 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		sound: options.sound ?? SILENT_SOUND,
 		windowFocused: options.windowFocused ?? (() => false),
 		openLink: options.openLink,
+		// The app entry toasts these; a test reads what would have been told from `reported`.
+		reportFailure: (title, error) => {
+			reported.push({ title, message: error.message });
+		},
 		writeDiagnosticsReport:
 			options.writeDiagnosticsReport ??
 			((capture, fileName) => writeRedactedReport(memory.platform, capture, fileName)),
@@ -88,6 +95,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		container,
 		memory,
 		database: store.database,
+		reported,
 		close: () => store.close(),
 	};
 }

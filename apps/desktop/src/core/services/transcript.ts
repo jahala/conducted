@@ -214,15 +214,19 @@ export function planTextOf(input: unknown): string | null {
 	return typeof plan === "string" ? plan : null;
 }
 
-/** The first plan text in a stored agent event for a turn, or null. */
-export function planTextInEvent(event: SessionEvent, turnId: string): string | null {
-	if (event.type !== "agent" || event.turnId !== turnId) return null;
-	for (const item of event.message.items) {
+/**
+ * The plan calls in a stored agent event, oldest first, each with its id: the event id and the
+ * call's index among the event's items. A turn that proposes two plans has two ids.
+ */
+export function planCallsInEvent(event: SessionEvent): { planId: string; text: string }[] {
+	if (event.type !== "agent") return [];
+	const calls: { planId: string; text: string }[] = [];
+	for (const [index, item] of event.message.items.entries()) {
 		if (item.kind !== "tool_call" || item.tool !== "exit_plan_mode") continue;
 		const text = planTextOf(item.input);
-		if (text !== null) return text;
+		if (text !== null) calls.push({ planId: `${event.eventId}:${index}`, text });
 	}
-	return null;
+	return calls;
 }
 
 /** The plans a stored agent event proposed, oldest call first. Reverted events are left out. */
@@ -233,19 +237,13 @@ export function plansInEvent(
 	at: number,
 	reverted: boolean,
 ): PlanEntry[] {
-	if (reverted || event.type !== "agent") return [];
-	const plans: PlanEntry[] = [];
-	for (const item of event.message.items) {
-		if (item.kind !== "tool_call" || item.tool !== "exit_plan_mode") continue;
-		const text = planTextOf(item.input);
-		if (text === null) continue;
-		plans.push({
-			sessionId,
-			sessionTitle,
-			turnId: event.turnId,
-			title: planTitleOf(text),
-			at,
-		});
-	}
-	return plans;
+	if (reverted) return [];
+	return planCallsInEvent(event).map((call) => ({
+		sessionId,
+		sessionTitle,
+		turnId: event.turnId,
+		planId: call.planId,
+		title: planTitleOf(call.text),
+		at,
+	}));
 }

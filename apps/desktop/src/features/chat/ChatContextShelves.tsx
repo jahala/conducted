@@ -45,7 +45,7 @@ function baseName(path: string): string {
 }
 
 function planKey(plan: PlanEntry): string {
-	return `${plan.sessionId}:${plan.turnId}:${plan.title}`;
+	return `${plan.sessionId}:${plan.planId}`;
 }
 
 interface ShelfProps<T> {

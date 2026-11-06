@@ -8,7 +8,7 @@
  * Test first: a diverged stack branch whose local tip the upstream reflog once held is rebased onto
  * the rewritten upstream, and the baseline ref takes the new tip.
  */
-import { ok, type WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { FakeGitRunner, type GitAnswer, gitOutput } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
@@ -304,7 +304,7 @@ describe("PR-12 catching up a rewritten stack branch", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service);
 
-		const result = await service.catchUpStackBranch(workspaceId);
+		const result = await service.catchUpStackBranch(workspaceId, () => false);
 
 		expect(result).toEqual(ok({ kind: "rebased", newTip: "new-tip" }));
 		const rebase = rebaseCalls(git);
@@ -335,7 +335,7 @@ describe("PR-12 catching up a rewritten stack branch", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service);
 
-		await service.catchUpStackBranch(workspaceId);
+		await service.catchUpStackBranch(workspaceId, () => false);
 
 		const rebase = git.calls.find(
 			(call) => call.command.args[0] === "rebase" && call.command.args[1] === "--interactive",
@@ -351,7 +351,7 @@ describe("PR-12 catching up a rewritten stack branch", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service);
 
-		const result = await service.catchUpStackBranch(workspaceId);
+		const result = await service.catchUpStackBranch(workspaceId, () => false);
 
 		expect(result.ok && result.value.kind).toBe("rebased");
 		expect(updateRefCalls(git)[0]?.stdin).toContain("update refs/worktree/conducted/synced/");
@@ -362,7 +362,7 @@ describe("PR-12 catching up a rewritten stack branch", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service);
 
-		await service.catchUpStackBranch(workspaceId);
+		await service.catchUpStackBranch(workspaceId, () => false);
 
 		expect(updateRefCalls(git)[0]?.stdin).toContain("local-1");
 	});
@@ -391,7 +391,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		});
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "not_in_stack" }),
 		);
 		expect(rebaseCalls(git)).toHaveLength(0);
@@ -401,7 +401,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const state = catchUpState();
 		const { service } = makeService(state);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "not_in_stack" }),
 		);
 	});
@@ -411,7 +411,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service, { viewerCanMerge: false });
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "no_write_permission" }),
 		);
 		expect(rebaseCalls(git)).toHaveLength(0);
@@ -422,7 +422,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service, { state: "merged" });
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "not_in_stack" }),
 		);
 		expect(rebaseCalls(git)).toHaveLength(0);
@@ -433,7 +433,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "detached_head" }),
 		);
 	});
@@ -443,7 +443,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "identity_changed" }),
 		);
 	});
@@ -453,7 +453,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "identity_changed" }),
 		);
 	});
@@ -462,14 +462,14 @@ describe("PR-12 what the catch-up refuses", () => {
 		const onlyBehind = catchUpState({ left: 1, right: 0 });
 		const behindService = makeService(onlyBehind);
 		showPullRequest(behindService.service);
-		expect(await behindService.service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await behindService.service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "not_diverged" }),
 		);
 
 		const equal = catchUpState({ head: "same", upstream: "same" });
 		const equalService = makeService(equal);
 		showPullRequest(equalService.service);
-		expect(await equalService.service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await equalService.service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "not_diverged" }),
 		);
 	});
@@ -479,7 +479,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "not_in_stack" }),
 		);
 	});
@@ -489,7 +489,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "no_baseline" }),
 		);
 	});
@@ -499,7 +499,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "identity_changed" }),
 		);
 	});
@@ -509,7 +509,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "dirty_tree" }),
 		);
 	});
@@ -519,7 +519,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "operation_in_progress" }),
 		);
 	});
@@ -529,7 +529,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		const { service } = makeService(state);
 		showPullRequest(service);
 
-		expect(await service.catchUpStackBranch(workspaceId)).toEqual(
+		expect(await service.catchUpStackBranch(workspaceId, () => false)).toEqual(
 			ok({ kind: "skipped", reason: "ignored_file_collision" }),
 		);
 	});
@@ -553,7 +553,7 @@ describe("PR-12 what the catch-up refuses", () => {
 		});
 		showPullRequest(service);
 
-		const result = await service.catchUpStackBranch(workspaceId);
+		const result = await service.catchUpStackBranch(workspaceId, () => false);
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.code).toBe("github_repo_root_unknown");
 		expect(rebaseCalls(git)).toHaveLength(0);
@@ -569,13 +569,134 @@ describe("PR-12 a rebase that stops partway", () => {
 		const { service, git } = makeService(state);
 		showPullRequest(service);
 
-		const result = await service.catchUpStackBranch(workspaceId);
+		const result = await service.catchUpStackBranch(workspaceId, () => false);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.message).toContain("merge conflict");
 		expect(state.aborted).toBe(true);
 		expect(git.commands.some((command) => command.args.join(" ") === "rebase --abort")).toBe(true);
 		expect(updateRefCalls(git)).toHaveLength(0);
+	});
+});
+
+describe("PR-12 a failed catch-up is not repeated", () => {
+	it("skips the same tips after a failure, and tries again once the upstream moves", async () => {
+		const state = catchUpState({ rebaseExit: 1, rebaseStderr: "CONFLICT (content)" });
+		const { service, git } = makeService(state);
+		showPullRequest(service);
+
+		const first = await service.catchUpStackBranch(workspaceId, () => false);
+		const second = await service.catchUpStackBranch(workspaceId, () => false);
+		state.upstream = "upstream-2";
+		state.rebaseExit = 0;
+		const third = await service.catchUpStackBranch(workspaceId, () => false);
+
+		expect(first.ok).toBe(false);
+		expect(second).toEqual(ok({ kind: "skipped", reason: "failed_before" }));
+		expect(third).toEqual(ok({ kind: "rebased", newTip: "new-tip" }));
+		expect(rebaseCalls(git)).toHaveLength(2);
+	});
+});
+
+describe("PR-12 the timed poll tells the user about a failed catch-up once", () => {
+	it("reports the failure on the first poll and does not retry it on the next ones", async () => {
+		vi.useFakeTimers();
+		const state = catchUpState({ rebaseExit: 1, rebaseStderr: "CONFLICT (content)" });
+		const git = new FakeGitRunner((command) => answer(command, state));
+		const reported: string[] = [];
+		const service = new GithubService({
+			git,
+			agent: {} as never,
+			contextOf: async () =>
+				ok({
+					workspaceId,
+					workspacePath: "/wt",
+					repoRootPath: "/repo",
+					branch: "feat-b",
+					remote: "origin",
+					prNumber: 12,
+				}),
+			onMerged: () => {},
+			onCatchUpError: (_id, error) => reported.push(error.message),
+			now: () => Date.now(),
+			probeCwd: "/tmp",
+		});
+		const stop = service.watch(workspaceId, "selected");
+		try {
+			await vi.waitFor(() => expect(reported).toHaveLength(1));
+			// Several more poll intervals pass with the same tips.
+			await vi.advanceTimersByTimeAsync(10 * 60_000);
+		} finally {
+			stop();
+			vi.useRealTimers();
+		}
+
+		expect(reported).toHaveLength(1);
+		expect(reported[0]).toContain("CONFLICT");
+		expect(rebaseCalls(git)).toHaveLength(1);
+	});
+});
+
+describe("PR-12 a failure that repeats on every poll", () => {
+	it("is told once while it stays the same", async () => {
+		vi.useFakeTimers();
+		const git = new FakeGitRunner((command) => answer(command, catchUpState()));
+		const reported: string[] = [];
+		const service = new GithubService({
+			git,
+			agent: {} as never,
+			// The workspace folder is gone, so every catch-up fails before it reads a tip.
+			contextOf: async () => err(appError("workspace_missing", "The workspace folder is gone.")),
+			onMerged: () => {},
+			onCatchUpError: (_id, error) => reported.push(error.message),
+			now: () => Date.now(),
+			probeCwd: "/tmp",
+		});
+		const stop = service.watch(workspaceId, "selected");
+		try {
+			await vi.waitFor(() => expect(reported).toHaveLength(1));
+			await vi.advanceTimersByTimeAsync(10 * 60_000);
+		} finally {
+			stop();
+			vi.useRealTimers();
+		}
+
+		expect(reported).toEqual(["The workspace folder is gone."]);
+	});
+});
+
+describe("PR-12 a workspace that stops being watched mid-catch-up", () => {
+	it("is not rebased when the watch ends during the stack read", async () => {
+		const state = catchUpState();
+		let watched = true;
+		const git = new FakeGitRunner((command) => {
+			// The user archives the workspace while GitHub answers the stack read.
+			if (command.args.some((arg) => arg.includes("stackEntry"))) watched = false;
+			return answer(command, state);
+		});
+		const service = new GithubService({
+			git,
+			agent: {} as never,
+			contextOf: async () =>
+				ok({
+					workspaceId,
+					workspacePath: "/wt",
+					repoRootPath: "/repo",
+					branch: "feat-b",
+					remote: "origin",
+					prNumber: 12,
+				}),
+			onMerged: () => {},
+			now: () => 1_000,
+			probeCwd: "/tmp",
+		});
+		showPullRequest(service);
+
+		const result = await service.catchUpStackBranch(workspaceId, () => !watched);
+
+		expect(result).toEqual(ok({ kind: "skipped", reason: "watch_stopped" }));
+		expect(rebaseCalls(git)).toHaveLength(0);
+		expect(git.worktreeLocks).toEqual([]);
 	});
 });
 

@@ -7,7 +7,7 @@
  * refuses with "No messages in this chat". The names follow Conductor (renderApp `_1a`): a chat
  * with no title is "Transcript of chat.md", and a plan is "<plan title>.md".
  */
-import type { ToolUseId, TurnId } from "@conducted/shared";
+import type { ToolUseId } from "@conducted/shared";
 import { appError, err } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -140,7 +140,7 @@ describe("CHAT-26 attach a plan", () => {
 
 		const added = await test.container.actions.attachments.addPlan(target.id, {
 			sessionId: source.id,
-			turnId: "t1" as TurnId,
+			planId: "a1:0",
 		});
 
 		expect(added.ok).toBe(true);
@@ -154,6 +154,44 @@ describe("CHAT-26 attach a plan", () => {
 		]);
 	});
 
+	it("attaches each of two plans one turn proposed with its own text", async () => {
+		const { test, workspace, source, target } = await setup();
+		await seedSessionEvent(
+			test.container,
+			source.id,
+			agentEvent("a1", "t1", 12, [
+				{
+					kind: "tool_call",
+					toolUseId: "tool-1" as ToolUseId,
+					tool: "exit_plan_mode",
+					rawName: "ExitPlanMode",
+					input: { plan: "# First plan\n\nChange the parser." },
+				},
+				{
+					kind: "tool_call",
+					toolUseId: "tool-2" as ToolUseId,
+					tool: "exit_plan_mode",
+					rawName: "ExitPlanMode",
+					input: { plan: "# Second plan\n\nRewrite the lexer." },
+				},
+			]),
+			12,
+		);
+		const plans = must(await test.container.services.sessions.listPlans(workspace.id));
+		expect(plans.map((plan) => plan.title)).toEqual(["First plan", "Second plan"]);
+
+		const texts: string[] = [];
+		for (const plan of plans) {
+			const added = must(await test.container.actions.attachments.addPlan(target.id, plan));
+			texts.push(test.memory.controls.files.get(added) ?? "");
+		}
+
+		expect(texts).toEqual([
+			"# First plan\n\nChange the parser.",
+			"# Second plan\n\nRewrite the lexer.",
+		]);
+	});
+
 	it("reports a failed write as Failed to attach plan", async () => {
 		const { test, source, target } = await setup();
 		await seedPlan(test, source.id);
@@ -163,7 +201,7 @@ describe("CHAT-26 attach a plan", () => {
 
 		const added = await test.container.actions.attachments.addPlan(target.id, {
 			sessionId: source.id,
-			turnId: "t1" as TurnId,
+			planId: "a1:0",
 		});
 
 		expect(added.ok).toBe(false);
@@ -176,7 +214,7 @@ describe("CHAT-26 attach a plan", () => {
 
 		const added = await test.container.actions.attachments.addPlan(target.id, {
 			sessionId: source.id,
-			turnId: "missing" as TurnId,
+			planId: "missing:0",
 		});
 
 		expect(added.ok).toBe(false);

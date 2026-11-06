@@ -67,9 +67,13 @@ describe("RUN-09 zsh shim files", () => {
 	});
 
 	it("starts zsh with the shim folder and leaves finding the user's folder to the shim", () => {
-		expect(shellIntegrationEnv("/data/zsh")).toEqual({ ZDOTDIR: "/data/zsh" });
+		expect(shellIntegrationEnv("/data/zsh", null)).toEqual({ ZDOTDIR: "/data/zsh" });
 		// An empty user folder variable used to send every user to $HOME, whatever their ZDOTDIR.
-		expect(shellIntegrationEnv("/data/zsh")).not.toHaveProperty("CONDUCTED_USER_ZDOTDIR");
+		expect(shellIntegrationEnv("/data/zsh", null)).not.toHaveProperty("CONDUCTED_USER_ZDOTDIR");
+		expect(shellIntegrationEnv("/data/zsh", "/Users/me/dotfiles")).toEqual({
+			ZDOTDIR: "/data/zsh",
+			CONDUCTED_USER_ZDOTDIR: "/Users/me/dotfiles",
+		});
 	});
 });
 
@@ -182,11 +186,31 @@ describe("RUN-09 shell integration in the real container", () => {
 		expect(spawn?.env?.ZDOTDIR).toBeUndefined();
 	});
 
+	it("hands the shim the ZDOTDIR the app was launched with", async () => {
+		const { test, workspace } = await readyWorkspace();
+		vi.spyOn(test.container.platform.shell, "loginEnv").mockResolvedValue({
+			shell: "/bin/zsh",
+			path: "/usr/bin:/bin",
+			zdotdir: "/Users/me/.config/zsh",
+		});
+		const terminals = test.container.services.terminals;
+		must(await terminals.installShellIntegration());
+
+		must(await terminals.create(workspace.id));
+
+		const spawn = test.memory.controls.ptySpawns.at(-1);
+		expect(spawn?.env).toMatchObject({
+			ZDOTDIR: zshIntegrationDir(test.container.platform.fs.paths),
+			CONDUCTED_USER_ZDOTDIR: "/Users/me/.config/zsh",
+		});
+	});
+
 	it("leaves the shim out when the login shell is not zsh", async () => {
 		const { test, workspace } = await readyWorkspace();
 		vi.spyOn(test.container.platform.shell, "loginEnv").mockResolvedValue({
 			shell: "/bin/bash",
 			path: "/usr/bin:/bin",
+			zdotdir: null,
 		});
 		const terminals = test.container.services.terminals;
 		must(await terminals.installShellIntegration());

@@ -36,6 +36,8 @@ export const SidebarLeftIcon = (p: P) => <Icon d="M2.5 3.5h11v9h-11zM6 3.5v9" {.
 export const SidebarRightIcon = (p: P) => <Icon d="M2.5 3.5h11v9h-11zM10 3.5v9" {...p} />;
 export const ArrowLeftIcon = (p: P) => <Icon d="M13 8H3M7 4L3 8l4 4" {...p} />;
 export const ArrowRightIcon = (p: P) => <Icon d="M3 8h10M9 4l4 4-4 4" {...p} />;
+/** An arrow pointing up and right: a control that opens a page outside the app. */
+export const ArrowUpRightIcon = (p: P) => <Icon d="M5 11l6-6M6 5h5v5" {...p} />;
 export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
 export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
 export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;

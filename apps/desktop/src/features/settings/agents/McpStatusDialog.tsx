@@ -14,7 +14,13 @@ import type { McpServerView } from "../../../core/model.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { CopyButton } from "../../../ui/CopyButton.tsx";
 import { Dialog, DialogContent } from "../../../ui/Dialog.tsx";
-import { mcpStatusLabel, mcpStatusTone, mcpToolCount } from "./mcp-status-text.ts";
+import {
+	mcpSourceLabel,
+	mcpStatusLabel,
+	mcpStatusTone,
+	mcpToolCount,
+	mcpTransportLabel,
+} from "./mcp-status-text.ts";
 
 export interface McpStatusDialogProps {
 	open: boolean;
@@ -52,9 +58,9 @@ export function McpStatusDialog({ open, server, onOpenChange, onCopyLog }: McpSt
 								<Badge tone={mcpStatusTone(server.status)}>{mcpStatusLabel(server.status)}</Badge>
 							</dd>
 							<dt className="text-fg-muted">Source</dt>
-							<dd className="text-fg">{server.source === "project" ? "Project" : "User"}</dd>
+							<dd className="text-fg">{mcpSourceLabel(server.source)}</dd>
 							<dt className="text-fg-muted">Transport</dt>
-							<dd className="text-fg">{server.transport}</dd>
+							<dd className="text-fg">{mcpTransportLabel(server.transport)}</dd>
 							<dt className="text-fg-muted">Tools</dt>
 							<dd className="text-fg">{mcpToolCount(server.toolCount)}</dd>
 							{server.error === null ? null : (

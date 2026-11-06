@@ -25,6 +25,7 @@ import type { SettingValue } from "../core/registries/settings.ts";
 import { tomlCodec } from "../core/services/toml-codec.ts";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
+import { toastError } from "../ui/Toast.tsx";
 
 export interface ShellFixture {
 	repos?: readonly Repo[];
@@ -104,6 +105,9 @@ export function createShellContainer(fixture: ShellFixture = {}): ShellContainer
 		placeNames: { pick: () => `place-${++nextId}` },
 		sound: { play: async () => {} },
 		windowFocused: () => true,
+		reportFailure: (title, error) => {
+			toastError(title, error);
+		},
 	});
 	const { services } = container;
 	const repos = fixture.repos ?? [];

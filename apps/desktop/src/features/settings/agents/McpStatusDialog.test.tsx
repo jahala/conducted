@@ -53,6 +53,22 @@ describe("SET-05 MCP status dialog", () => {
 		expect(screen.getByRole("button", { name: "Copy log" })).toHaveProperty("disabled", true);
 	});
 
+	it("SET-05 shows a dash for a source and transport the agent did not report", () => {
+		render(
+			<McpStatusDialog
+				open
+				server={server({ source: null, transport: null })}
+				onOpenChange={() => {}}
+				onCopyLog={() => {}}
+			/>,
+		);
+
+		const terms = screen.getAllByRole("term").map((term) => term.textContent);
+		const details = screen.getAllByRole("definition").map((detail) => detail.textContent);
+		expect(details[terms.indexOf("Source")]).toBe("—");
+		expect(details[terms.indexOf("Transport")]).toBe("—");
+	});
+
 	it("SET-05 says when no server is configured", () => {
 		render(<McpStatusDialog open server={null} onOpenChange={() => {}} onCopyLog={() => {}} />);
 

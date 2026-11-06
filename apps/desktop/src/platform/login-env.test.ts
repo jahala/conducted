@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import { COMMANDS, createTauriShell } from "./tauri.ts";
 
 describe("PLAT-04 login-shell environment", () => {
-	it("asks the Rust shell for the login shell and PATH", async () => {
+	it("asks the Rust shell for the login shell, PATH and launch ZDOTDIR", async () => {
 		const calls: string[] = [];
 		const shell = createTauriShell({
 			invoke: async (command) => {
 				calls.push(command);
-				return { shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin" } as never;
+				return {
+					shell: "/bin/zsh",
+					path: "/opt/homebrew/bin:/usr/bin:/bin",
+					zdotdir: "/Users/me/.config/zsh",
+				} as never;
 			},
 			listen: async () => () => {},
 		});
@@ -15,6 +19,7 @@ describe("PLAT-04 login-shell environment", () => {
 		await expect(shell.loginEnv()).resolves.toEqual({
 			shell: "/bin/zsh",
 			path: "/opt/homebrew/bin:/usr/bin:/bin",
+			zdotdir: "/Users/me/.config/zsh",
 		});
 		expect(calls).toEqual([COMMANDS.shellLoginEnv]);
 	});

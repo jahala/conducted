@@ -159,8 +159,9 @@ import {
 	createHistorySearch,
 	formatTranscript,
 	type HistoryHit,
+	planCallsInEvent,
 	plansInEvent,
-	planTextInEvent,
+	planTitleOf,
 	searchHistory,
 } from "./transcript.ts";
 import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
@@ -1508,19 +1509,15 @@ export class SessionsService implements AgentMessenger {
 		return ok({ title: found.value.title, text });
 	}
 
-	/** Reads one plan an agent proposed in a chat, for attaching it (CHAT-26). */
-	async planFor(id: SessionId, turnId: TurnId): Promise<Result<{ title: string; text: string }>> {
+	/** Reads one plan an agent proposed in a chat, by its `PlanEntry.planId`, for attaching it (CHAT-26). */
+	async planFor(id: SessionId, planId: string): Promise<Result<{ title: string; text: string }>> {
 		const opened = await this.open(id);
 		if (!opened.ok) return opened;
 		const state = this.store.getState();
-		const events = (state.events[id] ?? []).filter(
-			(entry) => entry.event.turnId === turnId && entry.revertedAt === null,
-		);
-		for (const stored of events) {
-			const text = planTextInEvent(stored.event, turnId);
-			if (text === null) continue;
-			const plan = plansInEvent(stored.event, id, null, stored.receivedAt, false)[0];
-			return ok({ title: plan?.title ?? "Plan", text });
+		for (const stored of state.events[id] ?? []) {
+			if (stored.revertedAt !== null) continue;
+			const call = planCallsInEvent(stored.event).find((entry) => entry.planId === planId);
+			if (call !== undefined) return ok({ title: planTitleOf(call.text), text: call.text });
 		}
 		return err(appError("chat_plan_unknown", "That plan is no longer in this chat."));
 	}

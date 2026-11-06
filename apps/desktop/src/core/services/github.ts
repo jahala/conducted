@@ -77,7 +77,10 @@
  * onto the upstream tip under the worktree lock and then the repo lock, its sequence
  * editor re-checks the branch and remote before git starts, a rebase that stops partway is
  * aborted, and the baseline ref takes the new tip with a compare-and-swap; a catch-up failure is
- * reported to its caller, never recorded as a failed poll; the members the last stack read found,
+ * reported to its caller, never recorded as a failed poll, and the same local and upstream tips
+ * are not tried again until one moves (a conflict would fail on every poll), and any failure that
+ * repeats unchanged is told once; a workspace that
+ * stops being watched during the poll or the catch-up is not rebased; the members the last stack read found,
  * with each base branch, are kept per workspace
  * for the range diff scope (PR-08, services-map 3.4.5), which reads the stack itself only when
  * nothing has; a review-comment read needs a pull request
@@ -90,7 +93,8 @@
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
  * the Checks tab's required marks need the branch-protection read. The catch-up runs at the end of
- * a timed poll and reports its own failures through `onCatchUpError`; re-running failed checks
+ * a timed poll and reports its own failures through `onCatchUpError`, which the container turns
+ * into the "Couldn't catch up the stack branch" toast (our wording); re-running failed checks
  * belongs to PR-04, which owns the Checks tab's button.
  * `gt state` and `gt checkout` run in graphite.ts; the stack read only asks that service for a
  * restack flag. The readiness rules that read the merge states live in
@@ -130,9 +134,7 @@ import {
 	lsFiles,
 	lsFilesIgnoredNul,
 	rebaseOntoUpstream,
-	reflogHashes,
 	remoteGetUrl,
-	revListLeftRightCount,
 	revParseGitCommonDir,
 	revParseHead,
 	revParseVerify,
@@ -188,7 +190,7 @@ import {
 	rebaseAbortCommand,
 	syncedBaselineRef,
 } from "../git/stack-catch-up.ts";
-import { parseLeftRightCount, readOperation } from "../git/status.ts";
+import { readOperation, readUpstreamDivergence } from "../git/status.ts";
 import type {
 	CheckRun,
 	GitHubAccess as GitHubAccessView,
@@ -1163,7 +1165,11 @@ export type CatchUpSkipReason =
 	| "no_baseline"
 	| "dirty_tree"
 	| "operation_in_progress"
-	| "ignored_file_collision";
+	| "ignored_file_collision"
+	/** The same local and upstream tips failed to catch up before; it waits until one moves. */
+	| "failed_before"
+	/** Nobody watches the workspace any more (it was closed or archived during the poll). */
+	| "watch_stopped";
 
 export type CatchUpOutcome =
 	| { kind: "rebased"; newTip: string }
@@ -1187,8 +1193,8 @@ export interface GithubServiceDeps {
 	 */
 	onPullRequestChanged?: (workspaceId: WorkspaceId) => void;
 	/**
-	 * Reports a failure of the automatic stack catch-up. The container always supplies it; tests
-	 * that never reach a catch-up may leave it out.
+	 * Tells the user a failure of the automatic stack catch-up, once per pair of local and upstream
+	 * tips. The container always supplies it; tests that never reach a catch-up may leave it out.
 	 */
 	onCatchUpError?: (workspaceId: WorkspaceId, error: AppError) => void;
 	now: () => number;
@@ -1656,6 +1662,18 @@ export class GithubService {
 	readonly #pollLatest = createLatestWins<string>();
 	/** When a "this branch has no PR" answer stops being reused. */
 	readonly #noPrUntil = new Map<string, number>();
+	/**
+	 * The local and upstream tips (`<local>:<upstream>`) whose catch-up failed, per watched
+	 * workspace. A conflict fails the same way on every poll, so that pair is not tried again until
+	 * one tip moves. Removed when a catch-up succeeds or the workspace is no longer watched.
+	 */
+	readonly #failedCatchUps = new Map<string, string>();
+	/**
+	 * The last catch-up failure told to the user (`<code>:<message>`), per watched workspace, so a
+	 * failure that repeats on every poll is told once. Removed when a catch-up ends without error or
+	 * the workspace is no longer watched.
+	 */
+	readonly #reportedCatchUps = new Map<string, string>();
 	/** When each watched workspace last asked GitHub, for the interval check. */
 	readonly #lastPolledAt = new Map<string, number>();
 	/** The head commit of the last PR shown, for the UNKNOWN mergeability guard. */
@@ -2046,6 +2064,8 @@ export class GithubService {
 		this.#lastPolledAt.delete(key);
 		this.#headByWorkspace.delete(key);
 		this.#repoKeyByWorkspace.delete(key);
+		this.#failedCatchUps.delete(key);
+		this.#reportedCatchUps.delete(key);
 	}
 
 	#subscriptionsOf(watcher: PollWatcher, key: string): PollSubscription[] {
@@ -2081,8 +2101,9 @@ export class GithubService {
 				this.#deps.now() - (this.#lastPolledAt.get(key) ?? 0) >= decision.value.intervalMs
 			) {
 				await this.#pollWatched(workspaceId, decision.value.requestedOnly);
-				// Polling is where a stack branch's rewrite is noticed; catch it up on its own.
-				await this.#catchUpAfterPoll(workspaceId);
+				// Polling is where a stack branch's rewrite is noticed; catch it up on its own, unless
+				// the workspace stopped being watched (closed or archived) while the poll ran.
+				if (!watcher.stopped) await this.#catchUpAfterPoll(workspaceId, () => watcher.stopped);
 			}
 		} catch (cause) {
 			this.#recordPollFailure(workspaceId, pollCrashError(cause));
@@ -3270,9 +3291,28 @@ export class GithubService {
 	 * `CatchUpSkipReason`. The guarded rebase moves the branch onto the rewritten upstream tip,
 	 * after the clean-tree, operation, ignored-file and identity checks. It holds the worktree lock
 	 * and then the repo lock, as Conductor does. The baseline ref records the new tip, so the next
-	 * catch-up knows the branch was here.
+	 * catch-up knows the branch was here. `stopped` says the workspace is no longer watched; it is
+	 * read again after each slow step, so a closed or archived workspace is never rebased.
 	 */
-	async catchUpStackBranch(workspaceId: WorkspaceId): Promise<Result<CatchUpOutcome>> {
+	async catchUpStackBranch(
+		workspaceId: WorkspaceId,
+		stopped: () => boolean,
+	): Promise<Result<CatchUpOutcome>> {
+		const key = String(workspaceId);
+		let tips: string | null = null;
+		const result = await this.#catchUp(workspaceId, stopped, (pair) => {
+			tips = pair;
+		});
+		if (!result.ok && tips !== null) this.#failedCatchUps.set(key, tips);
+		if (result.ok && result.value.kind === "rebased") this.#failedCatchUps.delete(key);
+		return result;
+	}
+
+	async #catchUp(
+		workspaceId: WorkspaceId,
+		stopped: () => boolean,
+		onTips: (pair: string) => void,
+	): Promise<Result<CatchUpOutcome>> {
 		const skip = (reason: CatchUpSkipReason): Result<CatchUpOutcome> =>
 			ok({ kind: "skipped", reason });
 		const setting = this.#deps.setting;
@@ -3327,16 +3367,22 @@ export class GithubService {
 			: null;
 		if (upstreamBranch !== found.branch) return skip("identity_changed");
 		if (head.value === upstream.value) return skip("not_diverged");
-		const counts = await this.#deps.git.stdout(revListLeftRightCount(upstream.value, head.value), {
+		const pair = `${head.value}:${upstream.value}`;
+		if (this.#failedCatchUps.get(key) === pair) return skip("failed_before");
+		// One home with the branch sync: the counts, and whether the upstream once held the local tip.
+		const divergence = await readUpstreamDivergence(
+			this.#deps.git,
 			cwd,
-		});
-		if (!counts.ok) return err(counts.error);
-		const parsedCounts = parseLeftRightCount(counts.value);
-		if (!parsedCounts.ok) return err(parsedCounts.error);
+			head.value,
+			upstream.value,
+		);
+		if (!divergence.ok) return err(divergence.error);
 		// A branch that is only ahead or only behind has nothing to catch up after a rewrite.
-		if (parsedCounts.value.left === 0 || parsedCounts.value.right === 0) {
+		if (divergence.value.ahead === 0 || divergence.value.behind === 0) {
 			return skip("not_diverged");
 		}
+		// From here a failure is about this pair of tips.
+		onTips(pair);
 
 		// The branch takes part in a GitHub stack. This is the expensive read, so it runs only
 		// after the cheap checks above say a catch-up may be needed.
@@ -3345,6 +3391,7 @@ export class GithubService {
 		if (!stack.ok && stack.error.code === "github_not_github") return skip("not_in_stack");
 		if (!stack.ok) return err(stack.error);
 		if (!stack.value.some((entry) => entry.isCurrent)) return skip("not_in_stack");
+		if (stopped()) return skip("watch_stopped");
 
 		// Steps 3 and 4: the remote's identity and the baseline ref, with the reflog fallback.
 		const remoteUrl = await this.#deps.git.stdout(remoteGetUrl(found.remote), { cwd });
@@ -3362,11 +3409,9 @@ export class GithubService {
 		const baselineRef = syncedBaselineRef(tupleHash.value);
 		const baseline = await this.#deps.git.stdout(revParseVerify(baselineRef), { cwd });
 		if (!baseline.ok) return err(baseline.error);
-		if (baseline.value !== head.value) {
-			const reflog = await this.#deps.git.stdout(reflogHashes(upstreamRef.value), { cwd });
-			if (!reflog.ok) return err(reflog.error);
-			const seen = reflog.value.split("\n").some((line) => line.trim() === head.value);
-			if (!seen) return skip(baseline.value === "" ? "no_baseline" : "identity_changed");
+		// A tip that is not the baseline must be one the upstream once held (the reflog fallback).
+		if (baseline.value !== head.value && !divergence.value.rewritten) {
+			return skip(baseline.value === "" ? "no_baseline" : "identity_changed");
 		}
 
 		// Step 5: a clean tree and no other git operation.
@@ -3395,7 +3440,10 @@ export class GithubService {
 			remote: found.remote,
 			remoteIdentity: remoteIdentity.value,
 		});
+		if (stopped()) return skip("watch_stopped");
 		return this.#deps.git.withWorktreeAndRepoLocks(cwd, repoRootPath, async () => {
+			// The locks may have waited on another git operation; nobody may watch the workspace now.
+			if (stopped()) return skip("watch_stopped");
 			const command = rebaseOntoUpstream(upstream.value, head.value);
 			const rebased = await this.#deps.git.run(command, { cwd, env: guardEnv });
 			if (!rebased.ok) return err(rebased.error);
@@ -3474,16 +3522,23 @@ export class GithubService {
 	 * poll failure: the workspace's last PR answer stands, and the failure goes to the caller's
 	 * reporter instead.
 	 */
-	async #catchUpAfterPoll(workspaceId: WorkspaceId): Promise<void> {
+	async #catchUpAfterPoll(workspaceId: WorkspaceId, stopped: () => boolean): Promise<void> {
+		let failure: AppError;
 		try {
-			const result = await this.catchUpStackBranch(workspaceId);
-			if (!result.ok) this.#deps.onCatchUpError?.(workspaceId, result.error);
+			const result = await this.catchUpStackBranch(workspaceId, stopped);
+			if (result.ok) {
+				this.#reportedCatchUps.delete(String(workspaceId));
+				return;
+			}
+			failure = result.error;
 		} catch (cause) {
-			this.#deps.onCatchUpError?.(
-				workspaceId,
-				appError("github_stack_catch_up_crashed", messageOf(cause)),
-			);
+			failure = appError("github_stack_catch_up_crashed", messageOf(cause));
 		}
+		// A failure that comes back unchanged on every poll is told once.
+		const said = `${failure.code}:${failure.message}`;
+		if (this.#reportedCatchUps.get(String(workspaceId)) === said) return;
+		this.#reportedCatchUps.set(String(workspaceId), said);
+		this.#deps.onCatchUpError?.(workspaceId, failure);
 	}
 
 	/** Backs `Actions.pullRequests.requestReview`: adds each GitHub user as a reviewer. */

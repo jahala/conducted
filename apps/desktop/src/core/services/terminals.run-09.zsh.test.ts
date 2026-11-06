@@ -3,7 +3,8 @@
  * @feature RUN-09 Zsh shell integration for terminals
  * Owns: tests that run the shim files in a real interactive zsh, in a home folder of the test's
  * own, and read the OSC 633 markers it prints: with no user dotfiles, with a user `.zshrc`, and
- * with a user `.zshenv` that moves `ZDOTDIR` to another folder.
+ * with a user `.zshenv` that moves `ZDOTDIR` to another folder, and with a `ZDOTDIR` the app was
+ * launched with.
  * Behaviour: native-and-sidecar-map.md A5 (the shim sources the user's own dotfiles, then prints
  * the markers) and services-map.md 5A.4.6.
  * Test first: a user whose `.zshenv` sets `ZDOTDIR` to `~/.config/zsh` gets that folder's `.zshrc`.
@@ -16,6 +17,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	type ShellIntegrationEvent,
 	scanShellIntegration,
+	shellIntegrationEnv,
 	ZSH_INTEGRATION_FILE_NAMES,
 	zshIntegrationFiles,
 } from "./terminals.ts";
@@ -41,15 +43,24 @@ function setup(): { home: string; shim: string } {
 	return { home, shim };
 }
 
-/** Runs the lines in an interactive zsh started the way a terminal tab starts it. */
+/**
+ * Runs the lines in an interactive zsh started the way a terminal tab starts it. `launchZdotdir`
+ * is the `ZDOTDIR` the app was launched with, or null.
+ */
 function runZsh(
 	home: string,
 	shim: string,
 	lines: string[],
+	launchZdotdir: string | null = null,
 ): { stdout: string; events: ShellIntegrationEvent[] } {
 	const result = spawnSync(ZSH, ["-i"], {
 		input: `${lines.join("\n")}\nexit\n`,
-		env: { HOME: home, PATH: "/usr/bin:/bin", TERM: "dumb", ZDOTDIR: shim },
+		env: {
+			HOME: home,
+			PATH: "/usr/bin:/bin",
+			TERM: "dumb",
+			...shellIntegrationEnv(shim, launchZdotdir),
+		},
 		encoding: "utf8",
 		timeout: 20_000,
 	});
@@ -100,5 +111,26 @@ describe("RUN-09 the shim in a real zsh", () => {
 		expect(stdout).toContain("custom-zshrc-loaded");
 		expect(stdout).not.toContain("wrong-zshrc-loaded");
 		expect(events).toContainEqual({ kind: "command_done", exitCode: 0 });
+	});
+
+	it("reads the dotfiles from a ZDOTDIR the app was launched with", () => {
+		const { home, shim } = setup();
+		const custom = join(home, "dotfiles");
+		mkdirSync(custom, { recursive: true });
+		writeFileSync(join(custom, ".zshenv"), "echo launch-zshenv-loaded\n");
+		writeFileSync(join(custom, ".zshrc"), "echo launch-zshrc-loaded\n");
+		writeFileSync(join(home, ".zshenv"), "echo home-zshenv-loaded\n");
+		writeFileSync(join(home, ".zshrc"), "echo home-zshrc-loaded\n");
+
+		const { stdout, events } = runZsh(home, shim, ["echo $CONDUCTED_USER_ZDOTDIR-left"], custom);
+
+		expect(stdout).toContain("launch-zshenv-loaded");
+		expect(stdout).toContain("launch-zshrc-loaded");
+		expect(stdout).not.toContain("home-zshenv-loaded");
+		expect(stdout).not.toContain("home-zshrc-loaded");
+		// The hand-over variable does not leak into the user's commands.
+		expect(stdout).toContain("-left");
+		expect(stdout).not.toContain(`${custom}-left`);
+		expect(events).toContainEqual({ kind: "prompt" });
 	});
 });

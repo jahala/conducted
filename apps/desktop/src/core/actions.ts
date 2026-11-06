@@ -190,8 +190,8 @@ export function createActions(
 				services.composer.attachFilesToActiveChat(workspaceId, paths),
 			open: (workspaceId, path, mode, scope) =>
 				services.workspaceFiles.open(workspaceId, path, mode, scope),
-			resolveConflicts: (workspaceId, path, choices) =>
-				services.workspaceFiles.resolveConflicts(workspaceId, path, choices),
+			resolveConflicts: (workspaceId, path, choices, seenText) =>
+				services.workspaceFiles.resolveConflicts(workspaceId, path, choices, seenText),
 			reveal: (workspaceId, path) => services.workspaceFiles.reveal(workspaceId, path),
 			openInApp: (workspaceId, path, appName) =>
 				services.workspaceFiles.openInApp(workspaceId, path, appName),

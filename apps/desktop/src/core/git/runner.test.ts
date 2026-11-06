@@ -50,7 +50,7 @@ const makeShell = (
 	runHandler: (command: ShellCommand) => Promise<Result<ShellOutput>> = async () => ok(out(0)),
 	startHandler?: (command: ShellCommand) => RunningCommand,
 	loginPath = "/Users/me/.local/bin:/usr/bin:/bin",
-	loginEnv: Shell["loginEnv"] = async () => ({ shell: "/bin/zsh", path: loginPath }),
+	loginEnv: Shell["loginEnv"] = async () => ({ shell: "/bin/zsh", path: loginPath, zdotdir: null }),
 ): FakeShell => {
 	const calls: ShellCommand[] = [];
 	return {
@@ -204,7 +204,7 @@ describe("GIT-01 ShellGitRunner", () => {
 			async () => {
 				attempts += 1;
 				if (attempts === 1) throw new Error("login shell timed out");
-				return { shell: "/bin/zsh", path: "/Users/me/bin" };
+				return { shell: "/bin/zsh", path: "/Users/me/bin", zdotdir: null };
 			},
 		);
 		const { runner, logs } = makeRunner(shell.shell);

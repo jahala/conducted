@@ -79,6 +79,29 @@ describe("SET-05 MCP servers section", () => {
 		expect(screen.queryByRole("button", { name: /sign in/i })).toBeNull();
 	});
 
+	it("SET-05 prints each source the agent reports, and a dash when it reports none", () => {
+		render(
+			<McpServersSection
+				servers={[
+					server({ name: "a", source: "local" }),
+					server({ name: "b", source: "plugin" }),
+					server({ name: "c", source: null }),
+				]}
+				hasSession
+				refreshing={false}
+				onRefresh={() => {}}
+				onViewLog={() => {}}
+			/>,
+		);
+
+		const rows = screen.getAllByRole("row").slice(1);
+		expect(rows.map((row) => row.querySelectorAll("td")[1]?.textContent)).toEqual([
+			"Local",
+			"Plugin",
+			"—",
+		]);
+	});
+
 	it("SET-05 says when no servers are configured", () => {
 		render(
 			<McpServersSection

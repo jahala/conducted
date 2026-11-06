@@ -13,18 +13,17 @@
  * again), a save that landed but could not be staged (its own toast, not the failure one), and a
  * save that changed the file (the file text and the change list read again).
  * Our design choice: the "changed on disk" text and the "Saved, but could not stage the file"
- * title are our wording; the research names only "Failed to save conflict resolution". The check
- * reads the file just before the save. The service reads it once more to apply the choices, so a
- * write that lands between those two reads is not caught; closing that gap needs the seen text
- * in `Actions.files.resolveConflicts`.
+ * title are our wording; the research names only "Failed to save conflict resolution". The save
+ * hands the service the text the rows were drawn from, and the service compares it with the disk
+ * in the same read it applies the choices to.
  * Test first: a file with one conflict shows the three choices, and saving "both" writes the two
  * sides with no markers and refreshes the change list.
  */
-import { appError, err, type WorkspaceId } from "@conducted/shared";
+import type { WorkspaceId } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { ConflictChoice } from "../../core/api.ts";
-import { fileQueryKey, useActions, useReadFileNow } from "../../core/hooks.ts";
+import { fileQueryKey, useActions } from "../../core/hooks.ts";
 import {
 	CONFLICT_SAVED_NOT_STAGED,
 	type ConflictHunk,
@@ -47,7 +46,6 @@ export interface ConflictResolverProps {
 
 export function ConflictResolver({ workspaceId, path, text }: ConflictResolverProps) {
 	const actions = useActions();
-	const readNow = useReadFileNow(workspaceId, path);
 	const queryClient = useQueryClient();
 	const parsed = useMemo(() => parseConflictMarkers(text), [text]);
 	const hunks: readonly ConflictHunk[] = parsed.ok ? parsed.value : [];
@@ -85,7 +83,8 @@ export function ConflictResolver({ workspaceId, path, text }: ConflictResolverPr
 		if (!complete || saving) return;
 		const decided = choices.filter((choice): choice is ConflictChoice => choice !== null);
 		setSaving(true);
-		const result = await saveAsShown(decided);
+		// The choices apply by position, so the service takes them only on the text the rows show.
+		const result = await actions.files.resolveConflicts(workspaceId, path, decided, text);
 		setSaving(false);
 		if (!result.ok && result.error.code !== CONFLICT_SAVED_NOT_STAGED) {
 			toastError("Failed to save conflict resolution", result.error);
@@ -95,21 +94,6 @@ export function ConflictResolver({ workspaceId, path, text }: ConflictResolverPr
 		if (!result.ok) toastError("Saved, but could not stage the file", result.error);
 		await queryClient.invalidateQueries({ queryKey: ["git"] });
 		await queryClient.invalidateQueries({ queryKey: fileQueryKey(workspaceId, path) });
-	};
-
-	// The choices apply by position, so they may only land on the text the rows were drawn from.
-	const saveAsShown = async (decided: ConflictChoice[]) => {
-		const now = await readNow();
-		if (!now.ok) return now;
-		if (now.value.kind !== "text" || now.value.text !== text) {
-			return err(
-				appError(
-					"changed_on_disk",
-					`"${path}" changed on disk after its conflicts were shown. Check them again.`,
-				),
-			);
-		}
-		return actions.files.resolveConflicts(workspaceId, path, decided);
 	};
 
 	return (

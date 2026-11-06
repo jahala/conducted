@@ -27,6 +27,7 @@ describe("PLAT-07 working folders for the login environment", () => {
 				.mockImplementation(async (cwd) => ({
 					shell: "/bin/zsh",
 					path: cwd === workspace.path ? "/mise/shims:/usr/bin" : "/usr/bin",
+					zdotdir: null,
 				}));
 			const spawn = vi.spyOn(test.container.platform.pty, "spawn");
 

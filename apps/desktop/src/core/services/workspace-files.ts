@@ -32,8 +32,9 @@
  * copies the picked files into the workspace's `.context` folder, then reads the first page
  * again; a picked file whose name is already in `.context` is refused and the other files are
  * still copied; the first failure is returned. A conflict resolution needs one choice per conflict
- * and the same number as the file holds; malformed markers or a count that does not match fail
- * before the file is written. The save is atomic, and after it leaves no markers the file is
+ * and the same number as the file holds, made on the text that is on disk now: a file that changed
+ * after the screen read it (`conflict_changed_on_disk`), malformed markers or a count that does not
+ * match fail before the file is written. The save is atomic, and after it leaves no markers the file is
  * staged with `git add`. A `git add` that fails after the write (an index lock, a linked folder
  * that is not a repository) returns `conflict_saved_not_staged`, so the screen does not call a
  * save that landed a failed save.
@@ -200,6 +201,9 @@ const artifactEntryFrom = (context: string, entry: FileStat): ArtifactEntry | nu
 		modifiedAt: entry.modifiedAt,
 	};
 };
+
+/** The file no longer holds the text its conflict choices were made on, so nothing was written. */
+export const CONFLICT_CHANGED_ON_DISK = "conflict_changed_on_disk";
 
 /** A conflict resolution was written to disk, but `git add` failed afterwards. */
 export const CONFLICT_SAVED_NOT_STAGED = "conflict_saved_not_staged";
@@ -671,18 +675,29 @@ export class WorkspaceFilesService {
 	}
 
 	/**
-	 * Backs `Actions.files.resolveConflicts`. Malformed markers fail without changing the file.
-	 * When the saved text has no markers left, the file is staged so it leaves the conflicted list.
+	 * Backs `Actions.files.resolveConflicts`. The choices apply by position, so they land only on the
+	 * text they were made on (`seenText`); a file that changed since, or malformed markers, fail
+	 * without changing the file. When the saved text has no markers left, the file is staged so it
+	 * leaves the conflicted list.
 	 */
 	async resolveConflicts(
 		workspaceId: WorkspaceId,
 		relativePath: string,
 		choices: readonly ConflictChoice[],
+		seenText: string,
 	): Promise<Result<void>> {
 		const resolved = await this.#resolve(workspaceId, relativePath);
 		if (!resolved.ok) return resolved;
 		const read = await this.#deps.fs.readText(resolved.value.absolute);
 		if (!read.ok) return read;
+		if (read.value !== seenText) {
+			return err(
+				appError(
+					CONFLICT_CHANGED_ON_DISK,
+					`"${relativePath}" changed on disk after its conflicts were shown. Check them again.`,
+				),
+			);
+		}
 		const applied = applyConflictChoices(read.value, choices);
 		if (!applied.ok) return applied;
 		const remaining = parseConflictMarkers(applied.value);

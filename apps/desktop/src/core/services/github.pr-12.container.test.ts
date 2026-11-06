@@ -17,7 +17,10 @@ describe("PR-12 catch-up through the real container", () => {
 			const off = await harness.container.actions.settings.set("github_stacked_prs_enabled", false);
 			expect(off.ok).toBe(true);
 
-			const caught = await harness.container.services.github.catchUpStackBranch(workspace.id);
+			const caught = await harness.container.services.github.catchUpStackBranch(
+				workspace.id,
+				() => false,
+			);
 
 			expect(caught).toEqual({ ok: true, value: { kind: "skipped", reason: "not_in_stack" } });
 		} finally {

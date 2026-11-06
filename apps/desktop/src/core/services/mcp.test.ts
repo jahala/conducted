@@ -81,7 +81,7 @@ describe("SET-05 MCP server status", () => {
 				{
 					name: "linear",
 					source: "user",
-					transport: "stdio",
+					transport: null,
 					status: "needs_auth",
 					toolCount: null,
 					error: "Sign in to Linear.",
@@ -89,8 +89,8 @@ describe("SET-05 MCP server status", () => {
 				},
 				{
 					name: "broken",
-					source: "project",
-					transport: "stdio",
+					source: "local",
+					transport: null,
 					status: "failed",
 					toolCount: null,
 					error: "permission denied",
@@ -114,7 +114,7 @@ describe("SET-05 MCP server status", () => {
 				{
 					name: "linear",
 					source: "user",
-					transport: "stdio",
+					transport: null,
 					status: "needs_auth",
 					toolCount: null,
 					error: "Sign in to Linear.",
@@ -122,8 +122,8 @@ describe("SET-05 MCP server status", () => {
 				},
 				{
 					name: "broken",
-					source: "project",
-					transport: "stdio",
+					source: "local",
+					transport: null,
 					status: "failed",
 					toolCount: null,
 					error: "permission denied",
@@ -131,6 +131,21 @@ describe("SET-05 MCP server status", () => {
 				},
 			],
 		});
+	});
+
+	it("SET-05 passes a plugin's scope and an sse transport through", async () => {
+		const request = vi
+			.fn()
+			.mockResolvedValue(
+				ok({ servers: [{ name: "docs", status: "connected", scope: "plugin", transport: "sse" }] }),
+			);
+		const service = serviceWith(request as unknown as SidecarClient["request"]);
+
+		const result = await service.refresh({ agent: "claude", workspacePath: "/code/app" });
+
+		expect(
+			result.ok && result.value.map(({ source, transport }) => ({ source, transport })),
+		).toEqual([{ source: "plugin", transport: "sse" }]);
 	});
 
 	it("SET-05 keeps the newer list when an older refresh answers last", async () => {
@@ -156,8 +171,8 @@ describe("SET-05 MCP server status", () => {
 			data: [
 				{
 					name: "newer",
-					source: "user",
-					transport: "stdio",
+					source: null,
+					transport: null,
 					status: "connected",
 					toolCount: null,
 					error: null,

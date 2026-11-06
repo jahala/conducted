@@ -380,7 +380,12 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				if (typeof cwd === "string" && !isAbsolute(cwd)) {
 					return fail("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
 				}
-				return { shell: process.env.SHELL ?? "/bin/sh", path: process.env.PATH ?? "" };
+				const zdotdir = process.env.ZDOTDIR;
+				return {
+					shell: process.env.SHELL ?? "/bin/sh",
+					path: process.env.PATH ?? "",
+					zdotdir: zdotdir === undefined || zdotdir === "" ? null : zdotdir,
+				};
 			}
 			case COMMANDS.shellRun: {
 				const process_ = await launch(args.command as ShellCommand);
