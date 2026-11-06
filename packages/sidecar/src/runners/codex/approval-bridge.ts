@@ -11,8 +11,11 @@
  *  - the abort of a turn (interrupt) resolves waiting requests as cancel, which the broker does
  *    by answering "withdrawn"
  *  - one interaction at a time is enforced by the broker; handlers just await it
- *  - a permission grant and an MCP form expire after 300 seconds; command and file approvals and
- *    questions wait for the user
+ *  - a permission grant and an MCP form expire after 300 seconds: Codex gets the timeout reply and
+ *    the interaction is withdrawn at the broker through the abort signal, so the card closes and the
+ *    chat's next interaction can open; command and file approvals and questions wait for the user
+ *  - dispose (the session ends or its app server is replaced): every request still waiting stops,
+ *    its timer is cleared and its interaction is withdrawn
  *  - the question tool (`item/tool/requestUserInput`): each question's options become labels,
  *    answers are returned keyed by question id; more than four questions are asked in groups of
  *    four, and a question with more options than a card can show is refused, not trimmed
@@ -57,7 +60,16 @@ export interface CodexApprovalBridgeDeps {
 }
 
 export class CodexApprovalBridge {
+	/** Stops each request still waiting for the user: clears its timer and withdraws it. */
+	private readonly waiting = new Set<() => void>();
+
 	constructor(protected readonly deps: CodexApprovalBridgeDeps) {}
+
+	/** Stops every request still waiting. Codex's own requests end with its process. */
+	dispose(): void {
+		for (const stop of [...this.waiting]) stop();
+		this.waiting.clear();
+	}
 
 	/** Registers the five server-request handlers on the client. Call once after connect(). */
 	register(): void {
@@ -179,23 +191,34 @@ export class CodexApprovalBridge {
 		withTimeout: boolean,
 	): Promise<Asked> {
 		this.deps.logger.debug("CodexApprovalBridge: asking the user", { kind: interaction.kind });
-		const pending = callbacks.requestInteraction(interaction);
-		const answer = settled(pending);
-		if (!withTimeout) return handled(await answer, this.deps.logger);
-		let cancel = () => {};
-		const timeout = new Promise<"timeout">((resolve) => {
-			const schedule = this.deps.scheduleTimeout ?? scheduleWithSetTimeout;
-			cancel = schedule(() => resolve("timeout"), CODEX_INTERACTION_TIMEOUT_MS);
-		});
-		const first = await Promise.race([
-			answer.then((outcome) => ({ kind: "settled" as const, outcome })),
-			timeout.then(() => ({ kind: "timeout" as const })),
-		]);
-		cancel();
-		if (first.kind === "timeout") {
-			return { answer: { kind: "withdrawn" }, timedOut: true, unavailable: false };
+		const asking = new AbortController();
+		let cancelTimer = (): void => {};
+		const stop = (): void => {
+			cancelTimer();
+			asking.abort();
+		};
+		this.waiting.add(stop);
+		try {
+			const answer = settled(callbacks.requestInteraction(interaction, asking.signal));
+			if (!withTimeout) return handled(await answer, this.deps.logger);
+			const timeout = new Promise<"timeout">((resolve) => {
+				const schedule = this.deps.scheduleTimeout ?? scheduleWithSetTimeout;
+				cancelTimer = schedule(() => resolve("timeout"), CODEX_INTERACTION_TIMEOUT_MS);
+			});
+			const first = await Promise.race([
+				answer.then((outcome) => ({ kind: "settled" as const, outcome })),
+				timeout.then(() => ({ kind: "timeout" as const })),
+			]);
+			cancelTimer();
+			if (first.kind === "timeout") {
+				// Codex stops waiting, so the card must close too, or it blocks the chat's next one.
+				asking.abort();
+				return { answer: { kind: "withdrawn" }, timedOut: true, unavailable: false };
+			}
+			return handled(first.outcome, this.deps.logger);
+		} finally {
+			this.waiting.delete(stop);
 		}
-		return handled(first.outcome, this.deps.logger);
 	}
 
 	private reportOutcome(

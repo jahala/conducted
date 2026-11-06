@@ -17,14 +17,16 @@ import type {
 	SessionId,
 	TurnId,
 } from "@conducted/shared";
-import { ok } from "@conducted/shared";
+import { appError, ok } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
 	CheckpointRequest,
 	CheckpointService,
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
+import { RunnerModelCatalog } from "../models/catalog.ts";
 import { FileEventOutbox } from "../outbox/event-outbox.ts";
+import { IDLE_STOP_AFTER_MS } from "../process/idle-policy.ts";
 import type { PromptAssembler, PromptInput } from "../prompt/assemble.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
 import { SteerRevertedError } from "../runners/errors.ts";
@@ -251,13 +253,27 @@ class FakeRunner implements Runner {
 	}
 
 	async listModels(): Promise<ModelInfo[]> {
+		this.listModelsCalls += 1;
 		return this.models;
 	}
+
+	listModelsCalls = 0;
 
 	async listSlashCommands(
 		_workspacePath: string,
 	): Promise<{ name: string; description: string }[]> {
 		return [];
+	}
+}
+
+/** A runner whose program is missing: start fails with the error a real runner gives. */
+class MissingProgramRunner extends FakeRunner {
+	override async start(options: StartOptions): Promise<AgentSession> {
+		this.started.push(options);
+		throw appError(
+			"agent_not_installed",
+			"Claude Code was not found. Install it, or choose its program in Settings.",
+		);
 	}
 }
 
@@ -409,6 +425,8 @@ function harness(
 		realPipeline?: boolean;
 		/** Provider keys the captured login shell has, for "Use the key from this Mac". */
 		macSecrets?: Record<string, string>;
+		/** The process manager stand-in, when a test moves its clock. */
+		processes?: FakeProcesses;
 	} = {},
 ): Harness {
 	const app = new FakeApp();
@@ -417,7 +435,7 @@ function harness(
 	const liveState = options.liveState?.(app) ?? new TestLiveState(app);
 	let pipelineLiveState: LiveStateStore | null = null;
 	const turns = new FakeTurns();
-	const processes = new FakeProcesses();
+	const processes = options.processes ?? new FakeProcesses();
 	const prompt = options.prompt ?? new FakePrompt();
 	const publisher = new FakePublisher();
 	const interactions = new FakeInteractions();
@@ -473,6 +491,7 @@ function harness(
 		liveState: pipelineLiveState ?? liveState,
 		interactions,
 		queue,
+		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `event-${++nextId}` },
 		logger,
@@ -1321,5 +1340,94 @@ describe("SIDE-21 a changed launch restarts the agent only when the chat is free
 
 		const runner = h.runners.get("claude") as FakeRunner;
 		expect(runner.started[0]?.env.ANTHROPIC_API_KEY).toBe("sk-from-the-mac");
+	});
+});
+
+describe("SIDE-03 a turn that cannot start", () => {
+	test("SIDE-03 a send whose agent cannot start answers with that start's own error", async () => {
+		const h = harness({ runners: [new MissingProgramRunner("claude")] });
+
+		const result = await h.manager.sendMessage(sendParams());
+
+		expect(result).toMatchObject({
+			ok: false,
+			error: {
+				code: "agent_not_installed",
+				message: "Claude Code was not found. Install it, or choose its program in Settings.",
+			},
+		});
+		expect(h.turns.turns).toHaveLength(0);
+	});
+
+	test("SIDE-03 a queued message whose turn cannot start is stored with the reason", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const queued = await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				text: "next",
+				firstMessage: false,
+				launch: {
+					env: {},
+					providerKeys: { ANTHROPIC_API_KEY: { value: "", source: "this_mac" } },
+				},
+			}),
+		);
+		expect(queued).toEqual(ok({ deliveredAs: "queued" }));
+
+		await h.turns.last().succeed();
+		await until(
+			() => h.publisher.events.some(({ event }) => event.type === "turn_ended"),
+			"the queued message's turn to end",
+		);
+
+		const stored = h.publisher.events
+			.map(({ event }) => event)
+			.filter((event) => event.turnId === tid("turn-2"));
+		expect(stored.map((event) => event.type)).toEqual(["user_message", "turn_ended"]);
+		expect(stored[0]).toMatchObject({ messageId: mid("message-2"), text: "next" });
+		expect(stored[1]).toMatchObject({ outcome: "error" });
+		const ended = stored[1];
+		expect(ended?.type === "turn_ended" ? ended.error : undefined).toContain("ANTHROPIC_API_KEY");
+		expect(h.turns.turns).toHaveLength(1);
+	});
+});
+
+describe("SIDE-07 and SIDE-14 the agents the manager keeps", () => {
+	test("SIDE-07 an ACP chat whose agent the idle stop ended starts a new one for its options", async () => {
+		let now = 0;
+		const processes = new FakeProcesses({ now: () => now });
+		const h = harness({ runners: [new FakeRunner("acp")], processes });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+		await h.turns.last().succeed();
+		await until(() => processes.idle.length > 0, "the process to go idle");
+		now = IDLE_STOP_AFTER_MS + 1;
+		await processes.sweep();
+		expect(processes.agents.size).toBe(0);
+
+		const listed = await h.manager.listAcpConfigOptions({ sessionId: sid("session-1") });
+
+		expect(listed).toEqual(ok({ options: [] }));
+		const runner = h.runners.get("acp") as FakeRunner;
+		expect(runner.started).toHaveLength(2);
+		expect(processes.agents.size).toBe(1);
+	});
+
+	test("SIDE-14 warming a chat twice reads the agent's model list once, through the catalog", async () => {
+		const h = harness();
+		const params = {
+			sessionId: sid("session-1"),
+			config: baseConfig(),
+			workspace: workspace("/work/alpha"),
+			launch: launch(),
+		};
+
+		await h.manager.warmAgent(params);
+		await h.manager.warmAgent(params);
+
+		const runner = h.runners.get("claude") as FakeRunner;
+		expect(runner.listModelsCalls).toBe(1);
 	});
 });

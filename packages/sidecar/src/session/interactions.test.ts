@@ -286,6 +286,48 @@ describe("SIDE-11 interactions", () => {
 		await questionAnswer;
 	});
 
+	test("SIDE-11 an interaction the agent stops waiting for closes and the next one opens", async () => {
+		const h = harness();
+		const session = sid("session-1");
+		const stopped = new AbortController();
+		const first = h.broker.open(session, permission, stopped.signal);
+		const second = h.broker.open(session, question);
+		await until(() => h.app.requests.length === 1, "the permission request");
+
+		stopped.abort();
+
+		expect(await first).toEqual({ kind: "withdrawn" });
+		await until(() => h.app.requests.length === 2, "the question to open next");
+		expect(requestAt(h.app, 1)?.interaction).toEqual(question);
+		expect(h.broker.openRequest(session)?.interactionId).toBe(iid("interaction-2"));
+		await until(
+			() => h.liveState.get(session).openInteraction?.interactionId === iid("interaction-2"),
+			"live state to show the question instead of the permission",
+		);
+		expect(
+			h.broker.answer(session, iid("interaction-1"), { kind: "permission_grant", granted: true }),
+		).toEqual({ accepted: false, superseded: true });
+		h.broker.withdrawAll(session);
+		await second;
+	});
+
+	test("SIDE-11 a waiting interaction the agent stops waiting for never opens", async () => {
+		const h = harness();
+		const session = sid("session-1");
+		const stopped = new AbortController();
+		const first = h.broker.open(session, question);
+		const second = h.broker.open(session, permission, stopped.signal);
+		await until(() => h.app.requests.length === 1, "the question request");
+
+		stopped.abort();
+		expect(await second).toEqual({ kind: "withdrawn" });
+		h.broker.answer(session, iid("interaction-1"), { kind: "question", answers: [["A"]] });
+		expect(await first).toEqual({ kind: "question", answers: [["A"]] });
+
+		expect(h.broker.openRequest(session)).toBeUndefined();
+		expect(h.app.requests).toHaveLength(1);
+	});
+
 	test("SIDE-11 keeps one open per chat without blocking another chat", async () => {
 		const h = harness();
 		const first = h.broker.open(sid("session-1"), question);

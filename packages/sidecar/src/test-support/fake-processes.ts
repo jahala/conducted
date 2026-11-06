@@ -9,7 +9,8 @@
  * Contract test: fake-processes.test.ts
  * Must handle: single flight on one key, release() that leaves a process busy unless it went idle
  * after the claim, a process that was never idle (never stopped by the idle rule), background
- * tasks, a disconnect while a start is pending, and a dispose that throws during stopAll.
+ * tasks, a disconnect while a start is pending, a dispose that throws during stopAll, and holds()
+ * answering false once an agent was stopped.
  * Test first: fake-processes.test.ts, "a released lease keeps the process busy until markIdle".
  */
 import type { Clock } from "@conducted/shared";
@@ -103,6 +104,12 @@ export class FakeProcesses implements ProcessManager {
 		this.backgroundTaskCalls.push({ key, hasTasks });
 		const entry = this.entries.get(key);
 		if (entry !== undefined) entry.hasBackgroundTasks = hasTasks;
+	}
+
+	holds(key: string, agent: AgentSession): boolean {
+		const entry = this.entries.get(key);
+		if (entry === undefined || entry.disconnected) return false;
+		return entry.agent === null || entry.agent === agent;
 	}
 
 	async disconnect(key: string): Promise<void> {

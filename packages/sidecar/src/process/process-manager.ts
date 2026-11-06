@@ -10,7 +10,10 @@
  *  - claimActive on a key that is starting: share the start (single flight), do not start twice
  *  - claimActive sets retention "active"; ensureWarm sets "warm" but never downgrades an active one
  *  - release() on a lease: the process stays; only markIdle starts the idle clock
- *  - markBusy / markIdle follow the chat's live state; markIdle stamps lastIdleAt
+ *  - markIdle stamps lastIdleAt; the session manager calls it when a chat has no turn running.
+ *    markBusy has no caller yet: AGENT-15's self-started turns will mark busy when they begin
+ *  - holds(key, agent): whether an agent the session manager remembers is still this key's
+ *    process, so a chat never reuses an agent the idle stop or the warm cap ended
  *  - race: markIdle then markBusy before the sweep runs: the sweep must see busy (idle
  *    generation guard; markBusyIfIdleGenerationUnchanged in Conductor)
  *  - sweep() reads the clock and is called every 2 s by the watchdog tick; a process with
@@ -48,6 +51,11 @@ export interface ProcessManager {
 	markIdle(key: string): void;
 	/** Tells the manager which chats have background tasks, so the idle sweep spares them. */
 	setBackgroundTasks(key: string, hasTasks: boolean): void;
+	/**
+	 * True while `agent` is still the process of `key` (or that key's start is still running). False
+	 * once it was stopped: by disconnect, the idle stop, the warm cap or stopAll.
+	 */
+	holds(key: string, agent: AgentSession): boolean;
 	/** Stops one process and forgets it. */
 	disconnect(key: string): Promise<void>;
 	/** Applies the idle rule and the warm cap. Called every SWEEP_INTERVAL_MS. */
@@ -140,6 +148,12 @@ export class AgentProcessManager implements ProcessManager {
 		const entry = this.entries.get(key);
 		if (entry === undefined) return;
 		entry.hasBackgroundTasks = hasTasks;
+	}
+
+	holds(key: string, agent: AgentSession): boolean {
+		const entry = this.entries.get(key);
+		if (entry === undefined || entry.disconnected) return false;
+		return entry.state === "starting" || entry.agent === agent;
 	}
 
 	async disconnect(key: string): Promise<void> {

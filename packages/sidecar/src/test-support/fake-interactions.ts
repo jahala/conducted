@@ -7,7 +7,9 @@
  * answers or it is withdrawn; the fake answers at once, so a test that needs to wait uses
  * `holdOpen` and `answerOpen`.
  * Must handle: opened interactions recorded in order, withdrawAll calls recorded per chat, the
- * result of `answer` set by the test, and the open request a chat resends after a reconnect.
+ * result of `answer` set by the test, the open request a chat resends after a reconnect, and an
+ * abort of the signal passed to `open` (a held interaction is answered with a withdrawal, as the
+ * real broker does).
  * Test first: none. The real broker is tested in session/interactions.test.ts; this fake answers at
  * once and does not model the queue, so tests that need the queue use the real broker.
  */
@@ -29,11 +31,24 @@ export class FakeInteractions implements InteractionBroker {
 	holdOpen = false;
 	private readonly waiting: ((answer: InteractionAnswer) => void)[] = [];
 
-	open(sessionId: SessionId, interaction: Interaction): Promise<InteractionAnswer> {
+	open(
+		sessionId: SessionId,
+		interaction: Interaction,
+		signal?: AbortSignal,
+	): Promise<InteractionAnswer> {
 		this.opened.push({ sessionId, interaction });
-		if (!this.holdOpen) return Promise.resolve({ kind: "withdrawn" });
+		if (!this.holdOpen || signal?.aborted === true) return Promise.resolve({ kind: "withdrawn" });
 		return new Promise<InteractionAnswer>((resolve) => {
 			this.waiting.push(resolve);
+			signal?.addEventListener(
+				"abort",
+				() => {
+					const index = this.waiting.indexOf(resolve);
+					if (index >= 0) this.waiting.splice(index, 1);
+					resolve({ kind: "withdrawn" });
+				},
+				{ once: true },
+			);
 		});
 	}
 

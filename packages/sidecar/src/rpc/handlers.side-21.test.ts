@@ -28,7 +28,6 @@ const deps = (): HandlerDeps => ({
 		answerInteraction: async () => ({ accepted: false, superseded: true }),
 		listAcpConfigOptions: async () => ok({ options: [] }),
 		setAcpConfigOption: async () => ok({ options: [] }),
-		liveStateOf: () => undefined,
 		onAppAttached: () => {},
 		shutdown: async () => {},
 	},

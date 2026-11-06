@@ -273,6 +273,20 @@ describe("SIDE-21 Claude provider environment", () => {
 		expect(must(claudeProviderEnvironment(" Anthropic "))).toEqual({});
 	});
 
+	test("SIDE-21 the unknown-provider message lists every provider value Claude takes, from one table", () => {
+		const result = claudeProviderEnvironment("mystery");
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			for (const id of [
+				...agentProviders("claude").map((provider) => provider.id),
+				"foundry",
+				"mantle",
+			]) {
+				expect(result.error.message).toContain(id);
+			}
+		}
+	});
+
 	test("SIDE-21 an unknown provider is an error value that names it", () => {
 		const result = claudeProviderEnvironment("bedrockish");
 		expect(result.ok).toBe(false);

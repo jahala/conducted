@@ -14,7 +14,8 @@
  *  - ExitPlanMode input without a plan string: denied with a message, not a crash
  *  - the no-click plan exit applies in the normal modes reached with approvals on: "default" and
  *    "auto"; the plan still asks when the chat is in plan mode
- *  - the abort signal fires while waiting: the call denies as withdrawn
+ *  - the abort signal fires while waiting: the call denies as withdrawn, and the signal also
+ *    withdraws the card at the broker, so it does not stay open in the app
  *  - the answer kind does not match the question: treated as withdrawn
  *  - approval granted with "allow_edits_for_session": later edit calls skip the question
  *  - after an approved plan, setPermissionMode is called on the query with the next mode
@@ -159,7 +160,7 @@ export class ClaudePermissionHandler {
 			...(planFilePath === undefined ? {} : { planFilePath }),
 		};
 		const answer = await this.awaitAnswer(
-			callbacks.requestInteraction(interaction),
+			callbacks.requestInteraction(interaction, options.signal),
 			options.signal,
 		);
 		const outcome = toPlanResult(input, answer, config, planFilePath);
@@ -189,7 +190,7 @@ export class ClaudePermissionHandler {
 			...(options.agentID === undefined ? {} : { subAgentId: options.agentID }),
 		};
 		const answer = await this.awaitAnswer(
-			callbacks.requestInteraction(interaction),
+			callbacks.requestInteraction(interaction, options.signal),
 			options.signal,
 		);
 		const outcome = toPermissionResult(toolName, input, answer, options.suggestions);
