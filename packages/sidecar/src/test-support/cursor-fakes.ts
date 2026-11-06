@@ -8,7 +8,7 @@
  * with a status, `steer()` answers complete_delivered or revert_to_followup, a refused key throws
  * the SDK's AuthenticationError, and `module()` exports `createAgentPlatform` and
  * `AuthenticationError` as the package does. The real package was checked against the loader and
- * these shapes by hand on 2026-11-06 (docs/decisions.md D078).
+ * these shapes by hand on 2026-11-06 (docs/decisions.md D083).
  * Contract test: packages/sidecar/src/runners/cursor/cursor-session.test.ts and load-sdk.test.ts
  * Must handle: a run that streams messages and then waits, a run that is cancelled, a run whose
  * wait fails or ends in an error result, a steer that is delivered or handed back, a run without

@@ -33,7 +33,7 @@ export type AcpAgent = (typeof ACP_AGENTS)[number];
 /**
  * Programs the app downloads, verifies, updates and prunes for the user (D021, D024). The user may
  * choose a copy of their own instead in settings. `cursor` is Cursor's SDK, a package tree the
- * sidecar loads in process and installs only when the user asks (D010, D078). ACP adapters
+ * sidecar loads in process and installs only when the user asks (D010, D083). ACP adapters
  * (OpenCode, Pi) are not in this list: the sidecar installs those.
  */
 export const MANAGED_PROGRAMS = ["claude", "codex", "gh", "watchexec", "cursor"] as const;

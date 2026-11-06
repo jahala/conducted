@@ -12,7 +12,7 @@
  * Test first: saving a non-existent program path shows the error and does not call settings.set.
  *
  * PLAT-28 also renders the Agent binaries section here: the state of the Claude Code and Codex
- * programs and of Cursor's SDK (AGENT-09, installed only from here, D078), with Install or Retry,
+ * programs and of Cursor's SDK (AGENT-09, installed only from here, D083), with Install or Retry,
  * Re-download and Remove. The programs themselves are downloaded and verified by the system
  * service, not by this page.
  */

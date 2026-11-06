@@ -86,7 +86,7 @@ export interface SystemServiceDeps {
 /**
  * The programs the Advanced page lists. gh and watchexec are managed too (PLAT-35) but stay off
  * it, as Conductor lists only its agent programs there (ui-map 7.4). Cursor's SDK is listed: it
- * installs only from there, because it is never bundled (AGENT-09, D078).
+ * installs only from there, because it is never bundled (AGENT-09, D083).
  */
 const AGENT_PROGRAMS: readonly ManagedProgram[] = ["claude", "codex", "cursor"];
 

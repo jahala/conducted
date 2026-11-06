@@ -748,7 +748,7 @@ export interface SidecarPorts {
 	spawnCodex: SpawnJsonRpcChild;
 	spawnAcp: SpawnAcpChild;
 	/**
-	 * Imports Cursor's SDK from the file the program manager installed (D078). Called at the first
+	 * Imports Cursor's SDK from the file the program manager installed (D083). Called at the first
 	 * Cursor chat, never at startup.
 	 */
 	importCursorSdk(entry: string): Promise<unknown>;
@@ -861,7 +861,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		findManagedProgram: async (selector) => {
 			if (MANAGED_AGENTS.has(selector.agent)) return findManagedProgram(selector.agent);
 			if (selector.agent !== "cursor") return null;
-			// Cursor's SDK is the app's own copy when the program manager installed it (D078).
+			// Cursor's SDK is the app's own copy when the program manager installed it (D083).
 			const located = await cursorSdk.locate();
 			if (!located.ok || located.value === null) return null;
 			return { path: located.value.folder, version: located.value.version };

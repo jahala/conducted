@@ -84,7 +84,7 @@
 //! unpacking it into `agent-binaries/cursor/<version>/node_modules/<name>/`, and the
 //! `agent-binaries/cursor/current` link the sidecar loads the SDK through.
 //! Behaviour: the owner's rulings for AGENT-09 and PLAT-28: the SDK installs on demand through
-//! this manager and is never bundled (D010, D078); each tarball is pinned by exact version, size
+//! this manager and is never bundled (D010, D083); each tarball is pinned by exact version, size
 //! and SHA-256 from the vendors' official release host.
 //! Must handle: a tarball with a wrong checksum, a broken tarball or an entry outside its package
 //! (nothing is installed: the tree is unpacked into a staging folder that is removed, and only a

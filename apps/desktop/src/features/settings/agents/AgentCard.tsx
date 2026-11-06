@@ -43,7 +43,7 @@ export interface AgentCardProps {
 /** What the card calls the program's source, in Conductor's words (ui-map.md 6). */
 /**
  * How to get a missing agent. Cursor runs through its SDK, which the app installs on the Advanced
- * page and never bundles (AGENT-09, D078); every other agent is a program on this Mac.
+ * page and never bundles (AGENT-09, D083); every other agent is a program on this Mac.
  */
 function installHelp(install: AgentInstall, name: string): string {
 	if (install.agent === "cursor") {

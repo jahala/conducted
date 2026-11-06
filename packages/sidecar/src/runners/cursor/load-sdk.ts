@@ -4,7 +4,7 @@
  * adapting the loaded module to the narrow interface (cursor-sdk.ts).
  * Behaviour: research/conductor/other-runners.md section 2.3 (the SDK is loaded lazily in
  * process). The owner ruled that the SDK installs on demand through the program manager and is
- * never bundled (D010, D078): binaries.rs unpacks it into
+ * never bundled (D010, D083): binaries.rs unpacks it into
  * `<agent binaries>/cursor/<version>/node_modules/` and points `cursor/current` at the version.
  * The loader reads `cursor/current/node_modules/@cursor/sdk/package.json`, imports the file its
  * `bun` export names, and takes `createAgentPlatform` and `AuthenticationError` from it. Nothing
