@@ -131,11 +131,11 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | WS-04  | Rename the placeholder branch after the first message                 | D/core/services                              | frontend 6           | 2   | done   | WS-01, CHAT-02, SIDE-24          |
 | WS-05  | Archive: snapshot, archive ref, archive script, remove worktree       | D/core/services                              | services-map 3.10    | 2   | done   | WS-01, GIT-10                    |
 | WS-06  | Unarchive                                                             | D/core/services                              | services-map 3.10    | 2   | done   | WS-05                            |
-| WS-07  | Linked workspaces and extra folders                                   | D/core/services                              | ui-map 3.10          | 3   | stub   | WS-01                            |
+| WS-07  | Linked workspaces and extra folders                                   | D/core/services                              | ui-map 3.10          | 3   | done   | WS-01                            |
 | WS-08  | Open a workspace in another app                                       | D/features/open-in                           | ui-map 3.10          | 2   | done   | PLAT-19                          |
 | WS-09  | Workspace status as a pure function                                   | D/core/status                                | ui-map 3.8           | 1   | done   | DATA-01                          |
 | WS-10  | Delete a workspace                                                    | D/core/services                              | services-map 3.10    | 2   | done   | WS-05                            |
-| WS-11  | Backlog workspaces: add now, start later                              | D/core/services, D/app, D/features/workspace | ui-map 3.1, 3.9, 5.4 | 3   | stub   | WS-01, WS-09, DATA-01            |
+| WS-11  | Backlog workspaces: add now, start later                              | D/core/services, D/app, D/features/workspace | ui-map 3.1, 3.9, 5.4 | 3   | done   | WS-01, WS-09, DATA-01            |
 
 ## Navigation and shell (NAV)
 
@@ -216,7 +216,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | REV-01 | Changes list and diff scopes (branch, target, uncommitted, per commit) | D/features/git-panel                    | ui-map 3.6                      | 1   | done   | GIT-02                           |
 | REV-02 | Diff viewer: unified, split, whitespace, viewed files                  | D/features/diff                         | ui-map 3.6                      | 1   | done   | REV-01                           |
 | REV-03 | Inline review comments with suggestions                                | D/features/diff                         | ui-map 3.6                      | 2   | done   | REV-02, DATA-01, SIDE-12         |
-| REV-04 | Sync review comments with GitHub                                       | D/core/services                         | services-map 5B                 | 3   | stub   | REV-03, PR-01                    |
+| REV-04 | Sync review comments with GitHub                                       | D/core/services                         | services-map 5B                 | 3   | done   | REV-03, PR-01                    |
 | REV-05 | AI code review in a new chat                                           | D/core/services                         | ui-map 3.6                      | 2   | done   | CHAT-01, REV-01                  |
 | REV-06 | File tree tab                                                          | D/features/git-panel                    | ui-map 3.6                      | 2   | done   | PLAT-06, REV-01                  |
 | REV-07 | Quick open and search in files                                         | D/features/palette                      | ui-map 3.10                     | 2   | done   | PLAT-06                          |
@@ -266,7 +266,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | ID     | Feature                                                             | Owner                         | Research                                       | P   | Status | Needs                     |
 | ------ | ------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------- | --- | ------ | ------------------------- |
 | RUN-01 | Run actions with start and stop, concurrent or exclusive            | D/core/services               | ui-map 3.7                                     | 2   | done   | DATA-05, PLAT-03, PLAT-07 |
-| RUN-02 | Spotlight: test workspace changes in the repo root, restore on stop | D/core/services, bin          | services-map 3.12                              | 3   | stub   | RUN-01, GIT-10            |
+| RUN-02 | Spotlight: test workspace changes in the repo root, restore on stop | D/core/services, bin          | services-map 3.12                              | 3   | done   | RUN-01, GIT-10            |
 | RUN-03 | One port per workspace, port detection, preview URLs                | D/core/services               | ui-map 3.7                                     | 2   | done   | RUN-01, PLAT-03           |
 | RUN-04 | Browser preview tab                                                 | D/features/browser-preview    | ui-map 3.2                                     | 3   | stub   | RUN-03, NAV-10            |
 | RUN-05 | Point at page elements in the preview and send them to the chat     | D/features/browser-preview    | native-and-sidecar-map B3                      | 3   | stub   | RUN-04, COMP-07           |
@@ -291,7 +291,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | done    | SET-09, AGENT-12                          |
 | SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | stub    | SET-04                                    |
 | SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | stub    | SET-03, APP-12, AGENT-16                  |
-| SET-13 | Chosen program paths reach terminals and scripts                  | D/core/services, R/shell.rs        | services-map 5A.8.2       | 3   | stub    | SET-03, PLAT-04, PLAT-07                  |
+| SET-13 | Chosen program paths reach terminals and scripts                  | D/core/services, R/shell.rs        | services-map 5A.8.2       | 3   | done    | SET-03, PLAT-04, PLAT-07                  |
 | SET-14 | Keep comments when the app rewrites a settings file               | D/core/services                    | services-map 4.2          | 2   | planned | DATA-05                                   |
 
 ## App (APP)
