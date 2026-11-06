@@ -22,11 +22,11 @@
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
  * Built now: the program store, the install, re-download and remove actions, the send gate,
- * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, and opening the
- * sidecar and app logs.
+ * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, opening the
+ * sidecar and app logs, and copying, saving and opening an attachment in its own app (CHAT-29).
  * Our design choice: a copy that failed or is missing does not hold a message, so a copy on the
- * user's PATH runs instead (D021). Conductor holds until the copy is ready. Copying and saving
- * attachments and the feedback form are placeholders owned by CHAT-29 and APP-09.
+ * user's PATH runs instead (D021). Conductor holds until the copy is ready. The feedback form is a
+ * placeholder owned by APP-09.
  * Test first: install while a download of the same program runs starts no second download.
  *
  * @feature SET-13 Chosen program paths reach terminals and scripts
@@ -58,6 +58,7 @@ import type { Platform, ProgramState } from "../../platform/platform.ts";
 import type { FeedbackInput, Loadable } from "../api.ts";
 import { programsBinDir } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import { copyFileKeepingMode } from "../fs-helpers.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
 import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
 
@@ -101,6 +102,28 @@ const PROGRAM_PATH_SETTING: Readonly<Record<string, string>> = {
 	claude: "claude_executable_path",
 	codex: "codex_executable_path",
 };
+
+/**
+ * Reads an image file as base64 PNG. `sips` converts whatever the file holds; the temporary PNG
+ * is removed by the shell that made it. The path arrives as an argument, so a name with spaces or
+ * shell characters is not interpreted.
+ */
+const COPY_IMAGE_SCRIPT = `out=$(mktemp -t conducted-image)
+trap 'rm -f "$out"' EXIT
+sips -s format png "$1" --out "$out" >/dev/null 2>&1 || exit 1
+base64 -i "$out"`;
+
+const IMAGE_FILE = /\.(png|jpe?g|gif|webp|avif|svg|bmp|tiff?|heic)$/i;
+
+/** Base64 text, with any line breaks `base64` adds, as bytes. */
+function decodeBase64(text: string): Uint8Array {
+	const binary = atob(text.replace(/\s+/g, ""));
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index += 1) {
+		bytes[index] = binary.charCodeAt(index);
+	}
+	return bytes;
+}
 
 export class SystemService {
 	readonly store: StoreApi<SystemState>;
@@ -347,18 +370,53 @@ export class SystemService {
 	}
 
 	/** Backs `Actions.attachments.copyImage`. */
-	copyImage(_path: string): Promise<Result<void>> {
-		return notImplemented("CHAT-29");
+	async copyImage(path: string): Promise<Result<void>> {
+		const read = await this.#deps.platform.shell.run({
+			program: "sh",
+			args: ["-c", COPY_IMAGE_SCRIPT, "conducted-copy-image", path],
+			cwd: this.#deps.platform.fs.paths.home,
+		});
+		if (!read.ok) return read;
+		if (read.value.exitCode !== 0) {
+			return err(
+				appError("image_read_failed", read.value.stderr.trim() || "The image could not be read."),
+			);
+		}
+		let bytes: Uint8Array;
+		try {
+			bytes = decodeBase64(read.value.stdout);
+		} catch (cause) {
+			return err(appError("image_read_failed", "The image could not be read.", cause));
+		}
+		try {
+			await this.#deps.platform.clipboard.writeImage(bytes);
+			return ok(undefined);
+		} catch (cause) {
+			return err(
+				appError("clipboard_write_failed", "Could not copy the image to the clipboard.", cause),
+			);
+		}
 	}
 
 	/** Backs `Actions.attachments.saveAs`. */
-	saveAs(_path: string): Promise<Result<string | null>> {
-		return notImplemented("CHAT-29");
+	async saveAs(path: string): Promise<Result<string | null>> {
+		let destination: string | null;
+		try {
+			destination = await this.#deps.platform.dialogs.pickSavePath({
+				title: IMAGE_FILE.test(path) ? "Save image" : "Save file",
+				defaultPath: path.slice(path.lastIndexOf("/") + 1),
+			});
+		} catch (cause) {
+			return err(appError("save_dialog_failed", "The save dialog could not be opened.", cause));
+		}
+		if (destination === null) return ok(null);
+		const copied = await copyFileKeepingMode(this.#deps.platform.shell, path, destination);
+		return copied.ok ? ok(destination) : copied;
 	}
 
 	/** Backs `Actions.attachments.openExternally`. */
-	openExternally(_path: string): Promise<Result<void>> {
-		return notImplemented("CHAT-29");
+	openExternally(path: string): Promise<Result<void>> {
+		return this.#openPath(path, "file_open_failed", "The file could not be opened.");
 	}
 
 	/** Backs `Actions.app.sendFeedback`. */
@@ -387,6 +445,14 @@ export class SystemService {
 	}
 
 	async #openFile(path: string): Promise<Result<void>> {
+		return this.#openPath(path, "log_open_failed", "The log file could not be opened.");
+	}
+
+	async #openPath(
+		path: string,
+		failureCode: string,
+		failureMessage: string,
+	): Promise<Result<void>> {
 		const opened = await this.#deps.platform.shell.run({
 			program: "open",
 			args: [path],
@@ -395,9 +461,7 @@ export class SystemService {
 		if (!opened.ok) return opened;
 		if (opened.value.exitCode !== 0) {
 			const reason = opened.value.stderr.trim();
-			return err(
-				appError("log_open_failed", reason === "" ? "The log file could not be opened." : reason),
-			);
+			return err(appError(failureCode, reason === "" ? failureMessage : reason));
 		}
 		return ok(undefined);
 	}

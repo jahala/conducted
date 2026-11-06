@@ -1,10 +1,13 @@
 /**
  * @feature CHAT-06 Assistant text
  * @feature CHAT-24 Mermaid diagrams and video in replies
+ * @feature CHAT-29 Attachment and image viewer: copy, save, open
  * Owns: Rendering the assistant's Markdown: headings, lists, tables, links, code blocks, callouts,
  * images, Mermaid diagrams and video.
  * Behaviour: ui-map.md 3.3 (Assistant text: Markdown, Mermaid diagrams, callouts
- * Note/Tip/Important/Warning/Caution, code blocks with copy, images, video).
+ * Note/Tip/Important/Warning/Caution, code blocks with copy, images, video). A chat image has a
+ * menu with Save image and Copy image (inventory toast rows 535 to 537), and a click opens the
+ * attachment viewer (inventory label rows 343 and 462).
  * Our design choice: A small Markdown parser of our own handles the subset Conductor shows, instead
  * of adding a Markdown library. Code blocks use shiki through CodeBlock. A `mermaid` fence renders
  * through MermaidDiagram, and an image target that names a video file renders through ChatVideo.
@@ -18,8 +21,11 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
 import { useActions, useSetting } from "../../core/hooks.ts";
+import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
 import { toastError } from "../../ui/Toast.tsx";
+import { AttachmentViewer } from "../file-viewer/AttachmentViewer.tsx";
+import { useAttachmentActions } from "../file-viewer/use-attachment-actions.ts";
 import { ChatVideo, isVideoSource } from "./ChatVideo.tsx";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { ExternalLink } from "./ExternalLink.tsx";
@@ -232,13 +238,27 @@ function MarkdownImage({
 	workspaceId?: WorkspaceId;
 }) {
 	const actions = useActions();
+	const attachmentActions = useAttachmentActions();
 	const [failed, setFailed] = useState(false);
+	const [viewerOpen, setViewerOpen] = useState(false);
 	const label = alt.length > 0 ? alt : src;
 	if (REMOTE_IMAGE.test(src) && !INLINE_IMAGE.test(src)) {
 		return (
 			<ExternalLink url={src} className="text-link underline-offset-2 hover:underline">
 				{label}
 			</ExternalLink>
+		);
+	}
+	// An inline image has no file behind it, so it shows as before and has no file menu.
+	if (INLINE_IMAGE.test(src)) {
+		if (failed) return <span className="text-fg-muted">{label}</span>;
+		return (
+			<img
+				src={src}
+				alt={alt}
+				onError={() => setFailed(true)}
+				className="my-2 max-h-96 max-w-full rounded-md border border-border object-contain"
+			/>
 		);
 	}
 	if (isVideoSource(src)) {
@@ -260,12 +280,42 @@ function MarkdownImage({
 		return <span className="text-fg-muted">{label}</span>;
 	}
 	return (
-		<img
-			src={src}
-			alt={alt}
-			onError={() => setFailed(true)}
-			className="my-2 max-h-96 max-w-full rounded-md border border-border object-contain"
-		/>
+		<>
+			<ContextMenu
+				items={
+					<>
+						<ContextMenuItem onSelect={() => attachmentActions.saveFile(src, "image")}>
+							Save image
+						</ContextMenuItem>
+						<ContextMenuItem onSelect={() => attachmentActions.copyImage(src)}>
+							Copy image
+						</ContextMenuItem>
+					</>
+				}
+			>
+				<button
+					type="button"
+					onClick={() => setViewerOpen(true)}
+					aria-label={`Open ${label}`}
+					className="my-2 block max-w-full rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+				>
+					<img
+						src={src}
+						alt={alt}
+						onError={() => setFailed(true)}
+						className="max-h-96 max-w-full rounded-md border border-border object-contain"
+					/>
+				</button>
+			</ContextMenu>
+			{viewerOpen ? (
+				<AttachmentViewer
+					path={src}
+					fileName={label}
+					kind="image"
+					onClose={() => setViewerOpen(false)}
+				/>
+			) : null}
+		</>
 	);
 }
 
