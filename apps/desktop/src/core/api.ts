@@ -444,6 +444,8 @@ export interface Actions {
 			reorder: Act<[sessionId: SessionId, orderedIds: MessageId[]]>;
 			setPaused: Act<[sessionId: SessionId, paused: boolean]>;
 			sendNowAsSteer: Act<[messageId: MessageId]>;
+			/** Sends a queued message that failed to send again, once the chat can take it. */
+			retry: Act<[messageId: MessageId]>;
 		};
 	};
 	git: {

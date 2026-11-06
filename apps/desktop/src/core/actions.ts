@@ -109,6 +109,7 @@ export function createActions(
 				reorder: (sessionId, orderedIds) => services.followUpQueue.reorder(sessionId, orderedIds),
 				setPaused: (sessionId, paused) => services.followUpQueue.setPaused(sessionId, paused),
 				sendNowAsSteer: (messageId) => services.followUpQueue.sendNowAsSteer(messageId),
+				retry: (messageId) => services.followUpQueue.retry(messageId),
 			},
 		},
 		git: {
