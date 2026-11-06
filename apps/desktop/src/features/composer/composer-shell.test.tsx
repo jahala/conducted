@@ -2,7 +2,7 @@ import { idleLiveState } from "@conducted/protocol";
 import { appError, err, ok, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import "../../test/dom-polyfills.ts";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
@@ -12,17 +12,29 @@ import { ComposerService, type ComposerServiceDeps } from "../../core/services/c
 import type { SessionsState } from "../../core/services/sessions.ts";
 import type { SettingsState } from "../../core/services/settings.ts";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
+import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { memoryPlatformForShape } from "../../test/memory-platform.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { Composer } from "./Composer.tsx";
 
+// The composer reads its workspace (WS-07's linked folders) from the real workspace service, over a
+// seeded workspace, as it does in the app.
+let real: TestContainer | undefined;
+let workspaceId: WorkspaceId;
+
+beforeEach(async () => {
+	real = createTestContainer();
+	workspaceId = (await seedWorkspace(real.container)).id;
+});
+
 afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
+	real?.close();
+	real = undefined;
 });
 
 const sessionId = "chat-1" as SessionId;
-const workspaceId = "ws-1" as WorkspaceId;
 const paths = { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" };
 
 const fakeFs = () => {
@@ -78,6 +90,8 @@ interface HarnessOptions {
 }
 
 const harness = (options: HarnessOptions = {}) => {
+	if (real === undefined) throw new Error("The workspace container is built in beforeEach.");
+	const workspace = real.container.services.workspace;
 	const fake = options.fake ?? fakeFs();
 	const callbacks = new Map<number, () => void>();
 	let next = 1;
@@ -148,6 +162,7 @@ const harness = (options: HarnessOptions = {}) => {
 			composer,
 			sessions: { store: sessions },
 			settings: settingsService,
+			workspace,
 			commands,
 			agentCatalog,
 		},
