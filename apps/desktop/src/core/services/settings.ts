@@ -1,5 +1,6 @@
 /**
  * @feature DATA-05 Settings store and settings files
+ * @feature SET-14 Keep comments when the app rewrites a settings file
  * Owns: reading and writing settings from their layers (registry default, the `settings` table,
  * `~/.conducted/settings.toml`, `.conducted/settings.toml`, `.conducted/settings.local.toml`),
  * deciding the effective value, and parsing the environment variable tables of a settings file
@@ -12,16 +13,23 @@
  * no repo scope ignores repo layers; an invalid TOML file never overwrites silently (the write
  * returns an Err with code `settings_file_invalid` and the UI offers "overwrite"); unknown keys,
  * wrong types and unsupported values are dropped and reported, never thrown; a later write does
- * not undo an earlier one that failed; writes keep unknown entries, sorted keys and a `$schema`
- * line; a settings write shows in the store at once (optimistic) and rolls back if the file write
- * fails; two writes to one file run one after the other; values of sensitive settings are redacted
- * before they reach a log.
+ * not undo an earlier one that failed; writes keep unknown entries and a `$schema` line, and a new
+ * file has sorted keys; a settings write shows in the store at once (optimistic) and rolls back if
+ * the file write fails; two writes to one file run one after the other; values of sensitive
+ * settings are redacted before they reach a log.
+ * SET-14 must handle: a rewrite of an existing file changes only the entries whose values differ,
+ * keeping comments, blank lines and key order; a comment beside or directly above an entry the
+ * save removes goes with it; any other comment a save would drop (a legacy `[tasks]` table moved
+ * to `scripts.run`, a file the patch cannot edit) is quoted in a warning that refuses the first
+ * such save, and the next save that would drop the same comments goes ahead. Both settings file
+ * writers, this service and PRJ-04's repository config, write through `updateSettingsFile`.
  * Our design choice: file-backed keys (the ones with a `tomlKey` in the registry) live only in
  * TOML files; every other key lives in the `settings` table. There is no legacy `conductor.json`
  * migration. The TOML parser is passed in (`TomlCodec`) so tests and the app can differ. Per-user
  * hidden action ids belong to SET-07's file store, not to a settings file.
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
+ * SET-14 test first: saving one setting into a hand-written file changes only that value's text.
  */
 import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -49,6 +57,10 @@ import {
 export interface TomlCodec {
 	parse(text: string): Result<Record<string, unknown>>;
 	stringify(value: Record<string, unknown>): string;
+	/** Edits `text` so it holds `value`, changing only entries whose values differ (SET-14). */
+	patch(text: string, value: Record<string, unknown>): Result<string>;
+	/** Every comment of `text` in order, from its `#` to the end of its line. */
+	comments(text: string): string[];
 }
 
 /** From lowest to highest precedence. */
@@ -114,6 +126,34 @@ export const SETTINGS_LOAD_FAILED_MESSAGE = "Failed to load settings";
 export const SETTINGS_SAVE_FAILED_MESSAGE = "Failed to save setting";
 export const GIT_EXCLUDE_FAILED_MESSAGE =
 	"Couldn't update Git to ignore your local settings file, it may not be excluded from commits";
+
+/** The most comments a warning quotes before it counts the rest. */
+const QUOTED_COMMENTS = 3;
+
+/**
+ * The warning a save gets when it would drop comments (SET-14). Our own text: Conductor drops
+ * comments without a word, so the research has none.
+ */
+function commentsDroppedMessage(file: string, comments: readonly string[]): string {
+	const what = comments.length === 1 ? "a comment" : `${comments.length} comments`;
+	const quoted = comments.slice(0, QUOTED_COMMENTS).map((comment) => JSON.stringify(comment));
+	const rest = comments.length - quoted.length;
+	const list = rest > 0 ? `${quoted.join(", ")} and ${rest} more` : quoted.join(", ");
+	return `Saving would remove ${what} from ${file}: ${list}. Save again to go ahead.`;
+}
+
+/** The comments of `before` that `after` no longer has, counting repeats. */
+function droppedComments(before: readonly string[], after: readonly string[]): string[] {
+	const left = new Map<string, number>();
+	for (const comment of after) left.set(comment, (left.get(comment) ?? 0) + 1);
+	const dropped: string[] = [];
+	for (const comment of before) {
+		const count = left.get(comment) ?? 0;
+		if (count > 0) left.set(comment, count - 1);
+		else dropped.push(comment);
+	}
+	return dropped;
+}
 
 /** Settings whose values must never be written to a log. */
 export const SENSITIVE_SETTING_KEYS: readonly string[] = [
@@ -840,6 +880,11 @@ export class SettingsService {
 	#reloadTimer: ReturnType<typeof setInterval> | null = null;
 	/** Set by `stop`. A start still reading when the stop came installs no listener or timer. */
 	#stopped = false;
+	/**
+	 * The comments each file's last refused save would have dropped (SET-14). The next save that
+	 * would drop exactly these goes ahead: the user has been warned.
+	 */
+	readonly #commentWarnings = new Map<string, string>();
 
 	constructor(deps: SettingsServiceDeps) {
 		this.#deps = deps;
@@ -1082,7 +1127,33 @@ export class SettingsService {
 
 	/** Reads one TOML settings file into a plain value map plus the entries that were dropped. */
 	async readSettingsFile(path: string): Promise<Result<SettingsFileContents>> {
-		if (!(await this.#deps.platform.fs.exists(path))) return ok(emptyContents(path));
+		const read = await this.#readFile(path);
+		return read.ok ? ok(read.value.contents) : read;
+	}
+
+	/**
+	 * Reads a settings file, lets `edit` change its contents and writes it back, after any other
+	 * write to the same file. Comments are kept as `#rewrite` describes. Backs every settings file
+	 * write outside this service, such as a repository's config (PRJ-04).
+	 */
+	updateSettingsFile(
+		file: string,
+		scope: "user" | "repo",
+		edit: (contents: SettingsFileContents) => void,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
+		return this.#writes.run(file, () =>
+			this.#rewrite(file, scope, edit, options.overwrite === true),
+		);
+	}
+
+	/** The file's text and what it holds. The text is null when there is no file. */
+	async #readFile(
+		path: string,
+	): Promise<Result<{ text: string | null; contents: SettingsFileContents }>> {
+		if (!(await this.#deps.platform.fs.exists(path))) {
+			return ok({ text: null, contents: emptyContents(path) });
+		}
 		const text = await this.#deps.platform.fs.readText(path);
 		if (!text.ok) {
 			return err(appError("settings_file_unreadable", `Could not read ${path}.`, text.error));
@@ -1091,7 +1162,81 @@ export class SettingsService {
 		if (!parsed.ok) {
 			return err(appError("settings_file_invalid", SETTINGS_FILE_INVALID_MESSAGE, parsed.error));
 		}
-		return ok(parseSettingsDocument(parsed.value, path));
+		return ok({ text: text.value, contents: parseSettingsDocument(parsed.value, path) });
+	}
+
+	/**
+	 * Applies `edit` to a settings file and writes it (SET-14). A new file is written whole. An
+	 * existing file's own text is patched in two steps, so its comments, blank lines and key order
+	 * stay. The first step brings the file to the shape the app writes: a `$schema` line, a legacy
+	 * `[tasks]` table or a plain `scripts.run` string moved to `scripts.run` tables. The second step
+	 * applies the edit, and a comment it drops belonged to an entry the edit removed. A comment the
+	 * first step drops is lost without the user's doing, and so is every comment when the text
+	 * cannot be patched at all: the first save that would drop such comments is refused with a
+	 * warning that quotes them, and the next save that would drop the same ones goes ahead.
+	 * Runs inside the caller's queue slot for the file.
+	 */
+	async #rewrite(
+		file: string,
+		scope: "user" | "repo",
+		edit: (contents: SettingsFileContents) => void,
+		overwrite: boolean,
+	): Promise<Result<void>> {
+		const read = await this.#readFile(file);
+		let source: string | null = null;
+		let contents: SettingsFileContents;
+		if (read.ok) {
+			source = read.value.text;
+			contents = read.value.contents;
+		} else if (overwrite) {
+			contents = emptyContents(file);
+		} else {
+			return err(
+				appError(
+					"settings_file_invalid",
+					read.error.code === "settings_file_invalid"
+						? SETTINGS_FILE_INVALID_MESSAGE
+						: `Could not read ${file}.`,
+					read.error,
+				),
+			);
+		}
+		const toml = this.#deps.toml;
+		let text: string;
+		let lost: string[] = [];
+		try {
+			// The first step runs before `edit`, which changes `contents` in place.
+			const shaped =
+				source === null ? null : toml.patch(source, buildSettingsDocument(contents, scope));
+			edit(contents);
+			const next = buildSettingsDocument(contents, scope);
+			const patched = shaped?.ok === true ? toml.patch(shaped.value, next) : null;
+			if (source === null) {
+				text = toml.stringify(next);
+			} else if (shaped?.ok === true && patched?.ok === true) {
+				text = patched.value;
+				lost = droppedComments(toml.comments(source), toml.comments(shaped.value));
+			} else {
+				// The file cannot be edited in place, so it is written whole.
+				text = toml.stringify(next);
+				lost = droppedComments(toml.comments(source), toml.comments(text));
+			}
+		} catch (cause) {
+			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, cause));
+		}
+		if (lost.length > 0) {
+			const signature = lost.join("\n");
+			if (this.#commentWarnings.get(file) !== signature) {
+				this.#commentWarnings.set(file, signature);
+				return err(appError("settings_comments_dropped", commentsDroppedMessage(file, lost)));
+			}
+		}
+		const written = await this.#deps.platform.fs.writeTextAtomic(file, text);
+		if (!written.ok) {
+			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
+		}
+		this.#commentWarnings.delete(file);
+		return ok(undefined);
 	}
 
 	/** Stops the reload timer and the window focus listener, also for a start still running. */
@@ -1429,39 +1574,20 @@ export class SettingsService {
 			return err(error);
 		};
 		return this.#writes.run(file, async () => {
-			const existing = await this.readSettingsFile(file);
-			let contents: SettingsFileContents;
-			if (existing.ok) {
-				contents = existing.value;
-			} else if (overwrite) {
-				contents = emptyContents(file);
-			} else {
-				return fail(
-					appError(
-						"settings_file_invalid",
-						existing.error.code === "settings_file_invalid"
-							? SETTINGS_FILE_INVALID_MESSAGE
-							: `Could not read ${file}.`,
-						existing.error,
-					),
-				);
-			}
-			if (value === null) {
-				delete contents.values[key];
-			} else {
-				contents.values[key] = value;
-			}
-			contents.preserved = withoutPreserved(contents.preserved, def.tomlKey);
-			let text: string;
-			try {
-				text = this.#deps.toml.stringify(buildSettingsDocument(contents, scope));
-			} catch (cause) {
-				return fail(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, cause));
-			}
-			const written = await this.#deps.platform.fs.writeTextAtomic(file, text);
-			if (!written.ok) {
-				return fail(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
-			}
+			const written = await this.#rewrite(
+				file,
+				scope,
+				(contents) => {
+					if (value === null) {
+						delete contents.values[key];
+					} else {
+						contents.values[key] = value;
+					}
+					contents.preserved = withoutPreserved(contents.preserved, def.tomlKey);
+				},
+				overwrite,
+			);
+			if (!written.ok) return fail(written.error);
 			if (pending !== null) this.#finishWrite(key, pending);
 			this.#logSaved(key, value);
 			return ok(undefined);
