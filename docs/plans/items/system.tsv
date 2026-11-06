@@ -2614,7 +2614,7 @@ REV-12	state	A comment that a message carried shows as added to the chat.	invent
 REV-13	store	A comment can sit on the pull request itself, with no file (location pr, file_path may be empty).	inventory:sql diff_comments	missing
 REV-13	store	A GitHub comment keeps its author's avatar, shown beside it.	inventory:sql diff_comments	missing
 REV-13	view	Pull request comments without a file show in the PR tab.	inventory:sql diff_comments	missing
-REV-03	store	A suggestion keeps the base code it applies to (suggestion_base_code); check the apply-suggestion path before adding it.	inventory:sql diff_comments	missing
+REV-03	store	A suggestion keeps the base code it applies to (diff_comments.suggestion_base_code, migration 0005); the card shows the suggestion against it. No apply-suggestion path exists yet.	inventory:sql diff_comments	covered
 DATA-08	store	Migration 0004 also holds the review comment state and link (the state replaces a dismissed flag), a nullable comment file path, the author avatar, active_session_id, the attachment loading flag, the pdf and review kinds, and the terminal screen modes.	inventory:sql	missing
 SIDE-15	rule	Agent detection prefers the app's managed copy (agent binaries folder, <name>/<version>/<name>), then the PATH copy chosen in Settings.	inventory:sidecar @48288	missing
 AGENT-11	rule	ACP provider programs are looked up in the ACP providers folder, then the bundled bin folder.	inventory:sidecar @48291	missing
@@ -2836,7 +2836,7 @@ COMP-01	rule	Add sendWithFromSetting to features/composer/send-key.ts and use it
 NAV-17	rule	CommandForDeepLink duplicates NAV-17's parseDeepLinkRoute and the entry's openWorkspaceLink; the dispatcher should call parseDeepLinkRoute and open the returned route (moved from NAV-14 by the step-5 audit).	docs/reports/audits/step-5	missing
 NAV-11	rule	Replace their hand-written or default shortcut text with CommandHint/useLiveShortcut so every hint follows a rebind (moved from NAV-14 by the step-5 audit).	docs/reports/audits/step-5	missing
 REV-08	rule	Mount DiffView and DiffToolbar from the File tab's diff pane and header so the viewer exists in the app (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
-REV-03	rule	Compute annotations and supply renderAnnotation/renderGutterUtility, including outdated comments at the file top (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
+REV-03	rule	Compute annotations and supply renderAnnotation/renderGutterUtility, including outdated comments at the file top; the gutter button opens a new comment's composer in the file tab's diff (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	covered
 REV-01	rule	Pass onToggleViewed from ChangesTab to ChangedFileList using Actions.git.setViewed (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
 REV-08	rule	Register handlers for review.previousFile, review.nextFile and review.toggleViewed in the file tab (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
 REV-09	rule	Restore one file from a checkpoint tree (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing

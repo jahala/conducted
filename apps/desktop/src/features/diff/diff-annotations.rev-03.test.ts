@@ -23,6 +23,7 @@ function comment(over: Partial<DiffComment> = {}): DiffComment {
 		threadId: "t-1",
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 		remoteUrl: null,
 		resolved: false,
 		outdated: false,

@@ -22,6 +22,8 @@ import type { DiffSide } from "./diff-types.ts";
 export interface CommentAnnotation {
 	threadIds: string[];
 	commentIds: string[];
+	/** A new comment is being written on this line (DiffView's draft). */
+	draft?: boolean;
 }
 
 interface Placement {

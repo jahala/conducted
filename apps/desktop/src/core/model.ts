@@ -206,7 +206,10 @@ export interface DiffComment {
 	side: "deletions" | "additions";
 	threadId: string | null;
 	replyToId: CommentId | null;
+	/** Replacement code the comment suggests. Null: no suggested change. */
 	suggestion: string | null;
+	/** The original lines the suggestion replaces, as they were when it was written. */
+	suggestionBaseCode: string | null;
 	remoteUrl: string | null;
 	resolved: boolean;
 	outdated: boolean;

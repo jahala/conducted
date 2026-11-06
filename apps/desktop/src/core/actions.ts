@@ -154,9 +154,9 @@ export function createActions(
 					: services.github.attachIssueToWorkspace(workspaceId, issue),
 		},
 		comments: {
-			add: (workspaceId, file, line, endLine, body) =>
-				services.review.add(workspaceId, file, line, endLine, body),
-			edit: (id, body) => services.review.edit(id, body),
+			add: (workspaceId, file, line, endLine, body, details) =>
+				services.review.add(workspaceId, file, line, endLine, body, details),
+			edit: (id, body, details) => services.review.edit(id, body, details),
 			remove: (id) => services.review.remove(id),
 			setResolved: (id, resolved) => services.review.setResolved(id, resolved),
 			setHidden: (id, hidden) => services.review.setHidden(id, hidden),

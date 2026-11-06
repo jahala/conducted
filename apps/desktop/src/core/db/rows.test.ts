@@ -321,6 +321,7 @@ describe("diff comments", () => {
 				"location",
 				"created_at",
 				"updated_at",
+				"suggestion_base_code",
 			],
 			params,
 		);
@@ -357,6 +358,7 @@ describe("diff comments", () => {
 				"location",
 				"created_at",
 				"updated_at",
+				"suggestion_base_code",
 			],
 			params,
 		);

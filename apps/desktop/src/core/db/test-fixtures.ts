@@ -166,6 +166,7 @@ export const sampleComment: DiffComment = {
 	threadId: "thread-1",
 	replyToId: null,
 	suggestion: "const name = 1;",
+	suggestionBaseCode: "let name = 0;",
 	remoteUrl: "https://github.com/x/y/pull/1#c1",
 	resolved: true,
 	outdated: false,

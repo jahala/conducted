@@ -187,6 +187,24 @@ export interface UnarchiveOutcome {
 	uncommittedChangesLost: boolean;
 }
 
+/** A suggested change: the replacement code and the original lines it replaces. */
+export interface CommentSuggestion {
+	code: string;
+	baseCode: string;
+}
+
+/** What a new review comment carries besides its file, lines and text. */
+export interface CommentDetails {
+	/** Which side of a split diff the line numbers belong to. Default: additions. */
+	side?: DiffComment["side"];
+	/** Default: none. */
+	suggestion?: CommentSuggestion | null;
+	/** The comment this one answers. It must belong to the same workspace. Default: none. */
+	replyToId?: CommentId | null;
+	/** The thread the comment joins, usually the id of the thread's first comment. Default: none. */
+	threadId?: string | null;
+}
+
 /** For each conflict in a file, top to bottom: keep the current side, the incoming side, or both. */
 export type ConflictChoice = "current" | "incoming" | "both";
 
@@ -510,10 +528,15 @@ export interface Actions {
 				line: number | null,
 				endLine: number | null,
 				body: string,
+				details?: CommentDetails,
 			],
 			DiffComment
 		>;
-		edit: Act<[id: CommentId, body: string]>;
+		/**
+		 * Changes a comment's text, and its suggested change when `suggestion` is given (null removes
+		 * it). An edit never moves a comment to another side or thread.
+		 */
+		edit: Act<[id: CommentId, body: string, details?: Pick<CommentDetails, "suggestion">]>;
 		remove: Act<[id: CommentId]>;
 		setResolved: Act<[id: CommentId, resolved: boolean]>;
 		/** Hides a comment, or brings it back. A hidden GitHub comment stays hidden after a sync. */

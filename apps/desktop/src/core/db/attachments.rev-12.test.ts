@@ -53,6 +53,7 @@ describe("REV-12 an attachment points at the comment it carried", () => {
 				threadId: null,
 				replyToId: null,
 				suggestion: null,
+				suggestionBaseCode: null,
 			}),
 		);
 		const carried = must(
