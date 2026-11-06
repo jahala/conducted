@@ -10,20 +10,11 @@
  * "Use Claude Code with Chrome"). Programs are downloaded, updated and removed by the program
  * manager (PLAT-28, D021), not by this page.
  * Data: useAgentInstalls() (AgentInstall: agent, acpAgent, installed, path, version,
-<<<<<<< HEAD
- * authenticated), useActions().agents (login, finishLogin, cancelLogin, refresh).
- * Children: agents/AgentCard, agents/AgentLoginDialog, agents/AgentProvidersDialog, and the MCP
- * servers region (SET-05: agents/McpServersSection.tsx).
- * Other owners: Claude settings and Codex config are SET-12; "Use Claude Code with Chrome" is
- * SET-12; the Advanced program paths are SET-02 with the path keys in SIDE-21.
-=======
  * authenticated), useActions().agents (login, finishLogin, cancelLogin, refresh), and the
  * chrome_mode_enabled setting.
  * Children: agents/AgentCard, agents/AgentLoginDialog, agents/AgentProvidersDialog,
- * agents/AgentConfigDialog. The MCP servers section belongs to SET-05, which adds it here when
- * built.
+ * agents/AgentConfigDialog, and the MCP servers region (SET-05: agents/McpServersSection.tsx).
  * Other owners: the Advanced program paths are SET-02 with the path keys in SIDE-21.
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
@@ -45,11 +36,8 @@ import { AgentCard } from "../agents/AgentCard.tsx";
 import { AgentConfigDialog } from "../agents/AgentConfigDialog.tsx";
 import { AgentLoginDialog, type AgentLoginFlow } from "../agents/AgentLoginDialog.tsx";
 import { AgentProvidersDialog } from "../agents/AgentProvidersDialog.tsx";
-<<<<<<< HEAD
 import { McpServersPanel } from "../agents/McpServersSection.tsx";
-=======
 import { RegistrySettingRowByKey } from "../SettingRow.tsx";
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 
 interface AgentSelector {
 	agent: AgentKind;

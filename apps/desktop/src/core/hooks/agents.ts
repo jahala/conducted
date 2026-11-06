@@ -4,28 +4,18 @@
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature SET-08 Sync agent configs between Claude Code and Codex
  * Owns: the agent-catalog hooks: installs, models, slash commands, the saved slash commands of a
-<<<<<<< HEAD
- * repository before a workspace exists, providers and config files, the config-sync preview, and
- * the ACP chat options hook (AGENT-17).
-=======
- * repository before a workspace exists, providers, the two config files, and the ACP chat options
- * hook (AGENT-17).
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
+ * repository before a workspace exists, providers, the two config files, the config-sync preview,
+ * and the ACP chat options hook (AGENT-17).
  * Behaviour: services-map.md 2.5; core/hooks.ts states the contract.
  * Must handle: a model list that has not loaded, a catalog entry that is missing, a config file
  * that is loading or failed.
  * Test first: the test for a hook body lives with the feature that implements it. SET-10's
-<<<<<<< HEAD
- * provider hook loads the catalogue through the agent catalogue service. SET-08's preview hook
- * loads the changes for its source agent and categories.
-=======
  * provider hook loads the catalogue through the agent catalogue service. SET-12's config hook
- * loads the file through the same service and follows its store.
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
+ * loads the file through the same service and follows its store. SET-08's preview hook loads the
+ * changes for its source agent and categories.
  */
 import type { SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
@@ -106,8 +96,14 @@ export const useAcpConfigOptions: Queries["useAcpConfigOptions"] = (sessionId) =
 	}, [service, sessionId, options]);
 	return options ?? { state: "loading" };
 };
-<<<<<<< HEAD
-export const useAgentConfigFile: Queries["useAgentConfigFile"] = () => notImplemented("SET-12");
+export const useAgentConfigFile: Queries["useAgentConfigFile"] = (agent) => {
+	const service = useServices().services.agentCatalog;
+	const value = useStore(service.store, (state) => state.configFiles?.[agent]);
+	useEffect(() => {
+		if (value === undefined) void service.loadConfigFile(agent);
+	}, [service, agent, value]);
+	return value ?? { state: "loading" };
+};
 export const useConfigSyncPreview: Queries["useConfigSyncPreview"] = (from, categories) => {
 	const service = useServices().services.agentCatalog;
 	const key = configSyncKey(from, categories);
@@ -117,14 +113,3 @@ export const useConfigSyncPreview: Queries["useConfigSyncPreview"] = (from, cate
 	}, [service, from, key]);
 	return preview ?? { state: "loading" };
 };
-=======
-export const useAgentConfigFile: Queries["useAgentConfigFile"] = (agent) => {
-	const service = useServices().services.agentCatalog;
-	const value = useStore(service.store, (state) => state.configFiles?.[agent]);
-	useEffect(() => {
-		if (value === undefined) void service.loadConfigFile(agent);
-	}, [service, agent, value]);
-	return value ?? { state: "loading" };
-};
-export const useConfigSyncPreview: Queries["useConfigSyncPreview"] = () => notImplemented("SET-08");
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796

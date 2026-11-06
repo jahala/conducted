@@ -6,15 +6,10 @@
  * @feature SET-08 Sync agent configs between Claude Code and Codex
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
  * agent, the slash commands of a workspace and of a repository before a workspace exists, starting
-<<<<<<< HEAD
- * a sign-in flow, an agent's provider keys and the providers an agent can use, and the preview and
- * copy of MCP servers, slash commands and skills from one agent's config to the other's.
+ * a sign-in flow, an agent's provider keys and the providers an agent can use, the preview and
+ * copy of MCP servers, slash commands and skills from one agent's config to the other's, and the
+ * text of an agent's own settings file for its editor on the Agents page.
  * Also the display name and catalogue key that the Agents page and the model picker share.
-=======
- * a sign-in flow, an agent's provider keys and the providers an agent can use.
- * Also the display name and catalogue key that the Agents page and the model picker share, and
- * the text of an agent's own settings file for its editor on the Agents page.
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
  * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states, provider
  * credential forms and the Claude settings and Codex config editors), services-map.md 4.2.8
@@ -47,13 +42,9 @@
  * Test first: two refreshes of the install list, answered out of order, leave the newer answer;
  * two model lists for one agent key, answered out of order, leave the newer answer; two provider
  * key lists for one agent, answered out of order, leave the newer answer; two provider lists for
-<<<<<<< HEAD
  * one agent, answered out of order, leave the newer answer; two config-sync previews for one
- * source, answered out of order, leave the newer answer.
-=======
- * one agent, answered out of order, leave the newer answer; two config reads for one agent,
- * answered out of order, leave the newer answer.
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
+ * source, answered out of order, leave the newer answer; two config reads for one agent, answered
+ * out of order, leave the newer answer.
  */
 import {
 	AGENT_PROVIDER_TABLE,
@@ -65,7 +56,7 @@ import {
 	type SlashCommand,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { appError, err, notImplemented, ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
@@ -92,13 +83,10 @@ export interface AgentCatalogState {
 	providerKeys?: Readonly<Record<string, Loadable<ProviderKeyView[]>>>;
 	/** The providers an agent can use, keyed by `agentKey(agent, acpAgent)`. */
 	providers?: Readonly<Record<string, Loadable<AgentProvider[]>>>;
-<<<<<<< HEAD
 	/** What a sync would change, keyed by `configSyncKey` (SET-08). */
 	configSyncPreview?: Readonly<Record<string, Loadable<ConfigSyncChange[]>>>;
-=======
 	/** The two config files the Agents page edits, keyed by agent. */
 	configFiles?: Readonly<Record<string, Loadable<AgentConfigFile>>>;
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 }
 
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
@@ -144,15 +132,10 @@ export interface AgentCatalogServiceDeps {
 	providerKeys?: ProviderKeyRepository;
 	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
-<<<<<<< HEAD
-	/** The files of both agents' config folders (SET-08). Absent only in tests that do not sync. */
+	/** The files of both agents' config folders (SET-08, SET-12). Absent only in tests that do not use them. */
 	files?: FileSystem;
 	/** Reads and writes the Codex TOML config (SET-08). Absent only in tests that do not sync. */
 	toml?: TomlCodec;
-=======
-	/** The file system and home folder of the two config files. Absent only in tests that do not use them. */
-	fs?: ConfigFileSystem;
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 }
 
 /** The category order the sync dialog shows (SET-08). */
@@ -221,8 +204,10 @@ function shortDiff(previous: string | null, next: string): string {
 const otherAgent = (agent: "claude" | "codex"): "claude" | "codex" =>
 	agent === "claude" ? "codex" : "claude";
 
-const configFolder = (home: string, agent: "claude" | "codex"): string =>
-	agent === "claude" ? `${home}/.claude` : `${home}/.codex`;
+const configFolder = (home: string, agent: "claude" | "codex"): string => {
+	const root = home.replace(/\/+$/, "");
+	return agent === "claude" ? `${root}/.claude` : `${root}/.codex`;
+};
 
 const mcpConfigPath = (home: string, agent: "claude" | "codex"): string =>
 	agent === "claude" ? `${home}/.claude.json` : `${home}/.codex/config.toml`;
@@ -264,16 +249,10 @@ function configFileFor(
 	home: string,
 	agent: AgentConfigFile["agent"],
 ): { folder: string; path: string } {
-	const root = home.replace(/\/+$/, "");
-	const folder = agent === "claude" ? `${root}/.claude` : `${root}/.codex`;
+	const folder = configFolder(home, agent);
 	const name = agent === "claude" ? "settings.json" : "config.toml";
 	return { folder, path: `${folder}/${name}` };
 }
-
-type ConfigFileSystem = Pick<
-	FileSystem,
-	"readText" | "writeTextAtomic" | "stat" | "mkdirp" | "registerRoot" | "paths"
->;
 
 export class AgentCatalogService {
 	readonly store: StoreApi<AgentCatalogState>;
@@ -290,13 +269,10 @@ export class AgentCatalogService {
 	readonly #providerKeyRequests = createLatestWins<string>();
 	/** Only the newest provider-list request for an agent changes state. */
 	readonly #providerRequests = createLatestWins<string>();
-<<<<<<< HEAD
 	/** Only the newest config-sync preview for one source and category set changes state. */
 	readonly #configSyncRequests = createLatestWins<string>();
-=======
 	/** Only the newest config-file request for an agent changes state. */
 	readonly #configFileRequests = createLatestWins<AgentConfigFile["agent"]>();
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -307,11 +283,8 @@ export class AgentCatalogService {
 			preWorkspaceSlashCommands: {},
 			providerKeys: {},
 			providers: {},
-<<<<<<< HEAD
 			configSyncPreview: {},
-=======
 			configFiles: {},
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 		}));
 	}
 
@@ -719,7 +692,6 @@ export class AgentCatalogService {
 		return loaded.ok ? ok(undefined) : err(loaded.error);
 	}
 
-<<<<<<< HEAD
 	/** The file and TOML dependencies, or an error when this service was built without them. */
 	#configDeps(): Result<{ files: FileSystem; toml: TomlCodec }> {
 		const { files, toml } = this.#deps;
@@ -1036,12 +1008,6 @@ export class AgentCatalogService {
 		return ok({ applied, failures });
 	}
 
-	/** Backs `Actions.agents.saveConfigFile`. */
-	saveConfigFile(
-		_agent: AgentConfigFile["agent"],
-		_text: string,
-		_expectedModifiedAt: number | null,
-=======
 	/**
 	 * Backs `useAgentConfigFile`. Reads one agent's own settings file. A missing file is a ready
 	 * value with empty text, so the editor can create it. A late answer for an older read never
@@ -1079,9 +1045,8 @@ export class AgentCatalogService {
 		agent: AgentConfigFile["agent"],
 		text: string,
 		expectedModifiedAt: number | null,
->>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 	): Promise<Result<void>> {
-		const fs = this.#deps.fs;
+		const fs = this.#deps.files;
 		if (fs === undefined) return err(this.#configFilesUnavailable());
 		const { folder, path } = configFileFor(fs.paths.home, agent);
 		const registered = await fs.registerRoot(folder);
@@ -1111,7 +1076,7 @@ export class AgentCatalogService {
 	}
 
 	async #readConfigFile(agent: AgentConfigFile["agent"]): Promise<Result<AgentConfigFile>> {
-		const fs = this.#deps.fs;
+		const fs = this.#deps.files;
 		if (fs === undefined) return err(this.#configFilesUnavailable());
 		const { folder, path } = configFileFor(fs.paths.home, agent);
 		const registered = await fs.registerRoot(folder);
