@@ -171,6 +171,17 @@ describe("NAV-10 SplitPanes", () => {
 		expect(screen.queryByTestId("split-centre")).toBeNull();
 	});
 
+	// WorkspaceLayout puts the centre in a block, so `flex-1` alone gives it no height and the chat
+	// list collapses to nothing. jsdom has no layout, so the test reads the class that fills the height.
+	it.each([
+		["off", false],
+		["on, with one group", true],
+	])("fills the height of its parent with the setting %s", (_label, split) => {
+		const { container } = renderPanes({ split });
+		const pane = container.firstElementChild;
+		expect(pane?.classList.contains("h-full")).toBe(true);
+	});
+
 	it("opens a dropped tab in a second group on the right edge", () => {
 		renderPanes();
 		dropOn(screen.getByTestId("split-centre"), "session:two");
