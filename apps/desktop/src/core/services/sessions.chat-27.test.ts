@@ -166,7 +166,11 @@ describe("CHAT-27 retry in a new chat", () => {
 			attachmentPaths: ["/ws/.context/login.png"],
 			delivery: "new_turn",
 		});
-		expect(h.service.store.getState().sessions[failed.id]).toEqual(failed);
+		// The retry leaves the failed chat as it was; its stored message dated it (CHAT-26).
+		expect(h.service.store.getState().sessions[failed.id]).toEqual({
+			...failed,
+			lastUserMessageAt: 500,
+		});
 		expect(h.service.store.getState().sessions[retried.id]).toEqual(retried);
 	});
 
