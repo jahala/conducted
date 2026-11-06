@@ -78,7 +78,8 @@
  * editor re-checks the branch and remote before git starts, a rebase that stops partway is
  * aborted, and the baseline ref takes the new tip with a compare-and-swap; a catch-up failure is
  * reported to its caller, never recorded as a failed poll, and the same local and upstream tips
- * are not tried again until one moves (a conflict would fail on every poll); a workspace that
+ * are not tried again until one moves (a conflict would fail on every poll), and any failure that
+ * repeats unchanged is told once; a workspace that
  * stops being watched during the poll or the catch-up is not rebased; the members the last stack read found,
  * with each base branch, are kept per workspace
  * for the range diff scope (PR-08, services-map 3.4.5), which reads the stack itself only when
@@ -1667,6 +1668,12 @@ export class GithubService {
 	 * one tip moves. Removed when a catch-up succeeds or the workspace is no longer watched.
 	 */
 	readonly #failedCatchUps = new Map<string, string>();
+	/**
+	 * The last catch-up failure told to the user (`<code>:<message>`), per watched workspace, so a
+	 * failure that repeats on every poll is told once. Removed when a catch-up ends without error or
+	 * the workspace is no longer watched.
+	 */
+	readonly #reportedCatchUps = new Map<string, string>();
 	/** When each watched workspace last asked GitHub, for the interval check. */
 	readonly #lastPolledAt = new Map<string, number>();
 	/** The head commit of the last PR shown, for the UNKNOWN mergeability guard. */
@@ -2058,6 +2065,7 @@ export class GithubService {
 		this.#headByWorkspace.delete(key);
 		this.#repoKeyByWorkspace.delete(key);
 		this.#failedCatchUps.delete(key);
+		this.#reportedCatchUps.delete(key);
 	}
 
 	#subscriptionsOf(watcher: PollWatcher, key: string): PollSubscription[] {
@@ -3515,15 +3523,22 @@ export class GithubService {
 	 * reporter instead.
 	 */
 	async #catchUpAfterPoll(workspaceId: WorkspaceId, stopped: () => boolean): Promise<void> {
+		let failure: AppError;
 		try {
 			const result = await this.catchUpStackBranch(workspaceId, stopped);
-			if (!result.ok) this.#deps.onCatchUpError?.(workspaceId, result.error);
+			if (result.ok) {
+				this.#reportedCatchUps.delete(String(workspaceId));
+				return;
+			}
+			failure = result.error;
 		} catch (cause) {
-			this.#deps.onCatchUpError?.(
-				workspaceId,
-				appError("github_stack_catch_up_crashed", messageOf(cause)),
-			);
+			failure = appError("github_stack_catch_up_crashed", messageOf(cause));
 		}
+		// A failure that comes back unchanged on every poll is told once.
+		const said = `${failure.code}:${failure.message}`;
+		if (this.#reportedCatchUps.get(String(workspaceId)) === said) return;
+		this.#reportedCatchUps.set(String(workspaceId), said);
+		this.#deps.onCatchUpError?.(workspaceId, failure);
 	}
 
 	/** Backs `Actions.pullRequests.requestReview`: adds each GitHub user as a reviewer. */

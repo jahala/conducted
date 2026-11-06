@@ -8,7 +8,7 @@
  * Test first: a diverged stack branch whose local tip the upstream reflog once held is rebased onto
  * the rewritten upstream, and the baseline ref takes the new tip.
  */
-import { ok, type WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { FakeGitRunner, type GitAnswer, gitOutput } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
@@ -634,6 +634,34 @@ describe("PR-12 the timed poll tells the user about a failed catch-up once", () 
 		expect(reported).toHaveLength(1);
 		expect(reported[0]).toContain("CONFLICT");
 		expect(rebaseCalls(git)).toHaveLength(1);
+	});
+});
+
+describe("PR-12 a failure that repeats on every poll", () => {
+	it("is told once while it stays the same", async () => {
+		vi.useFakeTimers();
+		const git = new FakeGitRunner((command) => answer(command, catchUpState()));
+		const reported: string[] = [];
+		const service = new GithubService({
+			git,
+			agent: {} as never,
+			// The workspace folder is gone, so every catch-up fails before it reads a tip.
+			contextOf: async () => err(appError("workspace_missing", "The workspace folder is gone.")),
+			onMerged: () => {},
+			onCatchUpError: (_id, error) => reported.push(error.message),
+			now: () => Date.now(),
+			probeCwd: "/tmp",
+		});
+		const stop = service.watch(workspaceId, "selected");
+		try {
+			await vi.waitFor(() => expect(reported).toHaveLength(1));
+			await vi.advanceTimersByTimeAsync(10 * 60_000);
+		} finally {
+			stop();
+			vi.useRealTimers();
+		}
+
+		expect(reported).toEqual(["The workspace folder is gone."]);
 	});
 });
 
