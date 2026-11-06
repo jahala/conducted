@@ -3,8 +3,9 @@
  * Owns: the Providers dialog and its Custom provider form on the Agents page. It chooses an agent's
  * provider, collects its key (or the choice to use the key from this Mac), the Amazon Bedrock
  * credentials, the Vertex project, the Codex ChatGPT account and a custom provider's optional
- * workspace ID. For OpenCode and Pi it lists OpenCode's provider catalogue, a key for each, and the
- * models the picker shows, then saves or removes all of them through Actions.agents.
+ * workspace ID. For OpenCode and Pi it lists OpenCode's provider catalogue and a key for each, and
+ * edits the filter that decides the models the picker shows; it saves or removes them through
+ * Actions.agents.
  * Behaviour: ui-map.md 6, "Agents page" (Claude Code subscription token, Anthropic API key and "Use
  * the key from this Mac", Amazon Bedrock with a Bedrock API key or AWS access keys, Codex API key or
  * ChatGPT account, Cursor API key, Custom provider with an optional workspace ID); ui-map.md 5.2
