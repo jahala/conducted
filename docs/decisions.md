@@ -476,3 +476,9 @@ Why: `done` would close the issue over a runner no user can start.
 Context: slice 3's core-1 audit found that about 20 of PR-08's 27 checklist items (stacked pull requests and read-only Graphite) are not built, and that stack sync and stack merge need `Actions.pullRequests.syncStack` and `mergeStack` in `core/api.ts`. PR-09's Link issue dialog and Cmd+I, the "link" in its title, are not built either. Their builders removed every placeholder, so `pnpm stubs` will not take `stub`, and `done` would close issues over features that do not do what their titles say.
 Chosen: PR-08 and PR-09 are `planned`, with their issues open and the unbuilt items listed in the overnight report. The rows go back to `stub` when someone builds the rest; PR-08 also waits for the owner's contract change. The other six core-1 features are done, with their open items recorded.
 Why: the backlog row and the issue state must say what a user can do.
+
+## D068. No slice 3 part starts after 07:00 UTC (2026-11-06)
+
+Context: slice 3's parts 1a and 1b each took about three hours from start to merge (D065). Part 1b merged at 07:41 UTC. Five batches remained: `s1-core` and the four `s1-ui` batches, then step 2. The goal ends slice 3's work when the night or a stop rule ends it, and asks that a step that starts either merges or stops cleanly. None of the stop rules had fired: the balance was 20.66 USD, nothing had failed three times, and no contract change blocked more than one feature.
+Chosen: the night ends at 07:00 UTC for starting work. A part that would start after that does not start. The remaining batches wait for the next run, from `bun scripts/overnight/drive.ts step 1 --priority 3`.
+Why: a part started at 07:41 would still be building, half audited, when the owner wakes, which is the half-built state D065 avoids.
