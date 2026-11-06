@@ -4,6 +4,8 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Conducted uses the microphone when you dictate a message.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Conducted transcribes your dictation on this Mac.</string>
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>Conducted lets coding agents read and write files in your Desktop folder.</string>
 	<key>NSDocumentsFolderUsageDescription</key>

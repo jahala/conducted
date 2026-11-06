@@ -89,6 +89,7 @@ import type {
 	ShellOutput,
 	SidecarTransport,
 	Speech,
+	SpeechEvent,
 	SystemFacts,
 	SystemInfo,
 	TreeEntry,
@@ -1003,12 +1004,26 @@ export function createTauriClipboard(bindings: TauriBindings = realTauriBindings
 }
 
 /** `speech_available`, `speech_start { onEvent: Channel }`, `speech_stop`, `speech_cancel`. */
-export function createTauriSpeech(_bindings: TauriBindings): Speech {
+export function createTauriSpeech(bindings: TauriBindings): Speech {
 	return {
-		available: () => notImplemented("PLAT-12"),
-		start: () => notImplemented("PLAT-12"),
-		stop: () => notImplemented("PLAT-12"),
-		cancel: () => notImplemented("PLAT-12"),
+		available: async () => {
+			const result = await invokeResult<boolean>(bindings, COMMANDS.speechAvailable);
+			// The interface has no failure channel. A failed check hides the button, as the
+			// platform layer does for `fs.exists`.
+			return result.ok && result.value;
+		},
+		start: (onEvent) => {
+			const channel = new Channel<SpeechEvent>((event) => onEvent(event));
+			return invokeResult<void>(bindings, COMMANDS.speechStart, { onEvent: channel });
+		},
+		stop: async () => {
+			const result = await invokeResult<void>(bindings, COMMANDS.speechStop);
+			if (!result.ok) throw result.error;
+		},
+		cancel: async () => {
+			const result = await invokeResult<void>(bindings, COMMANDS.speechCancel);
+			if (!result.ok) throw result.error;
+		},
 	};
 }
 
