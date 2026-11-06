@@ -5,6 +5,7 @@
 // the model exposes that comment's filePath as null (REV-13).
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestIds } from "../../test/ids.ts";
 import { openTestDatabase } from "../../test/sqlite.ts";
 import { DIFF_COMMENTS_SQL, type DiffCommentRow } from "./diff-comments.ts";
 import { REPOS_SQL, repoToParams } from "./repos.ts";
@@ -29,7 +30,7 @@ beforeEach(() => {
 	raw = store.raw;
 	repositories = createRepositories(store.database, {
 		clock: { now: () => 5000 },
-		ids: { uuid: () => "comment-on-pull-request" },
+		ids: createTestIds("comment"),
 	});
 	raw.prepare(REPOS_SQL.insert).run(bind(repoToParams(sampleRepo)));
 	raw.prepare(WORKSPACES_SQL.insert).run(bind(must(workspaceToParams(sampleWorkspace))));

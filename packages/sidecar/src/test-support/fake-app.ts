@@ -5,6 +5,7 @@
  * uses, so a test that sends something the real peer would refuse fails.
  * Behaviour: rpc/peer.ts. The same schemas judge the same messages; test-support/fake-app.test.ts
  * runs both on one list of messages and compares the verdicts.
+ * Contract test: fake-app.test.ts
  * Must handle: a notification or request whose params fail their schema (the real peer returns
  * false or an `rpc_invalid_params` error; this fake throws by default so the test cannot miss it),
  * a reply that fails the result schema (`rpc_invalid_result` on the real peer), a disconnected app

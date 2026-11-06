@@ -17,6 +17,7 @@ import {
 import type { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { StartOptions } from "../runners/runner.ts";
+import { countingIds } from "../test-support/ids.ts";
 import type { AppToolBackend } from "../tools/backend.ts";
 import { AsyncQueue } from "../util/async-queue.ts";
 
@@ -77,7 +78,7 @@ function makeDeps(overrides: Partial<ClaudeSessionDeps> = {}): ClaudeSessionDeps
 		translator: { translate: () => [] } as unknown as ClaudeTranslator,
 		hasTranscript: async () => false,
 		realPath: async (path) => path,
-		newUuid: () => "turn-uuid",
+		newUuid: countingIds("turn").uuid,
 		scheduler: { after: () => () => {} } as Scheduler,
 		createCanUseTool: () =>
 			(async () => ({ behavior: "allow", updatedInput: {} })) as unknown as CanUseTool,

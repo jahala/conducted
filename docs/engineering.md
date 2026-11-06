@@ -55,7 +55,7 @@ Rules every test follows:
 
 - **Never test a mock of the thing under test**, and never test a placeholder.
 - **Every checklist item has a test that would fail without it.** A test that would still pass with the feature removed does not count.
-- **Fakes behave like the real thing.** An id source hands out a new id on every call, never a constant. The night's most repeated test bug was a fake that gave every turn the same id.
+- **Fakes behave like the real thing.** An id source hands out a new id on every call, never a constant: use `createTestIds` from `apps/desktop/src/test/ids.ts` or `countingIds` from `packages/sidecar/src/test-support/ids.ts`. The night's most repeated test bug was a fake that gave every turn the same id.
 - **Screens are tested over the real container.** Use `createTestContainer` from `apps/desktop/src/test/container.ts`, and `seedRepo` and `seedWorkspace` to put data in it, instead of a hand-built object cast to `Container`. Tests that need a real database use `openTestDatabase` from `apps/desktop/src/test/sqlite.ts`.
 - **The sidecar's stand-ins have one home: `packages/sidecar/src/test-support/`.** `FakeApp` checks every message against the protocol schemas the real `RpcPeer` uses, `FakePublisher` checks every event, and each stand-in has a contract test next to it that runs the real class on the same inputs. A test file that declares its own copy fails `test-support/one-home.test.ts`.
 - **jsdom has no layout.** `apps/desktop/src/test/setup.ts` adds the layout methods editors call (`getClientRects` and the like). Do not stub them per test.
