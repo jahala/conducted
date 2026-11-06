@@ -104,18 +104,36 @@ export function nodeId(id: string): string {
 	return id.toLowerCase().replace("-", ".");
 }
 
-export function promptFor(row: BacklogRow, issue: number | undefined): string {
+/**
+ * The prompt for one feature's builder. `placeholderFiles` are the files that still hold the
+ * feature's placeholders, read from the code: a placeholder can sit outside the owner folders the
+ * backlog row names (a core service or hook a screen feature needs), and a builder told to change
+ * only its owned files cannot then pass its own gate.
+ */
+export function promptFor(
+	row: BacklogRow,
+	issue: number | undefined,
+	placeholderFiles: readonly string[] = [],
+): string {
 	const view = issue
 		? `gh issue view ${issue} --repo jahala/conducted`
 		: `the backlog row ${row.id} in docs/plans/backlog.md`;
+	const gate = `bun scripts/overnight/node-gate.ts ${row.id}`;
 	return [
 		`You are building one feature of Conducted, a macOS app for running coding agents in parallel (repo jahala/conducted). Feature: ${row.id} ${row.title}.`,
 		"",
 		READ_FIRST,
 		"",
 		`Your issue: ${view}`,
+		...(placeholderFiles.length === 0
+			? []
+			: [
+					"",
+					`${row.id}'s placeholders are in these files. They are part of your work, even where the issue's owner list does not name them: ${placeholderFiles.join(", ")}.`,
+				]),
 		"",
 		RULES.replaceAll("{ID}", row.id).replaceAll("{SNAKE}", row.id.toLowerCase().replace("-", "_")),
+		`- Before you stop, run \`${gate}\`: it is the same check that judges your work (placeholders gone, tests named ${row.id}, typecheck, lint, guards). Fix what it reports and run it again until it passes.`,
 	].join("\n");
 }
 
@@ -368,6 +386,7 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 				throw new Error("--max needs a whole number of 1 or more");
 			const features = selectFeatures(batch, flag(args, "--only"));
 			const issues = issueMap();
+			const codeFiles = [...readCodeFiles(root)];
 			const plan = {
 				goal: `Overnight batch ${batch.id}: ${features.map((f) => f.id).join(", ")}`,
 				source: `overnight/${batch.id}`,
@@ -377,7 +396,7 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 						id: nodeId(f.id),
 						worker: { provider: "builder" },
 						setup: "pnpm install --frozen-lockfile",
-						work: { prompt: promptFor(f, issues.get(f.id)) },
+						work: { prompt: promptFor(f, issues.get(f.id), placeholdersFor(f.id, codeFiles)) },
 						accept: { smoke: `bun scripts/overnight/node-gate.ts ${f.id}` },
 						policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
 					})),
