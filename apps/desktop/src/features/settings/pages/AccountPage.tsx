@@ -232,9 +232,13 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 					<Button variant="secondary" loading={savingLinear} onClick={() => void saveLinearKey()}>
 						Save key
 					</Button>
-					<Button variant="outlineDestructive" onClick={() => setDisconnectLinear(true)}>
-						Disconnect Linear
-					</Button>
+					{linearAccess.state === "ready" &&
+					(linearAccess.data.state === "signed_in" ||
+						linearAccess.data.state === "key_rejected") ? (
+						<Button variant="outlineDestructive" onClick={() => setDisconnectLinear(true)}>
+							Disconnect Linear
+						</Button>
+					) : null}
 				</div>
 				{linearError ? (
 					<p role="alert" className="text-xs text-danger">

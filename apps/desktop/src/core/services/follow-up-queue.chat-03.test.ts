@@ -191,9 +191,10 @@ describe("CHAT-03 the follow-up setting chooses steering or queueing", () => {
 			feature: "CHAT-03",
 			type: "enum",
 			default: "steer",
+			// Conductor's option labels.
 			options: [
-				{ value: "steer", label: "Steer the agent" },
-				{ value: "queue", label: "Queue for later" },
+				{ value: "steer", label: "Steer" },
+				{ value: "queue", label: "Queue" },
 			],
 		});
 	});

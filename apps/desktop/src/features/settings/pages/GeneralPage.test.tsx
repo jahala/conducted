@@ -24,7 +24,7 @@ describe("SET-02 GeneralPage", () => {
 			</ServicesProvider>,
 		);
 
-		const trigger = screen.getByRole("combobox", { name: "Send key" });
+		const trigger = screen.getByRole("combobox", { name: "Send messages with" });
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const option = await screen.findByRole("option", { name: "Cmd+Enter" });
 		fireEvent.keyDown(option, { key: "Enter" });
@@ -65,11 +65,11 @@ describe("SET-02 GeneralPage", () => {
 
 		expect(screen.getByText("Couldn't load this settings page")).toBeTruthy();
 		expect(screen.getByText("Failed to load settings")).toBeTruthy();
-		expect(screen.queryByRole("combobox", { name: "Send key" })).toBeNull();
+		expect(screen.queryByRole("combobox", { name: "Send messages with" })).toBeNull();
 
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-		expect(await screen.findByRole("combobox", { name: "Send key" })).toBeTruthy();
+		expect(await screen.findByRole("combobox", { name: "Send messages with" })).toBeTruthy();
 		expect(test.container.services.settings.store.getState().warnings).toEqual([]);
 	});
 

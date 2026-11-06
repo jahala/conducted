@@ -173,6 +173,43 @@ export const GitCompareIcon = (p: P) => (
 		{...p}
 	/>
 );
+export const SlidersIcon = (p: P) => (
+	<Icon
+		d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6M10 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM6 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"
+		{...p}
+	/>
+);
+export const UserCircleIcon = (p: P) => (
+	<Icon
+		d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 8.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM4.5 12.25c.75-1.5 2-2.25 3.5-2.25s2.75.75 3.5 2.25"
+		{...p}
+	/>
+);
+export const PaletteIcon = (p: P) => (
+	<Icon
+		d="M8 13.5a5.5 5.5 0 1 1 5.5-5.5c0 1.5-1.25 2-2.25 2H10a1.25 1.25 0 0 0-.9 2.1A1.1 1.1 0 0 1 8 13.5zM5 7.5h.01M7 5h.01M10 5.5h.01"
+		{...p}
+	/>
+);
+export const KeyboardIcon = (p: P) => (
+	<Icon d="M2 4.5h12v7H2zM4.5 7h.01M7 7h.01M9.5 7h.01M12 7h.01M5 9.5h6" {...p} />
+);
+export const CpuIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5h7v7h-7zM6.5 6.5h3v3h-3zM6 2v2.5M10 2v2.5M6 11.5V14M10 11.5V14M2 6h2.5M2 10h2.5M11.5 6H14M11.5 10H14"
+		{...p}
+	/>
+);
+export const KeyIcon = (p: P) => (
+	<Icon d="M5.5 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM7.6 7.9L13 2.5M11 4.5l1.5 1.5" {...p} />
+);
+export const PlugIcon = (p: P) => (
+	<Icon d="M6 2.5v3M10 2.5v3M4.5 5.5h7V8a3.5 3.5 0 0 1-7 0zM8 11.5v2" {...p} />
+);
+export const FlaskIcon = (p: P) => (
+	<Icon d="M6.5 2.5h3M7 2.5v4L3.5 12.5a.7.7 0 0 0 .6 1h7.8a.7.7 0 0 0 .6-1L9 6.5v-4" {...p} />
+);
+export const ChevronsUpDownIcon = (p: P) => <Icon d="M5 6l3-3 3 3M5 10l3 3 3-3" {...p} />;
 export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
 export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
 export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;
