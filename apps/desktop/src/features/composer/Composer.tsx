@@ -91,9 +91,12 @@ import {
 	slashCommandAction,
 	terminalCommandLine,
 } from "./mentions/SlashCommandExtension.ts";
+import { createSnippetMention } from "./mentions/SnippetMention.ts";
 import { PlusMenu } from "./PlusMenu.tsx";
 import { SendButton, type SendButtonState } from "./SendButton.tsx";
+import { openSnippetPicker } from "./SnippetOverlays.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
+import { useSnippetDialogsStore } from "./snippet-dialogs-store.ts";
 import { TerminalCommandBar } from "./TerminalCommandBar.tsx";
 import { useAttachments } from "./use-attachments.ts";
 import { useDraftSync } from "./use-draft-sync.ts";
@@ -212,6 +215,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	});
 	const live = useStore(services.sessions.store, (state) => state.liveStates[sessionId]);
 	const draftError = useStore(services.composer.store, (state) => state.errors[sessionId]);
+	const snippets = useStore(services.composer.store, (state) => state.snippets);
+	const snippetError = useStore(services.composer.store, (state) => state.snippetError);
 	const sendKey = useStore(
 		services.settings.store,
 		(state) => state.values.message_send_key as string | undefined,
@@ -479,8 +484,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	}, [actions, sessionId]);
 
 	const extensions = useMemo(
-		() =>
-			buildComposerExtensions({
+		() => [
+			...buildComposerExtensions({
 				files: {
 					search: () => [
 						...linkedPaths.current.map((path) => ({ path, isDirectory: true })),
@@ -521,6 +526,12 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					onRun: runSlashCommand,
 				},
 			}),
+			createSnippetMention({
+				snippets: () => services.composer.store.getState().snippets,
+				error: () => services.composer.store.getState().snippetError?.message ?? null,
+				onOpen: () => void services.composer.loadSnippets(),
+			}),
+		],
 		[
 			attachPrMention,
 			attachTerminalOutput,
@@ -528,6 +539,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			reportPrMentionError,
 			runSlashCommand,
 			searchPrMentions,
+			services,
 		],
 	);
 
@@ -550,6 +562,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			editor.off("update", update);
 		};
 	}, [editor]);
+
+	// A snippet list that arrives after the trigger opened redraws that menu.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the list change must redraw the open trigger
+	useEffect(() => {
+		if (editor === null) return;
+		editor.view.dispatch(editor.state.tr);
+	}, [editor, snippetError, snippets]);
 
 	const stop = useCallback(async () => {
 		const result = await actions.sessions.cancel(sessionId);
@@ -583,11 +602,15 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		editorRef.current?.commands.focus("end");
 	}, []);
 
-	const insertTranscript = useCallback((text: string) => {
-		const current = editorRef.current;
-		if (current === null) return;
-		current.chain().focus().insertContent(text).run();
+	// Dictation (COMP-08) and snippets (COMP-09) both put text at the cursor.
+	const insertText = useCallback((text: string) => {
+		editorRef.current?.chain().focus().insertContent(text).run();
 	}, []);
+	useCommandHandler("chat.insertSnippet", "area", () => {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
+		openSnippetPicker(insertText);
+		return true;
+	});
 
 	useCommandHandler("chat.cancelAgent", "area", () => {
 		if (!working) return false;
@@ -654,6 +677,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 							onAddAttachment={() => void attachmentsController.pick()}
 							onLinkIssue={() => setIssueDialogOpen(true)}
 							onLinkWorkspaces={() => setLinkDialogOpen(true)}
+							onAddSnippet={() => useSnippetDialogsStore.getState().openCreate()}
+							onInsertSnippet={() => openSnippetPicker(insertText)}
 						/>
 						<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
 							<ModelPicker sessionId={sessionId} />
@@ -664,7 +689,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 						<AcpOptions sessionId={sessionId} />
 					</div>
 					<div className="flex shrink-0 items-center gap-1">
-						<DictationButton onTranscript={insertTranscript} />
+						<DictationButton onTranscript={insertText} />
 						<RemoteControlButton sessionId={sessionId} />
 						<ContextWheel sessionId={sessionId} />
 						{narrow ? (

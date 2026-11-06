@@ -80,6 +80,8 @@ const ACTIONS: readonly CommandSpec[] = [
 	{ commandId: "workspace.create", label: "Create workspace" },
 	{ commandId: "workspace.createSection", label: "Create section" },
 	{ commandId: "project.add", label: "Add project" },
+	{ commandId: "snippet.create", label: "Create snippet" },
+	{ commandId: "snippet.edit", label: "Edit snippets" },
 	{ commandId: "app.toggleTheme", label: "Toggle theme" },
 	{ commandId: "view.toggleLeftSidebar", label: "Toggle left sidebar" },
 	{ commandId: "view.toggleRightSidebar", label: "Toggle right sidebar" },

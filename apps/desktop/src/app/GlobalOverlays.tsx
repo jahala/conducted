@@ -1,7 +1,8 @@
 /**
  * @feature NAV-08 Global overlay host
  * Owns: mounting whichever window-level overlay is open (command palette, shortcuts dialog, Passport, quick
- * open, search in files), once, at the root of the app, and registering the Cmd+P and Cmd+Shift+F
+ * open, search in files) and the prompt snippet dialogs (COMP-09), once, at the root of the app,
+ * and registering the Cmd+P and Cmd+Shift+F
  * commands that show quick open and search in files.
  * Behaviour: ui-map.md 5.1 (the palette is a dialog mounted once), 3.10 (quick open and search in files),
  * 1.1 (global overlays are mounted once at the root).
@@ -15,6 +16,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { useRouterState } from "@tanstack/react-router";
 import type { ComponentType } from "react";
+import { SnippetOverlays } from "../features/composer/SnippetOverlays.tsx";
 import { CommandPalette } from "../features/palette/CommandPalette.tsx";
 import { QuickOpen } from "../features/palette/QuickOpen.tsx";
 import { SearchInFiles } from "../features/palette/SearchInFiles.tsx";
@@ -58,15 +60,18 @@ export function GlobalOverlays() {
 		show("palette");
 		return true;
 	});
-	if (open === null) return null;
+	if (open === null) return <SnippetOverlays />;
 	const { area, Component } = overlays[open];
 	return (
-		<NotBuiltYet area={area} variant="overlay" onDismiss={close} resetKey={open}>
-			<Component
-				open
-				onOpenChange={(next) => (next ? undefined : close())}
-				workspaceId={workspaceId}
-			/>
-		</NotBuiltYet>
+		<>
+			<SnippetOverlays />
+			<NotBuiltYet area={area} variant="overlay" onDismiss={close} resetKey={open}>
+				<Component
+					open
+					onOpenChange={(next) => (next ? undefined : close())}
+					workspaceId={workspaceId}
+				/>
+			</NotBuiltYet>
+		</>
 	);
 }
