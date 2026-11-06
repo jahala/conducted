@@ -1,6 +1,5 @@
 {
 	"placeholder-tests": {
-		"apps/desktop/src/app/router.test.tsx": 1,
 		"apps/desktop/src/core/registries/consumption.test.ts": 4,
 		"apps/desktop/src/features/chat/ChatBlockView.test.tsx": 1,
 		"apps/desktop/src/features/chat/tools/cards/chat-08-cards.test.tsx": 1,
