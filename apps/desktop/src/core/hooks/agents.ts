@@ -1,10 +1,11 @@
 /**
- * @feature DATA-01 Query hook contract for screens
+ * @feature DATA-01 Query hook contract for screens; SET-10 OpenCode providers and their keys
  * Owns: the agent-catalog hooks: installs, models, slash commands, providers and config files,
  * and the ACP chat options hook (AGENT-17).
  * Behaviour: services-map.md 2.5; core/hooks.ts states the contract.
  * Must handle: a model list that has not loaded, a catalog entry that is missing.
- * Test first: the test for a hook body lives with the feature that implements it.
+ * Test first: the test for a hook body lives with the feature that implements it. SET-10's
+ * provider hook loads the catalogue through the agent catalogue service.
  */
 import { notImplemented } from "@conducted/shared";
 import { useEffect } from "react";
@@ -48,7 +49,15 @@ export const useProviderKeys: Queries["useProviderKeys"] = (agent, acpAgent) => 
 	}, [service, agent, acpAgent, value]);
 	return value ?? { state: "loading" };
 };
-export const useAgentProviders: Queries["useAgentProviders"] = () => notImplemented("SET-10");
+export const useAgentProviders: Queries["useAgentProviders"] = (agent, acpAgent) => {
+	const service = useServices().services.agentCatalog;
+	const key = agentKey(agent, acpAgent);
+	const value = useStore(service.store, (state) => state.providers?.[key]);
+	useEffect(() => {
+		if (value === undefined) void service.loadProviders(agent, acpAgent);
+	}, [service, agent, acpAgent, value]);
+	return value ?? { state: "loading" };
+};
 export const useAcpConfigOptions: Queries["useAcpConfigOptions"] = (sessionId) => {
 	const service = useServices().services.sessions;
 	const options = useStore(service.store, (state) => state.acpConfigOptions?.[sessionId]);
