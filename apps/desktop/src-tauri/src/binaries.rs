@@ -30,6 +30,22 @@
 //! Test first: with a download source that serves a file with a wrong checksum,
 //! `install_helper(Gh)` fails and leaves no file in the bin folder.
 //!
+//! @feature PLAT-28 Agent program manager: download, verify, update, prune
+//! Owns: the agent programs `claude` and `codex`: reading the pinned release feed, downloading a
+//! program with a SHA-256 and progress, clearing its quarantine flag, writing its install
+//! metadata, pointing the PATH shim at it, moving old versions to the Trash, and keeping retry
+//! state. Commands: `programs_state`, `program_install`, `program_redownload`, `program_remove`
+//! and `programs_prefetch`.
+//! Behaviour: native-and-sidecar-map.md A2, A6 and A9; services-map.md 5A.8.1.
+//! Must handle: a download that fails (retry state and next attempt), a checksum that does not
+//! match (refused, never installed), a second install of a program already installing (joined, no
+//! second download), a missing release feed (a named error, never an invented URL), the user's
+//! chosen path (the manager only writes its own folders), and old versions (moved to the Trash).
+//! Our design choice: the release feed is a JSON file the packaging step writes at
+//! `agent-binaries/manifest.json`, because the app has no hosted feed of its own yet.
+//! Test first: installing a program writes its metadata, points the bin shim at it and prunes the
+//! old version.
+//!
 //! @feature PLAT-34 Check the bundled helper programs at launch
 //! Owns: the launch check: copying the bundled bin folder into the app data folder, running each
 //! managed program to prove it works, copying a program again when it fails, and reporting the
@@ -59,20 +75,26 @@
 //! Test first: a bundled `gh` that exits nonzero is copied, run again after a re-copy, and
 //! reported as a verification error.
 
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs;
+use std::io::Read;
+use std::os::unix::fs::symlink;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+use tokio_util::sync::CancellationToken;
 
 use crate::error::{CommandError, CommandResult};
+use crate::files;
 use crate::not_implemented;
 use crate::process_group;
 
@@ -83,7 +105,7 @@ pub const EVENT_VERIFICATION_ERRORS: &str = "programs://verification-errors";
 pub const VERIFY_TIMEOUT_MS: u64 = 5_000;
 
 /// The programs the app manages and checks. The names match `ManagedProgram` in @conducted/shared.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ManagedProgram {
     Claude,
@@ -100,6 +122,9 @@ impl ManagedProgram {
         ManagedProgram::Gh,
         ManagedProgram::Watchexec,
     ];
+
+    /// The agent programs the program manager downloads (D021). The helpers are PLAT-35.
+    pub const AGENTS: [ManagedProgram; 2] = [ManagedProgram::Claude, ManagedProgram::Codex];
 
     /// The name the program has on disk and in the Platform.
     pub fn as_str(self) -> &'static str {
@@ -473,6 +498,686 @@ pub fn resolve_helper(
 /// Returns `path` with the helper bin folder in front, for terminals, scripts and agents.
 pub fn path_with_helpers(_bin_dir: &Path, _path: &str) -> CommandResult<String> {
     not_implemented!("PLAT-35")
+}
+
+// ------------------------------------------------------------------ PLAT-28 agent programs
+
+/// Event carrying one program's status, including download progress.
+pub const EVENT_PROGRAM_STATUS: &str = "programs://status";
+
+/// The version this app pins for each agent program (A9). A release feed must serve these.
+pub fn pinned_version(program: ManagedProgram) -> Option<&'static str> {
+    match program {
+        ManagedProgram::Claude => Some("2.1.308"),
+        ManagedProgram::Codex => Some("0.164.0"),
+        _ => None,
+    }
+}
+
+/// One state of an agent program download, as the UI shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProgramState {
+    Missing,
+    Queued,
+    Downloading,
+    Verifying,
+    Retrying,
+    Ready,
+    Failed,
+}
+
+/// One program's install state. Mirrors `ProgramStatus` in platform.ts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramStatus {
+    pub program: ManagedProgram,
+    pub state: ProgramState,
+    pub version: Option<String>,
+    pub bytes_downloaded: u64,
+    pub bytes_total: Option<u64>,
+    pub attempt: u32,
+    pub next_attempt_at: Option<u64>,
+    pub error: Option<String>,
+    pub path: Option<String>,
+}
+
+impl ProgramStatus {
+    fn missing(program: ManagedProgram) -> Self {
+        Self {
+            program,
+            state: ProgramState::Missing,
+            version: None,
+            bytes_downloaded: 0,
+            bytes_total: None,
+            attempt: 0,
+            next_attempt_at: None,
+            error: None,
+            path: None,
+        }
+    }
+}
+
+/// One downloadable file of a release, named by CPU. The manifest is produced with the app's
+/// packages (PLAT-25); it is read from `agent-binaries/manifest.json` in the app data folder.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseAsset {
+    pub url: String,
+    pub sha256: String,
+    pub size: u64,
+}
+
+/// One pinned agent program and its per-CPU files.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramRelease {
+    pub version: String,
+    pub darwin_arm64: ReleaseAsset,
+    pub darwin_x64: ReleaseAsset,
+}
+
+/// The release feed the program manager reads: one pinned release per agent program.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct ReleaseManifest {
+    pub claude: Option<ProgramRelease>,
+    pub codex: Option<ProgramRelease>,
+}
+
+impl ReleaseManifest {
+    fn release(&self, program: ManagedProgram) -> Option<&ProgramRelease> {
+        match program {
+            ManagedProgram::Claude => self.claude.as_ref(),
+            ManagedProgram::Codex => self.codex.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+fn asset_for(release: &ProgramRelease) -> &ReleaseAsset {
+    if cfg!(target_arch = "aarch64") {
+        &release.darwin_arm64
+    } else {
+        &release.darwin_x64
+    }
+}
+
+/// The folder layout the manager owns: `agent-binaries/<program>/<version>/` and the PATH shims.
+#[derive(Debug, Clone, Default)]
+pub struct ProgramDirs {
+    pub binaries: PathBuf,
+    pub bin: PathBuf,
+}
+
+impl ProgramDirs {
+    pub fn in_app_data(data: &Path) -> Self {
+        Self {
+            binaries: data.join("agent-binaries"),
+            bin: data.join("bin"),
+        }
+    }
+}
+
+#[derive(Default)]
+struct ProgramsInner {
+    statuses: Mutex<HashMap<ManagedProgram, ProgramStatus>>,
+    running: Mutex<HashSet<ManagedProgram>>,
+}
+
+/// The program manager's state, shared by the commands and the background downloads.
+#[derive(Clone, Default)]
+pub struct ProgramsState {
+    inner: Arc<ProgramsInner>,
+}
+
+impl ProgramsState {
+    /// Every managed agent's status, Claude first. A program with no record is missing.
+    pub fn snapshot(&self) -> Vec<ProgramStatus> {
+        ManagedProgram::AGENTS
+            .iter()
+            .map(|program| self.status(*program))
+            .collect()
+    }
+
+    /// One program's status. A program with no record is missing.
+    pub fn status(&self, program: ManagedProgram) -> ProgramStatus {
+        lock_or_recover(&self.inner.statuses)
+            .get(&program)
+            .cloned()
+            .unwrap_or_else(|| ProgramStatus::missing(program))
+    }
+
+    /// Stores a status and tells the window. The store is updated first, so the event never shows
+    /// a state the command cannot read back.
+    fn emit(&self, app: &AppHandle, status: ProgramStatus) {
+        lock_or_recover(&self.inner.statuses).insert(status.program, status.clone());
+        if let Err(error) = app.emit(EVENT_PROGRAM_STATUS, &status) {
+            eprintln!("could not report the status of {}: {error}", status.program);
+        }
+    }
+
+    /// Starts one install. False means the same program already has one running.
+    fn begin(&self, program: ManagedProgram) -> bool {
+        lock_or_recover(&self.inner.running).insert(program)
+    }
+
+    fn finish(&self, program: ManagedProgram) {
+        lock_or_recover(&self.inner.running).remove(&program);
+    }
+}
+
+fn lock_or_recover<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
+    value
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn app_data_dir(app: &AppHandle) -> CommandResult<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .map_err(|error| CommandError::Failed {
+            code: "program_data_dir_failed",
+            message: format!("Could not find the app data folder: {error}"),
+        })
+}
+
+/// Reads the release feed. A missing feed is a named error: the app never invents a download.
+pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
+    let text = fs::read_to_string(path).map_err(|error| CommandError::Failed {
+        code: "program_release_missing",
+        message: format!(
+            "The agent program release feed {} could not be read: {error}",
+            path.display()
+        ),
+    })?;
+    serde_json::from_str(&text).map_err(|error| CommandError::Failed {
+        code: "program_release_invalid",
+        message: format!("The agent program release feed could not be understood: {error}"),
+    })
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or_default()
+}
+
+fn retry_delay_ms(attempt: u32) -> u64 {
+    1_000u64 << attempt.min(5)
+}
+
+/// Moves an old program version to the macOS Trash.
+fn trash_app_file(path: &Path) -> CommandResult<()> {
+    files::trash_path(path)
+}
+
+/// Records a failure and the attempt's retry time, so the Retry button and the status carry it.
+fn failed_status(previous: &ProgramStatus, error: &CommandError) -> ProgramStatus {
+    let attempt = previous.attempt.saturating_add(1);
+    ProgramStatus {
+        state: ProgramState::Retrying,
+        attempt,
+        next_attempt_at: Some(now_ms().saturating_add(retry_delay_ms(attempt))),
+        error: Some(error.to_string()),
+        ..previous.clone()
+    }
+}
+
+fn sha256_of_file(path: &Path) -> CommandResult<String> {
+    let mut file = fs::File::open(path).map_err(|error| CommandError::Failed {
+        code: "program_read_failed",
+        message: format!("Could not read {}: {error}", path.display()),
+    })?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 1024 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| CommandError::Failed {
+                code: "program_read_failed",
+                message: format!("Could not read {}: {error}", path.display()),
+            })?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn modified_ms(path: &Path) -> CommandResult<u64> {
+    let modified = fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .map_err(|error| CommandError::Failed {
+            code: "program_metadata_failed",
+            message: format!("Could not read when {} changed: {error}", path.display()),
+        })?;
+    modified
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .map_err(|error| CommandError::Failed {
+            code: "program_metadata_failed",
+            message: format!(
+                "The time of {} is before the epoch: {error}",
+                path.display()
+            ),
+        })
+}
+
+/// Removes the quarantine flag macOS puts on downloaded files, so the program can run.
+fn strip_quarantine(path: &Path) -> CommandResult<()> {
+    let output = Command::new("xattr")
+        .arg("-d")
+        .arg("com.apple.quarantine")
+        .arg(path)
+        .output()
+        .map_err(|error| CommandError::Failed {
+            code: "program_quarantine_failed",
+            message: format!(
+                "Could not clear the quarantine flag from {}: {error}",
+                path.display()
+            ),
+        })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // A file without the flag answers "No such xattr"; there is nothing to clear.
+    if stderr.contains("No such xattr") {
+        return Ok(());
+    }
+    Err(CommandError::Failed {
+        code: "program_quarantine_failed",
+        message: format!(
+            "Could not clear the quarantine flag from {}: {}",
+            path.display(),
+            stderr.trim()
+        ),
+    })
+}
+
+fn install_bin_shim(bin_dir: &Path, program: ManagedProgram, binary: &Path) -> CommandResult<()> {
+    fs::create_dir_all(bin_dir).map_err(|error| CommandError::Failed {
+        code: "program_bin_dir_failed",
+        message: format!("Could not make {}: {error}", bin_dir.display()),
+    })?;
+    let link = bin_dir.join(program.as_str());
+    match fs::symlink_metadata(&link) {
+        Ok(_) => fs::remove_file(&link).map_err(|error| CommandError::Failed {
+            code: "program_bin_shim_failed",
+            message: format!("Could not replace {}: {error}", link.display()),
+        })?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "program_bin_shim_failed",
+                message: format!("Could not read {}: {error}", link.display()),
+            });
+        }
+    }
+    symlink(binary, &link).map_err(|error| CommandError::Failed {
+        code: "program_bin_shim_failed",
+        message: format!(
+            "Could not point {} at {}: {error}",
+            link.display(),
+            binary.display()
+        ),
+    })
+}
+
+/// Removes every version of a program except the one in use, through the given Trash.
+fn prune_versions(
+    program_dir: &Path,
+    keep: &str,
+    trash: &dyn Fn(&Path) -> CommandResult<()>,
+) -> CommandResult<()> {
+    let entries = match fs::read_dir(program_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "program_prune_failed",
+                message: format!("Could not list {}: {error}", program_dir.display()),
+            });
+        }
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| CommandError::Failed {
+            code: "program_prune_failed",
+            message: format!(
+                "Could not read an entry of {}: {error}",
+                program_dir.display()
+            ),
+        })?;
+        let is_dir = entry.file_type().map_err(|error| CommandError::Failed {
+            code: "program_prune_failed",
+            message: format!(
+                "Could not read an entry of {}: {error}",
+                program_dir.display()
+            ),
+        })?;
+        if is_dir.is_dir() && entry.file_name().to_string_lossy() != keep {
+            trash(&entry.path())?;
+        }
+    }
+    Ok(())
+}
+
+/// True when an installed program still has the size and modified time its metadata recorded.
+/// A file that changed since it was installed is not trusted.
+fn metadata_matches(binary: &Path, metadata_path: &Path) -> bool {
+    let Ok(text) = fs::read_to_string(metadata_path) else {
+        return false;
+    };
+    let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return false;
+    };
+    let Some(size) = metadata["size"].as_u64() else {
+        return false;
+    };
+    let Some(verified_mtime) = metadata["verifiedMtimeUnixMs"].as_u64() else {
+        return false;
+    };
+    let Ok(actual_size) = fs::metadata(binary).map(|actual| actual.len()) else {
+        return false;
+    };
+    let Ok(actual_mtime) = modified_ms(binary) else {
+        return false;
+    };
+    actual_size == size && actual_mtime == verified_mtime
+}
+
+/// Marks an already-installed pinned program ready, so a restart shows the copy on disk.
+fn hydrate_from_disk(app: &AppHandle, state: &ProgramsState) -> CommandResult<()> {
+    let dirs = ProgramDirs::in_app_data(&app_data_dir(app)?);
+    for program in ManagedProgram::AGENTS {
+        if state.status(program).state != ProgramState::Missing {
+            continue;
+        }
+        let Some(version) = pinned_version(program) else {
+            continue;
+        };
+        let binary = dirs
+            .binaries
+            .join(program.as_str())
+            .join(version)
+            .join(program.as_str());
+        let metadata_path = dirs
+            .binaries
+            .join(".meta")
+            .join(format!("{}-{version}.json", program.as_str()));
+        if !metadata_matches(&binary, &metadata_path) {
+            continue;
+        }
+        let mut status = ProgramStatus::missing(program);
+        status.state = ProgramState::Ready;
+        status.version = Some(version.to_string());
+        status.path = Some(binary.to_string_lossy().into_owned());
+        state.emit(app, status);
+    }
+    Ok(())
+}
+
+/// Makes a downloaded file the program's current version: clears quarantine, records its
+/// metadata, points the PATH shim at it and removes older versions.
+pub fn finish_install(
+    program: ManagedProgram,
+    version: &str,
+    binary: &Path,
+    sha256: &str,
+    dirs: &ProgramDirs,
+    trash: &dyn Fn(&Path) -> CommandResult<()>,
+) -> CommandResult<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let actual = sha256_of_file(binary)?;
+    if actual != sha256 {
+        return Err(CommandError::Failed {
+            code: "program_checksum_mismatch",
+            message: format!("The downloaded program has the SHA-256 {actual}, not {sha256}."),
+        });
+    }
+    strip_quarantine(binary)?;
+    fs::set_permissions(binary, fs::Permissions::from_mode(0o755)).map_err(|error| {
+        CommandError::Failed {
+            code: "program_install_failed",
+            message: format!("Could not make {} runnable: {error}", binary.display()),
+        }
+    })?;
+    let metadata_dir = dirs.binaries.join(".meta");
+    fs::create_dir_all(&metadata_dir).map_err(|error| CommandError::Failed {
+        code: "program_metadata_failed",
+        message: format!("Could not make {}: {error}", metadata_dir.display()),
+    })?;
+    let size = fs::metadata(binary)
+        .map(|metadata| metadata.len())
+        .map_err(|error| CommandError::Failed {
+            code: "program_metadata_failed",
+            message: format!("Could not read {}: {error}", binary.display()),
+        })?;
+    let metadata = serde_json::json!({
+        "sha256": sha256,
+        "size": size,
+        "downloadedAtUnixMs": now_ms(),
+        "verifiedMtimeUnixMs": modified_ms(binary)?,
+    });
+    let metadata_path = metadata_dir.join(format!("{}-{version}.json", program.as_str()));
+    fs::write(&metadata_path, metadata.to_string()).map_err(|error| CommandError::Failed {
+        code: "program_metadata_failed",
+        message: format!("Could not write {}: {error}", metadata_path.display()),
+    })?;
+    install_bin_shim(&dirs.bin, program, binary)?;
+    prune_versions(&dirs.binaries.join(program.as_str()), version, trash)
+}
+
+async fn download_and_finish(
+    app: &AppHandle,
+    state: &ProgramsState,
+    program: ManagedProgram,
+    _redownload: bool,
+) -> CommandResult<()> {
+    let data = app_data_dir(app)?;
+    let dirs = ProgramDirs::in_app_data(&data);
+    let manifest = read_release_manifest(&dirs.binaries.join("manifest.json"))?;
+    let release = manifest
+        .release(program)
+        .ok_or_else(|| CommandError::Failed {
+            code: "program_release_missing",
+            message: format!("The release feed has no {program} program."),
+        })?;
+    let pinned = pinned_version(program).ok_or_else(|| CommandError::Failed {
+        code: "program_release_missing",
+        message: format!("{program} is not an agent program this app manages."),
+    })?;
+    if release.version != pinned {
+        return Err(CommandError::Failed {
+            code: "program_version_not_pinned",
+            message: format!(
+                "The release feed offers {program} {}, but this app pins {pinned}.",
+                release.version
+            ),
+        });
+    }
+    let asset = asset_for(release);
+    let version = release.version.clone();
+    let target_dir = dirs.binaries.join(program.as_str()).join(&version);
+    fs::create_dir_all(&target_dir).map_err(|error| CommandError::Failed {
+        code: "program_install_failed",
+        message: format!("Could not make {}: {error}", target_dir.display()),
+    })?;
+    let target = target_dir.join(program.as_str());
+
+    let mut queued = state.status(program);
+    queued.state = ProgramState::Downloading;
+    queued.version = Some(version.clone());
+    queued.bytes_downloaded = 0;
+    queued.bytes_total = Some(asset.size);
+    queued.error = None;
+    state.emit(app, queued);
+
+    let progress_state = state.clone();
+    let progress_app = app.clone();
+    let expected_size = asset.size;
+    let outcome = crate::http::download_request(
+        crate::http::ALLOWED_HOSTS,
+        &asset.url,
+        &target,
+        Some(asset.sha256.as_str()),
+        Duration::from_millis(crate::http::DOWNLOAD_STALL_TIMEOUT_MS),
+        CancellationToken::new(),
+        move |received, total| {
+            let mut status = progress_state.status(program);
+            status.state = ProgramState::Downloading;
+            status.bytes_downloaded = received;
+            status.bytes_total = total.or(Some(expected_size));
+            progress_state.emit(&progress_app, status);
+            Ok(())
+        },
+    )
+    .await?;
+
+    let mut verifying = state.status(program);
+    verifying.state = ProgramState::Verifying;
+    verifying.bytes_downloaded = outcome.size_bytes;
+    state.emit(app, verifying);
+
+    finish_install(
+        program,
+        &version,
+        &target,
+        &outcome.sha256,
+        &dirs,
+        &trash_app_file,
+    )?;
+
+    let mut ready = state.status(program);
+    ready.state = ProgramState::Ready;
+    ready.version = Some(version);
+    ready.bytes_downloaded = outcome.size_bytes;
+    ready.bytes_total = Some(outcome.size_bytes);
+    ready.attempt = 0;
+    ready.next_attempt_at = None;
+    ready.error = None;
+    ready.path = Some(target.to_string_lossy().into_owned());
+    state.emit(app, ready);
+    Ok(())
+}
+
+fn require_agent(program: ManagedProgram) -> CommandResult<()> {
+    if ManagedProgram::AGENTS.contains(&program) {
+        return Ok(());
+    }
+    Err(CommandError::Failed {
+        code: "program_not_managed",
+        message: format!("{program} is not an agent program this app manages."),
+    })
+}
+
+fn start_install(
+    app: &AppHandle,
+    state: &ProgramsState,
+    program: ManagedProgram,
+    redownload: bool,
+) {
+    if !ManagedProgram::AGENTS.contains(&program) || !state.begin(program) {
+        return;
+    }
+    let manager = state.clone();
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let outcome = download_and_finish(&handle, &manager, program, redownload).await;
+        if let Err(error) = outcome {
+            let status = failed_status(&manager.status(program), &error);
+            manager.emit(&handle, status);
+        }
+        manager.finish(program);
+    });
+}
+
+/// Returns the install state of Claude Code and Codex, including a copy already on disk.
+#[tauri::command]
+pub fn programs_state(
+    app: AppHandle,
+    state: State<'_, ProgramsState>,
+) -> CommandResult<Vec<ProgramStatus>> {
+    hydrate_from_disk(&app, state.inner())?;
+    Ok(state.snapshot())
+}
+
+/// Requests an install of an agent program. A program already installing joins that install.
+#[tauri::command]
+pub fn program_install(
+    app: AppHandle,
+    state: State<'_, ProgramsState>,
+    program: ManagedProgram,
+) -> CommandResult<()> {
+    require_agent(program)?;
+    start_install(&app, state.inner(), program, false);
+    Ok(())
+}
+
+/// Downloads the current version again, replacing the installed copy.
+#[tauri::command]
+pub fn program_redownload(
+    app: AppHandle,
+    state: State<'_, ProgramsState>,
+    program: ManagedProgram,
+) -> CommandResult<()> {
+    require_agent(program)?;
+    start_install(&app, state.inner(), program, true);
+    Ok(())
+}
+
+/// Moves an installed agent program to the Trash and reports it missing.
+#[tauri::command]
+pub fn program_remove(
+    app: AppHandle,
+    state: State<'_, ProgramsState>,
+    program: ManagedProgram,
+) -> CommandResult<()> {
+    require_agent(program)?;
+    let dirs = ProgramDirs::in_app_data(&app_data_dir(&app)?);
+    let program_dir = dirs.binaries.join(program.as_str());
+    match fs::symlink_metadata(&program_dir) {
+        Ok(_) => files::trash_path(&program_dir)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "program_remove_failed",
+                message: format!("Could not read {}: {error}", program_dir.display()),
+            });
+        }
+    }
+    let link = dirs.bin.join(program.as_str());
+    match fs::symlink_metadata(&link) {
+        Ok(_) => fs::remove_file(&link).map_err(|error| CommandError::Failed {
+            code: "program_remove_failed",
+            message: format!("Could not remove {}: {error}", link.display()),
+        })?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "program_remove_failed",
+                message: format!("Could not read {}: {error}", link.display()),
+            });
+        }
+    }
+    state.emit(&app, ProgramStatus::missing(program));
+    Ok(())
+}
+
+/// Downloads, in the background, the agent programs that are not installed yet.
+#[tauri::command]
+pub fn programs_prefetch(app: AppHandle, state: State<'_, ProgramsState>) -> CommandResult<()> {
+    hydrate_from_disk(&app, state.inner())?;
+    for program in ManagedProgram::AGENTS {
+        if state.status(program).state != ProgramState::Ready {
+            start_install(&app, state.inner(), program, false);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -926,5 +1631,262 @@ mod tests {
         let error = verify_bundled_programs(&source, &destination).expect_err("the copy fails");
 
         assert_eq!(error_code(error), "binary_copy_failed");
+    }
+
+    fn release_asset() -> ReleaseAsset {
+        ReleaseAsset {
+            url: "https://example.invalid/claude".to_string(),
+            sha256: "a".repeat(64),
+            size: 3,
+        }
+    }
+
+    fn release(version: &str) -> ProgramRelease {
+        ProgramRelease {
+            version: version.to_string(),
+            darwin_arm64: release_asset(),
+            darwin_x64: release_asset(),
+        }
+    }
+
+    #[test]
+    fn plat_28_reports_claude_and_codex_as_missing_before_an_install() {
+        let statuses = ProgramsState::default().snapshot();
+
+        assert_eq!(
+            statuses
+                .iter()
+                .map(|status| (status.program, status.state))
+                .collect::<Vec<_>>(),
+            vec![
+                (ManagedProgram::Claude, ProgramState::Missing),
+                (ManagedProgram::Codex, ProgramState::Missing),
+            ]
+        );
+    }
+
+    #[test]
+    fn plat_28_a_release_is_read_from_the_feed_and_must_match_the_pinned_version() {
+        let folder = TempDir::new();
+        let path = folder.path().join("manifest.json");
+        let manifest = ReleaseManifest {
+            claude: Some(release("2.1.308")),
+            codex: Some(release("0.164.0")),
+        };
+        fs::write(&path, serde_json::to_string(&manifest).expect("serialise")).expect("write feed");
+
+        let read = read_release_manifest(&path).expect("read feed");
+
+        assert_eq!(
+            read.release(ManagedProgram::Claude)
+                .map(|release| release.version.as_str()),
+            Some("2.1.308")
+        );
+        assert_eq!(pinned_version(ManagedProgram::Claude), Some("2.1.308"));
+        assert_eq!(pinned_version(ManagedProgram::Gh), None);
+    }
+
+    #[test]
+    fn plat_28_a_missing_release_feed_is_a_named_error() {
+        let folder = TempDir::new();
+        let error = read_release_manifest(&folder.path().join("missing.json"))
+            .expect_err("there is no feed");
+
+        assert_eq!(error_code(error), "program_release_missing");
+    }
+
+    #[test]
+    fn plat_28_a_second_install_of_the_same_program_is_joined() {
+        let state = ProgramsState::default();
+
+        assert!(
+            state.begin(ManagedProgram::Claude),
+            "the first install runs"
+        );
+        assert!(
+            !state.begin(ManagedProgram::Claude),
+            "a second install of the same program joins the first"
+        );
+        assert!(
+            state.begin(ManagedProgram::Codex),
+            "another program runs alone"
+        );
+
+        state.finish(ManagedProgram::Claude);
+        assert!(
+            state.begin(ManagedProgram::Claude),
+            "a finished install allows a new one"
+        );
+    }
+
+    #[test]
+    fn plat_28_a_failed_download_keeps_its_retry_state() {
+        let previous = ProgramStatus::missing(ManagedProgram::Claude);
+        let error = CommandError::Failed {
+            code: "http_timeout",
+            message: "The download did not answer.".to_string(),
+        };
+
+        let failed = failed_status(&previous, &error);
+
+        assert_eq!(failed.state, ProgramState::Retrying);
+        assert_eq!(failed.attempt, 1);
+        assert_eq!(
+            failed.error.as_deref(),
+            Some("The download did not answer.")
+        );
+        assert!(failed.next_attempt_at.is_some());
+    }
+
+    #[test]
+    fn plat_28_the_sha256_of_a_file_is_its_reported_hash() {
+        let folder = TempDir::new();
+        let path = folder.path().join("file");
+        fs::write(&path, b"abc").expect("write file");
+
+        assert_eq!(
+            sha256_of_file(&path).expect("hash"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn plat_28_install_writes_metadata_points_the_shim_and_prunes_the_old_version() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let dirs = ProgramDirs::in_app_data(&data);
+        let current = dirs.binaries.join("claude").join("2.1.308");
+        fs::create_dir_all(&current).expect("make the version folder");
+        let binary = current.join("claude");
+        fs::write(&binary, b"abc").expect("write the program");
+        let old = dirs.binaries.join("claude").join("2.1.307");
+        fs::create_dir_all(&old).expect("make the old folder");
+        fs::write(old.join("claude"), b"old").expect("write the old program");
+        let trash = folder.folder("trash");
+
+        finish_install(
+            ManagedProgram::Claude,
+            "2.1.308",
+            &binary,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            &dirs,
+            &|path| {
+                let name = path
+                    .file_name()
+                    .expect("a name")
+                    .to_string_lossy()
+                    .into_owned();
+                fs::rename(path, trash.join(name)).map_err(CommandError::Io)
+            },
+        )
+        .expect("install");
+
+        let metadata = fs::read_to_string(dirs.binaries.join(".meta").join("claude-2.1.308.json"))
+            .expect("metadata");
+        let metadata: serde_json::Value = serde_json::from_str(&metadata).expect("metadata json");
+        assert_eq!(metadata["size"], 3u64);
+        assert_eq!(
+            metadata["sha256"],
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            fs::read_link(dirs.bin.join("claude")).expect("bin shim"),
+            binary
+        );
+        assert!(!old.exists(), "the old version was pruned");
+        assert!(
+            trash.join("2.1.307").is_dir(),
+            "the old version went to Trash"
+        );
+    }
+
+    #[test]
+    fn plat_28_metadata_accepts_the_installed_file_and_rejects_a_changed_one() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let dirs = ProgramDirs::in_app_data(&data);
+        let current = dirs.binaries.join("claude").join("2.1.308");
+        fs::create_dir_all(&current).expect("make the version folder");
+        let binary = current.join("claude");
+        fs::write(&binary, b"abc").expect("write the program");
+        let trash = folder.folder("trash");
+        finish_install(
+            ManagedProgram::Claude,
+            "2.1.308",
+            &binary,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            &dirs,
+            &|path| {
+                let name = path
+                    .file_name()
+                    .expect("a name")
+                    .to_string_lossy()
+                    .into_owned();
+                fs::rename(path, trash.join(name)).map_err(CommandError::Io)
+            },
+        )
+        .expect("install");
+        let metadata = dirs.binaries.join(".meta").join("claude-2.1.308.json");
+
+        assert!(metadata_matches(&binary, &metadata));
+
+        fs::write(&binary, b"a changed program").expect("change the program");
+        assert!(!metadata_matches(&binary, &metadata));
+    }
+
+    #[test]
+    fn plat_28_a_file_without_a_quarantine_flag_installs() {
+        let folder = TempDir::new();
+        let path = folder.path().join("claude");
+        fs::write(&path, b"program").expect("write program");
+
+        strip_quarantine(&path).expect("nothing to clear");
+    }
+
+    #[test]
+    fn plat_28_a_status_serialises_the_way_the_platform_reads_it() {
+        let status = ProgramStatus {
+            state: ProgramState::Downloading,
+            version: Some("2.1.308".to_string()),
+            bytes_downloaded: 5,
+            bytes_total: Some(10),
+            attempt: 1,
+            next_attempt_at: Some(7),
+            error: Some("cut off".to_string()),
+            path: Some("/app/claude".to_string()),
+            ..ProgramStatus::missing(ManagedProgram::Claude)
+        };
+
+        let value = serde_json::to_value(&status).expect("serialise the status");
+
+        assert_eq!(value["program"], "claude");
+        assert_eq!(value["state"], "downloading");
+        assert_eq!(value["bytesDownloaded"], 5u64);
+        assert_eq!(value["bytesTotal"], 10u64);
+        assert_eq!(value["nextAttemptAt"], 7u64);
+        assert_eq!(value["path"], "/app/claude");
+    }
+
+    #[test]
+    fn plat_28_the_event_name_is_the_one_the_platform_listens_for() {
+        let adapter = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/platform/tauri.ts");
+        let source = fs::read_to_string(adapter).expect("read the Tauri adapter");
+        let events = source
+            .split_once("export const EVENTS = {")
+            .map(|(_, rest)| rest)
+            .expect("the adapter declares its EVENTS map");
+        let listened = events
+            .lines()
+            .find_map(|line| {
+                line.trim().strip_prefix("programsStatus:").map(|rest| {
+                    rest.trim()
+                        .trim_end_matches(',')
+                        .trim_matches('"')
+                        .to_string()
+                })
+            })
+            .expect("the adapter's EVENTS names programsStatus");
+        assert_eq!(listened, EVENT_PROGRAM_STATUS);
+        assert_eq!(EVENT_PROGRAM_STATUS, "programs://status");
     }
 }

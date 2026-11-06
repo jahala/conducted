@@ -721,6 +721,15 @@ pub async fn fs_trash(app: AppHandle, path: String) -> CommandResult<()> {
     trash_checked(path, allowed_roots(&app)?).await
 }
 
+/// Moves an app-managed file or folder to the Trash without the web view's path scope.
+///
+/// The program manager replaces the programs it downloaded itself, so it uses the same Trash as
+/// `fs_trash` and never deletes an old version for good.
+pub(crate) fn trash_path(path: &Path) -> CommandResult<()> {
+    let trash = trash_dir_for(path)?;
+    trash_into(path, &trash)
+}
+
 /// Returns the well-known folders. The UI reads this once at startup.
 #[tauri::command]
 pub async fn fs_paths(app: AppHandle) -> CommandResult<FsPaths> {

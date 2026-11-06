@@ -40,8 +40,6 @@ const NOT_BUILT: Readonly<Record<string, { feature: string; method: string }>> =
 	"updater.check": { feature: "PLAT-13", method: "updater.check" },
 	"updater.installed-update": { feature: "PLAT-13", method: "updater.installedUpdate" },
 	"system.online-and-access": { feature: "PLAT-26", method: "system.isOnline" },
-	"programs.install-status": { feature: "PLAT-28", method: "programs.statuses" },
-	"programs.remove-status": { feature: "PLAT-28", method: "programs.remove" },
 };
 
 const TAURI_RUN_SKIPS: Readonly<Record<string, string>> = {

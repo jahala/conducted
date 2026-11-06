@@ -304,6 +304,7 @@ pub fn run() {
             }
         })
         .manage(binaries::BinariesState::default())
+        .manage(binaries::ProgramsState::default())
         .setup(|app| {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
@@ -372,6 +373,11 @@ pub fn run() {
             attachments::image_resize,
             menu::menu_set_shortcuts,
             binaries::programs_verification_errors,
+            binaries::programs_state,
+            binaries::program_install,
+            binaries::program_redownload,
+            binaries::program_remove,
+            binaries::programs_prefetch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Conducted")

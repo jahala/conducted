@@ -1080,6 +1080,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			});
 			await step("keep-awake", () => keepAwake.stop());
 			await step("notifications", () => notifications.stop());
+			await step("agent programs", () => system.dispose());
 			await step("the repo service", () => repo.dispose());
 			await step("git polling", () => git.dispose());
 			await step("GitHub polling", () => github.dispose());

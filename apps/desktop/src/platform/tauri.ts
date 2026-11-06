@@ -78,6 +78,7 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	ProgramStatus,
 	Programs,
 	Pty,
 	PtyHandle,
@@ -1093,12 +1094,12 @@ export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles
  */
 export function createTauriPrograms(bindings: TauriBindings): Programs {
 	return {
-		statuses: () => notImplemented("PLAT-28"),
-		onStatus: () => notImplemented("PLAT-28"),
-		install: () => notImplemented("PLAT-28"),
-		redownload: () => notImplemented("PLAT-28"),
-		remove: () => notImplemented("PLAT-28"),
-		prefetchForUpdate: () => notImplemented("PLAT-28"),
+		statuses: () => invokeResult<ProgramStatus[]>(bindings, COMMANDS.programsState),
+		onStatus: (listener) => onEvent(bindings, EVENTS.programsStatus, listener),
+		install: (program) => invokeResult(bindings, COMMANDS.programInstall, { program }),
+		redownload: (program) => invokeResult(bindings, COMMANDS.programRedownload, { program }),
+		remove: (program) => invokeResult(bindings, COMMANDS.programRemove, { program }),
+		prefetchForUpdate: () => invokeResult(bindings, COMMANDS.programsPrefetch),
 		verificationErrors: async () => {
 			const result = await invokeResult<{ program: ManagedProgram; message: string }[]>(
 				bindings,
