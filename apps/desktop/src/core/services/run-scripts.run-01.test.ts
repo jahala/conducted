@@ -202,7 +202,7 @@ describe("RUN-01 run scripts service", () => {
 		});
 		expect(input.env.CONDUCTED_PORT).toBe("55000");
 		expect(input.env.TERM).toBe("xterm-256color");
-		expect(input.env.CONDUCTED_PATH_PREFIX).toBe("/res/bin");
+		expect(input.env.CONDUCTED_PATH_PREFIX).toBe("/app/bin");
 		expect(service.store.getState().phases[ws]).toBe("running");
 		expect(service.store.getState().byWorkspace[ws]?.running[0]).toMatchObject({
 			actionId: "dev",

@@ -235,3 +235,33 @@ describe("CHAT-03 the follow-up setting chooses steering or queueing", () => {
 		});
 	});
 });
+
+describe("PLAT-28 a chat whose agent program is not ready yet", () => {
+	it("keeps its rows waiting while held, and sends them once the hold lifts", async () => {
+		let held = true;
+		let heldIds = 0;
+		const heldQueue = new FollowUpQueue({
+			repos: repositories,
+			deliver,
+			liveStateOf: () => ({
+				status: "idle",
+				pendingSteerIds: [],
+				backgroundTasks: [],
+				fastModeAvailable: true,
+			}),
+			newId: () => `held-${++heldIds}`,
+			now: () => 1000,
+			isHeld: () => held,
+		});
+		const row = await enqueue("m1");
+		heldQueue.store.setState({ bySession: { [sessionId]: [row] } });
+
+		expect(await heldQueue.release(sessionId)).toEqual(ok(undefined));
+		expect(deliver).not.toHaveBeenCalled();
+
+		held = false;
+		expect(await heldQueue.release(sessionId)).toEqual(ok(undefined));
+		expect(deliver).toHaveBeenCalledTimes(1);
+		expect(deliver.mock.calls[0]?.[0]).toMatchObject({ id: "m1", text: "Text m1" });
+	});
+});

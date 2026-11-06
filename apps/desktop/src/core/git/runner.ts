@@ -123,6 +123,12 @@ export interface GitRunner {
 export interface ShellGitRunnerDeps {
 	shell: Shell;
 	locks: KeyedMutex;
+	/**
+	 * The app's bin folder (`programsBinDir`), put before the login-shell PATH, so `gh` is the
+	 * managed copy when the program manager installed one (PLAT-35, D024), else the user's own. An
+	 * empty string puts no folder first.
+	 */
+	programsBin: string;
 	/** Waits `ms`. A parameter so tests do not sleep. */
 	sleep: (ms: number) => Promise<void>;
 	log: (level: "warn" | "info", message: string) => void;
@@ -248,7 +254,11 @@ export class ShellGitRunner implements GitRunner {
 		};
 	}
 
-	/** Puts the captured login-shell PATH in front of every command (services-map 5A.8.3). */
+	/**
+	 * Puts the app's bin folder, then the captured login-shell PATH, in front of every command
+	 * (services-map 5A.8.3; PLAT-35). Without a login-shell PATH the command keeps the shell's own
+	 * PATH, because the bin folder alone would hide git.
+	 */
 	async #shellEnv(
 		extra: Readonly<Record<string, string>> | undefined,
 	): Promise<Readonly<Record<string, string>> | undefined> {
@@ -256,8 +266,9 @@ export class ShellGitRunner implements GitRunner {
 		if (loginPath === null && extra === undefined) return undefined;
 		const env: Record<string, string> = { ...(extra ?? {}) };
 		if (loginPath !== null) {
-			env.PATH =
+			const searched =
 				env.PATH === undefined || env.PATH.length === 0 ? loginPath : `${loginPath}:${env.PATH}`;
+			env.PATH = this.#deps.programsBin === "" ? searched : `${this.#deps.programsBin}:${searched}`;
 		}
 		return Object.keys(env).length === 0 ? undefined : env;
 	}

@@ -7,7 +7,7 @@
 import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { binDir } from "../core/app-paths.ts";
+import { programsBinDir } from "../core/app-paths.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
 import { Toaster, toast } from "../ui/Toast.tsx";
@@ -56,7 +56,7 @@ describe("SET-13 a chosen program path that cannot be used", () => {
 
 		expect(created?.ok).toBe(true);
 		expect(spawn.mock.calls[0]?.[0].env?.CONDUCTED_PATH_PREFIX).toBe(
-			binDir(test.container.platform.fs.paths),
+			programsBinDir(test.container.platform.fs.paths),
 		);
 		expect(await screen.findByText(PATH_OVERRIDE_NOTICE_TITLE)).toBeTruthy();
 		expect(

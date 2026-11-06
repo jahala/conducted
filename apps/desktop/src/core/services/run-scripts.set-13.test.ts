@@ -172,6 +172,6 @@ describe("SET-13 scripts receive the chosen program path prefix", () => {
 
 		await service.start(workspace.id, action.id);
 
-		expect(runs[0]?.env.CONDUCTED_PATH_PREFIX).toBe("/res/bin");
+		expect(runs[0]?.env.CONDUCTED_PATH_PREFIX).toBe("/app/bin");
 	});
 });
