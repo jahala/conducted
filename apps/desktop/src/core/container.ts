@@ -32,7 +32,7 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import type { AgentLaunch } from "@conducted/protocol";
+import { AGENT_PROVIDER_TABLE, type AgentLaunch, signInEnvVars } from "@conducted/protocol";
 import {
 	type AgentKind,
 	appError,
@@ -223,20 +223,33 @@ export function createArchiveOnMerged(
 	};
 }
 
-/** Builds everything. Does no I/O. */
 /**
- * The provider key variables a sign-in choice leaves out of an agent's launch (SET-09), by agent and by the
- * stored provider setting. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
- * subscription, so its API key stays out; the "anthropic" choice is the API key, so the subscription token
- * stays out. Codex's standard sign-in is the ChatGPT account, so the OpenAI API key stays out. Only the
- * credential the user chose reaches the agent.
+ * Whether a stored provider key goes into an agent's launch (SET-09, D033). Only the credential of the
+ * chosen sign-in reaches the agent: the keys of its provider that the agent-provider table lists for
+ * that sign-in. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
+ * subscription, so its API key stays out; Codex's is the ChatGPT account, so the OpenAI API key stays
+ * out. An agent without a provider setting takes its one sign-in. OpenCode and Pi choose a provider in
+ * their own config, so every stored key may apply. A setting value the table does not list (set in a
+ * settings file) takes the keys stored under a provider of that name.
  */
-const LEFT_OUT_BY_SIGN_IN: Partial<Record<AgentKind, Readonly<Record<string, readonly string[]>>>> =
-	{
-		claude: { "": ["ANTHROPIC_API_KEY"], anthropic: ["CLAUDE_CODE_OAUTH_TOKEN"] },
-		codex: { "": ["OPENAI_API_KEY"] },
-	};
+function launchTakesKey(
+	agent: AgentKind,
+	chosenProvider: string | undefined,
+	key: { provider: string; envVar: string },
+): boolean {
+	const facts = AGENT_PROVIDER_TABLE[agent];
+	if (facts.configProviders !== undefined) return true;
+	const signIn =
+		chosenProvider === undefined
+			? facts.signIns[0]
+			: facts.signIns.find((entry) => entry.launchProvider === chosenProvider);
+	if (signIn === undefined) return key.provider.toLowerCase() === chosenProvider;
+	return (
+		key.provider.toLowerCase() === signIn.provider && signInEnvVars(signIn).includes(key.envVar)
+	);
+}
 
+/** Builds everything. Does no I/O. */
 export function createContainer(inputs: ContainerInputs): Container {
 	const { platform, clock, ids } = inputs;
 	const repositoryDeps = { clock, ids };
@@ -402,7 +415,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
 	 * region or project, the Environment page's variables (a repository's replacing the global one
 	 * of the same name) and the provider keys that belong to that agent and its sign-in choice
-	 * (LEFT_OUT_BY_SIGN_IN). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
+	 * (`launchTakesKey`). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
 	 * the sidecar fills from the login shell it captured. A list that
 	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
 	 * that names it, so the send or warm that asked shows it instead of starting without it.
@@ -420,21 +433,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 					: null;
 		const chosenProvider =
 			providerSetting === null ? undefined : setting<string>(providerSetting).trim().toLowerCase();
-		const defaultProvider =
-			session.config.agent === "claude"
-				? "anthropic"
-				: session.config.agent === "codex"
-					? "openai"
-					: session.config.agent === "cursor"
-						? "cursor"
-						: null;
-		const providerAllowed = (provider: string): boolean => {
-			if (chosenProvider !== undefined && chosenProvider !== "") {
-				return provider.toLowerCase() === chosenProvider;
-			}
-			// OpenCode and Pi choose a provider in their own config, so every stored key may apply.
-			return defaultProvider === null || provider.toLowerCase() === defaultProvider;
-		};
 		const readSecret = async (ref: string, name: string): Promise<Result<string>> => {
 			const read = await platform.keychain.get(ref);
 			if (!read.ok) {
@@ -483,13 +481,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 				),
 			);
 		}
-		const leftOut =
-			chosenProvider === undefined
-				? []
-				: (LEFT_OUT_BY_SIGN_IN[session.config.agent]?.[chosenProvider] ?? []);
 		for (const key of keys.value) {
-			if (!providerAllowed(key.provider)) continue;
-			if (leftOut.includes(key.envVar)) continue;
+			if (!launchTakesKey(session.config.agent, chosenProvider, key)) continue;
 			if (key.source === "this_mac") {
 				// The app cannot read the Mac's environment. The sidecar fills the value in from the login
 				// shell it captured, and fails the launch when that variable is not set there.

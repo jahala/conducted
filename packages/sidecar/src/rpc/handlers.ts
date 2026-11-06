@@ -14,6 +14,7 @@
  * the chat is known.
  * Test first: the keys of the returned tables equal the keys of the protocol tables.
  */
+import { agentProviders } from "@conducted/protocol";
 import { err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
@@ -22,7 +23,6 @@ import type { CompletionsCache } from "../models/completions-cache.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { UsageReader } from "../models/usage.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
-import { agentProviders } from "../runners/launch-env.ts";
 import type { SessionManager } from "../session/manager.ts";
 import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";

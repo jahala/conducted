@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { AgentLaunch, WorkspaceContext } from "@conducted/protocol";
+import { type AgentLaunch, agentProviders, type WorkspaceContext } from "@conducted/protocol";
 import type { Result, SessionId, WorkspaceId } from "@conducted/shared";
 import {
-	agentProviders,
 	buildAgentEnvironment,
 	claudeProviderEnvironment,
 	resolveAgentProgram,
