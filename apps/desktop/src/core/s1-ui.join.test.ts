@@ -526,7 +526,8 @@ describe("s1-ui join REV-10 and SET-10", () => {
 				JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { providers } }),
 			);
 
-			fireEvent.keyDown(screen.getByRole("combobox", { name: "Provider" }), {
+			// The answer reaches the store a few microtasks later, so wait for the catalogue to show.
+			fireEvent.keyDown(await screen.findByRole("combobox", { name: "Provider" }), {
 				key: "Enter",
 			});
 			fireEvent.keyDown(await screen.findByRole("option", { name: "DeepSeek" }), {
@@ -536,7 +537,10 @@ describe("s1-ui join REV-10 and SET-10", () => {
 			fireEvent.change(await screen.findByLabelText("DeepSeek"), {
 				target: { value: "sk-deepseek-join" },
 			});
-			fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+			// The Custom provider form below the catalogue has a Save key button of its own.
+			const deepseekRow = screen.getByLabelText("DeepSeek").parentElement;
+			if (deepseekRow === null) throw new Error("no field row for DeepSeek");
+			fireEvent.click(within(deepseekRow).getByRole("button", { name: "Save key" }));
 
 			const key = {
 				agent: "acp" as const,
