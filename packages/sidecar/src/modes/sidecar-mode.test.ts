@@ -46,7 +46,7 @@ const TEST_APP_VERSION = "1.2.3";
 function envFor(
 	config: Pick<
 		SidecarConfig,
-		"binDir" | "outboxRoot" | "completionsDir" | "cursorStoreDir" | "logDir"
+		"binDir" | "agentBinariesDir" | "outboxRoot" | "completionsDir" | "cursorStoreDir" | "logDir"
 	>,
 ): Record<string, string> {
 	return {
@@ -54,6 +54,7 @@ function envFor(
 		CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
 		CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
 		CONDUCTED_CURSOR_STORE_DIR: config.cursorStoreDir,
+		CONDUCTED_AGENT_BINARIES_DIR: config.agentBinariesDir,
 		CONDUCTED_LOG_DIR: config.logDir,
 		CONDUCTED_APP_VERSION: TEST_APP_VERSION,
 		CONDUCTED_LOG_LEVEL: TEST_LOG_LEVEL,
@@ -101,6 +102,7 @@ describe("SIDE-01 sidecar mode", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		const io = fakeIo();
@@ -121,6 +123,7 @@ describe("SIDE-01 sidecar mode", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });
@@ -173,6 +176,7 @@ describe("SIDE-18 sidecar logging", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		const received: SidecarConfig[] = [];
@@ -202,6 +206,7 @@ describe("SIDE-18 sidecar logging", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		const { logger, records } = recordingLogger();
@@ -226,6 +231,7 @@ describe("SIDE-18 sidecar logging", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		const stderr: string[] = [];
@@ -493,6 +499,7 @@ describe("SIDE-01 startup error handler wiring", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -517,6 +524,7 @@ describe("SIDE-01 startup error handler wiring", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -555,6 +563,7 @@ describe("SIDE-01 startup folders", () => {
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
 			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			agentBinariesDir: path.join(base, "agent-binaries"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });

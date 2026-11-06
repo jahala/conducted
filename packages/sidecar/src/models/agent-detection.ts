@@ -389,17 +389,8 @@ export class DefaultAgentDetector implements AgentDetector {
 		} | null>,
 		env: Readonly<Record<string, string>>,
 	): Promise<ProgramFound | { warning: string } | null> {
-		const managed = this.deps.findManagedProgram
-			? await this.deps.findManagedProgram(selector, env)
-			: null;
-		if (managed !== null) {
-			return {
-				path: managed.path,
-				source: "managed",
-				...(managed.version === "" ? {} : { version: managed.version }),
-			};
-		}
-
+		// The same order the runners start a program in (runners/launch-env.ts): the path chosen in
+		// Settings, then the managed copy, then the copy on the login-shell PATH.
 		const configured = this.deps.executablePath?.(selector.agent);
 		if (configured !== undefined && configured !== "") {
 			const probed = await this.probeVersion(configured, env);
@@ -412,6 +403,17 @@ export class DefaultAgentDetector implements AgentDetector {
 				path: configured,
 				source: "user",
 				...(probed === "" ? {} : { version: probed }),
+			};
+		}
+
+		const managed = this.deps.findManagedProgram
+			? await this.deps.findManagedProgram(selector, env)
+			: null;
+		if (managed !== null) {
+			return {
+				path: managed.path,
+				source: "managed",
+				...(managed.version === "" ? {} : { version: managed.version }),
 			};
 		}
 

@@ -163,6 +163,7 @@ export class AcpRunner implements Runner {
 			executablePath: options.executablePath,
 			env: options.env,
 			findExecutable: this.deps.findExecutable,
+			findManagedProgram: this.deps.findManagedProgram,
 		});
 		if (!program.ok) throw program.error;
 		const executablePath = program.value.path;
