@@ -10,14 +10,14 @@ function runners(calls: string[]): Record<Mode, ModeRunner> {
 		};
 	return {
 		sidecar: make("sidecar"),
-		logger: make("logger"),
 		"app-tools-mcp": make("app-tools-mcp"),
 	};
 }
 
 describe("SIDE-01 entry point and modes", () => {
 	test("SIDE-01 parseMode reads the third argv entry", () => {
-		expect(parseMode(["bun", "main.ts", "logger"])).toBe("logger");
+		expect(parseMode(["bun", "main.ts", "app-tools-mcp"])).toBe("app-tools-mcp");
+		expect(parseMode(["bun", "main.ts", "logger"])).toBeNull();
 		expect(parseMode(["bun", "main.ts", "cli"])).toBeNull();
 		expect(parseMode(["bun", "main.ts"])).toBeNull();
 	});
@@ -62,10 +62,19 @@ describe("SIDE-01 entry point and modes", () => {
 		const code = await dispatchMode(
 			["bun", "main.ts", "sidecar"],
 			{},
-			{ sidecar: boom, logger: boom, "app-tools-mcp": boom },
+			{ sidecar: boom, "app-tools-mcp": boom },
 			(t) => errors.push(t),
 		);
 		expect(code).toBe(1);
 		expect(errors.join("")).toContain("kaboom");
+	});
+});
+
+describe("SIDE-18 logger mode removal", () => {
+	test("SIDE-18 the logger mode is gone", async () => {
+		const calls: string[] = [];
+		const code = await dispatchMode(["bun", "main.ts", "logger"], {}, runners(calls), () => {});
+		expect(code).toBe(64);
+		expect(calls).toEqual([]);
 	});
 });

@@ -63,6 +63,8 @@ async function startHost(folder: string): Promise<HostRun> {
 			CONDUCTED_BIN_DIR: BIN_DIR,
 			CONDUCTED_OUTBOX_ROOT: outboxRoot,
 			CONDUCTED_LOG_DIR: logDir,
+			CONDUCTED_APP_VERSION: "0.0.0",
+			CONDUCTED_LOG_LEVEL: "info",
 			[PARENT_PID_ENV]: String(process.pid),
 		},
 		stdio: ["ignore", "pipe", "pipe"],

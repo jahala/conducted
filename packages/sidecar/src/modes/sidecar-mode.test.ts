@@ -39,11 +39,18 @@ async function tempDir(prefix: string): Promise<string> {
 	return created;
 }
 
-function envFor(config: SidecarConfig): Record<string, string> {
+const TEST_LOG_LEVEL = "info";
+const TEST_APP_VERSION = "1.2.3";
+
+function envFor(
+	config: Pick<SidecarConfig, "binDir" | "outboxRoot" | "logDir">,
+): Record<string, string> {
 	return {
 		CONDUCTED_BIN_DIR: config.binDir,
 		CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
 		CONDUCTED_LOG_DIR: config.logDir,
+		CONDUCTED_APP_VERSION: TEST_APP_VERSION,
+		CONDUCTED_LOG_LEVEL: TEST_LOG_LEVEL,
 	};
 }
 
@@ -92,7 +99,11 @@ describe("SIDE-01 sidecar mode", () => {
 		const code = await runSidecarMode(envFor(config), ["sidecar"], io);
 		expect(code).toBe(0);
 		expect(io.started).toHaveLength(1);
-		expect(io.started[0]?.config).toEqual(config);
+		expect(io.started[0]?.config).toEqual({
+			...config,
+			appVersion: TEST_APP_VERSION,
+			logLevel: TEST_LOG_LEVEL,
+		});
 	});
 
 	test("SIDE-01 an unwritable outbox folder exits 1 and names the folder", async () => {
@@ -141,6 +152,58 @@ describe("SIDE-01 sidecar mode", () => {
 		const code = await runSidecarMode({ HOME: "/Users/someone" }, ["sidecar"], io);
 		expect(code).toBe(64);
 		expect(io.started).toEqual([]);
+	});
+});
+
+describe("SIDE-18 sidecar logging", () => {
+	test("SIDE-18 the logger takes its level and app version from the launcher's environment", async () => {
+		const base = await tempDir("log-settings");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			logDir: path.join(base, "logs"),
+		};
+		const received: SidecarConfig[] = [];
+		const io = fakeIo({
+			createLogger: (parsed) => {
+				received.push(parsed);
+				return recordingLogger().logger;
+			},
+		});
+		const code = await runSidecarMode(
+			{
+				...envFor(config),
+				CONDUCTED_LOG_LEVEL: "debug",
+				CONDUCTED_APP_VERSION: "9.9.9",
+			},
+			["sidecar"],
+			io,
+		);
+		expect(code).toBe(0);
+		expect(received[0]).toMatchObject({ logLevel: "debug", appVersion: "9.9.9" });
+	});
+
+	test("SIDE-18 the mode writes a startup line carrying the app version", async () => {
+		const base = await tempDir("log-start");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			logDir: path.join(base, "logs"),
+		};
+		const { logger, records } = recordingLogger();
+		const io = fakeIo({ createLogger: () => logger });
+
+		await runSidecarMode(envFor(config), ["sidecar"], io);
+
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				message: "The sidecar is starting",
+				data: expect.objectContaining({
+					appVersion: TEST_APP_VERSION,
+					logLevel: TEST_LOG_LEVEL,
+				}),
+			}),
+		);
 	});
 });
 

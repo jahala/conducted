@@ -1,18 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import { parseLoggerConfig, parseSidecarConfig } from "./config.ts";
+import { parseSidecarConfig } from "./config.ts";
 
 const good = {
 	CONDUCTED_BIN_DIR: "/app/bin",
 	CONDUCTED_OUTBOX_ROOT: "/data/outbox",
 	CONDUCTED_LOG_DIR: "/data/logs",
+	CONDUCTED_APP_VERSION: "1.2.3",
+	CONDUCTED_LOG_LEVEL: "info",
 };
 
-describe("SIDE-01 sidecar and logger settings", () => {
+describe("SIDE-01 sidecar settings", () => {
 	test("SIDE-01 a complete environment parses", () => {
 		const result = parseSidecarConfig(good);
 		expect(result).toEqual({
 			ok: true,
-			value: { binDir: "/app/bin", outboxRoot: "/data/outbox", logDir: "/data/logs" },
+			value: {
+				binDir: "/app/bin",
+				outboxRoot: "/data/outbox",
+				logDir: "/data/logs",
+				appVersion: "1.2.3",
+				logLevel: "info",
+			},
 		});
 	});
 
@@ -43,18 +51,37 @@ describe("SIDE-01 sidecar and logger settings", () => {
 		const result = parseSidecarConfig({ ...good, CONDUCTED_SOMETHING_ELSE: "x" });
 		expect(result.ok).toBe(true);
 	});
+});
 
-	test("SIDE-01 the logger needs a token, and its folder is optional but absolute", () => {
-		expect(parseLoggerConfig({}).ok).toBe(false);
-		expect(parseLoggerConfig({ CONDUCTED_LOGGER_TOKEN: "t" })).toEqual({
-			ok: true,
-			value: { token: "t", persistDir: null },
+describe("SIDE-18 sidecar log settings", () => {
+	test("SIDE-18 the log level and app version are read from the launcher's environment", () => {
+		const result = parseSidecarConfig({
+			...good,
+			CONDUCTED_LOG_LEVEL: "debug",
+			CONDUCTED_APP_VERSION: "0.4.0",
 		});
-		expect(parseLoggerConfig({ CONDUCTED_LOGGER_TOKEN: "t", CONDUCTED_LOGGER_DIR: "rel" }).ok).toBe(
-			false,
-		);
-		expect(
-			parseLoggerConfig({ CONDUCTED_LOGGER_TOKEN: "t", CONDUCTED_LOGGER_DIR: "/var/logs" }),
-		).toEqual({ ok: true, value: { token: "t", persistDir: "/var/logs" } });
+		expect(result).toEqual({
+			ok: true,
+			value: {
+				binDir: "/app/bin",
+				outboxRoot: "/data/outbox",
+				logDir: "/data/logs",
+				appVersion: "0.4.0",
+				logLevel: "debug",
+			},
+		});
+	});
+
+	test("SIDE-18 an unknown log level is refused by the variable's name", () => {
+		const result = parseSidecarConfig({ ...good, CONDUCTED_LOG_LEVEL: "loud" });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("CONDUCTED_LOG_LEVEL");
+	});
+
+	test("SIDE-18 a missing app version is refused by the variable's name", () => {
+		const { CONDUCTED_APP_VERSION: _omit, ...rest } = good;
+		const result = parseSidecarConfig(rest);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("CONDUCTED_APP_VERSION");
 	});
 });

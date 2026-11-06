@@ -452,6 +452,7 @@ export class ClaudeSession implements AgentSession {
 			for await (const message of query) {
 				// A replaced process must not feed the turn that runs on its successor.
 				if (this.query !== query) continue;
+				this.debugTap("downstream", message);
 				this.handleMessage(message);
 			}
 			if (this.query === query) this.tracker.onStreamEnded(this.streamEndedError());
@@ -723,13 +724,24 @@ export class ClaudeSession implements AgentSession {
 	}
 
 	private userMessage(text: string, uuid: string): SDKUserMessage {
-		return {
+		const message: SDKUserMessage = {
 			type: "user",
 			message: { role: "user", content: text },
 			parent_tool_use_id: null,
 			session_id: this.agentSessionId ?? this.sessionId,
 			uuid: uuid as SDKUserMessage["uuid"],
 		};
+		this.debugTap("upstream", message);
+		return message;
+	}
+
+	/** Logs one SDK message in either direction so a debug log shows the whole exchange (SIDE-18). */
+	private debugTap(direction: "upstream" | "downstream", data: unknown): void {
+		this.deps.logger.debug("workspace <> SDK", {
+			direction,
+			sessionId: this.sessionId,
+			data,
+		});
 	}
 }
 

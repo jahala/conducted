@@ -457,20 +457,23 @@ function recordingLogger(): {
 	logger: Logger;
 	errors: { message: string; data?: Record<string, unknown> }[];
 	debugLines: string[];
+	taps: { message: string; data?: Record<string, unknown> }[];
 } {
 	const errors: { message: string; data?: Record<string, unknown> }[] = [];
 	const debugLines: string[] = [];
+	const taps: { message: string; data?: Record<string, unknown> }[] = [];
 	const logger: Logger = {
 		error: (message, data) => errors.push({ message, data }),
 		warn: () => {},
 		info: () => {},
-		debug: (_message, data) => {
+		debug: (message, data) => {
+			taps.push({ message, data });
 			if (typeof data?.line === "string") debugLines.push(data.line);
 		},
 		child: () => logger,
 		setLevel: () => {},
 	};
-	return { logger, errors, debugLines };
+	return { logger, errors, debugLines, taps };
 }
 
 describe("AGENT-02 Claude session", () => {
@@ -1464,5 +1467,30 @@ describe("AGENT-02 Claude session", () => {
 			]);
 			await session.dispose();
 		});
+	});
+});
+
+describe("SIDE-18 SDK debug tap", () => {
+	test("SIDE-18 a debug tap logs every SDK message in both directions", async () => {
+		const recorder = recordingLogger();
+		const { query } = scriptedQuery((user, script) => {
+			script.emit(init());
+			script.emit(assistantMessage("Hello"));
+			script.emit(resultMessage(String(user.uuid)));
+		});
+		const session = new ClaudeSession(makeDeps({ query, logger: recorder.logger }), start());
+
+		await session.runTurn(turnInput(), callbacks([]));
+
+		const taps = recorder.taps.filter((tap) => tap.message === "workspace <> SDK");
+		const upstream = taps.filter((tap) => tap.data?.direction === "upstream");
+		const downstream = taps.filter((tap) => tap.data?.direction === "downstream");
+		expect(upstream).toHaveLength(1);
+		expect(upstream[0]?.data?.data).toMatchObject({
+			type: "user",
+			message: { role: "user", content: "hi" },
+		});
+		expect(downstream.length).toBeGreaterThanOrEqual(3);
+		await session.dispose();
 	});
 });

@@ -172,7 +172,13 @@ async function harness(
 		providerSecrets: {},
 	};
 	const host = composeSidecar(
-		{ binDir: BIN_DIR, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
+		{
+			binDir: BIN_DIR,
+			outboxRoot: path.join(folder, "outbox"),
+			logDir: path.join(folder, "log"),
+			appVersion: "0.0.0",
+			logLevel: "info",
+		},
 		{
 			app,
 			query: scriptedQuery(seen.claudeOptions),
@@ -719,6 +725,8 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_BIN_DIR: BIN_DIR,
 				CONDUCTED_OUTBOX_ROOT: path.join(folder, "outbox"),
 				CONDUCTED_LOG_DIR: path.join(folder, "log"),
+				CONDUCTED_APP_VERSION: "0.0.0",
+				CONDUCTED_LOG_LEVEL: "info",
 				[PARENT_PID_ENV]: String(process.pid),
 			},
 			stdio: ["ignore", "pipe", "pipe"],
