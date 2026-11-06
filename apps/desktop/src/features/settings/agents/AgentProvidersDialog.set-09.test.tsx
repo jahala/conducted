@@ -80,7 +80,7 @@ describe("SET-09 provider keys", () => {
 		fireEvent.change(screen.getByLabelText("Anthropic API key"), {
 			target: { value: "sk-ant-secret" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save Anthropic API key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		const key = {
@@ -107,7 +107,7 @@ describe("SET-09 provider keys", () => {
 		await choose("Provider", "Anthropic API key");
 
 		fireEvent.click(screen.getByRole("checkbox", { name: "Use the key from this Mac" }));
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save Anthropic API key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key imported from env"));
 		expect(current.container.services.agentCatalog.store.getState().providerKeys?.claude).toEqual({
@@ -131,7 +131,7 @@ describe("SET-09 provider keys", () => {
 		fireEvent.change(screen.getByLabelText("Claude Code subscription token"), {
 			target: { value: "oauth-token" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save Claude Code subscription token" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		const key = {
@@ -250,7 +250,7 @@ describe("SET-09 provider keys", () => {
 		fireEvent.change(screen.getByLabelText("OpenAI API key"), {
 			target: { value: "sk-openai" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save OpenAI API key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		expect(
@@ -271,7 +271,7 @@ describe("SET-09 provider keys", () => {
 		fireEvent.change(screen.getByLabelText("Cursor API key"), {
 			target: { value: "cursor-key" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save Cursor API key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		expect(
@@ -297,7 +297,7 @@ describe("SET-09 provider keys", () => {
 		fireEvent.change(screen.getByLabelText("Workspace ID (optional)"), {
 			target: { value: "workspace-1" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save custom provider key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		const base = { agent: "claude" as const, acpAgent: null, provider: "custom" };
@@ -322,7 +322,7 @@ describe("SET-09 provider keys", () => {
 		fireEvent.change(screen.getByLabelText("Claude Code subscription token"), {
 			target: { value: "oauth-token" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save Claude Code subscription token" }));
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		await choose("Provider", "Anthropic API key");
 		await waitFor(() =>

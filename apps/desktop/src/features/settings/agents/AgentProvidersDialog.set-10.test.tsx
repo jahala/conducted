@@ -1,5 +1,5 @@
 import type { AgentInstall, AgentProvider } from "@conducted/protocol";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { providerKeychainRef } from "../../../core/services/agent-catalog.ts";
@@ -97,7 +97,7 @@ describe("SET-10 OpenCode providers", () => {
 		fireEvent.change(screen.getByLabelText("DeepSeek"), {
 			target: { value: "sk-deepseek" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save DeepSeek key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		const key = {
@@ -126,12 +126,24 @@ describe("SET-10 OpenCode providers", () => {
 		});
 	});
 
+	it("labels the Custom provider form apart from the provider keys, with Save buttons that say which key", async () => {
+		await mounted();
+
+		await choose("Provider", "DeepSeek");
+		expect(await screen.findByLabelText("DeepSeek")).toBeTruthy();
+		const custom = screen.getByRole("group", { name: "Custom provider" });
+		expect(within(custom).getByLabelText("API key")).toBeTruthy();
+		expect(within(custom).getByRole("button", { name: "Save custom provider key" })).toBeTruthy();
+		expect(within(custom).queryByRole("button", { name: "Save DeepSeek key" })).toBeNull();
+		expect(screen.getByRole("button", { name: "Save DeepSeek key" })).toBeTruthy();
+	});
+
 	it("shows a variable two providers share as saved under both, and removes it from both", async () => {
 		const current = await mounted();
 
 		await choose("Provider", "Z.AI");
 		fireEvent.change(await screen.findByLabelText("Z.AI"), { target: { value: "sk-zhipu" } });
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save Z.AI key" }));
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 
 		await choose("Provider", "Zhipu AI");
