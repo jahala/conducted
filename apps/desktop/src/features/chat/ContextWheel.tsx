@@ -9,7 +9,9 @@
  * unavailable for Cursor."), claude-runner.md 7 (usage is reported per turn, and so is its cost).
  * Our design choice: the ring is neutral until 85 percent, warning until 95, then danger. The card
  * also opens on keyboard focus.
- * Moved: plan usage (Claude's 5-hour and weekly windows) is drawn by UsageAccountRows (CHAT-28).
+ * Plan usage and the signed-in account are drawn by UsageAccountRows (CHAT-28) for Claude and
+ * Codex chats: the card asks the sidecar's getContextUsage each time it opens, as Conductor asks
+ * only while its card is open, and only the newest answer is shown.
  * A chat whose agent has not reported its window yet uses the size the same agent last reported
  * for the same model in any chat (ContextWindowService); no sizes ship with the app.
  * Must handle: window size unknown (the note and an empty ring, no invented percentage); Cursor
@@ -21,6 +23,7 @@
 
 import type { SessionEvent } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
+import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useSetting } from "../../core/hooks.ts";
@@ -28,6 +31,7 @@ import type { Session } from "../../core/model.ts";
 import { contextWindowKey } from "../../core/services/context-windows.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Popover } from "../../ui/Popover.tsx";
+import { UsageAccountRows, type UsageAnswer } from "./UsageAccountRows.tsx";
 
 export interface ContextWheelProps {
 	sessionId: SessionId;
@@ -134,6 +138,28 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 	);
 	const alwaysShow = useSetting<boolean>("always_show_context_wheel");
 	const showCost = useSetting<boolean>("experimental_show_agent_cost");
+	const [planUsage, setPlanUsage] = useState<{
+		answer: UsageAnswer | null;
+		loading: boolean;
+		at: number;
+	}>({ answer: null, loading: false, at: 0 });
+	const latestRequest = useRef(0);
+	const agent = session?.config.agent;
+	const usageAgent = agent === "claude" || agent === "codex" ? agent : null;
+
+	// Asked each time the card opens; an answer a newer request overtook is dropped.
+	const readPlanUsage = async () => {
+		latestRequest.current += 1;
+		const request = latestRequest.current;
+		setPlanUsage((current) => ({ ...current, loading: true }));
+		const result = await services.sessions.contextUsage(sessionId);
+		if (request !== latestRequest.current) return;
+		setPlanUsage({
+			answer: result.ok ? result.value : null,
+			loading: false,
+			at: Date.now(),
+		});
+	};
 
 	if (session === undefined) return null;
 
@@ -161,6 +187,9 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 			hover
 			side="top"
 			align="end"
+			onOpenChange={(open) => {
+				if (open && usageAgent !== null) void readPlanUsage();
+			}}
 			trigger={
 				<Button variant="ghost" size="xs" className="px-0" aria-label={label}>
 					<span className={toneFor(percent)}>
@@ -217,6 +246,14 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 						</>
 					) : null}
 				</dl>
+				{usageAgent === null ? null : (
+					<UsageAccountRows
+						agent={usageAgent}
+						answer={planUsage.answer}
+						loading={planUsage.loading}
+						now={planUsage.at}
+					/>
+				)}
 			</div>
 		</Popover>
 	);

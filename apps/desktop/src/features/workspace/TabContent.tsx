@@ -7,8 +7,8 @@
  * Our design choice: each tab is mounted under its own identity and sits in its own boundary, so a
  * crash in one tab clears when the user opens another and no state carries from one chat to the next.
  * A terminal tab renders only an empty slot: the app shell's surface layer draws the terminal over it and
- * keeps it mounted while another tab is open (NAV-15, app/surface-registry.tsx, ui-map.md 8). The browser
- * tab is still RUN-04's placeholder, so it has no surface yet.
+ * keeps it mounted while another tab is open (NAV-15, app/surface-registry.tsx, ui-map.md 8). A browser
+ * tab is RUN-04's own view, with its toolbar and designed states.
  * Must handle: no tab open (EmptyTabGroup); a file tab without a path (treated as no tab, see active-tab.ts);
  * a terminal that has exited; a browser tab with an unreachable URL (BrowserTab's own state).
  * Test first: search { tab: "pr" } renders the PR tab area; {} renders the empty tab group.

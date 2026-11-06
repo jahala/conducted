@@ -6,12 +6,15 @@
  * already present in this scope (the user edits it in the table instead), a reserved name that the
  * app sets itself (refused with the reason), an empty value (allowed, means set to empty), pasting
  * a "NAME=value" line into the name field (splits it), and a failed save (form keeps its text).
+ * Children: EnvVarSuggestions (SET-11) under the fields; its arrow keys, Enter and Escape work
+ * while the name field has focus.
  * Test first: pasting "TOKEN=abc" into the name field fills name "TOKEN" and value "abc".
  */
-import { useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { isReservedEnvVarName, validateEnvVarName } from "../../../core/services/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
+import { EnvVarSuggestions, suggestEnvVars } from "./EnvVarSuggestions.tsx";
 
 const splitAssignment = (text: string): { name: string; value: string } | null => {
 	const at = text.indexOf("=");
@@ -30,8 +33,16 @@ export function AddEnvVarForm({ existingNames, reservedNames, onAdd }: AddEnvVar
 	const [value, setValue] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [activeSuggestion, setActiveSuggestion] = useState(-1);
+	const [suggestionsHidden, setSuggestionsHidden] = useState(false);
+	const suggestions = useMemo(
+		() => (suggestionsHidden ? [] : suggestEnvVars(name, existingNames)),
+		[name, existingNames, suggestionsHidden],
+	);
 
 	const changeName = (text: string) => {
+		setSuggestionsHidden(false);
+		setActiveSuggestion(-1);
 		const assignment = splitAssignment(text);
 		if (assignment === null) {
 			setName(text);
@@ -39,6 +50,39 @@ export function AddEnvVarForm({ existingNames, reservedNames, onAdd }: AddEnvVar
 		}
 		setName(assignment.name);
 		setValue(assignment.value);
+	};
+
+	const pickSuggestion = (picked: string) => {
+		setName(picked);
+		setSuggestionsHidden(true);
+		setActiveSuggestion(-1);
+	};
+
+	const onNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (suggestions.length === 0) return;
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			setActiveSuggestion((current) => (current + 1) % suggestions.length);
+			return;
+		}
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			setActiveSuggestion((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+			return;
+		}
+		if (event.key === "Enter" && activeSuggestion >= 0) {
+			const chosen = suggestions[activeSuggestion];
+			if (chosen !== undefined) {
+				event.preventDefault();
+				pickSuggestion(chosen.name);
+			}
+			return;
+		}
+		if (event.key === "Escape") {
+			event.preventDefault();
+			setSuggestionsHidden(true);
+			setActiveSuggestion(-1);
+		}
 	};
 
 	const submit = async () => {
@@ -87,6 +131,7 @@ export function AddEnvVarForm({ existingNames, reservedNames, onAdd }: AddEnvVar
 						spellCheck={false}
 						placeholder="TOKEN"
 						className="font-mono"
+						onKeyDown={onNameKeyDown}
 						onChange={(event) => changeName(event.target.value)}
 					/>
 				</div>
@@ -105,6 +150,15 @@ export function AddEnvVarForm({ existingNames, reservedNames, onAdd }: AddEnvVar
 					Add variable
 				</Button>
 			</div>
+			{suggestionsHidden ? null : (
+				<EnvVarSuggestions
+					query={name}
+					existingNames={existingNames}
+					activeIndex={activeSuggestion}
+					onHighlight={setActiveSuggestion}
+					onPick={pickSuggestion}
+				/>
+			)}
 			{error === null ? null : (
 				<p role="alert" className="text-xs text-danger">
 					{error}

@@ -34,6 +34,9 @@ const state = vi.hoisted(() => {
 vi.mock("../../../core/hooks.ts", () => ({
 	useAgentInstalls: () => state.installs,
 	useActions: () => state.actions,
+	useViewingSessionId: () => null,
+	useMcpServers: () => ({ state: "ready", data: [] }),
+	useSetting: () => false,
 }));
 
 vi.mock("../../../ui/Toast.tsx", () => ({

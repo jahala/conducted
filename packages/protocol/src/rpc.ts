@@ -281,10 +281,16 @@ export const appToSidecarRequests = {
 			windowTokens: z.number().int().positive(),
 			/** The account's usage limits, for the usage popover. Empty when the agent reports none. */
 			rateLimits: z.array(zRateLimit),
-			/** The signed-in account, for the usage popover's account rows. */
+			/**
+			 * The signed-in account, for the usage popover's account rows (CHAT-28). `provider` is
+			 * the API backend ("Anthropic API", "OpenAI"). A sign-in shows as `loginMethod` ("Claude
+			 * account"); a key or outside credentials as `auth` ("API key", "ChatGPT login").
+			 */
 			account: z
 				.object({
+					provider: z.string().optional(),
 					loginMethod: z.string().optional(),
+					auth: z.string().optional(),
 					organization: z.string().optional(),
 					email: z.string().optional(),
 					plan: z.string().optional(),

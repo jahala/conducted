@@ -76,6 +76,7 @@ Use these before writing your own. A second copy is a finding in review.
 | Lock a mutex, even a poisoned one (Rust)   | `lock`                                           | `apps/desktop/src-tauri/src/error.rs`                                   |
 | The main window or `window_missing` (Rust) | `main_window`                                    | `apps/desktop/src-tauri/src/window.rs`                                  |
 | A real container or database in a test     | `createTestContainer`, `openTestDatabase`        | `apps/desktop/src/test/container.ts`, `apps/desktop/src/test/sqlite.ts` |
+| Answer a test container's sidecar requests | `answerSidecar`                                  | `apps/desktop/src/test/sidecar-answers.ts`                              |
 
 ## State and time
 

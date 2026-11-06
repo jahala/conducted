@@ -33,7 +33,7 @@ const shellWith = (
 			start: () => {
 				throw new Error("not used");
 			},
-			loginEnv: async () => ({ shell: "/bin/zsh", path: "/usr/bin" }),
+			loginEnv: async () => ({ shell: "/bin/zsh", path: "/usr/bin", zdotdir: null }),
 		},
 	};
 };

@@ -4,14 +4,15 @@
  * needs, and the seed helpers that write rows through the repositories and load them into the
  * matching service stores.
  * Behaviour: not applicable, test support only.
- * Must handle: every container input except the platform can be overridden, ids are never a
+ * Must handle: every container input except the platform can be overridden, the app's database
+ * can be wrapped (one held or failing statement) while the test reads the real one, ids are never a
  * constant, and `close` releases the database (a test that started the container awaits
  * `container.stop()` first). Construction does not call `container.start()`, so a test decides
  * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
 import type { SessionEvent } from "@conducted/protocol";
-import type { Clock, MessageId, SessionId, WorkspaceId } from "@conducted/shared";
+import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
@@ -43,12 +44,19 @@ const createTestPlaceNames = (): PlaceNames => ({
 export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">> & {
 	/** The in-memory file commands refuse paths outside the app's file scope, as files.rs does. */
 	enforceFileScope?: boolean;
+	/**
+	 * Wraps the real database the app is given, for a test that holds or fails one statement
+	 * (`holdingOnExecute`, `failingOnSelect`). `TestContainer.database` stays the unwrapped one.
+	 */
+	wrapDatabase?: (database: Database) => Database;
 };
 
 export interface TestContainer {
 	container: Container;
 	memory: MemoryPlatform;
 	database: Database;
+	/** What the container told the user about background work that failed (`reportFailure`). */
+	reported: { title: string; message: string }[];
 	close(): void;
 }
 
@@ -60,11 +68,12 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 	const memory = createMemoryPlatform({
 		clock,
 		ids,
-		database: store.database,
+		database: options.wrapDatabase?.(store.database) ?? store.database,
 		version: "0.0.0-test",
 		channel: "dev",
 		enforceFileScope: options.enforceFileScope,
 	});
+	const reported: { title: string; message: string }[] = [];
 	const container = createContainer({
 		platform: memory.platform,
 		clock,
@@ -74,6 +83,10 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		sound: options.sound ?? SILENT_SOUND,
 		windowFocused: options.windowFocused ?? (() => false),
 		openLink: options.openLink,
+		// The app entry toasts these; a test reads what would have been told from `reported`.
+		reportFailure: (title, error) => {
+			reported.push({ title, message: error.message });
+		},
 		writeDiagnosticsReport:
 			options.writeDiagnosticsReport ??
 			((capture, fileName) => writeRedactedReport(memory.platform, capture, fileName)),
@@ -82,6 +95,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		container,
 		memory,
 		database: store.database,
+		reported,
 		close: () => store.close(),
 	};
 }
@@ -106,6 +120,38 @@ export async function seedSessionEvent(
 	receivedAt: number,
 ): Promise<void> {
 	must(await seedRepositories(container).sessionEvents.append(sessionId, event, receivedAt));
+}
+
+/**
+ * Writes a chat's user message and records its time, as the event ingest does, then reloads the
+ * chat list so the store sees `lastUserMessageAt`.
+ */
+export async function seedUserMessage(
+	container: Container,
+	sessionId: SessionId,
+	event: Extract<SessionEvent, { type: "user_message" }>,
+	receivedAt: number,
+): Promise<void> {
+	const repositories = seedRepositories(container);
+	must(await repositories.sessionEvents.append(sessionId, event, receivedAt));
+	must(await repositories.sessions.recordUserMessage(sessionId, event.at));
+	must(await container.services.sessions.start());
+}
+
+/** Marks a chat's events from a turn on as reverted, as a revert to that turn does (CHAT-15). */
+export async function seedRevertFromTurn(
+	container: Container,
+	sessionId: SessionId,
+	turnId: TurnId,
+	revertedAt: number,
+): Promise<void> {
+	must(
+		await seedRepositories(container).sessionEvents.markRevertedFromTurn(
+			sessionId,
+			turnId,
+			revertedAt,
+		),
+	);
 }
 
 /** Writes one project through the repositories and loads the repo store from the database. */

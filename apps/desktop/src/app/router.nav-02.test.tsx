@@ -244,20 +244,20 @@ describe("NAV-02 per-workspace URL state", () => {
 describe("NAV-02 back and forward commands", () => {
 	it("moves through history with nav.back and nav.forward", async () => {
 		const { router, registry } = await openApp(
-			createMemoryHistory({ initialEntries: ["/all-workspaces", "/dashboard"] }),
+			createMemoryHistory({ initialEntries: ["/all-workspaces", "/backlog"] }),
 		);
 
-		expect(router.state.location.pathname).toBe("/dashboard");
+		expect(router.state.location.pathname).toBe("/backlog");
 		registry.run("nav.back");
 		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
 
 		registry.run("nav.forward");
-		await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
+		await waitFor(() => expect(router.state.location.pathname).toBe("/backlog"));
 	});
 
 	it("follows the Cmd+[ key press, because the dispatcher is mounted at the root", async () => {
 		const { router } = await openApp(
-			createMemoryHistory({ initialEntries: ["/all-workspaces", "/dashboard"] }),
+			createMemoryHistory({ initialEntries: ["/all-workspaces", "/backlog"] }),
 		);
 
 		fireEvent.keyDown(document.body, { key: "[", metaKey: true });

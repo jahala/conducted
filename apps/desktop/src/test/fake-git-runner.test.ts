@@ -44,7 +44,7 @@ const realShell: Shell = {
 	start: () => {
 		throw new Error("start is not used here");
 	},
-	loginEnv: async () => ({ shell: "/bin/sh", path: gitEnv.PATH ?? "" }),
+	loginEnv: async () => ({ shell: "/bin/sh", path: gitEnv.PATH ?? "", zdotdir: null }),
 };
 
 const runnerOver = (shell: Shell): ShellGitRunner =>
@@ -63,7 +63,7 @@ const replayShell = (output: ShellOutput): Shell => ({
 	start: () => {
 		throw new Error("start is not used here");
 	},
-	loginEnv: async () => ({ shell: "/bin/sh", path: "" }),
+	loginEnv: async () => ({ shell: "/bin/sh", path: "", zdotdir: null }),
 });
 
 /** Runs git for the setup and returns its trimmed stdout. */

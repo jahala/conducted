@@ -17,7 +17,8 @@
  * its command line, so the profile is the preferred way); a notarisation that Apple rejects (the
  * log text is kept and returned); stapling the ticket so the app opens offline; a disk image or
  * archive built before signing (the release builds the app alone, then signs it, and only then
- * makes the disk image from the verified app).
+ * makes the disk image from the verified app; the update archive `tauri build` makes from the
+ * unsigned app is made again from the notarised one by `scripts/release.ts`).
  * Our design choice: every tool call goes through `RunTool`, so tests give it a scripted runner
  * and never sign anything. The privacy strings and entitlements live in files next to
  * `tauri.conf.json`, and `bundle.macOS` points at them. `bundle.externalBin` lives in
@@ -145,7 +146,8 @@ export function sidecarBinaryPath(appPath: string): Result<string> {
 
 /**
  * The `tauri build` arguments for a release. Only the app is bundled, so Tauri never makes a disk
- * image or archive from an unsigned app; `scripts/release.ts` makes those after signing.
+ * image from an unsigned app. `createUpdaterArtifacts` still makes it write an update archive from
+ * the unsigned app; `scripts/release.ts` makes the disk image and that archive again after signing.
  */
 export function appBuildArguments(target: string, configPath: string): readonly string[] {
 	return [

@@ -34,6 +34,7 @@ describe("AGENT-06 Codex wire names", () => {
 			turnInterrupt: "turn/interrupt",
 			modelList: "model/list",
 			accountRead: "account/read",
+			accountRateLimitsRead: "account/rateLimits/read",
 			accountLoginStart: "account/login/start",
 			accountLoginCancel: "account/login/cancel",
 			mcpServerStatusList: "mcpServerStatus/list",

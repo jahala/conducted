@@ -1,10 +1,12 @@
 /**
  * @feature NAV-03 Workspace row
+ * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: One row of the sidebar list: status icon, name, repo avatar, line change counts, unread
- * dot, relative time, status text and badges.
+ * dot, relative time, status text, badges and the "Open draft" marker.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
- * directory; badges Draft and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8
- * (status text).
+ * directory; the repo avatar's emoji, uploaded icon, favicon, owner avatar or letter; badges Draft
+ * and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8 (status text), 5.3
+ * (right-clicking the repo icon offers Change repository icon).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
  * list can refresh every row's "5m" with one timer. Status words come from
  * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
@@ -14,11 +16,12 @@
  * is focused; P waits for NAV-04.
  * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
  * only when there are unread chats; no status yet (hook returns null); hover shows the live
- * Cmd+number hint for this row; keyboard focus ring.
+ * Cmd+number hint for this row; keyboard focus ring; a chat whose draft is still loading (the
+ * marker appears when it arrives); the marker opening the draft chat without leaving the row.
  * Test first: A workspace with a PR title and no display name shows the PR title; an unread count
  * above zero shows the unread dot.
  */
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { scopesForTarget } from "../../app/command-dispatcher.ts";
 import { useActions, useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
@@ -27,9 +30,12 @@ import { formatShortcut } from "../../core/registries/commands.ts";
 import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { type StatusTone, statusText } from "../workspace/status-text.ts";
+import { useWorkspaceDraft } from "../composer/draft-sources.ts";
+import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
+import { DraftMarker } from "./DraftMarker.tsx";
+import { RepoIconAvatar } from "./RepoIcon.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
 export interface WorkspaceRowProps {
@@ -41,14 +47,6 @@ export interface WorkspaceRowProps {
 	/** The current time. The list reads it once a minute and hands it to every row. */
 	now: number;
 }
-
-const toneClass: Record<StatusTone, string> = {
-	attention: "text-accent",
-	active: "text-fg-muted",
-	danger: "text-danger",
-	success: "text-success",
-	neutral: "text-fg-muted",
-};
 
 /** The display form of the shortcut an event presses, as `useLiveShortcut` shows it. */
 function shortcutFromEvent(event: KeyboardEvent): string | null {
@@ -78,24 +76,14 @@ export function relativeTime(at: number, now: number): string {
 	return `${Math.floor(months / 12)}y`;
 }
 
-function RepoAvatar({ repo }: { repo: Repo }) {
-	const icon = repo.icon?.trim();
-	const text =
-		icon !== undefined && icon !== "" ? icon : repo.name.slice(0, 1).toUpperCase() || "?";
-	return (
-		<span
-			aria-hidden="true"
-			className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-hover text-3xs font-medium text-fg-muted"
-		>
-			{text}
-		</span>
-	);
-}
-
 export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: WorkspaceRowProps) {
 	const actions = useActions();
+	const navigate = useNavigate();
 	const status = useWorkspaceStatus(workspace.id);
 	const sessions = useSessions(workspace.id);
+	const draft = useWorkspaceDraft(
+		sessions.state === "ready" ? sessions.data.map((session) => session.id) : [],
+	);
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
 	const subtitle = statusText(status);
@@ -104,6 +92,15 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 	);
 	const [hovered, setHovered] = useState(false);
 	const readShortcut = useLiveShortcut("sidebar.toggleRead");
+
+	const openDraft = () => {
+		if (draft === null) return;
+		void navigate({
+			to: "/repository/$repositoryId/workspace/$workspaceId",
+			params: { repositoryId: repo.id, workspaceId: workspace.id },
+			search: { tab: "session", sessionId: draft.sessionId },
+		});
+	};
 
 	const toggleRead = () => {
 		const failure = unread
@@ -152,10 +149,13 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 			<span className="flex min-w-0 flex-1 flex-col">
 				<span className="truncate font-book">{workspaceName(workspace)}</span>
 				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
+					<span className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
+						{subtitle.text}
+					</span>
 				)}
 			</span>
-			<RepoAvatar repo={repo} />
+			<RepoIconAvatar repo={repo} />
+			<DraftMarker place="workspace-row" draft={draft?.draft ?? null} onOpenDraft={openDraft} />
 			<UnreadDot unread={unread} />
 			<time
 				dateTime={new Date(workspace.lastActivityAt).toISOString()}

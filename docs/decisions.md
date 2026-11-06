@@ -537,6 +537,42 @@ Context: the owner's cap of three agents at once covered the DeepSeek builders t
 Chosen by the owner: DeepSeek builders run outside the cap, in parallel as needed. The cap of three still holds for Claude agents (Opus and Sonnet). The lead runs at most two batch plans at once with three builders each, and still lands one batch at a time; Rust builds and full test suites stay one at a time.
 Why: the builders were the bottleneck, and they cost the owner's subscription nothing.
 
+## D078. PR-07's activity list shows commits and comments, as Conductor's does (2026-11-06)
+
+Context: PR-07's checklist asked for commits, reviews, comments and status changes in the PR activity list. The lead first planned new pull request model fields for reviews and status changes. The ui-2 fixer then read Conductor's activity list (renderApp `l6a` @9996475): it shows commits and comments only, and Conductor uses review data only for the reviewer list.
+Chosen: the activity list shows commits and comments. The checklist item reads "commits and comments". The pull request model gets no new fields. The review and status branches the builder left in `PrActivityItem.tsx`, which nothing reaches, go to the desktop UI hardening.
+Why: Conductor is the reference (D020), and the list it draws needs no data we lack.
+
+## D079. App updates use the Tauri updater plugin with our own signing key (2026-11-06)
+
+Context: PLAT-13's builder wrote a release-feed check, a download and minisign checking by hand in about 1,500 lines of Rust, and left replacing the app bundle to "the Tauri updater plugin when it is added", because no signing key or feed existed. An update could therefore be fetched and never applied. Conductor's updater is a release feed with minisign signatures (native-and-sidecar-map A9).
+Chosen: PLAT-13 uses `tauri-plugin-updater`, which checks, downloads, verifies and replaces the bundle. The hand-written download and verification code goes. The signing key pair was made on this Mac with `tauri signer generate`: the private key and its password are in the keychain (services `conducted-updater-key` and `conducted-updater-key-password`), and the public key is committed in the Tauri config. The feed is a `latest.json` on the public repository's GitHub releases, written by `pnpm release`.
+Why: the plugin is the maintained implementation of exactly this job, and a second copy of it cannot be kept correct.
+
+## D080. Send feedback opens the repository's new-issue page, and says so (2026-11-06)
+
+Context: Conductor's Send feedback posts to Conductor's own service and then says "Thank you for your feedback!" / "Thanks for making Conductor better." Conducted has no feedback service. APP-09's dialog keeps Conductor's fields (message, optional email, up to five images, "Include recent app logs") and opens the public repository's GitHub new-issue page with them filled in.
+Chosen: the toast says what happened: "Opened the feedback page" / "Submit the issue there to send your feedback." Nothing claims feedback was sent before the user submits the issue. The two APP-09 checklist items that quote Conductor's toast are met by this deliberate difference.
+Why: a toast that says feedback was sent when it was not would be a false success; the destination is the only one an open-source rebuild has.
+
+## D081. The part-1e follow-ups change four contracts, one feature each (2026-11-06)
+
+Context: the part-1e fixers left loose ends in COMP-04, COMP-06, CHAT-26, CHAT-30, SET-05, REV-11, RUN-09 and PLAT-13. Four of them could not be fixed without changing a shared contract, and the contracts are being changed on another branch today. The lead approved the changes below, each for one feature.
+Chosen: the smallest change each fix needs, each in its own commit.
+
+- CHAT-26: `PlanEntry` gains `planId` (`${eventId}:${callIndex}`), and `attachments.addPlan` takes it in place of the turn id (`model.ts`, `api.ts`). A turn that calls exit_plan_mode twice has two plans, and each attaches its own text.
+- SET-05: `McpServerView.source` is `"user" | "project" | "local" | "plugin" | null` and `transport` is `"stdio" | "http" | "sse" | null` (`model.ts`). The service passes the sidecar's values through instead of inventing "User" and "stdio", and the screens print a dash for null.
+- REV-11: `files.resolveConflicts` takes `seenText`, the text the choices were made on (`api.ts`). The service refuses, unchanged, a file whose disk text differs, in the same read it applies the choices to.
+- RUN-09: `Shell.loginEnv` also returns `zdotdir`, the `ZDOTDIR` the app was launched with, or null (`platform.ts`, `shell.rs`). The terminal shim reads the user's dotfiles from it.
+  The PR-12 audit fix in the same branch adds a required container input, `reportFailure`, which the app entry fills with its error toast. `container.ts` is not a shared contract; it is named here so the input is not a surprise.
+  Why: each change serves one feature, so the kill rule (a contract change that blocks more than one feature) does not apply. Every changed field is filled from a real source; none has a default that hides a missing value.
+
+## D082. RUN-08's spotlighter queues file changes made during a sync (2026-11-06)
+
+Context: `bin/spotlighter.sh` runs watchexec and copies the workspace into the root on each change. Conductor's command line passes no busy-update mode. The installed watchexec 2.3.2 defaults to `do-nothing`, so changes made while a sync runs were dropped and the root ended behind the workspace; the ui-3 fixer checked this by hand.
+Chosen: the spotlighter passes `--on-busy-update=queue`, so the root always ends at the workspace's latest state.
+Why: the spotlighter exists to keep the root equal to the workspace; Conductor's watchexec flags rely on a default that does not do that with the watchexec we install.
+
 ## D083. Cursor's SDK installs on demand from the npm registry (2026-11-06)
 
 Context: AGENT-09 runs Cursor's SDK in process, and D010 keeps its proprietary package out of the app bundle and the repository, so D066 left the runner unable to start. The owner ruled: "AGENT-09: Cursor's SDK installs on demand through PLAT-28, never bundled (D010)." and "PLAT-28: URLs, sizes and SHA-256 from the vendors' official release hosts, each source in the report."

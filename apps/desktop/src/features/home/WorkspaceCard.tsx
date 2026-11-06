@@ -28,7 +28,7 @@ import { GitBranchIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
 import { RenameDialog } from "../workspace/RenameDialog.tsx";
-import { type StatusTone, statusText } from "../workspace/status-text.ts";
+import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { runUnarchive } from "../workspace/workspace-actions.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
@@ -41,14 +41,6 @@ export interface WorkspaceCardProps {
 	now: number;
 	display: HomeDisplay;
 }
-
-const toneClass: Record<StatusTone, string> = {
-	attention: "text-accent",
-	active: "text-fg-muted",
-	danger: "text-danger",
-	success: "text-success",
-	neutral: "text-fg-muted",
-};
 
 function ArchivedActions({ workspace }: { workspace: Workspace }) {
 	const actions = useActions();
@@ -150,7 +142,7 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 				)}
 			</div>
 			{subtitle.text === "" ? null : (
-				<p className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</p>
+				<p className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>{subtitle.text}</p>
 			)}
 			<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
 				<span className="flex min-w-0 items-center gap-1">

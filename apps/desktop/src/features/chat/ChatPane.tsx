@@ -1,7 +1,7 @@
 /**
  * @feature CHAT-06 Chat tab; CHAT-17 Chat search bar and copy transcript
  * Owns: the layout of one chat tab: the message list on top and, below it, the messages that were not sent,
- * the open interaction, the progress line, the follow-up queue and the composer. It also loads the chat's
+ * the open interaction, the Codex goal bar (COMP-10), the progress line, the follow-up queue and the composer. It also loads the chat's
  * stored messages, records the chat on screen, clears the workspace's unread chats that do not wait for
  * the user, and hosts the find bar and the copy-transcript shortcut. It owns the message list's
  * scroll handle, so the find bar can bring a virtualised-out turn into view, and it keeps one find
@@ -26,6 +26,7 @@ import { useActions } from "../../core/hooks.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { Composer } from "../composer/Composer.tsx";
+import { GoalBar } from "../composer/GoalBar.tsx";
 import { QueueBox } from "../composer/QueueBox.tsx";
 import { ChatSearchBar } from "./ChatSearchBar.tsx";
 import { FailedSends } from "./FailedSends.tsx";
@@ -106,6 +107,11 @@ export function ChatPane({
 				<div data-region="agent-request">
 					<NotBuiltYet area="Agent request" variant="inline" resetKey={sessionId}>
 						<InteractionDock sessionId={sessionId} />
+					</NotBuiltYet>
+				</div>
+				<div data-region="goal">
+					<NotBuiltYet area="Goal" variant="inline" resetKey={sessionId}>
+						<GoalBar sessionId={sessionId} />
 					</NotBuiltYet>
 				</div>
 				<div data-region="progress">

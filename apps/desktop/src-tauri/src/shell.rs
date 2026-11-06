@@ -58,8 +58,8 @@
 //!
 //! Our design choice: the id for `shell_start` comes from the UI. The captured environment is the
 //! base of every run and `ShellCommandRequest::env` is layered on top, as the Platform comment says.
-//! Only the login shell and its PATH reach the UI; the rest of the captured environment stays in
-//! Rust for the children.
+//! Only the login shell, its PATH and the app's own launch `ZDOTDIR` (RUN-09) reach the UI; the
+//! rest of the captured environment stays in Rust for the children.
 //! - Captures are kept per working folder too (PLAT-07, services-map 5A.8.3): `shell_login_env`
 //!   with a `cwd`, and a command whose `env_from_cwd` is set, start from the login shell as it sees
 //!   that folder, so direnv and mise settings of a workspace apply. Callers for one folder share one
@@ -166,7 +166,7 @@ pub struct ShellDone {
     pub error: Option<CommandError>,
 }
 
-/// The user's login shell and what it exports. Only `shell` and `path` reach the UI.
+/// The user's login shell and what it exports. Only `shell`, `path` and `zdotdir` reach the UI.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginEnv {
@@ -174,6 +174,10 @@ pub struct LoginEnv {
     pub shell: String,
     /// PATH as the login shell sees it.
     pub path: String,
+    /// The `ZDOTDIR` the app itself was launched with, if any (RUN-09). The terminal shim reads the
+    /// user's dotfiles from it, as zsh would. Not the captured value: a `.zshenv` that sets
+    /// `ZDOTDIR` is followed by the shim itself.
+    pub zdotdir: Option<String>,
     /// The whole environment. Never serialised: it may hold secrets.
     #[serde(skip)]
     pub vars: HashMap<String, String>,
@@ -1043,7 +1047,13 @@ fn capture_with_timeouts(
         let marker = new_marker();
         let command = capture_command_for(shell_path, &marker);
         match run_capture(&command, cwd, &marker, primary) {
-            Ok(vars) => return Ok(login_env_from(shell_path.to_string(), vars)),
+            Ok(vars) => {
+                return Ok(login_env_from(
+                    shell_path.to_string(),
+                    vars,
+                    launch_zdotdir(std::env::var_os("ZDOTDIR")),
+                ));
+            }
             Err(error) => Some(error),
         }
     } else {
@@ -1062,12 +1072,32 @@ fn capture_with_timeouts(
                 None => fallback_error,
             },
         )?;
-    Ok(login_env_from(fallback_shell.to_string(), vars))
+    Ok(login_env_from(
+        fallback_shell.to_string(),
+        vars,
+        launch_zdotdir(std::env::var_os("ZDOTDIR")),
+    ))
 }
 
-fn login_env_from(shell: String, vars: HashMap<String, String>) -> LoginEnv {
+fn login_env_from(
+    shell: String,
+    vars: HashMap<String, String>,
+    zdotdir: Option<String>,
+) -> LoginEnv {
     let path = vars.get("PATH").cloned().unwrap_or_default();
-    LoginEnv { shell, path, vars }
+    LoginEnv {
+        shell,
+        path,
+        zdotdir,
+        vars,
+    }
+}
+
+/// The app's own `ZDOTDIR`, as the UI receives it. Empty or not text means none, as zsh reads it.
+fn launch_zdotdir(value: Option<std::ffi::OsString>) -> Option<String> {
+    value
+        .and_then(|value| value.into_string().ok())
+        .filter(|value| !value.is_empty())
 }
 
 /// The user's shell, defaulting to zsh when the variable is missing or names a program that is
@@ -1540,10 +1570,38 @@ mod tests {
     }
 
     #[test]
+    fn run_09_hands_the_ui_the_zdotdir_the_app_was_launched_with() {
+        use std::ffi::OsString;
+        assert_eq!(
+            launch_zdotdir(Some(OsString::from("/Users/me/.config/zsh"))),
+            Some("/Users/me/.config/zsh".to_string())
+        );
+        assert_eq!(launch_zdotdir(Some(OsString::new())), None);
+        assert_eq!(launch_zdotdir(None), None);
+
+        let vars = HashMap::from([("PATH".to_string(), "/usr/bin".to_string())]);
+        let login = login_env_from(
+            "/bin/zsh".to_string(),
+            vars,
+            Some("/Users/me/dotfiles".to_string()),
+        );
+        let json = serde_json::to_value(&login).expect("a login env serialises");
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "shell": "/bin/zsh",
+                "path": "/usr/bin",
+                "zdotdir": "/Users/me/dotfiles"
+            })
+        );
+    }
+
+    #[test]
     fn plat_04_repairs_path_only_from_a_usable_capture() {
         let empty = LoginEnv {
             shell: "/bin/zsh".to_string(),
             path: String::new(),
+            zdotdir: None,
             vars: HashMap::new(),
         };
         assert_eq!(path_to_repair(&empty), None);
@@ -1551,6 +1609,7 @@ mod tests {
         let usable = LoginEnv {
             shell: "/bin/zsh".to_string(),
             path: "/opt/homebrew/bin:/usr/bin:/bin".to_string(),
+            zdotdir: None,
             vars: HashMap::new(),
         };
         assert_eq!(
@@ -1593,6 +1652,7 @@ mod tests {
                 Ok(LoginEnv {
                     shell: "/bin/zsh".to_string(),
                     path: folder.to_string_lossy().into_owned(),
+                    zdotdir: None,
                     vars: HashMap::new(),
                 })
             }
@@ -1622,6 +1682,7 @@ mod tests {
             std::future::ready(Ok(LoginEnv {
                 shell: "/bin/zsh".to_string(),
                 path: "/second".to_string(),
+                zdotdir: None,
                 vars: HashMap::new(),
             }))
         }))
@@ -1661,6 +1722,7 @@ mod tests {
             std::future::ready(Ok(LoginEnv {
                 shell: "/bin/zsh".to_string(),
                 path: "/folder/bin".to_string(),
+                zdotdir: None,
                 vars: HashMap::from([("FROM_FOLDER".to_string(), "yes".to_string())]),
             }))
         }))

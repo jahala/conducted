@@ -40,7 +40,6 @@ import {
 	appError,
 	err,
 	type ManagedProgram,
-	notImplemented,
 	ok,
 	type Result,
 } from "@conducted/shared";
@@ -745,7 +744,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 			};
 		},
 		loginEnv: async (cwd) => {
-			const result = await invokeResult<{ shell: string; path: string }>(
+			const result = await invokeResult<{ shell: string; path: string; zdotdir: string | null }>(
 				bindings,
 				COMMANDS.shellLoginEnv,
 				{ cwd: cwd ?? null },
@@ -1127,12 +1126,20 @@ export function createTauriSpeech(bindings: TauriBindings): Speech {
 }
 
 /** `updater_check`, `updater_install`, `updater_relaunch`, `updater_installed_update`, event `updater://status`. */
-export function createTauriUpdater(_bindings: TauriBindings): Updater {
+export function createTauriUpdater(bindings: TauriBindings): Updater {
 	return {
-		check: () => notImplemented("PLAT-13"),
-		install: () => notImplemented("PLAT-13"),
-		relaunch: () => notImplemented("PLAT-13"),
-		installedUpdate: () => notImplemented("PLAT-13"),
+		check: () =>
+			invokeResult<{ version: string; notes: string } | null>(bindings, COMMANDS.updaterCheck),
+		install: () => invokeResult<void>(bindings, COMMANDS.updaterInstall),
+		relaunch: async () => {
+			const result = await invokeResult<void>(bindings, COMMANDS.updaterRelaunch);
+			if (!result.ok) throw result.error;
+		},
+		installedUpdate: () =>
+			invokeResult<{ version: string; notes: string } | null>(
+				bindings,
+				COMMANDS.updaterInstalledUpdate,
+			),
 	};
 }
 

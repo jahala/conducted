@@ -1,15 +1,19 @@
 /**
  * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in; SET-09 provider keys;
  * SET-10 OpenCode providers and their keys
+ * @feature SET-12 Claude settings and Codex config editors
  * @feature SIDE-22 Slash command cache that works before a chat starts
+ * @feature SET-08 Sync agent configs between Claude Code and Codex
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
  * agent, the slash commands of a workspace and of a repository before a workspace exists, starting
- * a sign-in flow, an agent's provider keys and the providers an agent can use.
+ * a sign-in flow, an agent's provider keys and the providers an agent can use, the preview and
+ * copy of MCP servers, slash commands and skills from one agent's config to the other's, and the
+ * text of an agent's own settings file for its editor on the Agents page.
  * Also the display name and catalogue key that the Agents page and the model picker share.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
- * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states and provider
- * credential forms), services-map.md 4.2.8 (provider keys), D033 (one strip list; only the agent's
- * own provider keys reach it).
+ * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states, provider
+ * credential forms and the Claude settings and Codex config editors), services-map.md 4.2.8
+ * (provider keys), D033 (one strip list; only the agent's own provider keys reach it).
  * Must handle: the sidecar is not up yet (the install list stays "loading" until the request
  * answers, and a request that fails shows its error); an `agentInstallsChanged` notification
  * replaces the list without a request; a model
@@ -23,15 +27,33 @@
  * the row and its Keychain entry. OpenCode and Pi read every stored key at once, and OpenCode's
  * catalogue gives one variable to several providers (ZHIPU_API_KEY for Z.AI and Zhipu AI), so
  * for an ACP agent a variable has one row: saving it under one provider replaces the rows of the
- * same variable under the others, and removing it removes it for every provider.
+ * same variable under the others, and removing it removes it for every provider. A config file is
+ * read from the agent's own home folder (`~/.claude/settings.json` or `~/.codex/config.toml`); a
+ * missing file reads as empty text, and a save refuses text that does not parse (a JSON object
+ * for Claude, TOML for Codex) and a file that changed since it was read.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
  * saved to disk. A provider key's Keychain name is built from the agent, ACP agent, provider and
  * variable, so saving the same key twice replaces one entry. OpenCode and Pi use OpenCode's own
  * provider catalogue (SET-10).
+ * Our design choice: the sync reads Claude's `~/.claude.json` `mcpServers`, `~/.claude/commands`
+ * and `~/.claude/skills`, and writes Codex's `~/.codex/config.toml` `mcp_servers`,
+ * `~/.codex/prompts` and `~/.codex/skills`. The research does not verify the dialog's details
+ * (ui-map.md 10), so the file layouts are ours. MCP entries are mapped between the two schemas, as
+ * Claude Code 2.1.319 (`claude mcp add`) and Codex 0.154.0 (`codex mcp add`, `codex mcp list
+ * --json`) write them: a stdio server's `command`, `args` and `env` on both sides; an HTTP
+ * server's `type: "http"`, `url` and `headers` in Claude, `url` and `http_headers` in Codex. An
+ * entry with a key the other agent has no place for, or an SSE server (Codex has none), is not
+ * copied: the preview says why and the sync lists it as a failure. A skill is a folder; the sync
+ * copies only its `SKILL.md`, so a skill whose folder holds anything else is refused the same way.
+ * A Codex config that already exists is patched, so its comments stay. `~/.claude.json` keeps its
+ * indentation and every key but `mcpServers`. Both files are written only when their modified
+ * time has not moved since the sync read them (Claude Code rewrites its file while it runs).
  * Test first: two refreshes of the install list, answered out of order, leave the newer answer;
  * two model lists for one agent key, answered out of order, leave the newer answer; two provider
  * key lists for one agent, answered out of order, leave the newer answer; two provider lists for
- * one agent, answered out of order, leave the newer answer.
+ * one agent, answered out of order, leave the newer answer; two config-sync previews for one
+ * source, answered out of order, leave the newer answer; two config reads for one agent, answered
+ * out of order, leave the newer answer.
  */
 import {
 	AGENT_PROVIDER_TABLE,
@@ -43,19 +65,21 @@ import {
 	type SlashCommand,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { appError, err, notImplemented, ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Keychain } from "../../platform/platform.ts";
+import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import type { ProviderKey, ProviderKeyRepository } from "../db/provider-keys.ts";
 import type {
 	AgentConfigFile,
 	ConfigSyncCategory,
+	ConfigSyncChange,
 	ConfigSyncResult,
 	ProviderKeyView,
 } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
+import type { TomlCodec } from "./settings.ts";
 
 export interface AgentCatalogState {
 	installs: Loadable<AgentInstall[]>;
@@ -68,6 +92,10 @@ export interface AgentCatalogState {
 	providerKeys?: Readonly<Record<string, Loadable<ProviderKeyView[]>>>;
 	/** The providers an agent can use, keyed by `agentKey(agent, acpAgent)`. */
 	providers?: Readonly<Record<string, Loadable<AgentProvider[]>>>;
+	/** What a sync would change, keyed by `configSyncKey` (SET-08). */
+	configSyncPreview?: Readonly<Record<string, Loadable<ConfigSyncChange[]>>>;
+	/** The two config files the Agents page edits, keyed by agent. */
+	configFiles?: Readonly<Record<string, Loadable<AgentConfigFile>>>;
 }
 
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
@@ -113,7 +141,230 @@ export interface AgentCatalogServiceDeps {
 	providerKeys?: ProviderKeyRepository;
 	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
+	/** The files of both agents' config folders (SET-08, SET-12). Absent only in tests that do not use them. */
+	files?: FileSystem;
+	/** Reads and writes the Codex TOML config (SET-08). Absent only in tests that do not sync. */
+	toml?: TomlCodec;
 }
+
+/** The category order the sync dialog shows (SET-08). */
+export const CONFIG_SYNC_CATEGORIES: readonly ConfigSyncCategory[] = [
+	"mcp_servers",
+	"slash_commands",
+	"skills",
+];
+
+/** The store key of one preview: the source agent and its selected categories. */
+export function configSyncKey(
+	from: "claude" | "codex",
+	categories: readonly ConfigSyncCategory[],
+): string {
+	return `${from}:${[...categories].sort().join(",")}`;
+}
+
+/** The categories a preview key names. */
+export function categoriesOfConfigSyncKey(key: string): ConfigSyncCategory[] {
+	const list = key.slice(key.indexOf(":") + 1);
+	if (list === "") return [];
+	return list.split(",") as ConfigSyncCategory[];
+}
+
+/** One MCP server entry, in the keys of the agent whose file it came from. */
+type McpEntry = Record<string, unknown>;
+
+/** A skill as the sync reads it: its `SKILL.md` text and the names of the folder's other entries. */
+interface SkillEntry {
+	text: string;
+	others: string[];
+}
+
+/** One agent's config as the sync reads it: servers, commands and skills by name. */
+interface AgentConfigSnapshot {
+	mcpServers: Record<string, McpEntry>;
+	slashCommands: Record<string, string>;
+	skills: Record<string, SkillEntry>;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === "object" && !Array.isArray(value);
+
+const isStringList = (value: unknown): value is string[] =>
+	Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isStringRecord = (value: unknown): value is Record<string, string> =>
+	isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+
+/** An entry in the other agent's keys, or why it cannot be copied. */
+type MappedEntry = { ok: true; entry: McpEntry } | { ok: false; reason: string };
+
+/** The first key of `entry` that `allowed` lacks, as a refusal naming the agent without it. */
+function unknownKey(
+	entry: McpEntry,
+	allowed: readonly string[],
+	agent: string,
+): MappedEntry | null {
+	const extra = Object.keys(entry).find((key) => !allowed.includes(key));
+	return extra === undefined
+		? null
+		: { ok: false, reason: `${agent} has no setting for ${extra}.` };
+}
+
+/** The optional keys that hold a list of strings and a table of strings, checked by type. */
+function badValue(entry: McpEntry, list: string | null, table: string): MappedEntry | null {
+	if (list !== null && entry[list] !== undefined && !isStringList(entry[list])) {
+		return { ok: false, reason: `${list} is not a list of strings.` };
+	}
+	if (entry[table] !== undefined && !isStringRecord(entry[table])) {
+		return { ok: false, reason: `${table} is not a table of strings.` };
+	}
+	return null;
+}
+
+/**
+ * Claude Code's entry (`~/.claude.json`) in Codex's keys (`config.toml`): a stdio server keeps
+ * `command`, `args` and `env`; an HTTP server keeps `url`, and `headers` become `http_headers`.
+ * Codex runs no SSE servers, and a key Codex has no place for is refused, never dropped.
+ */
+function claudeEntryToCodex(entry: McpEntry): MappedEntry {
+	const type = entry.type ?? (entry.command === undefined ? undefined : "stdio");
+	if (type === "sse") return { ok: false, reason: "Codex has no SSE transport." };
+	if (type === "stdio") {
+		const refused =
+			unknownKey(entry, ["type", "command", "args", "env"], "Codex") ??
+			badValue(entry, "args", "env");
+		if (refused !== null) return refused;
+		if (typeof entry.command !== "string") return { ok: false, reason: "command is not text." };
+		return {
+			ok: true,
+			entry: {
+				command: entry.command,
+				...(entry.args === undefined ? {} : { args: entry.args }),
+				...(entry.env === undefined ? {} : { env: entry.env }),
+			},
+		};
+	}
+	if (type === "http") {
+		const refused =
+			unknownKey(entry, ["type", "url", "headers"], "Codex") ?? badValue(entry, null, "headers");
+		if (refused !== null) return refused;
+		if (typeof entry.url !== "string") return { ok: false, reason: "url is not text." };
+		return {
+			ok: true,
+			entry: {
+				url: entry.url,
+				...(entry.headers === undefined ? {} : { http_headers: entry.headers }),
+			},
+		};
+	}
+	return { ok: false, reason: `Codex has no server type ${JSON.stringify(type ?? null)}.` };
+}
+
+/**
+ * Codex's entry in Claude Code's keys: a `command` makes a stdio server and a `url` an HTTP
+ * server, with `http_headers` as `headers`. Codex keys Claude Code has no place for (a bearer
+ * token variable, timeouts, `enabled`) are refused, never dropped.
+ */
+function codexEntryToClaude(entry: McpEntry): MappedEntry {
+	if (entry.command !== undefined) {
+		const refused =
+			unknownKey(entry, ["command", "args", "env"], "Claude Code") ??
+			badValue(entry, "args", "env");
+		if (refused !== null) return refused;
+		if (typeof entry.command !== "string") return { ok: false, reason: "command is not text." };
+		return {
+			ok: true,
+			entry: {
+				type: "stdio",
+				command: entry.command,
+				...(entry.args === undefined ? {} : { args: entry.args }),
+				...(entry.env === undefined ? {} : { env: entry.env }),
+			},
+		};
+	}
+	if (entry.url !== undefined) {
+		const refused =
+			unknownKey(entry, ["url", "http_headers"], "Claude Code") ??
+			badValue(entry, null, "http_headers");
+		if (refused !== null) return refused;
+		if (typeof entry.url !== "string") return { ok: false, reason: "url is not text." };
+		return {
+			ok: true,
+			entry: {
+				type: "http",
+				url: entry.url,
+				...(entry.http_headers === undefined ? {} : { headers: entry.http_headers }),
+			},
+		};
+	}
+	return { ok: false, reason: "The entry has neither a command nor a url." };
+}
+
+/** One source entry in the destination agent's keys. */
+const mcpEntryFor = (to: "claude" | "codex", entry: McpEntry): MappedEntry =>
+	to === "codex" ? claudeEntryToCodex(entry) : codexEntryToClaude(entry);
+
+/** Why a skill cannot be copied: the sync copies `SKILL.md` alone, so other files would be lost. */
+const skillRefusal = (skill: SkillEntry): string | null =>
+	skill.others.length === 0
+		? null
+		: `The skill folder holds more than SKILL.md (${skill.others.join(", ")}), so copy it by hand.`;
+
+/** The indentation a JSON file uses, so a rewrite keeps it. A one-line file stays on one line. */
+function jsonIndentOf(text: string): string | number {
+	const indented = /^([\t ]+)"/m.exec(text);
+	if (indented?.[1] !== undefined) return indented[1];
+	return text.trim().includes("\n") ? 2 : 0;
+}
+
+/** One value in a stable text form, so two entries compare whatever their key order. */
+function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+	if (isRecord(value)) {
+		const keys = Object.keys(value).sort();
+		return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+	}
+	return JSON.stringify(value) ?? "null";
+}
+
+/** The changed lines of one entry, for the dialog's review step. */
+function shortDiff(previous: string | null, next: string): string {
+	const added = next.split("\n");
+	if (previous === null) return added.map((line) => `+ ${line}`).join("\n");
+	const removed = previous.split("\n");
+	let start = 0;
+	while (start < removed.length && start < added.length && removed[start] === added[start]) {
+		start += 1;
+	}
+	let removedEnd = removed.length - 1;
+	let addedEnd = added.length - 1;
+	while (removedEnd >= start && addedEnd >= start && removed[removedEnd] === added[addedEnd]) {
+		removedEnd -= 1;
+		addedEnd -= 1;
+	}
+	return [
+		...removed.slice(start, removedEnd + 1).map((line) => `- ${line}`),
+		...added.slice(start, addedEnd + 1).map((line) => `+ ${line}`),
+	].join("\n");
+}
+
+const otherAgent = (agent: "claude" | "codex"): "claude" | "codex" =>
+	agent === "claude" ? "codex" : "claude";
+
+const configFolder = (home: string, agent: "claude" | "codex"): string => {
+	const root = home.replace(/\/+$/, "");
+	return agent === "claude" ? `${root}/.claude` : `${root}/.codex`;
+};
+
+const mcpConfigPath = (home: string, agent: "claude" | "codex"): string =>
+	agent === "claude" ? `${home}/.claude.json` : `${home}/.codex/config.toml`;
+
+const commandsFolder = (home: string, agent: "claude" | "codex"): string =>
+	agent === "claude" ? `${home}/.claude/commands` : `${home}/.codex/prompts`;
+
+const skillsFolder = (home: string, agent: "claude" | "codex"): string =>
+	`${configFolder(home, agent)}/skills`;
+
+const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 
 /**
  * Whether every stored key of the agent reaches its launch, whatever the provider: true for an agent
@@ -139,6 +390,16 @@ function providerKeyView(key: ProviderKey): ProviderKeyView {
 	};
 }
 
+/** The folder and file of an agent's own settings, under the user's home folder. */
+function configFileFor(
+	home: string,
+	agent: AgentConfigFile["agent"],
+): { folder: string; path: string } {
+	const folder = configFolder(home, agent);
+	const name = agent === "claude" ? "settings.json" : "config.toml";
+	return { folder, path: `${folder}/${name}` };
+}
+
 export class AgentCatalogService {
 	readonly store: StoreApi<AgentCatalogState>;
 	readonly #deps: AgentCatalogServiceDeps;
@@ -154,6 +415,10 @@ export class AgentCatalogService {
 	readonly #providerKeyRequests = createLatestWins<string>();
 	/** Only the newest provider-list request for an agent changes state. */
 	readonly #providerRequests = createLatestWins<string>();
+	/** Only the newest config-sync preview for one source and category set changes state. */
+	readonly #configSyncRequests = createLatestWins<string>();
+	/** Only the newest config-file request for an agent changes state. */
+	readonly #configFileRequests = createLatestWins<AgentConfigFile["agent"]>();
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -164,6 +429,8 @@ export class AgentCatalogService {
 			preWorkspaceSlashCommands: {},
 			providerKeys: {},
 			providers: {},
+			configSyncPreview: {},
+			configFiles: {},
 		}));
 	}
 
@@ -571,20 +838,571 @@ export class AgentCatalogService {
 		return loaded.ok ? ok(undefined) : err(loaded.error);
 	}
 
-	/** Backs `Actions.agents.saveConfigFile`. */
-	saveConfigFile(
-		_agent: AgentConfigFile["agent"],
-		_text: string,
-		_expectedModifiedAt: number | null,
-	): Promise<Result<void>> {
-		return notImplemented("SET-12");
+	/** The file and TOML dependencies, or an error when this service was built without them. */
+	#configDeps(): Result<{ files: FileSystem; toml: TomlCodec }> {
+		const { files, toml } = this.#deps;
+		if (files === undefined || toml === undefined) {
+			return err(appError("agent_config_sync_unavailable", "Agent config sync is not available."));
+		}
+		return ok({ files, toml });
 	}
 
-	/** Backs `Actions.agents.syncConfigs`. */
-	syncConfigs(
-		_from: "claude" | "codex",
-		_categories: readonly ConfigSyncCategory[],
-	): Promise<Result<ConfigSyncResult>> {
-		return notImplemented("SET-08");
+	/** Lets the file commands reach an agent's own folder before the sync reads or writes it. */
+	async #ensureAgentScope(agent: "claude" | "codex"): Promise<Result<void>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		return deps.value.files.registerRoot(configFolder(deps.value.files.paths.home, agent));
 	}
+
+	/** One agent's MCP server table from its own config file. A missing file holds none. */
+	async #readMcpServers(agent: "claude" | "codex"): Promise<Result<Record<string, McpEntry>>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		const { files, toml } = deps.value;
+		const path = mcpConfigPath(files.paths.home, agent);
+		if (!(await files.exists(path))) return ok({});
+		const text = await files.readText(path);
+		if (!text.ok) return err(text.error);
+		if (text.value.trim() === "") return ok({});
+		let document: Record<string, unknown>;
+		if (agent === "claude") {
+			try {
+				const parsed: unknown = JSON.parse(text.value);
+				if (!isRecord(parsed)) {
+					return err(appError("agent_config_invalid", `${path} is not a JSON object.`));
+				}
+				document = parsed;
+			} catch (cause) {
+				return err(appError("agent_config_invalid", `${path} is not valid JSON.`, cause));
+			}
+		} else {
+			const parsed = toml.parse(text.value);
+			if (!parsed.ok) return err(parsed.error);
+			document = parsed.value;
+		}
+		const table = document[agent === "claude" ? "mcpServers" : "mcp_servers"];
+		if (table === undefined) return ok({});
+		if (!isRecord(table)) {
+			return err(appError("agent_config_invalid", `${path} does not hold an MCP server table.`));
+		}
+		const servers: Record<string, McpEntry> = {};
+		for (const [name, value] of Object.entries(table)) {
+			if (!isRecord(value)) {
+				return err(
+					appError("agent_config_invalid", `${path} has no valid entry for MCP server ${name}.`),
+				);
+			}
+			servers[name] = value;
+		}
+		return ok(servers);
+	}
+
+	/** Every `.md` file of a commands folder, by its name without the extension. */
+	async #readMarkdownFolder(folder: string): Promise<Result<Record<string, string>>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		const files = deps.value.files;
+		if (!(await files.exists(folder))) return ok({});
+		const listed = await files.readDir(folder);
+		if (!listed.ok) return err(listed.error);
+		const entries: Record<string, string> = {};
+		for (const entry of listed.value) {
+			if (entry.isDirectory || !entry.path.endsWith(".md")) continue;
+			const name = baseName(entry.path).slice(0, -3);
+			if (name === "") continue;
+			const text = await files.readText(entry.path);
+			if (!text.ok) return err(text.error);
+			entries[name] = text.value;
+		}
+		return ok(entries);
+	}
+
+	/** Every skill folder with a `SKILL.md`, by the folder's name, with its other entries. */
+	async #readSkillsFolder(folder: string): Promise<Result<Record<string, SkillEntry>>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		const files = deps.value.files;
+		if (!(await files.exists(folder))) return ok({});
+		const listed = await files.readDir(folder);
+		if (!listed.ok) return err(listed.error);
+		const entries: Record<string, SkillEntry> = {};
+		for (const entry of listed.value) {
+			if (!entry.isDirectory) continue;
+			const name = baseName(entry.path);
+			const path = `${entry.path}/SKILL.md`;
+			if (name === "" || !(await files.exists(path))) continue;
+			const text = await files.readText(path);
+			if (!text.ok) return err(text.error);
+			const inside = await files.readDir(entry.path);
+			if (!inside.ok) return err(inside.error);
+			const others = inside.value
+				.map((item) => baseName(item.path))
+				.filter((item) => item !== "SKILL.md")
+				.sort();
+			entries[name] = { text: text.value, others };
+		}
+		return ok(entries);
+	}
+
+	/** One agent's servers, commands and skills, read from its own config files. */
+	async #readConfigSnapshot(
+		agent: "claude" | "codex",
+		categories: readonly ConfigSyncCategory[],
+	): Promise<Result<AgentConfigSnapshot>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		const scope = await this.#ensureAgentScope(agent);
+		if (!scope.ok) return scope;
+		const home = deps.value.files.paths.home;
+		const snapshot: AgentConfigSnapshot = { mcpServers: {}, slashCommands: {}, skills: {} };
+		if (categories.includes("mcp_servers")) {
+			const servers = await this.#readMcpServers(agent);
+			if (!servers.ok) return err(servers.error);
+			snapshot.mcpServers = servers.value;
+		}
+		if (categories.includes("slash_commands")) {
+			const commands = await this.#readMarkdownFolder(commandsFolder(home, agent));
+			if (!commands.ok) return err(commands.error);
+			snapshot.slashCommands = commands.value;
+		}
+		if (categories.includes("skills")) {
+			const skills = await this.#readSkillsFolder(skillsFolder(home, agent));
+			if (!skills.ok) return err(skills.error);
+			snapshot.skills = skills.value;
+		}
+		return ok(snapshot);
+	}
+
+	/** The changes a sync would make, with both sides read from disk. */
+	async #configChanges(
+		from: "claude" | "codex",
+		categories: readonly ConfigSyncCategory[],
+	): Promise<Result<ConfigSyncChange[]>> {
+		const source = await this.#readConfigSnapshot(from, categories);
+		if (!source.ok) return err(source.error);
+		const destination = await this.#readConfigSnapshot(otherAgent(from), categories);
+		if (!destination.ok) return err(destination.error);
+		return ok(configChangesOf(source.value, destination.value, categories, otherAgent(from)));
+	}
+
+	/**
+	 * Backs `useConfigSyncPreview`. Reads both agents' configs and keeps the newest answer for one
+	 * source and category set.
+	 */
+	async loadConfigSyncPreview(
+		from: "claude" | "codex",
+		categories: readonly ConfigSyncCategory[],
+	): Promise<Result<ConfigSyncChange[]>> {
+		const key = configSyncKey(from, categories);
+		const ticket = this.#configSyncRequests.begin(key);
+		this.store.setState((state) => ({
+			configSyncPreview: {
+				...state.configSyncPreview,
+				[key]: { state: "loading" },
+			},
+		}));
+		const changes = await this.#configChanges(from, categories);
+		if (!this.#configSyncRequests.isLatest(ticket)) {
+			this.#configSyncRequests.settle(ticket);
+			return changes;
+		}
+		this.#configSyncRequests.settle(ticket);
+		if (!changes.ok) {
+			this.store.setState((state) => ({
+				configSyncPreview: {
+					...state.configSyncPreview,
+					[key]: { state: "error", error: changes.error },
+				},
+			}));
+			return err(changes.error);
+		}
+		this.store.setState((state) => ({
+			configSyncPreview: {
+				...state.configSyncPreview,
+				[key]: { state: "ready", data: changes.value },
+			},
+		}));
+		return ok(changes.value);
+	}
+
+	/**
+	 * Writes one agent's MCP table into its own config file. The agent rewrites that file itself
+	 * (Claude Code keeps every project and its history in `~/.claude.json`), so the write is
+	 * refused when the file's modified time moved after this read, and nothing is lost.
+	 */
+	async #writeMcpServers(
+		agent: "claude" | "codex",
+		servers: Record<string, McpEntry>,
+	): Promise<Result<void>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		const { files, toml } = deps.value;
+		const scope = await this.#ensureAgentScope(agent);
+		if (!scope.ok) return scope;
+		const made = await files.mkdirp(configFolder(files.paths.home, agent));
+		if (!made.ok) return err(made.error);
+		const path = mcpConfigPath(files.paths.home, agent);
+		const before = await this.#modifiedAtOf(files, path);
+		if (!before.ok) return before;
+		const existing = before.value === null ? null : await files.readText(path);
+		if (existing !== null && !existing.ok) return err(existing.error);
+		let text: string;
+		if (agent === "claude") {
+			let document: Record<string, unknown> = {};
+			if (existing?.ok && existing.value.trim() !== "") {
+				try {
+					const parsed: unknown = JSON.parse(existing.value);
+					if (!isRecord(parsed)) {
+						return err(appError("agent_config_invalid", `${path} is not a JSON object.`));
+					}
+					document = parsed;
+				} catch (cause) {
+					return err(appError("agent_config_invalid", `${path} is not valid JSON.`, cause));
+				}
+			}
+			document.mcpServers = servers;
+			const original = existing?.ok ? existing.value : "";
+			const indent = original.trim() === "" ? 2 : jsonIndentOf(original);
+			const newline = original.trim() === "" || original.endsWith("\n") ? "\n" : "";
+			text = `${JSON.stringify(document, null, indent)}${newline}`;
+		} else if (existing?.ok && existing.value.trim() !== "") {
+			const parsed = toml.parse(existing.value);
+			if (!parsed.ok) return err(parsed.error);
+			const patched = toml.patch(existing.value, { ...parsed.value, mcp_servers: servers });
+			if (!patched.ok) return err(patched.error);
+			text = patched.value;
+		} else {
+			text = `${toml.stringify({ mcp_servers: servers })}\n`;
+		}
+		const after = await this.#modifiedAtOf(files, path);
+		if (!after.ok) return after;
+		if (after.value !== before.value) {
+			return err(
+				appError(
+					"changed_on_disk",
+					`${path} changed while the sync was writing it. Nothing was written; run the sync again.`,
+				),
+			);
+		}
+		return files.writeTextAtomic(path, text);
+	}
+
+	/** A file's modified time, or null when it does not exist. */
+	async #modifiedAtOf(files: FileSystem, path: string): Promise<Result<number | null>> {
+		const info = await files.stat(path);
+		if (info.ok) return ok(info.value.modifiedAt);
+		return info.error.code === "fs_not_found" ? ok(null) : err(info.error);
+	}
+
+	/**
+	 * Backs `Actions.agents.syncConfigs`. Copies the selected categories from one agent's config
+	 * into the other's. One entry that cannot be written does not stop the rest.
+	 */
+	async syncConfigs(
+		from: "claude" | "codex",
+		categories: readonly ConfigSyncCategory[],
+	): Promise<Result<ConfigSyncResult>> {
+		const deps = this.#configDeps();
+		if (!deps.ok) return deps;
+		const to = otherAgent(from);
+		const source = await this.#readConfigSnapshot(from, categories);
+		if (!source.ok) return err(source.error);
+		const destination = await this.#readConfigSnapshot(to, categories);
+		if (!destination.ok) return err(destination.error);
+		const changes = configChangesOf(source.value, destination.value, categories, to);
+		const failures: ConfigSyncResult["failures"] = [];
+		let applied = 0;
+
+		const mcpChanges = [];
+		const servers = { ...destination.value.mcpServers };
+		for (const change of changes) {
+			if (change.category !== "mcp_servers") continue;
+			const server = source.value.mcpServers[change.name];
+			if (server === undefined) continue;
+			const mapped = mcpEntryFor(to, server);
+			if (!mapped.ok) {
+				failures.push({ category: change.category, name: change.name, message: mapped.reason });
+				continue;
+			}
+			servers[change.name] = mapped.entry;
+			mcpChanges.push(change);
+		}
+		if (mcpChanges.length > 0) {
+			const written = await this.#writeMcpServers(to, servers);
+			if (written.ok) {
+				applied += mcpChanges.length;
+			} else {
+				for (const change of mcpChanges) {
+					failures.push({
+						category: change.category,
+						name: change.name,
+						message: written.error.message,
+					});
+				}
+			}
+		}
+
+		const home = deps.value.files.paths.home;
+		for (const change of changes) {
+			if (change.category === "mcp_servers") continue;
+			const skill = change.category === "skills" ? source.value.skills[change.name] : undefined;
+			const refusal = skill === undefined ? null : skillRefusal(skill);
+			if (refusal !== null) {
+				failures.push({ category: change.category, name: change.name, message: refusal });
+				continue;
+			}
+			const text =
+				change.category === "slash_commands"
+					? source.value.slashCommands[change.name]
+					: skill?.text;
+			if (text === undefined) continue;
+			const folder =
+				change.category === "slash_commands" ? commandsFolder(home, to) : skillsFolder(home, to);
+			const path =
+				change.category === "slash_commands"
+					? `${folder}/${change.name}.md`
+					: `${folder}/${change.name}/SKILL.md`;
+			const made = await deps.value.files.mkdirp(
+				change.category === "slash_commands" ? folder : `${folder}/${change.name}`,
+			);
+			if (!made.ok) {
+				failures.push({
+					category: change.category,
+					name: change.name,
+					message: made.error.message,
+				});
+				continue;
+			}
+			const written = await deps.value.files.writeTextAtomic(path, text);
+			if (written.ok) {
+				applied += 1;
+			} else {
+				failures.push({
+					category: change.category,
+					name: change.name,
+					message: written.error.message,
+				});
+			}
+		}
+
+		const key = configSyncKey(from, categories);
+		const remaining = await this.#configChanges(from, categories);
+		this.#configSyncRequests.invalidate(key);
+		this.store.setState((state) => ({
+			configSyncPreview: {
+				...state.configSyncPreview,
+				[key]: remaining.ok
+					? { state: "ready", data: remaining.value }
+					: { state: "error", error: remaining.error },
+			},
+		}));
+		return ok({ applied, failures });
+	}
+
+	/**
+	 * Backs `useAgentConfigFile`. Reads one agent's own settings file. A missing file is a ready
+	 * value with empty text, so the editor can create it. A late answer for an older read never
+	 * replaces the newer one.
+	 */
+	async loadConfigFile(agent: AgentConfigFile["agent"]): Promise<Result<AgentConfigFile>> {
+		const ticket = this.#configFileRequests.begin(agent);
+		this.store.setState((state) => ({
+			configFiles: { ...state.configFiles, [agent]: { state: "loading" } },
+		}));
+		const read = await this.#readConfigFile(agent);
+		if (!this.#configFileRequests.isLatest(ticket)) {
+			this.#configFileRequests.settle(ticket);
+			return read;
+		}
+		this.#configFileRequests.settle(ticket);
+		if (!read.ok) {
+			this.store.setState((state) => ({
+				configFiles: { ...state.configFiles, [agent]: { state: "error", error: read.error } },
+			}));
+			return read;
+		}
+		this.store.setState((state) => ({
+			configFiles: { ...state.configFiles, [agent]: { state: "ready", data: read.value } },
+		}));
+		return read;
+	}
+
+	/**
+	 * Backs `Actions.agents.saveConfigFile`. Writes the text only when it parses as the agent reads
+	 * it (a JSON object for Claude, TOML for Codex), so a typo never breaks the agent's start, and
+	 * only when the file still has the modified time the editor read, so a change made elsewhere is
+	 * never overwritten. On success the store reloads from disk.
+	 */
+	async saveConfigFile(
+		agent: AgentConfigFile["agent"],
+		text: string,
+		expectedModifiedAt: number | null,
+	): Promise<Result<void>> {
+		const fs = this.#deps.files;
+		if (fs === undefined) return err(this.#configFilesUnavailable());
+		const { folder, path } = configFileFor(fs.paths.home, agent);
+		const parsed = this.#parseConfigText(agent, path, text);
+		if (!parsed.ok) return parsed;
+		const registered = await fs.registerRoot(folder);
+		if (!registered.ok) return err(registered.error);
+
+		const info = await fs.stat(path);
+		let current: number | null;
+		if (info.ok) current = info.value.modifiedAt;
+		else if (info.error.code === "fs_not_found") current = null;
+		else return err(info.error);
+
+		if (current !== expectedModifiedAt) {
+			return err(
+				appError(
+					"changed_on_disk",
+					`${path} changed on disk since it was opened. Close and reopen the editor to see the new text.`,
+				),
+			);
+		}
+
+		const made = await fs.mkdirp(folder);
+		if (!made.ok) return err(made.error);
+		const written = await fs.writeTextAtomic(path, text);
+		if (!written.ok) return err(written.error);
+		const loaded = await this.loadConfigFile(agent);
+		return loaded.ok ? ok(undefined) : err(loaded.error);
+	}
+
+	async #readConfigFile(agent: AgentConfigFile["agent"]): Promise<Result<AgentConfigFile>> {
+		const fs = this.#deps.files;
+		if (fs === undefined) return err(this.#configFilesUnavailable());
+		const { folder, path } = configFileFor(fs.paths.home, agent);
+		const registered = await fs.registerRoot(folder);
+		if (!registered.ok) return err(registered.error);
+
+		const info = await fs.stat(path);
+		if (!info.ok) {
+			if (info.error.code === "fs_not_found") {
+				return ok({ agent, path, text: "", exists: false, modifiedAt: null });
+			}
+			return err(info.error);
+		}
+		const read = await fs.readText(path);
+		if (!read.ok) return err(read.error);
+		return ok({ agent, path, text: read.value, exists: true, modifiedAt: info.value.modifiedAt });
+	}
+
+	/** Refuses text the agent could not read. */
+	#parseConfigText(agent: AgentConfigFile["agent"], path: string, text: string): Result<void> {
+		if (agent === "codex") {
+			const toml = this.#deps.toml;
+			if (toml === undefined) return err(this.#configFilesUnavailable());
+			const parsed = toml.parse(text);
+			return parsed.ok
+				? ok(undefined)
+				: err(
+						appError(
+							"agent_config_invalid",
+							`${path} is not valid TOML: ${parsed.error.message}`,
+							parsed.error,
+						),
+					);
+		}
+		try {
+			const parsed: unknown = JSON.parse(text);
+			return isRecord(parsed)
+				? ok(undefined)
+				: err(appError("agent_config_invalid", `${path} must hold a JSON object.`));
+		} catch (cause) {
+			const reason = cause instanceof Error ? `: ${cause.message}` : "";
+			return err(appError("agent_config_invalid", `${path} is not valid JSON${reason}`, cause));
+		}
+	}
+
+	#configFilesUnavailable() {
+		return appError("agent_config_unavailable", "The agent configuration files are not available.");
+	}
+}
+
+/** The line that opens the diff of an entry the sync will not copy, with the reason. */
+const notCopied = (reason: string): string => `Not copied: ${reason}`;
+
+/**
+ * The changes from one snapshot to the other, in the dialog's category order. An MCP server is
+ * compared in the destination agent's keys. An entry that cannot be copied is still listed, and
+ * its diff says why, so the review step shows it before the sync reports it as a failure.
+ */
+function configChangesOf(
+	source: AgentConfigSnapshot,
+	destination: AgentConfigSnapshot,
+	categories: readonly ConfigSyncCategory[],
+	to: "claude" | "codex",
+): ConfigSyncChange[] {
+	const changes: ConfigSyncChange[] = [];
+	if (categories.includes("mcp_servers")) {
+		for (const name of Object.keys(source.mcpServers).sort()) {
+			const entry = source.mcpServers[name];
+			if (entry === undefined) continue;
+			const previous = destination.mcpServers[name];
+			const mapped = mcpEntryFor(to, entry);
+			if (!mapped.ok) {
+				changes.push({
+					category: "mcp_servers",
+					name,
+					change: previous === undefined ? "add" : "update",
+					diff: notCopied(mapped.reason),
+				});
+				continue;
+			}
+			const next = mapped.entry;
+			const renderedNext = JSON.stringify(next, null, 2);
+			if (previous === undefined) {
+				changes.push({
+					category: "mcp_servers",
+					name,
+					change: "add",
+					diff: shortDiff(null, renderedNext),
+				});
+			} else if (canonicalJson(previous) !== canonicalJson(next)) {
+				changes.push({
+					category: "mcp_servers",
+					name,
+					change: "update",
+					diff: shortDiff(JSON.stringify(previous, null, 2), renderedNext),
+				});
+			}
+		}
+	}
+	const textsOf = (skills: Record<string, SkillEntry>): Record<string, string> =>
+		Object.fromEntries(Object.entries(skills).map(([name, skill]) => [name, skill.text]));
+	for (const category of ["slash_commands", "skills"] as const) {
+		if (!categories.includes(category)) continue;
+		const sourceEntries =
+			category === "slash_commands" ? source.slashCommands : textsOf(source.skills);
+		const destinationEntries =
+			category === "slash_commands" ? destination.slashCommands : textsOf(destination.skills);
+		for (const name of Object.keys(sourceEntries).sort()) {
+			const next = sourceEntries[name];
+			if (next === undefined) continue;
+			const previous = destinationEntries[name];
+			const skill = category === "skills" ? source.skills[name] : undefined;
+			const refusal = skill === undefined ? null : skillRefusal(skill);
+			if (refusal !== null && previous !== next) {
+				changes.push({
+					category,
+					name,
+					change: previous === undefined ? "add" : "update",
+					diff: notCopied(refusal),
+				});
+				continue;
+			}
+			if (previous === undefined) {
+				changes.push({ category, name, change: "add", diff: shortDiff(null, next) });
+			} else if (previous !== next) {
+				changes.push({
+					category,
+					name,
+					change: "update",
+					diff: shortDiff(previous, next),
+				});
+			}
+		}
+	}
+	return changes;
 }

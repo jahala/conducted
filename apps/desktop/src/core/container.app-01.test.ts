@@ -101,6 +101,8 @@ function build(options: { openLink?: (url: string) => void } = {}): Harness {
 		placeNames: { pick: () => "place" },
 		sound: { play: async () => {} },
 		windowFocused: () => true,
+		// This test starts no background work, so nothing is reported.
+		reportFailure: () => undefined,
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),
 	});
 	return { container, memory, events };
@@ -170,6 +172,8 @@ describe("APP-01 container", () => {
 			placeNames: { pick: () => "place" },
 			sound: { play: async () => {} },
 			windowFocused: () => true,
+			// This test starts no background work, so nothing is reported.
+			reportFailure: () => undefined,
 		});
 
 		expect(Object.keys(container.services).sort()).toEqual([...SERVICE_NAMES].sort());

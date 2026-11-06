@@ -1,6 +1,7 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { Dialogs, FileSystem, Opener, ShellOutput } from "../../platform/platform.ts";
+import type { Dialogs, FileSystem, Opener, Shell, ShellOutput } from "../../platform/platform.ts";
+import { createTestIds } from "../../test/ids.ts";
 import type { NewRepo, RepoRepository } from "../db/repos.ts";
 import type { GitCommand } from "../git/commands.ts";
 import {
@@ -202,7 +203,7 @@ function makePlatform(options: { dirs?: readonly string[]; confirm?: boolean } =
 		pickSavePath: async () => null,
 	} as Dialogs;
 	return {
-		platform: { fs, dialogs, opener: {} as Opener },
+		platform: { fs, dialogs, opener: {} as Opener, shell: {} as Shell },
 		confirm,
 		trash,
 	};
@@ -222,6 +223,7 @@ function makeService(options: Parameters<typeof makePlatform>[0] = {}) {
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
 		settings: {} as RepoServiceDeps["settings"],
 		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
+		ids: createTestIds(),
 	});
 	return { service, repos, git, platform, removeWorkspacesOf };
 }

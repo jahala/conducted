@@ -48,7 +48,7 @@ const realShell: Shell = {
 	start: () => {
 		throw new Error("start is not used here");
 	},
-	loginEnv: async () => ({ shell: "/bin/zsh", path: process.env.PATH ?? "" }),
+	loginEnv: async () => ({ shell: "/bin/zsh", path: process.env.PATH ?? "", zdotdir: null }),
 };
 
 const runner = new ShellGitRunner({

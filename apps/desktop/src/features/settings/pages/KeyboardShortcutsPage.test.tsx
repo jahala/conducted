@@ -44,4 +44,31 @@ describe("SET-02 KeyboardShortcutsPage", () => {
 		expect(saved["app.toggleTheme"]).toEqual(["Cmd+K"]);
 		expect(saved[palette?.id ?? "missing"]).toEqual([]);
 	});
+
+	it("refuses a reserved key, as the shortcuts dialog does", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		const set = vi.spyOn(test.container.actions.settings, "set");
+		render(
+			<ServicesProvider container={test.container}>
+				<KeyboardShortcutsPage />
+			</ServicesProvider>,
+		);
+
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: "Change shortcut for Switch between light and dark theme",
+			}),
+		);
+		fireEvent.keyDown(screen.getByRole("button", { name: "Recording shortcut" }), {
+			key: "q",
+			metaKey: true,
+		});
+
+		expect(await screen.findByRole("alert")).toHaveProperty(
+			"textContent",
+			expect.stringContaining("reserved for Quit the app"),
+		);
+		expect(set).not.toHaveBeenCalled();
+	});
 });

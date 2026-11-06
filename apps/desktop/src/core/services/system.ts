@@ -16,19 +16,34 @@
  * that list and holds a send to Cursor while it installs (AGENT-09); copying an image
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
- * the project's issue page with the text filled in and never sends logs anywhere by itself; the
- * Xcode licence fix opens Terminal and reports a Terminal that cannot be opened; the diagnostics
- * capture reports a login shell or environment it cannot read instead of inventing one; the
- * sidecar and app logs open in their default app, and a missing log path is an error value.
+ * the project's issue page with the text filled in, adding recent logs only when the user asks;
+ * the Xcode licence fix opens Terminal and reports a Terminal that cannot be opened; the
+ * diagnostics capture reports a login shell or environment it cannot read instead of inventing
+ * one; the sidecar and app logs open in their default app, and a missing log path is an error
+ * value.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
  * Built now: the program store, the install, re-download and remove actions, the send gate,
- * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, and opening the
- * sidecar and app logs.
+ * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, opening the
+ * sidecar and app logs, copying, saving and opening an attachment in its own app (CHAT-29), and
+ * sending feedback (APP-09).
  * Our design choice: a copy that failed or is missing does not hold a message, so a copy on the
- * user's PATH runs instead (D021). Conductor holds until the copy is ready. Copying and saving
- * attachments and the feedback form are placeholders owned by CHAT-29 and APP-09.
+ * user's PATH runs instead (D021). Conductor holds until the copy is ready.
  * Test first: install while a download of the same program runs starts no second download.
+ *
+ * @feature APP-09 Send feedback
+ * Owns: turning the feedback form into a new issue on the project's GitHub page.
+ * Behaviour: ui-map.md 5.2 (the Feedback dialog's message, email, images and recent logs),
+ * native-and-sidecar-map.md A5 (Help > Send Feedback).
+ * Must handle: an empty message is refused; a failed log export or read is reported instead of
+ * opening an issue without the logs the user asked for; a message longer than an issue title
+ * becomes a shorter title; images are listed in the body because a browser link cannot attach
+ * them; logs that would make the link longer than `MAX_FEEDBACK_URL_CHARS` keep only their most
+ * recent whole lines, and when not one line fits the issue says the logs were left out; a message
+ * or image list too long for the link on its own is refused with a message, and nothing opens.
+ * Our design choice: Conductor posts the feedback to its own service; ours opens the project's
+ * issue page, as the backlog row says. The dialog is features/diagnostics/FeedbackDialog.tsx.
+ * Test first: a message, email, image and logs become a GitHub issue URL that holds all four.
  *
  * @feature SET-13 Chosen program paths reach terminals and scripts
  * Owns: the folder to put first on PATH, built from the executable paths chosen in Advanced
@@ -50,7 +65,6 @@ import {
 	err,
 	type ManagedProgram,
 	messageOf,
-	notImplemented,
 	ok,
 	type Result,
 } from "@conducted/shared";
@@ -59,7 +73,9 @@ import type { Platform, ProgramState } from "../../platform/platform.ts";
 import type { FeedbackInput, Loadable } from "../api.ts";
 import { programsBinDir } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import { copyFileKeepingMode } from "../fs-helpers.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
+import { isImagePath } from "../media-files.ts";
 import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
 
 export interface SystemState {
@@ -103,6 +119,37 @@ const PROGRAM_PATH_SETTING: Readonly<Record<string, string>> = {
 	claude: "claude_executable_path",
 	codex: "codex_executable_path",
 };
+
+/**
+ * Reads an image file as base64 PNG. `sips` converts whatever the file holds; the temporary PNG
+ * is removed by the shell that made it. The path arrives as an argument, so a name with spaces or
+ * shell characters is not interpreted.
+ */
+const COPY_IMAGE_SCRIPT = `out=$(mktemp -t conducted-image)
+trap 'rm -f "$out"' EXIT
+sips -s format png "$1" --out "$out" >/dev/null 2>&1 || exit 1
+base64 -i "$out"`;
+
+/** Base64 text, with any line breaks `base64` adds, as bytes. */
+function decodeBase64(text: string): Uint8Array {
+	const binary = atob(text.replace(/\s+/g, ""));
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index += 1) {
+		bytes[index] = binary.charCodeAt(index);
+	}
+	return bytes;
+}
+
+/** The project's new-issue page. The feedback form fills its title and body. */
+export const FEEDBACK_ISSUE_URL = "https://github.com/jahala/conducted/issues/new";
+/** Longest title the issue page gets; the rest of the message stays in the body. */
+const MAX_FEEDBACK_TITLE = 120;
+/**
+ * Longest issue link the feedback opens. GitHub refuses very long new-issue links, so the logs
+ * are cut from the front until the link fits, and a message that alone is too long is refused.
+ * Our dial: the research has no number.
+ */
+export const MAX_FEEDBACK_URL_CHARS = 8_000;
 
 export class SystemService {
 	readonly store: StoreApi<SystemState>;
@@ -349,23 +396,109 @@ export class SystemService {
 	}
 
 	/** Backs `Actions.attachments.copyImage`. */
-	copyImage(_path: string): Promise<Result<void>> {
-		return notImplemented("CHAT-29");
+	async copyImage(path: string): Promise<Result<void>> {
+		const read = await this.#deps.platform.shell.run({
+			program: "sh",
+			args: ["-c", COPY_IMAGE_SCRIPT, "conducted-copy-image", path],
+			cwd: this.#deps.platform.fs.paths.home,
+		});
+		if (!read.ok) return read;
+		if (read.value.exitCode !== 0) {
+			return err(
+				appError("image_read_failed", read.value.stderr.trim() || "The image could not be read."),
+			);
+		}
+		let bytes: Uint8Array;
+		try {
+			bytes = decodeBase64(read.value.stdout);
+		} catch (cause) {
+			return err(appError("image_read_failed", "The image could not be read.", cause));
+		}
+		try {
+			await this.#deps.platform.clipboard.writeImage(bytes);
+			return ok(undefined);
+		} catch (cause) {
+			return err(
+				appError("clipboard_write_failed", "Could not copy the image to the clipboard.", cause),
+			);
+		}
 	}
 
 	/** Backs `Actions.attachments.saveAs`. */
-	saveAs(_path: string): Promise<Result<string | null>> {
-		return notImplemented("CHAT-29");
+	async saveAs(path: string): Promise<Result<string | null>> {
+		let destination: string | null;
+		try {
+			destination = await this.#deps.platform.dialogs.pickSavePath({
+				title: isImagePath(path) ? "Save image" : "Save file",
+				defaultPath: path.slice(path.lastIndexOf("/") + 1),
+			});
+		} catch (cause) {
+			return err(appError("save_dialog_failed", "The save dialog could not be opened.", cause));
+		}
+		if (destination === null) return ok(null);
+		const copied = await copyFileKeepingMode(this.#deps.platform.shell, path, destination);
+		return copied.ok ? ok(destination) : copied;
 	}
 
 	/** Backs `Actions.attachments.openExternally`. */
-	openExternally(_path: string): Promise<Result<void>> {
-		return notImplemented("CHAT-29");
+	openExternally(path: string): Promise<Result<void>> {
+		return this.#openPath(path, "file_open_failed", "The file could not be opened.");
 	}
 
 	/** Backs `Actions.app.sendFeedback`. */
-	sendFeedback(_input: FeedbackInput): Promise<Result<void>> {
-		return notImplemented("APP-09");
+	async sendFeedback(input: FeedbackInput): Promise<Result<void>> {
+		const message = input.message.trim();
+		if (message === "") {
+			return err(appError("feedback_message_empty", "Write a message before sending feedback."));
+		}
+		const email = input.email?.trim() ?? "";
+		const imagePaths = [...new Set(input.imagePaths.map((path) => path.trim()))].filter(
+			(path) => path !== "",
+		);
+		let logs: string | null = null;
+		if (input.includeLogs) {
+			const recent = await this.#recentLogs();
+			if (!recent.ok) return recent;
+			logs = recent.value;
+		}
+		const url = feedbackUrl({
+			message,
+			email,
+			imagePaths,
+			logs,
+			version: this.#deps.platform.app.version,
+			channel: this.#deps.platform.app.channel,
+		});
+		if (!url.ok) return url;
+		try {
+			await this.#deps.platform.opener.openUrl(url.value);
+			return ok(undefined);
+		} catch (cause) {
+			return err(
+				appError("feedback_open_failed", "The feedback issue page could not be opened.", cause),
+			);
+		}
+	}
+
+	/** The redacted log export, cut to the most recent part so the issue URL stays usable. */
+	async #recentLogs(): Promise<Result<string>> {
+		const exported = await this.#deps.platform.app.exportLogs();
+		if (!exported.ok) {
+			return err(
+				appError(
+					"feedback_logs_failed",
+					"The recent app logs could not be exported.",
+					exported.error,
+				),
+			);
+		}
+		const read = await this.#deps.platform.fs.readText(exported.value);
+		if (!read.ok) {
+			return err(
+				appError("feedback_logs_failed", "The recent app logs could not be read.", read.error),
+			);
+		}
+		return ok(read.value.trimEnd());
 	}
 
 	/** Backs `Actions.app.openSidecarLogs`: opens the sidecar log file in its default app. */
@@ -389,6 +522,14 @@ export class SystemService {
 	}
 
 	async #openFile(path: string): Promise<Result<void>> {
+		return this.#openPath(path, "log_open_failed", "The log file could not be opened.");
+	}
+
+	async #openPath(
+		path: string,
+		failureCode: string,
+		failureMessage: string,
+	): Promise<Result<void>> {
 		const opened = await this.#deps.platform.shell.run({
 			program: "open",
 			args: [path],
@@ -397,9 +538,7 @@ export class SystemService {
 		if (!opened.ok) return opened;
 		if (opened.value.exitCode !== 0) {
 			const reason = opened.value.stderr.trim();
-			return err(
-				appError("log_open_failed", reason === "" ? "The log file could not be opened." : reason),
-			);
+			return err(appError(failureCode, reason === "" ? failureMessage : reason));
 		}
 		return ok(undefined);
 	}
@@ -445,4 +584,100 @@ function orderOf(program: ManagedProgram): number {
 	if (program === "codex") return 1;
 	if (program === "cursor") return 2;
 	return 3;
+}
+
+/** The issue title: the message's first line, cut when it is too long for a title. */
+function feedbackTitle(message: string): string {
+	const firstLine = message.split(/\r?\n/, 1)[0]?.trim() ?? "";
+	if (firstLine === "") return "Feedback about Conducted";
+	if (firstLine.length <= MAX_FEEDBACK_TITLE) return firstLine;
+	return `${firstLine.slice(0, MAX_FEEDBACK_TITLE - 1)}…`;
+}
+
+interface FeedbackBodyInput {
+	message: string;
+	email: string;
+	imagePaths: readonly string[];
+	/** The log text to include, or null for none. */
+	logs: string | null;
+	/** The user asked for logs and none fit in the link, so the body says so. */
+	logsLeftOut: boolean;
+	version: string;
+	channel: string;
+}
+
+const LOGS_CUT_NOTE = "(Only the most recent lines fit in the link.)";
+const LOGS_LEFT_OUT_NOTE = "(Logs left out: they did not fit in the link.)";
+
+function issueUrl(title: string, body: string): string {
+	return `${FEEDBACK_ISSUE_URL}?${new URLSearchParams({ title, body }).toString()}`;
+}
+
+/** The whole lines among the last `kept` characters of the logs. */
+function recentLines(logs: string, kept: number): string {
+	if (kept >= logs.length) return logs;
+	const tail = logs.slice(logs.length - kept);
+	if (logs[logs.length - kept - 1] === "\n") return tail;
+	const lineStart = tail.indexOf("\n");
+	return lineStart === -1 ? "" : tail.slice(lineStart + 1);
+}
+
+/**
+ * The new-issue link, never longer than `MAX_FEEDBACK_URL_CHARS`. Logs that do not fit keep only
+ * their most recent whole lines, found by a binary search over how much of the end is kept; when
+ * not one line fits, the body says the logs were left out. A message or image list that alone
+ * makes the link too long is an error, so the user can shorten it instead of losing part of it.
+ */
+function feedbackUrl(input: Omit<FeedbackBodyInput, "logsLeftOut">): Result<string> {
+	const title = feedbackTitle(input.message);
+	const urlWith = (logs: string | null, logsLeftOut: boolean): string =>
+		issueUrl(title, feedbackBody({ ...input, logs, logsLeftOut }));
+	const whole = urlWith(input.logs, false);
+	if (whole.length <= MAX_FEEDBACK_URL_CHARS) return ok(whole);
+	const logs = input.logs;
+	if (logs !== null) {
+		const withTail = (kept: number): string =>
+			urlWith(`${LOGS_CUT_NOTE}\n${recentLines(logs, kept)}`, false);
+		let low = 0;
+		let high = logs.length - 1;
+		while (low < high) {
+			const middle = Math.ceil((low + high) / 2);
+			if (withTail(middle).length <= MAX_FEEDBACK_URL_CHARS) low = middle;
+			else high = middle - 1;
+		}
+		if (recentLines(logs, low) !== "" && withTail(low).length <= MAX_FEEDBACK_URL_CHARS) {
+			return ok(withTail(low));
+		}
+		const leftOut = urlWith(null, true);
+		if (leftOut.length <= MAX_FEEDBACK_URL_CHARS) return ok(leftOut);
+	}
+	return err(
+		appError(
+			"feedback_too_long",
+			"The message is too long for the issue link. Shorten it and send again.",
+		),
+	);
+}
+
+/** The issue body: the message first, then the contact and environment facts the sheet collected. */
+function feedbackBody(input: FeedbackBodyInput): string {
+	const parts = [input.message];
+	if (input.email !== "") parts.push(`Contact email: ${input.email}`);
+	parts.push(`Sent from Conducted ${input.version} (${input.channel}).`);
+	if (input.imagePaths.length > 0) {
+		parts.push(
+			[
+				"Images to attach:",
+				...input.imagePaths.map((path) => `- ${path}`),
+				"",
+				"A link cannot upload them, so drag the files above into this issue.",
+			].join("\n"),
+		);
+	}
+	if (input.logs !== null) {
+		parts.push(["Recent app logs:", "", "```", input.logs, "```"].join("\n"));
+	} else if (input.logsLeftOut) {
+		parts.push(LOGS_LEFT_OUT_NOTE);
+	}
+	return parts.join("\n\n");
 }

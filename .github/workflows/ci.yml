@@ -46,6 +46,10 @@ jobs:
         run: pnpm exec biome ci .
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: shellcheck bin/*.sh
+      # The RUN-09 tests run the terminal shim in a real zsh, which this image does not ship.
+      - name: Install zsh
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: sudo apt-get update -qq && sudo apt-get install -qq --yes --no-install-recommends zsh
       - name: Tests (each runner also writes a JUnit report)
         id: tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

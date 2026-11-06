@@ -11,14 +11,17 @@
  * argument hint writes '/name ' into the composer, so the user types the arguments and sends the
  * message; any other command runs at once through `onRun`. What it runs is `slashCommandAction`:
  * /clear, /restart, /compact (Codex), /plan, /fast and the terminal-effect commands act on the
- * app; /add-dir opens the Link workspaces and directories dialog (WS-07); a command the agent
+ * app; /goal (Codex) puts the composer in goal mode (COMP-10); /add-dir opens the Link workspaces and directories dialog (WS-07); a command the agent
  * lists is sent to it as text; a built-in whose app action is not built yet and that the agent
  * does not list says "This command isn't available in this workspace."
  * Must handle: a command the agent does not offer (hidden from the list, and a typed one shows
  * "This command isn't available in this workspace."); /plan on an agent without plan mode ("Plan
- * mode is not available in this chat."); an argument hint (shown after the name, and the command
+ * mode is not available in this chat."); /goal on an agent without goals ("Codex goals are not
+ * available in this chat."; Our design choice: Conductor sends a typed '/goal' to such an agent as
+ * text); an argument hint (shown after the name, and the command
  * waits for its arguments); the agent's list still loading or failed to load (the menu says so and
- * still offers the built-ins); choosing by click, Enter or Tab, and moving with the arrow keys;
+ * still offers the built-ins); choosing by click, Enter or Tab (the composer's send key leaves them
+ * to the open menu, trigger-menu.ts, and with no row they send nothing), and moving with the arrow keys;
  * removing the typed command from the composer; removing the menu when the editor unmounts.
  * Test first: Typing '/co' lists '/compact' for Claude and not for an agent that lacks it.
  */
@@ -28,8 +31,10 @@ import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { type Editor, Extension, ReactRenderer } from "@tiptap/react";
 import { createElement } from "react";
+import { GOAL_UNAVAILABLE } from "../../../core/services/sessions.ts";
 import { toast } from "../../../ui/Toast.tsx";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 /** Where the agent's own list stands. The built-ins are offered whatever it says. */
 export type SlashListState =
@@ -74,6 +79,12 @@ const BUILTIN_COMMANDS: readonly SlashCommand[] = [
 	{
 		name: "personality",
 		description: "Choose Codex's personality for this session",
+		source: "builtin",
+		kind: "command",
+	},
+	{
+		name: "goal",
+		description: "Set the objective Codex should keep working toward",
 		source: "builtin",
 		kind: "command",
 	},
@@ -141,6 +152,7 @@ const BUILTIN_AGENTS: Readonly<Record<string, readonly AgentKind[]>> = {
 	restart: ["claude", "codex"],
 	"add-dir": ["claude", "codex"],
 	personality: ["codex"],
+	goal: ["codex"],
 	"mcp-status": ["claude", "codex"],
 	mcp: ["claude", "codex"],
 	agents: ["claude"],
@@ -248,6 +260,7 @@ export function slashCommandProblem(query: string, agent: AgentKind | undefined)
 	if (query === "plan" && agent !== undefined && !PLAN_AGENTS.has(agent)) {
 		return PLAN_MODE_UNAVAILABLE;
 	}
+	if (query === "goal" && agent !== "codex") return GOAL_UNAVAILABLE;
 	if (builtinSlashCommands(agent).some((command) => command.name === query)) return null;
 	return COMMAND_UNAVAILABLE;
 }
@@ -258,6 +271,7 @@ export type SlashAction =
 	| { kind: "restart" }
 	| { kind: "compact" }
 	| { kind: "linkDirectories" }
+	| { kind: "goal" }
 	| { kind: "screen"; commandId: "chat.togglePlanMode" | "chat.toggleFastMode" }
 	| { kind: "terminal" }
 	| { kind: "send"; text: string }
@@ -291,6 +305,10 @@ export function slashCommandAction(
 				: { kind: "screen", commandId: "chat.togglePlanMode" };
 		case "fast":
 			return { kind: "screen", commandId: "chat.toggleFastMode" };
+		case "goal":
+			return agent === "codex"
+				? { kind: "goal" }
+				: { kind: "unavailable", message: GOAL_UNAVAILABLE };
 	}
 	if (listed.some((entry) => entry.name === command.name)) {
 		return { kind: "send", text: `/${command.name}` };
@@ -424,7 +442,11 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 			const rowsOf = (state: SlashState): SuggestionRow[] =>
 				slashCommandRows(deps.commands, deps.agent, state.query);
 
+			const spec: TriggerMenuSpec = {
+				triggerMenuOpen: (state) => slashKey.getState(state)?.open === true,
+			};
 			const plugin = new Plugin<SlashState>({
+				...spec,
 				key: slashKey,
 				state: {
 					init: (_config, state) => stateFor(state),
@@ -463,9 +485,9 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 							choose(entry.command);
 							return true;
 						}
+						// With no row the key never sends the half-typed command; a known problem is said.
 						const problem = slashCommandProblem(current.query, deps.agent);
-						if (problem === null) return false;
-						toast.error(problem);
+						if (problem !== null) toast.error(problem);
 						return true;
 					},
 				},

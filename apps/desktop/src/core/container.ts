@@ -139,6 +139,11 @@ export interface ContainerInputs {
 	/** Opens a notification click or deep link in the app. The app entry passes its router opener. */
 	openLink?: (url: string) => void;
 	/**
+	 * Tells the user that work the app started on its own failed, with a title and the failure's
+	 * message. The app entry passes its error toast, the way a failed pull or push is told.
+	 */
+	reportFailure: (title: string, error: { message: string }) => void;
+	/**
 	 * Writes the redacted diagnostics report for a new chat and returns its path (APP-03). The app
 	 * entry passes the writer, because redaction lives with the diagnostics screen.
 	 */
@@ -356,6 +361,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		remoteControl: {
 			setStatus: (p) => sessions.applyRemoteControlState(p.sessionId, p.status),
 		},
+		goal: { setGoal: (p) => sessions.applyGoalChanged(p.sessionId, p.goal) },
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
 				const workspace = lookups.workspaceOfSession(sessionId);
@@ -466,6 +472,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
+		files: platform.fs,
+		toml: inputs.toml,
 	});
 	const settings = new SettingsService({
 		platform,
@@ -630,6 +638,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
 			return ok({ text: output.value.output, source: output.value.source });
 		},
+		// CHAT-26: another chat's transcript and one plan, read when the user attaches them.
+		transcriptOf: (sessionId) => sessions.transcriptOf(sessionId),
+		planOf: (sessionId, planId) => sessions.planFor(sessionId, planId),
 	});
 	const notifications = new NotificationService({
 		platform,
@@ -773,6 +784,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			removeWorkspacesOf: (repoId) => workspace.removeWorkspacesOf(repoId),
 			releaseBacklogOf: (repoId) => workspace.releaseBacklogOf(repoId),
 		},
+		ids,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
 	const workspace: WorkspaceService = new WorkspaceService({
@@ -795,7 +807,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
-	const mcp = new McpService({ sidecar: client });
+	const mcp = new McpService({
+		sidecar: client,
+		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		agentOf: (sessionId) => {
+			const session = sessions.store.getState().sessions[sessionId];
+			if (session === undefined) {
+				return err(appError("session_unknown", "That chat no longer exists."));
+			}
+			return ok({ agent: session.config.agent, acpAgent: session.config.acpAgent });
+		},
+		launchFor: (agent, acpAgent, sessionId) => {
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			const ws = lookups.workspaceOfSession(sessionId);
+			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+		},
+	});
 	const linear = new LinearService({
 		http: createLinearHttp(platform.http),
 		keychain: platform.keychain,
@@ -848,6 +875,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 				},
 				(error) => log("warn", `Could not sync review comments: ${String(error)}`),
 			);
+		},
+		onCatchUpError: (_id, error) => {
+			log("warn", `Could not catch up the stack branch: ${error.message}`);
+			inputs.reportFailure("Couldn't catch up the stack branch", error);
 		},
 		now: () => clock.now(),
 		keychain: platform.keychain,
@@ -905,6 +936,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		fs: platform.fs,
 		search: platform.fileSearch,
 		shell: platform.shell,
+		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 		opener: platform.opener,
 	});
@@ -1216,6 +1248,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 		followKeepAwake();
 		keepAwakeTimer = setInterval(runKeepAwakeScan, KEEP_AWAKE_SCAN_MS);
 		(keepAwakeTimer as unknown as { unref?: () => void }).unref?.();
+
+		// An update that is staged and allowed to restart waits for the last working chat.
+		let chatsWereWorking = anyChatWorking();
+		cleanups.push(
+			sessions.store.subscribe(() => {
+				const working = anyChatWorking();
+				if (working === chatsWereWorking) return;
+				chatsWereWorking = working;
+				updates.onActivityChanged();
+			}),
+		);
 
 		updateTimer = setInterval(() => {
 			void updates.check().then((outcome) => {

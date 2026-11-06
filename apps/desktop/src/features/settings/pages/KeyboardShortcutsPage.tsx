@@ -6,55 +6,25 @@
  * registry feeds menus, the palette, this page and the shortcut dialog, so this page only lists
  * and edits what the registry holds.
  * Data: useCommands(), useShortcutOverrides() and Actions.settings for keybinding_overrides_v1.
- * The clash rule is findShortcutConflicts in core/registries/commands.ts: the page passes the
- * table with the edit applied and reads the pair that names the edited command.
+ * The search, the rebinding rules and the save are NAV-09's useKeybindingEditing, which the
+ * shortcuts dialog uses too: the clash rule (findShortcutConflicts) and the reserved keys
+ * (reservedCommand) live in core/registries/commands.ts.
  * Must handle: a filter with no match, a clash with another command (the edited row names it and
  * offers Replace, which binds the keys here and removes them from the other command in the same
- * write, or Cancel), unbinding a command, resetting one command, a disabled command (shown muted),
- * and saved text that cannot be read (its error is shown here).
+ * write, or Cancel), a reserved key (refused with the command that holds it), unbinding a
+ * command, resetting one command, a disabled command (shown muted), and saved text that cannot be
+ * read (its error is shown here).
  * Test first: recording "Cmd+K" for a command that another command uses reports that command.
  */
 import { useState } from "react";
-import { useActions, useCommands, useShortcutOverrides } from "../../../core/hooks.ts";
-import {
-	COMMAND_CATEGORIES,
-	COMMANDS,
-	findShortcutConflicts,
-	formatShortcut,
-	getCommand,
-	parseShortcut,
-	type ShortcutOverrides,
-	withShortcutOverrides,
-} from "../../../core/registries/commands.ts";
+import { useCommands } from "../../../core/hooks.ts";
+import { COMMAND_CATEGORIES } from "../../../core/registries/commands.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { ShortcutRecorder } from "../keyboard/ShortcutRecorder.tsx";
 import { ShortcutRow } from "../keyboard/ShortcutRow.tsx";
+import { matchingCommands, useKeybindingEditing } from "../keyboard/use-keybinding-editing.ts";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
-
-interface Conflict {
-	commandId: string;
-	combination: string;
-	otherId: string;
-	otherTitle: string;
-}
-
-/** The overrides with `combination` bound to `commandId` and taken off the command that had it. */
-function replaceBinding(
-	overrides: ShortcutOverrides,
-	commandId: string,
-	combination: string,
-	otherId: string,
-): ShortcutOverrides {
-	const clash = formatShortcut(combination);
-	const other = withShortcutOverrides(COMMANDS, overrides).find(
-		(command) => command.id === otherId,
-	);
-	const kept = (other?.defaultShortcuts ?? []).filter((spec) => formatShortcut(spec) !== clash);
-	return { ...overrides, [commandId]: [combination], [otherId]: kept };
-}
-
-const SETTING_KEY = "keybinding_overrides_v1";
 
 export function KeyboardShortcutsPage({
 	focusSettingKey = null,
@@ -63,66 +33,16 @@ export function KeyboardShortcutsPage({
 }) {
 	const load = useSettingsLoad();
 	const commands = useCommands();
-	const { overrides, error: overridesError } = useShortcutOverrides();
-	const actions = useActions();
+	const editing = useKeybindingEditing();
+	const { conflict } = editing;
 	const [filter, setFilter] = useState("");
 	const [recordingId, setRecordingId] = useState<string | null>(null);
-	const [conflict, setConflict] = useState<Conflict | null>(null);
-	const [saveError, setSaveError] = useState<string | null>(null);
-
-	const persist = async (next: ShortcutOverrides) => {
-		const text = Object.keys(next).length === 0 ? "" : JSON.stringify(next);
-		const saved = await actions.settings.set(SETTING_KEY, text);
-		setSaveError(saved.ok ? null : saved.error.message);
-	};
+	const shown = matchingCommands(commands, filter);
 
 	const record = (commandId: string, combination: string) => {
 		setRecordingId(null);
-		setSaveError(null);
-		if (combination === "") {
-			void persist({ ...overrides, [commandId]: [] });
-			return;
-		}
-		const parsed = parseShortcut(combination);
-		if (!parsed.ok) {
-			setSaveError(parsed.error.message);
-			return;
-		}
-		const next: ShortcutOverrides = { ...overrides, [commandId]: [combination] };
-		const clashes = findShortcutConflicts(withShortcutOverrides(COMMANDS, next));
-		const found = clashes.find((clash) => clash.ids.includes(commandId));
-		if (found !== undefined) {
-			const otherId = found.ids[0] === commandId ? found.ids[1] : found.ids[0];
-			setConflict({
-				commandId,
-				combination,
-				otherId,
-				otherTitle: getCommand(otherId)?.title ?? otherId,
-			});
-			return;
-		}
-		void persist(next);
+		editing.record(commandId, combination);
 	};
-
-	const clear = (commandId: string) => {
-		setSaveError(null);
-		void persist({ ...overrides, [commandId]: [] });
-	};
-
-	const reset = (commandId: string) => {
-		const next = { ...overrides };
-		delete next[commandId];
-		setSaveError(null);
-		void persist(next);
-	};
-
-	const needle = filter.trim().toLowerCase();
-	const shown = commands.filter((command) =>
-		needle === ""
-			? true
-			: command.title.toLowerCase().includes(needle) ||
-				command.category.toLowerCase().includes(needle),
-	);
 
 	return (
 		<SettingsPageFrame
@@ -141,16 +61,16 @@ export function KeyboardShortcutsPage({
 				/>
 			</div>
 
-			{overridesError ? (
+			{editing.overridesError === null ? null : (
 				<p role="alert" className="pb-2 text-xs text-danger">
-					{overridesError.message}
+					{editing.overridesError}
 				</p>
-			) : null}
-			{saveError ? (
+			)}
+			{editing.saveError === null ? null : (
 				<p role="alert" className="pb-2 text-xs text-danger">
-					{saveError}
+					{editing.saveError}
 				</p>
-			) : null}
+			)}
 			{shown.length === 0 ? (
 				<p role="status" className="text-sm text-fg-muted">
 					No commands match your search.
@@ -171,12 +91,11 @@ export function KeyboardShortcutsPage({
 											conflictWith={conflict?.commandId === command.id ? conflict.otherTitle : null}
 											recording={recordingId === command.id}
 											onStartRecording={() => {
-												setConflict(null);
-												setSaveError(null);
+												editing.dismiss();
 												setRecordingId(command.id);
 											}}
-											onClear={() => clear(command.id)}
-											onReset={() => reset(command.id)}
+											onClear={() => editing.clear(command.id)}
+											onReset={() => editing.reset(command.id)}
 										/>
 										{recordingId === command.id ? (
 											<div className="pb-2">
@@ -191,25 +110,10 @@ export function KeyboardShortcutsPage({
 												<p className="text-xs text-fg-muted">
 													Use {conflict.combination} here and remove it from {conflict.otherTitle}?
 												</p>
-												<Button
-													size="sm"
-													variant="destructive"
-													onClick={() => {
-														const pending = conflict;
-														setConflict(null);
-														void persist(
-															replaceBinding(
-																overrides,
-																pending.commandId,
-																pending.combination,
-																pending.otherId,
-															),
-														);
-													}}
-												>
+												<Button size="sm" variant="destructive" onClick={editing.replace}>
 													Replace
 												</Button>
-												<Button size="sm" variant="secondary" onClick={() => setConflict(null)}>
+												<Button size="sm" variant="secondary" onClick={editing.cancelConflict}>
 													Cancel
 												</Button>
 											</div>

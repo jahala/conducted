@@ -17,11 +17,14 @@
  * focus returns to the editor after sending; Cmd+L focuses the editor; the file list fails to load
  * (error shown) or an older list arrives after a newer one (dropped); a terminal for a slash
  * command that cannot be created (shown on the bar, with Reopen terminal).
- * The editor loads the `@` trigger (COMP-04) and the `/` trigger (COMP-06) from this composer, so
- * both read the chat's service. The `@` menu lists the workspace's files and its linked folders,
- * read again each time the menu opens, and offers "Attach current terminal output" and "Select
- * working directories" (WS-07). The `#` trigger is left out until COMP-05 builds pull request
- * search. A slash command the user picks does what `slashCommandAction` says: /clear opens a new
+ * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05), the `/` trigger
+ * (COMP-06) and the `§` snippet trigger (COMP-09) from this composer, so all read the chat's
+ * service. The `@` menu lists the workspace's files and its linked folders, read again each time
+ * the menu opens, and offers "Attach current terminal output" and "Select working directories"
+ * (WS-07). The `#` menu lists the project's pull requests and issues
+ * (core/services/mention-search.ts), writes the chosen item's context file and inserts a chip; a
+ * failed write shows "Failed to save PR context". A slash command the user picks does what
+ * `slashCommandAction` says: /clear opens a new
  * chat tab (the tab strip's own Cmd+T handler) and closes this one, /restart restarts the agent,
  * /compact asks a Codex chat to summarise its history, /add-dir opens the Link workspaces and
  * directories dialog (WS-07), /plan and /fast run the plan and fast mode toggles of the toolbar,
@@ -33,17 +36,22 @@
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
  * The '+' menu's "Link issue", Cmd+I and the palette's "Link issue" open the Link issue dialog
  * (PR-09) of the chat on screen; the issue it links joins the same attachment list.
+ * /goal in a Codex chat puts the composer in goal mode (COMP-10, as Conductor does): the empty
+ * editor says "Set a goal", and sending sets the text as the chat's goal through
+ * `actions.sessions.goal.set` instead of sending it as a message. A goal takes no attachments, so
+ * the send clears only the text and keeps them for the next message. Goal mode ends after the send
+ * and when the chat changes. The Codex goal bar itself is GoalBar, above the composer.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
  * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
- * Dictation (COMP-08) is not mounted in this toolbar yet.
+ * The toolbar also holds the dictation button (COMP-08), which inserts its transcript at the caret.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
 
 import type { SlashCommand } from "@conducted/protocol";
-import type { SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
+import type { AppError, SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -51,6 +59,11 @@ import { useCommandHandler, useRunCommandHandlers } from "../../app/command-disp
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
+import {
+	attachPrMention,
+	type PrMentionItem,
+	searchPrMentions,
+} from "../../core/services/mention-search.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -62,6 +75,9 @@ import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
+import { DictationButton } from "./DictationButton.tsx";
+import { FastModeUnavailableBanner } from "./FastModeUnavailableBanner.tsx";
+import { toastGoalError } from "./GoalBar.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
@@ -74,10 +90,14 @@ import {
 	slashCommandAction,
 	terminalCommandLine,
 } from "./mentions/SlashCommandExtension.ts";
+import { createSnippetMention } from "./mentions/SnippetMention.ts";
 import { PlusMenu } from "./PlusMenu.tsx";
 import { SendButton, type SendButtonState } from "./SendButton.tsx";
+import { openSnippetPicker } from "./SnippetOverlays.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
+import { useSnippetDialogsStore } from "./snippet-dialogs-store.ts";
 import { TerminalCommandBar } from "./TerminalCommandBar.tsx";
+import { inlineTextContent } from "./text-content.ts";
 import { useAttachments } from "./use-attachments.ts";
 import { useDraftSync } from "./use-draft-sync.ts";
 
@@ -187,6 +207,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const [busy, setBusy] = useState(false);
 	const [linkDialogOpen, setLinkDialogOpen] = useState(false);
 	const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+	const [goalMode, setGoalMode] = useState(false);
 	const attachmentsController = useAttachments({
 		sessionId,
 		editor,
@@ -195,6 +216,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	});
 	const live = useStore(services.sessions.store, (state) => state.liveStates[sessionId]);
 	const draftError = useStore(services.composer.store, (state) => state.errors[sessionId]);
+	const snippets = useStore(services.composer.store, (state) => state.snippets);
+	const snippetError = useStore(services.composer.store, (state) => state.snippetError);
 	const sendKey = useStore(
 		services.settings.store,
 		(state) => state.values.message_send_key as string | undefined,
@@ -214,7 +237,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
 	const queueByDefault = followUp === "queue";
 	const buttonState: SendButtonState = working ? (queueByDefault ? "queue" : "steer") : "send";
-	const disabled = busy || (text.trim().length === 0 && attachments.length === 0);
+	const empty = text.trim().length === 0;
+	const disabled = busy || (goalMode ? empty : empty && attachments.length === 0);
 
 	const runCommand = useRunCommandHandlers();
 	const slashCommands = useRef<readonly SlashCommand[]>([]);
@@ -258,6 +282,20 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		const view = editorRef.current?.isDestroyed === false ? editorRef.current.view : null;
 		view?.dispatch(view.state.tr);
 	}, [services, workspaceId]);
+
+	const searchMentionRows = useCallback(
+		(query: string) => searchPrMentions(services, workspaceId, query),
+		[services, workspaceId],
+	);
+
+	const attachMentionRow = useCallback(
+		(item: PrMentionItem) => attachPrMention(services, workspaceId, item),
+		[services, workspaceId],
+	);
+
+	const reportPrMentionError = useCallback((error: AppError) => {
+		toastError("Failed to save PR context", error);
+	}, []);
 
 	const attachTerminalOutput = useCallback(async () => {
 		const added = await actions.attachments.addTerminalOutput(sessionId);
@@ -312,6 +350,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				case "linkDirectories":
 					setLinkDialogOpen(true);
 					return;
+				case "goal":
+					setGoalMode(true);
+					editorRef.current?.commands.focus();
+					return;
 				case "compact":
 					void actions.sessions.compact(sessionId).then((result) => {
 						if (!result.ok) toastError("Couldn't compact the chat", result.error);
@@ -348,8 +390,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	}, [actions, sessionId]);
 
 	const extensions = useMemo(
-		() =>
-			buildComposerExtensions({
+		() => [
+			...buildComposerExtensions({
 				files: {
 					search: () => [
 						...linkedPaths.current.map((path) => ({ path, isDirectory: true })),
@@ -369,6 +411,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 						},
 					],
 				},
+				pullRequests: {
+					search: searchMentionRows,
+					attach: attachMentionRow,
+					onError: reportPrMentionError,
+				},
 				slash: {
 					get commands() {
 						return [...slashCommands.current];
@@ -385,7 +432,21 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					onRun: runSlashCommand,
 				},
 			}),
-		[attachTerminalOutput, loadFiles, runSlashCommand],
+			createSnippetMention({
+				snippets: () => services.composer.store.getState().snippets,
+				error: () => services.composer.store.getState().snippetError?.message ?? null,
+				onOpen: () => void services.composer.loadSnippets(),
+			}),
+		],
+		[
+			attachMentionRow,
+			attachTerminalOutput,
+			loadFiles,
+			reportPrMentionError,
+			runSlashCommand,
+			searchMentionRows,
+			services,
+		],
 	);
 
 	const restore = useCallback((draft: Draft) => {
@@ -393,7 +454,19 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		setText(draft.text);
 	}, []);
 
-	useDraftSync({ sessionId, editor, attachmentPaths: attachments, onRestore: restore });
+	useDraftSync({
+		sessionId,
+		editor,
+		attachmentPaths: attachments,
+		onRestore: restore,
+		onStoredAttachments: setAttachments,
+	});
+
+	// Goal mode belongs to the chat it was chosen in.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the reset runs when the chat changes
+	useEffect(() => {
+		setGoalMode(false);
+	}, [sessionId]);
 
 	useEffect(() => {
 		if (editor === null) {
@@ -407,6 +480,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			editor.off("update", update);
 		};
 	}, [editor]);
+
+	// A snippet list that arrives after the trigger opened redraws that menu.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the list change must redraw the open trigger
+	useEffect(() => {
+		if (editor === null) return;
+		editor.view.dispatch(editor.state.tr);
+	}, [editor, snippetError, snippets]);
 
 	const stop = useCallback(async () => {
 		const result = await actions.sessions.cancel(sessionId);
@@ -440,14 +520,57 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		editorRef.current?.commands.focus("end");
 	}, []);
 
+	// Dictation (COMP-08) and snippets (COMP-09) both put text at the cursor, as plain text with
+	// its line breaks (a string would be read as HTML).
+	const insertText = useCallback((text: string) => {
+		editorRef.current?.chain().focus().insertContent(inlineTextContent(text)).run();
+	}, []);
+	useCommandHandler("chat.insertSnippet", "area", () => {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
+		openSnippetPicker(insertText);
+		return true;
+	});
+
 	useCommandHandler("chat.cancelAgent", "area", () => {
 		if (!working) return false;
 		void stop();
 		return true;
 	});
 
+	const clearEditor = async (current: Editor) => {
+		current.commands.setContent("", { emitUpdate: false });
+		setText("");
+		setAttachments([]);
+		const cleared = await services.composer.clearDraft(sessionId);
+		if (!cleared.ok) toastError("Couldn't clear the draft", cleared.error);
+		current.commands.focus();
+	};
+
+	const saveGoal = async (current: Editor) => {
+		setBusy(true);
+		try {
+			const result = await actions.sessions.goal.set(sessionId, current.getText());
+			if (!result.ok) {
+				toastGoalError(result.error);
+				return;
+			}
+			setGoalMode(false);
+			// A goal takes only the text. The update event saves the draft with its attachments
+			// kept, so files the user added stay for the next message.
+			current.commands.setContent("", { emitUpdate: true });
+			setText("");
+			current.commands.focus();
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
+		if (goalMode) {
+			await saveGoal(editor);
+			return;
+		}
 		const body = editor.getText();
 		if (body.trim().length === 0 && attachments.length === 0) return;
 		const delivery = intent === "submit" ? "auto" : queueByDefault ? "steer" : "queue";
@@ -460,12 +583,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				toastError("Couldn't send the message", result.error);
 				return;
 			}
-			editor.commands.setContent("", { emitUpdate: false });
-			setText("");
-			setAttachments([]);
-			const cleared = await services.composer.clearDraft(sessionId);
-			if (!cleared.ok) toastError("Couldn't clear the draft", cleared.error);
-			editor.commands.focus();
+			await clearEditor(editor);
 		} finally {
 			setBusy(false);
 		}
@@ -477,91 +595,102 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	};
 
 	return (
-		<div
-			ref={containerRef}
-			className="rounded-xl border border-border bg-surface shadow-xs"
-			data-narrow={narrow ? "true" : "false"}
-		>
-			{terminalRun === null ? null : (
-				<div className="px-2 pt-2">
-					<TerminalCommandStatus
-						workspaceId={workspaceId}
-						run={terminalRun}
-						onReopen={() => void startTerminalCommand(terminalRun.command)}
-						onDone={finishTerminalCommand}
-					/>
-				</div>
-			)}
-			<div className="flex items-center gap-1 px-2 pt-2">
-				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-					<PlusMenu
-						sessionId={sessionId}
-						onAddAttachment={() => void attachmentsController.pick()}
-						onLinkIssue={() => setIssueDialogOpen(true)}
-						onLinkWorkspaces={() => setLinkDialogOpen(true)}
-					/>
-					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
-						<ModelPicker sessionId={sessionId} />
-					</NotBuiltYet>
-					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
-						<ModeChips sessionId={sessionId} />
-					</NotBuiltYet>
-					<AcpOptions sessionId={sessionId} />
-				</div>
-				<div className="flex shrink-0 items-center gap-1">
-					<RemoteControlButton sessionId={sessionId} />
-					<ContextWheel sessionId={sessionId} />
-					{narrow ? (
-						<Menu>
-							<MenuTrigger asChild>
-								<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
-							</MenuTrigger>
-							<MenuContent align="end">
-								<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
-							</MenuContent>
-						</Menu>
-					) : (
-						<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
-					)}
-				</div>
-			</div>
-			<AttachmentBar
+		<div className="flex flex-col gap-2">
+			<FastModeUnavailableBanner
 				sessionId={sessionId}
-				attachmentPaths={attachments}
-				busy={attachmentsController.busy}
-				onRemove={(path) => void attachmentsController.remove(path)}
+				fastModeRequested={session?.config.fastMode === true}
+				fastModeAvailable={live?.fastModeAvailable ?? true}
 			/>
-			<ComposerEditor
-				sessionId={sessionId}
-				disabled={busy}
-				onSubmit={(intent) => void send(intent)}
-				sendWith={sendWith}
-				onEditorReady={setEditor}
-				extensions={extensions}
-			/>
-			<LinkDirectoriesDialog
-				open={linkDialogOpen}
-				onOpenChange={setLinkDialogOpen}
-				workspaceId={workspaceId}
-			/>
-			<LinkIssueDialog
-				open={issueDialogOpen}
-				onOpenChange={setIssueDialogOpen}
-				workspaceId={workspaceId}
-				sessionId={sessionId}
-				onAttached={addLinkedIssue}
-				onFocusEditor={focusEditorAtEnd}
-			/>
-			<div className="flex items-center justify-end gap-1 px-2 pb-2">
-				<SendButton
-					state={buttonState}
-					disabled={disabled}
-					busy={busy}
-					working={working}
-					sendWith={sendWith}
-					onSend={() => void send("submit")}
-					onStop={() => void stop()}
+			<div
+				ref={containerRef}
+				className="rounded-xl border border-border bg-surface shadow-xs"
+				data-narrow={narrow ? "true" : "false"}
+			>
+				{terminalRun === null ? null : (
+					<div className="px-2 pt-2">
+						<TerminalCommandStatus
+							workspaceId={workspaceId}
+							run={terminalRun}
+							onReopen={() => void startTerminalCommand(terminalRun.command)}
+							onDone={finishTerminalCommand}
+						/>
+					</div>
+				)}
+				<div className="flex items-center gap-1 px-2 pt-2">
+					<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+						<PlusMenu
+							sessionId={sessionId}
+							onAddAttachment={() => void attachmentsController.pick()}
+							onLinkIssue={() => setIssueDialogOpen(true)}
+							onLinkWorkspaces={() => setLinkDialogOpen(true)}
+							onAddSnippet={() => useSnippetDialogsStore.getState().openCreate()}
+							onInsertSnippet={() => openSnippetPicker(insertText)}
+						/>
+						<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
+							<ModelPicker sessionId={sessionId} />
+						</NotBuiltYet>
+						<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
+							<ModeChips sessionId={sessionId} />
+						</NotBuiltYet>
+						<AcpOptions sessionId={sessionId} />
+					</div>
+					<div className="flex shrink-0 items-center gap-1">
+						<DictationButton onTranscript={insertText} />
+						<RemoteControlButton sessionId={sessionId} />
+						<ContextWheel sessionId={sessionId} />
+						{narrow ? (
+							<Menu>
+								<MenuTrigger asChild>
+									<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
+								</MenuTrigger>
+								<MenuContent align="end">
+									<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
+								</MenuContent>
+							</Menu>
+						) : (
+							<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
+						)}
+					</div>
+				</div>
+				<AttachmentBar
+					sessionId={sessionId}
+					attachmentPaths={attachments}
+					busy={attachmentsController.busy}
+					onRemove={(path) => void attachmentsController.remove(path)}
 				/>
+				<ComposerEditor
+					sessionId={sessionId}
+					disabled={busy}
+					onSubmit={(intent) => void send(intent)}
+					sendWith={sendWith}
+					onEditorReady={setEditor}
+					extensions={extensions}
+					{...(goalMode ? { placeholder: "Set a goal" } : {})}
+				/>
+				<LinkDirectoriesDialog
+					open={linkDialogOpen}
+					onOpenChange={setLinkDialogOpen}
+					workspaceId={workspaceId}
+				/>
+				<LinkIssueDialog
+					open={issueDialogOpen}
+					onOpenChange={setIssueDialogOpen}
+					workspaceId={workspaceId}
+					sessionId={sessionId}
+					onAttached={addLinkedIssue}
+					onFocusEditor={focusEditorAtEnd}
+				/>
+				<div className="flex items-center justify-end gap-1 px-2 pb-2">
+					<SendButton
+						state={buttonState}
+						disabled={disabled}
+						busy={busy}
+						working={working}
+						sendWith={sendWith}
+						onSend={() => void send("submit")}
+						onStop={() => void stop()}
+					/>
+				</div>
 			</div>
 		</div>
 	);

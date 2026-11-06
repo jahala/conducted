@@ -1,6 +1,7 @@
 /**
  * @feature NAV-03 Workspace status text
- * Owns: the words and the tone for a workspace's derived status, shared by the sidebar row, Home card and tab.
+ * Owns: the words and the tone for a workspace's derived status, and the text colour of each tone,
+ * shared by the sidebar row, the Home card, the dashboard card and the tab.
  * Behaviour: ui-map.md 3.8 (sidebar row subtitle text: "Review plan", "Need permission", "Answer question",
  * "Planning...", "Working...", "Cancelling...", "Waiting...", "Initializing...", "Initialization failed",
  * "Setting up...", "Archiving..."; git and PR labels, first match wins).
@@ -17,6 +18,15 @@
 import type { WorkspaceStatus } from "../../core/model.ts";
 
 export type StatusTone = "attention" | "active" | "danger" | "success" | "neutral";
+
+/** The text colour of each tone, the one map every status line uses. */
+export const STATUS_TONE_CLASS: Readonly<Record<StatusTone, string>> = {
+	attention: "text-accent",
+	active: "text-fg-muted",
+	danger: "text-danger",
+	success: "text-success",
+	neutral: "text-fg-muted",
+};
 
 export interface StatusText {
 	text: string;
