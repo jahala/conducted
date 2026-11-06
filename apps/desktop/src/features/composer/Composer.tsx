@@ -1,7 +1,8 @@
 /**
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
- * chips, ACP options, context wheel, MCP status) and the send or stop button.
+ * chips, ACP options, Remote Control (RC-02), context wheel, MCP status) and the send or stop
+ * button.
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
@@ -56,6 +57,7 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { ContextWheel } from "../chat/ContextWheel.tsx";
+import { RemoteControlButton } from "../chat/RemoteControlButton.tsx";
 import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
@@ -507,6 +509,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					<AcpOptions sessionId={sessionId} />
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
+					<RemoteControlButton sessionId={sessionId} />
 					<ContextWheel sessionId={sessionId} />
 					{narrow ? (
 						<Menu>

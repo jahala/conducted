@@ -13,6 +13,7 @@ const entry = (over: Partial<ProcessEntryView> & { key: string }): ProcessEntryV
 	activeLeases: 0,
 	busy: false,
 	hasBackgroundTasks: false,
+	remoteControl: false,
 	lastIdleAt: null,
 	...over,
 });
@@ -59,6 +60,21 @@ describe("SIDE-07 idle and warm policy", () => {
 			entry({ key: "recent", lastIdleAt: now - 1000 }),
 		];
 		expect(selectIdleToStop(entries, now)).toEqual(["stop"]);
+	});
+
+	test("RC-02 a process shared through Remote Control is neither stopped idle nor evicted", () => {
+		const now = 10 * IDLE_STOP_AFTER_MS;
+		const old = now - IDLE_STOP_AFTER_MS;
+		expect(
+			selectIdleToStop([entry({ key: "remote", lastIdleAt: old, remoteControl: true })], now),
+		).toEqual([]);
+		const warm = [
+			entry({ key: "remote", retention: "warm", lastIdleAt: 1, remoteControl: true }),
+			entry({ key: "a", retention: "warm", lastIdleAt: 2 }),
+			entry({ key: "b", retention: "warm", lastIdleAt: 3 }),
+			entry({ key: "c", retention: "warm", lastIdleAt: 4 }),
+		];
+		expect(selectWarmToEvict(warm, 2)).toEqual(["a"]);
 	});
 
 	test("SIDE-07 the idle timeout, sweep interval and warm cap are the researched values", () => {

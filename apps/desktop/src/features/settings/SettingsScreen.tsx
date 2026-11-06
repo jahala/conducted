@@ -4,7 +4,8 @@
  * embedded by the router.
  * Behaviour: ui-map.md 6 (layout: left nav with a search box, Back and Esc to leave, repository
  * picker in the Repositories group; pages by group). Cloud pages (organization, members, cloud
- * computer, remote control) are left out.
+ * computer) and Conductor's phone-pairing remote control are left out; the Remote control page holds
+ * our claude.ai Remote Control settings (RC-04, D019).
  * Data: useRepos for the Repositories group. Each page reads its own data.
  * Children: SettingsNav, SettingsSearch, one page component per UserSettingsPageId and
  * RepoSettingsPageId (pages/*.tsx, repo/*.tsx).
@@ -36,6 +37,7 @@ import { ExperimentalPage } from "./pages/ExperimentalPage.tsx";
 import { GeneralPage } from "./pages/GeneralPage.tsx";
 import { GitPage } from "./pages/GitPage.tsx";
 import { KeyboardShortcutsPage } from "./pages/KeyboardShortcutsPage.tsx";
+import { RemoteControlPage } from "./pages/RemoteControlPage.tsx";
 import { RepoActionsPage } from "./repo/RepoActionsPage.tsx";
 import { RepoMiscPage } from "./repo/RepoMiscPage.tsx";
 import { RepoPromptsPage } from "./repo/RepoPromptsPage.tsx";
@@ -91,6 +93,8 @@ function UserPage({
 			);
 		case "environment":
 			return <EnvironmentPage focusSettingKey={focusSettingKey} />;
+		case "remote-control":
+			return <RemoteControlPage focusSettingKey={focusSettingKey} />;
 	}
 }
 

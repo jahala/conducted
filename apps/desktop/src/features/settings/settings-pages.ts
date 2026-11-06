@@ -6,6 +6,8 @@
  * Default models, Git, Connections), Agents and environment (Agents, Environment), Repositories
  * (Scripts, Actions, Prompts, Misc per repository), More (Experimental, Advanced).
  * Page ids follow Conductor's route names (ui-map.md header: key-bindings). Titles are ours.
+ * Our design choice: Conductor shows its "Remote control" page only for local organisations; ours
+ * (RC-04) is always there, under Agents & environment, since it is about agent chats.
  * Our design choice: the settings screen takes one page string, so a repository page is written
  * "repo:<repoId>:<page>", for example "repo:3f2a:scripts". The router's repository settings route
  * (`/settings/repos/$repoId/$page`, app/router.tsx) builds that string. Ids are UUIDs and never hold
@@ -27,6 +29,7 @@ export type UserSettingsPageId =
 	| "connections"
 	| "agents"
 	| "environment"
+	| "remote-control"
 	| "experimental"
 	| "advanced";
 
@@ -52,6 +55,7 @@ export const USER_SETTINGS_PAGES: readonly {
 	{ id: "connections", title: "Connections", group: "personal" },
 	{ id: "agents", title: "Agents", group: "agents_and_environment" },
 	{ id: "environment", title: "Environment", group: "agents_and_environment" },
+	{ id: "remote-control", title: "Remote control", group: "agents_and_environment" },
 	{ id: "experimental", title: "Experimental", group: "more" },
 	{ id: "advanced", title: "Advanced", group: "more" },
 ];

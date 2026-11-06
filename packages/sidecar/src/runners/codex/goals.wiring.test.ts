@@ -177,6 +177,7 @@ async function harness(): Promise<{
 			readText: async () => ok(null),
 			sidecarExecutable: "/Applications/Conducted.app/Contents/MacOS/sidecar",
 			hasTranscript: async () => false,
+			readUserMessageText: async () => null,
 			newToken: () => randomBytes(32).toString("base64url"),
 			clock: systemClock,
 			ids: cryptoIds,

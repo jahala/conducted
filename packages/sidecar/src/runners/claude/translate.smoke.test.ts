@@ -175,6 +175,7 @@ function deps(): ClaudeSessionDeps {
 		logger,
 		translator: new ClaudeTranslator({ logger }),
 		hasTranscript: async () => false,
+		readUserMessageText: async () => null,
 		realPath: async (path) => path,
 		newUuid: countingIds("turn").uuid,
 		scheduler,

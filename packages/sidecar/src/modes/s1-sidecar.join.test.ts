@@ -11,17 +11,20 @@
  * @feature AGENT-16 Claude chat options
  * @feature AGENT-17 ACP chat options
  * @feature AGENT-15 Turns the Claude program starts by itself
+ * @feature RC-02 Per-chat Remote Control switch and connection status
+ * @feature RC-03 Accept input from claude.ai: messages, approvals, interrupts, with who sent each
  * Owns: the integration tests of the joined sidecar batches, driven through `composeSidecar`, the
  * function the sidecar's composition root (`startSidecarHost`) builds the host with, and through
  * `runSidecarMode`. They prove that the Cursor SDK and its translation, the Codex goals and compact
  * turn, the bundled skill plugin, the slash-command cache, the log settings, the chat options, the
- * launch settings, the app tools bridge and the turns Claude starts by itself all reach the live path.
+ * launch settings, the app tools bridge, the turns Claude starts by itself and Remote Control (its
+ * link, and messages typed on claude.ai) all reach the live path.
  * Behaviour: modes/sidecar-mode.ts (composeSidecar and the runner registry it builds),
  * runners/cursor/cursor-session.ts and translate.ts, runners/codex/goals.ts and codex-session.ts,
  * runners/claude/options.ts, runners/claude/skill-plugin.ts, models/completions-cache.ts,
  * runners/acp/acp-session.ts, runners/launch-env.ts, process/launch-fingerprint.ts,
- * tools/socket-bridge.ts, tools/mcp-launch.ts, runners/claude/self-started-turns.ts and
- * session/self-started-turns.ts.
+ * tools/socket-bridge.ts, tools/mcp-launch.ts, runners/claude/self-started-turns.ts,
+ * session/self-started-turns.ts, runners/claude/remote-control.ts and runners/claude/transcript.ts.
  * Test first: this file.
  * Our design choice: everything the composition root builds is real; only the outside world is
  * scripted through `SidecarPorts`: the Claude SDK's query, the Cursor SDK, the Codex and ACP child
@@ -206,6 +209,8 @@ async function harness(
 		programs?: { binDir: string; agentBinariesDir: string };
 		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
 		claude?: TalkingClaude;
+		/** User message texts in Claude's transcript, by uuid (RC-03). */
+		transcript?: Map<string, string>;
 	} = {},
 ): Promise<Harness> {
 	const app = new FakeApp();
@@ -263,6 +268,8 @@ async function harness(
 			readText: async (file) => ok(options.files?.get(file) ?? null),
 			sidecarExecutable: "/Applications/Conducted.app/Contents/MacOS/sidecar",
 			hasTranscript: async () => false,
+			readUserMessageText: async (_agentSessionId, _cwd, uuid) =>
+				options.transcript?.get(uuid) ?? null,
 			newToken: () => randomBytes(32).toString("base64url"),
 			clock: systemClock,
 			ids: cryptoIds,
@@ -359,6 +366,15 @@ function talkingClaude(): TalkingClaude {
 				mcpServerStatus: async () => [],
 				getContextUsage: async () => ({ totalTokens: 0, maxTokens: 0 }),
 				usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({}),
+				// The pinned SDK's Remote Control method, answering as Claude did in the spike (D074).
+				enableRemoteControl: async (enabled: boolean) =>
+					enabled
+						? {
+								session_url: REMOTE_SESSION_URL,
+								bridge_session_id: "session_remote_1",
+								bridge_epoch: 1,
+							}
+						: undefined,
 			} as unknown as Query;
 		},
 		say: (message) => {
@@ -366,6 +382,19 @@ function talkingClaude(): TalkingClaude {
 			current.push(message);
 		},
 	};
+}
+
+const REMOTE_SESSION_URL = "https://claude.ai/code/session_remote_1";
+
+function bridgeState(state: string): SDKMessage {
+	return {
+		type: "system",
+		subtype: "bridge_state",
+		state,
+		bridge_epoch: 1,
+		uuid: randomBytes(8).toString("hex"),
+		session_id: "claude-session-1",
+	} as unknown as SDKMessage;
 }
 
 function claudeText(text: string): SDKMessage {
@@ -1096,6 +1125,78 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				status: "idle",
 				error: "aborted by user",
 			});
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("RC-02 RC-03 a chat shared through Remote Control reports its link and stores a message typed on claude.ai", async () => {
+		const folder = await workspaceFolder();
+		const claude = talkingClaude();
+		const h = await harness(folder, {
+			claude,
+			transcript: new Map([["remote-1", "Add a test for the parser"]]),
+		});
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(sendParams(folder, baseConfig({ remoteControl: true })));
+			await waitForIdle(h, sessionId);
+			await waitFor(
+				() =>
+					h.app
+						.notified("remoteControlState")
+						.some((entry) => entry.status.sessionUrl === REMOTE_SESSION_URL),
+				"the Remote Control link",
+			);
+			claude.say(bridgeState("ready"));
+			claude.say(bridgeState("connected"));
+			await waitFor(
+				() => h.app.notified("remoteControlState").at(-1)?.status.state === "connected",
+				"the link to connect",
+			);
+			const status = unwrap<{ remoteControl?: unknown }>(
+				await h.handlers.getSessionStatus({ sessionId }),
+			);
+			expect(status.remoteControl).toEqual({ state: "connected", sessionUrl: REMOTE_SESSION_URL });
+
+			// The owner types on claude.ai: the CLI runs the turn, and its frames name the message.
+			claude.say(claudeState("running"));
+			claude.say({
+				...(claudeText("Adding the test.") as object),
+				user_message_uuid: "remote-1",
+			} as unknown as SDKMessage);
+			claude.say(claudeResult("remote-1"));
+			claude.say(claudeState("idle"));
+			await waitFor(
+				() =>
+					h.app
+						.notified("sessionEvent")
+						.some(
+							(entry) =>
+								entry.event.type === "user_message" && entry.event.sender?.kind === "claude_ai",
+						),
+				"the message from claude.ai to be stored",
+			);
+			const events = h.app
+				.notified("sessionEvent")
+				.filter((entry) => entry.sessionId === sessionId)
+				.map((entry) => entry.event);
+			const remote = events.find(
+				(event) => event.type === "user_message" && event.sender?.kind === "claude_ai",
+			);
+			expect(remote).toMatchObject({
+				text: "Add a test for the parser",
+				delivery: "new_turn",
+				messageId: "remote-1",
+			});
+			const reply = events.find(
+				(event) =>
+					event.type === "agent" &&
+					event.message.items.some(
+						(item) => item.kind === "text" && item.text === "Adding the test.",
+					),
+			);
+			expect(reply?.turnId).toBe(remote?.turnId as TurnId);
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}

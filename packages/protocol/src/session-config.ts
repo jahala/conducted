@@ -75,6 +75,11 @@ export const zSessionConfig = z.object({
 	claudeOutputStyle: zClaudeOutputStyle.optional(),
 	/** Claude only: start Claude with its Chrome browser tools. A change restarts Claude with resume. */
 	claudeInChrome: z.boolean().optional(),
+	/**
+	 * Claude only: share the chat through Claude Remote Control (D019), so claude.ai/code and the
+	 * Claude app can follow and steer it. Missing means off. A change applies to the live agent.
+	 */
+	remoteControl: z.boolean().optional(),
 	/** Codex only. Missing means the model's default tone. */
 	codexPersonality: zCodexPersonality.optional(),
 	/**

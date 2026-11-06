@@ -85,6 +85,7 @@ import {
 	KEEP_AWAKE_SCAN_MS,
 	KEEP_AWAKE_SETTING_KEY,
 	KeepAwakeService,
+	REMOTE_KEEP_AWAKE_SETTING_KEY,
 } from "./services/keep-awake.ts";
 import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
@@ -329,6 +330,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agentCatalog: { setAgentInstalls: (p) => agentCatalog.setInstalls(p.agents) },
 		agentConfig: {
 			setAgentConfig: (p) => sessions.applyAgentConfig(p.sessionId, p.config),
+		},
+		remoteControl: {
+			setStatus: (p) => sessions.applyRemoteControlState(p.sessionId, p.status),
 		},
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
@@ -700,10 +704,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const anyChatWorking = (): boolean =>
 		Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working");
+	const anyRemoteControlConnected = (): boolean =>
+		Object.values(sessions.store.getState().remoteControl ?? {}).some(
+			(status) => status.state === "connected",
+		);
 	const keepAwake = new KeepAwakeService({
 		platform,
 		setting,
 		anyChatWorking,
+		anyRemoteControlConnected,
 	});
 	const runScripts = new RunScriptsService({
 		terminals,
@@ -1138,18 +1147,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 		// The stores fire on every change, and a working chat updates its store many times a
 		// second, so a scan waits for the setting or whether a chat works to change.
-		let keepAwakeInputs: { enabled: boolean; working: boolean } | null = null;
+		let keepAwakeInputs: string | null = null;
 		const followKeepAwake = (): void => {
-			const enabled = setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true;
-			const working = anyChatWorking();
-			if (
-				keepAwakeInputs !== null &&
-				keepAwakeInputs.enabled === enabled &&
-				keepAwakeInputs.working === working
-			) {
-				return;
-			}
-			keepAwakeInputs = { enabled, working };
+			const inputs = JSON.stringify([
+				setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true,
+				anyChatWorking(),
+				setting<boolean>(REMOTE_KEEP_AWAKE_SETTING_KEY) === true,
+				anyRemoteControlConnected(),
+			]);
+			if (keepAwakeInputs === inputs) return;
+			keepAwakeInputs = inputs;
 			runKeepAwakeScan();
 		};
 		cleanups.push(settings.store.subscribe(followKeepAwake));
