@@ -458,3 +458,9 @@ Why: building a feature whose dependency cannot work yet repeats PLAT-28's block
 Context: the core hardening found that `Container.stop()` ran only in tests. A real quit called `app_quit` at once, so a composer draft on its debounce, chat events being stored, terminals and runs got no orderly end. Running the stop first can hang on one step (a stuck disk write, a sidecar that never answers), and then Cmd+Q would do nothing.
 Chosen: a quit runs the container's stop and then quits, and quits anyway after `QUIT_STOP_LIMIT_MS` (5 seconds) if the stop has not ended, with a log line. The research gives no limit; 5 seconds is our dial.
 Why: an orderly stop keeps the user's last edit and every stored event; a quit that never happens is worse than one that skips the last step.
+
+## D065. Slice 3's large first step lands in parts of a few batches (2026-11-06)
+
+Context: slice 3 is 65 features. plan-batches puts 54 of them in its first step, in 8 batches. Under the three-agent cap (D060), with one plan building at a time (D061), that step cannot be built, audited, fixed and through CI as one PR before the morning. The night's goal asks that a step that starts either merges or stops cleanly.
+Chosen: the first step lands in parts, each its own branch and PR (`slice3/step-1a`, `-1b`, ...), with one to three batches each and one CI run per part. A part starts only when the balance is above 3 USD and the part before it has merged or stopped cleanly. The rust batch starts while the last slice-2 hardening runs, because its files do not overlap.
+Why: a part that merges is finished work in the morning; a 54-feature PR left half built is not.
