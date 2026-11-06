@@ -13,6 +13,9 @@ const entry = (over: Partial<StackEntryView> = {}): StackEntryView => ({
 	state: "open",
 	isCurrent: false,
 	needsRestack: false,
+	mergeStateStatus: "CLEAN",
+	headSha: "head",
+	baseSha: "base",
 	...over,
 });
 
@@ -103,6 +106,62 @@ describe("PR-08 Stack view", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Switch anyway" }));
 		expect(onCheckout).toHaveBeenCalledWith("feature/parser");
+	});
+
+	it("labels each entry with its readiness and says the stack cannot merge yet", () => {
+		render(
+			<StackView
+				trunk="main"
+				entries={[
+					entry({ number: 11, headSha: "a1", baseSha: "m0", mergeStateStatus: "BLOCKED" }),
+					entry({ number: 12, headSha: "b1", baseSha: "a1", isCurrent: true }),
+				]}
+				onCheckout={vi.fn()}
+				onMarkReady={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByTestId("stack-verdict").textContent).toBe("Can't merge this stack yet");
+		const rows = screen.getAllByTestId("stack-entry");
+		expect(within(rows[0] as HTMLElement).getByTestId("stack-entry-status").textContent).toBe(
+			"Not ready",
+		);
+		expect(within(rows[1] as HTMLElement).getByTestId("stack-entry-status").textContent).toBe(
+			"Blocked downstack",
+		);
+	});
+
+	it("says a ready stack can merge", () => {
+		render(
+			<StackView
+				trunk="main"
+				entries={[
+					entry({ number: 11, headSha: "a1", baseSha: "m0" }),
+					entry({ number: 12, headSha: "b1", baseSha: "a1" }),
+				]}
+				onCheckout={vi.fn()}
+				onMarkReady={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByTestId("stack-verdict").textContent).toBe("Ready to merge");
+		expect(screen.getAllByTestId("stack-entry-status").map((status) => status.textContent)).toEqual(
+			["Ready to merge", "Ready to merge"],
+		);
+	});
+
+	it("shows no verdict while GitHub's readiness is unknown", () => {
+		render(
+			<StackView
+				trunk="main"
+				entries={[entry({ number: 11, mergeStateStatus: null })]}
+				onCheckout={vi.fn()}
+				onMarkReady={vi.fn()}
+			/>,
+		);
+
+		expect(screen.queryByTestId("stack-verdict")).toBeNull();
+		expect(screen.getByTestId("stack-entry-status").textContent).toBe("Open");
 	});
 
 	it("draws nothing when the pull request is not in a stack", () => {
