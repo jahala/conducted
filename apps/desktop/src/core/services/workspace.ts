@@ -2,12 +2,14 @@
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete; WS-10 Delete a
  * workspace
  * @feature WS-02 Create from a branch, PR or issue
+ * @feature CHAT-21 Fork a chat to a new workspace
  * @feature WS-04 Rename the placeholder branch after the first message
  * @feature WS-07 Linked workspaces and extra folders
  * @feature WS-11 Backlog workspaces: save now, start later
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat from the default branch, an existing local branch, a pull request or an issue,
- * running the setup script, archiving a workspace, unarchiving one, deleting one or all of a
+ * creating one at a commit another feature resolved (CHAT-21), running the setup script,
+ * archiving a workspace, unarchiving one, deleting one or all of a
  * repository's workspaces, storing the intended target branch (GIT-08), saving a renamed branch
  * (GIT-09), renaming the placeholder branch from a suggested name after the first message, saving
  * a workspace's linked folders (WS-07), and saving, starting and removing backlog workspaces
@@ -888,7 +890,18 @@ export class WorkspaceService {
 		return this.#createQueue.run("create", () => this.#createNow(input));
 	}
 
-	async #createNow(input: NewWorkspaceInput): Promise<Result<Workspace>> {
+	/**
+	 * Backs CHAT-21: creates a workspace whose branch starts at an already resolved commit, such as
+	 * a turn checkpoint's original HEAD. The rest of the create path is unchanged.
+	 */
+	createFromCommit(input: NewWorkspaceInput, baseSha: string): Promise<Result<Workspace>> {
+		return this.#createQueue.run("create", () => this.#createNow(input, baseSha));
+	}
+
+	async #createNow(
+		input: NewWorkspaceInput,
+		presetBaseSha: string | null = null,
+	): Promise<Result<Workspace>> {
 		const found = await this.#deps.repos.repos.get(input.repoId);
 		if (!found.ok) return found;
 		const repo = found.value;
@@ -908,7 +921,7 @@ export class WorkspaceService {
 		const remote = remoteRead.value;
 
 		let targetBranch: string;
-		let baseSha: string | null = null;
+		let baseSha: string | null = presetBaseSha;
 		let baseWarning: string | null = null;
 		if (input.from.kind === "default") {
 			const target = baseBranchFor(repo.defaultBranch, input.from);
@@ -918,7 +931,7 @@ export class WorkspaceService {
 			const resolved = await this.resolveBase(repo.id, input.from);
 			if (!resolved.ok) return resolved;
 			targetBranch = resolved.value.branchName;
-			baseSha = resolved.value.baseSha;
+			if (baseSha === null) baseSha = resolved.value.baseSha;
 			baseWarning = resolved.value.warning;
 		}
 

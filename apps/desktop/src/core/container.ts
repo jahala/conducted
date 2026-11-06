@@ -794,6 +794,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		markViewReverted: (sessionId, turnId, at) => sessions.markReverted(sessionId, turnId, at),
 		setting,
 		repositories: () => repositories,
+		createWorkspaceFromCommit: (input, baseSha) => workspace.createFromCommit(input, baseSha),
+		forkSessionInto: (sessionId, turnId, workspaceId) =>
+			sessions.forkIntoWorkspace(sessionId, turnId, workspaceId),
+		removeWorkspace: (workspaceId) => workspace.remove(workspaceId),
 		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({

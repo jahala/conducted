@@ -1,9 +1,11 @@
 /**
- * @feature CHAT-15 Checkpoints: per-turn changes and revert; REV-09 Turn changes from checkpoints; DATA-06 Prune turn snapshots
+ * @feature CHAT-15 Checkpoints: per-turn changes and revert; CHAT-21 Fork a chat to a new
+ * workspace; REV-09 Turn changes from checkpoints; DATA-06 Prune turn snapshots
  * Owns: reading the private checkpoint refs that the sidecar writes around each turn, listing
  * what a turn changed, counting files that changed since a checkpoint, restoring the working
- * tree to a turn's start, and removing a chat's checkpoint refs when it is deleted or 30 days
- * after its workspace is archived.
+ * tree to a turn's start, removing a chat's checkpoint refs when it is deleted or 30 days after
+ * its workspace is archived, and making a new workspace from a turn's checkpoint with a copy of
+ * the chat in it.
  * Behaviour: services-map.md 3.12 (checkpoint ids, `checkpointer.sh` subcommands, frontend uses),
  * sessions-and-chats.md "Checkpoints, revert, fork and archive", sessions.md 7 (when
  * checkpoints are taken; skipped on merge, rebase or conflicts), data-model.md (turn snapshots'
@@ -21,8 +23,11 @@
  * or repository does not stop the archive prune for the others, and their failures come back
  * together in one error; pruning one chat never touches another chat's refs, even when ids share
  * a prefix. The archive prune runs from the startup checkpoint-pruning step; the chat prune runs
- * when the chat is deleted. A fork (CHAT-16) copies the refs it keeps under its own chat's ids in
- * one transaction, leaving out refs that are already gone.
+ * when the chat is deleted. A same-workspace fork (CHAT-16) copies the refs it keeps under its own
+ * chat's ids in one transaction, leaving out refs that are already gone. A fork to a new workspace
+ * (CHAT-21) reads the checkpoint's original HEAD, creates the workspace at that commit, restores
+ * the checkpoint into the new worktree, copies the chat there, and removes the new workspace when
+ * a later step fails.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
@@ -32,24 +37,28 @@
  * Not built yet: the agent is not rewound. Its own transcript still holds the reverted turns, so
  * its next turn remembers them although the chat no longer shows them. Rewinding it (the sidecar's
  * `resetAgent`, then a resume at the chosen turn with `resume.atNativeMessageId`) is an open item
- * on CHAT-15's checklist. Fork to a new workspace (`forkToWorkspace`) is CHAT-21's; the same-tab
- * fork belongs to CHAT-16 and lives in the sessions service.
+ * on CHAT-15's checklist. The same-tab fork belongs to CHAT-16 and lives in the sessions service.
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
+ * For CHAT-21, a fork creates the workspace at the turn checkpoint's head and moves a copy of the
+ * chat into it.
  */
 import type { FileChange } from "@conducted/protocol";
 import {
+	type AppError,
 	appError,
 	err,
-	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
 	type TurnId,
+	type WorkspaceId,
 } from "@conducted/shared";
+import type { NewWorkspaceInput } from "../api.ts";
 import { ageCutoff } from "../db/lifetime.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { SessionEventRepository } from "../db/session-events.ts";
 import {
+	catFileCommit,
 	checkpointerDiff,
 	checkpointerRestore,
 	forEachRefNames,
@@ -65,7 +74,7 @@ import {
 } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { mergeChanges, parseNameStatus, parseNumstat } from "../git/status.ts";
-import type { Workspace } from "../model.ts";
+import type { Session, Workspace } from "../model.ts";
 
 /** How long a finished turn's change list waits for its two checkpoint refs. */
 export const CHECKPOINT_READY_TIMEOUT_MS = 2_000;
@@ -116,10 +125,27 @@ export interface CheckpointServiceDeps extends CheckpointBaseDeps {
 	/** Reads the "Also reset files" preference. */
 	setting: <T>(key: string) => T;
 	/**
-	 * Repository reads for the archive prune. The composition root supplies them; when they are
-	 * missing `pruneArchived` returns a clear error rather than guessing which chats to inspect.
+	 * Repository reads for the archive prune and the fork. The composition root supplies them;
+	 * when they are missing those paths return a clear error rather than guessing which chats to
+	 * inspect.
 	 */
 	repositories?: () => Repositories;
+	/**
+	 * Creates the new workspace of a fork at the checkpoint's original HEAD (CHAT-21). The
+	 * composition root supplies the workspace service's create path.
+	 */
+	createWorkspaceFromCommit?: (
+		input: NewWorkspaceInput,
+		baseSha: string,
+	) => Promise<Result<Workspace>>;
+	/** Copies the chat up to a turn into the new workspace (CHAT-21). */
+	forkSessionInto?: (
+		sessionId: SessionId,
+		turnId: TurnId,
+		workspaceId: WorkspaceId,
+	) => Promise<Result<Session>>;
+	/** Removes a workspace a fork created before a later step failed. */
+	removeWorkspace?: (workspaceId: WorkspaceId) => Promise<Result<void>>;
 	/** The current time in milliseconds. The revert and the archive prune both count from it. */
 	now: () => number;
 }
@@ -463,8 +489,137 @@ export class CheckpointService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.sessions.forkToWorkspace`. */
-	forkToWorkspace(_sessionId: SessionId, _turnId: TurnId): Promise<Result<Workspace>> {
-		return notImplemented("CHAT-21");
+	/**
+	 * Backs `Actions.sessions.forkToWorkspace` (CHAT-21): makes a new workspace whose branch starts
+	 * at the turn checkpoint's original HEAD, restores the checkpoint into that worktree, and copies
+	 * the chat up to the turn into the new workspace. The new chat is the returned workspace's
+	 * active session. A step that fails removes the new workspace again, so a failed fork leaves no
+	 * empty workspace behind.
+	 */
+	async forkToWorkspace(sessionId: SessionId, turnId: TurnId): Promise<Result<Workspace>> {
+		const deps = this.#deps;
+		if (!("events" in deps) || deps.repositories === undefined) {
+			return err(
+				appError("chat_fork_unwired", "Forking a chat to a new workspace needs the app database."),
+			);
+		}
+		const createWorkspaceFromCommit = deps.createWorkspaceFromCommit;
+		const forkSessionInto = deps.forkSessionInto;
+		if (createWorkspaceFromCommit === undefined || forkSessionInto === undefined) {
+			return err(
+				appError(
+					"chat_fork_unwired",
+					"Forking a chat to a new workspace is not wired to the workspace and chat services.",
+				),
+			);
+		}
+
+		const databases = deps.repositories();
+		const originFound = await databases.sessions.get(sessionId);
+		if (!originFound.ok) return originFound;
+		const origin = originFound.value;
+		if (origin === null) {
+			return err(appError("chat_unknown", "That chat no longer exists."));
+		}
+		const workspaceFound = await databases.workspaces.get(origin.workspaceId);
+		if (!workspaceFound.ok) return workspaceFound;
+		const source = workspaceFound.value;
+		if (source === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+
+		const last = await databases.sessionEvents.lastIdx(sessionId);
+		if (!last.ok) return last;
+		const stored = await databases.sessionEvents.listFrom(
+			sessionId,
+			0,
+			last.value === null ? 0 : last.value + 1,
+		);
+		if (!stored.ok) return stored;
+		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
+		if (turnEvents.length === 0) {
+			return err(
+				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
+			);
+		}
+		const checkpointRow = [...turnEvents]
+			.reverse()
+			.find((row) => row.event.type === "checkpoint" && row.event.checkpointId !== undefined);
+		const checkpointEvent = checkpointRow?.event;
+		if (
+			checkpointEvent === undefined ||
+			checkpointEvent.type !== "checkpoint" ||
+			checkpointEvent.checkpointId === undefined
+		) {
+			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
+		}
+		const checkpointId = checkpointEvent.checkpointId;
+
+		const present = await this.#refExists(source.path, checkpointId);
+		if (!present.ok) return present;
+		if (!present.value) {
+			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
+		}
+
+		const commit = await deps.git.runChecked(catFileCommit(checkpointRef(checkpointId)), {
+			cwd: source.path,
+		});
+		if (!commit.ok) return commit;
+		const head = /^head (.+)$/m.exec(commit.value.stdout)?.[1]?.trim();
+		if (head === undefined || head.length === 0 || /^0+$/.test(head)) {
+			return err(
+				appError(
+					"chat_fork_no_head",
+					"Unable to fork chat: the checkpoint has no commit to start a workspace from.",
+				),
+			);
+		}
+
+		const input: NewWorkspaceInput = {
+			repoId: source.repoId,
+			from: { kind: "branch", name: source.targetBranch },
+			prompt: "",
+			attachmentPaths: [],
+			config: origin.config,
+			sectionId: null,
+		};
+		const created = await createWorkspaceFromCommit(input, head);
+		if (!created.ok) return created;
+		const target = created.value;
+
+		const discard = async (failure: AppError): Promise<Result<Workspace>> => {
+			const removeWorkspace = deps.removeWorkspace;
+			if (removeWorkspace === undefined) return err(failure);
+			const removed = await removeWorkspace(target.id);
+			return removed.ok
+				? err(failure)
+				: err(
+						appError(
+							failure.code,
+							`${failure.message} The new workspace could not be removed: ${removed.error.message}`,
+							removed.error,
+						),
+					);
+		};
+
+		const restored = await deps.git.withWorktreeLock(target.path, () =>
+			deps.git.runChecked(checkpointerRestore(deps.checkpointerPath, checkpointId), {
+				cwd: target.path,
+			}),
+		);
+		if (!restored.ok) {
+			return discard(
+				appError(
+					"chat_fork_restore_failed",
+					"Unable to fork chat: the checkpoint could not be restored in the new workspace.",
+					restored.error,
+				),
+			);
+		}
+
+		const forked = await forkSessionInto(sessionId, turnId, target.id);
+		if (!forked.ok) return discard(forked.error);
+
+		return ok({ ...target, activeSessionId: forked.value.id });
 	}
 }
