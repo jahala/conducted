@@ -40,6 +40,11 @@ export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
 export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
 export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;
 export const ChevronRightIcon = (p: P) => <Icon d="M6 4l4 4-4 4" {...p} />;
+export const TargetIcon = (p: P) => (
+	<Icon d="M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM8 11A3 3 0 1 0 8 5a3 3 0 0 0 0 6zM8 8.01V8" {...p} />
+);
+export const PauseIcon = (p: P) => <Icon d="M5.5 3.5v9M10.5 3.5v9" {...p} />;
+export const PlayIcon = (p: P) => <Icon d="M5 3.5l7 4.5-7 4.5z" {...p} />;
 export const SearchIcon = (p: P) => (
 	<Icon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM14 14l-3.5-3.5" {...p} />
 );

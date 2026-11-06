@@ -69,7 +69,8 @@
  * removes the saved entry; removing one deletes only the entry. Removing its repository keeps the
  * entry with no repository, and starting it then returns the message the create flow shows until
  * the user picks another (`setBacklogRepo`).
- * Not built yet (placeholders): the kanban status (NAV-06).
+ * Built now (NAV-06): the Kanban status. It stores the user-set status and keeps the loaded row in
+ * step, returning `workspace_unknown` when the workspace is gone.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -90,7 +91,6 @@ import {
 	appError,
 	createKeyedQueue,
 	err,
-	notImplemented,
 	ok,
 	type RepoId,
 	type Result,
@@ -2087,8 +2087,16 @@ export class WorkspaceService {
 		return ok(undefined);
 	}
 
-	setKanbanStatus(_id: WorkspaceId, _status: KanbanStatus): Promise<Result<void>> {
-		return notImplemented("NAV-06");
+	/** Stores the workspace's user-set Kanban status and keeps the loaded row in step. */
+	async setKanbanStatus(id: WorkspaceId, status: KanbanStatus): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const written = await this.#deps.repos.workspaces.setKanbanStatus(id, status);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, kanbanStatus: status, updatedAt: this.#deps.now() });
+		return ok(undefined);
 	}
 
 	/** Backs a workspace-level mark-read: the chats service clears the workspace's unread chats. */

@@ -33,6 +33,10 @@
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
  * The '+' menu's "Link issue", Cmd+I and the palette's "Link issue" open the Link issue dialog
  * (PR-09) of the chat on screen; the issue it links joins the same attachment list.
+ * /goal in a Codex chat puts the composer in goal mode (COMP-10, as Conductor does): the empty
+ * editor says "Set a goal", and sending sets the text as the chat's goal through
+ * `actions.sessions.goal.set` instead of sending it as a message. Goal mode ends after the send
+ * and when the chat changes. The Codex goal bar itself is GoalBar, above the composer.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
@@ -62,6 +66,7 @@ import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
+import { toastGoalError } from "./GoalBar.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
@@ -187,6 +192,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const [busy, setBusy] = useState(false);
 	const [linkDialogOpen, setLinkDialogOpen] = useState(false);
 	const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+	const [goalMode, setGoalMode] = useState(false);
 	const attachmentsController = useAttachments({
 		sessionId,
 		editor,
@@ -214,7 +220,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
 	const queueByDefault = followUp === "queue";
 	const buttonState: SendButtonState = working ? (queueByDefault ? "queue" : "steer") : "send";
-	const disabled = busy || (text.trim().length === 0 && attachments.length === 0);
+	const empty = text.trim().length === 0;
+	const disabled = busy || (goalMode ? empty : empty && attachments.length === 0);
 
 	const runCommand = useRunCommandHandlers();
 	const slashCommands = useRef<readonly SlashCommand[]>([]);
@@ -312,6 +319,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				case "linkDirectories":
 					setLinkDialogOpen(true);
 					return;
+				case "goal":
+					setGoalMode(true);
+					editorRef.current?.commands.focus();
+					return;
 				case "compact":
 					void actions.sessions.compact(sessionId).then((result) => {
 						if (!result.ok) toastError("Couldn't compact the chat", result.error);
@@ -395,6 +406,12 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 
 	useDraftSync({ sessionId, editor, attachmentPaths: attachments, onRestore: restore });
 
+	// Goal mode belongs to the chat it was chosen in.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the reset runs when the chat changes
+	useEffect(() => {
+		setGoalMode(false);
+	}, [sessionId]);
+
 	useEffect(() => {
 		if (editor === null) {
 			setText("");
@@ -446,8 +463,36 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		return true;
 	});
 
+	const clearEditor = async (current: Editor) => {
+		current.commands.setContent("", { emitUpdate: false });
+		setText("");
+		setAttachments([]);
+		const cleared = await services.composer.clearDraft(sessionId);
+		if (!cleared.ok) toastError("Couldn't clear the draft", cleared.error);
+		current.commands.focus();
+	};
+
+	const saveGoal = async (current: Editor) => {
+		setBusy(true);
+		try {
+			const result = await actions.sessions.goal.set(sessionId, current.getText());
+			if (!result.ok) {
+				toastGoalError(result.error);
+				return;
+			}
+			setGoalMode(false);
+			await clearEditor(current);
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
+		if (goalMode) {
+			await saveGoal(editor);
+			return;
+		}
 		const body = editor.getText();
 		if (body.trim().length === 0 && attachments.length === 0) return;
 		const delivery = intent === "submit" ? "auto" : queueByDefault ? "steer" : "queue";
@@ -460,12 +505,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				toastError("Couldn't send the message", result.error);
 				return;
 			}
-			editor.commands.setContent("", { emitUpdate: false });
-			setText("");
-			setAttachments([]);
-			const cleared = await services.composer.clearDraft(sessionId);
-			if (!cleared.ok) toastError("Couldn't clear the draft", cleared.error);
-			editor.commands.focus();
+			await clearEditor(editor);
 		} finally {
 			setBusy(false);
 		}
@@ -538,6 +578,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				sendWith={sendWith}
 				onEditorReady={setEditor}
 				extensions={extensions}
+				{...(goalMode ? { placeholder: "Set a goal" } : {})}
 			/>
 			<LinkDirectoriesDialog
 				open={linkDialogOpen}

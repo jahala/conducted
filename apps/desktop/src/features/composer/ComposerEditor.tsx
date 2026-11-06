@@ -40,6 +40,8 @@ export interface ComposerEditorProps {
 	onEditorReady?: (editor: Editor | null) => void;
 	/** The trigger extensions the composer supplies (COMP-04, COMP-06). Default: plain text. */
 	extensions?: Extensions;
+	/** The text shown while the editor is empty. Goal mode shows "Set a goal" (COMP-10). */
+	placeholder?: string;
 }
 
 /** Plain text with no marks: the editor's own extensions when the caller supplies none. */
@@ -69,6 +71,7 @@ export function ComposerEditor({
 	sendWith = "enter",
 	onEditorReady,
 	extensions,
+	placeholder = "Write something ...",
 }: ComposerEditorProps) {
 	const editor = useEditor(
 		{
@@ -125,7 +128,7 @@ export function ComposerEditor({
 		<div className="relative" onKeyDownCapture={handleKeyDown} data-testid="composer-editor">
 			{empty ? (
 				<span className="pointer-events-none absolute left-3 top-2 text-sm font-light text-fg-subtle">
-					Write something ...
+					{placeholder}
 				</span>
 			) : null}
 			<EditorContent editor={editor} />

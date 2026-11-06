@@ -1,7 +1,8 @@
 /**
  * @feature SET-07 Repository Misc page
- * Owns: the per-repository Misc page: the saved icon, locations, preview URLs, files to copy into
- * new workspaces, the branch new workspaces start from, and removing the repository.
+ * @feature PRJ-05 Repository icon
+ * Owns: the per-repository Misc page: the saved icon and its picker, locations, preview URLs, files
+ * to copy into new workspaces, the branch new workspaces start from, and removing the repository.
  * Behaviour: ui-map.md 6, "Misc (repo)" table (Icon, Root path, Workspaces path, Preview URLs,
  * Files to copy, Remove repository) and "Git" table (rows with scope repository: branch new
  * workspaces from, remote origin). Files to copy is PRJ-04; the copy itself runs in the workspace
@@ -13,8 +14,9 @@
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; a
  * preview URL template validated with the workspace port variable; a remote name saved to the
  * personal settings file, with "origin" only as a placeholder; files to copy as patterns; and
- * removal that also removes workspaces (confirm with the count). Icons are shown but not editable:
- * saving an icon is PRJ-05. Choosing a base other than the default branch is WS-01.
+ * removal that also removes workspaces (confirm with the count). The icon row shows the current
+ * avatar and opens the Change repository icon picker (PRJ-05). Choosing a base other than the
+ * default branch is WS-01.
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
@@ -34,6 +36,8 @@ import { Input, Label } from "../../../ui/Input.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
+import { RepoIconAvatar } from "../../sidebar/RepoIcon.tsx";
+import { RepoIconPicker } from "../../sidebar/RepoIconPicker.tsx";
 import { FilesToCopyField } from "./FilesToCopyField.tsx";
 import { RemoveRepoDialog } from "./RemoveRepoDialog.tsx";
 
@@ -62,6 +66,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const [preview, setPreview] = useState("");
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [removing, setRemoving] = useState(false);
+	const [iconOpen, setIconOpen] = useState(false);
 	const readyConfig = config.state === "ready" ? config.data : null;
 
 	useEffect(() => {
@@ -143,22 +148,17 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 							{(settings) => (
 								<div className="flex flex-col gap-6">
 									<div className="flex flex-col gap-2 border-t border-border pt-4">
-										<Label htmlFor="repo-icon">Icon</Label>
+										<p className="text-sm font-medium text-fg">Icon</p>
 										<p className="text-sm text-fg-muted">
 											Shown next to the repository name in the sidebar.
 										</p>
-										<Input
-											id="repo-icon"
-											value={repoValue.icon ?? ""}
-											placeholder="No icon"
-											className="w-20 text-center"
-											readOnly
-											disabled
-											aria-describedby="repo-icon-reason"
-										/>
-										<p id="repo-icon-reason" className="text-xs text-fg-muted">
-											Choosing an icon is not built yet (PRJ-05). The saved icon is shown here.
-										</p>
+										<div className="flex items-center gap-3">
+											<RepoIconAvatar repo={repoValue} className="size-8 text-base" />
+											<Button variant="outline" onClick={() => setIconOpen(true)}>
+												Change repository icon
+											</Button>
+										</div>
+										<RepoIconPicker open={iconOpen} onOpenChange={setIconOpen} repo={repoValue} />
 									</div>
 
 									<div className="flex flex-col gap-3 border-t border-border pt-4">

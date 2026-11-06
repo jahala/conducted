@@ -345,6 +345,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		remoteControl: {
 			setStatus: (p) => sessions.applyRemoteControlState(p.sessionId, p.status),
 		},
+		goal: { setGoal: (p) => sessions.applyGoalChanged(p.sessionId, p.goal) },
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
 				const workspace = lookups.workspaceOfSession(sessionId);

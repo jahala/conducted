@@ -1,6 +1,5 @@
 {
 	"placeholder-tests": {
-		"apps/desktop/src/app/router.test.tsx": 1,
 		"apps/desktop/src/core/registries/consumption.test.ts": 4,
 		"apps/desktop/src/features/chat/ChatBlockView.test.tsx": 1,
 		"apps/desktop/src/features/chat/tools/cards/chat-08-cards.test.tsx": 1,
@@ -21,7 +20,6 @@
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
 		"apps/desktop/src/core/services/workspace.ts": 1,
 		"apps/desktop/src/features/composer/ArchivedComposerBar.tsx": 1,
-		"apps/desktop/src/features/pr/PrEmptyState.tsx": 1,
 		"apps/desktop/src/features/workspace/tab-layout.ts": 1,
 		"apps/desktop/src/ui/Card.tsx": 6,
 		"apps/desktop/src/ui/ContextMenu.tsx": 5,

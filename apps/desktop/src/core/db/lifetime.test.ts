@@ -7,6 +7,7 @@ import {
 	draftAttachmentsDir,
 	draftAttachmentsRoot,
 	draftsDir,
+	NEW_WORKSPACE_DRAFT_ID,
 	terminalHistoryFile,
 } from "../app-paths.ts";
 import {
@@ -308,6 +309,24 @@ describe("DATA-02 data lifetime", () => {
 		expect(await fs.exists(`${draftsDir(fs.paths)}/live.json`)).toBe(false);
 		expect(await fs.exists(`${draftsDir(fs.paths)}/recent.json`)).toBe(true);
 		expect(await fs.exists(`${draftsDir(fs.paths)}/gone.json`)).toBe(false);
+	});
+
+	it("keeps the new-workspace draft while it is young, then removes it when it expires", async () => {
+		const h = harness();
+		const fs = h.deps.fs;
+		h.setNow(NOW - DAY);
+		const path = `${draftsDir(fs.paths)}/${NEW_WORKSPACE_DRAFT_ID}.json`;
+		await fs.writeTextAtomic(path, "{}");
+		h.setNow(NOW);
+
+		const kept = must(await runStep(h, "remove-draft-files"));
+		expect(kept.filesTrashed).toBe(0);
+		expect(await fs.exists(path)).toBe(true);
+
+		h.setNow(NOW + 31 * DAY);
+		const removed = must(await runStep(h, "remove-draft-files"));
+		expect(removed.filesTrashed).toBe(1);
+		expect(await fs.exists(path)).toBe(false);
 	});
 
 	it("removes old draft attachments and sweeps old staging folders", async () => {

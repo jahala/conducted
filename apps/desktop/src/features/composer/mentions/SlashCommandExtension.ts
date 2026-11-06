@@ -11,12 +11,14 @@
  * argument hint writes '/name ' into the composer, so the user types the arguments and sends the
  * message; any other command runs at once through `onRun`. What it runs is `slashCommandAction`:
  * /clear, /restart, /compact (Codex), /plan, /fast and the terminal-effect commands act on the
- * app; /add-dir opens the Link workspaces and directories dialog (WS-07); a command the agent
+ * app; /goal (Codex) puts the composer in goal mode (COMP-10); /add-dir opens the Link workspaces and directories dialog (WS-07); a command the agent
  * lists is sent to it as text; a built-in whose app action is not built yet and that the agent
  * does not list says "This command isn't available in this workspace."
  * Must handle: a command the agent does not offer (hidden from the list, and a typed one shows
  * "This command isn't available in this workspace."); /plan on an agent without plan mode ("Plan
- * mode is not available in this chat."); an argument hint (shown after the name, and the command
+ * mode is not available in this chat."); /goal on an agent without goals ("Codex goals are not
+ * available in this chat."; Our design choice: Conductor sends a typed '/goal' to such an agent as
+ * text); an argument hint (shown after the name, and the command
  * waits for its arguments); the agent's list still loading or failed to load (the menu says so and
  * still offers the built-ins); choosing by click, Enter or Tab, and moving with the arrow keys;
  * removing the typed command from the composer; removing the menu when the editor unmounts.
@@ -74,6 +76,12 @@ const BUILTIN_COMMANDS: readonly SlashCommand[] = [
 	{
 		name: "personality",
 		description: "Choose Codex's personality for this session",
+		source: "builtin",
+		kind: "command",
+	},
+	{
+		name: "goal",
+		description: "Set the objective Codex should keep working toward",
 		source: "builtin",
 		kind: "command",
 	},
@@ -141,6 +149,7 @@ const BUILTIN_AGENTS: Readonly<Record<string, readonly AgentKind[]>> = {
 	restart: ["claude", "codex"],
 	"add-dir": ["claude", "codex"],
 	personality: ["codex"],
+	goal: ["codex"],
 	"mcp-status": ["claude", "codex"],
 	mcp: ["claude", "codex"],
 	agents: ["claude"],
@@ -162,6 +171,7 @@ const PLAN_AGENTS = new Set<AgentKind>(["claude", "codex"]);
 
 export const COMMAND_UNAVAILABLE = "This command isn't available in this workspace.";
 export const PLAN_MODE_UNAVAILABLE = "Plan mode is not available in this chat.";
+export const GOAL_UNAVAILABLE = "Codex goals are not available in this chat.";
 
 export interface SlashCommandEntry {
 	command: SlashCommand;
@@ -248,6 +258,7 @@ export function slashCommandProblem(query: string, agent: AgentKind | undefined)
 	if (query === "plan" && agent !== undefined && !PLAN_AGENTS.has(agent)) {
 		return PLAN_MODE_UNAVAILABLE;
 	}
+	if (query === "goal" && agent !== "codex") return GOAL_UNAVAILABLE;
 	if (builtinSlashCommands(agent).some((command) => command.name === query)) return null;
 	return COMMAND_UNAVAILABLE;
 }
@@ -258,6 +269,7 @@ export type SlashAction =
 	| { kind: "restart" }
 	| { kind: "compact" }
 	| { kind: "linkDirectories" }
+	| { kind: "goal" }
 	| { kind: "screen"; commandId: "chat.togglePlanMode" | "chat.toggleFastMode" }
 	| { kind: "terminal" }
 	| { kind: "send"; text: string }
@@ -291,6 +303,10 @@ export function slashCommandAction(
 				: { kind: "screen", commandId: "chat.togglePlanMode" };
 		case "fast":
 			return { kind: "screen", commandId: "chat.toggleFastMode" };
+		case "goal":
+			return agent === "codex"
+				? { kind: "goal" }
+				: { kind: "unavailable", message: GOAL_UNAVAILABLE };
 	}
 	if (listed.some((entry) => entry.name === command.name)) {
 		return { kind: "send", text: `/${command.name}` };

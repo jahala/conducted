@@ -1,8 +1,10 @@
 /**
  * @feature NAV-03 Sidebar navigation rows
- * Owns: the rows under the window controls: Dashboard (with its setting on), Home, Create and Search.
+ * @feature NAV-16 Draft markers on the Create row and on workspaces
+ * Owns: the rows under the window controls: Dashboard (with its setting on), Home, Create and Search,
+ * and the Create row's draft marker.
  * Behaviour: ui-map.md 4 item 3 (nav rows, each with a hover shortcut hint: Home, Create, Search; Dashboard
- * appears behind a setting).
+ * appears behind a setting) and 4.3 (Create shows a draft marker when the new-workspace draft is non-empty).
  * Our design choice: the current route's row is marked with a filled background, not the accent. Search opens
  * the command palette through the overlay store. Shortcut hints read the live binding from the command
  * registry so they follow the user's rebinds.
@@ -17,6 +19,8 @@ import { useLiveShortcut, useSetting } from "../../core/hooks.ts";
 import { cn } from "../../ui/cn.ts";
 import { HomeIcon, ListTodoIcon, PlusIcon, SearchIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
+import { useNewWorkspaceDraft } from "../composer/draft-sources.ts";
+import { DraftMarker } from "./DraftMarker.tsx";
 
 const rowClass =
 	"group flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm font-medium text-fg-muted transition-colors hover:bg-hover hover:text-fg";
@@ -24,16 +28,19 @@ const rowClass =
 function Row({
 	icon,
 	shortcut,
+	marker,
 	children,
 }: {
 	icon: ReactNode;
 	shortcut: string | null;
+	marker?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
 		<>
 			<span className="flex size-4 items-center justify-center">{icon}</span>
 			<span className="min-w-0 flex-1 truncate">{children}</span>
+			{marker}
 			{shortcut === null ? null : (
 				<span aria-hidden="true" className="hidden shrink-0 group-hover:inline-flex">
 					<Kbd>{shortcut}</Kbd>
@@ -49,6 +56,7 @@ export function SidebarNav() {
 	const homeShortcut = useLiveShortcut("nav.home");
 	const createShortcut = useLiveShortcut("workspace.create");
 	const searchShortcut = useLiveShortcut("app.commandPalette");
+	const newWorkspaceDraft = useNewWorkspaceDraft();
 	return (
 		<nav aria-label="Main" className="flex shrink-0 flex-col gap-0.5 p-2">
 			{dashboardEnabled ? (
@@ -76,7 +84,11 @@ export function SidebarNav() {
 				className={rowClass}
 				activeProps={{ className: cn(rowClass, "bg-active text-fg") }}
 			>
-				<Row icon={<PlusIcon />} shortcut={createShortcut}>
+				<Row
+					icon={<PlusIcon />}
+					shortcut={createShortcut}
+					marker={<DraftMarker place="create-row" draft={newWorkspaceDraft.draft} />}
+				>
 					Create
 				</Row>
 			</Link>
