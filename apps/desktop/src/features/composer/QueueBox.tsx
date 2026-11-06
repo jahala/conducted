@@ -35,6 +35,11 @@ export interface QueueBoxProps {
 const QUEUE_DRAG_MIME = "application/x-conducted-queued-message";
 /** Rows beyond this count stay folded away until the queue is expanded. */
 const COLLAPSED_ROW_LIMIT = 3;
+/**
+ * The rows of a chat whose queue is not loaded yet. One shared array, so the store selector returns
+ * the same value on every read; a fresh `[]` makes useSyncExternalStore re-render without end.
+ */
+const NO_ROWS: readonly QueuedMessage[] = [];
 
 function fileName(path: string): string {
 	const parts = path.split(/[\\/]/);
@@ -44,7 +49,10 @@ function fileName(path: string): string {
 export function QueueBox({ sessionId }: QueueBoxProps) {
 	const actions = useActions();
 	const { services } = useServices();
-	const rows = useStore(services.followUpQueue.store, (state) => state.bySession[sessionId] ?? []);
+	const rows = useStore(
+		services.followUpQueue.store,
+		(state) => state.bySession[sessionId] ?? NO_ROWS,
+	);
 	const paused = useStore(
 		services.followUpQueue.store,
 		(state) => state.pausedSessionIds[sessionId] === true,

@@ -12,6 +12,7 @@ import { ComposerService, type ComposerServiceDeps } from "../../core/services/c
 import type { SessionsState } from "../../core/services/sessions.ts";
 import type { SettingsState } from "../../core/services/settings.ts";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
+import { memoryPlatformForShape } from "../../test/memory-platform.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { Composer } from "./Composer.tsx";
 
@@ -138,6 +139,8 @@ const harness = (options: HarnessOptions = {}) => {
 			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
 			onCommand: () => () => {},
 		},
+		// The composer listens for files dropped on the window (COMP-07).
+		window: memoryPlatformForShape().window,
 	};
 	const container = {
 		platform,

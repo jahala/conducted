@@ -108,7 +108,6 @@
 		"apps/desktop/src/features/settings/pages/AgentsPage.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/AddProjectButton.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/GroupedWorkspaces.nav-03.test.tsx": 3,
-		"apps/desktop/src/features/sidebar/Sidebar.nav-03.test.tsx": 3,
 		"apps/desktop/src/features/sidebar/SidebarNav.nav-03.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/WorkspaceRow.nav-03.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/app-04.test.tsx": 1,
