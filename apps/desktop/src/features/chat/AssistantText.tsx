@@ -1,12 +1,13 @@
 /**
  * @feature CHAT-06 Assistant text
- * Owns: Rendering the assistant's Markdown: headings, lists, tables, links, code blocks, callouts
- * and images.
+ * @feature CHAT-24 Mermaid diagrams and video in replies
+ * Owns: Rendering the assistant's Markdown: headings, lists, tables, links, code blocks, callouts,
+ * images, Mermaid diagrams and video.
  * Behaviour: ui-map.md 3.3 (Assistant text: Markdown, Mermaid diagrams, callouts
  * Note/Tip/Important/Warning/Caution, code blocks with copy, images, video).
  * Our design choice: A small Markdown parser of our own handles the subset Conductor shows, instead
- * of adding a Markdown library. Code blocks use shiki through CodeBlock. Mermaid and video are later
- * additions.
+ * of adding a Markdown library. Code blocks use shiki through CodeBlock. A `mermaid` fence renders
+ * through MermaidDiagram, and an image target that names a video file renders through ChatVideo.
  * Must handle: Partial Markdown while streaming (an open code fence or list must not flash); very
  * long lines wrap; links open outside the app through the opener, never inside the window; raw HTML
  * is not rendered; an image that fails to load shows its alt text; an image from a web address is never loaded
@@ -16,10 +17,13 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
-import { useSetting } from "../../core/hooks.ts";
+import { useActions, useSetting } from "../../core/hooks.ts";
 import { cn } from "../../ui/cn.ts";
+import { toastError } from "../../ui/Toast.tsx";
+import { ChatVideo, isVideoSource } from "./ChatVideo.tsx";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { ExternalLink } from "./ExternalLink.tsx";
+import { MermaidDiagram } from "./MermaidDiagram.tsx";
 
 type Block =
 	| { kind: "code"; language: string | null; code: string }
@@ -218,7 +222,16 @@ const INLINE =
 const REMOTE_IMAGE = /^(?:\/\/|[a-z][a-z0-9+.-]*:)/i;
 const INLINE_IMAGE = /^data:image\//i;
 
-function MarkdownImage({ src, alt }: { src: string; alt: string }) {
+function MarkdownImage({
+	src,
+	alt,
+	workspaceId,
+}: {
+	src: string;
+	alt: string;
+	workspaceId?: WorkspaceId;
+}) {
+	const actions = useActions();
 	const [failed, setFailed] = useState(false);
 	const label = alt.length > 0 ? alt : src;
 	if (REMOTE_IMAGE.test(src) && !INLINE_IMAGE.test(src)) {
@@ -226,6 +239,21 @@ function MarkdownImage({ src, alt }: { src: string; alt: string }) {
 			<ExternalLink url={src} className="text-link underline-offset-2 hover:underline">
 				{label}
 			</ExternalLink>
+		);
+	}
+	if (isVideoSource(src)) {
+		if (workspaceId === undefined) return <span className="text-fg-muted">{label}</span>;
+		return (
+			<ChatVideo
+				workspaceId={workspaceId}
+				src={src}
+				alt={alt}
+				onOpenExternally={() => {
+					void actions.app.openUrl(src).then((result) => {
+						if (!result.ok) toastError("Couldn't open the video", result.error);
+					});
+				}}
+			/>
 		);
 	}
 	if (failed) {
@@ -241,7 +269,7 @@ function MarkdownImage({ src, alt }: { src: string; alt: string }) {
 	);
 }
 
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
+function renderInline(text: string, keyPrefix: string, workspaceId?: WorkspaceId): ReactNode[] {
 	const nodes: ReactNode[] = [];
 	let last = 0;
 	let index = 0;
@@ -252,7 +280,14 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 		const key = `${keyPrefix}-${index}`;
 		if (token.startsWith("![")) {
 			const inner = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(token);
-			nodes.push(<MarkdownImage key={key} alt={inner?.[1] ?? ""} src={inner?.[2] ?? ""} />);
+			nodes.push(
+				<MarkdownImage
+					key={key}
+					alt={inner?.[1] ?? ""}
+					src={inner?.[2] ?? ""}
+					workspaceId={workspaceId}
+				/>,
+			);
 		} else if (token.startsWith("[")) {
 			const inner = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
 			const url = inner?.[2] ?? "";
@@ -281,6 +316,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
 export interface AssistantTextProps {
 	text: string;
+<<<<<<< HEAD
 	/** The workspace a shell code block's command runs in. */
 	workspaceId?: WorkspaceId;
 	/** The workspace is ready and not archived. */
@@ -288,6 +324,15 @@ export interface AssistantTextProps {
 }
 
 export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps) {
+=======
+	/** The workspace a relative file or video target belongs to. */
+	workspaceId?: WorkspaceId;
+	/** The reply's text is still arriving from the agent. */
+	streaming?: boolean;
+}
+
+export function AssistantText({ text, workspaceId, streaming = false }: AssistantTextProps) {
+>>>>>>> node/chat.24
 	const style = useSetting<string>("markdown_style");
 	const stripFiller = useSetting<boolean>("not_absolutely_right");
 	const cleaned = stripFiller ? stripLeadingFiller(text) : text;
@@ -298,6 +343,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 	return (
 		<div
 			data-markdown-style={tufte ? "tufte" : "default"}
+			data-conducted-reply=""
 			className={cn(
 				"flex select-text flex-col gap-2 text-sm leading-relaxed text-fg",
 				tufte && "max-w-[65ch] leading-loose",
@@ -307,6 +353,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 				const key = `block-${blockIndex}`;
 				switch (block.kind) {
 					case "code":
+<<<<<<< HEAD
 						return (
 							<CodeBlock
 								key={key}
@@ -316,6 +363,12 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 								canRun={canRun}
 							/>
 						);
+=======
+						if ((block.language ?? "").toLowerCase() === "mermaid") {
+							return <MermaidDiagram key={key} source={block.code} streaming={streaming} />;
+						}
+						return <CodeBlock key={key} code={block.code} language={block.language} />;
+>>>>>>> node/chat.24
 					case "heading": {
 						const Tag = HEADING_TAGS[block.level];
 						return (
@@ -328,7 +381,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 									block.level >= 3 && "text-base",
 								)}
 							>
-								{renderInline(block.text, key)}
+								{renderInline(block.text, key, workspaceId)}
 							</Tag>
 						);
 					}
@@ -344,7 +397,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 							>
 								{block.items.map((item, itemIndex) => (
 									<li key={positionKey(`${key}-item`, itemIndex)}>
-										{renderInline(item, `${key}-${itemIndex}`)}
+										{renderInline(item, `${key}-${itemIndex}`, workspaceId)}
 									</li>
 								))}
 							</Tag>
@@ -361,7 +414,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 													key={positionKey(`${key}-h`, cellIndex)}
 													className="border-b border-border-strong px-2 py-1 text-left font-medium text-fg"
 												>
-													{renderInline(cell, `${key}-h-${cellIndex}`)}
+													{renderInline(cell, `${key}-h-${cellIndex}`, workspaceId)}
 												</th>
 											))}
 										</tr>
@@ -374,7 +427,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 														key={positionKey(`${key}-r-${rowIndex}`, cellIndex)}
 														className="border-b border-border px-2 py-1 text-fg-muted"
 													>
-														{renderInline(cell, `${key}-r-${rowIndex}-${cellIndex}`)}
+														{renderInline(cell, `${key}-r-${rowIndex}-${cellIndex}`, workspaceId)}
 													</td>
 												))}
 											</tr>
@@ -387,13 +440,15 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 						return (
 							<div key={key} className="rounded-md border border-border bg-surface px-3 py-2">
 								<p className="text-xs font-medium text-fg">{block.label}</p>
-								<p className="text-sm text-fg-muted">{renderInline(block.text, key)}</p>
+								<p className="text-sm text-fg-muted">
+									{renderInline(block.text, key, workspaceId)}
+								</p>
 							</div>
 						);
 					case "quote":
 						return (
 							<blockquote key={key} className="border-l-2 border-border-strong pl-3 text-fg-muted">
-								{renderInline(block.text, key)}
+								{renderInline(block.text, key, workspaceId)}
 							</blockquote>
 						);
 					case "hr":
@@ -401,7 +456,7 @@ export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps)
 					case "paragraph":
 						return (
 							<p key={key} className="whitespace-pre-wrap break-words">
-								{renderInline(block.text, key)}
+								{renderInline(block.text, key, workspaceId)}
 							</p>
 						);
 					default:

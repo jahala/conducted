@@ -117,7 +117,10 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 									turn={turn}
 									sessionId={sessionId}
 									workspaceId={workspaceId}
+<<<<<<< HEAD
 									canRun={canRun}
+=======
+>>>>>>> node/chat.24
 									retry={index === data.turns.length - 1 ? data.liveState.retry : undefined}
 								/>
 							)}

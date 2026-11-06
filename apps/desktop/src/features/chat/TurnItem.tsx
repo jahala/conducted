@@ -36,10 +36,15 @@ import { useWorkspaceLinks } from "./workspace-links.ts";
 export interface TurnItemProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
+<<<<<<< HEAD
 	/** The workspace a shell code block's command runs in. */
 	workspaceId?: WorkspaceId;
 	/** The workspace is ready and not archived. */
 	canRun?: boolean;
+=======
+	/** The workspace a relative file or video target in the text belongs to. */
+	workspaceId?: WorkspaceId;
+>>>>>>> node/chat.24
 	/** The agent's own retry, when this is the running turn that has one. */
 	retry?: LiveState["retry"];
 }
@@ -86,7 +91,10 @@ export const TurnItem = memo(function TurnItem({
 	turn,
 	sessionId,
 	workspaceId,
+<<<<<<< HEAD
 	canRun,
+=======
+>>>>>>> node/chat.24
 	retry,
 }: TurnItemProps) {
 	const actions = useActions();
@@ -162,7 +170,11 @@ export const TurnItem = memo(function TurnItem({
 						block={block}
 						sessionId={sessionId}
 						workspaceId={workspaceId}
+<<<<<<< HEAD
 						canRun={canRun}
+=======
+						streaming={turn.outcome === "running"}
+>>>>>>> node/chat.24
 						onRetry={retryMessage}
 						retryInNewChat={retryInNewChat}
 					/>

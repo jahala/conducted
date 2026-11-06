@@ -33,20 +33,32 @@ function BlockContent({
 	block,
 	sessionId,
 	workspaceId,
+<<<<<<< HEAD
 	canRun,
+=======
+	streaming,
+>>>>>>> node/chat.24
 	onRetry,
 	retryInNewChat,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
 	workspaceId?: WorkspaceId;
+<<<<<<< HEAD
 	canRun?: boolean;
+=======
+	streaming?: boolean;
+>>>>>>> node/chat.24
 	onRetry?: () => void;
 	retryInNewChat?: RetryInNewChatTarget;
 }) {
 	switch (block.kind) {
 		case "text":
+<<<<<<< HEAD
 			return <AssistantText text={block.text} workspaceId={workspaceId} canRun={canRun} />;
+=======
+			return <AssistantText text={block.text} workspaceId={workspaceId} streaming={streaming} />;
+>>>>>>> node/chat.24
 		case "thinking":
 			return <ThinkingBlock text={block.text} summarized={block.summarized} />;
 		case "tool":
@@ -68,14 +80,25 @@ export function ChatBlockView({
 	block,
 	sessionId,
 	workspaceId,
+<<<<<<< HEAD
 	canRun,
+=======
+	streaming,
+>>>>>>> node/chat.24
 	onRetry,
 	retryInNewChat,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
+<<<<<<< HEAD
 	workspaceId?: WorkspaceId;
 	canRun?: boolean;
+=======
+	/** The workspace a relative file or video target in the text belongs to. */
+	workspaceId?: WorkspaceId;
+	/** The reply's text is still arriving from the agent. */
+	streaming?: boolean;
+>>>>>>> node/chat.24
 	/** Resends the last message, for a retryable error block. */
 	onRetry?: () => void;
 	/** The failed turn to send again in a new chat, for an error block. */
@@ -90,7 +113,11 @@ export function ChatBlockView({
 				block={block}
 				sessionId={sessionId}
 				workspaceId={workspaceId}
+<<<<<<< HEAD
 				canRun={canRun}
+=======
+				streaming={streaming}
+>>>>>>> node/chat.24
 				onRetry={onRetry}
 				retryInNewChat={retryInNewChat}
 			/>
