@@ -52,6 +52,13 @@ describe("GIT-16 Xcode licence notice", () => {
 					),
 				).toBe(true),
 			);
+			// The action closes the toast. Wait until it has left the page: sonner removes it on a
+			// timer, and a timer still pending when the file's test page is torn down throws there.
+			await waitFor(() =>
+				expect(
+					screen.queryByText("Run `sudo xcodebuild -license accept` in terminal to continue"),
+				).toBeNull(),
+			);
 		} finally {
 			test.close();
 		}
