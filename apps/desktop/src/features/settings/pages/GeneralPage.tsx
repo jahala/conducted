@@ -13,10 +13,16 @@
  * Test first: changing "Send key" calls settings.set with the new value once.
  */
 import { useState } from "react";
-import { useActions, useFullDiskAccess } from "../../../core/hooks.ts";
+import { useActions, useFullDiskAccess, useSetting } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
+import { Callout } from "../../../ui/Callout.tsx";
+import { toastError } from "../../../ui/Toast.tsx";
+import { ResetCalloutDismissals } from "../ResetCalloutDismissals.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
+
+const DISMISSED_CALLOUTS_KEY = "dismissed_callouts";
+const CALLOUT_DISMISSALS_HINT_ID = "callout-dismissals-hint";
 
 /** PLAT-24: the permission status and the button that opens System Settings at the right pane. */
 function FullDiskAccessRow() {
@@ -67,6 +73,26 @@ function FullDiskAccessRow() {
 
 export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
+	const actions = useActions();
+	const storedDismissals = useSetting<string[]>(DISMISSED_CALLOUTS_KEY);
+	const dismissedIds = Array.isArray(storedDismissals) ? storedDismissals : [];
+
+	const dismissCallout = (id: string) => {
+		if (dismissedIds.includes(id)) return;
+		void actions.settings.set(DISMISSED_CALLOUTS_KEY, [...dismissedIds, id]).then((result) => {
+			if (!result.ok) toastError("Couldn't remember that you dismissed the hint", result.error);
+		});
+	};
+
+	const resetCallouts = async (): Promise<boolean> => {
+		const result = await actions.settings.set(DISMISSED_CALLOUTS_KEY, []);
+		if (!result.ok) {
+			toastError("Couldn't reset callout dismissals", result.error);
+			return false;
+		}
+		return true;
+	};
+
 	return (
 		<SettingsPageFrame
 			title="General"
@@ -76,6 +102,16 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 		>
 			<RegistrySettingRows page="general" focusSettingKey={focusSettingKey} />
 			<FullDiskAccessRow />
+			<Callout
+				id={CALLOUT_DISMISSALS_HINT_ID}
+				dismissed={dismissedIds.includes(CALLOUT_DISMISSALS_HINT_ID)}
+				onDismiss={dismissCallout}
+				title="Dismissible hints"
+			>
+				Hints explain a control once. Dismiss this one, then choose Reset callout dismissals to
+				bring it back.
+			</Callout>
+			<ResetCalloutDismissals dismissedIds={dismissedIds} onReset={resetCallouts} />
 		</SettingsPageFrame>
 	);
 }
