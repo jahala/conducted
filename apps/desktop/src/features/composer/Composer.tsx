@@ -60,6 +60,7 @@ import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
+import { FastModeUnavailableBanner } from "./FastModeUnavailableBanner.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
@@ -475,90 +476,97 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	};
 
 	return (
-		<div
-			ref={containerRef}
-			className="rounded-xl border border-border bg-surface shadow-xs"
-			data-narrow={narrow ? "true" : "false"}
-		>
-			{terminalRun === null ? null : (
-				<div className="px-2 pt-2">
-					<TerminalCommandStatus
-						workspaceId={workspaceId}
-						run={terminalRun}
-						onReopen={() => void startTerminalCommand(terminalRun.command)}
-						onDone={finishTerminalCommand}
-					/>
-				</div>
-			)}
-			<div className="flex items-center gap-1 px-2 pt-2">
-				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-					<PlusMenu
-						sessionId={sessionId}
-						onAddAttachment={() => void attachmentsController.pick()}
-						onLinkIssue={() => setIssueDialogOpen(true)}
-						onLinkWorkspaces={() => setLinkDialogOpen(true)}
-					/>
-					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
-						<ModelPicker sessionId={sessionId} />
-					</NotBuiltYet>
-					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
-						<ModeChips sessionId={sessionId} />
-					</NotBuiltYet>
-					<AcpOptions sessionId={sessionId} />
-				</div>
-				<div className="flex shrink-0 items-center gap-1">
-					<ContextWheel sessionId={sessionId} />
-					{narrow ? (
-						<Menu>
-							<MenuTrigger asChild>
-								<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
-							</MenuTrigger>
-							<MenuContent align="end">
-								<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
-							</MenuContent>
-						</Menu>
-					) : (
-						<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
-					)}
-				</div>
-			</div>
-			<AttachmentBar
+		<div className="flex flex-col gap-2">
+			<FastModeUnavailableBanner
 				sessionId={sessionId}
-				attachmentPaths={attachments}
-				busy={attachmentsController.busy}
-				onRemove={(path) => void attachmentsController.remove(path)}
+				fastModeRequested={session?.config.fastMode === true}
+				fastModeAvailable={live?.fastModeAvailable ?? true}
 			/>
-			<ComposerEditor
-				sessionId={sessionId}
-				disabled={busy}
-				onSubmit={(intent) => void send(intent)}
-				sendWith={sendWith}
-				onEditorReady={setEditor}
-				extensions={extensions}
-			/>
-			<LinkDirectoriesDialog
-				open={linkDialogOpen}
-				onOpenChange={setLinkDialogOpen}
-				workspaceId={workspaceId}
-			/>
-			<LinkIssueDialog
-				open={issueDialogOpen}
-				onOpenChange={setIssueDialogOpen}
-				workspaceId={workspaceId}
-				sessionId={sessionId}
-				onAttached={addLinkedIssue}
-				onFocusEditor={focusEditorAtEnd}
-			/>
-			<div className="flex items-center justify-end gap-1 px-2 pb-2">
-				<SendButton
-					state={buttonState}
-					disabled={disabled}
-					busy={busy}
-					working={working}
-					sendWith={sendWith}
-					onSend={() => void send("submit")}
-					onStop={() => void stop()}
+			<div
+				ref={containerRef}
+				className="rounded-xl border border-border bg-surface shadow-xs"
+				data-narrow={narrow ? "true" : "false"}
+			>
+				{terminalRun === null ? null : (
+					<div className="px-2 pt-2">
+						<TerminalCommandStatus
+							workspaceId={workspaceId}
+							run={terminalRun}
+							onReopen={() => void startTerminalCommand(terminalRun.command)}
+							onDone={finishTerminalCommand}
+						/>
+					</div>
+				)}
+				<div className="flex items-center gap-1 px-2 pt-2">
+					<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+						<PlusMenu
+							sessionId={sessionId}
+							onAddAttachment={() => void attachmentsController.pick()}
+							onLinkIssue={() => setIssueDialogOpen(true)}
+							onLinkWorkspaces={() => setLinkDialogOpen(true)}
+						/>
+						<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
+							<ModelPicker sessionId={sessionId} />
+						</NotBuiltYet>
+						<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
+							<ModeChips sessionId={sessionId} />
+						</NotBuiltYet>
+						<AcpOptions sessionId={sessionId} />
+					</div>
+					<div className="flex shrink-0 items-center gap-1">
+						<ContextWheel sessionId={sessionId} />
+						{narrow ? (
+							<Menu>
+								<MenuTrigger asChild>
+									<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
+								</MenuTrigger>
+								<MenuContent align="end">
+									<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
+								</MenuContent>
+							</Menu>
+						) : (
+							<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
+						)}
+					</div>
+				</div>
+				<AttachmentBar
+					sessionId={sessionId}
+					attachmentPaths={attachments}
+					busy={attachmentsController.busy}
+					onRemove={(path) => void attachmentsController.remove(path)}
 				/>
+				<ComposerEditor
+					sessionId={sessionId}
+					disabled={busy}
+					onSubmit={(intent) => void send(intent)}
+					sendWith={sendWith}
+					onEditorReady={setEditor}
+					extensions={extensions}
+				/>
+				<LinkDirectoriesDialog
+					open={linkDialogOpen}
+					onOpenChange={setLinkDialogOpen}
+					workspaceId={workspaceId}
+				/>
+				<LinkIssueDialog
+					open={issueDialogOpen}
+					onOpenChange={setIssueDialogOpen}
+					workspaceId={workspaceId}
+					sessionId={sessionId}
+					onAttached={addLinkedIssue}
+					onFocusEditor={focusEditorAtEnd}
+				/>
+				<div className="flex items-center justify-end gap-1 px-2 pb-2">
+					<SendButton
+						state={buttonState}
+						disabled={disabled}
+						busy={busy}
+						working={working}
+						sendWith={sendWith}
+						onSend={() => void send("submit")}
+						onStop={() => void stop()}
+					/>
+				</div>
 			</div>
 		</div>
 	);
