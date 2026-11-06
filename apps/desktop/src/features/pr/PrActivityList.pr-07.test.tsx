@@ -65,6 +65,22 @@ describe("PR-07 PrActivityList", () => {
 		expect(screen.getByText("Marked ready for review")).toBeTruthy();
 	});
 
+	it("lists an entry with no usable time last, with no time shown", () => {
+		const entries = [
+			commit("undated", Number.NaN, "Undated change"),
+			commit("dated", 2_000, "Dated"),
+		];
+		render(<PrActivityList entries={entries} order="newest-first" onOpenEntry={vi.fn()} />);
+
+		const rows = screen.getAllByRole("button");
+		expect(rows.map((row) => row.textContent)).toEqual([
+			expect.stringContaining("Dated"),
+			expect.stringContaining("Undated change"),
+		]);
+		expect(rows[1]?.querySelector("time")).toBeNull();
+		expect(rows[0]?.querySelector("time")).not.toBeNull();
+	});
+
 	it("says when there is no activity", () => {
 		render(<PrActivityList entries={[]} order="newest-first" onOpenEntry={vi.fn()} />);
 		expect(screen.getByText("No activity yet.")).toBeTruthy();

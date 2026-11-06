@@ -27,6 +27,23 @@ describe("PR-07 PrTitleEditor", () => {
 		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 	});
 
+	it("shows a title renamed on GitHub after a save here", async () => {
+		const onSave = vi.fn().mockResolvedValue(true);
+		const { rerender } = render(<PrTitleEditor title="Old title" editable onSave={onSave} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Edit title" }));
+		fireEvent.change(screen.getByRole("textbox", { name: "PR title" }), {
+			target: { value: "New title" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		expect(await screen.findByText("New title")).toBeTruthy();
+
+		rerender(<PrTitleEditor title="Renamed on GitHub" editable onSave={onSave} />);
+
+		expect(screen.getByText("Renamed on GitHub")).toBeTruthy();
+		expect(screen.queryByText("New title")).toBeNull();
+	});
+
 	it("keeps the old title when the save fails, and closes the dialog", async () => {
 		const onSave = vi.fn().mockResolvedValue(false);
 		render(<PrTitleEditor title="Old title" editable onSave={onSave} />);

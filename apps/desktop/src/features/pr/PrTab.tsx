@@ -8,7 +8,7 @@
  * Review, Merge, Open on GitHub); services-map.md 3.7 (read, edit with `gh pr edit`, merge).
  * Data: useGitState (pullRequest and why it may be missing), useWorkspace (whether the workspace
  * is archived), useActions().pullRequests, usePullRequestActivity (sorted by pr/pr-activity.ts),
- * and the pr_activity_sort_order and archive_on_merge settings. Reviewers, deployments and viewer
+ * and the pr_activity_sort_order and treat_optional_checks_as_blocking settings. Reviewers, deployments and viewer
  * rights are fields of PullRequest.
  * Children: PrTitleEditor, PrDescriptionEditor, PrActivityList, PrChecksSummary, PrReviewSection,
  * PrMergeBar, PrEmptyState.
@@ -87,7 +87,7 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const { services } = useServices();
 	const navigate = useNavigate();
 	const activityOrder = useSetting<"newest-first" | "oldest-first">("pr_activity_sort_order");
-	const archiveOnMerge = useSetting<boolean>("archive_on_merge");
+	const optionalBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 	const openTarget = openTargetOf(useSetting<string>("pull_request_open_target"));
 
 	const [blockedReason, setBlockedReason] = useState<string | null>(null);
@@ -311,7 +311,7 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 					pullRequest={pullRequest}
 					blockedReason={blockedReason}
 					busy={busy}
-					archiveOnMerge={archiveOnMerge}
+					treatOptionalAsBlocking={optionalBlocking}
 					onMerge={() => void merge()}
 					onMarkReady={() => void markReady()}
 					onSetAutoMerge={(enabled) => void setAutoMerge(enabled)}

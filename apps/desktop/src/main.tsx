@@ -39,7 +39,7 @@ import { ServicesProvider } from "./core/context.tsx";
 import { useSystemInfo } from "./core/hooks.ts";
 import type { SoundPlayer } from "./core/services/notifications.ts";
 import { tomlCodec } from "./core/services/toml-codec.ts";
-import type { PlaceNames } from "./core/services/workspace.ts";
+import { createPlaceNames } from "./core/services/workspace.ts";
 import { writeRedactedReport } from "./features/diagnostics/diagnostics-report.ts";
 import { isWrongCpuBuild } from "./features/updates/RosettaConfirm.tsx";
 import type { Platform, SystemInfo } from "./platform/platform.ts";
@@ -52,46 +52,6 @@ import "./styles.css";
  * `pnpm release` tags (scripts/release.ts builds only the Apple silicon app). The wrong-CPU screen opens it.
  */
 const APPLE_SILICON_DOWNLOAD_URL = "https://github.com/jahala/conducted/releases/latest";
-
-/** Our own place names for new workspaces. A name already used gets the next one in the list. */
-const PLACE_NAMES = [
-	"arbor",
-	"beacon",
-	"canyon",
-	"delta",
-	"ember",
-	"fjord",
-	"grove",
-	"harbor",
-	"islet",
-	"jasper",
-	"kelp",
-	"lagoon",
-	"meadow",
-	"nimbus",
-	"orchard",
-	"prairie",
-	"quarry",
-	"ridge",
-	"summit",
-	"tundra",
-	"upland",
-	"valley",
-	"willow",
-	"xenon",
-	"yarrow",
-	"zenith",
-];
-
-const placeNames: PlaceNames = {
-	pick(taken) {
-		const free = PLACE_NAMES.find((name) => !taken.has(name));
-		if (free !== undefined) return free;
-		let index = PLACE_NAMES.length;
-		while (taken.has(`place-${index}`)) index += 1;
-		return `place-${index}`;
-	},
-};
 
 /**
  * Plays our own two-tone chime with the Web Audio API. The two sound choices and the notification
@@ -137,7 +97,7 @@ export function createAppContainer(
 		clock: options.clock ?? systemClock,
 		ids: options.ids ?? cryptoIds,
 		toml: tomlCodec,
-		placeNames,
+		placeNames: createPlaceNames(),
 		sound,
 		windowFocused: () => document.hasFocus(),
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),

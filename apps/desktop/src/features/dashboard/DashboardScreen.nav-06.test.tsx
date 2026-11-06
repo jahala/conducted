@@ -21,6 +21,7 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
+import { type HeldDatabase, holdingOnExecute } from "../../test/held-database.ts";
 import { toast } from "../../ui/Toast.tsx";
 
 type LooseComponent = (props: { children?: ReactNode } & Record<string, unknown>) => ReactNode;
@@ -29,8 +30,20 @@ const App = AppProviders as unknown as LooseComponent;
 
 let opened: TestContainer | null = null;
 
-async function openDashboard(options: { enabled?: boolean } = {}) {
-	const test = createTestContainer();
+/** The workspace repository's status write (core/db/workspaces.ts, WORKSPACES_SQL.setKanbanStatus). */
+const SET_KANBAN_STATUS = "UPDATE workspaces SET kanban_status = $1, updated_at = $2 WHERE id = $3";
+
+async function openDashboard(
+	options: { enabled?: boolean; hold?: (held: HeldDatabase) => void } = {},
+) {
+	const test = createTestContainer({
+		wrapDatabase: (database) => {
+			if (options.hold === undefined) return database;
+			const held = holdingOnExecute(database, SET_KANBAN_STATUS);
+			options.hold(held);
+			return held.database;
+		},
+	});
 	opened = test;
 	await test.container.services.settings.start();
 	if (options.enabled !== false) {
@@ -142,6 +155,51 @@ describe("NAV-06 Kanban dashboard", () => {
 		fireEvent.click(await screen.findByRole("menuitemradio", { name: "In review" }));
 
 		expect(await within(column("In review")).findByText("oslo")).toBeTruthy();
+	});
+
+	it("keeps a card moved twice in its last column while the first write answers", async () => {
+		let held: HeldDatabase | null = null;
+		const test = await openDashboard({
+			hold: (database) => {
+				held = database;
+			},
+		});
+		const workspace = await seedWorkspace(test.container, {
+			directoryName: "oslo",
+			branch: "oslo",
+		});
+		await mount(test);
+		const writes = held as unknown as HeldDatabase;
+		const moveTo = async (status: string) => {
+			const current = await screen.findByRole("button", { name: /^Status: / });
+			fireEvent.keyDown(current, { key: "Enter" });
+			fireEvent.click(await screen.findByRole("menuitemradio", { name: status }));
+		};
+		await moveTo("In review");
+		expect(await within(column("In review")).findByText("oslo")).toBeTruthy();
+		await moveTo("Done");
+		expect(await within(column("Done")).findByText("oslo")).toBeTruthy();
+		await waitFor(() => expect(writes.held()).toBe(2));
+
+		// The first write answers while the second is still on its way.
+		await writes.releaseNext();
+		await waitFor(() =>
+			expect(
+				test.container.services.workspace.store.getState().workspacesById[workspace.id]
+					?.kanbanStatus,
+			).toBe("in_review"),
+		);
+		expect(within(column("Done")).getByText("oslo")).toBeTruthy();
+		expect(within(column("In review")).queryByText("oslo")).toBeNull();
+
+		await writes.releaseNext();
+		await waitFor(() =>
+			expect(
+				test.container.services.workspace.store.getState().workspacesById[workspace.id]
+					?.kanbanStatus,
+			).toBe("done"),
+		);
+		expect(within(column("Done")).getByText("oslo")).toBeTruthy();
 	});
 
 	it("sends the user Home while the Dashboard setting is off", async () => {

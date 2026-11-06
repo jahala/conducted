@@ -4,7 +4,8 @@
  * needs, and the seed helpers that write rows through the repositories and load them into the
  * matching service stores.
  * Behaviour: not applicable, test support only.
- * Must handle: every container input except the platform can be overridden, ids are never a
+ * Must handle: every container input except the platform can be overridden, the app's database
+ * can be wrapped (one held or failing statement) while the test reads the real one, ids are never a
  * constant, and `close` releases the database (a test that started the container awaits
  * `container.stop()` first). Construction does not call `container.start()`, so a test decides
  * when stores load.
@@ -43,6 +44,11 @@ const createTestPlaceNames = (): PlaceNames => ({
 export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">> & {
 	/** The in-memory file commands refuse paths outside the app's file scope, as files.rs does. */
 	enforceFileScope?: boolean;
+	/**
+	 * Wraps the real database the app is given, for a test that holds or fails one statement
+	 * (`holdingOnExecute`, `failingOnSelect`). `TestContainer.database` stays the unwrapped one.
+	 */
+	wrapDatabase?: (database: Database) => Database;
 };
 
 export interface TestContainer {
@@ -60,7 +66,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 	const memory = createMemoryPlatform({
 		clock,
 		ids,
-		database: store.database,
+		database: options.wrapDatabase?.(store.database) ?? store.database,
 		version: "0.0.0-test",
 		channel: "dev",
 		enforceFileScope: options.enforceFileScope,

@@ -1,11 +1,13 @@
 /**
  * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: tests for the marker itself, the new-workspace draft behind the Create row, and the "Open draft"
- * button on a workspace row.
+ * button on a workspace row: a draft saved on disk shows it, an unreadable draft is read once and toasts
+ * nothing from the sidebar, and 300 workspaces read only the drafts that exist.
  * Behaviour: ui-map.md 4.3, coverage/inventory-controls.md.
  * Test first: a draft of "   " with no attachments renders no marker; "fix the login" renders one.
  */
 import type { SessionConfig } from "@conducted/protocol";
+import type { SessionId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -18,6 +20,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CreateWorkspacePage } from "../../app/CreateWorkspacePage.tsx";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
+import { draftFile } from "../../core/app-paths.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Repo, Workspace } from "../../core/model.ts";
 import {
@@ -26,6 +29,7 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
+import { Toaster, toast } from "../../ui/Toast.tsx";
 import { NEW_WORKSPACE_DRAFT_ID } from "../composer/draft-sources.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
 import { SidebarNav } from "./SidebarNav.tsx";
@@ -46,6 +50,8 @@ let open: TestContainer | null = null;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
+	vi.restoreAllMocks();
 	open?.close();
 	open = null;
 });
@@ -199,19 +205,26 @@ describe("NAV-16 workspace row marker", () => {
 		return { test, repo, workspace, session };
 	}
 
-	function renderRow(test: TestContainer, repo: Repo, workspace: Workspace) {
+	function renderRow(test: TestContainer, repo: Repo, workspace: Workspace | Workspace[]) {
+		const rows = Array.isArray(workspace) ? workspace : [workspace];
 		const rootRoute = createRootRoute();
 		const indexRoute = createRoute({
 			getParentRoute: () => rootRoute,
 			path: "/",
 			component: () => (
-				<WorkspaceRow
-					workspace={workspace}
-					repo={repo}
-					selected={false}
-					shortcutIndex={null}
-					now={1_000}
-				/>
+				<>
+					{rows.map((row) => (
+						<WorkspaceRow
+							key={row.id}
+							workspace={row}
+							repo={repo}
+							selected={false}
+							shortcutIndex={null}
+							now={1_000}
+						/>
+					))}
+					<Toaster />
+				</>
 			),
 		});
 		const workspaceRoute = createRoute({
@@ -264,5 +277,92 @@ describe("NAV-16 workspace row marker", () => {
 
 		await screen.findByRole("link");
 		expect(screen.queryByRole("button", { name: "Open draft" })).toBeNull();
+	});
+
+	/** Writes a chat's draft file as an earlier run of the app left it. */
+	async function saveDraftFile(
+		test: TestContainer,
+		sessionId: SessionId,
+		text: string,
+	): Promise<string> {
+		const path = draftFile(test.memory.platform.fs.paths, sessionId);
+		must(await test.memory.platform.fs.mkdirp(path.slice(0, path.lastIndexOf("/"))));
+		test.memory.controls.files.set(path, text);
+		return path;
+	}
+
+	it("shows Open draft for a draft saved on disk in an earlier run", async () => {
+		const { test, repo, workspace, session } = await setup();
+		await saveDraftFile(
+			test,
+			session.id,
+			JSON.stringify({ text: "fix the login", attachmentPaths: [] }),
+		);
+
+		renderRow(test, repo, workspace);
+
+		expect(await screen.findByRole("button", { name: "Open draft" })).toBeTruthy();
+	});
+
+	it("reads an unreadable draft once and says nothing from the sidebar while other drafts change", async () => {
+		const { test, repo, workspace, session } = await setup();
+		const broken = await saveDraftFile(test, session.id, "{ not json");
+		const readText = vi.spyOn(test.memory.platform.fs, "readText");
+		renderRow(test, repo, workspace);
+		await waitFor(() =>
+			expect(readText.mock.calls.filter(([path]) => path === broken)).toHaveLength(1),
+		);
+
+		for (const text of ["f", "fi", "fix"]) {
+			act(() => {
+				test.container.services.composer.saveDraft(NEW_WORKSPACE_DRAFT_ID, {
+					text,
+					attachmentPaths: [],
+				});
+			});
+		}
+		await screen.findByRole("link");
+
+		expect(readText.mock.calls.filter(([path]) => path === broken)).toHaveLength(1);
+		expect(screen.queryByText("Couldn't load the draft")).toBeNull();
+		expect(screen.queryByRole("button", { name: "Open draft" })).toBeNull();
+	});
+
+	it("reads only the drafts that exist for a sidebar of 300 workspaces", async () => {
+		open = createTestContainer();
+		const test = open;
+		const repo = await seedRepo(test.container);
+		const workspaces: Workspace[] = [];
+		const sessions: SessionId[] = [];
+		for (let index = 0; index < 300; index += 1) {
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				directoryName: `place-${index}`,
+				branch: `place-${index}`,
+			});
+			workspaces.push(workspace);
+			sessions.push(must(await test.container.services.sessions.create(workspace.id, CONFIG)).id);
+		}
+		must(await test.container.services.sessions.start());
+		const withDrafts = [sessions[3], sessions[150], sessions[299]] as SessionId[];
+		for (const sessionId of withDrafts) {
+			await saveDraftFile(test, sessionId, JSON.stringify({ text: "unsent", attachmentPaths: [] }));
+		}
+		const readText = vi.spyOn(test.memory.platform.fs, "readText");
+		const readDir = vi.spyOn(test.memory.platform.fs, "readDir");
+
+		renderRow(test, repo, workspaces);
+
+		await waitFor(() =>
+			expect(screen.getAllByRole("button", { name: "Open draft" })).toHaveLength(3),
+		);
+		const draftsFolder = draftFile(test.memory.platform.fs.paths, "x").replace(/x\.json$/, "");
+		const draftReads = readText.mock.calls.filter(([path]) => path.startsWith(draftsFolder));
+		expect(draftReads.map(([path]) => path).sort()).toEqual(
+			withDrafts.map((id) => draftFile(test.memory.platform.fs.paths, id)).sort(),
+		);
+		expect(
+			readDir.mock.calls.filter(([path]) => path.startsWith(draftsFolder.replace(/\/$/, ""))),
+		).toHaveLength(1);
 	});
 });

@@ -10,8 +10,12 @@
  * Leaving zen mode restores each panel to its earlier open or closed state, not to "open". Toggling a panel
  * while zen mode is on leaves zen mode first, restores the other panel, and toggles the requested one from its
  * current (closed) state. A screen with no right panel only closes the sidebar.
- * Must handle: no right panel (null right state), no terminal panel, and a panel that unmounts while it is
- * registered.
+ * The right panel reports every change of its open state (`panelOpenChanged`), whoever made it, so a divider
+ * drag is saved to `right_panel_visible` as a shortcut is. The zen snapshot is not saved: after a restart in
+ * zen mode both panels are closed (each one's setting says so) and Cmd+. opens both, as Conductor's own zen
+ * toggle does when both are closed (renderApp, "toggle-zen-mode").
+ * Must handle: no right panel (null right state), no terminal panel, a panel that unmounts while it is
+ * registered, a right panel closed by its divider, and a restart in zen mode.
  * Test first: entering zen mode closes both panels and leaving it reopens only the ones that were open.
  */
 import type { ReactNode } from "react";
@@ -66,12 +70,23 @@ export function leaveZenMode(
 	return zenModeOff;
 }
 
-/** Turns zen mode on or off, depending on its current state. */
+/**
+ * Turns zen mode on or off, depending on its current state. With both panels already closed and no
+ * snapshot (as after a restart in zen mode: the snapshot is not saved), it opens both, as Conductor
+ * does, instead of hiding what is already hidden.
+ */
 export function toggleZenMode(
 	panels: ShellPanelHandles,
 	snapshot: ZenModeSnapshot = zenModeOff,
 ): ZenModeSnapshot {
-	return snapshot.active ? leaveZenMode(snapshot, panels) : enterZenMode(panels);
+	if (snapshot.active) return leaveZenMode(snapshot, panels);
+	const right = panels.isRightPanelOpen();
+	if (!panels.isSidebarOpen() && right !== true) {
+		panels.setSidebarOpen(true);
+		if (right !== null) panels.setRightPanelOpen(true);
+		return zenModeOff;
+	}
+	return enterZenMode(panels);
 }
 
 /** One mounted panel as zen mode and the view commands see it. */
@@ -91,6 +106,11 @@ export interface ZenModeControls {
 	toggleZen(): void;
 	/** The open state a panel starts with, before it has registered. */
 	initiallyOpen(side: ZenPanelSide): boolean;
+	/**
+	 * A panel reports its open state after any change, whoever made it: a shortcut, zen mode, its
+	 * header button or a divider drag. The right panel's changes are saved from here.
+	 */
+	panelOpenChanged(side: ZenPanelSide, open: boolean): void;
 }
 
 const ZenModeContext = createContext<ZenModeControls | null>(null);
@@ -120,7 +140,7 @@ export function useZenPanel(side: ZenPanelSide, handle: ZenPanelHandle): void {
 export interface ZenModeProviderProps {
 	/** The saved right panel state, used before a workspace registers its right panel. */
 	rightInitialOpen?: boolean;
-	/** Reports each change the provider makes to the right panel, for the settings table. */
+	/** Reports each change of the right panel's open state, for the settings table. */
 	onRightOpenChange?: (open: boolean) => void;
 	children?: ReactNode;
 }
@@ -138,12 +158,11 @@ export function ZenModeProvider({
 	const zen = useRef<ZenModeSnapshot>(zenModeOff);
 	const options = useRef({ rightInitialOpen, onRightOpenChange });
 	options.current = { rightInitialOpen, onRightOpenChange };
+	// The right panel's last saved state, so a report that changes nothing writes nothing.
+	const rightSaved = useRef(rightInitialOpen);
 
 	const setPanel = useCallback((side: ZenPanelSide, open: boolean): void => {
-		const handle = panels.current.get(side);
-		if (handle === undefined) return;
-		handle.setOpen(open);
-		if (side === "right") options.current.onRightOpenChange?.(open);
+		panels.current.get(side)?.setOpen(open);
 	}, []);
 
 	const shellHandles = useCallback(
@@ -182,6 +201,11 @@ export function ZenModeProvider({
 			},
 			initiallyOpen(side) {
 				return side === "right" ? options.current.rightInitialOpen : true;
+			},
+			panelOpenChanged(side, open) {
+				if (side !== "right" || rightSaved.current === open) return;
+				rightSaved.current = open;
+				options.current.onRightOpenChange?.(open);
 			},
 		}),
 		[setPanel, shellHandles],

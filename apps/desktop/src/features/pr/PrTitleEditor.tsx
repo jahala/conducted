@@ -9,7 +9,8 @@
  * dialog closes once the save is done, whatever its outcome, because the PR tab's toast says why
  * a save failed.
  * Must handle: an empty title (Save disabled), Enter saving once, a save that fails (the old title
- * stays), and a merged or closed PR (no Edit title button).
+ * stays), a title renamed on GitHub after a save here (the polled title shows), and a merged or
+ * closed PR (no Edit title button).
  * Test first: editing the title and pressing Enter calls onSave with the new text once.
  */
 import { useState } from "react";
@@ -26,12 +27,13 @@ export interface PrTitleEditorProps {
 }
 
 export function PrTitleEditor({ title, editable, onSave }: PrTitleEditorProps) {
-	const [saved, setSaved] = useState<string | null>(null);
+	// The title saved here and the polled title it replaced. It shows until the polled title
+	// changes, so the next poll's answer (the saved title, or a rename made on GitHub) wins.
+	const [saved, setSaved] = useState<{ title: string; over: string } | null>(null);
 	const [open, setOpen] = useState(false);
 	const [draft, setDraft] = useState(title);
 	const [saving, setSaving] = useState(false);
-	// A title saved here shows at once; the next poll's title replaces it.
-	const shown = saved !== null && saved !== title ? saved : title;
+	const shown = saved !== null && saved.over === title ? saved.title : title;
 
 	const start = () => {
 		setDraft(shown);
@@ -47,7 +49,7 @@ export function PrTitleEditor({ title, editable, onSave }: PrTitleEditorProps) {
 		}
 		setSaving(true);
 		try {
-			if (await onSave(next)) setSaved(next);
+			if (await onSave(next)) setSaved({ title: next, over: title });
 		} finally {
 			setSaving(false);
 			setOpen(false);

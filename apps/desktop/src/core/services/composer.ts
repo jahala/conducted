@@ -10,7 +10,8 @@
  * attachment by `convertsToAttachment` (the paste handler is in the COMP-07 attachments hook); a
  * failed write, a failed room-making pass or an oversized draft is kept in `store.errors` so a
  * screen can tell the user it did not save; the drafts folder is capped at 5 MiB by trashing the
- * oldest other drafts.
+ * oldest other drafts. `savedDraftIds` lists which chats have a draft file with one folder read,
+ * for the sidebar's draft markers (NAV-16).
  * Dropped or picked files, and the bytes of a pasted image (`addBytes`, COMP-07), are copied into
  * the chat's staging folder and get an attachment row; a
  * file named like one of the app's own context files is attached under another name. A
@@ -46,6 +47,7 @@ import {
 	draftsDir,
 	isInsideFolder,
 } from "../app-paths.ts";
+import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";
@@ -233,6 +235,10 @@ export class ComposerService {
 	readonly #inFlight = new Set<Promise<Result<void>>>();
 	/** How many copies are running for each chat. A send waits until the count is zero. */
 	readonly #busy = new Map<string, number>();
+	/** The draft files found at the first listing of the drafts folder (NAV-16), once it worked. */
+	#savedDraftIds: ReadonlySet<string> | null = null;
+	/** Rows that ask for the listing at the same time share one. */
+	readonly #listing = createSingleFlight<"drafts">();
 
 	constructor(deps: ComposerServiceDeps) {
 		this.#deps = deps;
@@ -270,6 +276,29 @@ export class ComposerService {
 		if (!parsed.ok) return parsed;
 		this.#setDraft(sessionId, parsed.value);
 		return ok(parsed.value);
+	}
+
+	/**
+	 * The ids of the chats with a draft file on disk, from one listing of the drafts folder (NAV-16).
+	 * The sidebar's draft markers load only these, so a sidebar of 300 workspaces costs one listing
+	 * and one read per saved draft. Drafts written later are in the store already. No folder means
+	 * no drafts. A failed listing is returned, and the next call lists again.
+	 */
+	savedDraftIds(): Promise<Result<ReadonlySet<string>>> {
+		const known = this.#savedDraftIds;
+		if (known !== null) return Promise.resolve(ok(known));
+		return this.#listing.run("drafts", async (): Promise<Result<ReadonlySet<string>>> => {
+			const listing = await this.#deps.platform.fs.readDir(draftsDir(this.#deps.platform.fs.paths));
+			if (!listing.ok && listing.error.code !== "fs_not_found") return err(listing.error);
+			const ids = new Set<string>();
+			for (const entry of listing.ok ? listing.value : []) {
+				if (entry.isDirectory) continue;
+				const name = entry.path.slice(entry.path.lastIndexOf("/") + 1);
+				if (name.endsWith(".json")) ids.add(name.slice(0, -".json".length));
+			}
+			this.#savedDraftIds = ids;
+			return ok(ids);
+		});
 	}
 
 	/** Backs `Actions.sessions.saveDraft`: updates the store at once, writes the file after the debounce. */

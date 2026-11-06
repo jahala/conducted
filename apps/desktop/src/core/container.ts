@@ -765,6 +765,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			removeWorkspacesOf: (repoId) => workspace.removeWorkspacesOf(repoId),
 			releaseBacklogOf: (repoId) => workspace.releaseBacklogOf(repoId),
 		},
+		ids,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
 	const workspace: WorkspaceService = new WorkspaceService({

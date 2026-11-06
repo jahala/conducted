@@ -15,7 +15,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
-import { answerSidecar, deliveredAsAsked, type SidecarCall } from "../../test/sidecar-answers.ts";
+import {
+	answerSidecar,
+	deliveredAsAsked,
+	type SidecarCall,
+	sidecarRefuses,
+} from "../../test/sidecar-answers.ts";
 import { Toaster, toast } from "../../ui/Toast.tsx";
 import { GoalBar } from "./GoalBar.tsx";
 
@@ -132,6 +137,24 @@ describe("COMP-10 Codex goal bar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
 		await waitFor(() => expect(sentTexts(calls)).toEqual(["/goal Ship the exporter"]));
 		expect(screen.queryByPlaceholderText("Goal")).toBeNull();
+	});
+
+	it("keeps the field open with the typed objective when the save fails", async () => {
+		const { test, sessionId, calls } = await setup({
+			answer: (call) =>
+				call.method === "sendMessage" ? sidecarRefuses("The agent is not running") : {},
+		});
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, activeGoal);
+		fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }));
+		fireEvent.change(screen.getByPlaceholderText("Goal"), {
+			target: { value: "Ship the exporter" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
+		expect(await screen.findByText("Failed to update goal.")).toBeTruthy();
+		expect(sentTexts(calls)).toEqual(["/goal Ship the exporter"]);
+		const field = screen.getByPlaceholderText("Goal") as HTMLTextAreaElement;
+		expect(field.value).toBe("Ship the exporter");
 	});
 
 	it("pauses, resumes and clears the goal", async () => {

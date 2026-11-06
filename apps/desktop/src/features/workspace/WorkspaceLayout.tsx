@@ -14,8 +14,9 @@
  * Must handle: right panel collapsed (the header's toggle button reopens it; the header receives
  * `rightPanelOpen` and `toggleRightPanel`); the right panel and scripts panel starting collapsed from their
  * saved state; the scripts panel collapsing to its 32px tab row (ui/layout-sizes.ts). The right and scripts
- * panels register with app/zen-mode.ts, so Cmd+Alt+B, Cmd+J and zen mode reach them. A window narrower than
- * both minimums is left to the resizable group.
+ * panels register with app/zen-mode.ts, so Cmd+Alt+B, Cmd+J and zen mode reach them, and the right panel
+ * reports each change of its open state there (a divider drag too), which the shell saves. A window narrower
+ * than both minimums is left to the resizable group.
  * Test first: renders all three slots; toggleRightPanel hides and shows the right panel.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -88,6 +89,11 @@ export function WorkspaceLayout({
 	};
 
 	useZenPanel("right", { isOpen: rightPanelIsOpen, setOpen: applyRightOpen });
+	// Every change of the right panel's open state is reported, a divider drag included, so the
+	// shell saves what the screen shows.
+	useEffect(() => {
+		zen?.panelOpenChanged("right", rightPanelOpen);
+	}, [zen, rightPanelOpen]);
 	useZenPanel("terminal", {
 		isOpen: () => scriptsPanelOpen,
 		setOpen: applyScriptsOpen,

@@ -243,9 +243,12 @@ function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 	return canonicalJson(a) === canonicalJson(b);
 }
 
-/** Conductor's messages for a goal it cannot set (ui-map.md 3.5, the toast inventory). */
-const GOAL_UNAVAILABLE = "Codex goals are not available in this chat.";
-const GOAL_EMPTY = "Enter a goal first.";
+/**
+ * Conductor's messages for a goal it cannot set (ui-map.md 3.5, the toast inventory). The goal
+ * bar and the `/goal` slash command show the same words, so they import them from here.
+ */
+export const GOAL_UNAVAILABLE = "Codex goals are not available in this chat.";
+export const GOAL_EMPTY = "Enter a goal first.";
 
 /** A config write is tried this many times before its failure is reported. */
 const CONFIG_WRITE_ATTEMPTS = 3;

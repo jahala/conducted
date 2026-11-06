@@ -35,7 +35,8 @@
  * (PR-09) of the chat on screen; the issue it links joins the same attachment list.
  * /goal in a Codex chat puts the composer in goal mode (COMP-10, as Conductor does): the empty
  * editor says "Set a goal", and sending sets the text as the chat's goal through
- * `actions.sessions.goal.set` instead of sending it as a message. Goal mode ends after the send
+ * `actions.sessions.goal.set` instead of sending it as a message. A goal takes no attachments, so
+ * the send clears only the text and keeps them for the next message. Goal mode ends after the send
  * and when the chat changes. The Codex goal bar itself is GoalBar, above the composer.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
@@ -481,7 +482,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				return;
 			}
 			setGoalMode(false);
-			await clearEditor(current);
+			// A goal takes only the text. The update event saves the draft with its attachments
+			// kept, so files the user added stay for the next message.
+			current.commands.setContent("", { emitUpdate: true });
+			setText("");
+			current.commands.focus();
 		} finally {
 			setBusy(false);
 		}

@@ -2,46 +2,24 @@
  * @feature NAV-09 Keybinding editor
  * Owns: The control that records a new key combination for one command.
  * Behaviour: ui-map.md 5.4 (rebinding with conflict detection per scope; overrides stored under a
- * versioned key). The recorder itself is the one Settings uses (features/settings/keyboard).
+ * versioned key). The recorder itself is the one Settings uses (features/settings/keyboard), and
+ * the reserved-key rule is the registry's (`reservedCommand`, through `keybindingRefusal`).
  * Must handle: Recording starts on click and stops on Escape without changing anything; a reserved
  * key (Cmd+, and Cmd+Q, and a fixed command's key in the same scope) is refused with a reason;
  * modifiers alone are not accepted; the key is shown in macOS symbols and spoken as words.
  * Test first: Pressing Cmd+Shift+K while recording calls onChange('Cmd+Shift+K'); Escape cancels.
  */
 import { useState } from "react";
-import {
-	COMMANDS,
-	type CommandDef,
-	formatShortcut,
-	getCommand,
-	parseShortcut,
-} from "../../core/registries/commands.ts";
+import { formatShortcut, getCommand, parseShortcut } from "../../core/registries/commands.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { ShortcutRecorder } from "../settings/keyboard/ShortcutRecorder.tsx";
+import { keybindingRefusal } from "../settings/keyboard/use-keybinding-editing.ts";
 
 export interface KeybindingEditorProps {
 	commandId: string;
 	current: string | null;
 	onChange: (keys: string | null) => void;
-}
-
-/** Commands whose keys belong to the app, so no other command may take them. */
-const APP_RESERVED_IDS: ReadonlySet<string> = new Set(["app.openSettings", "app.quit"]);
-
-/** The fixed command that already holds `combination`, in the edited command's scope or app-wide. */
-function reservedCommand(combination: string, commandId: string): CommandDef | null {
-	const form = formatShortcut(combination);
-	const target = getCommand(commandId);
-	for (const command of COMMANDS) {
-		if (command.configurable) continue;
-		const sameScope = target !== undefined && command.scope === target.scope;
-		if (!APP_RESERVED_IDS.has(command.id) && !sameScope) continue;
-		for (const shortcut of command.defaultShortcuts) {
-			if (formatShortcut(shortcut) === form) return command;
-		}
-	}
-	return null;
 }
 
 const SPOKEN_MODIFIERS = [
@@ -95,14 +73,10 @@ export function KeybindingEditor({ commandId, current, onChange }: KeybindingEdi
 			onChange(null);
 			return;
 		}
-		const parsed = parseShortcut(combination);
-		if (!parsed.ok) {
-			setReason(parsed.error.message);
-			return;
-		}
-		const reserved = reservedCommand(combination, commandId);
-		if (reserved !== null) {
-			setReason(`${formatShortcut(combination)} is reserved for ${reserved.title}.`);
+		// The shared rule (core/registries/commands.ts): a refused key keeps the recorder open.
+		const refusal = keybindingRefusal(combination, commandId);
+		if (refusal !== null) {
+			setReason(refusal);
 			return;
 		}
 		cancel();

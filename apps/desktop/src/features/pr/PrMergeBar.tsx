@@ -6,21 +6,25 @@
  * services-map.md 3.7.5 (merge pinned to the local head commit; a mismatch raises "code in this
  * workspace may differ from GitHub"; the merge method comes from the repository: squash, rebase,
  * merge commit).
+ * Failing checks follow the Checks tab's rule (`summarizeChecks`): a failing optional check blocks
+ * only when "treat optional checks as blocking" is on. Archiving after a merge is the workspace
+ * service's (`archive_on_merge`), so the bar says nothing about it.
  * Must handle: draft (Mark ready only), conflicts, failing checks, a head mismatch (the service's
  * explanation, with no merge offered), a generic blocked reason, auto-merge on and off, merge in
- * flight (spinner, no double click), the merge queue, merged and closed pull requests, and the
- * archive-on-merge setting.
+ * flight (spinner, no double click), the merge queue, and merged and closed pull requests.
  * Test first: with a head mismatch error the bar shows the explanation and does not retry.
  */
 import type { PullRequest } from "../../core/model.ts";
 import { GITHUB_HEAD_MISMATCH_MESSAGE } from "../../core/services/github.ts";
 import { Button } from "../../ui/Button.tsx";
+import { summarizeChecks } from "../git-panel/checks/checks-summary.ts";
 
 export interface PrMergeBarProps {
 	pullRequest: PullRequest;
 	blockedReason: string | null;
 	busy: "merge" | "ready" | "automerge" | null;
-	archiveOnMerge: boolean;
+	/** The `treat_optional_checks_as_blocking` setting: whether a failing optional check blocks. */
+	treatOptionalAsBlocking: boolean;
 	onMerge: () => void;
 	onMarkReady: () => void;
 	onSetAutoMerge: (enabled: boolean) => void;
@@ -41,7 +45,7 @@ export function PrMergeBar({
 	pullRequest,
 	blockedReason,
 	busy,
-	archiveOnMerge,
+	treatOptionalAsBlocking,
 	onMerge,
 	onMarkReady,
 	onSetAutoMerge,
@@ -49,7 +53,9 @@ export function PrMergeBar({
 	const settled = pullRequest.state === "merged" || pullRequest.state === "closed";
 	const draft = pullRequest.state === "draft";
 	const headMismatch = blockedReason === GITHUB_HEAD_MISMATCH_MESSAGE;
-	const failing = pullRequest.checks.some((check) => check.state === "failure");
+	// The Checks tab's rule: only the checks that block a merge can make it fail.
+	const checks = summarizeChecks(pullRequest.checks, { treatOptionalAsBlocking });
+	const failing = checks.overall === "failing";
 	const conflicting = pullRequest.mergeable === "conflicting";
 	const showMerge =
 		pullRequest.state === "open" &&
@@ -103,8 +109,9 @@ export function PrMergeBar({
 					) : null}
 					{failing && blockedReason === null ? (
 						<p className="mt-1 text-xs text-danger">
-							{pullRequest.checks.filter((check) => check.state === "failure").length} checks
-							failed. Fix them before merging.
+							{checks.failed === 1
+								? "1 check failed. Fix it before merging."
+								: `${checks.failed} checks failed. Fix them before merging.`}
 						</p>
 					) : null}
 					{pullRequest.inMergeQueue ? (
@@ -127,15 +134,7 @@ export function PrMergeBar({
 								{pullRequest.autoMergeEnabled ? "Disable auto-merge" : "Enable auto-merge"}
 							</Button>
 						) : null}
-						{showMerge || (showAutoMerge && !headMismatch) ? null : (
-							<p className="text-xs text-fg-muted">Merging is not available right now.</p>
-						)}
 					</div>
-					{archiveOnMerge ? (
-						<p className="mt-1 text-xs text-fg-muted">
-							This workspace will be archived after the merge.
-						</p>
-					) : null}
 				</>
 			)}
 		</div>

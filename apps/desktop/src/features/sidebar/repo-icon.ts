@@ -5,9 +5,10 @@
  * repository's first letter.
  * Behaviour: ui-map.md 4 (workspace row repo avatar: emoji, uploaded icon, favicon, owner avatar or
  * letter), 5.2 (the icon picker's sources), 5.3 ("Change repository icon").
- * Must handle: a legacy plain emoji saved before the emoji prefix existed; a missing icon with no
- * remote (letter); a GitHub remote (owner avatar); any other remote (its favicon); an upload path
- * kept in app storage.
+ * Must handle: a missing icon with no remote (letter); a GitHub remote (owner avatar); any other
+ * remote (its favicon); an upload path kept in app storage; a value with no known prefix (no icon:
+ * the fallbacks apply). "Use favicon" in the picker clears the icon, so the favicon is a fallback,
+ * never a saved value.
  * Test first: a GitHub remote without a saved icon gives its owner avatar, and another remote gives
  * its favicon.
  */
@@ -15,7 +16,6 @@ import type { Repo } from "../../core/model.ts";
 
 export const EMOJI_PREFIX = "emoji:";
 export const FILE_PREFIX = "file:";
-export const FAVICON_PREFIX = "favicon:";
 
 export type RepoIconSource =
 	| { kind: "emoji"; emoji: string }
@@ -82,11 +82,6 @@ export function repoIconSource(repo: Pick<Repo, "icon" | "name" | "remoteUrl">):
 		const emoji = saved.slice(EMOJI_PREFIX.length).trim();
 		if (emoji !== "") return { kind: "emoji", emoji };
 	}
-	if (saved.startsWith(FAVICON_PREFIX)) {
-		const url = saved.slice(FAVICON_PREFIX.length).trim();
-		if (url !== "") return { kind: "favicon", url };
-	}
-	if (saved !== "") return { kind: "emoji", emoji: saved };
 
 	const owner = githubOwnerOf(repo.remoteUrl);
 	if (owner !== null) {
@@ -97,6 +92,11 @@ export function repoIconSource(repo: Pick<Repo, "icon" | "name" | "remoteUrl">):
 	}
 	const favicon = faviconUrlOf(repo.remoteUrl);
 	if (favicon !== null) return { kind: "favicon", url: favicon };
-	const first = [...repo.name.trim()][0];
-	return { kind: "letter", letter: first === undefined ? "?" : first.toUpperCase() };
+	return { kind: "letter", letter: repoLetter(repo.name) };
+}
+
+/** The repository's first letter, the last fallback and what a failed image shows instead. */
+export function repoLetter(name: string): string {
+	const first = [...name.trim()][0];
+	return first === undefined ? "?" : first.toUpperCase();
 }

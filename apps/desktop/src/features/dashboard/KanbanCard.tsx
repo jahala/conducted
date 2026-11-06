@@ -20,7 +20,7 @@ import { useGitState, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
 import { cn } from "../../ui/cn.ts";
 import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../../ui/Menu.tsx";
-import { type StatusTone, statusText } from "../workspace/status-text.ts";
+import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { KANBAN_COLUMNS, KANBAN_DRAG_TYPE, KANBAN_STATUS_MARK, KANBAN_STATUSES } from "./kanban.ts";
 
@@ -30,14 +30,6 @@ export interface KanbanCardProps {
 	/** Move a card to another column. The screen persists it and rolls back on failure. */
 	onMove: (workspaceId: Workspace["id"], status: KanbanStatus) => void;
 }
-
-const toneClass: Record<StatusTone, string> = {
-	attention: "text-accent",
-	active: "text-fg-muted",
-	danger: "text-danger",
-	success: "text-success",
-	neutral: "text-fg-muted",
-};
 
 export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
@@ -71,7 +63,9 @@ export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
 				<span className="truncate text-sm font-medium text-fg">{name}</span>
 				<span className="truncate text-xs text-fg-subtle">{repo.name}</span>
 				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
+					<span className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
+						{subtitle.text}
+					</span>
 				)}
 				{lines !== null && (lines.linesAdded > 0 || lines.linesRemoved > 0) ? (
 					<span className="flex items-center gap-2 text-2xs">
