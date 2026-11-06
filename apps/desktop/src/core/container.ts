@@ -47,7 +47,7 @@ import {
 import type { Platform } from "../platform/platform.ts";
 import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
-import { checkpointerScript, spotlighterScript } from "./app-paths.ts";
+import { checkpointerScript, gitBusyCheckScript, spotlighterScript } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
@@ -805,6 +805,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 		terminals,
 		checkpointerPath: checkpointerScript(paths),
 		spotlighterPath: spotlighterScript(paths),
+		busyCheckPath: gitBusyCheckScript(paths),
+		watchexecPath: "watchexec",
+		configFor: async (workspaceId) => {
+			const found = lookups.workspace(workspaceId);
+			return found.ok ? repo.loadConfig(found.value.repoId) : found;
+		},
+		workspaceFor: async (workspaceId) => lookups.workspace(workspaceId),
+		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
+		stopRuns: (workspaceId) => runScripts.stopWorkspace(workspaceId),
+		openRepoTerminal: (repoId) => terminals.openForRepo(repoId),
+		log,
 	});
 	const updates = new UpdatesService({
 		platform,
