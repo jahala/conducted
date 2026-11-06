@@ -848,7 +848,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			if (cwd !== undefined && !cwd.startsWith("/")) {
 				throw appError("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
 			}
-			return { shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin" };
+			return { shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin", zdotdir: null };
 		},
 	};
 

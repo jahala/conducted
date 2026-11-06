@@ -67,9 +67,10 @@ export interface Shell {
 	/**
 	 * The user's login shell and PATH. With `cwd`, as the login shell sees them in that folder,
 	 * captured once per folder; without it, the app-wide capture made at startup. A relative `cwd`
-	 * fails with `shell_bad_cwd`.
+	 * fails with `shell_bad_cwd`. `zdotdir` is the `ZDOTDIR` the app itself was launched with, or
+	 * null; zsh reads the user's dotfiles from it (RUN-09).
 	 */
-	loginEnv(cwd?: string): Promise<{ shell: string; path: string }>;
+	loginEnv(cwd?: string): Promise<{ shell: string; path: string; zdotdir: string | null }>;
 }
 
 // ---------------------------------------------------------------- files

@@ -744,7 +744,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 			};
 		},
 		loginEnv: async (cwd) => {
-			const result = await invokeResult<{ shell: string; path: string }>(
+			const result = await invokeResult<{ shell: string; path: string; zdotdir: string | null }>(
 				bindings,
 				COMMANDS.shellLoginEnv,
 				{ cwd: cwd ?? null },

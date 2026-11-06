@@ -88,7 +88,7 @@ function harness() {
 				},
 				loadHistory: async () => ok(new Uint8Array()),
 			},
-			shell: { loginEnv: async () => ({ shell: "/bin/zsh", path: "/usr/bin" }) },
+			shell: { loginEnv: async () => ({ shell: "/bin/zsh", path: "/usr/bin", zdotdir: null }) },
 			fs: { exists: async () => true },
 		},
 		repos: {

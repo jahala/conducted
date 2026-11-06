@@ -1058,6 +1058,7 @@ mod startup_tests {
         let login = shell::LoginEnv {
             shell: "/bin/zsh".to_string(),
             path: "/opt/homebrew/bin:/usr/bin".to_string(),
+            zdotdir: None,
             vars: HashMap::new(),
         };
         let mut applied = None;
@@ -1080,6 +1081,7 @@ mod startup_tests {
         let login = shell::LoginEnv {
             shell: "/bin/zsh".to_string(),
             path: "/usr/local/bin:/usr/bin".to_string(),
+            zdotdir: None,
             vars: HashMap::new(),
         };
         let expected = login.path.clone();

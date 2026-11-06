@@ -190,7 +190,7 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"shell",
 		"login-env",
 		"loginEnv returns a PATH",
-		"loginEnv gives a non-empty shell and path, the same on every call.",
+		"loginEnv gives a non-empty shell and path, and a launch ZDOTDIR that is null or a folder, the same on every call.",
 	),
 	c(
 		"shell",
@@ -959,7 +959,13 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(first.shell.length > 0, "the login shell is empty");
 		ctx.assert(first.path.length > 0, "the login PATH is empty");
 		ctx.assert(
-			first.shell === second.shell && first.path === second.path,
+			first.zdotdir === null || first.zdotdir.length > 0,
+			"the launch ZDOTDIR is an empty string, not null",
+		);
+		ctx.assert(
+			first.shell === second.shell &&
+				first.path === second.path &&
+				first.zdotdir === second.zdotdir,
 			"loginEnv changed between calls",
 		);
 	},
