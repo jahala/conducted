@@ -8,7 +8,8 @@
  *  2. programs: every literal program the UI starts is in `ALLOWED_PROGRAMS` (compared by file name).
  *  3. migration-list: the `.sql` files, the list in `db.rs` and `migrations.lock` agree.
  *  4. placeholder-tests: no test asserts placeholder text or reads a backlog row's status.
- *  5. test-only-exports: no exported function, component, hook or class is used by tests alone.
+ *  5. test-only-exports: no exported function, component, hook or class is used by tests alone,
+ *     in the files of a feature that is built (a stub or planned feature's files are skipped).
  *  6. unwired-deps: a composition root passes every optional dependency, or says it is unwired.
  * Guards 4 to 6 count violations per file against `structure-baseline.json`. A count may not
  * rise, and a baseline higher than the real count fails too, so every fix lowers it (D055).
@@ -504,7 +505,9 @@ async function scanProjectExports(
 		if (!file.startsWith(src) || isTestPath(file) || file.endsWith(".d.ts")) continue;
 		const sourceFile = await project.program.getSourceFile(absolute);
 		if (sourceFile === undefined) continue;
-		if (status.get(fileFeature(sourceFile.text) ?? "") === "stub") continue;
+		// A feature that is not built yet (stub or planned) may export what only its tests use.
+		const featureStatus = status.get(fileFeature(sourceFile.text) ?? "");
+		if (featureStatus === "stub" || featureStatus === "planned") continue;
 		for (const candidate of exportedCandidates(sourceFile, file)) {
 			const entries = await project.checker.getReferencedSymbolsForNode(
 				candidate.node,
