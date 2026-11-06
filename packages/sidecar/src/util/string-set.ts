@@ -5,8 +5,8 @@
  * session; a change to that list needs a restart.
  * Must handle: different orders and a different length.
  * Test first: ["a", "b"] and ["b", "a"] compare equal.
- * Our design choice: the ACP session uses this shared home; the Codex session still carries its
- * own copy, which moves to that feature.
+ * Our design choice: one home for the ACP and Codex sessions, which both restart when that list
+ * changes.
  */
 export function sameStrings(left: readonly string[], right: readonly string[]): boolean {
 	if (left.length !== right.length) return false;

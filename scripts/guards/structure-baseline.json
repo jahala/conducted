@@ -39,7 +39,6 @@
 		"packages/sidecar/src/models/catalog.ts": 1,
 		"packages/sidecar/src/packaging.ts": 1,
 		"packages/sidecar/src/runners/claude/self-started-turns.ts": 1,
-		"packages/sidecar/src/runners/codex/approval-bridge.ts": 1,
 		"packages/sidecar/src/session/self-started-turns.ts": 1
 	},
 	"unwired-deps": {

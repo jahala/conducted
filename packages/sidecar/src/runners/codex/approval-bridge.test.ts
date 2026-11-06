@@ -8,8 +8,11 @@
 import { describe, expect, test } from "bun:test";
 import type { AgentMessage, Interaction, InteractionAnswer } from "@conducted/protocol";
 import { CODEX_INTERACTION_TIMEOUT_MS } from "@conducted/protocol";
-import type { AppError, Result } from "@conducted/shared";
+import type { AppError, Result, SessionId } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../../logging/logger.ts";
+import { SessionInteractionBroker } from "../../session/interactions.ts";
+import { LiveStateStore } from "../../session/live-state.ts";
+import { FakeApp } from "../../test-support/fake-app.ts";
 import type { TurnCallbacks } from "../runner.ts";
 import type { CodexAppServerClient, ServerRequestHandler } from "./app-server-client.ts";
 import { CodexApprovalBridge } from "./approval-bridge.ts";
@@ -453,6 +456,41 @@ describe("AGENT-08 approval bridge", () => {
 		await client.invoke(CODEX_SERVER_REQUESTS.mcpElicitation, formParams);
 		expect(cancelled).toBe(true);
 		expect(outcomes).toEqual(["user_declined"]);
+	});
+
+	test("a timed-out permission closes its card at the real broker, so the next one can open", async () => {
+		const app = new FakeApp({ holdRequests: true });
+		const broker = new SessionInteractionBroker({
+			app,
+			liveState: new LiveStateStore({ app, flushed: async () => {} }),
+			clock: { now: () => 0 },
+			ids: (() => {
+				let next = 0;
+				return { uuid: () => `interaction-${++next}` };
+			})(),
+			logger: logger([]),
+		});
+		const session = "session-1" as SessionId;
+		let fire: (() => void) | undefined;
+		const turn = callbacks(async () => ({ kind: "withdrawn" }));
+		const { client, outcomes } = makeBridge({
+			callbacks: () => ({
+				...turn.value,
+				requestInteraction: (interaction, signal) => broker.open(session, interaction, signal),
+			}),
+			schedule: (run) => {
+				fire = run;
+				return () => {};
+			},
+		});
+		const pending = client.invoke(CODEX_SERVER_REQUESTS.permissionsApproval, permissionParams);
+		expect(broker.openRequest(session)?.interaction.kind).toBe("permission_grant");
+
+		fire?.();
+
+		expect(await pending).toEqual({ permissions: {}, scope: "turn" });
+		expect(outcomes).toEqual(["timeout"]);
+		expect(broker.openRequest(session)).toBeUndefined();
 	});
 
 	test("a command approval has no timeout", async () => {

@@ -59,6 +59,7 @@ import type { Logger } from "../../logging/logger.ts";
 import { rateLimitsFromSdk } from "../../models/usage.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
+import { createDeferred, type Deferred } from "../../util/deferred.ts";
 import { messageOf } from "../../util/errors.ts";
 import { NoActiveTurnError } from "../errors.ts";
 import type {
@@ -112,20 +113,6 @@ export interface ClaudeSessionDeps {
 		backend: AppToolBackend;
 		logger: Logger;
 	}): NonNullable<Options["mcpServers"]>;
-}
-
-interface Deferred<T> {
-	promise: Promise<T>;
-	resolve(value: T): void;
-}
-
-/** A promise a later event resolves, such as the result message that ends a turn. */
-function deferred<T>(): Deferred<T> {
-	let resolve: (value: T) => void = () => {};
-	const promise = new Promise<T>((settle) => {
-		resolve = settle;
-	});
-	return { promise, resolve };
 }
 
 export class ClaudeSession implements AgentSession {
@@ -196,9 +183,9 @@ export class ClaudeSession implements AgentSession {
 		this.turnSettled = false;
 		this.cancelling = false;
 		this.callbacks = callbacks;
-		const turn = deferred<TurnOutcome>();
+		const turn = createDeferred<TurnOutcome>();
 		this.turnDeferred = turn;
-		this.firstMessage = deferred<void>();
+		this.firstMessage = createDeferred<void>();
 		this.currentGate = once(() => callbacks.beforeFirstWrite());
 		this.config = input.config;
 		if (this.agentSessionId !== null && !this.agentSessionIdReported) {

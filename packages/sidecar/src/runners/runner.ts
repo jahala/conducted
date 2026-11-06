@@ -43,8 +43,12 @@ export interface RunnerCapabilities {
 export interface TurnCallbacks {
 	/** One translated message. Called in order. */
 	onMessage(message: AgentMessage): void;
-	/** The agent waits for the user. Resolves with the answer, or "withdrawn" on cancel. */
-	requestInteraction(interaction: Interaction): Promise<InteractionAnswer>;
+	/**
+	 * The agent waits for the user. Resolves with the answer, or "withdrawn" on cancel. A runner that
+	 * stops waiting by itself (a timeout, an abort from the agent) aborts `signal`, which closes the
+	 * interaction in the app too.
+	 */
+	requestInteraction(interaction: Interaction, signal?: AbortSignal): Promise<InteractionAnswer>;
 	/** The agent's own session id became known. Stored for resume. */
 	onAgentSessionId(agentSessionId: string): void;
 	/**

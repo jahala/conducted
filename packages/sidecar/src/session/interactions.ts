@@ -5,8 +5,13 @@
  * resolves the agent's promise with the answer.
  * Behaviour: research/conductor/sessions-and-chats.md "Questions, approvals and plans",
  * claude-runner.md sections 3.4 and 3.5, other-runners.md section 4 ("a per-session manager holds
- * one active user interaction at a time"). Locally there is no timeout.
+ * one active user interaction at a time"). The broker runs no timer of its own. A Codex permission
+ * or form carries `expiresAt` for the app; the Codex bridge owns that 300 s timer and, when it runs
+ * out, withdraws the interaction through the abort signal it passed to `open`.
  * Must handle:
+ *  - an agent that stops waiting (the signal passed to `open` aborts: a Codex consent timed out, the
+ *    Claude SDK cancelled a permission check, an ACP turn was cancelled): an open interaction closes
+ *    and the next one opens, a waiting one leaves the queue, and the agent gets the withdrawal answer
  *  - a second request while one is open: it waits its turn and opens when the first closes
  *  - withdrawAll() on cancel, on a new non-steering message, on a steer, on resetAgent and on
  *    shutdown: every open or waiting interaction resolves with { kind: "withdrawn" }, except a
@@ -44,8 +49,15 @@ import { messageOf } from "../util/errors.ts";
 import { closeInteraction, type LiveStateStore, openInteraction } from "./live-state.ts";
 
 export interface InteractionBroker {
-	/** Opens an interaction and resolves with the user's answer, or the withdrawal answer. */
-	open(sessionId: SessionId, interaction: Interaction): Promise<InteractionAnswer>;
+	/**
+	 * Opens an interaction and resolves with the user's answer, or the withdrawal answer. An abort of
+	 * `signal` withdraws this one interaction: the agent stopped waiting for it.
+	 */
+	open(
+		sessionId: SessionId,
+		interaction: Interaction,
+		signal?: AbortSignal,
+	): Promise<InteractionAnswer>;
 	/** Called for answerInteraction requests from the app. */
 	answer(
 		sessionId: SessionId,
@@ -63,6 +75,8 @@ interface Waiting {
 	readonly interaction: Interaction;
 	readonly answer: (answer: InteractionAnswer) => void;
 	settled: boolean;
+	/** Removes the abort listener of the signal passed to `open`, if there was one. */
+	release: () => void;
 }
 
 interface SessionInteractions {
@@ -83,7 +97,12 @@ export class SessionInteractionBroker implements InteractionBroker {
 		},
 	) {}
 
-	open(sessionId: SessionId, interaction: Interaction): Promise<InteractionAnswer> {
+	open(
+		sessionId: SessionId,
+		interaction: Interaction,
+		signal?: AbortSignal,
+	): Promise<InteractionAnswer> {
+		if (signal?.aborted === true) return Promise.resolve(withdrawalAnswer(interaction));
 		let resolve!: (answer: InteractionAnswer) => void;
 		const promise = new Promise<InteractionAnswer>((settle) => {
 			resolve = settle;
@@ -94,7 +113,13 @@ export class SessionInteractionBroker implements InteractionBroker {
 			request: { sessionId, interactionId, interaction },
 			answer: resolve,
 			settled: false,
+			release: () => {},
 		};
+		if (signal !== undefined) {
+			const onAbort = (): void => this.abandon(sessionId, entry);
+			signal.addEventListener("abort", onAbort, { once: true });
+			entry.release = () => signal.removeEventListener("abort", onAbort);
+		}
 
 		const session = this.sessionOf(sessionId);
 		if (session.active === null) {
@@ -139,8 +164,19 @@ export class SessionInteractionBroker implements InteractionBroker {
 		for (const entry of entries) {
 			if (entry.settled) continue;
 			entry.settled = true;
+			entry.release();
 			entry.answer(withdrawalAnswer(entry.interaction));
 		}
+	}
+
+	/** The agent stopped waiting for one interaction: close it, or take it out of the queue. */
+	private abandon(sessionId: SessionId, entry: Waiting): void {
+		if (entry.settled) return;
+		const session = this.sessions.get(sessionId);
+		if (session !== undefined && session.active !== entry) {
+			session.waiting = session.waiting.filter((waiting) => waiting !== entry);
+		}
+		this.settle(sessionId, entry, withdrawalAnswer(entry.interaction));
 	}
 
 	openRequest(sessionId: SessionId): InteractionRequest | undefined {
@@ -189,6 +225,7 @@ export class SessionInteractionBroker implements InteractionBroker {
 	private settle(sessionId: SessionId, entry: Waiting, answer: InteractionAnswer): void {
 		if (entry.settled) return;
 		entry.settled = true;
+		entry.release();
 
 		const session = this.sessions.get(sessionId);
 		if (session?.active !== entry) {

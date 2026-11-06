@@ -5,8 +5,8 @@
  * answer arrives, not when the call is made, so the session holds the resolvers.
  * Must handle: the resolver exists before any caller awaits the promise.
  * Test first: a deferred resolved after a tick yields the value to an earlier awaiter.
- * Our design choice: the ACP session uses this shared home; the Codex and Claude sessions still
- * carry their own copies, which move to those features.
+ * Our design choice: one home for the ACP, Codex and Claude sessions, which each wait on answers
+ * that arrive later (a prompt answer, turn/completed, the result message).
  */
 export interface Deferred<T> {
 	promise: Promise<T>;
