@@ -4,7 +4,13 @@
  * rules for when a file is too large to render.
  * Behaviour: services-map.md 3.4.1 (view modes), 3.4.2 (guard counts), ui-map.md 3.6 (Changes
  * options: current branch, target branch, uncommitted, per commit, per turn).
+ * @feature PR-08 The range scope: a run of stack pull requests compares the bottom one's start with
+ * the top one's head, or with the working tree when the top one is checked out (services-map.md
+ * 3.4.1 `range`, 3.4.5; the run is chosen in git/stack-range.ts). Only the checked-out pull
+ * request compares like the branch scope. Pull requests that are not adjacent, or whose commits
+ * are missing, give no comparison, in Conductor's words.
  * Must handle: a turn whose end checkpoint does not exist yet (compare to the working tree);
+ * a range scope without its run (no comparison);
  * a turn with no start checkpoint (the chat gave no restore point, so no comparison);
  * a branch scope without a merge base (no comparison, with a reason); a root commit (compare
  * against git's empty tree).
@@ -15,6 +21,7 @@
 import { appError, err, ok, type Result } from "@conducted/shared";
 import type { DiffScope } from "../api.ts";
 import { checkpointRef, turnCheckpointId } from "./refs.ts";
+import { type StackRunSelection, stackRunComparison } from "./stack-range.ts";
 
 /** `to` null means the working tree. */
 export interface Comparison {
@@ -34,6 +41,8 @@ export interface ComparisonContext {
 	 * git's empty tree, because `<sha>^` names nothing.
 	 */
 	commitParentExists?: boolean;
+	/** For a range scope: the run of stack pull requests it names. */
+	stackRun?: StackRunSelection;
 }
 
 /** Git's empty tree. A root commit's whole tree is a change against it. */
@@ -45,11 +54,7 @@ export function resolveComparison(
 ): Result<Comparison> {
 	switch (scope.kind) {
 		case "branch":
-			return context.mergeBaseWithTarget === null
-				? err(
-						appError("no_merge_base", "The branch has no common ancestor with the target branch."),
-					)
-				: ok({ from: context.mergeBaseWithTarget, to: null });
+			return branchComparison(context);
 		case "target":
 			return context.mergeBaseWithScopeTarget === null
 				? err(appError("no_merge_base", `No common ancestor with ${scope.branch}.`))
@@ -69,6 +74,31 @@ export function resolveComparison(
 			const end = checkpointRef(turnCheckpointId(scope.sessionId, scope.turnId, "end"));
 			return ok({ from: start, to: context.turnCheckpoints.endExists ? end : null });
 		}
+		case "range":
+			return rangeComparison(context);
+	}
+}
+
+function branchComparison(context: ComparisonContext): Result<Comparison> {
+	return context.mergeBaseWithTarget === null
+		? err(appError("no_merge_base", "The branch has no common ancestor with the target branch."))
+		: ok({ from: context.mergeBaseWithTarget, to: null });
+}
+
+function rangeComparison(context: ComparisonContext): Result<Comparison> {
+	const run = context.stackRun;
+	if (run === undefined) {
+		return err(appError("stack_range_unresolved", "The stack's pull requests were not read."));
+	}
+	switch (run.kind) {
+		case "checkedOut":
+			return branchComparison(context);
+		case "nonAdjacent":
+			return err(appError("stack_range_not_adjacent", "Select adjacent PRs to see their changes"));
+		case "unavailable":
+			return err(appError("stack_range_unavailable", `Can't show #${run.prNumber}'s changes`));
+		case "run":
+			return ok(stackRunComparison(run));
 	}
 }
 

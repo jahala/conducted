@@ -7,7 +7,8 @@
  * that workspace had open last), 3.2 (tab types), 3.6 (git panel tabs and diff scopes).
  * Our design choice: shorter names than Conductor's `activeTabType`/`specialTab*` set, one `tab` kind
  * (session, terminal, file, comment, pr, browser; the cloud desktop tab is out of scope), and the diff scope as
- * one string ("branch", "uncommitted", "target:main", "commit:abc123", "turn:<session>:<turn>").
+ * one string ("branch", "uncommitted", "target:main", "commit:abc123", "turn:<session>:<turn>",
+ * "range:10:11" for a run of stack pull requests, PR-08).
  * Must handle: a bad or unknown value is dropped instead of failing the page; values that look like numbers
  * (a file called "404", a numeric id) arrive as numbers from the URL parser and are turned back into strings;
  * a scope string with unknown kind or missing parts gives null.
@@ -66,8 +67,13 @@ export function formatDiffScope(scope: DiffScope): string {
 			return `commit:${scope.sha}`;
 		case "turn":
 			return `turn:${scope.sessionId}:${scope.turnId}`;
+		case "range":
+			return ["range", ...scope.prNumbers].join(":");
 	}
 }
+
+/** A pull request number in the URL: a positive whole number with no leading zero. */
+const PR_NUMBER = /^[1-9]\d*$/;
 
 export function parseDiffScope(text: string): DiffScope | null {
 	if (text === "branch") return { kind: "branch" };
@@ -85,6 +91,11 @@ export function parseDiffScope(text: string): DiffScope | null {
 		const turn = zTurnId.safeParse(turnId);
 		if (extra.length > 0 || !session.success || !turn.success) return null;
 		return { kind: "turn", sessionId: session.data, turnId: turn.data };
+	}
+	if (kind === "range") {
+		const numbers = rest.split(":");
+		if (!numbers.every((number) => PR_NUMBER.test(number))) return null;
+		return { kind: "range", prNumbers: numbers.map(Number) };
 	}
 	return null;
 }

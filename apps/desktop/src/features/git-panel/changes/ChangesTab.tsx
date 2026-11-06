@@ -8,12 +8,16 @@
  * useStack (the stacked pull requests), useSetting("github_stacked_prs_enabled"), useWorkspace and
  * useRepoConfig (the trunk is the target branch without its remote), useActions().git.discardFile,
  * and the GitHub service's mark ready for a stack entry's own pull request number.
+ * @feature PR-08 The range view: choosing stack pull requests in the stack view sets the range
+ * scope (stack-selection.ts), and the list shows that run's files, or why it cannot (not adjacent,
+ * commits missing), or "No changes in the selected PRs" (services-map.md 3.4.1, 3.4.5; the words
+ * are Conductor's).
  * Children: ChangesToolbar, StackView, ScopeBackBar, ChangedFileList, ChangesEmpty.
  * Keyboard: ArrowUp and ArrowDown move the selected file (in ChangedFileList). The command
  * "Open the diff view" (Cmd+Shift+D, or the user's rebind) opens the selected file's diff through
  * the command dispatcher. Moving between comments (Cmd+Alt+J and K) belongs to REV-03.
  * Discard is offered for the whole-branch scopes and the uncommitted view: it puts a file back to
- * the target branch, which would be a surprise from a one-commit view.
+ * the target branch, which would be a surprise from a one-commit or a range view.
  * Must handle: loading (skeleton rows), an error with its message (the list reloads by itself on
  * the next poll), no git status (rebase or merge underway), no changes, a filter that matches
  * nothing, untracked files cut off at the cap, a very long list (virtualised), conflicted files
@@ -26,7 +30,7 @@
  * Test first: with three ChangedFile rows and the filter "src/a", only the matching row renders.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../../core/api.ts";
 import { useServices } from "../../../core/context.tsx";
@@ -43,6 +47,7 @@ import {
 } from "../../../core/hooks.ts";
 import { branchNameWithoutRemote } from "../../../core/services/git.ts";
 import { remoteNameFromConfig } from "../../../core/services/workspace.ts";
+import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { ChangedFileList } from "./ChangedFileList.tsx";
@@ -51,6 +56,11 @@ import { ChangesToolbar } from "./ChangesToolbar.tsx";
 import { buildChangedTree, filterChangedFiles } from "./changed-file-tree.ts";
 import { ScopeBackBar } from "./ScopeBackBar.tsx";
 import { StackView } from "./StackView.tsx";
+import {
+	nextStackSelection,
+	scopeForStackSelection,
+	selectedStackPrNumbers,
+} from "./stack-selection.ts";
 
 export interface ChangesTabProps {
 	workspaceId: WorkspaceId;
@@ -82,6 +92,15 @@ function scopeTitle(scope: DiffScope, commits: { sha: string; subject: string }[
 	return "One turn";
 }
 
+/** The range scope's own words for a run it cannot show, in Conductor's words; null otherwise. */
+function rangeProblem(code: string, message: string): ReactNode {
+	if (code === "stack_range_not_adjacent") return <EmptyState compact title={message} />;
+	if (code === "stack_range_unavailable") {
+		return <EmptyState compact title={message} body="Its commits aren't in this workspace" />;
+	}
+	return null;
+}
+
 /**
  * The stack view, drawn once the workspace and its repository settings are loaded, so the trunk is
  * the workspace's own target branch without its remote, never a guessed name.
@@ -91,16 +110,22 @@ function StackSection({
 	repoId,
 	targetBranch,
 	agentRunning,
+	scope,
+	onScopeChange,
 }: {
 	workspaceId: WorkspaceId;
 	repoId: RepoId;
 	targetBranch: string;
 	agentRunning: boolean;
+	scope: DiffScope;
+	onScopeChange: (scope: DiffScope) => void;
 }) {
 	const stack = useStack(workspaceId);
 	const config = useRepoConfig(repoId);
 	const actions = useActions();
 	const { services } = useServices();
+	// Where the last plain or Cmd click landed, so a Shift-click chooses the block from there.
+	const [anchor, setAnchor] = useState<number | undefined>(undefined);
 	if (stack.state !== "ready" || stack.data.length === 0 || config.state !== "ready") return null;
 	// A remote name git cannot use also fails the stack read, so this only guards the type.
 	const remote = remoteNameFromConfig(config.data);
@@ -118,6 +143,12 @@ function StackSection({
 		});
 	};
 
+	// Only open pull requests have a range of their own (git/stack-range.ts).
+	const open = stack.data.filter((entry) => entry.state === "open" || entry.state === "draft");
+	const prNumbers = open.map((entry) => entry.number);
+	const currentPrNumber = open.find((entry) => entry.isCurrent)?.number ?? null;
+	const selected = selectedStackPrNumbers(scope, prNumbers, currentPrNumber);
+
 	return (
 		<StackView
 			trunk={branchNameWithoutRemote(targetBranch, remote.value)}
@@ -125,6 +156,12 @@ function StackSection({
 			onCheckout={checkout}
 			onMarkReady={markReady}
 			agentRunning={agentRunning}
+			selectedPrNumbers={selected}
+			onSelectPr={(clicked, modifier) => {
+				const next = nextStackSelection({ prNumbers, selected, anchor, clicked, modifier });
+				setAnchor(next.anchor);
+				onScopeChange(scopeForStackSelection(next.selected, currentPrNumber));
+			}}
 		/>
 	);
 }
@@ -195,9 +232,15 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 		}
 		if (files.state === "loading") return <LoadingRows />;
 		if (files.state === "error") {
-			return <ChangesEmpty reason="no_git_status" message={files.error.message} />;
+			return (
+				rangeProblem(files.error.code, files.error.message) ?? (
+					<ChangesEmpty reason="no_git_status" message={files.error.message} />
+				)
+			);
 		}
-		if (allFiles.length === 0) return <ChangesEmpty reason="no_changes" />;
+		if (allFiles.length === 0) {
+			return <ChangesEmpty reason={scope.kind === "range" ? "no_range_changes" : "no_changes"} />;
+		}
 		if (filtered.length === 0) {
 			return <ChangesEmpty reason="filter_no_match" onClearFilter={() => setFilter("")} />;
 		}
@@ -210,7 +253,7 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 					onOpen={onOpenFile}
 					onToggleFolder={toggleFolder}
 					collapsedFolders={collapsedFolders}
-					onDiscard={scope.kind === "commit" ? undefined : discard}
+					onDiscard={scope.kind === "commit" || scope.kind === "range" ? undefined : discard}
 				/>
 				{git.state === "ready" && git.data.untrackedFilesTruncated && includesWorkingTree ? (
 					<ChangesEmpty reason="untracked_truncated" />
@@ -236,6 +279,8 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 					repoId={workspace.data.repoId}
 					targetBranch={workspace.data.targetBranch}
 					agentRunning={agentRunning}
+					scope={scope}
+					onScopeChange={onScopeChange}
 				/>
 			) : null}
 			{narrowed ? (

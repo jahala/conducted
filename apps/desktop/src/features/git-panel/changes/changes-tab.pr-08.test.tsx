@@ -2,15 +2,19 @@
  * @feature PR-08 Stack view in the Changes tab
  * Owns: the container test that the Changes tab shows the stack from `useStack`, hides it while
  * stacked pull requests are off, names the trunk without cutting a slash out of it, reaches switch
- * branch, and marks the clicked draft ready, not the workspace's own pull request.
- * Behaviour: ui-map.md 3.6, 6 Git ("Use GitHub stacked PRs" enables the stack view).
+ * branch, marks the clicked draft ready, not the workspace's own pull request, turns clicks on
+ * stack entries into the range scope, and lists a range's files through the real git service.
+ * Behaviour: ui-map.md 3.6, 6 Git ("Use GitHub stacked PRs" enables the stack view);
+ * services-map.md 3.4.1 (view mode `range`) and 3.4.5.
  * Test first: the Changes tab draws the stack's three entries over the real container.
  */
-import { ok } from "@conducted/shared";
+import { ok, type Result } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders, createQueryClient } from "../../../app/providers.tsx";
+import type { DiffScope } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
+import type { ShellCommand, ShellOutput } from "../../../platform/platform.ts";
 import {
 	createTestContainer,
 	seedPullRequest,
@@ -45,13 +49,21 @@ const stackAnswer = JSON.stringify({
 	},
 });
 
+/** Each branch's head commit on GitHub. */
+const SHA: Record<string, string> = {
+	main: "0".repeat(40),
+	"feat-a": "a".repeat(40),
+	"feat-b": "b".repeat(40),
+	"feat-c": "c".repeat(40),
+};
+
 const member = (number: number, title: string, draft: boolean, ref: string, base: string) => ({
 	number,
 	title,
 	state: "OPEN",
 	draft,
-	head: { ref, sha: `${ref}-sha` },
-	base: { ref: base, sha: `${base}-sha` },
+	head: { ref, sha: SHA[ref] },
+	base: { ref: base, sha: SHA[base] },
 });
 
 const membersAnswer = JSON.stringify({
@@ -65,6 +77,7 @@ const membersAnswer = JSON.stringify({
 async function seedDashboard(
 	enabled: boolean,
 	targetBranch?: string,
+	gitAnswer?: (command: ShellCommand) => Result<ShellOutput> | null,
 ): Promise<{
 	harness: TestContainer;
 	workspaceId: string;
@@ -93,6 +106,8 @@ async function seedDashboard(
 	if (!setting.ok) throw new Error(setting.error.message);
 
 	test.memory.controls.scriptShell((command) => {
+		const answer = gitAnswer?.(command);
+		if (answer !== null && answer !== undefined) return answer;
 		if (command.program === "git" && command.args.includes("get-url")) {
 			return output("git@github.com:o/r.git\n");
 		}
@@ -112,14 +127,19 @@ async function seedDashboard(
 	return { harness: test, workspaceId: workspace.id };
 }
 
-function renderTab(harness: TestContainer, workspaceId: string): void {
+function renderTab(
+	harness: TestContainer,
+	workspaceId: string,
+	scope: DiffScope = { kind: "branch" },
+	onScopeChange: (scope: DiffScope) => void = vi.fn(),
+): void {
 	render(
 		<ServicesProvider container={harness.container}>
 			<AppProviders client={createQueryClient(() => {})}>
 				<ChangesTab
 					workspaceId={workspaceId as never}
-					scope={{ kind: "branch" }}
-					onScopeChange={vi.fn()}
+					scope={scope}
+					onScopeChange={onScopeChange}
 					onOpenFile={vi.fn()}
 				/>
 			</AppProviders>
@@ -173,5 +193,99 @@ describe("PR-08 Changes tab stack view", () => {
 		renderTab(harness, workspaceId);
 
 		await waitFor(() => expect(screen.queryByText("Stack PRs")).toBeNull());
+	});
+
+	it("turns clicks on stack entries into the range scope", async () => {
+		const { harness, workspaceId } = await seedDashboard(true);
+		const onScopeChange = vi.fn();
+
+		renderTab(harness, workspaceId, { kind: "branch" }, onScopeChange);
+
+		const first = await screen.findByRole("button", { name: "#10 Add the parser" });
+		fireEvent.click(first);
+		expect(onScopeChange).toHaveBeenLastCalledWith({ kind: "range", prNumbers: [10] });
+		// Shift-click from #10 chooses the block up to #12.
+		fireEvent.click(screen.getByRole("button", { name: "#12 Document it" }), { shiftKey: true });
+		expect(onScopeChange).toHaveBeenLastCalledWith({ kind: "range", prNumbers: [10, 11, 12] });
+		// Only the checked-out pull request is the branch's own changes.
+		fireEvent.click(screen.getByRole("button", { name: "#11 Use the parser" }));
+		expect(onScopeChange).toHaveBeenLastCalledWith({ kind: "branch" });
+	});
+
+	it("lists the files of a pull request's range through the real git service", async () => {
+		const fromOid = "1".repeat(40);
+		const { harness, workspaceId } = await seedDashboard(true, undefined, (command) => {
+			if (command.program !== "git") return null;
+			// Every pull request of the stack is resolved; #10's range starts at fromOid.
+			if (command.args.includes("merge-base")) {
+				return output(command.args.includes(SHA.main as string) ? `${fromOid}\n` : "9".repeat(40));
+			}
+			if (command.args.includes("diff") && command.args.includes("--name-status")) {
+				return output("M\tsrc/range.ts\n");
+			}
+			if (command.args.includes("diff") && command.args.includes("--numstat")) {
+				return output("3\t1\tsrc/range.ts\n");
+			}
+			return null;
+		});
+
+		renderTab(harness, workspaceId, { kind: "range", prNumbers: [10] });
+
+		expect(await screen.findByText(/range\.ts/)).toBeTruthy();
+		expect(
+			screen.getByRole("button", { name: "#10 Add the parser" }).getAttribute("aria-pressed"),
+		).toBe("true");
+		const diff = harness.memory.controls.shellCalls.find(
+			(command) => command.args.includes("diff") && command.args.includes("--name-status"),
+		);
+		// #10 runs from the merge base of main and its head to its head on GitHub.
+		expect(diff?.args.slice(-2)).toEqual([fromOid, SHA["feat-a"]]);
+	});
+
+	it("says when the chosen pull requests are not next to each other", async () => {
+		const { harness, workspaceId } = await seedDashboard(true, undefined, (command) =>
+			command.program === "git" && command.args.includes("merge-base")
+				? output(`${"1".repeat(40)}\n`)
+				: null,
+		);
+
+		renderTab(harness, workspaceId, { kind: "range", prNumbers: [10, 12] });
+
+		expect(await screen.findByText("Select adjacent PRs to see their changes")).toBeTruthy();
+	});
+
+	it("says when the chosen pull requests change nothing", async () => {
+		const { harness, workspaceId } = await seedDashboard(true, undefined, (command) =>
+			command.program === "git" && command.args.includes("merge-base")
+				? output(`${"1".repeat(40)}\n`)
+				: null,
+		);
+
+		renderTab(harness, workspaceId, { kind: "range", prNumbers: [10] });
+
+		expect(await screen.findByText("No changes in the selected PRs")).toBeTruthy();
+	});
+
+	it("names the pull request whose commits are not in the workspace", async () => {
+		const { harness, workspaceId } = await seedDashboard(true, undefined, (command) => {
+			if (command.program !== "git") return null;
+			if (command.args.includes("rev-parse") && command.args.includes(`${SHA["feat-c"]}^0`)) {
+				return output("", "", 1);
+			}
+			if (command.args.includes("fetch")) {
+				return output("", "fatal: couldn't find remote ref feat-c", 128);
+			}
+			if (command.args.includes("merge-base")) return output(`${"1".repeat(40)}\n`);
+			return null;
+		});
+
+		renderTab(harness, workspaceId, { kind: "range", prNumbers: [12] });
+
+		expect(await screen.findByText("Can't show #12's changes")).toBeTruthy();
+		expect(screen.getByText("Its commits aren't in this workspace")).toBeTruthy();
+		const fetches = harness.memory.controls.shellCalls.filter((command) =>
+			command.args.includes("fetch"),
+		);
+		expect(fetches.at(0)?.args.slice(-2)).toEqual(["origin", "feat-c"]);
 	});
 });

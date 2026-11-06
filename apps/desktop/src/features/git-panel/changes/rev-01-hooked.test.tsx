@@ -264,6 +264,25 @@ describe("REV-01 diff scope menu", () => {
 		expect(onChange).toHaveBeenCalledWith({ kind: "commit", sha: "bbb2222" });
 	});
 
+	it("names a range scope by its stack pull requests (PR-08)", () => {
+		const { rerender } = render(
+			<DiffScopeMenu
+				workspaceId={workspaceId}
+				scope={{ kind: "range", prNumbers: [10] }}
+				onChange={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("button", { name: "Diff scope" }).textContent).toBe("Changes in #10");
+		rerender(
+			<DiffScopeMenu
+				workspaceId={workspaceId}
+				scope={{ kind: "range", prNumbers: [10, 11] }}
+				onChange={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("button", { name: "Diff scope" }).textContent).toBe("Changes in 2 PRs");
+	});
+
 	it("switches to uncommitted changes from the menu", async () => {
 		const onChange = vi.fn<(scope: DiffScope) => void>();
 		render(

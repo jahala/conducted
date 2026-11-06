@@ -66,7 +66,9 @@
  * stack sync or stack merge that `gh` answers with an unknown command gets the install message
  * naming that action, a stack sync that prints a cross mark or its abort notice is an error, never
  * a success, and a stack merge runs `gh stack merge` with the repository's first allowed merge
- * method; a review-comment read needs a pull request
+ * method; the members the last stack read found, with each base branch, are kept per workspace
+ * for the range diff scope (PR-08, services-map 3.4.5), which reads the stack itself only when
+ * nothing has; a review-comment read needs a pull request
  * and an owner/name GitHub remote, follows every thread page and every thread's extra comment
  * page, and a resolve sends the raw thread id as a variable.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
@@ -618,6 +620,8 @@ export interface StackMember {
 	state: StackEntryView["state"];
 	headSha: string;
 	baseSha: string;
+	/** The branch the pull request merges into, which a range fetches when its commit is missing. */
+	baseBranch: string;
 }
 
 /**
@@ -700,6 +704,7 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 		const branch = isRecord(head) ? stringField(head, "ref") : null;
 		const headSha = isRecord(head) ? stringField(head, "sha") : null;
 		const baseSha = isRecord(base) ? stringField(base, "sha") : null;
+		const baseBranch = isRecord(base) ? stringField(base, "ref") : null;
 		if (
 			typeof number !== "number" ||
 			!Number.isSafeInteger(number) ||
@@ -707,7 +712,8 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 			title === null ||
 			branch === null ||
 			headSha === null ||
-			baseSha === null
+			baseSha === null ||
+			baseBranch === null
 		) {
 			return err(responseInvalid());
 		}
@@ -716,7 +722,7 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 			merged ? "MERGED" : stringField(item, "state"),
 			item.draft === true,
 		);
-		members.push({ number, title, branch, state, headSha, baseSha });
+		members.push({ number, title, branch, state, headSha, baseSha, baseBranch });
 	}
 	return ok(members);
 }
@@ -1613,6 +1619,12 @@ export class GithubService {
 	readonly #mergeMethodByRepo = new Map<string, MergeMethod>();
 	/** GitHub hosts that refused the optional `stackEntry` field, remembered per repository. */
 	readonly #stackEntryUnsupported = new Set<string>();
+	/**
+	 * The members the last stack read found, per workspace, for the range diff scope. One entry per
+	 * workspace whose stack was read: each read replaces it, a read that finds no stack removes it,
+	 * and `dispose` clears them all.
+	 */
+	readonly #stackMembers = new Map<string, readonly StackMember[]>();
 	/** The adaptive batch size: starts at five, halves on a failed query, then grows. */
 	#batchSizes = initialBatchSizes();
 	readonly #rateGate: RateLimitGate;
@@ -1932,6 +1944,7 @@ export class GithubService {
 		this.#lastPolledAt.clear();
 		this.#headByWorkspace.clear();
 		this.#repoKeyByWorkspace.clear();
+		this.#stackMembers.clear();
 	}
 
 	/**
@@ -3007,15 +3020,20 @@ export class GithubService {
 	 * field is retried without when the host does not know it, and that host is remembered.
 	 */
 	async readStack(workspaceId: WorkspaceId): Promise<Result<StackEntryView[]>> {
+		const key = String(workspaceId);
 		const setting = this.#deps.setting;
 		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			this.#stackMembers.delete(key);
 			return ok([]);
 		}
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
 		const prNumber = found.prNumber;
-		if (prNumber === null) return ok([]);
+		if (prNumber === null) {
+			this.#stackMembers.delete(key);
+			return ok([]);
+		}
 
 		const repository = await this.#repositoryOf(found);
 		if (!repository.ok) return err(repository.error);
@@ -3032,7 +3050,10 @@ export class GithubService {
 		if (!details.ok) return err(details.error);
 		const parsedStack = parsePrStackEntry(details.value);
 		if (!parsedStack.ok) return err(parsedStack.error);
-		if (parsedStack.value === null) return ok([]);
+		if (parsedStack.value === null) {
+			this.#stackMembers.delete(key);
+			return ok([]);
+		}
 
 		const members = await this.#readGh(stackMembers(parsedStack.value.number), found.workspacePath);
 		if (!members.ok) return err(members.error);
@@ -3042,15 +3063,30 @@ export class GithubService {
 			parsedMembers.value.map((member) => member.number),
 			found.workspacePath,
 		);
+		this.#stackMembers.set(key, parsedMembers.value);
 		const repoRootPath = found.repoRootPath ?? found.workspacePath;
 		return ok(
-			parsedMembers.value.map((member) => ({
+			parsedMembers.value.map(({ baseBranch: _baseBranch, ...member }) => ({
 				...member,
 				isCurrent: member.branch === found.branch,
 				needsRestack: this.#deps.graphite?.needsRestackOf(repoRootPath, member.branch) ?? false,
 				mergeStateStatus: readiness.get(member.number) ?? null,
 			})),
 		);
+	}
+
+	/**
+	 * The members of the workspace's stack for the range diff scope (PR-08): the ones the last
+	 * stack read found, so a range listed every few seconds does not ask GitHub each time. The stack
+	 * view reads the stack every minute; when nothing has read it yet, this reads it.
+	 */
+	async stackMembersOf(workspaceId: WorkspaceId): Promise<Result<readonly StackMember[]>> {
+		const key = String(workspaceId);
+		const known = this.#stackMembers.get(key);
+		if (known !== undefined) return ok(known);
+		const read = await this.readStack(workspaceId);
+		if (!read.ok) return read;
+		return ok(this.#stackMembers.get(key) ?? []);
 	}
 
 	/**
