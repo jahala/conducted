@@ -33,12 +33,13 @@
  * key lists for one agent, answered out of order, leave the newer answer; two provider lists for
  * one agent, answered out of order, leave the newer answer.
  */
-import type {
-	AgentInstall,
-	AgentLogin,
-	AgentProvider,
-	ModelInfo,
-	SlashCommand,
+import {
+	AGENT_PROVIDER_TABLE,
+	type AgentInstall,
+	type AgentLogin,
+	type AgentProvider,
+	type ModelInfo,
+	type SlashCommand,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { appError, err, notImplemented, ok } from "@conducted/shared";
@@ -104,10 +105,12 @@ export interface AgentCatalogServiceDeps {
 }
 
 /**
- * Whether every stored key of the agent reaches its launch, whatever the provider. True for the
- * ACP agents: they pick a provider in their own config, so the container passes them all.
+ * Whether every stored key of the agent reaches its launch, whatever the provider: true for an agent
+ * that picks a provider in its own config (the agent-provider table's `configProviders`, OpenCode
+ * and Pi), so the container passes them all.
  */
-export const keysShareVariables = (agent: AgentKind): boolean => agent === "acp";
+const keysShareVariables = (agent: AgentKind): boolean =>
+	AGENT_PROVIDER_TABLE[agent].configProviders !== undefined;
 
 /** The Keychain entry for one provider key. Stable, so saving twice replaces one entry. */
 export function providerKeychainRef(key: ProviderKeyRef): string {
