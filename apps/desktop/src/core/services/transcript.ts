@@ -9,9 +9,11 @@
  * tool outputs are cut at 2000 characters with a note; a search query under two characters
  * returns nothing; `%` and `_` in the query are matched literally; results carry the chat id and
  * a short excerpt, which the palette names; reverted events are not searched.
- * Our design choice: search runs over the event log's JSON text for `user_message` and `agent`
- * events with a LIKE query, then keeps only the text items that contain the query. There is no
- * full-text index yet.
+ * Our design choice: search runs a LIKE query over the text a user message holds and over the
+ * text items of an agent message, read out of the stored JSON with SQLite's JSON functions. So
+ * the row limit counts only real matches (a key name such as "text" matches nothing), and a quote,
+ * a backslash or a line break in the query is compared with the text, not with its JSON escape.
+ * There is no full-text index yet.
  * Test first: a concise transcript of one turn lists the user text, then the agent text, then one
  * line for each tool call.
  */
@@ -26,14 +28,22 @@ export const escapeLike = (query: string): string => query.replace(/[\\%_]/g, (c
 
 export const HISTORY_SEARCH_MIN_QUERY = 2;
 
-/** `$1` is `%<escaped query>%`, `$2` the row limit. Reverted events are not searched. */
+/**
+ * `$1` is `%<escaped query>%`, `$2` the row limit. Reverted events are not searched. The LIKE
+ * runs on the message text itself, never on the JSON around it, so the limit counts real hits.
+ */
 export const HISTORY_SEARCH_SQL = `SELECT e.session_id AS session_id, e.turn_id AS turn_id,
   e.type AS type, e.content AS content, e.received_at AS received_at
 FROM session_events e
 JOIN sessions s ON s.id = e.session_id
 WHERE e.reverted_at IS NULL
-  AND e.type IN ('user_message', 'agent')
-  AND e.content LIKE $1 ESCAPE '\\'
+  AND (
+    (e.type = 'user_message' AND json_extract(e.content, '$.text') LIKE $1 ESCAPE '\\')
+    OR (e.type = 'agent' AND EXISTS (
+      SELECT 1 FROM json_each(e.content, '$.message.items') item
+      WHERE json_extract(item.value, '$.kind') = 'text'
+        AND json_extract(item.value, '$.text') LIKE $1 ESCAPE '\\'))
+  )
 ORDER BY e.received_at DESC
 LIMIT $2`;
 

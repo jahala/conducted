@@ -1,8 +1,8 @@
 /**
  * @feature GIT-14 Local-git forge: pull request state for repositories without GitHub
  * Owns: making PR-like information for a repository that has no GitHub remote (commits ahead and
- * behind, and whether merging would conflict), the "Merge into target" request, and the list of
- * things each kind of forge can do.
+ * behind, and whether merging would conflict), the "Merge into target" request, and the things each
+ * kind of forge can do that an action reads.
  * Behaviour: services-map.md 3.7.7 (synthesised PR info), 5B.1.5 (forge capabilities: all true for
  * GitHub, all false for local git), section 6 (the switch that turns the forge on).
  * Must handle: a branch with nothing ahead (no conflict check runs); a conflict probe that exits
@@ -29,56 +29,32 @@ import { mergeIntoTargetInstruction } from "./agent-instructions.ts";
 import { targetBranchName, type WorkspaceGitContext } from "./git.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
-/** What a forge can do. The header and the PR actions show only what is true here. */
+/**
+ * What a forge can do, for the actions that read it: the Git header's Ready for review,
+ * auto-merge and Approve (`git-header.ts`), and the panel's Merge, which goes to GitHub or to the
+ * agent (`GitPanel.tsx`). services-map 5B.1.5 lists more capabilities; a flag joins this list when
+ * an action reads it.
+ */
 export interface ForgeCapabilities {
+	/** Calls to the forge's own service: an approve is one. */
 	remoteRequests: boolean;
-	createPullRequest: boolean;
-	updatePullRequest: boolean;
-	draftPullRequest: boolean;
 	markReady: boolean;
 	merge: boolean;
 	autoMerge: boolean;
-	reviewerRequests: boolean;
-	reviewThreadResolution: boolean;
-	checks: boolean;
-	checkLogs: boolean;
-	checkRetry: boolean;
-	issuePicker: boolean;
-	repoCreate: boolean;
 }
 
 export const GITHUB_FORGE_CAPABILITIES: ForgeCapabilities = {
 	remoteRequests: true,
-	createPullRequest: true,
-	updatePullRequest: true,
-	draftPullRequest: true,
 	markReady: true,
 	merge: true,
 	autoMerge: true,
-	reviewerRequests: true,
-	reviewThreadResolution: true,
-	checks: true,
-	checkLogs: true,
-	checkRetry: true,
-	issuePicker: true,
-	repoCreate: true,
 };
 
 export const LOCAL_GIT_FORGE_CAPABILITIES: ForgeCapabilities = {
 	remoteRequests: false,
-	createPullRequest: false,
-	updatePullRequest: false,
-	draftPullRequest: false,
 	markReady: false,
 	merge: false,
 	autoMerge: false,
-	reviewerRequests: false,
-	reviewThreadResolution: false,
-	checks: false,
-	checkLogs: false,
-	checkRetry: false,
-	issuePicker: false,
-	repoCreate: false,
 };
 
 /** The capabilities of one forge. Only GitHub can act on the remote. */

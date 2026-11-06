@@ -16,7 +16,10 @@
  * inside an existing repository (ask git for the work tree root, so no nested repository is made);
  * a path already added (return the existing project); a folder added from disk with no commits
  * (workspace creation makes its first commit); creating the GitHub repository makes a first commit
- * when the folder has none; the default branch comes from the remote's
+ * of only .gitkeep when the folder is empty and has none, and refuses a folder with files but no
+ * commits, so nothing the user did not choose is published; a failure after the repository was
+ * created removes the origin gh added before the old origin is put back; the default branch comes
+ * from the remote's
  * HEAD, else the checked-out branch, and the add fails visibly when neither exists; removing a
  * project asks its removal port to stop work and delete its workspaces before deleting the row;
  * an invalid settings file is reported instead of replaced; a config edit made outside the app is
@@ -50,13 +53,15 @@ import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
 import {
 	addAll,
+	addPath,
 	branchShowCurrent,
 	checkout,
 	cloneWithProgress,
 	commitAll,
 	initRepository,
-	pushSetUpstreamHead,
+	pushSetUpstreamHeadWithGh,
 	remoteGetUrl,
+	remoteRemove,
 	remoteRename,
 	remoteSetUrl,
 	revParse,
@@ -1028,9 +1033,13 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.createGitHubRepo`: renames an existing origin to upstream, creates the
-	 * repository from this folder, pushes the current branch with its upstream set, and returns the
-	 * repository's web URL. A failure after the rename puts origin back, so the project's remotes
-	 * are as they were.
+	 * repository from this folder, pushes the current branch with its upstream set (gh is the
+	 * credential helper for github.com), and returns the repository's web URL. A folder with no
+	 * commits gets a first commit only when it is empty, holding only .gitkeep; one with files is
+	 * refused, so nothing the user did not choose is published. A failure after the create removes
+	 * the origin gh added, and a failure after the rename puts the old origin back, so the
+	 * project's remotes are as they were; the repository on GitHub stays, and the error says so.
+	 * The `git init`, .gitkeep and first commit stay too: research 3.2 undoes only the rename.
 	 */
 	async createGitHubRepo(
 		repoId: RepoId,
@@ -1094,7 +1103,33 @@ export class RepoService {
 			renamed = true;
 		}
 
-		const fail = async (failure: AppError): Promise<Result<string>> => {
+		const ownerSlashName = `${owner}/${name}`;
+		// Set once `gh repo create` has made the repository and added it as origin.
+		let created = false;
+		const fail = async (cause: AppError): Promise<Result<string>> => {
+			// The repository on GitHub stays: deleting it needs a scope the sign-in may not have, and
+			// the user may want it. The message says it is there.
+			const failure = created
+				? appError(
+						cause.code,
+						`${cause.message} The repository ${ownerSlashName} was created on GitHub and is still there.`,
+						cause.cause,
+					)
+				: cause;
+			// gh added the new repository as origin, so it goes first: git refuses to rename a remote
+			// onto a name that is taken.
+			if (created) {
+				const removed = await this.#deps.git.runChecked(remoteRemove("origin"), { cwd: rootPath });
+				if (!removed.ok) {
+					return err(
+						appError(
+							"github_repo_restore_failed",
+							`${failure.message} The new origin remote could not be removed. ${removed.error.message}`,
+							failure,
+						),
+					);
+				}
+			}
 			if (!renamed) return err(failure);
 			const restored = await this.#deps.git.runChecked(remoteRename("upstream", "origin"), {
 				cwd: rootPath,
@@ -1132,19 +1167,27 @@ export class RepoService {
 					),
 				);
 			}
-			if (status.value === "") {
-				const keep = await this.#deps.platform.fs.writeTextAtomic(`${rootPath}/.gitkeep`, "");
-				if (!keep.ok) {
-					return fail(
-						appError(
-							"github_repo_commit_failed",
-							`Couldn't prepare the first commit. ${keep.error.message}`,
-							keep.error,
-						),
-					);
-				}
+			// Committing files the user never chose (an .env, keys) would publish them, so only an
+			// empty folder gets a first commit here, and that commit holds only .gitkeep.
+			if (status.value !== "") {
+				return fail(
+					appError(
+						"github_repo_no_commits",
+						"This project has files but no commits yet. Commit the files you want on GitHub, then try again.",
+					),
+				);
 			}
-			const added = await this.#deps.git.runChecked(addAll(), { cwd: rootPath });
+			const keep = await this.#deps.platform.fs.writeTextAtomic(`${rootPath}/.gitkeep`, "");
+			if (!keep.ok) {
+				return fail(
+					appError(
+						"github_repo_commit_failed",
+						`Couldn't prepare the first commit. ${keep.error.message}`,
+						keep.error,
+					),
+				);
+			}
+			const added = await this.#deps.git.runChecked(addPath(".gitkeep"), { cwd: rootPath });
 			if (!added.ok) {
 				return fail(
 					appError(
@@ -1168,28 +1211,28 @@ export class RepoService {
 			}
 		}
 
-		const ownerSlashName = `${owner}/${name}`;
-		const created = await this.#deps.git.runChecked(
+		const made = await this.#deps.git.runChecked(
 			githubRepoCreate(ownerSlashName, `A repository for ${name}`, input.isPrivate, "."),
 			{ cwd: rootPath },
 		);
-		if (!created.ok) {
+		if (!made.ok) {
 			return fail(
 				appError(
 					"github_repo_create_failed",
-					`Couldn't create the GitHub repository ${ownerSlashName}. ${created.error.message}`,
-					created.error,
+					`Couldn't create the GitHub repository ${ownerSlashName}. ${made.error.message}`,
+					made.error,
 				),
 			);
 		}
-		const pushed = await this.#deps.git.runChecked(pushSetUpstreamHead("origin"), {
+		created = true;
+		const pushed = await this.#deps.git.runChecked(pushSetUpstreamHeadWithGh("origin"), {
 			cwd: rootPath,
 		});
 		if (!pushed.ok) {
 			return fail(
 				appError(
 					"github_repo_push_failed",
-					`The repository was created, but the current branch could not be pushed. ${pushed.error.message}`,
+					`The current branch could not be pushed to the new repository. ${pushed.error.message}`,
 					pushed.error,
 				),
 			);

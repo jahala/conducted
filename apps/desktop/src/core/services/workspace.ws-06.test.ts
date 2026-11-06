@@ -209,6 +209,7 @@ function harness(options: HarnessOptions = {}) {
 		repos: {
 			repos: { get: async () => ok(baseRepo) },
 			workspaces,
+			backlogWorkspaces: { list: async () => ok([]) },
 		},
 		placeNames: { pick: () => "oslo" },
 		sessions: {

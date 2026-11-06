@@ -18,7 +18,6 @@ import {
 } from "../../test/fake-git-runner.ts";
 import { localSettingsFile } from "../app-paths.ts";
 import type { CheckRun, PullRequest } from "../model.ts";
-import type { GitCache } from "./git-cache.ts";
 import {
 	FIX_ERRORS_LOG_LINES,
 	FIX_ERRORS_LOG_READS,
@@ -71,7 +70,6 @@ function service(handler: GitHandler, prompt: string | null = null) {
 	};
 	const github = new GithubService({
 		git,
-		cache: {} as GitCache,
 		agent,
 		contextOf: async () =>
 			ok({
@@ -186,7 +184,6 @@ describe("PR-05 fix errors sends failing checks to the agent", () => {
 		const git = new FakeGitRunner(() => gitOutput("", "", 0));
 		const github = new GithubService({
 			git,
-			cache: {} as GitCache,
 			agent: { sendInstruction: async () => err(failure) },
 			contextOf: async () =>
 				ok({

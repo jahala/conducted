@@ -65,7 +65,7 @@ import { FavoriteModelsService } from "./services/favorite-models.ts";
 import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
-import { createGitCache, type GitCache } from "./services/git-cache.ts";
+import { connectGitCache, createGitCache, type GitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
@@ -606,6 +606,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 		log,
 	});
+	/**
+	 * The repository that holds a workspace's checkpoint refs, or null when its folder is gone (git
+	 * cannot run there, and the refs went with it).
+	 */
+	const checkpointRepoRoot = async (workspaceId: WorkspaceId): Promise<Result<string | null>> => {
+		const workspace = await repositories.workspaces.get(workspaceId);
+		if (!workspace.ok) return workspace;
+		if (workspace.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const repository = await repositories.repos.get(workspace.value.repoId);
+		if (!repository.ok) return repository;
+		if (repository.value === null)
+			return err(appError("repo_unknown", "That project was removed."));
+		if (!(await platform.fs.exists(repository.value.rootPath))) return ok(null);
+		return ok(repository.value.rootPath);
+	};
 	const sessions: SessionsService = new SessionsService({
 		db: platform.db,
 		repositories: () => repositories,
@@ -616,18 +632,18 @@ export function createContainer(inputs: ContainerInputs): Container {
 		queue: followUpQueue,
 		notifications,
 		pruneCheckpoints: async (sessionId, workspaceId) => {
-			const workspace = await repositories.workspaces.get(workspaceId);
-			if (!workspace.ok) return workspace;
-			if (workspace.value === null)
-				return err(appError("workspace_unknown", "That workspace no longer exists."));
-			const repository = await repositories.repos.get(workspace.value.repoId);
-			if (!repository.ok) return repository;
-			if (repository.value === null)
-				return err(appError("repo_unknown", "That project was removed."));
-			// The refs live in the project's repository. A project folder that is gone took them
-			// with it, and git cannot run there, so the chat is deleted with nothing to prune.
-			if (!(await platform.fs.exists(repository.value.rootPath))) return ok(0);
-			return checkpoint.pruneForChat(sessionId, repository.value.rootPath);
+			const root = await checkpointRepoRoot(workspaceId);
+			if (!root.ok) return root;
+			// A project folder that is gone took its refs with it, so there is nothing to prune.
+			if (root.value === null) return ok(0);
+			return checkpoint.pruneForChat(sessionId, root.value);
+		},
+		copyCheckpoints: async (workspaceId, pairs) => {
+			const root = await checkpointRepoRoot(workspaceId);
+			if (!root.ok) return root;
+			// A project folder that is gone took its refs with it, so there is nothing to copy.
+			if (root.value === null) return ok(0);
+			return checkpoint.copyRefs(root.value, pairs);
 		},
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
@@ -673,6 +689,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		settings,
 		removal: { removeWorkspacesOf: (repoId) => workspace.removeWorkspacesOf(repoId) },
 	});
+	const gitCache = createGitCache({ fs: platform.fs });
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		git: gitRunner,
@@ -689,6 +706,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		checkpointerPath: checkpointerScript(paths),
 		setting,
 		now: () => clock.now(),
+		gitCache,
 	});
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
@@ -703,10 +721,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		now: () => clock.now(),
 	});
-	const gitCache = createGitCache({ fs: platform.fs });
 	const git = new GitService({
 		git: gitRunner,
-		cache: gitCache,
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
 		promptFor: async (id) => {
@@ -723,7 +739,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const github = new GithubService({
 		git: gitRunner,
-		cache: gitCache,
 		agent: sessions,
 		contextOf: (id) => ready(lookups.prContext(id)),
 		onMerged: createArchiveOnMerged({
@@ -753,6 +768,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		probeCwd: platform.fs.paths.home,
 		fs: platform.fs,
+	});
+	const gitCacheConnection = connectGitCache({
+		cache: gitCache,
+		changes: git,
+		pullRequests: github,
+		branchOf: (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? found.value.branch : null;
+		},
+		now: () => clock.now(),
+		log,
 	});
 	const localGitForge = new LocalGitForge({
 		git: gitRunner,
@@ -894,11 +920,25 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		{ name: "repos", phase: "services", fatal: true, run: () => repo.start() },
 		{ name: "workspaces", phase: "services", fatal: true, run: () => workspace.start() },
+		{
+			name: "git cache",
+			phase: "services",
+			fatal: false,
+			// The last changes and pull request info of each active workspace show before the first
+			// poll answers (DATA-07).
+			run: () =>
+				gitCacheConnection.paint(
+					Object.values(workspace.store.getState().workspacesById)
+						.filter((found) => found.state !== "archived")
+						.map((found) => ({ id: found.id, branch: found.branch })),
+				),
+		},
 		{ name: "sections", phase: "services", fatal: false, run: () => sections.start() },
 		{ name: "favorite models", phase: "services", fatal: false, run: () => favoriteModels.start() },
 		{ name: "terminals", phase: "services", fatal: false, run: () => terminals.start() },
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
+		{ name: "linear access", phase: "services", fatal: false, run: () => linear.start() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
@@ -1141,6 +1181,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		await step("the repo service", () => repo.dispose());
 		await step("git polling", () => git.dispose());
 		await step("GitHub polling", () => github.dispose());
+		await step("the git cache", () => gitCacheConnection.stop());
 		await step("composer drafts", () => composer.flush());
 		await step("terminals", () => terminals.killAll());
 		await step("run scripts", () => runScripts.stopAll());

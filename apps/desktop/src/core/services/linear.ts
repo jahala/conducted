@@ -6,8 +6,10 @@
  * and repository suggestions), 5B.8.3 (an issue becomes a file
  * `.context/attachments/<key>/[LINEAR]-<identifier>.md`), frontend.md 7 (the context carried into
  * a chat), ui-map.md 6 (Account connects Linear with an API key).
- * Must handle: no key stored (state "not connected", no request); a 401 answer (state "key
- * rejected", and later calls make no request until the key changes); an identifier like `ABC-123`
+ * Must handle: no key stored (state "not connected", no request); the startup check, which reads
+ * the stored key once so the Account page knows the state after a restart; a 401 answer (state "key
+ * rejected", and later calls make no request until the key changes); a search keeps to the
+ * viewer's teams and leaves out completed and canceled issues; an identifier like `ABC-123`
  * runs the by-id query and the search together; lists are cached for 15 seconds, by-id for 60 and
  * team ids and suggestions for 600; the key never reaches a message or a log; only the newest
  * issue list changes the store; a failed write is reported instead of returning a path that does
@@ -149,8 +151,12 @@ const MY_ACTIVE_ISSUES_QUERY = `query MyActiveIssues {
 	}
 }`;
 
-const SEARCH_ISSUES_QUERY = `query SearchIssues($term: String!) {
-	searchIssues(term: $term, first: 30, filter: { state: { type: { neq: "completed" } } }) {
+const SEARCH_ISSUES_QUERY = `query SearchIssuesWithTeamFilter($term: String!, $teamIds: [ID!]!) {
+	searchIssues(
+		term: $term
+		first: 30
+		filter: { team: { id: { in: $teamIds } }, state: { type: { nin: ["completed", "canceled"] } } }
+	) {
 		nodes {${ISSUE_FIELDS}}
 	}
 }`;
@@ -403,6 +409,17 @@ export class LinearService {
 		return checked.ok ? ok(undefined) : err(checked.error);
 	}
 
+	/**
+	 * The startup check: reads the viewer with the stored key, so the Account page shows the
+	 * connection after a restart. No stored key is a normal answer (state "not connected"), not a
+	 * failure.
+	 */
+	async start(): Promise<Result<void>> {
+		const checked = await this.checkAccess();
+		if (checked.ok || checked.error.code === "linear_not_connected") return ok(undefined);
+		return err(checked.error);
+	}
+
 	/** Reads the viewer, so the Account page can tell a working key from a rejected one. */
 	async checkAccess(): Promise<Result<LinearAccount>> {
 		const response = await this.#graphql(VIEWER_QUERY, {});
@@ -478,7 +495,7 @@ export class LinearService {
 		return ok(found.value);
 	}
 
-	/** The teams the viewer belongs to, for the search filter. */
+	/** The teams the viewer belongs to, which the search keeps to. */
 	async teamIds(): Promise<Result<string[]>> {
 		const cached = this.#readCache<string[]>("teamIds", LINEAR_TEAM_CACHE_MS);
 		if (cached !== undefined) return ok(cached);
@@ -561,7 +578,10 @@ export class LinearService {
 		const cacheKey = `search:${term}`;
 		const cached = this.#readCache<LinearIssue[]>(cacheKey, LINEAR_SEARCH_CACHE_MS);
 		if (cached !== undefined) return ok(cached);
-		const response = await this.#graphql(SEARCH_ISSUES_QUERY, { term });
+		// The search keeps to the viewer's teams, as Conductor's does (services-map 5B.8.1).
+		const teams = await this.teamIds();
+		if (!teams.ok) return teams;
+		const response = await this.#graphql(SEARCH_ISSUES_QUERY, { term, teamIds: teams.value });
 		if (!response.ok) return response;
 		const parsed = parseIssueList(response.value.searchIssues);
 		if (!parsed.ok) return parsed;

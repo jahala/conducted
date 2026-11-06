@@ -17,8 +17,11 @@
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
 <<<<<<< HEAD
+<<<<<<< HEAD
 		"apps/desktop/src/core/git/commands.ts": 10,
 =======
+=======
+>>>>>>> fc119343e7fb10df42a7e646e6cba5988f16d563
 		"apps/desktop/src/core/git/commands.ts": 9,
 		"apps/desktop/src/core/git/gh-commands.ts": 1,
 >>>>>>> node/run.02

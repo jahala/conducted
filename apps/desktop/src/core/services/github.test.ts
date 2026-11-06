@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { Keychain, ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
-import type { GitCache } from "./git-cache.ts";
 import {
 	chooseMergeMethod,
 	classifyGhFailure,
@@ -103,7 +102,6 @@ function makeService(
 ): GithubService {
 	return new GithubService({
 		git,
-		cache: {} as GitCache,
 		agent: {} as AgentMessenger,
 		contextOf: async () => err(appError("workspace_unknown", "no workspace")),
 		onMerged: () => {},
@@ -480,7 +478,6 @@ describe("PR-01 merge method and dedupe", () => {
 		});
 		const service = new GithubService({
 			git,
-			cache: {} as GitCache,
 			agent: {} as AgentMessenger,
 			contextOf: async () =>
 				ok({
@@ -526,7 +523,6 @@ describe("PR-01 merge method and dedupe", () => {
 		});
 		const service = new GithubService({
 			git,
-			cache: {} as GitCache,
 			agent: {} as AgentMessenger,
 			contextOf: async () =>
 				ok({

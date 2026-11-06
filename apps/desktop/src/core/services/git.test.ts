@@ -79,7 +79,6 @@ function makeService(
 ): GitService {
 	return new GitService({
 		git: runner,
-		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
 		renameWorkspaceBranch: async () => ok(undefined),

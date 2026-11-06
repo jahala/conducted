@@ -1,15 +1,16 @@
 // @vitest-environment node
 /**
  * @feature CHAT-16 Fork a chat from a turn
- * Tests the fork service: the chat up to a checkpointed turn is copied into a new chat, a turn
- * with no checkpoint is refused, and the first send of the fork resumes the agent at the turn's
+ * Tests the fork service: the chat up to a checkpointed turn is copied into a new chat with its
+ * checkpoints under the fork's own ids, a turn with no checkpoint is refused, a fork with no agent
+ * message to resume at is refused, and the first send of the fork resumes the agent at the turn's
  * last message with a forked session.
  * Test first: forking at a turn copies that turn and the turns before it, and leaves the later
  * turns behind.
  */
 import type { WorkspaceContext } from "@conducted/protocol";
 import type { CheckpointId, EventId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
-import { ok, type Result } from "@conducted/shared";
+import { appError, err, ok, type Result } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
 
@@ -22,6 +23,7 @@ import {
 	turnEndedEvent,
 	userMessageEvent,
 } from "../db/test-fixtures.ts";
+import { turnCheckpointId } from "../git/refs.ts";
 import type { FollowUpQueueState } from "./follow-up-queue.ts";
 import { SessionsService, type SessionsServiceDeps } from "./sessions.ts";
 
@@ -68,11 +70,14 @@ const agentWithNativeId = (id: string, turn: string, at: number, nativeId: strin
 interface Harness {
 	service: SessionsService;
 	calls: Call[];
+	/** The checkpoint id pairs the fork asked the composition root to copy, in order. */
+	copiedCheckpoints: (readonly [string, string])[];
 	replyTo: (next: (method: string) => Promise<Result<unknown>>) => void;
 }
 
-const harness = (): Harness => {
+const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 	const calls: Call[] = [];
+	const copiedCheckpoints: (readonly [string, string])[] = [];
 	let reply: (method: string) => Promise<Result<unknown>> = async () =>
 		ok({ deliveredAs: "new_turn" });
 	const deps: SessionsServiceDeps = {
@@ -108,15 +113,21 @@ const harness = (): Harness => {
 		},
 		notifications: { onLiveStateChanged: () => {} },
 		launchFor: async () => ok({ env: {}, providerKeys: {} }),
+		copyCheckpoints: async (_workspaceId, pairs) => {
+			copiedCheckpoints.push(...pairs);
+			return ok(pairs.length);
+		},
 		workspaceContextOf: async () => ok(workspaceContext),
 		defaultConfig: async () => ok(sampleSession.config),
 		setting: <T>(key: string) => (key === "default_message_send_mode" ? "steer" : "") as T,
 		now: () => 1000,
 		newId: () => `generated-${++nextId}`,
+		...overrides,
 	};
 	return {
 		service: new SessionsService(deps),
 		calls,
+		copiedCheckpoints,
 		replyTo: (next) => {
 			reply = next;
 		},
@@ -205,6 +216,18 @@ describe("CHAT-16 fork a chat from a turn", () => {
 		if (!copied.ok) return;
 		expect(copied.value.map((row) => row.event.eventId)).toEqual(["u1", "c1", "a1", "c2", "e1"]);
 		expect(copied.value.map((row) => row.event.turnId)).toEqual(["t1", "t1", "t1", "t1", "t1"]);
+		// The copied checkpoints name the fork's own refs, and only the kept turn's refs are copied.
+		const ownStart = turnCheckpointId(forked.value.id, "t1", "start");
+		const ownEnd = turnCheckpointId(forked.value.id, "t1", "end");
+		expect(
+			copied.value.flatMap((row) =>
+				row.event.type === "checkpoint" ? [row.event.checkpointId] : [],
+			),
+		).toEqual([ownStart, ownEnd]);
+		expect(h.copiedCheckpoints).toEqual([
+			["start-1", ownStart],
+			["end-1", ownEnd],
+		]);
 
 		const origin = await repositories.sessionEvents.listFrom(originId, 0, 100);
 		expect(origin.ok).toBe(true);
@@ -264,6 +287,51 @@ describe("CHAT-16 fork a chat from a turn", () => {
 			firstMessage: false,
 			resume: { agentSessionId: "agent-session-1", atNativeMessageId: "native-1" },
 		});
+	});
+
+	it("refuses a fork with no agent message to resume at, so two chats never share a session", async () => {
+		const { workspaceId } = await seedChat();
+		const h = harness();
+		const created = await h.service.create(workspaceId, sampleSession.config);
+		if (!created.ok) throw new Error(JSON.stringify(created.error));
+		const originId = created.value.id;
+		await h.service.setAgentSessionId(originId, "agent-session-1");
+		// The turn has its start checkpoint but no answer yet.
+		await append(originId, userMessageEvent("u1", "t1", 10));
+		await append(originId, checkpointEvent("c1", "t1", 11, "start", "start-1"));
+
+		const forked = await h.service.forkFrom(originId, "t1" as TurnId);
+
+		expect(forked.ok).toBe(false);
+		if (forked.ok) return;
+		expect(forked.error.code).toBe("chat_fork_no_agent_message");
+		expect(forked.error.message).toBe(
+			"Unable to fork chat: the agent has no message to fork from in this turn or before it.",
+		);
+		expect(h.service.store.getState().byWorkspace[workspaceId]).toEqual([originId]);
+		expect(h.copiedCheckpoints).toEqual([]);
+	});
+
+	it("removes the new chat when its checkpoints cannot be copied", async () => {
+		const { workspaceId } = await seedChat();
+		const h = harness({
+			copyCheckpoints: async () => err(appError("git_failed", "fatal: cannot lock ref")),
+		});
+		const created = await h.service.create(workspaceId, sampleSession.config);
+		if (!created.ok) throw new Error(JSON.stringify(created.error));
+		const originId = created.value.id;
+		await append(originId, userMessageEvent("u1", "t1", 10));
+		await append(originId, checkpointEvent("c1", "t1", 11, "start", "start-1"));
+		await append(originId, turnEndedEvent("e1", "t1", 12));
+
+		const forked = await h.service.forkFrom(originId, "t1" as TurnId);
+
+		expect(forked).toEqual(err(appError("git_failed", "fatal: cannot lock ref")));
+		expect(h.service.store.getState().byWorkspace[workspaceId]).toEqual([originId]);
+		const sessions = await repositories.sessions.listByWorkspace(workspaceId, {
+			includeClosed: true,
+		});
+		expect(sessions.ok && sessions.value.map((session) => session.id)).toEqual([originId]);
 	});
 
 	it("returns a clear failure when the picked turn is no longer in the log", async () => {

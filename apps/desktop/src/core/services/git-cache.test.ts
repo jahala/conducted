@@ -251,6 +251,43 @@ describe("DATA-07 cached workspace changes", () => {
 		);
 	});
 
+	it("skips a save of the same value seen at a later time and keeps the first time", async () => {
+		const { cache, fs, advance } = createCache();
+		const first = changesEntry("w1", "main", 100, "one");
+		expect((await cache.saveChanges(first)).ok).toBe(true);
+		const file = changesCacheFile(fs.paths, "w1");
+		const before = await fs.stat(file);
+		advance(60_000);
+
+		expect((await cache.saveChanges(changesEntry("w1", "main", 5_000, "one"))).ok).toBe(true);
+
+		const after = await fs.stat(file);
+		expect(before.ok ? before.value.modifiedAt : null).toBe(
+			after.ok ? after.value.modifiedAt : undefined,
+		);
+		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
+		expect(loaded).toEqual({ ok: true, value: first });
+	});
+
+	it("writes a save whose value or branch changed", async () => {
+		const { cache } = createCache();
+		expect((await cache.saveChanges(changesEntry("w1", "main", 100, "one"))).ok).toBe(true);
+
+		const changed = changesEntry("w1", "main", 200, "two");
+		expect((await cache.saveChanges(changed)).ok).toBe(true);
+		expect(await cache.loadChanges("w1" as WorkspaceId, "main")).toEqual({
+			ok: true,
+			value: changed,
+		});
+
+		const moved = changesEntry("w1", "feature", 300, "two");
+		expect((await cache.saveChanges(moved)).ok).toBe(true);
+		expect(await cache.loadChanges("w1" as WorkspaceId, "feature")).toEqual({
+			ok: true,
+			value: moved,
+		});
+	});
+
 	it("does not store one entry that alone is over the limit", async () => {
 		const entry = changesEntry("w1", "main", 100, "large");
 		const limit = bytes(JSON.stringify(entry)) - 1;

@@ -50,7 +50,6 @@ function makeService(
 ): GitService {
 	return new GitService({
 		git,
-		cache: {} as never,
 		contextOf,
 		agent,
 		now: () => 1_000,

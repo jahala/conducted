@@ -47,7 +47,7 @@ afterEach(() => {
 
 const HEAD =
 	"| ID | Feature | Owner | Research | P | Status | Needs |\n|---|---|---|---|---|---|---|\n";
-const BACKLOG = `## Things (CHAT)\n\n${HEAD}| CHAT-01 | One | D/x | r | 1 | done |  |\n| CHAT-02 | Two | D/x | r | 1 | stub |  |\n`;
+const BACKLOG = `## Things (CHAT)\n\n${HEAD}| CHAT-01 | One | D/x | r | 1 | done |  |\n| CHAT-02 | Two | D/x | r | 1 | stub |  |\n| CHAT-03 | Three | D/x | r | 1 | planned |  |\n`;
 const putBacklog = () => put("docs/plans/backlog.md", BACKLOG);
 
 describe("commands", () => {
@@ -323,6 +323,15 @@ describe("test-only-exports", () => {
 		put(
 			"apps/desktop/src/stubbed.test.ts",
 			'import { stubbed } from "./stubbed.ts";\nvoid stubbed();\n',
+		);
+		// A planned feature is not built either, so its file is skipped like a stub's.
+		put(
+			"apps/desktop/src/planned.ts",
+			"/** @feature CHAT-03 Planned */\nexport function planned() { return 1; }\n",
+		);
+		put(
+			"apps/desktop/src/planned.test.ts",
+			'import { planned } from "./planned.ts";\nvoid planned();\n',
 		);
 		put(
 			"apps/desktop/src/helpers-test-support.ts",

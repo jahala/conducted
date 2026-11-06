@@ -63,7 +63,6 @@ function makeService(
 	const instructions = options.instructions ?? [];
 	return new GitService({
 		git: runner,
-		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {
 			sendInstruction: async (_id, text) => {

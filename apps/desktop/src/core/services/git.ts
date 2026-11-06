@@ -49,8 +49,8 @@
  * built; they need the platform file operations, a movable workspace path and a header message.
  * Our design choice: this class exposes snapshots and actions only. The Git header state machine
  * and the merge with pull request info belong to GIT-04, the other git actions belong to their
- * own features, and the restart cache belongs to DATA-07. Their placeholders stay here until those
- * features build them.
+ * own features, and the restart cache belongs to DATA-07 (`git-cache.ts` saves the snapshots this
+ * store holds and paints them back through `paintCached`).
  * Changing the target branch is here (GIT-08): it stores the intended branch, moves an open pull
  * request's base, or fetches and resets a clean branch still at the old target.
  * GIT-12: lists a repository's local and remote branches and the branches its worktrees have
@@ -69,7 +69,9 @@
  * merged pull request read before it no longer shows for the new branch (`stateOf`).
  * GIT-15: reads and edits a workspace's sparse checkout in cone mode, and lists the top-level
  * folders to choose from. It opens one file's changes in Kaleidoscope only when that file has
- * changes, and refuses a path that leaves the workspace. Git stores the sparse settings itself,
+ * changes, says so when the file is new and untracked (nothing to compare), and refuses a path
+ * that leaves the workspace. Our design choice: the change check is per file, where Conductor
+ * checks the whole tree (services-map 3.11), because the action names one file. Git stores the sparse settings itself,
  * so editing them is the edit; the next poll shows the new file list.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
@@ -101,6 +103,7 @@ import {
 	firstPushSteps,
 	forEachRefRemoteBranches,
 	isAncestor,
+	lsFilesUntrackedPath,
 	lsTreeTopLevelDirectories,
 	mergeBase,
 	mergeFastForwardOnly,
@@ -156,7 +159,6 @@ import {
 	reconcileInstruction,
 	resolveConflictsInstruction,
 } from "./agent-instructions.ts";
-import type { GitCache } from "./git-cache.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 import { isSafeRefName } from "./workspace.ts";
@@ -533,8 +535,6 @@ export function decideFetch(
 
 export interface GitServiceDeps {
 	git: GitRunner;
-	/** The last snapshot of each workspace, shown before the first poll answers (DATA-07). */
-	cache: GitCache;
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
@@ -649,6 +649,19 @@ export class GitService {
 		};
 		void tick();
 		return () => this.#unwatch(key);
+	}
+
+	/**
+	 * Shows a snapshot cached before the last restart until the first poll answers (DATA-07). A
+	 * workspace that already has an entry keeps it, so a poll that answered first wins. The entry
+	 * has no refresh time, so the next poll runs at once.
+	 */
+	paintCached(workspaceId: WorkspaceId, snapshot: ChangesSnapshot): void {
+		const key = String(workspaceId);
+		if (this.store.getState().byWorkspace[key] !== undefined) return;
+		this.store.setState((state) => ({
+			byWorkspace: { ...state.byWorkspace, [key]: { snapshot, error: null, refreshedAt: null } },
+		}));
 	}
 
 	refresh(workspaceId: WorkspaceId, depth: PollDepth): Promise<Result<void>> {
@@ -2061,7 +2074,9 @@ export class GitService {
 
 	/**
 	 * Backs `Actions.git.openInDiffTool`: opens the file's changes in Kaleidoscope when the file
-	 * has any. A file with no changes opens nothing and is not an error.
+	 * has any. A file with no changes opens nothing and is not an error. A new file git does not
+	 * track yet has no earlier version, so `git diff --quiet` calls it unchanged and difftool would
+	 * show nothing; that is an error that says so, never a silent success.
 	 */
 	async openInDiffTool(workspaceId: WorkspaceId, path: string): Promise<Result<void>> {
 		const checked = workspaceRelativePath(path);
@@ -2072,7 +2087,17 @@ export class GitService {
 
 		const changed = await this.#deps.git.runChecked(diffQuietHead(checked.value), { cwd });
 		if (!changed.ok) return changed;
-		if (changed.value.exitCode === 0) return ok(undefined);
+		if (changed.value.exitCode === 0) {
+			const untracked = await this.#deps.git.stdout(lsFilesUntrackedPath(checked.value), { cwd });
+			if (!untracked.ok) return untracked;
+			if (untracked.value.length === 0) return ok(undefined);
+			return err(
+				appError(
+					"diff_tool_untracked",
+					`${checked.value} is a new file, so there is no earlier version to compare it with.`,
+				),
+			);
+		}
 		const opened = await this.#deps.git.runChecked(diffToolKsdiff(checked.value), { cwd });
 		return opened.ok ? ok(undefined) : opened;
 	}

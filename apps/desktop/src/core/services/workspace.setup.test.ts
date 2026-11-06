@@ -210,6 +210,7 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 			workspaces,
 			sessions: {},
 			sections: { moveWorkspace: async () => ok(undefined) },
+			backlogWorkspaces: { list: async () => ok([]) },
 		},
 		placeNames: { pick: () => "oslo" },
 		sessions: {

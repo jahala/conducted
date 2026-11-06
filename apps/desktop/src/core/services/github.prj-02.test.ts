@@ -4,7 +4,6 @@ import type { ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "../git/commands.ts";
 import { githubOwnerRepositories, githubUserOrganizations } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { GitCache } from "./git-cache.ts";
 import {
 	filterGithubRepositories,
 	type GithubAccess,
@@ -53,7 +52,6 @@ function fakeGit(handler: (command: GitCommand) => Result<ShellOutput>): GitRunn
 function makeService(git: GitRunner, access?: GithubAccess): GithubService {
 	const service = new GithubService({
 		git,
-		cache: {} as GitCache,
 		agent: {} as AgentMessenger,
 		contextOf: async () => err(appError("workspace_unknown", "no workspace")),
 		onMerged: () => {},

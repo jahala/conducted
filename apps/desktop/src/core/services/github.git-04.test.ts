@@ -16,7 +16,6 @@ const workspaceId = "workspace-1" as WorkspaceId;
 function serviceWithRunner(git: GitRunner): GithubService {
 	return new GithubService({
 		git,
-		cache: {} as never,
 		agent: {} as never,
 		contextOf: async () =>
 			ok({ workspaceId, workspacePath: "/wt", branch: "feat", remote: "origin", prNumber: 12 }),

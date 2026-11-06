@@ -220,6 +220,7 @@ function makeHarness(options: HarnessOptions = {}) {
 			workspaces,
 			sessions: {},
 			sections: { moveWorkspace: async () => ok(undefined) },
+			backlogWorkspaces: { list: async () => ok([]) },
 		},
 		placeNames: { pick: () => "oslo" },
 		sessions: {
