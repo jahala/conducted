@@ -14,6 +14,7 @@
  */
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
+import { GitCompareIcon } from "../../../ui/icons.tsx";
 
 export type ChangesEmptyReason =
 	| "no_changes"
@@ -87,8 +88,9 @@ export function ChangesEmpty({ reason, operation, onClearFilter, message }: Chan
 	return (
 		<EmptyState
 			compact
-			title="Changes appear here"
-			body="As you and the agent edit files, their changes appear here."
+			icon={<GitCompareIcon className="size-10 text-fg-muted" />}
+			title="No file changes yet"
+			body="Changes appear here."
 		/>
 	);
 }

@@ -85,6 +85,7 @@ import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { openTargetOf, pullRequestOpenUrl } from "../pr/pr-open-target.ts";
+import { workspaceName } from "../workspace/workspace-name.ts";
 import { ArtifactsTab } from "./artifacts/ArtifactsTab.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
@@ -103,6 +104,8 @@ export interface GitPanelProps {
 	onScopeChange?: (scope: DiffScope) => void;
 	/** Opens a file in a center tab, as a diff or in the editor. */
 	onOpenFile?: (path: string, mode: "diff" | "edit") => void;
+	/** The file open in the centre, so the All files tab selects its row. */
+	openFilePath?: string | null;
 }
 
 const DEFAULT_SCOPE: DiffScope = { kind: "branch" };
@@ -120,16 +123,38 @@ function HeaderSkeleton() {
 function ComputedHeader({
 	inputs,
 	onAction,
+	workspaceId,
 }: {
 	inputs: GitHeaderInputs;
 	onAction: (action: GitHeaderActionId) => Promise<void>;
+	workspaceId: WorkspaceId;
 }) {
+	const actions = useActions();
 	const computed = computeGitHeader(inputs);
+	const archive = () => {
+		void actions.workspaces.archive(workspaceId, { deleteBranch: false }).then((result) => {
+			if (!result.ok) toastError("Couldn't archive the workspace", result.error);
+		});
+	};
 	// "Add all comments to chat" needs the review comment store (REV-03). Until it exists,
 	// offer no button rather than one that silently does nothing.
 	const model =
 		computed.action?.id === "add_comments_to_chat" ? { ...computed, action: null } : computed;
-	return <GitHeader model={model} onAction={onAction} />;
+	return (
+		<GitHeader
+			model={model}
+			onAction={onAction}
+			pullRequest={inputs.git.pullRequest}
+			onOpenPullRequest={() => {
+				const url = inputs.git.pullRequest?.url;
+				if (url === undefined) return;
+				void actions.app.openUrl(url).then((result) => {
+					if (!result.ok) toastError("Couldn't open the pull request", result.error);
+				});
+			}}
+			onArchive={archive}
+		/>
+	);
 }
 
 export function GitPanel({
@@ -139,6 +164,7 @@ export function GitPanel({
 	scope: scopeProp,
 	onScopeChange,
 	onOpenFile,
+	openFilePath = null,
 }: GitPanelProps) {
 	const git = useGitState(workspaceId);
 	const status = useWorkspaceStatus(workspaceId);
@@ -491,7 +517,14 @@ export function GitPanel({
 			);
 		}
 		if (headerInputs === null) return null;
-		return <ComputedHeader key={workspaceId} inputs={headerInputs} onAction={runGuarded} />;
+		return (
+			<ComputedHeader
+				key={workspaceId}
+				inputs={headerInputs}
+				onAction={runGuarded}
+				workspaceId={workspaceId}
+			/>
+		);
 	})();
 
 	const changedCount = git.state === "ready" ? git.data.changedFiles : 0;
@@ -523,7 +556,11 @@ export function GitPanel({
 					<ArtifactsTab workspaceId={workspaceId} />
 				) : view === "files" ? (
 					<NotBuiltYet area="All files" resetKey={`${workspaceId}:files`}>
-						<FilesTab workspaceId={workspaceId} onOpenFile={(path) => openFile(path, "edit")} />
+						<FilesTab
+							workspaceId={workspaceId}
+							onOpenFile={(path) => openFile(path, "edit")}
+							openPath={openFilePath}
+						/>
 					</NotBuiltYet>
 				) : tab === "changes" ? (
 					<ChangesTab
@@ -535,7 +572,12 @@ export function GitPanel({
 					/>
 				) : (
 					<NotBuiltYet area="Checks" resetKey={`${workspaceId}:checks`}>
-						<ChecksTab workspaceId={workspaceId} />
+						<ChecksTab
+							workspaceId={workspaceId}
+							onGitAction={(action) => void runGuarded(action)}
+							title={workspace.state === "ready" ? workspaceName(workspace.data) : undefined}
+							description={workspace.state === "ready" ? workspace.data.prDescription : null}
+						/>
 					</NotBuiltYet>
 				)}
 			</div>

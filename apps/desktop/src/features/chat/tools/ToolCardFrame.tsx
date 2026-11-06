@@ -1,17 +1,20 @@
 /**
  * @feature CHAT-08 Tool card frame
- * Owns: the shared look of every tool card: a header row with an icon, the tool's title and a one-line summary,
- * a status mark, a collapsible body and an optional footer, and the scrolling text block (`ToolOutput`) the
- * cards show output in.
- * Behaviour: ui-map.md 8 (the Tool family: header, title, description, content, footer, is the base of tool
- * cards), 3.3 (tool cards).
- * Our design choice: a card is collapsed by default unless it needs attention (running or failed). The summary
- * is monospace because it is usually a path or a command. Status is a word as well as a mark. `expandAll`
- * opens every card, from the "Expand all tool calls" setting and its Ctrl+O shortcut. The reading helpers
- * below are shared by the cards because tool input and output arrive as untyped agent data.
- * Must handle: running (spinner, "Running"); failed (danger text "Failed"); a very long summary truncates;
- * no body (the header is not a button); keyboard toggle with Enter and Space; `aria-expanded` on the toggle;
- * a card whose expansion changes while it is on screen.
+ * Owns: the shared look of every tool call: one quiet row with the tool's icon, a plain title and a short
+ * summary chip, a status mark, and a body that opens under the row; plus the scrolling text block
+ * (`ToolOutput`) the cards show output in.
+ * Behaviour: measured from Conductor 0.92.1's collapsible tool row (renderApp @8747084, ui-dimensions.md 5):
+ * a 32px row (6px top and bottom, 8px sides pulled out by 8px so the text lines up with the reply), 4px
+ * radius, a muted hover fill at 50%; a 12px icon that turns into a chevron on hover; the title in text-sm;
+ * the summary in medium monospace text-xs, at most 400px wide, hidden while the row is open unless the card
+ * keeps it; the body 8px below in a bordered well with 12px padding.
+ * Our design choice: a card is collapsed by default unless it needs attention (running or failed). Status is
+ * a word as well as a mark. `expandAll` opens every card, from the "Expand all tool calls" setting and its
+ * Ctrl+O shortcut. A card's actions (its footer) sit at the end of the open body, in the interface font.
+ * The reading helpers below are shared by the cards because tool input and output arrive as untyped data.
+ * Must handle: running (spinner, "Running"); failed (danger title and "Failed"); a very long summary
+ * truncates; no body (the row is not a button); keyboard toggle with Enter and Space; `aria-expanded` on
+ * the toggle; a card whose expansion changes while it is on screen.
  * Test first: a done card starts collapsed and shows its body after the toggle is clicked.
  */
 import { type ReactNode, useEffect, useState } from "react";
@@ -20,6 +23,7 @@ import { cn } from "../../../ui/cn.ts";
 import { ChevronDownIcon, ChevronRightIcon, WrenchIcon } from "../../../ui/icons.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { useWorkspaceLinks } from "../workspace-links.ts";
+import { TOOL_ICONS, useToolKind } from "./tool-icons.tsx";
 
 export type ToolStatus = "running" | "done" | "error";
 
@@ -105,7 +109,10 @@ export function FileLink({
 			type="button"
 			title={path}
 			onClick={() => links.openFile(path, mode)}
-			className="max-w-full truncate rounded-xs font-mono text-xs text-link hover:underline"
+			className={cn(
+				"max-w-full truncate rounded-xs text-xs text-link hover:underline",
+				children === undefined && "font-mono",
+			)}
 		>
 			{children ?? path}
 		</button>
@@ -140,7 +147,7 @@ export function fileNameOf(path: string): string {
 /** Old and new text as a small diff: removed lines carry "-", added lines carry "+". */
 export function DiffLines({ removed, added }: { removed: string; added: string }) {
 	return (
-		<pre className="overflow-x-auto rounded-sm bg-surface p-2 font-mono text-code text-fg">
+		<pre className="overflow-x-auto rounded-sm bg-canvas p-2 font-mono text-xs text-fg">
 			{keyedLines(removed, "removed").map(({ key, item: line }) => (
 				<div key={key} className="whitespace-pre text-danger">
 					<span aria-hidden="true" className="select-none">
@@ -188,15 +195,70 @@ export function ToolOutput({
 	);
 }
 
+/** A summary chip: the command, pattern or text a row shows after its title (Conductor's code chip). */
+export function SummaryChip({ children, sans = false }: { children: ReactNode; sans?: boolean }) {
+	return (
+		<span
+			className={cn(
+				"block truncate rounded-md bg-muted px-1 py-0.5 text-xs text-fg-muted",
+				sans ? "font-sans" : "font-mono font-medium",
+			)}
+		>
+			{children}
+		</span>
+	);
+}
+
+/** A file named in a row: a small outlined chip with the file's own name; the full path is its tooltip. */
+export function FileBadge({ path }: { path: string }) {
+	const links = useWorkspaceLinks();
+	return (
+		<button
+			type="button"
+			title={path}
+			onClick={(event) => {
+				event.stopPropagation();
+				links.openFile(path, "edit");
+			}}
+			className="filebadge inline-flex h-5 min-w-0 max-w-64 items-center gap-1 rounded-sm border border-border px-1.5 font-sans text-xs leading-none text-fg hover:bg-hover"
+		>
+			<FileIconSmall />
+			<span className="truncate">{fileNameOf(path)}</span>
+		</button>
+	);
+}
+
+function FileIconSmall() {
+	const Icon = TOOL_ICONS.read;
+	return <Icon className="size-3 shrink-0 text-fg-muted" />;
+}
+
+/** Added and removed line counts, green and red, in small monospace. */
+export function LineCounts({ added, removed }: { added: number; removed: number }) {
+	return (
+		<span className="flex shrink-0 items-center gap-1 font-mono text-3xs font-medium">
+			<span className="text-git-added">+{added}</span>
+			<span className="text-git-removed">-{removed}</span>
+		</span>
+	);
+}
+
 export interface ToolCardFrameProps {
-	title: string;
-	summary?: string;
+	/** The row's plain words: what the call did ("Read 40 lines", a command's description). */
+	title: ReactNode;
+	/** A string becomes a monospace chip; a node (a file badge, a count) is shown as it is. */
+	summary?: ReactNode;
 	status: ToolStatus;
+	/** Overrides the icon of the tool kind (set by ToolCard). */
 	icon?: ReactNode;
 	body?: ReactNode;
 	footer?: ReactNode;
 	/** Garry mode: show every tool call open instead of collapsed. */
 	expandAll?: boolean;
+	/** Keep the summary on the row while the body is open (file badges). */
+	keepSummary?: boolean;
+	/** Show the body as plain text under the row, without the well (thinking). */
+	plainBody?: boolean;
 }
 
 export function ToolCardFrame({
@@ -207,9 +269,12 @@ export function ToolCardFrame({
 	body,
 	footer,
 	expandAll = false,
+	keepSummary = false,
+	plainBody = false,
 }: ToolCardFrameProps) {
 	const [open, setOpen] = useState(status !== "done" || expandAll);
 	const [lastExpandAll, setLastExpandAll] = useState(expandAll);
+	const kind = useToolKind();
 
 	useEffect(() => {
 		if (expandAll === lastExpandAll) return;
@@ -217,51 +282,88 @@ export function ToolCardFrame({
 		setOpen(expandAll || status !== "done");
 	}, [expandAll, lastExpandAll, status]);
 
-	const header = (
-		<>
-			{body ? open ? <ChevronDownIcon /> : <ChevronRightIcon /> : <span className="size-4" />}
-			<span className="flex size-4 items-center justify-center text-fg-subtle">
-				{icon ?? <WrenchIcon />}
-			</span>
-			<span className="text-sm font-medium text-fg">{title}</span>
-			{summary ? (
-				<span className="min-w-0 flex-1 truncate text-left font-mono text-xs text-fg-muted">
-					{summary}
-				</span>
-			) : (
-				<span className="flex-1" />
-			)}
-			{status === "running" ? (
-				<>
-					<Spinner label={`${title} is running`} size="sm" />
-					<span className="text-xs text-fg-subtle">Running</span>
-				</>
-			) : null}
-			{status === "error" ? <span className="text-xs font-medium text-danger">Failed</span> : null}
-		</>
-	);
-	return (
-		<div
+	const KindIcon = kind === null ? WrenchIcon : TOOL_ICONS[kind];
+	const failed = status === "error";
+	const mark = (
+		<span
 			className={cn(
-				"rounded-lg border border-border bg-surface",
-				status === "error" && "border-danger",
+				"flex size-3 items-center justify-center",
+				failed ? "text-danger" : "text-fg-muted",
 			)}
 		>
-			{body ? (
+			{icon ?? <KindIcon className="size-3" />}
+		</span>
+	);
+	const collapsible = body !== undefined && body !== null;
+	const header = (
+		<>
+			<span className="relative shrink-0">
+				<span className={collapsible ? "block group-hover/collapsible:opacity-0" : "block"}>
+					{mark}
+				</span>
+				{collapsible ? (
+					<span className="absolute inset-0 m-auto hidden size-3 text-fg-muted group-hover/collapsible:block [&>svg]:size-3">
+						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+					</span>
+				) : null}
+			</span>
+			<span className="flex min-w-0 flex-1 items-center gap-2">
+				<span className={cn("truncate text-left text-sm", failed ? "text-danger" : "text-fg")}>
+					{title}
+				</span>
+				{status === "running" ? (
+					<span className="flex shrink-0 items-center gap-1">
+						<Spinner
+							label={typeof title === "string" ? `${title} is running` : "Running"}
+							size="sm"
+						/>
+						<span className="text-xs text-fg-muted">Running</span>
+					</span>
+				) : null}
+				{failed ? <span className="shrink-0 text-xs font-medium text-danger">Failed</span> : null}
+				{summary === undefined || summary === null || summary === "" ? null : (
+					<span className={cn("min-w-0 max-w-[400px] shrink", open && !keepSummary && "invisible")}>
+						{typeof summary === "string" ? <SummaryChip>{summary}</SummaryChip> : summary}
+					</span>
+				)}
+			</span>
+		</>
+	);
+	const rowClass =
+		"group/collapsible -mx-2 inline-flex max-w-[calc(100%+1rem)] items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-muted/50";
+	return (
+		<div className="w-full">
+			{collapsible ? (
 				<button
 					type="button"
 					aria-expanded={open}
 					onClick={() => setOpen(!open)}
-					className="flex h-9 w-full items-center gap-2 rounded-lg px-2"
+					className={rowClass}
 				>
 					{header}
 				</button>
 			) : (
-				<div className="flex h-9 items-center gap-2 px-2">{header}</div>
+				<div className={rowClass}>{header}</div>
 			)}
-			{body && open ? <div className="border-t border-border p-3 text-sm">{body}</div> : null}
-			{footer ? (
-				<div className="border-t border-border px-3 py-2 text-xs text-fg-muted">{footer}</div>
+			{collapsible && open ? (
+				<div
+					className={
+						plainBody
+							? "mt-2 select-text"
+							: cn(
+									"mt-2 select-text rounded-md border p-3 text-xs text-fg",
+									failed ? "border-danger/20 bg-danger/10" : "border-border bg-well",
+								)
+					}
+				>
+					{body}
+					{footer ? (
+						<div className="mt-2 flex items-center gap-3 text-xs text-fg-muted">{footer}</div>
+					) : null}
+				</div>
+			) : null}
+			{!collapsible && footer ? (
+				<div className="mt-1 flex items-center gap-3 text-xs text-fg-muted">{footer}</div>
 			) : null}
 		</div>
 	);

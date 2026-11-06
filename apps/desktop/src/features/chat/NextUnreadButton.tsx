@@ -3,8 +3,10 @@
  * Owns: The 'Next unread' button in the chat, and the app-level handlers for 'Go to next unread'
  * and 'Next chat needing attention'.
  * Behaviour: ui-map.md 3.3 ('Next unread' button), 5.1 ('Go to next unread'), 5.4 (Cmd+Alt+L).
- * Our design choice: the button is hidden when there is nowhere to go, and its key hint follows a
- * rebind through the command registry. The handlers live in `NextUnreadController`, mounted once
+ * Measured from Conductor 0.92.1: a small outlined "Next unread ›" button that sits 40px above the
+ * composer's top edge, at the right (the chat pane places it).
+ * Our design choice: the button is hidden when there is nowhere to go, and its tooltip names the shortcut,
+ * which follows a rebind through the command registry. The handlers live in `NextUnreadController`, mounted once
  * at the app root, so both commands work from Home, Settings and a terminal tab too.
  * Must handle: Nothing unread or waiting (hidden); the target is in another workspace (navigates
  * there); the target is the current chat (skipped, see next-unread.ts).
@@ -20,7 +22,7 @@ import { useLiveShortcut } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
 import { sessionWaitsForUser } from "../../core/services/sessions.ts";
 import { Button } from "../../ui/Button.tsx";
-import { Kbd } from "../../ui/Kbd.tsx";
+import { ChevronRightIcon } from "../../ui/icons.tsx";
 import {
 	chooseNextUnread,
 	type UnreadCandidate,
@@ -109,14 +111,14 @@ export function NextUnreadButton({ currentSessionId }: NextUnreadButtonProps) {
 
 	return (
 		<Button
-			variant="secondary"
+			variant="outline"
 			size="sm"
 			aria-label="Next unread"
 			title={shortcut === null ? "Next unread" : `Next unread (${shortcut})`}
 			onClick={() => goTo(target)}
 		>
 			<span>Next unread</span>
-			{shortcut === null ? null : <Kbd>{shortcut}</Kbd>}
+			<ChevronRightIcon className="size-3" />
 		</Button>
 	);
 }

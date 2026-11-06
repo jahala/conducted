@@ -25,16 +25,17 @@ export function HomeEmptyState({
 	onClearFilters,
 }: HomeEmptyStateProps) {
 	if (filtersActive) {
+		// Conductor's block (renderApp @10277012): a centred muted line and an outlined Clear filters.
 		return (
-			<EmptyState
-				title={archivedOnly ? "Nothing is archived" : "No matching workspaces"}
-				body="Try a different search, or clear the filters to see everything."
-				action={
-					<Button variant="secondary" onClick={onClearFilters}>
-						Clear filters
-					</Button>
-				}
-			/>
+			<div className="flex flex-col items-center gap-3 py-6 text-sm text-fg-muted">
+				<h2 className="text-sm font-normal">
+					{archivedOnly ? "Nothing is archived" : "No matching workspaces"}
+				</h2>
+				<p className="text-xs">Try a different search, or clear the filters to see everything.</p>
+				<Button variant="outline" size="sm" onClick={onClearFilters}>
+					Clear filters
+				</Button>
+			</div>
 		);
 	}
 	return (

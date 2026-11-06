@@ -68,6 +68,8 @@ export type SettingDef = {
 	scopes: readonly SettingScope[];
 	title: string;
 	description: string;
+	/** A small hint under the description, such as the key that adds a new line. */
+	detail?: string;
 	/** Extra words that find this setting in search. */
 	searchTerms: readonly string[];
 	/** Backlog id of the feature that owns the behaviour. */
@@ -91,8 +93,9 @@ const SETTINGS_TABLE = [
 		key: "message_send_key",
 		page: "general",
 		scopes: ["user"],
-		title: "Send key",
-		description: "Pick the key that sends a message. The other combination then adds a new line.",
+		title: "Send messages with",
+		description: "Choose which key combination sends messages",
+		detail: "Use ⇧↵ for new lines",
 		searchTerms: ["enter", "return", "submit", "cmd", "keyboard"],
 		feature: "COMP-01",
 		type: "enum",
@@ -108,15 +111,15 @@ const SETTINGS_TABLE = [
 		page: "general",
 		scopes: ["user"],
 		title: "Follow-up behavior",
-		description:
-			"Choose what a message sent during a running turn does: steer the agent now, or queue it for after the turn.",
+		description: "Queue messages to send after the agent finishes, or steer the agent mid-turn.",
+		detail: "Use ⌘↵ to queue",
 		searchTerms: ["steer", "queue", "follow-up", "interrupt", "mid-turn"],
 		feature: "CHAT-03",
 		type: "enum",
 		default: "steer",
 		options: [
-			{ value: "steer", label: "Steer the agent" },
-			{ value: "queue", label: "Queue for later" },
+			{ value: "steer", label: "Steer" },
+			{ value: "queue", label: "Queue" },
 		],
 	},
 	{
@@ -124,7 +127,7 @@ const SETTINGS_TABLE = [
 		page: "general",
 		scopes: ["user"],
 		title: "Agent notifications",
-		description: "Show a notification when an agent finishes or needs your input.",
+		description: "Get notified when an agent finishes working.",
 		searchTerms: ["alerts", "notify", "done", "finished"],
 		feature: "CHAT-19",
 		type: "bool",
@@ -136,7 +139,7 @@ const SETTINGS_TABLE = [
 		page: "general",
 		scopes: ["user"],
 		title: "Completion sound",
-		description: "Choose the sound that plays when an agent finishes a turn.",
+		description: "Choose what plays when AI finishes working in a chat.",
 		searchTerms: ["audio", "chime", "ding", "mute", "silent"],
 		feature: "CHAT-19",
 		type: "enum",
@@ -162,8 +165,8 @@ const SETTINGS_TABLE = [
 		key: "auto_convert_long_text",
 		page: "general",
 		scopes: ["user"],
-		title: "Turn long pastes into attachments",
-		description: "Convert pasted text longer than 5000 characters into a text attachment.",
+		title: "Auto-convert long text",
+		description: "Convert pasted text over 5000 characters into text attachments",
 		searchTerms: ["paste", "clipboard", "long text", "attachment"],
 		feature: "COMP-07",
 		type: "bool",
@@ -176,8 +179,7 @@ const SETTINGS_TABLE = [
 		page: "general",
 		scopes: ["user"],
 		title: "I'm not absolutely right, thank you very much",
-		description:
-			"Remove a leading claim that the answer is absolutely right from assistant replies.",
+		description: 'Strip "You\'re absolutely right!" from AI messages',
 		searchTerms: ["absolutely right", "sycophancy", "strip", "preamble", "phrase"],
 		feature: "CHAT-06",
 		type: "bool",
@@ -247,9 +249,9 @@ const SETTINGS_TABLE = [
 		key: "enterprise_data_privacy",
 		page: "general",
 		scopes: ["user", "repo"],
-		title: "Data privacy mode",
+		title: "Enterprise data privacy",
 		description:
-			"Turn off features that send data to outside AI providers, such as generated chat titles and custom MCP servers.",
+			"Disable features requiring external AI providers, such as AI generated chat titles, as well as custom MCP servers.",
 		searchTerms: ["privacy", "enterprise", "titles", "mcp", "external", "data"],
 		tomlKey: "enterprise_data_privacy",
 		fileLayers: "user-and-repo",
@@ -858,8 +860,8 @@ const SETTINGS_TABLE = [
 		key: "tool_approvals_enabled",
 		page: "agents",
 		scopes: ["user"],
-		title: "Ask before tools run",
-		description: "Require your approval before agents run tools that change files or run commands.",
+		title: "Claude Code tool approvals",
+		description: "Require manual approval before agents can run tools.",
 		searchTerms: ["approval", "permission", "tools", "safe", "ask", "claude"],
 		tomlKey: "tool_approvals_enabled",
 		fileLayers: "user",

@@ -11,6 +11,7 @@ import {
 	asRecord,
 	boolField,
 	DiffLines,
+	FileBadge,
 	ToolCardFrame,
 	textField,
 	toolStatus,
@@ -25,8 +26,9 @@ export function MultiEditCard({ call, defaultExpanded }: ToolCardProps) {
 	const clear = call.result?.isError !== true;
 	return (
 		<ToolCardFrame
-			title="Multi-edit"
-			summary={`${path}${edits.length > 0 ? ` (${edits.length} edits)` : ""}`}
+			title={edits.length > 0 ? `Multi-edit (${edits.length} edits)` : "Multi-edit"}
+			summary={<FileBadge path={path} />}
+			keepSummary
 			status={toolStatus(call)}
 			expandAll={defaultExpanded}
 			body={

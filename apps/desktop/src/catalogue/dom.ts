@@ -71,6 +71,31 @@ export function press(
 	return down.defaultPrevented;
 }
 
+/**
+ * Types into a text field as a user does: sets the value through the element's own setter, so React sees
+ * the change, then fires the input event.
+ */
+export async function typeInto(
+	document: Document,
+	selector: string,
+	name: string,
+	text: string,
+): Promise<void> {
+	const element = await find(document, selector, name);
+	if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
+		throw new Error(`${selector} named "${name}" is not a text field.`);
+	}
+	const prototype = Object.getPrototypeOf(element) as object;
+	const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+	element.focus();
+	setter?.call(element, text);
+	element.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** True when an element matching `selector` is named `name`: an icon button counts by its aria-label. */
+export const has = (document: Document, selector: string, name: string): boolean =>
+	[...document.querySelectorAll(selector)].some((element) => nameOf(element) === name);
+
 /** True when the page shows `text` anywhere. */
 export const shows = (document: Document, text: string): boolean =>
 	document.body.textContent?.includes(text) === true;

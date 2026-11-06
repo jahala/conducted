@@ -26,13 +26,22 @@ export function TabsList({ className, ...rest }: ComponentProps<typeof Radix.Lis
 	);
 }
 
-export function TabsTrigger({ className, ...rest }: ComponentProps<typeof Radix.Trigger>) {
+export function TabsTrigger({
+	className,
+	variant = "underline",
+	...rest
+}: ComponentProps<typeof Radix.Trigger> & {
+	/** underline: the 2px accent line of centre tabs. pill: the filled 28px pill of the Git panel's tabs. */
+	variant?: "underline" | "pill";
+}) {
 	return (
 		<Radix.Trigger
 			className={cn(
-				"-mb-px inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2 pt-0.5",
+				variant === "underline"
+					? "-mb-px inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2 pt-0.5 data-[state=active]:border-accent"
+					: "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 hover:bg-hover data-[state=active]:bg-active",
 				"text-sm font-medium text-fg-muted transition-colors hover:text-fg",
-				"data-[state=active]:border-accent data-[state=active]:text-fg",
+				"data-[state=active]:text-fg",
 				"disabled:pointer-events-none disabled:opacity-50",
 				className,
 			)}

@@ -228,7 +228,7 @@ describe("s1-ui-3 join SET-08 config sync", () => {
 
 		renderInside(test, h(GeneralPage));
 
-		fireEvent.click(screen.getByRole("button", { name: "Sync…" }));
+		fireEvent.click(screen.getByRole("button", { name: "Sync" }));
 		const dialog = within(await screen.findByRole("dialog"));
 		expect(await dialog.findByText("review")).toBeTruthy();
 		expect(dialog.getByText("Add")).toBeTruthy();

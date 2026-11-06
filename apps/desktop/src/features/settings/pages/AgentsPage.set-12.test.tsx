@@ -44,6 +44,11 @@ async function mount(options: Parameters<typeof createTestContainer>[0] = {}) {
 	return { container, fs: container.platform.fs };
 }
 
+/** Radix tabs switch on mouse down. */
+function selectTab(name: string) {
+	fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0 });
+}
+
 describe("SET-12 Agents page controls", () => {
 	it("turns on Claude in Chrome and stores the setting", async () => {
 		const { container } = await mount();
@@ -76,7 +81,9 @@ describe("SET-12 Agents page controls", () => {
 		const path = `${fs.paths.home}/.codex/config.toml`;
 		expect(await fs.writeTextAtomic(path, 'model = "gpt-5"\n')).toEqual(ok(undefined));
 
-		fireEvent.click(screen.getByRole("button", { name: "Codex config" }));
+		// Each agent has its own tab, as in Conductor; Codex's config sits in the Codex tab.
+		selectTab("Codex");
+		fireEvent.click(await screen.findByRole("button", { name: "Codex config" }));
 		const dialog = await screen.findByRole("dialog");
 		const editor = await within(dialog).findByRole("textbox", { name: "Codex config" });
 		await waitFor(() => expect((editor as HTMLTextAreaElement).value).toBe('model = "gpt-5"\n'));
@@ -92,7 +99,9 @@ describe("SET-12 Agents page controls", () => {
 	it("says a missing config file is created by saving", async () => {
 		await mount();
 
-		fireEvent.click(screen.getByRole("button", { name: "Codex config" }));
+		// Each agent has its own tab, as in Conductor; Codex's config sits in the Codex tab.
+		selectTab("Codex");
+		fireEvent.click(await screen.findByRole("button", { name: "Codex config" }));
 
 		expect(
 			await screen.findByText("This file does not exist yet. Saving creates it."),

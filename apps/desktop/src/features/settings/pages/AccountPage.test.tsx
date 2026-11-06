@@ -66,4 +66,27 @@ describe("SET-02 AccountPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save anyway" }));
 		await waitFor(() => expect(setToken).toHaveBeenCalledWith("not a token"));
 	});
+
+	it("heads the page with the GitHub sign-in and a Manage action, as Conductor's profile block", async () => {
+		await mountPage({
+			status: "ok",
+			login: "octo",
+			host: "github.com",
+			scopes: [],
+			usesToken: false,
+			gitProtocol: null,
+		});
+
+		expect(await screen.findByText("Signed in to github.com with gh")).toBeTruthy();
+		expect(screen.getByText("O")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Manage" })).toBeTruthy();
+	});
+
+	it("opens the Linear key form from Connect", async () => {
+		await mountPage({ status: "gh_missing" });
+
+		expect(screen.queryByLabelText("Linear API key")).toBeNull();
+		fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+		expect(screen.getByLabelText("Linear API key")).toBeTruthy();
+	});
 });

@@ -48,6 +48,7 @@ import {
 	useWorkspaces,
 } from "../../core/hooks.ts";
 import { HISTORY_SEARCH_MIN_QUERY, type HistoryHit } from "../../core/services/transcript.ts";
+import { SearchIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import type { OverlayProps } from "../../ui/overlay-props.ts";
 import { Spinner } from "../../ui/Spinner.tsx";
@@ -165,6 +166,12 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const sessionList = workspaceId !== null && sessions.state === "ready" ? sessions.data : [];
 	const allSessions = useStore(services.services.sessions.store, (state) => state.sessions);
 
+	// Ages of recent workspaces count from when the palette opened.
+	const [openedAt, setOpenedAt] = useState(() => Date.now());
+	useEffect(() => {
+		if (open) setOpenedAt(Date.now());
+	}, [open]);
+
 	const visibleGroups = useMemo(() => {
 		if (subpage === "sections") {
 			return buildSectionGroups(query, sectionList, workspaceId);
@@ -179,8 +186,10 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			sessions: sessionList,
 			installedApps,
 			defaultOpenInApp: defaultOpenIn === "" ? null : defaultOpenIn,
+			now: openedAt,
 		});
 	}, [
+		openedAt,
 		commands,
 		defaultOpenIn,
 		installedApps,
@@ -434,7 +443,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		>
 			<h2 className="sr-only">Command palette</h2>
 			<div className="flex h-11 items-center gap-2 border-b border-border px-3">
-				{loading ? <Spinner label="Searching" size="sm" className="text-fg-muted" /> : null}
+				{loading ? (
+					<Spinner label="Searching" size="sm" className="text-fg-muted" />
+				) : (
+					<SearchIcon className="size-5 shrink-0 text-fg-muted" />
+				)}
 				<Command.Input
 					value={query}
 					onValueChange={setQuery}
@@ -528,7 +541,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 					<Command.Group
 						key={group.heading}
 						heading={group.heading}
-						className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-fg-subtle"
+						className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-fg-muted"
 					>
 						{group.items.map((item) => (
 							<Command.Item
@@ -540,6 +553,14 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 								}}
 								className={itemClass}
 							>
+								{item.avatar === undefined ? null : (
+									<span
+										aria-hidden="true"
+										className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-hover text-3xs font-medium text-fg-muted"
+									>
+										{item.avatar}
+									</span>
+								)}
 								<span className="min-w-0 flex-1 truncate">{item.label}</span>
 								{item.hint === null ? null : (
 									<span className="shrink-0 text-xs text-fg-subtle">{item.hint}</span>

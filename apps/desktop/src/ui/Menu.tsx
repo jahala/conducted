@@ -216,6 +216,7 @@ export function useMenuContentBehaviour(
 export function MenuContent({
 	className,
 	sideOffset = 6,
+	collisionPadding = 8,
 	onKeyDown,
 	ref,
 	...rest
@@ -228,6 +229,7 @@ export function MenuContent({
 		<Radix.Portal>
 			<Radix.Content
 				sideOffset={sideOffset}
+				collisionPadding={collisionPadding}
 				ref={behaviour.contentRef}
 				onKeyDown={behaviour.onKeyDown}
 				className={cn(menuContentClass, className)}

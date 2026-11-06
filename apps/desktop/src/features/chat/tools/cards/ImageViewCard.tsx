@@ -14,7 +14,6 @@
 import { useState } from "react";
 import { useServices } from "../../../../core/context.tsx";
 import { IMAGE_EXTENSIONS } from "../../../../core/media-files.ts";
-import { EyeIcon } from "../../../../ui/icons.tsx";
 import { asRecord, fileNameOf, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
@@ -54,7 +53,6 @@ export function ImageViewCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Preview image"
 			summary={name ?? undefined}
 			status={toolStatus(call)}
-			icon={<EyeIcon />}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">

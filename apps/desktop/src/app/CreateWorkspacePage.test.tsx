@@ -7,7 +7,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import type { NewWorkspaceInput } from "../core/api.ts";
@@ -85,6 +85,8 @@ function makeContainer(sectionRows: readonly Section[] = []) {
 				default_fast_mode: false,
 				default_plan_mode: false,
 				tool_approvals_enabled: false,
+				visible_provider_models: "",
+				keybinding_overrides_v1: "",
 			})[key] as T,
 		set: async () => ok(undefined),
 	};
@@ -124,10 +126,25 @@ function makeContainer(sectionRows: readonly Section[] = []) {
 			return ok(undefined);
 		},
 	};
+	// The dialog's model menu is the composer's: it reads the agent catalogue and the favourites.
+	const agentCatalog = {
+		store: createStore(() => ({
+			installs: { state: "loading" as const },
+			models: {},
+			slashCommands: {},
+		})),
+		loadModels: async () => ok([]),
+	};
+	const favoriteModels = {
+		store: createStore(() => ({ loaded: true, favorites: [] })),
+		start: async () => ok(undefined),
+	};
 	const container = {
 		services: {
 			repo: repoService,
 			settings,
+			agentCatalog,
+			favoriteModels,
 			sections: { store: sections },
 			workspace: { store: workspaceStore },
 			composer,
@@ -171,10 +188,15 @@ async function renderCreatePage(path = "/create", sectionRows: readonly Section[
 
 afterEach(cleanup);
 
-/** Picks "Branch" in the "Create from" select with the keyboard, as app-12's select tests do. */
+/**
+ * Opens the create-from picker (closed by default, as in Conductor's dialog) and picks its "Branches"
+ * tab.
+ */
 async function chooseBranchSource() {
-	fireEvent.keyDown(screen.getByRole("combobox", { name: "Create from" }), { key: "Enter" });
-	fireEvent.keyDown(await screen.findByRole("option", { name: "Branch" }), { key: "Enter" });
+	fireEvent.click(screen.getByRole("button", { name: "Show or hide the create-from picker" }));
+	// The sources are Conductor's tabs ("PRs", "Branches", "Issues") in place of a select.
+	const group = await screen.findByRole("radiogroup", { name: "Create from" });
+	fireEvent.click(within(group).getByRole("radio", { name: "Branches" }));
 }
 
 describe("WS-01 CreateWorkspacePage", () => {
@@ -306,6 +328,8 @@ describe("NAV-04 Create in section", () => {
 	it("starts with the section named in the URL and creates the workspace there", async () => {
 		const { create } = await renderCreatePage("/create?section=s1", [section]);
 
+		// The section picker sits behind the dialog's "···" options, as Conductor's dialog keeps it.
+		fireEvent.click(await screen.findByRole("button", { name: "More options" }));
 		const trigger = await screen.findByRole("combobox", { name: "Create in section" });
 		expect(trigger.textContent).toContain("Review");
 		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));

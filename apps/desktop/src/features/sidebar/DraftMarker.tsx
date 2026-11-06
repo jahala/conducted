@@ -8,6 +8,8 @@
  * workspace-draft-indicator, on a workspace row, tooltip "Draft"; it opens that workspace's draft; the exact
  * draft kind is not clear from the bundle).
  * Data: the caller passes the draft (useDraft for a chat, the composer store for the new-workspace draft).
+ * Drawn as Conductor draws it (renderApp @10432391): a bare 12px pencil in the muted sidebar colour that
+ * brightens on hover, with no box.
  * Our design choice: "Open draft" opens the workspace with its draft chat active. A draft with only spaces
  * and no attachments counts as empty.
  * Must handle: an empty or whitespace-only draft (no marker); a draft with attachments but no text (marker);
@@ -51,7 +53,7 @@ export function DraftMarker(props: DraftMarkerProps) {
 				aria-label="Open draft"
 				title="Draft"
 				data-testid="workspace-draft-indicator"
-				className="flex size-5 shrink-0 items-center justify-center rounded-sm text-fg-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+				className="flex shrink-0 items-center justify-center rounded-sm px-0.5 py-1 text-sidebar-fg-muted transition-colors hover:text-sidebar-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
 				onClick={(event) => {
 					event.preventDefault();
 					event.stopPropagation();

@@ -2,7 +2,9 @@
  * @feature COMP-01 Composer editor
  * Owns: The rich text editor itself, built on TipTap and StarterKit, with the send key rules.
  * Behaviour: ui-map.md 3.5 (editor: TipTap/ProseMirror, placeholder, aria-label 'composer'), 5.4
- * (send keys).
+ * (send keys). Measured from Conductor 0.92.1: the placeholder "Ask to make changes, @mention files,
+ * run /commands" in the faint colour; 14px text at weight 350, at least 48px tall and at most 188px
+ * before it scrolls; the composer box around it holds the padding.
  * Our design choice: Plain text with no marks; headings, lists and other marks from StarterKit are
  * switched off because the agent receives plain text. Send keys come from resolveSendKey
  * (send-key.ts). Use useEditor and EditorContent from @tiptap/react.
@@ -42,9 +44,17 @@ export interface ComposerEditorProps {
 	onEditorReady?: (editor: Editor | null) => void;
 	/** The trigger extensions the composer supplies (COMP-04, COMP-06). Default: plain text. */
 	extensions?: Extensions;
-	/** The text shown while the editor is empty. Goal mode shows "Set a goal" (COMP-10). */
+	/**
+	 * The hint shown while the editor is empty. Default: Conductor's chat placeholder; goal mode shows
+	 * "Set a goal" (COMP-10).
+	 */
 	placeholder?: string;
+	/** Called when the editor gains or loses focus. */
+	onFocusChange?: (focused: boolean) => void;
 }
+
+/** Conductor's placeholder for a chat's composer. */
+export const COMPOSER_PLACEHOLDER = "Ask to make changes, @mention files, run /commands";
 
 /** Plain text with no marks: the editor's own extensions when the caller supplies none. */
 const plainExtensions: Extensions = [
@@ -73,7 +83,8 @@ export function ComposerEditor({
 	sendWith = "enter",
 	onEditorReady,
 	extensions,
-	placeholder = "Write something ...",
+	placeholder = COMPOSER_PLACEHOLDER,
+	onFocusChange,
 }: ComposerEditorProps) {
 	const editor = useEditor(
 		{
@@ -83,8 +94,7 @@ export function ComposerEditor({
 				attributes: {
 					"aria-label": "composer",
 					"aria-multiline": "true",
-					class:
-						"min-h-[88px] max-h-[188px] overflow-y-auto px-3 py-2 text-sm font-light text-fg outline-none",
+					class: "min-h-12 max-h-[188px] overflow-y-auto text-sm font-light text-fg outline-none",
 					role: "textbox",
 				},
 			},
@@ -105,6 +115,18 @@ export function ComposerEditor({
 	useEffect(() => {
 		editor?.setEditable(!disabled);
 	}, [editor, disabled]);
+
+	useEffect(() => {
+		if (editor === null || onFocusChange === undefined) return;
+		const focus = () => onFocusChange(true);
+		const blur = () => onFocusChange(false);
+		editor.on("focus", focus);
+		editor.on("blur", blur);
+		return () => {
+			editor.off("focus", focus);
+			editor.off("blur", blur);
+		};
+	}, [editor, onFocusChange]);
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (disabled) return;
@@ -131,7 +153,7 @@ export function ComposerEditor({
 	return (
 		<div className="relative" onKeyDownCapture={handleKeyDown} data-testid="composer-editor">
 			{empty ? (
-				<span className="pointer-events-none absolute left-3 top-2 text-sm font-light text-fg-subtle">
+				<span className="pointer-events-none absolute left-0 top-0 text-sm font-light text-fg-subtle">
 					{placeholder}
 				</span>
 			) : null}

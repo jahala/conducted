@@ -100,7 +100,10 @@ export function TabItem({
 			<span className="flex size-4 shrink-0 items-center justify-center text-fg-muted">
 				<TabIcon tab={tab} />
 			</span>
-			<span className="min-w-0 flex-1 truncate">{tab.title}</span>
+			<span className="min-w-0 flex-1 truncate">
+				{/* A file tab shows the file's own name, as Conductor's tabs do; the full path is its tooltip. */}
+				{tab.kind === "file" ? (tab.title.split("/").at(-1) ?? tab.title) : tab.title}
+			</span>
 			<UnreadDot unread={tab.unread === true} />
 			<button
 				type="button"

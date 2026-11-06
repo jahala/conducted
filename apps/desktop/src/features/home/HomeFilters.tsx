@@ -1,12 +1,18 @@
 /**
  * @feature NAV-05 Home filters
- * Owns: the search box, project filter, active or archived toggle, sort and Display menu above the
- * grid.
+ * Owns: Home's toolbar: the search box, project filter, archive filter, sort, Display menu and
+ * "+ Create".
  * Behaviour: ui-map.md 2 (Home: search, filters for projects and active or archived, sort,
  * "Display" card fields), 10 (the fields seen on Home cards).
+ * Measured from Conductor 0.92.1 (renderApp @10212800-10226500, @10274108): one row in the 40px title
+ * strip. At the left a 200px search with its icon and "Search"; then, right-aligned, ghost controls 28px
+ * tall in muted 14px text, each with a 16px icon and a 12px chevron: "In all projects" (a checkbox menu
+ * with "All projects" and each project, shown when there is more than one project), the archive
+ * filter ("Hiding archived", "Showing all", "Only archived"), the sort ("Last active", "Newest", "Name",
+ * "Repository"), "Display" (Repository, Repository icon, Line changes, Last active) and a 24px "+ Create".
  * Our design choice: the search waits for a short pause before it changes the query, so typing
- * does not rebuild 50 cards on every key. Escape clears the search at once. The Display menu
- * offers only the fields the card can draw now; line changes wait for GIT-04.
+ * does not rebuild 50 rows on every key. Escape clears the search at once. Conductor's owner and
+ * routine filters, and its Cost and Owner fields, are cloud features and are left out.
  * Must handle: typing in search changes the query after the pause, not on every key; Escape in the
  * search box clears it; a project filter naming a removed repository is dropped; an outside change
  * to the search text replaces the box.
@@ -14,18 +20,28 @@
  */
 
 import type { RepoId } from "@conducted/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Repo } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
-import { Input } from "../../ui/Input.tsx";
-import { Menu, MenuCheckboxItem, MenuContent, MenuLabel, MenuTrigger } from "../../ui/Menu.tsx";
+import {
+	ArchiveIcon,
+	ArrowUpDownIcon,
+	ChevronDownIcon,
+	FolderIcon,
+	PlusIcon,
+	SearchIcon,
+	SlidersIcon,
+} from "../../ui/icons.tsx";
+import { Menu, MenuCheckboxItem, MenuContent, MenuTrigger } from "../../ui/Menu.tsx";
 import { Select } from "../../ui/Select.tsx";
-import { ToggleGroup, ToggleGroupItem } from "../../ui/Toggle.tsx";
 import {
 	HOME_DISPLAY_FIELDS,
+	type HomeArchiveFilter,
 	type HomeDisplay,
 	type HomeDisplayField,
 	type HomeFilterState,
+	type HomeSort,
 } from "./home-query.ts";
 
 /** How long the search box waits after the last key before it filters. */
@@ -33,8 +49,27 @@ export const SEARCH_PAUSE_MS = 250;
 
 const DISPLAY_LABELS: Record<HomeDisplayField, string> = {
 	repository: "Repository",
+	repositoryIcon: "Repository icon",
+	lineChanges: "Line changes",
 	lastActive: "Last active",
 };
+
+const ARCHIVE_OPTIONS: { value: HomeArchiveFilter; label: string }[] = [
+	{ value: "active", label: "Hiding archived" },
+	{ value: "all", label: "Showing all" },
+	{ value: "archived", label: "Only archived" },
+];
+
+const SORT_OPTIONS: { value: HomeSort; label: string }[] = [
+	{ value: "lastActive", label: "Last active" },
+	{ value: "created", label: "Newest" },
+	{ value: "name", label: "Name" },
+	{ value: "repository", label: "Repository" },
+];
+
+/** The toolbar's ghost trigger: icon, label, small chevron (Conductor's toolbar button). */
+const ghostTrigger =
+	"flex h-7 max-w-48 min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted outline-none hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-focus data-[state=open]:bg-hover data-[state=open]:text-fg";
 
 export interface HomeFiltersProps {
 	filters: HomeFilterState;
@@ -44,11 +79,13 @@ export interface HomeFiltersProps {
 	onDisplayChange: (display: HomeDisplay) => void;
 }
 
-function projectOptions(repos: Repo[]): { value: string; label: string }[] {
-	return [
-		{ value: "all", label: "All projects" },
-		...repos.map((repo) => ({ value: repo.id, label: repo.name })),
-	];
+function projectLabel(repos: Repo[], projects: readonly RepoId[]): string {
+	if (projects.length === 0) return "In all projects";
+	if (projects.length === 1) {
+		const name = repos.find((repo) => repo.id === projects[0])?.name;
+		return name === undefined ? "In 1 project" : `In ${name}`;
+	}
+	return `In ${projects.length} projects`;
 }
 
 export function HomeFilters({
@@ -58,6 +95,7 @@ export function HomeFilters({
 	onChange,
 	onDisplayChange,
 }: HomeFiltersProps) {
+	const navigate = useNavigate();
 	const [search, setSearch] = useState(filters.search);
 
 	// A Clear filters action in the empty state, or any other outside change, replaces the text.
@@ -81,66 +119,87 @@ export function HomeFilters({
 		}
 	}, [filters, repos, onChange]);
 
-	const selectedProject = filters.projects[0] ?? "all";
+	const toggleProject = (id: RepoId) =>
+		onChange({
+			...filters,
+			projects: filters.projects.includes(id)
+				? filters.projects.filter((project) => project !== id)
+				: [...filters.projects, id],
+		});
 
 	return (
-		<div className="flex flex-wrap items-center gap-2">
-			<Input
-				type="search"
-				aria-label="Search workspaces"
-				placeholder="Search workspaces"
-				value={search}
-				onChange={(event) => setSearch(event.target.value)}
-				onKeyDown={(event) => {
-					if (event.key !== "Escape") return;
-					event.preventDefault();
-					setSearch("");
-					onChange({ ...filters, search: "" });
-				}}
-				className="w-64"
+		<div className="flex min-w-0 flex-1 items-center gap-1">
+			<label className="flex h-7 w-[200px] min-w-0 shrink items-center gap-2 px-2">
+				<SearchIcon className="size-4 shrink-0 text-fg-muted" />
+				<input
+					type="search"
+					aria-label="Search workspaces"
+					placeholder="Search"
+					value={search}
+					onChange={(event) => setSearch(event.target.value)}
+					onKeyDown={(event) => {
+						if (event.key !== "Escape") return;
+						event.preventDefault();
+						setSearch("");
+						onChange({ ...filters, search: "" });
+					}}
+					className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted [&::-webkit-search-cancel-button]:hidden"
+				/>
+			</label>
+			<div className="flex-1 self-stretch" data-tauri-drag-region />
+			{repos.length > 1 ? (
+				<Menu>
+					<MenuTrigger asChild>
+						<button type="button" aria-label="Filter by project" className={ghostTrigger}>
+							<FolderIcon className="size-4 shrink-0" />
+							<span className="truncate">{projectLabel(repos, filters.projects)}</span>
+							<ChevronDownIcon className="size-3 shrink-0" />
+						</button>
+					</MenuTrigger>
+					<MenuContent align="start" className="w-56">
+						<MenuCheckboxItem
+							checked={filters.projects.length === 0}
+							onCheckedChange={() => onChange({ ...filters, projects: [] })}
+						>
+							All projects
+						</MenuCheckboxItem>
+						{repos.map((repo) => (
+							<MenuCheckboxItem
+								key={repo.id}
+								checked={filters.projects.includes(repo.id)}
+								onCheckedChange={() => toggleProject(repo.id)}
+							>
+								<span className="truncate">{repo.name}</span>
+							</MenuCheckboxItem>
+						))}
+					</MenuContent>
+				</Menu>
+			) : null}
+			<Select<HomeArchiveFilter>
+				variant="ghost"
+				aria-label="Archived workspaces"
+				icon={<ArchiveIcon className="size-4 shrink-0" />}
+				value={filters.archive}
+				options={ARCHIVE_OPTIONS}
+				onValueChange={(archive) => onChange({ ...filters, archive })}
 			/>
-			<Select
-				aria-label="Filter by project"
-				value={selectedProject}
-				options={projectOptions(repos)}
-				onValueChange={(value) =>
-					onChange({
-						...filters,
-						projects: value === "all" ? [] : [value as RepoId],
-					})
-				}
-			/>
-			<ToggleGroup
-				type="single"
-				aria-label="Show workspaces"
-				value={filters.archivedOnly ? "archived" : "active"}
-				onValueChange={(value) => {
-					if (value === "") return;
-					onChange({ ...filters, archivedOnly: value === "archived" });
-				}}
-			>
-				<ToggleGroupItem value="active">Active</ToggleGroupItem>
-				<ToggleGroupItem value="archived">Archived</ToggleGroupItem>
-			</ToggleGroup>
-			<Select
+			<Select<HomeSort>
+				variant="ghost"
 				aria-label="Sort workspaces"
+				icon={<ArrowUpDownIcon className="size-4 shrink-0" />}
 				value={filters.sortBy}
-				options={[
-					{ value: "updated", label: "Last updated" },
-					{ value: "created", label: "Created" },
-				]}
-				onValueChange={(value) =>
-					onChange({ ...filters, sortBy: value === "created" ? "created" : "updated" })
-				}
+				options={SORT_OPTIONS}
+				onValueChange={(sortBy) => onChange({ ...filters, sortBy })}
 			/>
 			<Menu>
 				<MenuTrigger asChild>
-					<Button variant="ghost" size="sm">
-						Display
-					</Button>
+					<button type="button" aria-label="Display" className={ghostTrigger}>
+						<SlidersIcon className="size-4 shrink-0" />
+						<span>Display</span>
+						<ChevronDownIcon className="size-3 shrink-0" />
+					</button>
 				</MenuTrigger>
-				<MenuContent align="end">
-					<MenuLabel>Show on cards</MenuLabel>
+				<MenuContent align="end" className="w-48">
 					{HOME_DISPLAY_FIELDS.map((field) => (
 						<MenuCheckboxItem
 							key={field}
@@ -157,6 +216,14 @@ export function HomeFilters({
 					))}
 				</MenuContent>
 			</Menu>
+			<Button
+				size="xs"
+				className="ml-1 shrink-0 gap-1 pr-2 pl-1.5 text-sm shadow-xs"
+				onClick={() => void navigate({ to: "/create" })}
+			>
+				<PlusIcon className="size-3" />
+				Create
+			</Button>
 		</div>
 	);
 }

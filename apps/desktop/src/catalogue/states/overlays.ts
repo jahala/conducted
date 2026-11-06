@@ -31,17 +31,23 @@ export const OVERLAY_STATES: CatalogueState[] = [
 	{
 		id: "file-viewer",
 		group: "Overlays and panels",
-		title: "File viewer with a code file",
+		title: "File viewer with a code file, opened from All files",
 		seed: async (world) => {
 			const cast = await seedCast(world);
 			return {
-				route: workspaceRoute(cast.arbor, {
-					tab: "file",
-					path: "src/auth/safe-next.ts",
-					fileMode: "edit",
-				}),
-				after: ({ app }) => refreshGit(app, cast.arbor),
-				ready: (document) => shows(document, "safeNext"),
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				// As in Conductor's capture: All files, then one click per folder and on the file.
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button,[role=tab]", "All files");
+					await click(document, '[role="treeitem"]', "src");
+					await click(document, '[role="treeitem"]', "auth");
+					await click(document, '[role="treeitem"]', "safe-next.ts");
+				},
+				ready: (document) =>
+					document
+						.querySelector("[data-file-viewer] .cm-content")
+						?.textContent?.includes("safeNext") === true,
 			};
 		},
 	},

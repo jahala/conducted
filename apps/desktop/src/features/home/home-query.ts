@@ -1,6 +1,6 @@
 /**
  * @feature NAV-05 Home filtering, sorting and paging
- * Owns: the pure function that applies Home's search, project filter, archived toggle and sort, and
+ * Owns: the pure function that applies Home's search, project filter, archive filter and sort, and
  * grows the visible result by one page of 50 per request; the display fields a card may show; the
  * rule for whether a workspace counts as archived.
  * Behaviour: ui-map.md 2 (Home: search, filters for projects and active or archived, sort, paging
@@ -10,7 +10,8 @@
  * total counts the unpaged matches, so the screen can say how many are hidden. Paging is
  * cumulative: `pageCount` 2 returns the first 100 unpinned matches, so "Show more" only adds
  * cards. An archived date counts as archived even before the state catches up.
- * Must handle: empty search (no filtering); the archived toggle shows only archived workspaces;
+ * Must handle: empty search (no filtering); the archive filter hides archived workspaces, shows all,
+ * or shows only archived ones; name and repository sorts ignore case;
  * asking for more pages than exist returns every match; sorting is stable; a project filter naming
  * a removed repository is harmless because a workspace's repository still decides the match.
  * Test first: searching "AUTH" finds a workspace whose branch is "fix-auth-bug"; asking for two
@@ -19,19 +20,30 @@
 
 import type { RepoId } from "@conducted/shared";
 import type { Repo, Workspace } from "../../core/model.ts";
+import { workspaceName } from "../workspace/workspace-name.ts";
+
+/** Conductor's archive filter: "Hiding archived", "Showing all", "Only archived". */
+export type HomeArchiveFilter = "active" | "all" | "archived";
+/** Conductor's sorts: "Last active", "Newest", "Name", "Repository". */
+export type HomeSort = "lastActive" | "created" | "name" | "repository";
 
 export interface HomeFilterState {
 	search: string;
 	projects: RepoId[];
-	archivedOnly: boolean;
-	sortBy: "updated" | "created";
+	archive: HomeArchiveFilter;
+	sortBy: HomeSort;
 }
 
 /** One page holds this many workspaces before "Show more" appears. */
 export const HOME_PAGE_SIZE = 50;
 
 /** An optional field the Display menu can hide or show on a card. */
-export const HOME_DISPLAY_FIELDS = ["repository", "lastActive"] as const;
+export const HOME_DISPLAY_FIELDS = [
+	"repository",
+	"repositoryIcon",
+	"lineChanges",
+	"lastActive",
+] as const;
 export type HomeDisplayField = (typeof HOME_DISPLAY_FIELDS)[number];
 export type HomeDisplay = ReadonlySet<HomeDisplayField>;
 
@@ -74,17 +86,27 @@ function matchesSearch(workspace: Workspace, repo: Repo | undefined, needle: str
 	);
 }
 
-function dateOf(workspace: Workspace, sortBy: HomeFilterState["sortBy"]): number {
-	return sortBy === "created" ? workspace.createdAt : workspace.lastActivityAt;
-}
-
-/** Newest first, with the id as the stable tie-breaker. */
+/**
+ * Dates sort newest first; name and repository sort A to Z, with the last activity next. The id is
+ * the stable tie-breaker.
+ */
 function compareWorkspaces(
 	left: Workspace,
 	right: Workspace,
-	sortBy: HomeFilterState["sortBy"],
+	sortBy: HomeSort,
+	repoName: (workspace: Workspace) => string,
 ): number {
-	const difference = dateOf(right, sortBy) - dateOf(left, sortBy);
+	const text =
+		sortBy === "name"
+			? workspaceName(left).localeCompare(workspaceName(right), undefined, { sensitivity: "base" })
+			: sortBy === "repository"
+				? repoName(left).localeCompare(repoName(right), undefined, { sensitivity: "base" })
+				: 0;
+	if (text !== 0) return text;
+	const difference =
+		sortBy === "created"
+			? right.createdAt - left.createdAt
+			: right.lastActivityAt - left.lastActivityAt;
 	if (difference !== 0) return difference;
 	return left.id.localeCompare(right.id);
 }
@@ -106,11 +128,19 @@ export function queryHome({
 
 	const matching = workspaces
 		.filter((workspace) => {
-			if (filters.archivedOnly !== isArchived(workspace)) return false;
+			if (filters.archive === "active" && isArchived(workspace)) return false;
+			if (filters.archive === "archived" && !isArchived(workspace)) return false;
 			if (projects.size > 0 && !projects.has(workspace.repoId)) return false;
 			return matchesSearch(workspace, reposById.get(workspace.repoId), needle);
 		})
-		.sort((left, right) => compareWorkspaces(left, right, filters.sortBy));
+		.sort((left, right) =>
+			compareWorkspaces(
+				left,
+				right,
+				filters.sortBy,
+				(workspace) => reposById.get(workspace.repoId)?.name ?? "",
+			),
+		);
 
 	const pinned = matching.filter((workspace) => workspace.pinnedAt !== null);
 	const unpinned = matching.filter((workspace) => workspace.pinnedAt === null);

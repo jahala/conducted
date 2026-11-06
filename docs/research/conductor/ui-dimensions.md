@@ -142,7 +142,7 @@ Light is `:root, .light` (CSS@400245). Dark is `.dark` (CSS@403276). Translucent
 | sidebar-background | #fafaf9 | #211e1c | Sidebar, headers and tab strips (drawn at 60% opacity over the window) |
 | card | #ffffff | #2c2826 | Cards |
 | popover | #ffffff | #2c2826 | Menus, popovers |
-| muted | #fafaf9 | #211e1c | Composer, user bubble, code blocks |
+| muted | #fafaf9 | #211e1c | Composer, queued user bubble, code blocks |
 | accent | #fafaf9 | #2c2826 | Neutral hover or active fill (not the brand accent) |
 | secondary | #fafaf9 | #211e1c | Secondary button |
 | foreground | #2c2826 | #eae8e6 | Body text, default button fill |
@@ -179,7 +179,7 @@ Light is `:root, .light` (CSS@400245). Dark is `.dark` (CSS@403276). Translucent
 | border-highlight | #a4847f | #cca694 | Accent border |
 | unread | #a4847f | #cca694 | Unread dot and icons |
 | plan-border | #cca694 | #836967 | Plan mode border |
-| highlight | #faf7f5 | #2a1e1d | Highlight surface |
+| highlight | #faf7f5 | #2a1e1d | Highlight surface; the user's own chat bubble (R@9519197) |
 | highlight-foreground | #594545 | #f3ece7 | Text on highlight |
 | warning | #faf7f5 | #413030 | Warning surface |
 | warning-foreground | #594545 | #f3ece7 | Warning text |
@@ -325,7 +325,7 @@ Row heights marked INFERRED are padding plus the 20px line of text-sm or the 16p
 | Sidebar nav row (Home, Create, Search) | 6px padding on all sides, 8px gap, 6px radius, 16px icon box. Height 32px INFERRED | R@10407551 |
 | Sidebar nav block | Column with 2px gap, 6px padding, bottom border | R@10407150 |
 | Workspace row | 8px top and bottom, 6px right, left 6px, 12px or 20px by nesting depth, 6px radius. First line is 20px tall with 6px gap; leading icon 16px with 2px top offset. Height 36px INFERRED | R@10438956, R@10441050, R@10441767 |
-| Workspace row states | Hover and selected fill sidebar-accent; selected text sidebar-accent-foreground. Name weight 450 by default, 500 selected, 600 unread (weight mapping INFERRED) | R@10438815, R@10427501 |
+| Workspace row states | Hover and selected fill sidebar-accent; selected text sidebar-accent-foreground. Name weight 450 and the muted sidebar colour whether selected or not, 600 (500 with the status matrix on) and the selected-text colour when unread (VERIFIED R@10427352) | R@10438815, R@10427501 |
 | Workspace row extras | Diff counts text-xs; "Draft" pill text-3xs with 4px by 2px padding; badge icons 12px | R@10430669, R@10429339 |
 | Sidebar section header | 6px padding, 8px gap, 6px radius; title text-xs medium in sidebar-muted-foreground at 70%. Height 28px INFERRED | R@10458024, R@10459644 |
 | Sidebar section block | 6px sides, 6px top, 12px bottom; rows 4px apart | R@10462269, R@10464029 |
@@ -362,7 +362,7 @@ Row heights marked INFERRED are padding plus the 20px line of text-sm or the 16p
 | Turn block | 28px sides, 8px top and bottom, 4px gap | R@9595770 |
 | Gap between messages in a turn | 4px | R@9595236 |
 | User message | Extra 12px top and bottom | R@9594110 |
-| User bubble | Right aligned; max width 576px, 768px on windows 1024px and wider; 12px top and bottom, 16px sides; 4px radius; muted fill; text-sm with preserved line breaks; colour change 300ms | R@9519197, R@9519641 |
+| User bubble | Right aligned; max width 576px, 768px on windows 1024px and wider; 12px top and bottom, 16px sides; 4px radius; the highlight pair for the user's own message (tone "current"), muted fill with muted text while queued, muted for another person's message; text-sm with preserved line breaks; colour change 300ms | R@9519197, R@9519641 |
 | Assistant text | Markdown at 14px on a 24px line (ratio 1.714); paragraphs 16px apart | CSS@39516, R@8131838, R@9738096 |
 | Tool call row (collapsed) | 8px gap, 6px top and bottom, 8px sides pulled out by 8px so text aligns, 4px radius, hover fill muted at 50%. Height 32px INFERRED | R@8747084 |
 | Tool output block | Mono text-xs medium, 12px padding, 6px radius, 1px border, accent (neutral) fill. Errors use destructive at 10% fill and 20% border | R@8748778, R@8751079 |

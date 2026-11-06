@@ -11,11 +11,11 @@ import { appError, err } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
+import { ShellControls } from "../../app/ShellControls.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
 import { ResourceUsageTable } from "./ResourceUsageTable.tsx";
-import { Sidebar } from "./Sidebar.tsx";
 
 const MB = 1024 * 1024;
 
@@ -49,7 +49,7 @@ function renderTable(test: TestContainer, pollIntervalMs?: number): void {
 async function openTable(test: TestContainer): Promise<HTMLElement> {
 	setSetting(test, "sidebar_resource_usage", true);
 	renderTable(test);
-	fireEvent.click(screen.getByRole("button", { name: "Resources" }));
+	fireEvent.click(screen.getByRole("button", { name: /^Resource usage/ }));
 	return screen.findByRole("table", { name: "Resources" });
 }
 
@@ -58,7 +58,7 @@ describe("APP-07 resource usage table", () => {
 		const test = createTestContainer();
 		open = test;
 		renderTable(test);
-		expect(screen.queryByRole("button", { name: "Resources" })).toBeNull();
+		expect(screen.queryByRole("button", { name: /^Resource usage/ })).toBeNull();
 	});
 
 	it("groups rows by workspace and sorts by memory when that header is chosen", async () => {
@@ -79,6 +79,8 @@ describe("APP-07 resource usage table", () => {
 		]);
 
 		const table = await openTable(test);
+		// Conductor's chip names the total memory of every process listed.
+		expect(screen.getByRole("button", { name: /^Resource usage: 350/ })).toBeTruthy();
 		const alphaGroup = within(table).getByRole("rowgroup", { name: "alpha" });
 		const betaGroup = within(table).getByRole("rowgroup", { name: "beta" });
 		expect(within(alphaGroup).getByText("node")).toBeTruthy();
@@ -124,7 +126,7 @@ describe("APP-07 resource usage table", () => {
 
 		setSetting(test, "sidebar_resource_usage", true);
 		renderTable(test);
-		fireEvent.click(screen.getByRole("button", { name: "Resources" }));
+		fireEvent.click(screen.getByRole("button", { name: /^Resource usage/ }));
 		expect(await screen.findByText(/Couldn't read resource usage/)).toBeTruthy();
 	});
 
@@ -142,7 +144,7 @@ describe("APP-07 resource usage table", () => {
 		vi.useFakeTimers();
 		setSetting(test, "sidebar_resource_usage", true);
 		renderTable(test, 1000);
-		fireEvent.click(screen.getByRole("button", { name: "Resources" }));
+		fireEvent.click(screen.getByRole("button", { name: /^Resource usage/ }));
 		expect(screen.getByRole("status", { name: "Loading resource usage" })).toBeTruthy();
 		await act(async () => {
 			await vi.advanceTimersByTimeAsync(0);
@@ -179,17 +181,25 @@ describe("APP-07 resource usage table", () => {
 		expect(heavy()).toHaveLength(2);
 	});
 
-	it("is reachable from the sidebar footer", async () => {
+	// Conductor mounts the chip in the sidebar's top strip before Go back (renderApp @10538807);
+	// this test asserted the old footer row.
+	it("is reachable from the top strip, before Go back", async () => {
 		const test = createTestContainer();
 		open = test;
 		setSetting(test, "sidebar_resource_usage", true);
 		renderWithRouter(
 			<AppProviders client={createQueryClient(() => {})}>
 				<ServicesProvider container={test.container}>
-					<Sidebar />
+					<ShellControls
+						sidebarOpen
+						onToggleSidebar={() => {}}
+						resources={<ResourceUsageTable />}
+					/>
 				</ServicesProvider>
 			</AppProviders>,
 		);
-		expect(await screen.findByRole("button", { name: "Resources" })).toBeTruthy();
+		const chip = await screen.findByRole("button", { name: /^Resource usage/ });
+		const back = screen.getByRole("button", { name: "Go back" });
+		expect(chip.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 	});
 });

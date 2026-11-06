@@ -141,7 +141,16 @@ export function contrastOn(
 	);
 }
 
-export const surfaces = ["canvas", "panel", "surface", "muted", "raised", "hover", "active"];
+export const surfaces = [
+	"canvas",
+	"panel",
+	"surface",
+	"muted",
+	"raised",
+	"well",
+	"hover",
+	"active",
+];
 export const on = (fg: string, bgs: string[]): [string, string][] => bgs.map((bg) => [fg, bg]);
 
 /** Text on a surface needs 4.5:1 (WCAG AA). Non-text marks such as input edges and the focus ring need 3:1. */
@@ -165,6 +174,21 @@ export const textPairs: [string, string][] = [
 	...on("success", ["canvas", "surface", "panel", "raised"]),
 	...on("git-added", ["canvas", "surface", "panel"]),
 	...on("git-removed", ["canvas", "surface", "panel"]),
+	...on("code-fg", ["muted"]),
+	...on("code-comment", ["muted"]),
+	...on("code-keyword", ["muted"]),
+	...on("code-string", ["muted"]),
+	...on("code-number", ["muted"]),
+	...on("code-function", ["muted"]),
+	...on("code-class", ["muted"]),
+	...on("code-tag", ["muted"]),
+	...on("merged", ["surface"]),
+	["on-merged", "merged"],
+	...on("callout-note", ["canvas"]),
+	...on("callout-tip", ["canvas"]),
+	...on("callout-important", ["canvas"]),
+	...on("callout-warning", ["canvas"]),
+	...on("callout-caution", ["canvas"]),
 ];
 
 export const markPairs: [string, string][] = [

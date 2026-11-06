@@ -9,9 +9,10 @@
  * Test first: typing in the filter calls onFilterChange with the text, and Escape calls it with "".
  */
 import type { WorkspaceId } from "@conducted/shared";
+import { useState } from "react";
 import type { DiffScope } from "../../../core/api.ts";
 import { IconButton } from "../../../ui/IconButton.tsx";
-import { FileTextIcon, FolderPlusIcon, SearchIcon } from "../../../ui/icons.tsx";
+import { FileTextIcon, FolderIcon, SearchIcon } from "../../../ui/icons.tsx";
 import { DiffScopeMenu } from "./DiffScopeMenu.tsx";
 
 export interface ChangesToolbarProps {
@@ -33,39 +34,55 @@ export function ChangesToolbar({
 	scope,
 	onScopeChange,
 }: ChangesToolbarProps) {
+	// Conductor keeps the filter behind a search icon; it stays open while it holds text.
+	const [searching, setSearching] = useState(false);
+	const showFilter = searching || filter.length > 0;
 	return (
-		<div className="flex shrink-0 items-center gap-1 border-b border-separator px-2 py-1">
-			<div className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md border border-border-strong px-2">
-				<SearchIcon className="shrink-0 text-fg-muted" />
-				<input
-					value={filter}
-					onChange={(event) => onFilterChange(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Escape") {
-							event.preventDefault();
-							onFilterChange("");
-						}
-					}}
-					placeholder="Filter changed files"
-					aria-label="Filter changed files"
-					className="w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
-				/>
-			</div>
+		<div className="flex h-9 shrink-0 items-center gap-1 border-b border-separator px-2">
+			{showFilter ? (
+				<div className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md border border-border-strong px-2">
+					<SearchIcon className="shrink-0 text-fg-muted" />
+					<input
+						// biome-ignore lint/a11y/noAutofocus: the field opens because the user asked to search.
+						autoFocus={searching}
+						onBlur={() => setSearching(false)}
+						value={filter}
+						onChange={(event) => onFilterChange(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								event.preventDefault();
+								onFilterChange("");
+							}
+						}}
+						placeholder="Filter changed files"
+						aria-label="Filter changed files"
+						className="w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
+					/>
+				</div>
+			) : (
+				<>
+					<span className="flex-1" />
+					<IconButton
+						label="Search changed files"
+						size="sm"
+						variant="ghost"
+						icon={<SearchIcon className="size-3.5" />}
+						onClick={() => setSearching(true)}
+					/>
+				</>
+			)}
 			<IconButton
-				label="Show flat list"
+				label={view === "flat" ? "Show folder hierarchy" : "Show flat list"}
 				size="sm"
-				pressed={view === "flat"}
-				variant={view === "flat" ? "secondary" : "ghost"}
-				icon={<FileTextIcon />}
-				onClick={() => onViewChange("flat")}
-			/>
-			<IconButton
-				label="Show folder hierarchy"
-				size="sm"
-				pressed={view === "folders"}
-				variant={view === "folders" ? "secondary" : "ghost"}
-				icon={<FolderPlusIcon />}
-				onClick={() => onViewChange("folders")}
+				variant="ghost"
+				icon={
+					view === "flat" ? (
+						<FolderIcon className="size-3.5" />
+					) : (
+						<FileTextIcon className="size-3.5" />
+					)
+				}
+				onClick={() => onViewChange(view === "flat" ? "folders" : "flat")}
 			/>
 			<DiffScopeMenu workspaceId={workspaceId} scope={scope} onChange={onScopeChange} />
 		</div>

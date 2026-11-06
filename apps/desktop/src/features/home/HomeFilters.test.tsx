@@ -13,8 +13,8 @@ afterEach(() => {
 const FILTERS: HomeFilterState = {
 	search: "",
 	projects: [],
-	archivedOnly: false,
-	sortBy: "updated",
+	archive: "active",
+	sortBy: "lastActive",
 };
 
 const DISPLAY: HomeDisplay = new Set(["repository", "lastActive"]);
@@ -84,18 +84,30 @@ describe("NAV-05 HomeFilters", () => {
 
 	it("filters to one project", async () => {
 		const { onChange } = renderFilters({ repos: [repo("app", "app"), repo("api", "api")] });
-		fireEvent.keyDown(screen.getByRole("combobox", { name: "Filter by project" }), {
-			key: "Enter",
-		});
-		const option = await screen.findByRole("option", { name: "api" });
-		fireEvent.keyDown(option, { key: "Enter" });
+		// Conductor's project filter is a checkbox menu ("In all projects"), not a single select.
+		const trigger = screen.getByRole("button", { name: "Filter by project" });
+		trigger.focus();
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		const item = await screen.findByRole("menuitemcheckbox", { name: "api" });
+		fireEvent.click(item);
 		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ projects: ["api" as RepoId] }));
 	});
 
-	it("switches the active or archived toggle", () => {
+	it("switches the archive filter to Only archived", async () => {
+		// Conductor's three-way select ("Hiding archived", "Showing all", "Only archived") replaced the
+		// Active and Archived toggle.
 		const { onChange } = renderFilters();
-		fireEvent.click(screen.getByRole("radio", { name: "Archived" }));
-		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ archivedOnly: true }));
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Archived workspaces" }), {
+			key: "Enter",
+		});
+		const option = await screen.findByRole("option", { name: "Only archived" });
+		fireEvent.keyDown(option, { key: "Enter" });
+		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ archive: "archived" }));
+	});
+
+	it("hides the project filter when there is only one project", () => {
+		renderFilters({ repos: [repo("app", "app")] });
+		expect(screen.queryByRole("button", { name: "Filter by project" })).toBeNull();
 	});
 
 	it("changes the sort order", async () => {
@@ -103,7 +115,8 @@ describe("NAV-05 HomeFilters", () => {
 		fireEvent.keyDown(screen.getByRole("combobox", { name: "Sort workspaces" }), {
 			key: "Enter",
 		});
-		const option = await screen.findByRole("option", { name: "Created" });
+		// Conductor names the creation sort "Newest".
+		const option = await screen.findByRole("option", { name: "Newest" });
 		fireEvent.keyDown(option, { key: "Enter" });
 		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ sortBy: "created" }));
 	});

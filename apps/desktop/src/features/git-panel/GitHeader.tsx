@@ -21,25 +21,36 @@ import type {
 	GitHeader as GitHeaderModel,
 	GitHeaderTone,
 } from "../../core/status/git-header.ts";
-import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
+import { cn } from "../../ui/cn.ts";
+import { ArrowUpRightIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
 
 export interface GitHeaderProps {
 	model: GitHeaderModel;
+	/** The workspace's pull request, for the "#12 ↗" chip. */
+	pullRequest?: { number: number; url: string } | null;
+	/** Opens the pull request on GitHub, from the chip. */
+	onOpenPullRequest?: () => void;
+	/** Archives the workspace; offered once its pull request is merged. */
+	onArchive?: () => void;
 	/** Settles when the action is finished, including a failed one, so the button is usable again. */
 	onAction: (action: GitHeaderActionId) => Promise<unknown> | undefined;
 }
 
-const toneBadge: Record<GitHeaderTone, BadgeTone> = {
-	neutral: "neutral",
-	busy: "warning",
-	attention: "warning",
-	danger: "danger",
-	success: "success",
-	done: "neutral",
+/**
+ * The header's tint and word colour per state, after Conductor: green when the pull request can merge,
+ * amber while queued or busy, the highlight pair when it needs attention, purple once merged.
+ */
+const toneTint: Record<GitHeaderTone, { bar: string; word: string }> = {
+	neutral: { bar: "", word: "text-sidebar-fg" },
+	busy: { bar: "bg-status-progress/10", word: "text-status-progress" },
+	attention: { bar: "bg-highlight-surface", word: "text-highlight-fg" },
+	danger: { bar: "", word: "text-danger" },
+	success: { bar: "bg-success/10", word: "text-success" },
+	done: { bar: "bg-merged/10", word: "text-merged" },
 };
 
 const actionCommand: Partial<Record<GitHeaderActionId, string>> = {
@@ -52,7 +63,14 @@ const actionCommand: Partial<Record<GitHeaderActionId, string>> = {
 	merge_stack: "pr.merge",
 };
 
-export function GitHeader({ model, onAction }: GitHeaderProps) {
+export function GitHeader({
+	model,
+	onAction,
+	pullRequest = null,
+	onOpenPullRequest,
+	onArchive,
+}: GitHeaderProps) {
+	const tint = model.kind === "merged" ? toneTint.done : toneTint[model.tone];
 	// The action in flight, if any. The single-flight guard ignores a second press of the same
 	// action; a different action (the model changed under the button) runs on its own.
 	const [flight] = useState(() => createSingleFlight<GitHeaderActionId>());
@@ -70,18 +88,39 @@ export function GitHeader({ model, onAction }: GitHeaderProps) {
 	};
 
 	return (
-		<div className="flex h-10 shrink-0 items-center gap-2 border-b border-separator px-3">
-			<div className="flex min-w-0 flex-1">
+		<div
+			className={cn(
+				"flex h-10 shrink-0 items-center gap-2 border-b border-separator pr-2 pl-4",
+				tint.bar,
+			)}
+		>
+			<div className="flex min-w-0 flex-1 items-center gap-1">
+				{pullRequest === null ? null : (
+					<button
+						type="button"
+						onClick={onOpenPullRequest}
+						title={`Open pull request #${pullRequest.number}`}
+						className={cn(
+							"mr-1 flex h-6 shrink-0 items-center gap-1 rounded-sm border border-border px-1.5 font-mono text-xs font-medium hover:bg-hover",
+							tint.word,
+						)}
+					>
+						#{pullRequest.number}
+						<ArrowUpRightIcon className="size-3" />
+					</button>
+				)}
 				<Popover
 					trigger={
 						<button
 							type="button"
 							aria-label="PR status details"
-							className="flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 hover:bg-hover"
+							className={cn(
+								"min-w-0 truncate rounded-sm px-1 text-left text-sm font-medium hover:bg-hover",
+								tint.word,
+							)}
+							title={model.title}
 						>
-							<span className="min-w-0 truncate" title={model.title}>
-								<Badge tone={toneBadge[model.tone]}>{model.title}</Badge>
-							</span>
+							{model.title}
 						</button>
 					}
 				>
@@ -101,10 +140,11 @@ export function GitHeader({ model, onAction }: GitHeaderProps) {
 				<ActionTooltip content={model.action.tooltip}>
 					<Button
 						size="sm"
+						variant={model.kind === "merged" ? "outline" : "default"}
 						loading={busy}
 						disabled={busy}
 						onClick={() => run(model.action?.id ?? "retry")}
-						className="shrink-0"
+						className={cn("shrink-0", model.kind === "merged" && `border-dashed ${tint.word}`)}
 					>
 						{model.action.label}
 						{model.action.count !== undefined ? (
@@ -120,6 +160,15 @@ export function GitHeader({ model, onAction }: GitHeaderProps) {
 						) : null}
 					</Button>
 				</ActionTooltip>
+			) : null}
+			{model.kind === "merged" && onArchive !== undefined ? (
+				<Button
+					size="sm"
+					onClick={onArchive}
+					className="shrink-0 bg-merged! text-on-merged! hover:opacity-90"
+				>
+					Archive
+				</Button>
 			) : null}
 		</div>
 	);

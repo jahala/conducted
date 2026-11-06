@@ -301,9 +301,12 @@ describe("REV-09 files changed under a turn", () => {
 
 			const { router } = await mount(test, workspace.id, chat.id, other.id);
 
-			expect(await screen.findByText("2 files changed")).toBeTruthy();
-			expect(screen.getByText("src/helper.ts")).toBeTruthy();
-			expect(screen.getByText("src/index.ts")).toBeTruthy();
+			// Conductor lists a turn's files as chips with their own names in the turn's footer row.
+			expect(
+				await screen.findByRole("region", { name: "Files changed in this turn" }),
+			).toBeTruthy();
+			expect(screen.getByText("helper.ts")).toBeTruthy();
+			expect(screen.getByText("index.ts")).toBeTruthy();
 
 			fireEvent.click(screen.getByRole("button", { name: "Open diff" }));
 

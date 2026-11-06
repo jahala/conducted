@@ -12,16 +12,25 @@
  */
 import { type RefObject, useMemo, useRef, useState } from "react";
 import { Input } from "../../ui/Input.tsx";
+import { SearchIcon } from "../../ui/icons.tsx";
+import { Kbd } from "../../ui/Kbd.tsx";
 import { type SearchableSetting, searchSettings } from "./settings-search.ts";
 
 export interface SettingsSearchProps {
+	/** The live key that focuses the field, shown at its right ("⌘F"). */
+	searchShortcut?: string | null;
 	index: readonly SearchableSetting[];
 	onOpen: (setting: SearchableSetting) => void;
 	/** The screen's own ref, so Cmd+F can focus the box. */
 	inputRef?: RefObject<HTMLInputElement | null>;
 }
 
-export function SettingsSearch({ index, onOpen, inputRef }: SettingsSearchProps) {
+export function SettingsSearch({
+	index,
+	onOpen,
+	inputRef,
+	searchShortcut = null,
+}: SettingsSearchProps) {
 	const ownRef = useRef<HTMLInputElement>(null);
 	const ref = inputRef ?? ownRef;
 	const [query, setQuery] = useState("");
@@ -35,42 +44,54 @@ export function SettingsSearch({ index, onOpen, inputRef }: SettingsSearchProps)
 
 	return (
 		<div className="flex flex-col gap-2">
-			<Input
-				ref={ref}
-				type="search"
-				aria-label="Search settings"
-				placeholder="Search settings"
-				value={query}
-				onChange={(event) => {
-					setQuery(event.target.value);
-					setActive(0);
-				}}
-				onKeyDown={(event) => {
-					if (event.key === "ArrowDown") {
-						event.preventDefault();
-						setActive((current) => (results.length === 0 ? 0 : (current + 1) % results.length));
-						return;
-					}
-					if (event.key === "ArrowUp") {
-						event.preventDefault();
-						setActive((current) =>
-							results.length === 0 ? 0 : (current - 1 + results.length) % results.length,
-						);
-						return;
-					}
-					if (event.key === "Enter") {
-						event.preventDefault();
-						open(results[active]);
-						return;
-					}
-					if (event.key === "Escape" && query !== "") {
-						event.preventDefault();
-						event.stopPropagation();
-						setQuery("");
+			<div className="relative">
+				<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-fg-muted" />
+				{searchShortcut === null ? null : (
+					<span
+						aria-hidden="true"
+						className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2"
+					>
+						<Kbd>{searchShortcut}</Kbd>
+					</span>
+				)}
+				<Input
+					ref={ref}
+					type="search"
+					aria-label="Search settings"
+					placeholder="Search settings"
+					className="pr-12 pl-8"
+					value={query}
+					onChange={(event) => {
+						setQuery(event.target.value);
 						setActive(0);
-					}
-				}}
-			/>
+					}}
+					onKeyDown={(event) => {
+						if (event.key === "ArrowDown") {
+							event.preventDefault();
+							setActive((current) => (results.length === 0 ? 0 : (current + 1) % results.length));
+							return;
+						}
+						if (event.key === "ArrowUp") {
+							event.preventDefault();
+							setActive((current) =>
+								results.length === 0 ? 0 : (current - 1 + results.length) % results.length,
+							);
+							return;
+						}
+						if (event.key === "Enter") {
+							event.preventDefault();
+							open(results[active]);
+							return;
+						}
+						if (event.key === "Escape" && query !== "") {
+							event.preventDefault();
+							event.stopPropagation();
+							setQuery("");
+							setActive(0);
+						}
+					}}
+				/>
+			</div>
 			{query.trim() === "" ? null : results.length === 0 ? (
 				<p role="status" className="px-1 text-xs text-fg-muted">
 					No settings match your search.

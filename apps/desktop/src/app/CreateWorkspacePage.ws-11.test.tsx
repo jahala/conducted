@@ -302,10 +302,12 @@ describe("WS-11 start a backlog workspace", () => {
 
 		const prompt = screen.getByLabelText("First message") as HTMLTextAreaElement;
 		expect(prompt.readOnly).toBe(true);
-		expect((screen.getByLabelText("Model") as HTMLInputElement).readOnly).toBe(true);
-		expect((screen.getByRole("checkbox", { name: "Plan mode" }) as HTMLInputElement).disabled).toBe(
-			true,
-		);
+		// The model is the composer's model menu now, as in Conductor; its trigger is locked.
+		expect(
+			(screen.getByRole("button", { name: "Model picker" }) as HTMLButtonElement).disabled,
+		).toBe(true);
+		// Plan mode moved into the "+" menu, as Conductor's composer keeps it; its trigger is locked.
+		expect((screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
 		expect(screen.getByText("This workspace starts as it was saved to the backlog.")).toBeTruthy();
 	});
 

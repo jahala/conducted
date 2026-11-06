@@ -6,8 +6,8 @@ import { HOME_PAGE_SIZE, type HomeFilterState, queryHome } from "./home-query.ts
 const FILTERS: HomeFilterState = {
 	search: "",
 	projects: [],
-	archivedOnly: false,
-	sortBy: "updated",
+	archive: "active",
+	sortBy: "lastActive",
 };
 
 function repo(id: string, overrides: Partial<Repo> = {}): Repo {
@@ -171,7 +171,7 @@ describe("NAV-05 home-query", () => {
 		const archived = queryHome({
 			workspaces,
 			repos: [repo("app")],
-			filters: { ...FILTERS, archivedOnly: true },
+			filters: { ...FILTERS, archive: "archived" },
 			pageCount: 1,
 		});
 		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
@@ -190,7 +190,7 @@ describe("NAV-05 home-query", () => {
 		const archived = queryHome({
 			workspaces: [staleState],
 			repos: [repo("app")],
-			filters: { ...FILTERS, archivedOnly: true },
+			filters: { ...FILTERS, archive: "archived" },
 			pageCount: 1,
 		});
 		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
@@ -242,5 +242,38 @@ describe("NAV-05 home-query", () => {
 			pageCount: 1,
 		});
 		expect(created.items.map((row) => row.id)).toEqual(["c", "b", "a"]);
+	});
+
+	it("shows active and archived workspaces together when Showing all", () => {
+		const page = queryHome({
+			workspaces: [workspace("active"), workspace("old", { state: "archived", archivedAt: 10 })],
+			repos: [repo("app")],
+			filters: { ...FILTERS, archive: "all" },
+			pageCount: 1,
+		});
+		expect(page.items.map((row) => row.id).sort()).toEqual(["active", "old"]);
+	});
+
+	it("sorts by name A to Z ignoring case, and by repository name", () => {
+		const workspaces = [
+			workspace("b", { displayName: "beta", repoId: "zed" as RepoId }),
+			workspace("a", { displayName: "Alpha", repoId: "app" as RepoId }),
+			workspace("c", { displayName: "charlie", repoId: "api" as RepoId }),
+		];
+		const repos = [repo("zed"), repo("app"), repo("api")];
+		const byName = queryHome({
+			workspaces,
+			repos,
+			filters: { ...FILTERS, sortBy: "name" },
+			pageCount: 1,
+		});
+		expect(byName.items.map((row) => row.id)).toEqual(["a", "b", "c"]);
+		const byRepo = queryHome({
+			workspaces,
+			repos,
+			filters: { ...FILTERS, sortBy: "repository" },
+			pageCount: 1,
+		});
+		expect(byRepo.items.map((row) => row.id)).toEqual(["c", "a", "b"]);
 	});
 });

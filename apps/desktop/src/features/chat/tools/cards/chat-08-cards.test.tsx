@@ -163,7 +163,8 @@ describe("CHAT-08 sub-agent card", () => {
 		expect(screen.getByText("Subagent")).toBeTruthy();
 		expect(screen.getByText("Look into it")).toBeTruthy();
 		expect(screen.getAllByText("Bash")).toHaveLength(1);
-		expect(screen.getAllByText("Read")).toHaveLength(1);
+		// A read with no result yet is titled "Reading", as in Conductor.
+		expect(screen.getAllByText("Reading")).toHaveLength(1);
 	});
 
 	it("shows the sub-agent's final answer", async () => {
@@ -199,7 +200,7 @@ describe("CHAT-08 sub-agent card", () => {
 			);
 			expect(screen.getByText("Tool: Bash: This part failed to load.")).toBeTruthy();
 			expect(screen.getByText("Tool: TaskCreate: Not built yet: CHAT-09")).toBeTruthy();
-			expect(screen.getByText("Read")).toBeTruthy();
+			expect(screen.getByText("Reading")).toBeTruthy();
 		} finally {
 			Object.assign(TOOL_CARDS, original);
 			log.mockRestore();
@@ -220,7 +221,8 @@ describe("CHAT-08 grep card", () => {
 				defaultExpanded
 			/>,
 		);
-		expect(screen.getByText("needle")).toBeTruthy();
+		// Conductor's row reads "grep for '<pattern>'".
+		expect(screen.getByText("grep for 'needle'")).toBeTruthy();
 		expect(screen.getByText("src/a.ts")).toBeTruthy();
 		expect(screen.getByText("src/b.ts")).toBeTruthy();
 	});
@@ -359,7 +361,8 @@ describe("CHAT-08 write card", () => {
 				defaultExpanded
 			/>,
 		);
-		expect(screen.getByText("src/a.ts")).toBeTruthy();
+		// The row names the file in a badge with its own name; the full path is the badge's tooltip.
+		expect(screen.getByText("a.ts").closest("button")?.getAttribute("title")).toBe("src/a.ts");
 		const diff = document.querySelector("pre");
 		expect(diff?.textContent).toContain("+first");
 		expect(diff?.textContent).toContain("+second");
@@ -394,7 +397,8 @@ describe("CHAT-08 read card", () => {
 				defaultExpanded
 			/>,
 		);
-		const link = screen.getByRole("button", { name: "src/a.ts" });
+		// The row's file badge shows the file's own name, with the full path as its tooltip.
+		const link = screen.getByTitle("src/a.ts");
 		fireEvent.click(link);
 		await waitFor(() =>
 			expect(router.state.location.search).toMatchObject({ tab: "file", path: "src/a.ts" }),

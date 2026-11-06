@@ -135,6 +135,25 @@ describe("PRJ-03 Quick start", () => {
 	});
 });
 
+describe("PRJ-03 Create project dialog layout", () => {
+	it("follows Conductor's wording: folder line, parent placeholder, New on gstack, Create with its keys", () => {
+		render(<CreateProjectDialog open onOpenChange={() => {}} onCreated={() => {}} />, {
+			wrapper,
+		});
+		fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "my app" } });
+		expect(screen.getByText("Creates folder").textContent).toContain("Creates folder");
+		expect(screen.getByText("my-app").tagName).toBe("CODE");
+		expect(screen.getByPlaceholderText("Enter path or click to select")).toBeTruthy();
+		const templates = screen.getByRole("group", { name: "Template" });
+		const gstack = Array.from(templates.querySelectorAll("button")).find((card) =>
+			card.textContent?.includes("gstack"),
+		);
+		expect(gstack?.textContent).toContain("New");
+		const create = screen.getByRole("button", { name: "Create" });
+		expect(create.textContent).toBe("Create⌘↵");
+	});
+});
+
 describe("PRJ-03 Create a private GitHub repo? dialog", () => {
 	it("shows that the repository name is available and creates the repository", async () => {
 		scriptOwners();

@@ -23,7 +23,10 @@ vi.mock("../../ui/Toast.tsx", () => ({
 	toastError: state.toastError,
 }));
 
-const { AddProjectButton } = await import("./AddProjectButton.tsx");
+const { AddProjectButton, AddProjectMenu } = await import("./AddProjectButton.tsx");
+const { CommandRegistryProvider, createCommandRegistry } = await import(
+	"../../app/command-dispatcher.ts"
+);
 
 const repo = (id: string, name: string, updatedAt: number): Repo => ({
 	id: id as Repo["id"],
@@ -113,15 +116,36 @@ describe("PRJ-01 Add project menu", () => {
 		state.addLocal.mockResolvedValue(ok({}));
 		render(<AddProjectButton />);
 		fireEvent.keyDown(screen.getByRole("button", { name: /Add a project/ }), { key: "Enter" });
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Open project..." }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Open project" }));
 		await waitFor(() => expect(state.addLocal).toHaveBeenCalledWith("/code/other"));
 	});
 
-	it("has no Recents group, which the research does not describe", async () => {
+	// Conductor's add-project menu lists Recents: folders opened before that are not projects yet
+	// (renderApp @10174083). We keep no such list, so the group is left out.
+	it("has no Recents group, since no list of recent non-project folders is kept", async () => {
 		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
 		render(<AddProjectButton />);
 		fireEvent.keyDown(screen.getByRole("button", { name: /Add a project/ }), { key: "Enter" });
-		expect(await screen.findByRole("menuitem", { name: "Open project..." })).toBeTruthy();
+		expect(await screen.findByRole("menuitem", { name: "Open project" })).toBeTruthy();
 		expect(screen.queryByText("Recents")).toBeNull();
+	});
+});
+
+describe("PRJ-01 sidebar add-project menu", () => {
+	it("opens Conductor's three items when the Add project command runs", async () => {
+		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
+		const registry = createCommandRegistry();
+		render(
+			<CommandRegistryProvider registry={registry}>
+				<AddProjectMenu />
+			</CommandRegistryProvider>,
+		);
+		expect(screen.queryByRole("menu")).toBeNull();
+		expect(registry.run("project.add")).toBe(true);
+		const menu = await screen.findByRole("menu", { name: "Add project" });
+		const items = Array.from(menu.querySelectorAll("[role=menuitem]")).map(
+			(item) => item.textContent,
+		);
+		expect(items).toEqual(["Open project", "Open GitHub project", "Quick start"]);
 	});
 });

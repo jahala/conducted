@@ -13,7 +13,6 @@
  * Test first: with changedCount 3 the Changes tab shows the badge "3".
  */
 import type { GitPanelTab } from "../../core/model.ts";
-import { Badge } from "../../ui/Badge.tsx";
 import { Tabs, TabsList, TabsTrigger } from "../../ui/Tabs.tsx";
 import { ReviewButton } from "./ReviewButton.tsx";
 
@@ -50,14 +49,20 @@ export function GitPanelTabs({
 	return (
 		<Tabs value={active} onValueChange={(value) => onSelect(value as GitPanelViewTab)}>
 			<div className="flex shrink-0 items-center justify-between gap-2 border-b border-separator pr-2">
-				<TabsList className="border-b-0">
-					{showArtifacts ? <TabsTrigger value="artifacts">Artifacts</TabsTrigger> : null}
-					<TabsTrigger value="files">All files</TabsTrigger>
-					<TabsTrigger value="changes">
-						Changes
-						{changedCount > 0 ? <Badge>{countLabel(changedCount)}</Badge> : null}
+				<TabsList className="gap-1 border-b-0 font-normal">
+					{showArtifacts ? (
+						<TabsTrigger variant="pill" value="artifacts">
+							Artifacts
+						</TabsTrigger>
+					) : null}
+					<TabsTrigger variant="pill" value="files">
+						All files
 					</TabsTrigger>
-					<TabsTrigger value="checks">
+					<TabsTrigger variant="pill" value="changes">
+						Changes
+						<span className="font-mono text-xs text-fg-muted">{countLabel(changedCount)}</span>
+					</TabsTrigger>
+					<TabsTrigger variant="pill" value="checks">
 						Checks
 						{checksFailing ? (
 							<span

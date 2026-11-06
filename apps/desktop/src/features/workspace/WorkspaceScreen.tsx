@@ -81,6 +81,7 @@ export function WorkspaceScreen({
 						scope={gitScope}
 						onScopeChange={(scope) => onSearchChange({ scope: formatDiffScope(scope) })}
 						onOpenFile={(path, fileMode) => onSearchChange({ tab: "file", path, fileMode })}
+						openFilePath={search.tab === "file" ? (search.path ?? null) : null}
 					/>
 				</NotBuiltYet>
 			}

@@ -6,7 +6,6 @@
  * read from the result when it carries the task.
  * Test first: A task_update call that marks a task done shows its subject and the new status.
  */
-import { ListTodoIcon } from "../../../../ui/icons.tsx";
 import { ToolCardFrame, ToolOutput, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import {
@@ -26,7 +25,6 @@ export function TaskUpdateCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Task details"
 			summary={fields.subject ?? fields.id ?? undefined}
 			status={toolStatus(call)}
-			icon={<ListTodoIcon />}
 			expandAll={defaultExpanded}
 			body={
 				hasTaskFields(fields) ? (

@@ -14,7 +14,6 @@
 import type { ChangedFile } from "../../../core/api.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
-import { FileTextIcon } from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
 import { FileRowMenu } from "../files/FileRowMenu.tsx";
 import { changesRowIndent } from "./ChangedFolderRow.tsx";
@@ -69,7 +68,6 @@ export function ChangedFileRow({
 
 	const label = (
 		<>
-			<FileTextIcon className="size-4 shrink-0 text-fg-muted" />
 			<span className="min-w-0 flex-1 truncate" title={file.path}>
 				{folder.length > 0 ? <span className="text-fg-muted">{folder}/</span> : null}
 				<span className="text-fg">{truncateMiddle(name, 42)}</span>
@@ -101,10 +99,10 @@ export function ChangedFileRow({
 			role="row"
 			aria-selected={selected}
 			tabIndex={-1}
-			className={`flex h-7 items-center gap-2 rounded-sm pr-2 text-sm ${
+			className={`mx-2 flex h-7 items-center gap-1.5 rounded-md pr-3 text-sm ${
 				selected ? "bg-active" : "hover:bg-hover"
 			}`}
-			style={{ paddingLeft: 8 + depth * changesRowIndent }}
+			style={{ paddingLeft: 12 + depth * changesRowIndent }}
 		>
 			{onToggleViewed !== undefined ? (
 				<Checkbox
@@ -135,10 +133,12 @@ export function ChangedFileRow({
 				<span className="sr-only">{file.status}</span>
 				{statusLetter[file.status]}
 			</span>
-			{file.binary ? null : (
+			{file.binary || (file.linesAdded === 0 && file.linesRemoved === 0) ? null : (
 				<span className="flex shrink-0 items-center gap-1.5 font-mono text-xs">
-					<span className="text-git-added">+{file.linesAdded}</span>
-					<span className="text-git-removed">-{file.linesRemoved}</span>
+					{file.linesAdded > 0 ? <span className="text-git-added">+{file.linesAdded}</span> : null}
+					{file.linesRemoved > 0 ? (
+						<span className="text-git-removed">-{file.linesRemoved}</span>
+					) : null}
 				</span>
 			)}
 		</div>

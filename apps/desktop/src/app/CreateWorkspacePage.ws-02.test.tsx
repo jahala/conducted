@@ -15,7 +15,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Workspace } from "../core/model.ts";
@@ -115,9 +115,14 @@ async function renderPage() {
 	return { container: test.container, create, repo };
 }
 
-async function chooseSource(label: string) {
-	fireEvent.keyDown(screen.getByRole("combobox", { name: "Create from" }), { key: "Enter" });
-	fireEvent.keyDown(await screen.findByRole("option", { name: label }), { key: "Enter" });
+/** Conductor's tab names for each source: the picker shows "PRs", "Branches" and "Issues" tabs. */
+const SOURCE_TABS = { Branch: "Branches", "Pull request": "PRs", Issue: "Issues" } as const;
+
+async function chooseSource(label: keyof typeof SOURCE_TABS) {
+	// The create-from picker starts closed, as in Conductor's new-workspace dialog.
+	fireEvent.click(screen.getByRole("button", { name: "Show or hide the create-from picker" }));
+	const group = await screen.findByRole("radiogroup", { name: "Create from" });
+	fireEvent.click(within(group).getByRole("radio", { name: SOURCE_TABS[label] }));
 }
 
 describe("WS-02 create from lists", () => {
@@ -202,14 +207,18 @@ describe("WS-02 create from lists", () => {
 });
 
 describe("WS-02 Cmd+I", () => {
-	it("hides and shows the create-from picker from a key press", async () => {
+	it("shows and hides the create-from picker from a key press", async () => {
 		await renderPage();
 		const message = screen.getByLabelText("First message");
 
-		expect(screen.getByRole("combobox", { name: "Create from" })).toBeTruthy();
+		// The picker starts closed, as in Conductor's new-workspace dialog. Its sources are Conductor's
+		// tabs now, a group in place of the old select.
+		expect(screen.queryByRole("radiogroup", { name: "Create from" })).toBeNull();
 		fireEvent.keyDown(message, { key: "i", metaKey: true });
-		await waitFor(() => expect(screen.queryByRole("combobox", { name: "Create from" })).toBeNull());
+		expect(await screen.findByRole("radiogroup", { name: "Create from" })).toBeTruthy();
 		fireEvent.keyDown(message, { key: "i", metaKey: true });
-		expect(await screen.findByRole("combobox", { name: "Create from" })).toBeTruthy();
+		await waitFor(() =>
+			expect(screen.queryByRole("radiogroup", { name: "Create from" })).toBeNull(),
+		);
 	});
 });

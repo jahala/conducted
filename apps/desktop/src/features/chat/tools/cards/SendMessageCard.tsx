@@ -6,7 +6,6 @@
  * (it scrolls); a call that names no target.
  * Test first: A send_message call names the chat it went to.
  */
-import { ChatIcon } from "../../../../ui/icons.tsx";
 import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
@@ -33,7 +32,6 @@ export function SendMessageCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Send message"
 			summary={target ?? undefined}
 			status={toolStatus(call)}
-			icon={<ChatIcon />}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">

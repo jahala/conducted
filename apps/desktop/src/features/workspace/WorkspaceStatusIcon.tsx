@@ -7,8 +7,8 @@
  * waiting or setting-up), attention shows an accent dot, danger shows an alert mark, a settled workspace a
  * branch glyph, and success a quiet dot. The optional animated "status matrix" for working local workspaces is
  * left out (WS-09).
- * Must handle: a row that prints the status text beside the icon passes `decorative`, so 300 rows
- * are not 300 live regions; without it an active status is announced as a status role; an unknown
+ * Must handle: a caller that names the status itself (the sidebar row names it on the icon's box, a card
+ * prints it) passes `decorative`, so 300 rows are not 300 live regions; without it an active status is announced as a status role; an unknown
  * status (null) shows the branch glyph.
  * Test first: renders a status role for an active status and an aria-hidden mark otherwise.
  */
@@ -29,7 +29,7 @@ export function WorkspaceStatusIcon({
 	decorative = false,
 }: {
 	status: WorkspaceStatus | null;
-	/** True when the status text is printed beside the icon, so the icon adds nothing to announce. */
+	/** True when the caller names the status itself, so the icon adds nothing to announce. */
 	decorative?: boolean;
 }) {
 	const { text, tone } = statusText(status);

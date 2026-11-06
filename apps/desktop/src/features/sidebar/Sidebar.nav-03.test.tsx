@@ -1,10 +1,10 @@
 /**
  * @feature NAV-03 Sidebar
  * Owns: tests that the live sidebar, over the real container and the app's providers, shows the
- * navigation rows, the no-projects empty state and Settings in its footer.
+ * navigation rows, the no-projects empty state, and Help and Settings in its footer.
  * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
  */
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -50,5 +50,21 @@ describe("NAV-03 Sidebar", () => {
 		await renderSidebar();
 		const settings = await screen.findByRole("link", { name: /Settings/ });
 		expect(settings.getAttribute("href")).toBe("/settings");
+	});
+
+	it("has Conductor's footer: Help and Settings, and no add-project button", async () => {
+		await renderSidebar();
+		const settings = await screen.findByRole("link", { name: /Settings/ });
+		const footer = settings.parentElement as HTMLElement;
+		expect(within(footer).getByRole("button", { name: "Help" })).toBeTruthy();
+		expect(within(footer).queryByRole("button", { name: /Add a project|Add project/ })).toBeNull();
+	});
+
+	it("opens the help menu from the footer", async () => {
+		await renderSidebar();
+		fireEvent.keyDown(await screen.findByRole("button", { name: "Help" }), { key: "Enter" });
+		expect(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ })).toBeTruthy();
+		expect(screen.getByRole("menuitem", { name: /Send feedback/ })).toBeTruthy();
+		expect(screen.getByRole("menuitem", { name: /Diagnostics/ })).toBeTruthy();
 	});
 });

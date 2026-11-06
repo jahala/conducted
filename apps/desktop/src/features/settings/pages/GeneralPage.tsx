@@ -10,10 +10,11 @@
  * Must handle: a save that fails (the failure is shown under the row and the stored value stays);
  * a Full Disk Access check that is loading, says no access, or fails; System Settings that cannot
  * open (the row tells the user to grant the permission by hand).
- * Test first: changing "Send key" calls settings.set with the new value once.
+ * Test first: changing "Send messages with" calls settings.set with the new value once.
  */
 import { useState } from "react";
 import { useActions, useFullDiskAccess, useSetting } from "../../../core/hooks.ts";
+import { settingsForPage } from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Callout } from "../../../ui/Callout.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
@@ -50,27 +51,36 @@ function FullDiskAccessRow() {
 					: "Not granted";
 
 	return (
-		<div className="flex items-start justify-between gap-6 border-t border-border py-4">
-			<div className="flex min-w-0 flex-col gap-1">
-				<p className="text-sm font-medium text-fg">Full disk access permissions</p>
-				<p className="max-w-prose text-sm text-fg-muted">
+		<div className="flex items-center justify-between gap-8 border-t border-border py-5">
+			<div className="flex min-w-0 flex-col">
+				<p className="flex min-h-7 items-center text-sm font-medium text-fg">
+					Full disk access permissions
+				</p>
+				<p className="mt-0.5 text-sm text-fg-muted">
 					To let agents work without repeated folder permission prompts.
 				</p>
-				<p role="status" className="text-xs text-fg-subtle">
-					{status}
-				</p>
 				{failure === null ? null : (
-					<p role="alert" className="text-xs text-danger">
+					<p role="alert" className="mt-1 text-xs text-danger">
 						{failure}
 					</p>
 				)}
 			</div>
-			<Button variant="secondary" loading={opening} onClick={() => void openSettings()}>
-				Open System Settings
-			</Button>
+			<div className="flex shrink-0 items-center gap-4">
+				<p role="status" className="text-sm text-fg-muted">
+					{status}
+				</p>
+				<Button variant="outline" loading={opening} onClick={() => void openSettings()}>
+					Open System Settings
+				</Button>
+			</div>
 		</div>
 	);
 }
+
+const GENERAL_KEYS = settingsForPage("general").map((def) => def.key);
+const SOUND_AT = GENERAL_KEYS.indexOf("sound_type") + 1;
+const GENERAL_UP_TO_SOUND = GENERAL_KEYS.slice(0, SOUND_AT);
+const GENERAL_AFTER_SOUND = GENERAL_KEYS.slice(SOUND_AT);
 
 export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
@@ -101,8 +111,19 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
-			<RegistrySettingRows page="general" focusSettingKey={focusSettingKey} />
+			{/* Conductor's order: full disk access sits right after the completion sound. */}
+			<RegistrySettingRows
+				page="general"
+				focusSettingKey={focusSettingKey}
+				exclude={GENERAL_AFTER_SOUND}
+			/>
 			<FullDiskAccessRow />
+			<RegistrySettingRows
+				page="general"
+				focusSettingKey={focusSettingKey}
+				exclude={GENERAL_UP_TO_SOUND}
+			/>
+			{/* Conductor lists Sync agent configs last on General, after the registry rows. */}
 			<SyncAgentConfigsRow />
 			<Callout
 				id={CALLOUT_DISMISSALS_HINT_ID}

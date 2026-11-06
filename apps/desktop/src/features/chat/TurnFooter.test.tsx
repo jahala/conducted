@@ -118,13 +118,23 @@ describe("CHAT-06 turn footer", () => {
 		expect(state.copyText).toHaveBeenCalledWith("The final answer.");
 	});
 
-	it("copies a summary of the turn", async () => {
+	it("copies a summary of the turn from the menu", async () => {
+		// Conductor's footer has no Copy summary button; ours keeps the action in the "···" menu.
 		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
-		fireEvent.click(screen.getByRole("button", { name: "Copy summary" }));
+		const trigger = screen.getByRole("button", { name: "More turn actions" });
+		trigger.focus();
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy summary" }));
 		expect(state.copyText).toHaveBeenCalledWith(expect.stringContaining("User: Hello"));
 		expect(state.copyText).toHaveBeenCalledWith(
 			expect.stringContaining("Assistant: The final answer."),
 		);
+	});
+
+	it("starts with the turn's duration and end time, as Conductor does", () => {
+		render(<TurnFooter turn={turn()} sessionId={sessionId} now={turn().endedAt ?? 0} />);
+		const details = screen.getByRole("button", { name: "Turn details" });
+		expect(details.textContent).toMatch(/^\d+s · \d{1,2}:\d{2}/);
 	});
 
 	it("disables Reset without a checkpoint", async () => {
