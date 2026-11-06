@@ -204,7 +204,10 @@ const steps: Step[] = [
 			await must(createDiskImage(runTool, appPath, dmgPath));
 			if (notarise) await must(notariseDiskImage(runTool, dmgPath, env));
 			notarised = notarise;
-			rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))), expected);
+			rejectProblems(
+				await must(verifyDiskImage(runTool, dmgPath, basename(appPath), expected)),
+				expected,
+			);
 		},
 	},
 	{
