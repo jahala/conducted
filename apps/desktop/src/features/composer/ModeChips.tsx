@@ -3,6 +3,9 @@
  * Owns: The plan mode and auto-accept edits toggles in the composer.
  * Behaviour: ui-map.md 3.5 (the 'Auto-accept edits' chip with the tooltip 'Disable auto-accept
  * edits', and plan mode with Shift+Tab), 5.4 (Shift+Tab while typing), claude-runner.md 3.
+ * Measured from Conductor 0.92.1: the on state of "Auto-accept edits" is a 24px chip in the link fill and
+ * colour; a pressed composer toggle is a round foreground fill. Conductor shows the auto-accept chip only
+ * while it is on and keeps plan mode in the "+" menu; ours keeps both toggles in the row (listed as ours).
  * Our design choice: plan mode is the chat's stored `planMode`, so it goes through
  * sessions.updateConfig. Auto-accept edits is Claude's live accept-edits mode, which the stored
  * config does not hold, so it goes through sessions.setAutoApproveEdits and is remembered here
@@ -99,7 +102,7 @@ export function ModeChips({ sessionId }: ModeChipsProps) {
 					variant="ghost"
 					size="xs"
 					aria-pressed={autoAccept}
-					className={cn("px-2", pressedToggle)}
+					className="h-6 rounded-md px-2 text-xs font-medium aria-pressed:bg-highlight-surface aria-pressed:text-link"
 					onClick={toggleAutoAccept}
 				>
 					Auto-accept edits

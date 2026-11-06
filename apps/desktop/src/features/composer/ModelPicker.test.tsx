@@ -319,6 +319,8 @@ describe("COMP-02 model picker", () => {
 		});
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
 		await openPicker();
+		// Effort is a row with a submenu, as in Conductor's picker; its choices open under it.
+		fireEvent.click(screen.getByRole("button", { name: /^Effort/ }));
 		expect(await screen.findByText("Not supported for this model")).toBeTruthy();
 	});
 

@@ -39,7 +39,8 @@ const type = (editor: Editor, text: string) => {
 describe("COMP-01 ComposerEditor", () => {
 	it("shows the placeholder and carries the screen reader name 'composer'", async () => {
 		render(<ComposerEditor sessionId={sessionId} disabled={false} onSubmit={vi.fn()} />);
-		expect(screen.getByText("Write something ...")).toBeTruthy();
+		// Conductor's placeholder for a chat's composer.
+		expect(screen.getByText("Ask to make changes, @mention files, run /commands")).toBeTruthy();
 		await waitFor(() => expect(screen.getByLabelText("composer")).toBeTruthy());
 	});
 

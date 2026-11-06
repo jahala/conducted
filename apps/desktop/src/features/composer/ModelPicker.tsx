@@ -6,6 +6,12 @@
  * submenus Agent, Model, Effort, toggle Fast (Cmd+Shift+E), search 'Search models', 'No models
  * found'; switching agent or model in a started chat shows 'Opens in new chat'; Cmd+Shift+/ cycles
  * effort), claude-runner.md 7.
+ * Measured from Conductor 0.92.1 (the composer's model picker and the owner's capture): the trigger reads
+ * "<model> <effort>" with the effort muted and a chevron; the popover opens upward from it, with
+ * "Search models" on top, the favourite models as 40px rows, then "Effort" with its value and a submenu,
+ * "Fast" with its shortcut and a switch, and a footer naming the cycle-effort shortcut.
+ * Our design choice: the agent list stays under the models (Conductor reaches other agents through search
+ * and favourites), and the effort submenu opens in place under its row.
  * Our design choice: A started chat keeps its agent: picking another agent opens a new chat. A
  * model change in a started chat is applied live when the agent allows it (the sidecar decides) and
  * warns that the next reply may be slower and cost more.
@@ -30,8 +36,8 @@ import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/hooks.ts";
 import { agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
 import { Button } from "../../ui/Button.tsx";
-import { Input } from "../../ui/Input.tsx";
-import { CheckIcon, ChevronDownIcon } from "../../ui/icons.tsx";
+import { cn } from "../../ui/cn.ts";
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, SearchIcon } from "../../ui/icons.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { FavoriteModels } from "./FavoriteModels.tsx";
@@ -300,12 +306,19 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	useCommandHandler("chat.selectLoadout4", "area", () => selectLoadout(3));
 	useCommandHandler("chat.selectLoadout5", "area", () => selectLoadout(4));
 
-	const triggerLabel =
+	const modelName =
 		config === undefined
 			? "Model"
-			: `${agentDisplayName(config)} · ${
-					currentModel?.shortLabel ?? currentModel?.label ?? (config.model || "Choose a model")
-				}`;
+			: (currentModel?.shortLabel ?? currentModel?.label ?? (config.model || "Choose a model"));
+	const effortName =
+		config === undefined ||
+		currentModel === undefined ||
+		!currentModel.efforts.includes(config.effort)
+			? null
+			: (currentModel.effortLabels?.[config.effort] ?? EFFORT_LABELS[config.effort]);
+	const cycleShortcut = useLiveShortcut("chat.cycleEffort");
+	const [effortOpen, setEffortOpen] = useState(false);
+	const searching = search.trim().length > 0;
 
 	const isInstalled = (choice: Choice): boolean => {
 		if (installs.state !== "ready") return true;
@@ -317,136 +330,185 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 		return install?.installed === true && install.authenticated !== false;
 	};
 
+	const modelRow = (model: ModelInfo) => {
+		const selected = config?.model === model.id;
+		return (
+			<button
+				key={model.id}
+				type="button"
+				aria-pressed={selected}
+				onClick={() => chooseModel(model)}
+				className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
+			>
+				<span className="truncate">{model.shortLabel ?? model.label}</span>
+				{model.isNew ? (
+					<span className="text-2xs uppercase tracking-wider text-accent">New</span>
+				) : null}
+				<span className="flex-1" />
+				{selected ? <CheckIcon className="size-3.5" /> : null}
+			</button>
+		);
+	};
+
 	return (
 		<Popover
+			side="top"
+			align="start"
+			className="w-[22rem] p-0!"
 			trigger={
 				<Button
 					ref={triggerRef}
 					variant="ghost"
 					size="sm"
 					aria-label="Model picker"
-					className="max-w-56"
+					title={`${agentDisplayName(config ?? { agent: "claude" })}: change agent`}
+					className="max-w-64 gap-1 px-2 font-normal"
 				>
-					<span className="truncate">{triggerLabel}</span>
-					<ChevronDownIcon className="size-3 shrink-0" />
+					<span className="truncate text-fg">{modelName}</span>
+					{effortName === null ? null : (
+						<span className="shrink-0 text-fg-muted">{effortName}</span>
+					)}
+					{config?.fastMode === true ? <span className="shrink-0 text-fg-muted">Fast</span> : null}
+					<ChevronDownIcon className="ml-0.5 size-3 shrink-0 text-fg-muted" />
 				</Button>
 			}
 		>
-			<div className="max-h-[28rem] w-80 space-y-3 overflow-y-auto">
-				<FavoriteModels
-					config={config}
-					isAvailable={isFavoriteAvailable}
-					onPick={(favorite) => void applyConfig(favorite)}
-				/>
-
-				<section aria-label="Agent" className="space-y-1 border-t border-border pt-2">
-					<h3 className="px-2 text-xs font-medium text-fg-subtle">Agent</h3>
-					{AGENT_CHOICES.map((choice) => {
-						const selected = config !== undefined && sameChoice(config, choice);
-						const available = isInstalled(choice);
-						return (
-							<button
-								key={`${choice.agent}:${choice.acpAgent ?? ""}`}
-								type="button"
-								disabled={!available}
-								aria-pressed={selected}
-								onClick={() => void chooseAgent(choice)}
-								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								<span className="flex-1 truncate">{agentDisplayName(choice)}</span>
-								{selected ? <CheckIcon /> : null}
-							</button>
-						);
-					})}
-				</section>
-
-				<section aria-label="Model" className="space-y-1 border-t border-border pt-2">
-					<h3 className="px-2 text-xs font-medium text-fg-subtle">Model</h3>
-					<div className="px-2">
-						<Input
-							aria-label="Search models"
-							placeholder="Search models"
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
+			<div className="flex max-h-[32rem] flex-col">
+				<label className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+					<SearchIcon className="size-4 shrink-0 text-fg-muted" />
+					<input
+						aria-label="Search models"
+						placeholder="Search models"
+						value={search}
+						onChange={(event) => setSearch(event.target.value)}
+						className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
+					/>
+				</label>
+				<div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
+					{searching ? null : (
+						<FavoriteModels
+							config={config}
+							isAvailable={isFavoriteAvailable}
+							onPick={(favorite) => void applyConfig(favorite)}
 						/>
-					</div>
-					{models.state === "loading" ? (
-						<p className="px-2 py-1 text-sm text-fg-muted">Loading models…</p>
-					) : null}
-					{models.state === "error" ? (
-						<p className="px-2 py-1 text-sm text-fg-muted">Couldn't load models.</p>
-					) : null}
-					{models.state === "ready" && filteredModels.length === 0 ? (
-						<p className="px-2 py-1 text-sm text-fg-muted">No models found</p>
-					) : null}
-					{filteredModels.map((model) => {
-						const selected = config?.model === model.id;
-						return (
-							<button
-								key={model.id}
-								type="button"
-								aria-pressed={selected}
-								onClick={() => chooseModel(model)}
-								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover"
-							>
-								<span className="flex-1 truncate">{model.shortLabel ?? model.label}</span>
-								{model.isNew ? (
-									<span className="text-2xs uppercase tracking-wider text-accent">New</span>
-								) : null}
-								{selected ? <CheckIcon /> : null}
-							</button>
-						);
-					})}
-				</section>
-
-				<section aria-label="Effort" className="space-y-1 border-t border-border pt-2">
-					<h3 className="px-2 text-xs font-medium text-fg-subtle">
-						{currentModel?.effortAxis === "thinking" ? "Thinking" : "Effort"}
-					</h3>
-					{models.state === "ready" && currentModel === undefined ? (
-						<p className="px-2 py-1 text-sm text-fg-muted">Not supported for this model</p>
-					) : currentModel === undefined ? null : (
-						<>
-							{config !== undefined && !currentModel.efforts.includes(config.effort) ? (
-								<p className="px-2 py-1 text-xs text-fg-muted">Not supported for this model</p>
-							) : null}
-							{currentModel.efforts.map((effort) => {
-								const selected = config?.effort === effort;
-								return (
-									<button
-										key={effort}
-										type="button"
-										aria-pressed={selected}
-										onClick={() => chooseEffort(effort)}
-										className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover"
-									>
-										<span className="flex-1 truncate">
-											{currentModel.effortLabels?.[effort] ?? EFFORT_LABELS[effort]}
-										</span>
-										{selected ? <CheckIcon /> : null}
-									</button>
-								);
-							})}
-						</>
 					)}
-				</section>
-
-				{currentModel?.supportsFastMode === true ? (
-					<section aria-label="Fast mode" className="border-t border-border pt-2">
+					<section aria-label="Model" className="space-y-0.5">
+						{models.state === "loading" ? (
+							<p className="px-2 py-1.5 text-sm text-fg-muted">Loading models…</p>
+						) : null}
+						{models.state === "error" ? (
+							<p className="px-2 py-1.5 text-sm text-fg-muted">Couldn't load models.</p>
+						) : null}
+						{models.state === "ready" && filteredModels.length === 0 ? (
+							<p className="px-2 py-1.5 text-sm text-fg-muted">No models found</p>
+						) : null}
+						{filteredModels.map(modelRow)}
+					</section>
+					<section aria-label="Agent" className="space-y-0.5 border-t border-border pt-1">
+						{AGENT_CHOICES.filter(
+							(choice) =>
+								!searching ||
+								agentDisplayName(choice).toLowerCase().includes(search.trim().toLowerCase()),
+						).map((choice) => {
+							const selected = config !== undefined && sameChoice(config, choice);
+							const available = isInstalled(choice);
+							return (
+								<button
+									key={`${choice.agent}:${choice.acpAgent ?? ""}`}
+									type="button"
+									disabled={!available}
+									aria-pressed={selected}
+									onClick={() => void chooseAgent(choice)}
+									className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<span className="flex-1 truncate">{agentDisplayName(choice)}</span>
+									{selected ? <CheckIcon className="size-3.5" /> : null}
+								</button>
+							);
+						})}
+					</section>
+				</div>
+				<div className="shrink-0 border-t border-border p-1">
+					<section aria-label="Effort">
 						<button
 							type="button"
-							aria-pressed={config?.fastMode === true}
-							onClick={toggleFast}
-							className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover"
+							aria-expanded={effortOpen}
+							onClick={() => setEffortOpen(!effortOpen)}
+							className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
 						>
-							<span className="flex-1 truncate">Fast</span>
-							{fastShortcut === null ? null : (
-								<span className="text-xs tracking-widest text-fg-muted">{fastShortcut}</span>
-							)}
-							{config?.fastMode === true ? <CheckIcon /> : null}
+							<span className="flex-1">
+								{currentModel?.effortAxis === "thinking" ? "Thinking" : "Effort"}
+							</span>
+							{effortName === null ? null : <span className="text-fg-muted">{effortName}</span>}
+							<ChevronRightIcon className="size-3.5 text-fg-muted" />
 						</button>
+						{effortOpen ? (
+							models.state === "ready" && currentModel === undefined ? (
+								<p className="px-2 py-1 text-sm text-fg-muted">Not supported for this model</p>
+							) : currentModel === undefined ? null : (
+								<div className="pl-3">
+									{config !== undefined && !currentModel.efforts.includes(config.effort) ? (
+										<p className="px-2 py-1 text-xs text-fg-muted">Not supported for this model</p>
+									) : null}
+									{currentModel.efforts.map((effort) => {
+										const selected = config?.effort === effort;
+										return (
+											<button
+												key={effort}
+												type="button"
+												aria-pressed={selected}
+												onClick={() => chooseEffort(effort)}
+												className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
+											>
+												<span className="flex-1 truncate">
+													{currentModel.effortLabels?.[effort] ?? EFFORT_LABELS[effort]}
+												</span>
+												{selected ? <CheckIcon className="size-3.5" /> : null}
+											</button>
+										);
+									})}
+								</div>
+							)
+						) : null}
 					</section>
-				) : null}
+					{currentModel?.supportsFastMode === true ? (
+						<section aria-label="Fast mode">
+							<button
+								type="button"
+								aria-pressed={config?.fastMode === true}
+								onClick={toggleFast}
+								className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
+							>
+								<span className="flex-1 truncate">Fast</span>
+								{fastShortcut === null ? null : (
+									<span className="text-xs tracking-widest text-fg-muted">{fastShortcut}</span>
+								)}
+								<span
+									aria-hidden="true"
+									className={cn(
+										"flex h-5 w-10 items-center rounded-full p-0.5 transition-colors",
+										config?.fastMode === true ? "bg-switch-on" : "bg-border-strong",
+									)}
+								>
+									<span
+										className={cn(
+											"size-4 rounded-full bg-switch-thumb shadow-dialog transition-transform",
+											config?.fastMode === true && "translate-x-5",
+										)}
+									/>
+								</span>
+							</button>
+						</section>
+					) : null}
+				</div>
+				{cycleShortcut === null ? null : (
+					<div className="flex h-9 shrink-0 items-center justify-end gap-2 border-t border-border px-3 text-xs text-fg-muted">
+						<span className="rounded-sm border border-border px-1 font-mono text-3xs">
+							{cycleShortcut}
+						</span>
+						<span>Cycle effort</span>
+					</div>
+				)}
 			</div>
 		</Popover>
 	);

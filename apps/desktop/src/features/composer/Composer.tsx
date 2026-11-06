@@ -6,9 +6,14 @@
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
+ * Measured from Conductor 0.92.1 (renderApp @9314800): a 12px-radius box in the muted fill with a 1px
+ * border, at least 152px tall, padded 16px top and right, 12px bottom, 18px left; the editor first, with
+ * 40px kept free under it; one bottom row: the model picker and mode controls 7px from the left and 12px
+ * from the bottom, and 12px from the right the MCP status, the context ring, "+", then stop and send,
+ * 6px apart in a 28px row; a "⌘L to focus" pill at the top right while the editor is not focused.
  * Our design choice: Narrow composers (under 480px measured) move toolbar items into one 'More
- * composer actions' menu; wide ones show the MCP status button directly. The accent colour is used
- * once here: the send button.
+ * composer actions' menu; wide ones show the MCP status button directly. Remote Control (RC-02) and
+ * the ACP options are ours and sit in the same row.
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
@@ -50,9 +55,9 @@ import { useStore } from "zustand";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
+import { useActions, useLiveShortcut, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
-import { WrenchIcon } from "../../ui/icons.tsx";
+import { BlocksIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
@@ -184,6 +189,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	);
 	const [attachments, setAttachments] = useState<string[]>([]);
 	const [text, setText] = useState("");
+	const [focused, setFocused] = useState(false);
+	const focusShortcut = useLiveShortcut("chat.focusInput");
 	const [busy, setBusy] = useState(false);
 	const [linkDialogOpen, setLinkDialogOpen] = useState(false);
 	const [issueDialogOpen, setIssueDialogOpen] = useState(false);
@@ -479,11 +486,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	return (
 		<div
 			ref={containerRef}
-			className="rounded-xl border border-border bg-surface shadow-xs"
+			className="relative min-h-[var(--composer-min-height)] cursor-text rounded-xl border border-border bg-muted pt-4 pr-4 pb-3 pl-[18px] shadow-xs"
 			data-narrow={narrow ? "true" : "false"}
 		>
 			{terminalRun === null ? null : (
-				<div className="px-2 pt-2">
+				<div className="pb-2">
 					<TerminalCommandStatus
 						workspaceId={workspaceId}
 						run={terminalRun}
@@ -492,53 +499,75 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					/>
 				</div>
 			)}
-			<div className="flex items-center gap-1 px-2 pt-2">
-				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-					<PlusMenu
-						sessionId={sessionId}
-						onAddAttachment={() => void attachmentsController.pick()}
-						onLinkIssue={() => setIssueDialogOpen(true)}
-						onLinkWorkspaces={() => setLinkDialogOpen(true)}
-					/>
-					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
-						<ModelPicker sessionId={sessionId} />
-					</NotBuiltYet>
-					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
-						<ModeChips sessionId={sessionId} />
-					</NotBuiltYet>
-					<AcpOptions sessionId={sessionId} />
-				</div>
-				<div className="flex shrink-0 items-center gap-1">
-					<RemoteControlButton sessionId={sessionId} />
-					<ContextWheel sessionId={sessionId} />
-					{narrow ? (
-						<Menu>
-							<MenuTrigger asChild>
-								<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
-							</MenuTrigger>
-							<MenuContent align="end">
-								<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
-							</MenuContent>
-						</Menu>
-					) : (
-						<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
-					)}
-				</div>
-			</div>
 			<AttachmentBar
 				sessionId={sessionId}
 				attachmentPaths={attachments}
 				busy={attachmentsController.busy}
 				onRemove={(path) => void attachmentsController.remove(path)}
 			/>
-			<ComposerEditor
-				sessionId={sessionId}
-				disabled={busy}
-				onSubmit={(intent) => void send(intent)}
-				sendWith={sendWith}
-				onEditorReady={setEditor}
-				extensions={extensions}
-			/>
+			<div className="mb-10">
+				<ComposerEditor
+					sessionId={sessionId}
+					disabled={busy}
+					onSubmit={(intent) => void send(intent)}
+					sendWith={sendWith}
+					onEditorReady={setEditor}
+					extensions={extensions}
+					onFocusChange={setFocused}
+				/>
+			</div>
+			{focused || focusShortcut === null ? null : (
+				<div className="pointer-events-none absolute top-2 right-1 rounded-full bg-muted px-2 py-1 text-xs text-fg-subtle">
+					{focusShortcut} to focus
+				</div>
+			)}
+			<div className="absolute bottom-3 left-[7px] flex min-w-0 items-center gap-0.5 overflow-hidden">
+				<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
+					<ModelPicker sessionId={sessionId} />
+				</NotBuiltYet>
+				<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
+					<ModeChips sessionId={sessionId} />
+				</NotBuiltYet>
+				<AcpOptions sessionId={sessionId} />
+			</div>
+			<div className="absolute right-3 bottom-3 flex h-7 shrink-0 items-center gap-1.5">
+				<RemoteControlButton sessionId={sessionId} />
+				{narrow ? (
+					<Menu>
+						<MenuTrigger asChild>
+							<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
+						</MenuTrigger>
+						<MenuContent align="end">
+							<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
+						</MenuContent>
+					</Menu>
+				) : (
+					<IconButton
+						size="xs"
+						label="MCP status"
+						icon={<BlocksIcon className="size-3.5" />}
+						className="text-fg-muted"
+						onClick={checkMcp}
+					/>
+				)}
+				<ContextWheel sessionId={sessionId} />
+				<PlusMenu
+					sessionId={sessionId}
+					onAddAttachment={() => void attachmentsController.pick()}
+					onLinkIssue={() => setIssueDialogOpen(true)}
+					onLinkWorkspaces={() => setLinkDialogOpen(true)}
+				/>
+				<SendButton
+					state={buttonState}
+					disabled={disabled}
+					busy={busy}
+					working={working}
+					hasContent={text.trim().length > 0 || attachments.length > 0}
+					sendWith={sendWith}
+					onSend={() => void send("submit")}
+					onStop={() => void stop()}
+				/>
+			</div>
 			<LinkDirectoriesDialog
 				open={linkDialogOpen}
 				onOpenChange={setLinkDialogOpen}
@@ -552,17 +581,6 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				onAttached={addLinkedIssue}
 				onFocusEditor={focusEditorAtEnd}
 			/>
-			<div className="flex items-center justify-end gap-1 px-2 pb-2">
-				<SendButton
-					state={buttonState}
-					disabled={disabled}
-					busy={busy}
-					working={working}
-					sendWith={sendWith}
-					onSend={() => void send("submit")}
-					onStop={() => void stop()}
-				/>
-			</div>
 		</div>
 	);
 }
