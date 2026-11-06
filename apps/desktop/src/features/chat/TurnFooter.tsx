@@ -1,5 +1,6 @@
 /**
- * @feature CHAT-06 Turn footer; CHAT-16 Fork a chat from a turn
+ * @feature CHAT-06 Turn footer; CHAT-16 Fork a chat from a turn; CHAT-21 Fork a chat to a new
+ * workspace
  * Owns: The footer under a finished turn: copy actions, token and time details and the fork and reset
  * menu. The files the turn changed are listed above it by TurnChanges.
  * Behaviour: ui-map.md 3.3 (Turn footer: 'Copy final message', 'Copy summary', hover card with
@@ -10,15 +11,16 @@
  * Fork to a new tab copies the chat up to this turn and opens the new chat (CHAT-16). It is always
  * in this menu: the Experimental setting 'Fork chat to new tab' gates only the chat tab menu item
  * and Cmd+Alt+Enter, as its text says (ui-map.md 3.3 lists the turn menu's fork without it, 6 names
- * the tab menu and the shortcut). Fork to a new workspace is CHAT-21 and stays disabled until it
- * is built.
+ * the tab menu and the shortcut). Fork to a new workspace (CHAT-21) makes a workspace at the turn's
+ * checkpoint and opens the copied chat there.
  * Must handle: A running turn (no footer, TurnItem shows the spinner instead); no usage reported (the hover card
- * says so); an agent that does not report fast mode or cost (that line is left out); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
+ * says so); an agent that does not report fast mode or cost (that line is left out); no checkpoint
+ * (both fork actions and Reset disabled with a reason); a cancelled or errored turn (footer still
  * copies); a copy or fork that fails (a toast, "Unable to fork chat" when the turn has no checkpoint);
  * Reset opens the confirmation dialog instead of changing anything at once. The More menu repeats
  * the copy actions; the row wraps at a narrow width instead of collapsing into the menu.
  * Test first: A finished turn with usage shows token counts in the hover card; without a checkpoint
- * Reset is disabled.
+ * Reset and both fork actions are disabled; Fork to new workspace opens the new workspace.
  */
 
 import type { SessionId } from "@conducted/shared";
@@ -114,6 +116,23 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 			});
 		});
 	};
+	const forkToWorkspace = () => {
+		void forkFlight.run(`chat:${sessionId}:fork-workspace:${turn.turnId}`, async () => {
+			const result = await actions.sessions.forkToWorkspace(sessionId, turn.turnId);
+			if (!result.ok) {
+				toastError("Unable to fork chat", result.error);
+				return;
+			}
+			const forkedSessionId = result.value.activeSessionId;
+			void navigate({
+				to: "/repository/$repositoryId/workspace/$workspaceId",
+				params: { repositoryId: result.value.repoId, workspaceId: result.value.id },
+				...(forkedSessionId === null
+					? {}
+					: { search: { tab: "session", sessionId: forkedSessionId } as never }),
+			});
+		});
+	};
 
 	return (
 		<div className="flex flex-wrap items-center gap-1 text-2xs text-fg-subtle">
@@ -145,7 +164,11 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					>
 						Fork to new tab
 					</MenuItem>
-					<MenuItem disabled title="Fork to a new workspace is built by CHAT-21.">
+					<MenuItem
+						disabled={!canFork}
+						title={canFork ? undefined : "This turn has no checkpoint to fork from."}
+						onSelect={forkToWorkspace}
+					>
 						Fork to new workspace
 					</MenuItem>
 					<MenuItem

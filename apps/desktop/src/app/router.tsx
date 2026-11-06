@@ -58,6 +58,7 @@ import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
 import { CommandDispatcher, useCommandHandler } from "./command-dispatcher.ts";
+import { useDeepLinkOpener } from "./deep-link-routes.ts";
 import { FileDropTarget } from "./FileDropTarget.tsx";
 import { FullPage } from "./FullPage.tsx";
 import { GlobalOverlays } from "./GlobalOverlays.tsx";
@@ -157,8 +158,9 @@ function RestoreLastLocation() {
 }
 
 function RootLayout() {
+	const onDeepLink = useDeepLinkOpener();
 	return (
-		<CommandDispatcher>
+		<CommandDispatcher onDeepLink={onDeepLink}>
 			<AppearanceController />
 			<NavigationShortcuts />
 			<NextUnreadController />
@@ -328,11 +330,13 @@ const backlogRoute = createRoute({
 	),
 });
 
-/** /create opens with a project, a section or a backlog workspace already chosen (WS-11). */
+/** /create opens with a project, branch, first message, section or backlog workspace already chosen. */
 const zCreateWorkspaceSearch = z.object({
 	repo: z.string().optional().catch(undefined),
 	section: z.string().optional().catch(undefined),
 	backlog: z.string().optional().catch(undefined),
+	branch: z.string().optional().catch(undefined),
+	prompt: z.string().optional().catch(undefined),
 });
 
 const createWorkspaceRoute = createRoute({
