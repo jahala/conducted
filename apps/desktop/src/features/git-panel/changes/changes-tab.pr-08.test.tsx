@@ -45,11 +45,20 @@ const stackAnswer = JSON.stringify({
 	},
 });
 
+const member = (number: number, title: string, draft: boolean, ref: string, base: string) => ({
+	number,
+	title,
+	state: "OPEN",
+	draft,
+	head: { ref, sha: `${ref}-sha` },
+	base: { ref: base, sha: `${base}-sha` },
+});
+
 const membersAnswer = JSON.stringify({
 	pull_requests: [
-		{ number: 10, title: "Add the parser", state: "OPEN", draft: false, head: { ref: "feat-a" } },
-		{ number: 11, title: "Use the parser", state: "OPEN", draft: false, head: { ref: "feat-b" } },
-		{ number: 12, title: "Document it", state: "OPEN", draft: true, head: { ref: "feat-c" } },
+		member(10, "Add the parser", false, "feat-a", "main"),
+		member(11, "Use the parser", false, "feat-b", "feat-a"),
+		member(12, "Document it", true, "feat-c", "feat-b"),
 	],
 });
 
