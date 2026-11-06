@@ -4592,6 +4592,10 @@ mod tests {
         );
         assert_eq!(tree.darwin_arm64[0].name, "@cursor/sdk-darwin-arm64");
         assert_eq!(tree.darwin_x64[0].name, "@cursor/sdk-darwin-x64");
+        assert_eq!(
+            tree.packages.len() + tree.darwin_arm64.len() + tree.darwin_x64.len(),
+            9
+        );
         for tarball in tree
             .packages
             .iter()
