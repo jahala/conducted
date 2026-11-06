@@ -14,6 +14,7 @@ import { ServicesProvider } from "../core/context.tsx";
 import { tomlCodec } from "../core/services/toml-codec.ts";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import type { Database, MenuShortcut, Platform } from "../platform/platform.ts";
+import { createTestIds } from "../test/ids.ts";
 import { Toaster } from "../ui/Toast.tsx";
 import {
 	CommandDispatcher,
@@ -33,9 +34,8 @@ const unusedDatabase: Database = {
 };
 
 const clock = { now: () => 1_000 };
-const ids = { uuid: () => "id" };
-
 function buildHarness() {
+	const ids = createTestIds();
 	const memory = createMemoryPlatform({ clock, ids, database: unusedDatabase });
 	const menuListeners = new Set<(commandId: string) => void>();
 	const deepLinkListeners = new Set<(url: string) => void>();

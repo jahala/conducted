@@ -7,14 +7,12 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
+import { createTestIds } from "../../test/ids.ts";
 import { createRepositories } from "../db/repositories.ts";
 
-let nextId = 0;
+const ids = createTestIds();
 const repositoriesOf = (database: Parameters<typeof createRepositories>[0]) =>
-	createRepositories(database, {
-		clock: { now: () => 0 },
-		ids: { uuid: () => `git-08-id-${++nextId}` },
-	});
+	createRepositories(database, { clock: { now: () => 0 }, ids });
 
 describe("GIT-08 intended target branch", () => {
 	it("stores the new target and updates the loaded workspace", async () => {

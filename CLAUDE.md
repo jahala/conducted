@@ -78,3 +78,4 @@ Measured on GitHub's runners, 2026-11-05, about 3,700 tests. Checks run on GitHu
 - Every test is fast today, so every run is a full run. Changed-only runs, fixture caches and shared workers wait until the suite takes over 30 seconds.
 - `pnpm test` first checks the runtime: Node's major version must match `.node-version`, and Bun's minor must match `.bun-version`. Rust is pinned in `apps/desktop/src-tauri/rust-toolchain.toml`. CI reads the same files.
 - A flaky test gets a root cause: no retry, no skip, no looser assertion.
+- In CI every check runs even when one before it failed, so one round shows every red check. The step "Failed tests, by file" lists each failed test with its first error line, in the log and on the run's summary page (`scripts/test-report.ts`, from the JUnit reports the runners write when `CONDUCTED_TEST_REPORTS` is set).

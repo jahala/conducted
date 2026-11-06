@@ -7,7 +7,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc -p .",
-		"test": "bun test"
+		"test": "bun test ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/shared.xml}"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.4.4"

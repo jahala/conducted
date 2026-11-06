@@ -2,6 +2,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { AttachmentId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestIds } from "../../test/ids.ts";
 import { openTestDatabase } from "../../test/sqlite.ts";
 import { ATTACHMENTS_SQL, attachmentToParams } from "./attachments.ts";
 import type { DiffCommentRow } from "./diff-comments.ts";
@@ -62,7 +63,7 @@ describe("DATA-08 migration 0004 store columns", () => {
 		run(WORKSPACES_SQL.insert, must(workspaceToParams({ ...sampleWorkspace, state: "archiving" })));
 		const repositories = createRepositories(store.database, {
 			clock: { now: () => 6000 },
-			ids: { uuid: () => "unused" },
+			ids: createTestIds(),
 		});
 		expect(await repositories.workspaces.markArchived(sampleWorkspace.id, "abc123")).toEqual({
 			ok: true,
