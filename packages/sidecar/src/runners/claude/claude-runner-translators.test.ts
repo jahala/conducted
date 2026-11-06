@@ -4,6 +4,7 @@ import type { AgentMessage, SessionConfig, WorkspaceContext } from "@conducted/p
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { ok } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { countingIds } from "../../test-support/ids.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
@@ -175,7 +176,7 @@ function makeDeps(overrides: Partial<ClaudeRunnerDeps> = {}): ClaudeRunnerDeps {
 	const common: RunnerCommonDeps = {
 		logger: fakeLogger(),
 		clock: { now: () => 0 },
-		ids: { uuid: () => "uuid" },
+		ids: countingIds(),
 		probe: async () => ok({ stdout: "", stderr: "", exitCode: 0 }),
 		findExecutable: async () => "/bin/claude",
 	};

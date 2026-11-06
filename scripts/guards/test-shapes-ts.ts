@@ -1,8 +1,9 @@
 /**
  * The TypeScript half of the test-shapes guards: it reads one parsed test file and lists the
  * places where a test cannot fail, mocks the thing it tests, defines a stand-in outside its home,
- * or depends on real time or leaked state. The parse tree comes from the TypeScript compiler API;
- * nothing here reads the disk, so every function is a pure function of one parsed file.
+ * depends on real time or leaked state, or looks for text that can never match (guard 11, whose
+ * cross-file half is test-shapes-mocks.ts). The parse tree comes from the TypeScript compiler
+ * API; nothing here reads the disk, so every function is a pure function of one parsed file.
  */
 import {
 	type CallExpression,
@@ -92,7 +93,7 @@ type Found = { guard: GuardName; check: string; node: Node; message: string };
 // ---------------------------------------------------------------------------------------------
 // Small tree helpers.
 
-function visit(node: Node, enter: (node: Node) => void): void {
+export function visit(node: Node, enter: (node: Node) => void): void {
 	enter(node);
 	node.forEachChild((child) => {
 		visit(child, enter);
@@ -100,9 +101,10 @@ function visit(node: Node, enter: (node: Node) => void): void {
 	});
 }
 
-const lineOf = (facts: FileFacts, node: Node): number => {
-	const start = node.getStart(facts.sf);
-	const starts = facts.sf.getLineStarts();
+/** The 1-based line a node starts on. */
+export const lineIn = (sf: SourceFile, node: Node): number => {
+	const start = node.getStart(sf);
+	const starts = sf.getLineStarts();
 	let low = 0;
 	let high = starts.length - 1;
 	while (low < high) {
@@ -115,8 +117,10 @@ const lineOf = (facts: FileFacts, node: Node): number => {
 
 const textOf = (node: Node, facts: FileFacts): string => node.getText(facts.sf);
 
+const lineOf = (facts: FileFacts, node: Node): number => lineIn(facts.sf, node);
+
 /** Strips parentheses, `as`, `satisfies` and `!` so shape checks see the value itself. */
-function unwrap(node: Node): Node {
+export function unwrap(node: Node): Node {
 	let current = node;
 	for (;;) {
 		if (
@@ -131,7 +135,7 @@ function unwrap(node: Node): Node {
 }
 
 /** `a.b.c(x)` gives `["a", "b", "c"]`: the names along a call or member chain, root first. */
-function chainNames(node: Node): string[] {
+export function chainNames(node: Node): string[] {
 	const current = unwrap(node);
 	if (isIdentifier(current)) return [current.text];
 	if (isPropertyAccessExpression(current)) {
@@ -151,7 +155,7 @@ const calleeName = (call: CallExpression): string => {
 
 const isFunctionLike = (node: Node): boolean => isArrowFunction(node) || isFunctionExpression(node);
 
-const stringValue = (node: Node | undefined): string | undefined => {
+export const stringValue = (node: Node | undefined): string | undefined => {
 	if (node === undefined) return undefined;
 	const value = unwrap(node);
 	if (isStringLiteral(value) || isNoSubstitutionTemplateLiteral(value)) return value.text;
@@ -1012,6 +1016,58 @@ function guardTimeAndLeaks(facts: FileFacts, found: Found[]): void {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Guard 11: tests that cannot pass (the per-file half; test-shapes-mocks.ts has the other).
+
+const TEXT_QUERY =
+	/^(?:get|getAll|query|queryAll|find|findAll)By(Text|LabelText|PlaceholderText|DisplayValue|Title|AltText|Role)$/;
+
+/**
+ * Text Testing Library never matches with its default normaliser, which trims the page's text and
+ * turns every run of whitespace into one space before it compares: whitespace at either end, two
+ * whitespace characters in a row, or any whitespace other than a plain space.
+ */
+const UNMATCHABLE_TEXT = /^\s|\s$|\s{2}|[^\S ]/;
+/** An accessible name is trimmed and its runs of two or more whitespace characters collapsed. */
+const UNMATCHABLE_NAME = /^\s|\s$|\s{2}/;
+
+const propertyNamed = (object: Node, name: string): Node | undefined => {
+	if (!isObjectLiteralExpression(object)) return undefined;
+	const property = object.properties.find(
+		(item) => isPropertyAssignment(item) && item.name.getText() === name,
+	);
+	return property !== undefined && isPropertyAssignment(property)
+		? property.initializer
+		: undefined;
+};
+
+function guardTestsCannotPass(facts: FileFacts, found: Found[]): void {
+	visit(facts.sf, (node) => {
+		if (!isCallExpression(node)) return;
+		const query = TEXT_QUERY.exec(calleeName(node));
+		if (query === null) return;
+		const options = node.arguments[1] === undefined ? undefined : unwrap(node.arguments[1]);
+		let text: string | undefined;
+		let unmatchable = UNMATCHABLE_TEXT;
+		if (query[1] === "Role") {
+			unmatchable = UNMATCHABLE_NAME;
+			// A role's name is the computed accessible name, which is always trimmed.
+			text = options === undefined ? undefined : stringValue(propertyNamed(options, "name"));
+		} else {
+			// A custom normaliser or a substring match (`exact: false`) reads the text another way.
+			const exact = options === undefined ? undefined : propertyNamed(options, "exact");
+			const custom = options !== undefined && propertyNamed(options, "normalizer") !== undefined;
+			if (custom || (exact !== undefined && exact.kind !== SyntaxKind.TrueKeyword)) return;
+			text = stringValue(node.arguments[0]);
+		}
+		if (text === undefined || !unmatchable.test(text)) return;
+		found.push({
+			guard: "tests-cannot-pass",
+			check: "untrimmed-text",
+			node,
+			message: `${calleeName(node)} looks for ${JSON.stringify(text)}, which never matches: Testing Library trims the page's text and collapses its whitespace first`,
+		});
+	});
+}
 
 /** True when a `// seam: <ID> <reason>` comment sits on the node's line or the comment lines above. */
 function isSeamExempt(facts: FileFacts, line: number): boolean {
@@ -1046,13 +1102,14 @@ export function importsOf(sf: SourceFile): Map<string, string> {
 	return imports;
 }
 
-/** Runs the four TypeScript guards over one parsed file. */
+/** Runs the per-file TypeScript guards over one parsed file. */
 export function analyseTypeScript(facts: FileFacts, exists: (rel: string) => boolean): Violation[] {
 	const found: Found[] = [];
 	if (facts.isTest) {
 		guardTestsCannotFail(facts, found);
 		guardMockingTheThing(facts, found);
 		guardTimeAndLeaks(facts, found);
+		guardTestsCannotPass(facts, found);
 	}
 	guardStandInHome(facts, exists, found);
 	return found

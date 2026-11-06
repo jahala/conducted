@@ -10,6 +10,7 @@ import type { CanUseTool, Query, SDKMessage } from "@anthropic-ai/claude-agent-s
 import type { AgentMessage, SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import type { SessionId, ToolUseId, WorkspaceId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { countingIds } from "../../test-support/ids.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import type { StartOptions, TurnCallbacks, TurnInput } from "../runner.ts";
@@ -175,7 +176,7 @@ function deps(): ClaudeSessionDeps {
 		translator: new ClaudeTranslator({ logger }),
 		hasTranscript: async () => false,
 		realPath: async (path) => path,
-		newUuid: () => "turn-uuid",
+		newUuid: countingIds("turn").uuid,
 		scheduler,
 		createCanUseTool: () =>
 			(async () => ({ behavior: "allow", updatedInput: {} })) as unknown as CanUseTool,

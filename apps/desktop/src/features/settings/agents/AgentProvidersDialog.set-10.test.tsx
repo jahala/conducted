@@ -80,6 +80,8 @@ async function mounted() {
 	test.memory.controls.emitSidecarLine(
 		JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { providers } }),
 	);
+	// The answer reaches the store a few microtasks later; wait until the catalogue shows.
+	await screen.findByRole("combobox", { name: "Provider" });
 	return test;
 }
 

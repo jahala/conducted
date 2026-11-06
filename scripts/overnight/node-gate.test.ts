@@ -6,7 +6,8 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { placeholdersFor, readSources, testsFor } from "./node-gate.ts";
+import { readCodeFiles } from "../guards/lib.ts";
+import { placeholdersFor, testsFor } from "./node-gate.ts";
 
 test("placeholders for the id are found, other ids are not", () => {
 	const files: [string, string][] = [
@@ -33,7 +34,7 @@ test("the sources of a folder are read from the code folders only", () => {
 		mkdirSync(join(root, "docs"), { recursive: true });
 		writeFileSync(join(root, "packages/a/src/a.ts"), 'notImplemented("CHAT-03");');
 		writeFileSync(join(root, "docs/b.ts"), 'notImplemented("CHAT-04");');
-		const files = readSources(root);
+		const files = readCodeFiles(root);
 		expect(files.map(([path]) => path)).toEqual(["packages/a/src/a.ts"]);
 		expect(placeholdersFor("CHAT-03", files)).toEqual(["packages/a/src/a.ts"]);
 	} finally {

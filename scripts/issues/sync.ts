@@ -18,7 +18,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { isTestFile, walk } from "../guards/lib.ts";
+import { isTestFile, readCodeFiles } from "../guards/lib.ts";
 import {
 	areaLabel,
 	GENERATED_END,
@@ -62,12 +62,10 @@ for (const name of readdirSync(itemsDir).filter((n) => n.endsWith(".tsv"))) {
 }
 
 const files = new Map<string, OwningFile[]>();
-for (const top of ["apps", "packages", "bin"]) {
-	for (const path of walk(root, join(root, top), /\.(ts|tsx|rs|sh)$/)) {
-		if (isTestFile(path)) continue;
-		const { ids, file } = parseHeader(relative(root, path), readFileSync(path, "utf8"));
-		for (const id of ids) files.set(id, [...(files.get(id) ?? []), file]);
-	}
+for (const [path, text] of readCodeFiles(root)) {
+	if (isTestFile(path)) continue;
+	const { ids, file } = parseHeader(path, text);
+	for (const id of ids) files.set(id, [...(files.get(id) ?? []), file]);
 }
 
 const unknownItems = [...items.keys()].filter((id) => !allRows.some((r) => r.id === id));

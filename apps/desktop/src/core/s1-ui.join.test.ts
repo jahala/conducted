@@ -526,7 +526,8 @@ describe("s1-ui join REV-10 and SET-10", () => {
 				JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { providers } }),
 			);
 
-			fireEvent.keyDown(screen.getByRole("combobox", { name: "Provider" }), {
+			// The answer reaches the store a few microtasks later, so wait for the catalogue to show.
+			fireEvent.keyDown(await screen.findByRole("combobox", { name: "Provider" }), {
 				key: "Enter",
 			});
 			fireEvent.keyDown(await screen.findByRole("option", { name: "DeepSeek" }), {

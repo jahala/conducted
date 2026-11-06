@@ -1,8 +1,10 @@
 /**
- * Guards 7 to 10 of the test quality plan: the shapes a test must not take. Four guards read every
- * test file (Vitest and bun test files in TypeScript, `#[test]` functions in Rust) and list tests
- * that cannot fail, tests that mock the thing they test, stand-ins defined outside their home, and
- * tests that depend on real time or leak state.
+ * Guards 7 to 11: the shapes a test must not take. Guards 7 to 10 come from the test quality plan;
+ * guard 11 from slice 2's CI rounds, where tests that could never pass first failed in CI. Five
+ * guards read every test file (Vitest and bun test files in TypeScript, `#[test]` functions in
+ * Rust) and list tests that cannot fail, tests that mock the thing they test, stand-ins defined
+ * outside their home, tests that depend on real time or leak state, and tests that cannot pass.
+ * Guard 11 also reads the code each test reaches (test-shapes-mocks.ts).
  *
  * Each guard compares its findings per file with a committed baseline
  * (`scripts/guards/test-shapes-baseline.json`). It fails when a file's count rises, and also when
@@ -14,9 +16,11 @@
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { SourceFile } from "typescript/unstable/ast";
 import { API } from "typescript/unstable/async";
 import { createVirtualFileSystem } from "typescript/unstable/fs";
 import { type Problem, read, rel as relativePath, walk } from "./lib.ts";
+import { findMockGaps, type ModuleLink, moduleLinks } from "./test-shapes-mocks.ts";
 import { analyseRust } from "./test-shapes-rust.ts";
 import { analyseTypeScript, type FileFacts, importsOf, STAND_IN_HOMES } from "./test-shapes-ts.ts";
 
@@ -24,13 +28,15 @@ export type GuardName =
 	| "tests-cannot-fail"
 	| "mocking-the-thing"
 	| "stand-in-home"
-	| "time-and-leaks";
+	| "time-and-leaks"
+	| "tests-cannot-pass";
 
 export const GUARD_NAMES: GuardName[] = [
 	"tests-cannot-fail",
 	"mocking-the-thing",
 	"stand-in-home",
 	"time-and-leaks",
+	"tests-cannot-pass",
 ];
 
 export interface Violation {
@@ -49,6 +55,8 @@ export type Baseline = Record<GuardName, Record<string, number>>;
 export const BASELINE_PATH = "scripts/guards/test-shapes-baseline.json";
 
 const TS_TEST = /^(apps|packages|scripts)\/.+\.test\.tsx?$/;
+/** Code a test may reach: guard 11 follows its imports to see what each mocked module must hold. */
+const TS_CODE = /^(apps|packages)\/.+(?<!\.d)\.tsx?$/;
 const RUST_FILE = /^apps\/desktop\/src-tauri\/.+\.rs$/;
 const HOME_FILE = new RegExp(
 	`^(${STAND_IN_HOMES.map((home) => home.replace(/\//g, "\\/")).join("|")}).+\\.tsx?$`,
@@ -59,7 +67,7 @@ const VIRTUAL_ROOT = "/shapes";
 export async function scanTestShapes(root: string): Promise<Violation[]> {
 	const tsFiles = new Set<string>();
 	for (const path of walk(root, root, TS_TEST)) tsFiles.add(relativePath(root, path));
-	for (const path of walk(root, root, HOME_FILE)) tsFiles.add(relativePath(root, path));
+	for (const path of walk(root, root, TS_CODE)) tsFiles.add(relativePath(root, path));
 	const found: Violation[] = [];
 
 	if (tsFiles.size > 0) {
@@ -78,19 +86,28 @@ export async function scanTestShapes(root: string): Promise<Violation[]> {
 			const project = snapshot.getProjects()[0];
 			if (project === undefined) throw new Error("the TypeScript server opened no project");
 			const exists = (name: string): boolean => existsSync(join(root, name));
+			const links = new Map<string, ModuleLink[]>();
+			const tests = new Map<string, SourceFile>();
 			for (const name of names) {
 				const sf = await project.program.getSourceFile(`${VIRTUAL_ROOT}/${name}`);
 				if (sf === undefined) throw new Error(`the TypeScript server could not parse ${name}`);
+				links.set(name, moduleLinks(sf));
+				const isTest = TS_TEST.test(name);
+				if (isTest) tests.set(name, sf);
+				if (!isTest && !HOME_FILE.test(name)) continue;
 				const facts: FileFacts = {
 					rel: name,
 					sf,
 					lines: sf.text.split("\n"),
-					isTest: TS_TEST.test(name),
+					isTest,
 					inHome: HOME_FILE.test(name),
 					imports: importsOf(sf),
 					subject: (name.split("/").at(-1) ?? "").split(".")[0] ?? "",
 				};
 				found.push(...analyseTypeScript(facts, exists));
+			}
+			for (const [name, sf] of tests) {
+				found.push(...findMockGaps(name, sf, tsFiles, (file) => links.get(file) ?? []));
 			}
 		} finally {
 			await api.close();
@@ -112,6 +129,7 @@ export function countFindings(found: Violation[]): Baseline {
 		"mocking-the-thing": {},
 		"stand-in-home": {},
 		"time-and-leaks": {},
+		"tests-cannot-pass": {},
 	};
 	for (const item of found) {
 		const files = baseline[item.guard];
@@ -203,15 +221,37 @@ export const checkStandInHome = (root: string): Promise<Problem[]> =>
 export const checkTimeAndLeaks = (root: string): Promise<Problem[]> =>
 	checkGuard(root, "time-and-leaks");
 
-/** Rewrites the baseline from today's findings. Output is sorted, so the same tree gives the same bytes. */
+/** Guard 11: tests that cannot pass. */
+export const checkTestsCannotPass = (root: string): Promise<Problem[]> =>
+	checkGuard(root, "tests-cannot-pass");
+
 /**
- * The counts that a regeneration would raise. A first baseline may hold any counts; once one
- * exists it may only shrink (D055), so a rise is refused and named.
+ * Every test-shape guard from one scan, for a run that checks them all (`pnpm guards`). The
+ * single-guard checks above scan again each time, which a test that edits its tree needs.
  */
-export function risesOver(current: Baseline | null, next: Baseline): string[] {
+export async function checkAllTestShapes(root: string): Promise<Record<GuardName, Problem[]>> {
+	const found = await scanTestShapes(root);
+	const results = {} as Record<GuardName, Problem[]>;
+	for (const guard of GUARD_NAMES) {
+		const loaded = readBaseline(root, guard);
+		results[guard] =
+			"problem" in loaded
+				? [loaded.problem]
+				: compareWithBaseline(guard, found, loaded.baseline[guard]);
+	}
+	return results;
+}
+
+/**
+ * The counts that a regeneration would raise. A first baseline may hold any counts, for the whole
+ * file or for a guard the file does not list yet; once one exists it may only shrink (D055), so a
+ * rise is refused and named.
+ */
+export function risesOver(current: Partial<Baseline> | null, next: Baseline): string[] {
 	if (current === null) return [];
 	const raised: string[] = [];
 	for (const guard of GUARD_NAMES) {
+		if (current[guard] === undefined) continue;
 		for (const [file, count] of Object.entries(next[guard])) {
 			const before = current[guard]?.[file] ?? 0;
 			if (count > before) raised.push(`${guard}: ${file} ${before} -> ${count}`);
@@ -220,11 +260,15 @@ export function risesOver(current: Baseline | null, next: Baseline): string[] {
 	return raised;
 }
 
+/**
+ * Rewrites the baseline from today's findings, unless a count would rise; then it writes nothing
+ * and returns the rises. Output is sorted, so the same tree gives the same bytes.
+ */
 export async function writeBaseline(root: string): Promise<string[]> {
 	const found = await scanTestShapes(root);
 	const next = countFindings(found);
 	const path = join(root, BASELINE_PATH);
-	const current = existsSync(path) ? (JSON.parse(read(path)) as Baseline) : null;
+	const current = existsSync(path) ? (JSON.parse(read(path)) as Partial<Baseline>) : null;
 	const raised = risesOver(current, next);
 	if (raised.length > 0) return raised;
 	mkdirSync(dirname(path), { recursive: true });
