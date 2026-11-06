@@ -407,6 +407,8 @@ function harness(
 		prompt?: FakePrompt;
 		/** Uses the real outbox, publisher, live state and Turn, all on the one shared queue. */
 		realPipeline?: boolean;
+		/** Provider keys the captured login shell has, for "Use the key from this Mac". */
+		macSecrets?: Record<string, string>;
 	} = {},
 ): Harness {
 	const app = new FakeApp();
@@ -466,7 +468,7 @@ function harness(
 		processes,
 		checkpoints,
 		prompt,
-		shellEnv: fakeShellEnv(),
+		shellEnv: fakeShellEnv(options.macSecrets),
 		publisher: realPublisher ?? publisher,
 		liveState: pipelineLiveState ?? liveState,
 		interactions,
@@ -492,11 +494,12 @@ function harness(
 	};
 }
 
-function fakeShellEnv(): ShellEnvProvider {
+function fakeShellEnv(providerSecrets: Record<string, string> = {}): ShellEnvProvider {
 	const captured: CapturedShellEnv = {
 		shell: "/bin/zsh",
 		path: "/usr/bin",
 		env: { PATH: "/usr/bin" },
+		providerSecrets,
 	};
 	return {
 		get: async () => ok(captured),
@@ -1302,5 +1305,21 @@ describe("SIDE-21 a changed launch restarts the agent only when the chat is free
 		const runner = h.runners.get("acp") as FakeRunner;
 		expect(runner.started[0]?.env.OPENROUTER_API_KEY).toBe("or-secret");
 		expect(runner.started[0]?.env.CURSOR_API_KEY).toBeUndefined();
+	});
+
+	test("SET-09 a key chosen from this Mac reaches the agent from the captured login shell", async () => {
+		const h = harness({ macSecrets: { ANTHROPIC_API_KEY: "sk-from-the-mac" } });
+
+		await h.manager.sendMessage(
+			sendParams({
+				launch: {
+					env: {},
+					providerKeys: { ANTHROPIC_API_KEY: { value: "", source: "this_mac" } },
+				},
+			}),
+		);
+
+		const runner = h.runners.get("claude") as FakeRunner;
+		expect(runner.started[0]?.env.ANTHROPIC_API_KEY).toBe("sk-from-the-mac");
 	});
 });

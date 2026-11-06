@@ -34,7 +34,7 @@ import type { AppError, Clock, IdSource, Result, SessionId, WorkspaceId } from "
 import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AppToSidecarRequestParams, AppToSidecarRequestResult } from "../rpc/types.ts";
-import { buildAgentEnvironment } from "../runners/launch-env.ts";
+import { agentEnvironmentFromCapture } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type { AgentSession, TurnCallbacks, TurnOutcome } from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
@@ -100,12 +100,12 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 			this.logFailure(params, startedAt, captured.error.message);
 			return err(captured.error);
 		}
-		const env = buildAgentEnvironment({
+		const env = agentEnvironmentFromCapture({
 			agent: params.agent,
 			...(params.acpAgent === undefined ? {} : { acpAgent: params.acpAgent }),
 			sessionId,
 			workspace,
-			base: captured.value.env,
+			captured: captured.value,
 			launch: params.launch,
 		});
 		if (!env.ok) {

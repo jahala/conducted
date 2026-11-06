@@ -3,12 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
 import "../../../test/dom-polyfills.ts";
+import { toast } from "../../../ui/Toast.tsx";
 import { EnvironmentPage } from "./EnvironmentPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
 });
@@ -98,5 +100,75 @@ describe("SET-04 EnvironmentPage", () => {
 			),
 		);
 		await waitFor(() => expect(screen.queryByRole("button", { name: "Import" })).toBeNull());
+	});
+	it("says the variables reach agents, setup scripts and actions, and not terminals", async () => {
+		await mountPage();
+
+		expect(
+			screen.getByText(
+				"Variables given to agents, setup scripts and actions. Values stay in the macOS Keychain.",
+			),
+		).toBeTruthy();
+	});
+
+	it("names each variable that failed to import and keeps the banner", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		await test.container.platform.fs.writeTextAtomic(
+			`${test.container.platform.fs.paths.home}/.env`,
+			"FIRST=one\nCONDUCTED_PORT=9\n",
+		);
+		const failed = vi.spyOn(toast, "error");
+		render(
+			<ServicesProvider container={test.container}>
+				<EnvironmentPage />
+			</ServicesProvider>,
+		);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+
+		await waitFor(() =>
+			expect(failed).toHaveBeenCalledWith(
+				"Imported 1 of 2 variables",
+				expect.objectContaining({
+					description: "CONDUCTED_PORT: The app sets CONDUCTED_PORT itself. Choose another name.",
+				}),
+			),
+		);
+		expect(await test.memory.platform.keychain.get("env:global:FIRST")).toEqual({
+			ok: true,
+			value: "one",
+		});
+		expect(test.container.services.settings.get("local_env_vars_import_banner_dismissed")).toBe(
+			false,
+		);
+		expect(screen.getByRole("button", { name: "Import" })).toBeTruthy();
+	});
+
+	it("keeps a repository's env file in that repository, out of the other scopes", async () => {
+		const { container, repo } = await mountPage();
+
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
+		fireEvent.keyDown(await screen.findByRole("option", { name: repo.name }), { key: "Enter" });
+		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
+		fireEvent.change(screen.getByLabelText("Environment file path"), {
+			target: { value: ".env.local" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+		expect(await screen.findByText(".env.local")).toBeTruthy();
+		const forRepo = await container.services.settings.getForRepo(
+			"environment_variable_files",
+			repo.rootPath,
+			null,
+		);
+		expect(forRepo.ok && forRepo.value.value).toEqual([".env.local"]);
+		expect(container.services.settings.get("environment_variable_files")).toEqual([]);
+
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
+		fireEvent.keyDown(await screen.findByRole("option", { name: "All repositories" }), {
+			key: "Enter",
+		});
+		await waitFor(() => expect(screen.queryByText(".env.local")).toBeNull());
 	});
 });

@@ -55,8 +55,8 @@ const deps = (): HandlerDeps => ({
 	mcpServers: { list: async () => ok([]) },
 	usage: { contextUsage: async () => ok({ usedTokens: 0, windowTokens: 1, rateLimits: [] }) },
 	shellEnv: {
-		get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
-		refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
+		get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
+		refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 	},
 	utilityPrompt: { run: async () => ok({ text: "" }) },
 	setLogLevel: () => {},

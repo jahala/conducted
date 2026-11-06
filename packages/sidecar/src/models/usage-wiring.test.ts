@@ -141,6 +141,7 @@ function fakeShellEnv(): ShellEnvProvider {
 		shell: "/bin/zsh",
 		path: "/usr/bin",
 		env: { PATH: "/usr/bin" },
+		providerSecrets: {},
 	};
 	return { get: async () => ok(captured), refresh: async () => ok(captured) };
 }

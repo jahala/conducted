@@ -4,23 +4,28 @@
  * Behaviour: ui-map.md 1.3 (status areas: "macOS version warning with dismiss button"), 4.8 (sidebar
  * footer); coverage/inventory-controls.md (the dismiss button has the aria label "Dismiss macOS version
  * warning").
- * Data: `SystemInfo.osVersion` from the Platform's `system.info()`, the call behind useSystemInfo
- * (PLAT-32). The oldest supported version comes from the build's minimum system version, passed in so the
- * check can be tested.
+ * Data: `SystemInfo.osVersion` from useSystemInfo (core/hooks/system.ts, PLAT-32), the one reader of the
+ * machine facts. The oldest supported version is `MINIMUM_MACOS_VERSION`, passed in so the check can be
+ * tested.
  * Our design choice: the app supports macOS 14 and newer, the first version whose system `trash` command the
- * app relies on. The dismissal is kept in the web view's storage under one key, holding the app version that
- * was dismissed, so a later update that raises the minimum shows the warning again. The warning uses the
- * warning colour tokens, a function-only state, and sits above the update notice.
+ * app relies on. The minimum is our constant, not the bundle's `minimumSystemVersion`: macOS refuses to open
+ * an app below that value, so this warning could never show. The dismissal is kept in the web view's storage
+ * under one key, holding the app version that was dismissed, so a later update that raises the minimum shows
+ * the warning again. The warning uses the warning colour tokens, a function-only state, and sits above the
+ * update notice.
  * Must handle: a version string with two or three parts ("15.4", "15.4.1"); a version that cannot be read
- * (no warning); a Mac at exactly the minimum (no warning); dismissal remembered across restarts; the sidebar
- * footer collapsed (nothing is drawn).
+ * (no warning); system facts that cannot be read (no warning); a Mac at exactly the minimum (no warning);
+ * dismissal remembered across restarts; storage that cannot be read (treated as not dismissed); a dismissal
+ * that cannot be saved (an error toast, and the warning stays hidden for this run).
  * Test first: osVersion "13.6.1" with minimum "14.0" shows the warning; "14.0" shows nothing; dismissing
  * hides it.
  */
-import { useEffect, useState } from "react";
+import { appError, err, ok, type Result } from "@conducted/shared";
+import { useState } from "react";
 import { useServices } from "../../core/context.tsx";
+import { useSystemInfo } from "../../core/hooks.ts";
 import type { SystemInfo } from "../../core/model.ts";
-import type { Platform } from "../../platform/platform.ts";
+import { toastError } from "../../ui/Toast.tsx";
 
 export interface MacosVersionWarningProps {
 	system: SystemInfo;
@@ -40,28 +45,45 @@ export interface WarningStorage {
 	setItem(key: string, value: string): void;
 }
 
-function browserStorage(): WarningStorage | null {
+/** The web view's storage. Reaching it can throw, for example when storage is turned off. */
+function browserStorage(): Result<WarningStorage> {
 	try {
-		if (typeof window === "undefined") return null;
-		return window.localStorage;
-	} catch {
-		return null;
+		return ok(window.localStorage);
+	} catch (cause) {
+		return err(appError("storage_unavailable", messageOf(cause), cause));
 	}
 }
 
-/** The stored app version whose warning was dismissed, or null. */
+function messageOf(cause: unknown): string {
+	return cause instanceof Error ? cause.message : String(cause);
+}
+
+/** The stored app version whose warning was dismissed, null when none was, or why it cannot be read. */
 export function readMacosWarningDismissed(
-	storage: WarningStorage | null = browserStorage(),
-): string | null {
-	return storage?.getItem(DISMISSED_KEY) ?? null;
+	storage: () => Result<WarningStorage> = browserStorage,
+): Result<string | null> {
+	const opened = storage();
+	if (!opened.ok) return opened;
+	try {
+		return ok(opened.value.getItem(DISMISSED_KEY));
+	} catch (cause) {
+		return err(appError("storage_read_failed", messageOf(cause), cause));
+	}
 }
 
 /** Remembers the app version the user dismissed, so the warning returns after an update. */
 export function dismissMacosVersionWarning(
 	appVersion: string,
-	storage: WarningStorage | null = browserStorage(),
-): void {
-	storage?.setItem(DISMISSED_KEY, appVersion);
+	storage: () => Result<WarningStorage> = browserStorage,
+): Result<void> {
+	const opened = storage();
+	if (!opened.ok) return opened;
+	try {
+		opened.value.setItem(DISMISSED_KEY, appVersion);
+		return ok(undefined);
+	} catch (cause) {
+		return err(appError("storage_write_failed", messageOf(cause), cause));
+	}
 }
 
 /** A version split into up to three numeric parts, or null when it cannot be read. */
@@ -126,41 +148,27 @@ export function MacosVersionWarning({
 
 /** Reads the machine and the dismissal, then draws the warning when it applies. */
 export function MacosVersionWarningNotice() {
-	const container = useServices();
-	// A hand-built container in an older test may not carry the Platform; there is nothing to read then.
-	const platform = (container as { platform?: Platform }).platform;
-	const [system, setSystem] = useState<SystemInfo | null>(null);
-	const [dismissedVersion, setDismissedVersion] = useState(() => readMacosWarningDismissed());
+	const { platform } = useServices();
+	const system = useSystemInfo();
+	// Storage that cannot be read counts as "not dismissed": the warning shows, which is the safe side.
+	const [dismissedVersion, setDismissedVersion] = useState(() => {
+		const read = readMacosWarningDismissed();
+		return read.ok ? read.value : null;
+	});
 
-	useEffect(() => {
-		if (platform === undefined) return;
-		let current = true;
-		void platform.system.info().then(
-			(info) => {
-				if (current) setSystem(info);
-			},
-			(cause: unknown) => {
-				if (!current) return;
-				platform.app.writeLog("warn", "The Mac's system information could not be read", {
-					message: cause instanceof Error ? cause.message : String(cause),
-				});
-			},
-		);
-		return () => {
-			current = false;
-		};
-	}, [platform]);
-
-	if (platform === undefined || system === null) return null;
-	const dismissed = dismissedVersion === platform.app.version;
+	if (system.state !== "ready") return null;
+	const appVersion = platform.app.version;
 	return (
 		<MacosVersionWarning
-			system={system}
+			system={system.data}
 			minimumOsVersion={MINIMUM_MACOS_VERSION}
-			dismissed={dismissed}
+			dismissed={dismissedVersion === appVersion}
 			onDismiss={() => {
-				dismissMacosVersionWarning(platform.app.version);
-				setDismissedVersion(platform.app.version);
+				const saved = dismissMacosVersionWarning(appVersion);
+				if (!saved.ok) {
+					toastError("Couldn't remember that you dismissed the macOS warning", saved.error);
+				}
+				setDismissedVersion(appVersion);
 			}}
 		/>
 	);

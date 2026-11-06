@@ -76,4 +76,23 @@ describe("SET-04 EnvVarTable", () => {
 
 		await waitFor(() => expect(handlers.onRemove).toHaveBeenCalledWith("TOKEN"));
 	});
+	it("keeps Save off until the edited value changes, so a hidden value is never saved as empty", async () => {
+		const handlers = props([view()]);
+		render(<EnvVarTable {...handlers} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+		const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement;
+		expect(save.disabled).toBe(true);
+		fireEvent.click(save);
+		expect(handlers.onEdit).not.toHaveBeenCalled();
+		expect(screen.getByText("The saved value stays until you save a new one.")).toBeTruthy();
+
+		fireEvent.change(screen.getByLabelText("New value for TOKEN"), {
+			target: { value: "rotated" },
+		});
+		expect(save.disabled).toBe(false);
+		fireEvent.click(save);
+
+		await waitFor(() => expect(handlers.onEdit).toHaveBeenCalledWith("TOKEN", "rotated"));
+	});
 });

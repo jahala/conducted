@@ -8,10 +8,14 @@
  * is on; images over 5 MB fail), services-map.md 5A.6.1 (the paste rule).
  * Our design choice: every picked, dropped or pasted file goes through
  * `Actions.attachments.add`, one file at a time, so a file that fails leaves the ones before it in
- * the draft. Long pasted text uses the composer's `addText`, which stages it as a text file. Adds
- * run one after the other, so two drops keep their order. A pasted image is added from the file
- * path the webview gives; bytes with no path cannot reach the Platform and show "Attachments not
- * available".
+ * the draft. The service owns the file rules (a folder, an image over 5 MB), and the hook shows the
+ * message it returns. Long pasted text uses the composer's `addText`, which stages it as a text
+ * file. Adds run one after the other, so two drops keep their order.
+ * Not built yet: a pasted image or screenshot. WKWebView gives a pasted file no path, and the
+ * Platform has no call that writes pasted bytes to the staging folder, so such a paste shows
+ * "Attachments not available". 'Paste copied files as paths' inserts the clipboard's text; files
+ * copied in Finder need a Platform call that reads the pasteboard's file list. Both wait on a
+ * change to the Platform contract (platform/platform.ts), which the owner approves.
  * Must handle: a folder (refused with "Folders can't be uploaded"); a failed copy (the others
  * still succeed); a cancelled picker; a paste with no file path; the setting that turns long-text
  * conversion off; a drop from the window.
@@ -103,11 +107,6 @@ export function useAttachments({
 			return enqueue(async () => {
 				const added: string[] = [];
 				for (const path of paths) {
-					const stat = await platform.fs.stat(path);
-					if (stat.ok && stat.value.isDirectory) {
-						toast.error("Folders can't be uploaded");
-						continue;
-					}
 					const result = await actions.attachments.add(sessionId, [path]);
 					if (!result.ok) {
 						toast.error(result.error.message);
@@ -118,7 +117,7 @@ export function useAttachments({
 				if (added.length > 0) update([...pathsRef.current, ...added]);
 			});
 		},
-		[actions, enqueue, platform.fs, sessionId, update],
+		[actions, enqueue, sessionId, update],
 	);
 
 	const add = useCallback(
@@ -221,13 +220,13 @@ export function useAttachments({
 		return () => dom.removeEventListener("paste", onPaste);
 	}, [add, addPastedText, autoConvert, editor]);
 
-	useEffect(() => {
-		const onFileDrop = platform.window?.onFileDrop;
-		if (onFileDrop === undefined) return;
-		return onFileDrop((event) => {
-			if (event.kind === "drop") void addPaths(event.paths);
-		});
-	}, [addPaths, platform]);
+	useEffect(
+		() =>
+			platform.window.onFileDrop((event) => {
+				if (event.kind === "drop") void addPaths(event.paths);
+			}),
+		[addPaths, platform],
+	);
 
 	return {
 		add,

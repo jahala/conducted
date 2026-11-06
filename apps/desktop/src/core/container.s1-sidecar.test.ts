@@ -103,6 +103,9 @@ describe("SIDE-21 the container's launch", () => {
 				),
 			);
 			must(await test.memory.platform.keychain.set("join-provider-value", "provider-value"));
+			// The Anthropic API key reaches Claude when it is the chosen sign-in (SET-09).
+			must(await test.container.services.settings.start());
+			must(await test.container.services.settings.set("claude_provider", "anthropic"));
 
 			const transport = test.memory.platform.sidecar;
 			const originalSend = transport.send.bind(transport);
@@ -252,7 +255,7 @@ describe("SIDE-21 the container's launch", () => {
 
 			const result = await test.container.services.sessions.send(session.id, "hello", [], "auto");
 
-			expect(result).toMatchObject({ ok: false, error: { code: "launch_secret_missing" } });
+			expect(result).toMatchObject({ ok: false, error: { code: "env_value_missing" } });
 			expect(sends.last()).toBeNull();
 		} finally {
 			await test.container.stop();

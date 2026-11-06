@@ -139,7 +139,12 @@ function registry(runner: Runner): RunnerRegistry {
 }
 
 function shellEnv(): ShellEnvProvider {
-	const captured = { shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" } };
+	const captured = {
+		shell: "/bin/zsh",
+		path: "/usr/bin",
+		env: { PATH: "/usr/bin" },
+		providerSecrets: {},
+	};
 	return {
 		get: async () => ok(captured),
 		refresh: async () => ok(captured),

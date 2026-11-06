@@ -280,6 +280,38 @@ describe("CHAT-05 cancel a turn", () => {
 		expect(h.service.store.getState().sending[session.id]).toEqual([]);
 	});
 
+	it("makes a dropped message's attachments drafts again when it returns to the composer", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const attachment = must(
+			await repositories.attachments.addDraft({
+				sessionId: session.id,
+				kind: "text",
+				originalName: "a.txt",
+				path: "/ws/.context/a.txt",
+				commentId: null,
+			}),
+		);
+		await h.service.send(session.id, "Fix login", ["/draft/a.txt"], "auto");
+		const sent = sendMessageCalls(h.calls)[0]?.params ?? {};
+		// What materializeForSend does when the message is prepared: the row now belongs to the message.
+		must(
+			await repositories.attachments.attachDrafts(session.id, String(sent.messageId), [
+				attachment.id,
+			]),
+		);
+		expect(must(await repositories.attachments.listDraftsBySession(session.id))).toEqual([]);
+		h.replyTo(async () => ok({ wasWorking: true, droppedMessageIds: [sent.messageId] }));
+
+		const result = await h.service.cancel(session.id);
+
+		expect(result).toEqual(ok(undefined));
+		const drafts = must(await repositories.attachments.listDraftsBySession(session.id));
+		expect(drafts.map((row) => row.id)).toEqual([attachment.id]);
+		expect(must(await repositories.attachments.listByMessage(String(sent.messageId)))).toEqual([]);
+	});
+
 	it("restores only the messages the sidecar dropped, not the turn that was already running", async () => {
 		seedWorkspace();
 		const h = harness();

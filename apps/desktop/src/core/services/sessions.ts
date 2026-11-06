@@ -24,7 +24,7 @@
  * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
- * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
+ * draft, with their attachment rows made drafts again; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
  * of a workspace and no idle one; deleting a workspace's chats moves their attachment files and
  * drafts to the Trash before the rows go, and a missing file is nothing to do; a live state from
  * the sidecar is shown as it arrives and an
@@ -976,12 +976,21 @@ export class SessionsService implements AgentMessenger {
 		return this.#cancelVersions.get(sessionId) ?? 0;
 	}
 
-	/** Puts the messages the sidecar dropped before delivering them back in the composer draft. */
+	/**
+	 * Puts the messages the sidecar dropped before delivering them back in the composer draft. Their
+	 * attachment rows, marked sent when the message was prepared, become drafts again (COMP-07), so
+	 * the next send takes them as the draft's own.
+	 */
 	async #restoreDroppedToDraft(
 		sessionId: SessionId,
 		dropped: readonly PendingSend[],
 	): Promise<Result<void>> {
 		if (dropped.length === 0) return ok(undefined);
+		const attachments = this.#deps.repositories().attachments;
+		for (const entry of dropped) {
+			const restored = await attachments.restoreToDraft(entry.messageId);
+			if (!restored.ok) return restored;
+		}
 		const loaded = await this.#deps.composer.loadDraft(sessionId);
 		if (!loaded.ok) return loaded;
 

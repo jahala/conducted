@@ -1,13 +1,13 @@
 /**
  * @feature APP-08 Start-up screens
  * Owns: tests for the loading screen and the three full-window blockers, plus the real app entry showing a
- * blocked screen.
+ * blocked screen and the wrong-CPU screen with its download.
  * Behaviour: ui-map.md 7.3 and 7.4.
  * Test first: with phase "sidecar" the screen has role "status", the name "Starting Conducted", and shows
  * the sidecar phase text.
  */
 import { ok } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import { createMemoryPlatform } from "../platform/memory.ts";
@@ -127,6 +127,51 @@ describe("APP-08 StartupFailure", () => {
 			test.close();
 		}
 	});
+
+	it("downloads from the wrong CPU screen without letting the app in", async () => {
+		const test = createTestContainer();
+		try {
+			const props = callbacks();
+			const onContinueAnyway = vi.fn();
+			const openUrl = vi.spyOn(test.memory.platform.opener, "openUrl");
+			render(
+				<ServicesProvider container={test.container}>
+					<AppProviders client={createQueryClient(() => {})}>
+						<StartupFailure
+							{...props}
+							blocker={{
+								kind: "wrong_cpu_build",
+								system: { osVersion: "15.0", machineArch: "arm64", buildArch: "x86_64" },
+							}}
+							onContinueAnyway={onContinueAnyway}
+							downloadUrl="https://example.test/apple-silicon"
+						/>
+					</AppProviders>
+				</ServicesProvider>,
+			);
+
+			expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+			fireEvent.click(screen.getByRole("button", { name: "Continue anyway" }));
+			// The open dialog hides the screen behind it, so its own Download button is the last one found.
+			const downloads = await screen.findAllByRole("button", {
+				name: "Download for Apple silicon",
+			});
+			fireEvent.click(downloads[downloads.length - 1] as HTMLElement);
+			await waitFor(() =>
+				expect(openUrl).toHaveBeenCalledWith("https://example.test/apple-silicon"),
+			);
+			await waitFor(() => expect(screen.queryAllByRole("dialog")).toHaveLength(0));
+
+			expect(onContinueAnyway).not.toHaveBeenCalled();
+			expect(
+				screen.getByRole("heading", { name: "Wrong version of Conducted for this Mac" }),
+			).toBeTruthy();
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
 });
 
 describe("APP-08 app entry", () => {
@@ -156,5 +201,45 @@ describe("APP-08 app entry", () => {
 		app.unmount();
 		root.remove();
 		test.close();
+	});
+	it("offers the Apple silicon download on a wrong CPU build from the real app entry", async () => {
+		const test = createTestContainer();
+		const root = document.createElement("div");
+		document.body.appendChild(root);
+		test.memory.controls.setSystemInfo({
+			osVersion: "15.0",
+			machineArch: "arm64",
+			buildArch: "x86_64",
+		});
+		const openUrl = vi.spyOn(test.memory.platform.opener, "openUrl");
+		try {
+			const app: StartedApp = startApp({
+				root,
+				platform: test.memory.platform,
+				installHandlers: false,
+			});
+			// seam: APP-08 the ordered start needs a running sidecar; this test is about the screen after it
+			vi.spyOn(app.container, "start").mockResolvedValue(ok({ warnings: [] }));
+			await app.started;
+
+			expect(
+				await screen.findByRole("heading", { name: "Wrong version of Conducted for this Mac" }),
+			).toBeTruthy();
+			fireEvent.click(screen.getByRole("button", { name: "Download for Apple silicon" }));
+			await waitFor(() =>
+				expect(openUrl).toHaveBeenCalledWith("https://github.com/jahala/conducted/releases/latest"),
+			);
+			expect(
+				screen.getByRole("heading", { name: "Wrong version of Conducted for this Mac" }),
+			).toBeTruthy();
+
+			vi.spyOn(app.container.services.runScripts, "stopAll").mockResolvedValue(ok(undefined));
+			vi.spyOn(app.container.sidecar, "stop").mockImplementation(() => {});
+			await app.container.stop();
+			app.unmount();
+		} finally {
+			root.remove();
+			test.close();
+		}
 	});
 });

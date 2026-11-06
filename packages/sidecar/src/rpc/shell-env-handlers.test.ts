@@ -75,9 +75,10 @@ describe("SIDE-10 getShellEnv folder", () => {
 		const shellEnv: ShellEnvProvider = {
 			get: async (folder) => {
 				asked.push(folder);
-				return ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} });
+				return ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} });
 			},
-			refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
+			refresh: async () =>
+				ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 		};
 
 		const handlers = buildHandlers(deps(shellEnv));

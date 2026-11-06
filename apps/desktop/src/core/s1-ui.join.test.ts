@@ -1,13 +1,14 @@
 /**
  * @feature s1-ui Join the batch's features through the composition root
  * Owns: one test per feature in the batch: APP-08 start-up screens and notices, COMP-07 attachments,
- * REV-08 the file viewer, SET-04 environment variables and SET-09 provider keys. Each test builds the
- * real container with createTestContainer, then mounts the app's own route tree or the screen the app
- * mounts, and drives the feature the way a user does.
+ * REV-08 the file viewer, SET-04 environment variables and SET-09 provider keys, plus the launch a chat
+ * sends: the variables the repository scripts get, and only the chosen sign-in's keys. Each test builds
+ * the real container with createTestContainer, then mounts the app's own route tree or the screen the
+ * app mounts, and drives the feature the way a user does.
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or mount is removed.
  */
-import type { AgentInstall, SessionConfig } from "@conducted/protocol";
+import type { AgentInstall, AgentLaunch, SessionConfig } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -25,7 +26,7 @@ import { createAppRouter } from "../app/router.tsx";
 import { Composer } from "../features/composer/Composer.tsx";
 import type { StartedApp } from "../main.tsx";
 import { startApp } from "../main.tsx";
-import { createTestContainer, seedWorkspace } from "../test/container.ts";
+import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
 import type { Container } from "./container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { providerKeychainRef } from "./services/agent-catalog.ts";
@@ -65,6 +66,33 @@ async function openApp(container: Container, path: string) {
 	renderInside(container, h(RouterProvider, { router }));
 	await router.load();
 	return router;
+}
+
+interface SentLaunch {
+	method: string;
+	id: number;
+	params: { launch?: AgentLaunch };
+}
+
+/** Answers every sendMessage at once and keeps the last one the container sent to the sidecar. */
+function captureSends(test: TestContainer): { last(): SentLaunch | null } {
+	const transport = test.memory.platform.sidecar;
+	const originalSend = transport.send.bind(transport);
+	let sent: SentLaunch | null = null;
+	transport.send = async (line) => {
+		const answered = await originalSend(line);
+		const parsed = JSON.parse(line) as SentLaunch;
+		if (parsed.method === "sendMessage") {
+			sent = parsed;
+			queueMicrotask(() =>
+				test.memory.controls.emitSidecarLine(
+					JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } }),
+				),
+			);
+		}
+		return answered;
+	};
+	return { last: () => sent };
 }
 
 afterEach(() => {
@@ -251,8 +279,12 @@ describe("s1-ui join", () => {
 
 			fireEvent.click(await screen.findByRole("button", { name: "Providers" }));
 			expect(await screen.findByRole("heading", { name: "Providers" })).toBeTruthy();
+			fireEvent.keyDown(screen.getByRole("combobox", { name: "Provider" }), { key: "Enter" });
+			fireEvent.keyDown(await screen.findByRole("option", { name: "Anthropic API key" }), {
+				key: "Enter",
+			});
 
-			fireEvent.change(screen.getByLabelText("Anthropic API key"), {
+			fireEvent.change(await screen.findByLabelText("Anthropic API key"), {
 				target: { value: "sk-ant-join" },
 			});
 			fireEvent.click(screen.getByRole("button", { name: "Save key" }));
@@ -268,6 +300,79 @@ describe("s1-ui join", () => {
 					ok: true,
 					value: "sk-ant-join",
 				});
+			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+	it("SET-04 gives an agent's launch the repository scripts' variables, and the same error", async () => {
+		const test = createTestContainer();
+		try {
+			const sends = captureSends(test);
+			must(await test.container.sidecar.start());
+			await test.container.services.settings.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/set-04" });
+			const settings = test.container.services.settings;
+			must(await settings.setEnvVar("SHARED", "from-global", "global"));
+			must(await settings.setEnvVar("ONLY_GLOBAL", "global-only", "global"));
+			must(await settings.setEnvVar("SHARED", "from-repo", { repoId: workspace.repoId }));
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+
+			must(await test.container.services.sessions.send(session.id, "hello", [], "auto"));
+
+			const forScripts = must(await settings.environmentFor(workspace.repoId));
+			expect(forScripts).toEqual({ ONLY_GLOBAL: "global-only", SHARED: "from-repo" });
+			expect(sends.last()?.params.launch?.env).toMatchObject(forScripts);
+
+			must(await test.memory.platform.keychain.delete("env:global:ONLY_GLOBAL"));
+			const scriptsFailure = await settings.environmentFor(workspace.repoId);
+			const launchFailure = await test.container.services.sessions.send(
+				session.id,
+				"again",
+				[],
+				"auto",
+			);
+			expect(scriptsFailure.ok).toBe(false);
+			expect(launchFailure.ok).toBe(false);
+			if (scriptsFailure.ok || launchFailure.ok) return;
+			expect(launchFailure.error.code).toBe(scriptsFailure.error.code);
+			expect(launchFailure.error.message).toBe(scriptsFailure.error.message);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("SET-09 launches Claude with only the chosen sign-in, and a key from this Mac as a marker", async () => {
+		const test = createTestContainer();
+		try {
+			const sends = captureSends(test);
+			must(await test.container.sidecar.start());
+			await test.container.services.settings.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/set-09" });
+			const keys = test.container.actions.agents;
+			const claude = { agent: "claude" as const, acpAgent: null, provider: "anthropic" };
+			must(
+				await keys.setProviderKey(
+					{ ...claude, envVar: "CLAUDE_CODE_OAUTH_TOKEN" },
+					{ kind: "entered", value: "oauth-token" },
+				),
+			);
+			must(
+				await keys.setProviderKey({ ...claude, envVar: "ANTHROPIC_API_KEY" }, { kind: "this_mac" }),
+			);
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+
+			must(await test.container.services.sessions.send(session.id, "subscription", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({
+				CLAUDE_CODE_OAUTH_TOKEN: { value: "oauth-token", source: "entered" },
+			});
+
+			must(await test.container.services.settings.set("claude_provider", "anthropic"));
+			must(await test.container.services.sessions.send(session.id, "api key", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({
+				ANTHROPIC_API_KEY: { value: "", source: "this_mac" },
 			});
 		} finally {
 			await test.container.stop();

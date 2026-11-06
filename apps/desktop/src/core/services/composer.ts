@@ -11,7 +11,8 @@
  * failed write, a failed room-making pass or an oversized draft is kept in `store.errors` so a
  * screen can tell the user it did not save; the drafts folder is capped at 5 MiB by trashing the
  * oldest other drafts.
- * Dropped or picked files are copied into the chat's staging folder and get an attachment row. A
+ * Dropped or picked files are copied into the chat's staging folder and get an attachment row; a
+ * file named like one of the app's own context files is attached under another name. A
  * send copies each staged file into the workspace's `.context/attachments/<id>/<name>`, moves the
  * staging copy to the Trash and flips its row from draft to sent.
  * Not built yet: removing the draft files of deleted chats (DATA-06).
@@ -131,6 +132,28 @@ export const convertsToAttachment = (text: string): boolean =>
 /** The stored kind of a file. A PDF is its own kind; the rest follow the name rule above. */
 export function attachmentKindOf(fileName: string): AttachmentClass {
 	return fileName.toLowerCase().endsWith(".pdf") ? "pdf" : classifyAttachment(fileName);
+}
+
+/**
+ * File names the app keeps for its own context files (services-map.md 5A.6.2 item 6, 5B.8.3): the PR,
+ * review and fix-errors instructions, GitHub and Linear issue files, and terminal output.
+ */
+const RESERVED_CONTEXT_NAMES: readonly RegExp[] = [
+	/^PR instructions\.md$/i,
+	/^Review request\.md$/i,
+	/^Fix errors instructions\.md$/i,
+	/^\[GITHUB\]-\d+\.md$/i,
+	/^\[LINEAR\]-\w{1,7}-\d+\.md$/i,
+	/^terminal-output(-.*)?\.txt$/i,
+];
+
+/**
+ * The name a user's picked, dropped or pasted file is attached under. A reserved context name cannot be
+ * used, so the app would never take the user's file for its own.
+ * Our design choice: such a file is renamed to `attached-<name>` instead of refused, so it still attaches.
+ */
+function userAttachmentName(name: string): string {
+	return RESERVED_CONTEXT_NAMES.some((pattern) => pattern.test(name)) ? `attached-${name}` : name;
 }
 
 /** Keeps a file name inside the staging folder. A name without an extension gets `.txt`. */
@@ -290,7 +313,7 @@ export class ComposerService {
 		if (stat.value.isDirectory) {
 			return err(appError("attachment_is_directory", "Folders can't be uploaded"));
 		}
-		const originalName = sourcePath.split("/").pop() ?? sourcePath;
+		const originalName = userAttachmentName(sourcePath.split("/").pop() ?? sourcePath);
 		const kind = attachmentKindOf(originalName);
 		if (kind === "image" && stat.value.size > MAX_IMAGE_ATTACHMENT_BYTES) {
 			return err(appError("attachment_too_large", "Image too large"));

@@ -28,10 +28,17 @@ import { useSystemInfo } from "./core/hooks.ts";
 import { parseDeepLink, type SoundPlayer } from "./core/services/notifications.ts";
 import { tomlCodec } from "./core/services/toml-codec.ts";
 import type { PlaceNames } from "./core/services/workspace.ts";
+import { isWrongCpuBuild } from "./features/updates/RosettaConfirm.tsx";
 import type { Platform, SystemInfo } from "./platform/platform.ts";
 import { createTauriPlatform } from "./platform/tauri.ts";
 import { toastError } from "./ui/Toast.tsx";
 import "./styles.css";
+
+/**
+ * Where the Apple silicon build is published: the latest GitHub release of this repository, the place
+ * `pnpm release` tags (scripts/release.ts builds only the Apple silicon app). The wrong-CPU screen opens it.
+ */
+const APPLE_SILICON_DOWNLOAD_URL = "https://github.com/jahala/conducted/releases/latest";
 
 /** Our own place names for new workspaces. A name already used gets the next one in the list. */
 const PLACE_NAMES = [
@@ -252,12 +259,7 @@ function StartupRoot({
 
 	if (state.kind === "running") return <StartupScreen phase={state.phase} />;
 	if (state.kind === "ready") {
-		if (
-			!continuedWrongCpu &&
-			system.state === "ready" &&
-			system.data.machineArch === "arm64" &&
-			system.data.buildArch === "x86_64"
-		) {
+		if (!continuedWrongCpu && system.state === "ready" && isWrongCpuBuild(system.data)) {
 			const blocker: StartupBlocker = { kind: "wrong_cpu_build", system: system.data };
 			return (
 				<StartupFailure
@@ -269,6 +271,7 @@ function StartupRoot({
 						void container.platform.app.quit();
 					}}
 					onContinueAnyway={() => setContinuedWrongCpu(true)}
+					downloadUrl={APPLE_SILICON_DOWNLOAD_URL}
 				/>
 			);
 		}

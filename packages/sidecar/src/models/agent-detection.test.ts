@@ -39,6 +39,7 @@ const CAPTURED: CapturedShellEnv = {
 	shell: "/bin/zsh",
 	path: "/usr/bin:/bin",
 	env: { PATH: "/usr/bin:/bin" },
+	providerSecrets: {},
 };
 
 function fakeShellEnv(): ShellEnvProvider {

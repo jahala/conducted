@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { AgentLaunch, WorkspaceContext } from "@conducted/protocol";
 import type { Result, SessionId, WorkspaceId } from "@conducted/shared";
-import { agentProviders, buildAgentEnvironment, claudeProviderEnvironment } from "./launch-env.ts";
+import {
+	agentEnvironmentFromCapture,
+	agentProviders,
+	buildAgentEnvironment,
+	claudeProviderEnvironment,
+} from "./launch-env.ts";
 
 const workspace: WorkspaceContext = {
 	workspaceId: "w1" as WorkspaceId,
@@ -26,6 +31,50 @@ const must = <T>(result: Result<T>): T => {
 };
 
 describe("SET-09 provider keys reach their own agent", () => {
+	test("set_09_a_key_chosen_from_this_mac_comes_from_the_captured_login_shell", () => {
+		const env = must(
+			agentEnvironmentFromCapture({
+				agent: "claude",
+				sessionId,
+				workspace,
+				captured: {
+					env: { PATH: "/bin", AWS_ACCESS_KEY_ID: "access-from-shell" },
+					providerSecrets: { ANTHROPIC_API_KEY: "sk-from-shell" },
+				},
+				launch: launch({
+					provider: "bedrock",
+					providerKeys: {
+						ANTHROPIC_API_KEY: { value: "", source: "this_mac" },
+						AWS_ACCESS_KEY_ID: { value: "", source: "this_mac" },
+						AWS_SECRET_ACCESS_KEY: { value: "typed", source: "entered" },
+					},
+				}),
+			}),
+		);
+
+		expect(env.ANTHROPIC_API_KEY).toBe("sk-from-shell");
+		expect(env.AWS_ACCESS_KEY_ID).toBe("access-from-shell");
+		expect(env.AWS_SECRET_ACCESS_KEY).toBe("typed");
+		expect(env.PATH).toBe("/bin");
+	});
+
+	test("set_09_a_key_chosen_from_this_mac_that_the_shell_lacks_fails_with_its_name", () => {
+		const built = agentEnvironmentFromCapture({
+			agent: "claude",
+			sessionId,
+			workspace,
+			captured: { env: { PATH: "/bin" }, providerSecrets: {} },
+			launch: launch({
+				providerKeys: { ANTHROPIC_API_KEY: { value: "", source: "this_mac" } },
+			}),
+		});
+
+		expect(built.ok).toBe(false);
+		if (built.ok) return;
+		expect(built.error.code).toBe("mac_key_missing");
+		expect(built.error.message).toContain("ANTHROPIC_API_KEY");
+	});
+
 	test("set_09_a_claude_subscription_token_reaches_claude", () => {
 		const env = must(
 			buildAgentEnvironment({
