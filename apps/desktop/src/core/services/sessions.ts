@@ -17,7 +17,8 @@
  * and starting a failed turn's message again in a new chat of the same workspace, handing a
  * plan to a chosen chat or a new one, copying a chat's concise or full transcript, searching
  * stored message text for the command palette, listing the plans an agent proposed in a workspace,
- * and reading a chat's transcript or one plan for an attachment.
+ * and reading a chat's transcript or one plan for an attachment. A stored user message moves the
+ * chat's `lastUserMessageAt` forward in memory too, as the ingest does on the row.
  * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
  * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
  * 3.2, sessions-and-chats.md "What happens when
@@ -1469,15 +1470,15 @@ export class SessionsService implements AgentMessenger {
 			...send,
 			messageId: send.messageId as MessageId,
 		}));
-		const text = formatTranscript(buildTurns(state.events[id] ?? [], liveState, pending), "concise");
+		const text = formatTranscript(
+			buildTurns(state.events[id] ?? [], liveState, pending),
+			"concise",
+		);
 		return ok({ title: found.value.title, text });
 	}
 
 	/** Reads one plan an agent proposed in a chat, for attaching it (CHAT-26). */
-	async planFor(
-		id: SessionId,
-		turnId: TurnId,
-	): Promise<Result<{ title: string; text: string }>> {
+	async planFor(id: SessionId, turnId: TurnId): Promise<Result<{ title: string; text: string }>> {
 		const opened = await this.open(id);
 		if (!opened.ok) return opened;
 		const state = this.store.getState();
@@ -1495,12 +1496,12 @@ export class SessionsService implements AgentMessenger {
 
 	/** Lists the plans agents proposed in a workspace, newest first (CHAT-26). */
 	async listPlans(workspaceId: WorkspaceId): Promise<Result<PlanEntry[]>> {
-		const rows = await selectRows<{ session_id: SessionId; content: string; received_at: number; session_title: string | null }>(
-			this.#deps.db,
-			WORKSPACE_PLANS_SQL,
-			[workspaceId],
-			"Reading workspace plans",
-		);
+		const rows = await selectRows<{
+			session_id: SessionId;
+			content: string;
+			received_at: number;
+			session_title: string | null;
+		}>(this.#deps.db, WORKSPACE_PLANS_SQL, [workspaceId], "Reading workspace plans");
 		if (!rows.ok) return rows;
 		const events = collectResults(
 			rows.value.map((row) =>
@@ -1512,9 +1513,7 @@ export class SessionsService implements AgentMessenger {
 		for (const [index, event] of events.value.entries()) {
 			const row = rows.value[index];
 			if (row === undefined) continue;
-			plans.push(
-				...plansInEvent(event, row.session_id, row.session_title, row.received_at, false),
-			);
+			plans.push(...plansInEvent(event, row.session_id, row.session_title, row.received_at, false));
 		}
 		return ok(plans);
 	}
@@ -1733,12 +1732,30 @@ export class SessionsService implements AgentMessenger {
 				event.type === "user_message" &&
 				event.delivery === "new_turn" &&
 				state.progress[sessionId] !== undefined;
-			if (events === state.events && !closeInteraction && !sendingChanged && !clearProgress) {
+			// The ingest stores the user message's time on the row; the list in memory follows it, so
+			// a chat's last user message is current without a reload (CHAT-26 lists chats by it).
+			const session = state.sessions[sessionId];
+			const datedSession =
+				event.type === "user_message" &&
+				session !== undefined &&
+				(session.lastUserMessageAt ?? Number.NEGATIVE_INFINITY) < event.at
+					? { ...session, lastUserMessageAt: event.at }
+					: undefined;
+			if (
+				events === state.events &&
+				!closeInteraction &&
+				!sendingChanged &&
+				!clearProgress &&
+				datedSession === undefined
+			) {
 				return {};
 			}
 
 			const next: Partial<SessionsState> = {};
 			if (events !== state.events) next.events = events;
+			if (datedSession !== undefined) {
+				next.sessions = { ...state.sessions, [sessionId]: datedSession };
+			}
 			if (sendingChanged) {
 				next.sending = { ...state.sending, [sessionId]: settled ?? [] };
 			}

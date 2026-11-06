@@ -80,8 +80,11 @@ export function useAttachments({
 
 	const update = useCallback(
 		(next: readonly string[]) => {
-			pathsRef.current = next;
-			onPathsChange([...next]);
+			// The composer service also puts each added file in the stored draft, and the composer
+			// follows that draft (CHAT-26), so a path can arrive twice: keep its first place.
+			const unique = [...new Set(next)];
+			pathsRef.current = unique;
+			onPathsChange(unique);
 		},
 		[onPathsChange],
 	);

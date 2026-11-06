@@ -175,6 +175,20 @@ export function attachmentFileName(name: string): string {
 	return base.includes(".") ? base : `${base}.txt`;
 }
 
+/**
+ * The file name an attached chat transcript is saved under (CHAT-26). Conductor names a chat with
+ * no title "chat" here.
+ */
+export function chatTranscriptFileName(title: string | null): string {
+	const trimmed = title?.trim() ?? "";
+	return attachmentFileName(`Transcript of ${trimmed.length === 0 ? "chat" : trimmed}.md`);
+}
+
+/** The file name an attached plan is saved under: its title, as Markdown (CHAT-26). */
+export function planFileName(title: string): string {
+	return attachmentFileName(title.toLowerCase().endsWith(".md") ? title : `${title}.md`);
+}
+
 const emptyDraft = (): Draft => ({ text: "", attachmentPaths: [] });
 
 const isBlank = (draft: Draft): boolean =>
@@ -231,9 +245,7 @@ export interface ComposerServiceDeps {
 		sessionId: SessionId,
 	) => Promise<Result<{ text: string; source: string } | null>>;
 	/** Another chat's title and concise transcript, for attaching it (CHAT-26). */
-	transcriptOf?: (
-		sessionId: SessionId,
-	) => Promise<Result<{ title: string | null; text: string }>>;
+	transcriptOf?: (sessionId: SessionId) => Promise<Result<{ title: string | null; text: string }>>;
 	/** The text of a plan an agent proposed in a turn, for attaching it (CHAT-26). */
 	planOf?: (
 		sessionId: SessionId,
@@ -753,9 +765,7 @@ export class ComposerService {
 	async addChatTranscript(sessionId: SessionId, fromSessionId: SessionId): Promise<Result<string>> {
 		const read = this.#deps.transcriptOf;
 		if (read === undefined) {
-			return err(
-				appError("chat_transcript_failed", "Failed to attach chat transcript"),
-			);
+			return err(appError("chat_transcript_failed", "Failed to attach chat transcript"));
 		}
 		const transcript = await read(fromSessionId);
 		if (!transcript.ok) {
@@ -766,9 +776,11 @@ export class ComposerService {
 		if (transcript.value.text.trim().length === 0) {
 			return err(appError("chat_transcript_empty", "No messages in this chat"));
 		}
-		const title = transcript.value.title?.trim() ?? "";
-		const name = `Transcript of ${title.length === 0 ? "Untitled chat" : title}.md`;
-		const attached = await this.addText(sessionId, name, transcript.value.text);
+		const attached = await this.addText(
+			sessionId,
+			chatTranscriptFileName(transcript.value.title),
+			transcript.value.text,
+		);
 		if (!attached.ok) {
 			return err(
 				appError("chat_transcript_failed", "Failed to attach chat transcript", attached.error),
@@ -790,7 +802,11 @@ export class ComposerService {
 		if (!found.ok) {
 			return err(appError("chat_plan_failed", "Failed to attach plan", found.error));
 		}
-		const attached = await this.addText(sessionId, `Plan - ${found.value.title}.md`, found.value.text);
+		const attached = await this.addText(
+			sessionId,
+			planFileName(found.value.title),
+			found.value.text,
+		);
 		if (!attached.ok) {
 			return err(appError("chat_plan_failed", "Failed to attach plan", attached.error));
 		}

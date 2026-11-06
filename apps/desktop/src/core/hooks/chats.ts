@@ -1,24 +1,19 @@
 /**
  * @feature DATA-01 Query hook contract for screens
  * @feature CHAT-15 Revert to a turn: the count of files a reset puts back
+ * @feature CHAT-26 Start a chat with earlier chats and plans: the workspace's plans
  * Owns: the chat hooks and the session-store helpers they share.
  * Behaviour: services-map.md 1.3; core/hooks.ts states the contract.
  * Must handle: a chat that no longer exists, a session whose events have not arrived.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import {
-	type AppError,
-	appError,
-	notImplemented,
-	type SessionId,
-	type TurnId,
-} from "@conducted/shared";
+import { type AppError, appError, type SessionId, type TurnId } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { ChatView, Session } from "../model.ts";
+import type { ChatView, PlanEntry, Session } from "../model.ts";
 import type { SessionsState } from "../services/sessions.ts";
 
 /** Reads one slice of a service's store and re-renders when it changes. */
@@ -92,7 +87,25 @@ export const useChat: Queries["useChat"] = (sessionId) => {
 };
 export const useClosedSessions: Queries["useClosedSessions"] = (workspaceId) =>
 	useSessionList(workspaceId, true);
-export const usePlans: Queries["usePlans"] = () => notImplemented("CHAT-26");
+/**
+ * The plans agents proposed in a workspace's chats, newest first (CHAT-26). Read each time a
+ * screen asks, so an empty chat opened after a new plan lists it.
+ */
+export const usePlans: Queries["usePlans"] = (workspaceId) => {
+	const sessions = useServices().services.sessions;
+	const query = useQuery<PlanEntry[], AppError>({
+		queryKey: ["plans", workspaceId],
+		queryFn: async () => {
+			const result = await sessions.listPlans(workspaceId);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		staleTime: 0,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 
 const changedSinceTurnKey = (sessionId: SessionId, turnId: TurnId) =>
 	["checkpoint", sessionId, turnId, "changed-since"] as const;

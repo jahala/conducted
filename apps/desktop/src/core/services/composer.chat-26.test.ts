@@ -4,7 +4,8 @@
  * through the real composition root.
  * Behaviour: inventory:toast rows 756 to 758.
  * Test first: a chat with a user message attaches as "Transcript of <title>.md" and an empty chat
- * refuses with "No messages in this chat".
+ * refuses with "No messages in this chat". The names follow Conductor (renderApp `_1a`): a chat
+ * with no title is "Transcript of chat.md", and a plan is "<plan title>.md".
  */
 import type { ToolUseId, TurnId } from "@conducted/shared";
 import { appError, err } from "@conducted/shared";
@@ -33,8 +34,12 @@ const setup = async () => {
 	const test = createTestContainer();
 	opened.push(test);
 	const workspace = await seedWorkspace(test.container);
-	const source = must(await test.container.services.sessions.create(workspace.id, sampleSession.config));
-	const target = must(await test.container.services.sessions.create(workspace.id, sampleSession.config));
+	const source = must(
+		await test.container.services.sessions.create(workspace.id, sampleSession.config),
+	);
+	const target = must(
+		await test.container.services.sessions.create(workspace.id, sampleSession.config),
+	);
 	return { test, workspace, source, target };
 };
 
@@ -92,6 +97,17 @@ describe("CHAT-26 attach an earlier chat", () => {
 		]);
 	});
 
+	it("names a transcript of a chat with no title Transcript of chat.md", async () => {
+		const { test, source, target } = await setup();
+		await seedConversation(test, source.id);
+
+		const added = await test.container.actions.attachments.addChatTranscript(target.id, source.id);
+
+		expect(added.ok).toBe(true);
+		if (!added.ok) return;
+		expect(added.value.endsWith("/Transcript of chat.md")).toBe(true);
+	});
+
 	it("refuses a chat with no messages", async () => {
 		const { test, source, target } = await setup();
 
@@ -129,7 +145,7 @@ describe("CHAT-26 attach a plan", () => {
 
 		expect(added.ok).toBe(true);
 		if (!added.ok) return;
-		expect(added.value.endsWith("Plan - Fix the login bug.md")).toBe(true);
+		expect(added.value.endsWith("/Fix the login bug.md")).toBe(true);
 		expect(test.memory.controls.files.get(added.value)).toBe(
 			"# Fix the login bug\n\nChange the parser, then run the tests.",
 		);
@@ -166,5 +182,31 @@ describe("CHAT-26 attach a plan", () => {
 		expect(added.ok).toBe(false);
 		if (added.ok) return;
 		expect(added.error.message).toBe("Failed to attach plan");
+	});
+});
+
+describe("CHAT-26 a live user message dates the chat", () => {
+	it("moves lastUserMessageAt forward when the sidecar's user message arrives", async () => {
+		const { test, source } = await setup();
+		expect(
+			test.container.services.sessions.store.getState().sessions[source.id]?.lastUserMessageAt,
+		).toBeNull();
+
+		test.container.services.sessions.applyStoredEvent(
+			source.id,
+			0,
+			userMessageEvent("u1", "t1", 40),
+			41,
+		);
+		test.container.services.sessions.applyStoredEvent(
+			source.id,
+			0,
+			userMessageEvent("u0", "t0", 30),
+			41,
+		);
+
+		expect(
+			test.container.services.sessions.store.getState().sessions[source.id]?.lastUserMessageAt,
+		).toBe(40);
 	});
 });

@@ -548,7 +548,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		setText(draft.text);
 	}, []);
 
-	useDraftSync({ sessionId, editor, attachmentPaths: attachments, onRestore: restore });
+	useDraftSync({
+		sessionId,
+		editor,
+		attachmentPaths: attachments,
+		onRestore: restore,
+		onStoredAttachments: setAttachments,
+	});
 
 	useEffect(() => {
 		if (editor === null) {

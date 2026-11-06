@@ -197,7 +197,6 @@ export function createHistorySearch(
 	};
 }
 
-
 /** The first heading or non-empty line of a plan, without its heading marks. */
 export function planTitleOf(text: string): string {
 	const first = text
