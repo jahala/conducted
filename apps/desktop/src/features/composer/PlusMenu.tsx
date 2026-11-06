@@ -6,8 +6,8 @@
  * popover), 5.4 (the shortcuts come from the command registry).
  * Our design choice: Add attachment opens the file picker through the attachments controller.
  * Plan mode runs the same command as the toolbar chip. Link workspaces (WS-07) opens the linked
- * directories dialog, and Link issue (PR-09) the Link issue dialog. Add snippet (COMP-09) is listed
- * disabled until its feature builds it.
+ * directories dialog, and Link issue (PR-09) the Link issue dialog. Add snippet opens the create
+ * form, and Insert snippet opens the picker with the same Cmd+; binding as the shortcut (COMP-09).
  * Must handle: a cancelled picker; a chat whose agent has no plan mode (the command explains); the
  * menu follows the live bindings.
  * Test first: choosing 'Add attachment' opens the file picker and adds the chosen paths to the
@@ -38,6 +38,10 @@ export interface PlusMenuProps {
 	onLinkIssue: () => void;
 	/** Opens the Link workspaces and directories dialog. */
 	onLinkWorkspaces: () => void;
+	/** Opens the Create snippet form. */
+	onAddSnippet: () => void;
+	/** Opens the snippet picker. */
+	onInsertSnippet: () => void;
 }
 
 export function PlusMenu({
@@ -45,6 +49,8 @@ export function PlusMenu({
 	onAddAttachment,
 	onLinkIssue,
 	onLinkWorkspaces,
+	onAddSnippet,
+	onInsertSnippet,
 }: PlusMenuProps) {
 	const { services } = useServices();
 	const runCommand = useRunCommandHandlers();
@@ -88,13 +94,15 @@ export function PlusMenu({
 				>
 					{planMode ? "Exit plan mode" : "Plan mode"}
 				</MenuItem>
+				<MenuItem icon={<FileTextIcon />} onSelect={onAddSnippet}>
+					Add snippet
+				</MenuItem>
 				<MenuItem
-					disabled
-					title="Add snippet needs snippets"
 					shortcut={snippetShortcut ?? undefined}
 					icon={<FileTextIcon />}
+					onSelect={onInsertSnippet}
 				>
-					Add snippet
+					Insert snippet
 				</MenuItem>
 			</MenuContent>
 		</Menu>

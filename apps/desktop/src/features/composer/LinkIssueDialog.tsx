@@ -42,6 +42,7 @@ import {
 	useWorkspace,
 } from "../../core/hooks.ts";
 import type { IssueView } from "../../core/model.ts";
+import { githubSetupNeeded } from "../../core/services/mention-search.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toast } from "../../ui/Toast.tsx";
@@ -137,9 +138,9 @@ function LinkIssueBody({
 		linearAccess.state === "ready" &&
 		(linearAccess.data.state === "signed_out" || linearAccess.data.state === "key_rejected");
 	const githubConnected = githubAccess.state === "ready" && githubAccess.data.state === "signed_in";
-	const githubMissing =
-		githubAccess.state === "ready" &&
-		(githubAccess.data.state === "signed_out" || githubAccess.data.state === "gh_missing");
+	// Conductor's Setup row covers no `gh` and a signed-out `gh` alike (the '#' menu's rule, COMP-05).
+	const githubSetup = githubAccess.state === "ready" ? githubSetupNeeded(githubAccess.data) : null;
+	const githubMissing = githubSetup === "signed_out" || githubSetup === "gh_missing";
 	// A repository without a GitHub remote has no GitHub issues to offer; that is not a failure.
 	const githubListed =
 		githubIssues.state !== "error" || githubIssues.error.code !== "github_issues_unavailable";

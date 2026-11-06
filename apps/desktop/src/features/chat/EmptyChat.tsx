@@ -8,7 +8,12 @@
  * Must handle: Archived workspace (no starters, the composer bar explains); the user already typed
  * a draft (a starter replaces nothing without asking, it appends); keyboard reachable.
  * Test first: Clicking a starter calls onPick with its text.
+ * Given its chat and workspace, it also shows the context shelves above the starters (CHAT-26,
+ * ChatContextShelves). Conductor shows the shelves instead of its starters when the workspace has
+ * other chats; we keep our starters too, so nothing the user had is taken away.
  */
+import type { SessionId, WorkspaceId } from "@conducted/shared";
+import { ChatContextShelves } from "./ChatContextShelves.tsx";
 
 const STARTERS = [
 	"Review recent PRs",
@@ -21,11 +26,34 @@ export interface EmptyChatProps {
 	onPick: (prompt: string) => void;
 	/** An archived workspace is read-only, so there is nothing to start. */
 	archived?: boolean;
+	/** This chat, for the context shelves (CHAT-26). Without it the shelves are left out. */
+	sessionId?: SessionId;
+	workspaceId?: WorkspaceId;
+	/** The workspace's folder name, for "New chat in /<name>." */
+	directory?: string;
 }
 
-export function EmptyChat({ onPick, archived = false }: EmptyChatProps) {
+export function EmptyChat({
+	onPick,
+	archived = false,
+	sessionId,
+	workspaceId,
+	directory,
+}: EmptyChatProps) {
 	return (
 		<div className="flex h-full w-full flex-col items-center justify-center gap-4 px-6 text-center">
+			{archived ||
+			sessionId === undefined ||
+			workspaceId === undefined ||
+			directory === undefined ? null : (
+				<div className="w-full max-w-lg">
+					<ChatContextShelves
+						sessionId={sessionId}
+						workspaceId={workspaceId}
+						directory={directory}
+					/>
+				</div>
+			)}
 			<div className="flex flex-col gap-1">
 				<h2 className="text-sm text-fg-muted">No messages yet</h2>
 				<p className="max-w-prose text-sm text-fg-muted">

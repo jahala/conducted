@@ -691,6 +691,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(instance_lock)
         .manage(shell_state)
         .manage(pty::PtyState::default())
@@ -792,6 +793,7 @@ pub fn run() {
             updater::updater_check,
             updater::updater_install,
             updater::updater_relaunch,
+            updater::updater_installed_update,
             attachments::attachment_materialize,
             attachments::image_resize,
             attachments::attachment_write_bytes,
@@ -1056,6 +1058,7 @@ mod startup_tests {
         let login = shell::LoginEnv {
             shell: "/bin/zsh".to_string(),
             path: "/opt/homebrew/bin:/usr/bin".to_string(),
+            zdotdir: None,
             vars: HashMap::new(),
         };
         let mut applied = None;
@@ -1078,6 +1081,7 @@ mod startup_tests {
         let login = shell::LoginEnv {
             shell: "/bin/zsh".to_string(),
             path: "/usr/local/bin:/usr/bin".to_string(),
+            zdotdir: None,
             vars: HashMap::new(),
         };
         let expected = login.path.clone();

@@ -13,10 +13,15 @@
  */
 import { useState } from "react";
 import { useServices } from "../../../../core/context.tsx";
+import { IMAGE_EXTENSIONS } from "../../../../core/media-files.ts";
 import { asRecord, fileNameOf, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-const IMAGE_PATH = /[^\s"'`]+\.(?:png|jpe?g|gif|webp|avif|svg)/i;
+/** A path-like run ending in an image extension; longer ones first, so "tiff" beats "tif". */
+const IMAGE_PATH = new RegExp(
+	`[^\\s"'\`]+\\.(?:${[...IMAGE_EXTENSIONS].sort((a, b) => b.length - a.length).join("|")})`,
+	"i",
+);
 
 /**
  * The image path in a value that may be a bare path, a line of text or a markdown image. A value

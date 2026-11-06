@@ -69,11 +69,12 @@
  * removes the saved entry; removing one deletes only the entry. Removing its repository keeps the
  * entry with no repository, and starting it then returns the message the create flow shows until
  * the user picks another (`setBacklogRepo`).
- * Not built yet (placeholders): the kanban status (NAV-06).
+ * Built now (NAV-06): the Kanban status. It stores the user-set status and keeps the loaded row in
+ * step, returning `workspace_unknown` when the workspace is gone.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
- * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
- * pass in place of any other list. Creation copies the repository's included files, counts the
+ * own tiered source in this file (`createPlaceNames`, D002), drawn from the gazetteer the Passport
+ * map reads (core/services/place-gazetteer.ts), and the composition root passes it. Creation copies the repository's included files, counts the
  * worktree files, then runs setup in a terminal. Warnings and the first message of a failed
  * creation live in the service's in-memory store: the contract's `Workspace` row has no field for
  * them, and the create page reads them back after the action returns. The composition root
@@ -90,7 +91,6 @@ import {
 	appError,
 	createKeyedQueue,
 	err,
-	notImplemented,
 	ok,
 	type RepoId,
 	type Result,
@@ -145,6 +145,7 @@ import type {
 	Workspace,
 } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
+import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "./place-gazetteer.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 
 export interface PlaceNames {
@@ -152,160 +153,22 @@ export interface PlaceNames {
 	pick(taken: ReadonlySet<string>): string;
 }
 
-/**
- * The names a workspace folder can take, grouped by how often they are chosen (frontend.md 6).
- * This is our own list (D002); a name is never copied from Conductor's bundled city files.
- */
-export const PLACE_NAME_TIERS: Readonly<Record<string, readonly string[]>> = {
-	common: [
-		"amber",
-		"arden",
-		"ash",
-		"bay",
-		"birch",
-		"bloom",
-		"brook",
-		"cedar",
-		"cliff",
-		"cove",
-		"dawn",
-		"dell",
-		"dune",
-		"elm",
-		"fern",
-		"field",
-		"flint",
-		"ford",
-		"glen",
-		"grove",
-		"harbor",
-		"heath",
-		"hill",
-		"isle",
-		"lake",
-		"landing",
-		"leaf",
-		"linden",
-		"marsh",
-		"meadow",
-		"mill",
-		"moss",
-		"oak",
-		"orchard",
-		"pier",
-		"pine",
-		"pond",
-		"reed",
-		"ridge",
-		"river",
-		"rock",
-		"sand",
-		"shore",
-		"spring",
-		"stone",
-		"thicket",
-		"trail",
-		"vale",
-		"willow",
-		"wood",
-	],
-	uncommon: [
-		"aurora",
-		"basalt",
-		"beacon",
-		"bramble",
-		"cascade",
-		"cinder",
-		"citadel",
-		"cobalt",
-		"compass",
-		"coral",
-		"crescent",
-		"crystal",
-		"ember",
-		"falcon",
-		"garnet",
-		"granite",
-		"hollow",
-		"indigo",
-		"juniper",
-		"lagoon",
-		"lantern",
-		"marble",
-		"monsoon",
-		"obsidian",
-		"onyx",
-		"otter",
-		"pebble",
-		"quartz",
-		"raven",
-		"saffron",
-		"sequoia",
-		"sparrow",
-		"summit",
-		"thistle",
-		"tide",
-		"timber",
-		"topaz",
-		"tundra",
-		"velvet",
-		"wander",
-	],
-	rare: [
-		"albatross",
-		"borealis",
-		"canyon",
-		"cathedral",
-		"celestial",
-		"cindercone",
-		"daybreak",
-		"deepwater",
-		"everglade",
-		"fathom",
-		"firefly",
-		"glacier",
-		"goldenrod",
-		"halcyon",
-		"highland",
-		"horizon",
-		"labyrinth",
-		"lighthouse",
-		"meridian",
-		"moonrise",
-		"nightfall",
-		"outpost",
-		"parallax",
-		"peregrine",
-		"pinnacle",
-		"polaris",
-		"quarry",
-		"redwood",
-		"ridgeway",
-		"starfall",
-		"stonebridge",
-		"tempest",
-		"thunderhead",
-		"wayfarer",
-		"westwind",
-	],
-	legendary: [
-		"atlantis",
-		"avalon",
-		"camelot",
-		"elderwood",
-		"everest",
-		"hyperion",
-		"olympus",
-		"phoenix",
-		"shangrila",
-		"titan",
-		"valhalla",
-		"zenith",
-	],
+/** The folder names a workspace can take, by tier: the shared gazetteer's places (NAV-13). */
+const PLACE_NAME_TIERS: Readonly<Record<PlaceTier, readonly string[]>> = {
+	common: placeFolderNames("common"),
+	uncommon: placeFolderNames("uncommon"),
+	rare: placeFolderNames("rare"),
+	legendary: placeFolderNames("legendary"),
 };
 
+function placeFolderNames(tier: PlaceTier): string[] {
+	return PLACE_GAZETTEER.filter((place) => place.tier === tier).map((place) =>
+		placeFolderName(place.name),
+	);
+}
+
 /** How often each tier is tried before the next one (frontend.md 6's rarity tiers). */
-const TIER_WEIGHTS: Readonly<Record<string, number>> = {
+const TIER_WEIGHTS: Readonly<Record<PlaceTier, number>> = {
 	common: 8,
 	uncommon: 4,
 	rare: 2,
@@ -313,15 +176,15 @@ const TIER_WEIGHTS: Readonly<Record<string, number>> = {
 };
 
 /**
- * The real place-name source (frontend.md 6). It picks from the rarity tiers, and when every name
- * in the list is taken it appends a numeric suffix until the name is free, so `pick` always
+ * The real place-name source (frontend.md 6). It picks a city from the shared gazetteer's rarity
+ * tiers, so the Passport map can plot every workspace. When every city is taken it adds Conductor's
+ * collision suffix ("-v2", "-v3"), which the map strips, until the name is free, so `pick` always
  * honours its promise that the result is not in `taken`.
  */
 export function createPlaceNames(random: () => number = Math.random): PlaceNames {
-	const tiers = Object.entries(PLACE_NAME_TIERS).map(([tier, names]) => ({
-		weight: TIER_WEIGHTS[tier] ?? 1,
-		names,
-	}));
+	const tiers = (Object.entries(PLACE_NAME_TIERS) as [PlaceTier, readonly string[]][]).map(
+		([tier, names]) => ({ weight: TIER_WEIGHTS[tier], names }),
+	);
 	const allNames = [...new Set(Object.values(PLACE_NAME_TIERS).flat())];
 	return {
 		pick(taken) {
@@ -347,7 +210,7 @@ export function createPlaceNames(random: () => number = Math.random): PlaceNames
 				allNames[Math.min(allNames.length - 1, Math.floor(random() * allNames.length))] ??
 				"workspace";
 			let candidate = base;
-			for (let n = 2; taken.has(candidate); n++) candidate = `${base}-${n}`;
+			for (let n = 2; taken.has(candidate); n++) candidate = `${base}-v${n}`;
 			return candidate;
 		},
 	};
@@ -2087,8 +1950,16 @@ export class WorkspaceService {
 		return ok(undefined);
 	}
 
-	setKanbanStatus(_id: WorkspaceId, _status: KanbanStatus): Promise<Result<void>> {
-		return notImplemented("NAV-06");
+	/** Stores the workspace's user-set Kanban status and keeps the loaded row in step. */
+	async setKanbanStatus(id: WorkspaceId, status: KanbanStatus): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const written = await this.#deps.repos.workspaces.setKanbanStatus(id, status);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, kanbanStatus: status, updatedAt: this.#deps.now() });
+		return ok(undefined);
 	}
 
 	/** Backs a workspace-level mark-read: the chats service clears the workspace's unread chats. */

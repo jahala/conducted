@@ -1,7 +1,8 @@
 /**
  * @feature NAV-10 Workspace header
  * Owns: The header at the top of the centre: breadcrumb (repo, branch, target branch), workspace
- * name with rename and actions, the Open in menu, and the right panel toggle.
+ * name with rename and actions, the Open in menu, and the right panel toggle. The repo's icon is
+ * PRJ-05's RepoIconAvatar, the same one the sidebar rows show.
  * Behaviour: ui-map.md 3.1 (breadcrumb with target branch picker, workspace name with 'Rename
  * workspace' and 'Workspace actions', directory chip and 'Open in...' button, right edge 'Toggle
  * right sidebar'), 5.3 (branch name menu: Copy, Rename).
@@ -32,6 +33,7 @@ import {
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { OpenInMenu } from "../open-in/OpenInMenu.tsx";
+import { RepoIconAvatar } from "../sidebar/RepoIcon.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceActionsMenu } from "./WorkspaceActionsMenu.tsx";
 import type { RightPanelControls } from "./WorkspaceLayout.tsx";
@@ -84,12 +86,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	return (
 		<div className="flex h-full min-w-0 items-center gap-2 px-2">
 			<div className="flex shrink-0 items-center gap-2">
-				<span
-					aria-hidden="true"
-					className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-hover text-3xs font-medium text-fg-muted"
-				>
-					{repo?.name.slice(0, 1).toUpperCase() ?? "R"}
-				</span>
+				{repo === undefined ? null : <RepoIconAvatar repo={repo} />}
 				<span className="max-w-40 truncate text-sm text-fg-muted" title={repo?.name}>
 					{repo?.name ?? ""}
 				</span>

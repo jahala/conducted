@@ -20,6 +20,10 @@ const hooks = vi.hoisted(() => ({
 	git: { state: "loading" } as Loadable<{ linesAdded: number; linesRemoved: number }>,
 }));
 
+vi.mock("../composer/draft-sources.ts", () => ({
+	useWorkspaceDraft: () => null,
+}));
+
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useSessions: () => hooks.sessions,

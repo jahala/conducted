@@ -1,15 +1,20 @@
 /**
- * @feature DATA-01 Query hook contract for screens
- * Owns: the settings hooks: one stored setting, environment variables, MCP servers.
- * Behaviour: services-map.md 1.3 (settings store); core/hooks.ts states the contract.
- * Must handle: a key with no stored value, returning the default instead.
+ * @feature DATA-01 Query hook contract for screens; SET-05 MCP servers: list, status and logs
+ * Owns: the settings hooks: one stored setting, environment variables, and the MCP servers of the
+ * chat the Agents page shows.
+ * Behaviour: services-map.md 1.3 (settings store), 5B.6 (per-session MCP availability); core/hooks.ts
+ * states the contract.
+ * Must handle: a key with no stored value, returning the default instead; no chat open (the MCP
+ * list says so through its own screen); a chat or workspace that is gone (an error state); only
+ * the newest list for a chat is stored.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import { notImplemented } from "@conducted/shared";
+import { appError, type SessionId } from "@conducted/shared";
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
+import { mcpKey } from "../services/mcp.ts";
 import { envScopeKey } from "../services/settings.ts";
 
 export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
@@ -27,4 +32,54 @@ export const useEnvVars: Queries["useEnvVars"] = (scope) => {
 	}, [service, repoId]);
 	return value ?? { state: "loading" };
 };
-export const useMcpServers: Queries["useMcpServers"] = () => notImplemented("SET-05");
+
+/** The chat whose workspace screen is open. The Agents page reads its MCP servers. */
+export const useViewingSessionId = (): SessionId | null => {
+	const store = useServices().services.sessions.store;
+	return useStore(store, (state) => state.viewingSessionId);
+};
+
+export const useMcpServers: Queries["useMcpServers"] = (sessionId) => {
+	const { services } = useServices();
+	const service = services.mcp;
+	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
+	const sessionsLoaded = useStore(services.sessions.store, (state) => state.loaded);
+	const workspace = useStore(services.workspace.store, (state) =>
+		session === undefined ? undefined : state.workspacesById[session.workspaceId],
+	);
+	const workspacesLoaded = useStore(services.workspace.store, (state) => state.loaded);
+	const key =
+		session === undefined || workspace === undefined
+			? undefined
+			: mcpKey(workspace.path, session.config.agent, session.config.acpAgent);
+	const value = useStore(service.store, (state) =>
+		key === undefined ? undefined : state.servers[key],
+	);
+	const agent = session?.config.agent;
+	const acpAgent = session?.config.acpAgent;
+	const workspacePath = workspace?.path;
+
+	useEffect(() => {
+		if (agent === undefined || workspacePath === undefined) return;
+		if (value !== undefined) return;
+		void service.refresh({ agent, acpAgent, workspacePath, sessionId });
+	}, [service, sessionId, agent, acpAgent, workspacePath, value]);
+
+	if (session === undefined) {
+		return sessionsLoaded
+			? {
+					state: "error",
+					error: appError("session_unknown", "That chat no longer exists."),
+				}
+			: { state: "loading" };
+	}
+	if (workspace === undefined) {
+		return workspacesLoaded
+			? {
+					state: "error",
+					error: appError("workspace_unknown", "That workspace no longer exists."),
+				}
+			: { state: "loading" };
+	}
+	return value ?? { state: "loading" };
+};

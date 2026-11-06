@@ -14,6 +14,8 @@
  * clears the draft; an empty editor removes the draft; typing before the restore arrives (keep it,
  * and do not overwrite it with the saved text); a draft for a closed chat is cleaned up by the
  * data-lifetime job.
+ * Attachments put in the stored draft from outside the composer (CHAT-26's shelves, the Files tab)
+ * are handed to the composer, and become the last saved list so they are not saved back.
  * Test first: Typing then switching chats saves the first chat's text once and restores the second
  * chat's draft.
  */
@@ -25,39 +27,18 @@ import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
 import { toastError } from "../../ui/Toast.tsx";
+import { textToDocument } from "./text-content.ts";
 
 export interface DraftSyncProps {
 	sessionId: SessionId;
 	editor: Editor | null;
 	attachmentPaths?: readonly string[];
 	onRestore?: (draft: Draft) => void;
-}
-
-interface TextNode {
-	type: "text";
-	text: string;
-}
-
-interface HardBreakNode {
-	type: "hardBreak";
-}
-
-/** Turns the editor's plain text back into paragraphs and line breaks, so a restart keeps them. */
-export function draftToContent(text: string): {
-	type: "doc";
-	content: { type: "paragraph"; content?: (TextNode | HardBreakNode)[] }[];
-} {
-	const paragraphs = text.split("\n\n").map((paragraph) => {
-		const content: (TextNode | HardBreakNode)[] = [];
-		for (const [index, line] of paragraph.split("\n").entries()) {
-			if (index > 0) content.push({ type: "hardBreak" });
-			if (line.length > 0) content.push({ type: "text", text: line });
-		}
-		return content.length === 0
-			? { type: "paragraph" as const }
-			: { type: "paragraph" as const, content };
-	});
-	return { type: "doc", content: paragraphs };
+	/**
+	 * The stored draft's attachments changed from outside the composer: the empty chat's shelves
+	 * (CHAT-26), the Files tab, or the composer service adding a file. The composer shows them.
+	 */
+	onStoredAttachments?: (paths: string[]) => void;
 }
 
 /** A stable key for a list of attachment paths, so a change is noticed by value. */
@@ -70,6 +51,7 @@ export function useDraftSync({
 	editor,
 	attachmentPaths = [],
 	onRestore,
+	onStoredAttachments,
 }: DraftSyncProps): void {
 	const composer = useServices().services.composer;
 	const { sessions } = useActions();
@@ -79,6 +61,8 @@ export function useDraftSync({
 	const typedSinceRestore = useRef(false);
 	const restore = useRef(onRestore);
 	restore.current = onRestore;
+	const storedAttachments = useRef(onStoredAttachments);
+	storedAttachments.current = onStoredAttachments;
 
 	useEffect(() => {
 		if (editor === null) return;
@@ -114,7 +98,7 @@ export function useDraftSync({
 			}
 			const draft = result.value;
 			if (!typedSinceRestore.current && editor.getText() !== draft.text) {
-				editor.commands.setContent(draftToContent(draft.text), { emitUpdate: false });
+				editor.commands.setContent(textToDocument(draft.text), { emitUpdate: false });
 			}
 			attachmentsBySession.current.set(sessionId, draft.attachmentPaths);
 			lastSavedAttachments.current.set(sessionId, keyOf(draft.attachmentPaths));
@@ -126,6 +110,21 @@ export function useDraftSync({
 			cancelled = true;
 		};
 	}, [composer, editor, sessionId]);
+
+	// A change to the stored attachments that this hook did not save came from elsewhere. It
+	// becomes the last saved list, so showing it does not save it back over a newer change.
+	useEffect(() => {
+		return composer.store.subscribe((state) => {
+			if (restoredSession.current !== sessionId) return;
+			const paths = state.drafts[sessionId]?.attachmentPaths;
+			if (paths === undefined) return;
+			const key = keyOf(paths);
+			if (lastSavedAttachments.current.get(sessionId) === key) return;
+			lastSavedAttachments.current.set(sessionId, key);
+			attachmentsBySession.current.set(sessionId, paths);
+			storedAttachments.current?.([...paths]);
+		});
+	}, [composer, sessionId]);
 
 	const attachmentKey = keyOf(attachmentPaths);
 	useEffect(() => {

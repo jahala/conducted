@@ -118,11 +118,15 @@ describe("routes", () => {
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 
-	it("/dashboard renders inside the shell", async () => {
-		await openApp("/dashboard");
+	it("/dashboard renders inside the shell with its setting on", async () => {
+		const shell = createShellContainer();
+		shell.container.services.settings.store.setState((state) => ({
+			values: { ...state.values, dashboard_enabled: true },
+		}));
+		await openContainerApp("/dashboard", shell.container);
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText("Dashboard")).toBeTruthy();
-		expect(within(main).getByText("Not built yet: NAV-06")).toBeTruthy();
+		expect(await within(main).findByRole("heading", { name: "Dashboard" })).toBeTruthy();
+		expect(within(main).getByRole("button", { name: "New workspace" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 

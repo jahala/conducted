@@ -5,8 +5,10 @@
  * calls and tool results plus an error message type; Conductor buffers text and thinking chunks
  * (`pendingText`, `pendingThinking`) and flushes them as one message at tool boundaries or at the
  * end of the turn; tool names are renamed (see tool-names.ts); a plan is shown as the exit-plan
- * tool. The message fields below are the ones this file reads. The SDK is not installed (D010), so
- * no recorded sample of its messages checks them; cursor-sdk.ts says how to check them once it is:
+ * tool. The message fields below are the ones this file reads. They match the message types of
+ * @cursor/sdk 1.3.1 (`dist/esm/messages.d.ts`, read for AGENT-09), except the error message: the
+ * SDK has none, and a failed run reports its error in the run result (cursor-session.ts). No
+ * recorded sample of a real run checks them; the SDK is not in this repository (D010):
  *  - assistant: a text-delta chunk is an assistant message with one text block; a tool_use block
  *    carries the id, name and input of a call
  *  - thinking: a thinking chunk (`text`), including the empty text of a thinking-completed message

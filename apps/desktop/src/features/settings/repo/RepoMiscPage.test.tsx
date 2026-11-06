@@ -165,16 +165,15 @@ describe("SET-07 RepoMiscPage", () => {
 		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ copyFiles: [] });
 	});
 
-	it("shows the saved icon read-only with the reason it cannot be changed yet", async () => {
-		await renderPage(0, {}, "🚀");
+	it("shows the saved icon and opens the icon picker", async () => {
+		await renderPage(0, {}, "emoji:🚀");
 
-		const icon = screen.getByLabelText("Icon") as HTMLInputElement;
-		expect(icon.value).toBe("🚀");
-		expect(icon.readOnly).toBe(true);
-		expect(icon.disabled).toBe(true);
-		expect(screen.getByText(/Choosing an icon is not built yet \(PRJ-05\)/)).toBeTruthy();
-		expect(screen.queryByRole("button", { name: "Save icon" })).toBeNull();
-		expect(screen.queryByRole("button", { name: "Remove icon" })).toBeNull();
+		expect(screen.getByText("🚀")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Change repository icon" }));
+
+		expect(await screen.findByRole("dialog", { name: "Change repository icon" })).toBeTruthy();
+		expect(screen.getByLabelText("Search emoji")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Remove emoji" })).toBeTruthy();
 	});
 
 	it("shows and protects the branch new workspaces start from", async () => {

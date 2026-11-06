@@ -42,6 +42,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = "/tmp/Conducted.app";
 const SIDECAR = `${APP}/Contents/MacOS/conducted-sidecar`;
 const DMG = "/tmp/Conducted.dmg";
+const EXPECTED_NOTARISED = { identifier: "build.conducted.app", version: "0.1.0", notarised: true };
 
 const INFO = {
 	CFBundleIdentifier: "build.conducted.app",
@@ -196,13 +197,37 @@ describe("PLAT-25 release bundle", () => {
 		expect(result.value.architectures).toEqual(["arm64", "x86_64"]);
 		expect(result.value.hasFrameworksFolder).toBe(true);
 		expect(result.value.notarised).toBe(false);
-		expect(bundleProblems(result.value)).toEqual(
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual(
 			expect.arrayContaining([
 				"The app and sidecar must be arm64 only; found arm64, x86_64.",
 				"The bundle has a Frameworks folder.",
 				"The app has no stapled notarisation ticket.",
 			]),
 		);
+	});
+
+	it("PLAT-25 bundleProblems compares the bundle with the version the release just set", async () => {
+		const { run } = bundleRun({});
+		const result = await verifyBundle(run, APP);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		expect(bundleProblems(result.value, { ...EXPECTED_NOTARISED, version: "0.1.0" })).toEqual([]);
+		expect(bundleProblems(result.value, { ...EXPECTED_NOTARISED, version: "0.2.0" })).toEqual([
+			"The bundle version is 0.1.0; expected 0.2.0.",
+		]);
+	});
+
+	it("PLAT-25 bundleProblems asks for a notarisation ticket only when the release notarises", async () => {
+		const { run } = bundleRun({ staplerExitCode: 1 });
+		const result = await verifyBundle(run, APP);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		expect(bundleProblems(result.value, { ...EXPECTED_NOTARISED, notarised: false })).toEqual([]);
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual([
+			"The app has no stapled notarisation ticket.",
+		]);
 	});
 
 	it("PLAT-25 signs the sidecar on its own with the JIT entitlements, then the app", async () => {
@@ -363,6 +388,38 @@ describe("PLAT-25 release bundle", () => {
 		expect(calls[2]?.args).toEqual(["stapler", "validate", dmgPath]);
 	});
 
+	it("PLAT-25 a signed-only release checks the disk image without asking for its ticket", async () => {
+		const { run, calls } = scripted((program, args) => {
+			if (program === "xcrun" && args.includes("validate")) {
+				return ok({ stdout: "", stderr: "does not have a ticket stapled to it", exitCode: 65 });
+			}
+			if (program === "hdiutil") return ok({ stdout: "", stderr: "", exitCode: 0 });
+			if (program === "plutil")
+				return ok({ stdout: JSON.stringify(INFO), stderr: "", exitCode: 0 });
+			if (program === "file") {
+				return ok({ stdout: "Mach-O 64-bit executable arm64\n", stderr: "", exitCode: 0 });
+			}
+			if (program === "ls") return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
+			if (program === "codesign") {
+				return ok({ stdout: "", stderr: completeSignature(REQUIRED_ENTITLEMENTS), exitCode: 0 });
+			}
+			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
+		});
+
+		const signedOnly = await verifyDiskImage(run, DMG, basename(APP), { notarised: false });
+
+		expect(signedOnly.ok).toBe(true);
+		expect(
+			calls.some(
+				(call) => call.program === "xcrun" && call.args.join(" ") === `stapler validate ${DMG}`,
+			),
+		).toBe(false);
+
+		const notarised = await verifyDiskImage(run, DMG, basename(APP), { notarised: true });
+
+		expect(notarised.ok).toBe(false);
+	});
+
 	it("PLAT-25 verifies the app inside the shipped disk image", async () => {
 		const dmgPath = DMG;
 		const { run, calls } = scripted((program) => {
@@ -391,7 +448,7 @@ describe("PLAT-25 release bundle", () => {
 			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
 		});
 
-		const result = await verifyDiskImage(run, dmgPath, basename(APP));
+		const result = await verifyDiskImage(run, dmgPath, basename(APP), { notarised: true });
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;

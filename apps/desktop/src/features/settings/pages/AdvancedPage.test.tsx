@@ -98,6 +98,37 @@ describe("SET-02 AdvancedPage", () => {
 		expect(install).toHaveBeenCalledWith("claude");
 	});
 
+	it("AGENT-09 installs Cursor's SDK from the Agent binaries section", async () => {
+		const mounted = await mountPage();
+		const install = vi.spyOn(mounted.container.platform.programs, "install");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: {
+					state: "ready",
+					data: [
+						claude,
+						{
+							userPath: null,
+							status: {
+								...claude.status,
+								program: "cursor",
+								state: "missing",
+								version: null,
+								path: null,
+							},
+						},
+					],
+				},
+			});
+		});
+
+		expect(await screen.findByText("Cursor SDK")).toBeTruthy();
+		expect(screen.getByText("Not downloaded yet.")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Install" }));
+
+		expect(install).toHaveBeenCalledWith("cursor");
+	});
+
 	it("asks before changing the root folder and saves the new path", async () => {
 		const mounted = await mountPage();
 		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/tmp/new-root"));

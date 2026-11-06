@@ -135,7 +135,13 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 		>
 			{(data: ChatView) =>
 				data.turns.length === 0 ? (
-					<EmptyChat onPick={pickStarter} archived={archived} />
+					<EmptyChat
+						onPick={pickStarter}
+						archived={archived}
+						sessionId={sessionId}
+						workspaceId={workspaceId}
+						directory={workspace.state === "ready" ? workspace.data.directoryName : undefined}
+					/>
 				) : (
 					<div className="relative h-full min-h-0">
 						<Virtuoso

@@ -1,16 +1,20 @@
 /**
  * @feature NAV-03 Workspace row
+ * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: One row of the sidebar list: project avatar (outside project groups), status icon, name,
- * unread dot, line change counts or the relative time, status text and badges.
+ * unread dot, the "Open draft" marker, line change counts or the relative time, status text and
+ * badges.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
- * directory; badges Draft and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8
- * (status text).
+ * directory; the repo avatar's emoji, uploaded icon, favicon, owner avatar or letter; badges Draft
+ * and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8 (status text), 5.3
+ * (right-clicking the repo icon offers Change repository icon).
  * Measured from Conductor 0.92.1 (renderApp @10438500): a 6px-radius row, 8px top and bottom, 6px
  * right, its left padding set by where it sits (20px in a project group, 12px in Pinned and sections);
  * hover and selected use the 5% tint; the leading visuals are 16px boxes 6px apart (the project avatar,
  * then the status icon); the name is a 20px line in weight 450 and the muted sidebar colour, 500 and the
  * stronger colour when selected, 600 when unread; at the right the added and removed line counts in
- * small monospace ("+4.1k -3"), compact past a thousand.
+ * small monospace ("+4.1k -3"), compact past a thousand. The draft marker sits just before the counts
+ * or the time, as in Conductor's trailing cluster (renderApp @10431468).
  * Our design choice: a row with no line counts shows the relative time in that place, so the time stays on
  * screen for clean workspaces (Conductor shows it only through a display option).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
@@ -22,11 +26,12 @@
  * is focused; P waits for NAV-04.
  * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
  * only when there are unread chats; no status yet (hook returns null); hover shows the live
- * Cmd+number hint for this row; keyboard focus ring.
+ * Cmd+number hint for this row; keyboard focus ring; a chat whose draft is still loading (the
+ * marker appears when it arrives); the marker opening the draft chat without leaving the row.
  * Test first: A workspace with a PR title and no display name shows the PR title; an unread count
  * above zero shows the unread dot.
  */
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { scopesForTarget } from "../../app/command-dispatcher.ts";
 import {
@@ -41,10 +46,12 @@ import { formatShortcut } from "../../core/registries/commands.ts";
 import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { type StatusTone, statusText } from "../workspace/status-text.ts";
+import { useWorkspaceDraft } from "../composer/draft-sources.ts";
+import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
-import { RepoAvatar } from "./RepoAvatar.tsx";
+import { DraftMarker } from "./DraftMarker.tsx";
+import { RepoIconAvatar } from "./RepoIcon.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
 export interface WorkspaceRowProps {
@@ -70,14 +77,6 @@ export function compactCount(value: number): string {
 	}
 	return `${Math.round(value / 1000)}k`;
 }
-
-const toneClass: Record<StatusTone, string> = {
-	attention: "text-accent",
-	active: "text-fg-muted",
-	danger: "text-danger",
-	success: "text-success",
-	neutral: "text-fg-muted",
-};
 
 /** The display form of the shortcut an event presses, as `useLiveShortcut` shows it. */
 function shortcutFromEvent(event: KeyboardEvent): string | null {
@@ -117,6 +116,7 @@ export function WorkspaceRow({
 	indent = "section",
 }: WorkspaceRowProps) {
 	const actions = useActions();
+	const navigate = useNavigate();
 	const status = useWorkspaceStatus(workspace.id);
 	// Read only: the row shows the counts once the git state is known and never starts a git read.
 	const git = useGitState(workspace.id);
@@ -125,6 +125,9 @@ export function WorkspaceRow({
 			? { added: git.data.linesAdded, removed: git.data.linesRemoved }
 			: null;
 	const sessions = useSessions(workspace.id);
+	const draft = useWorkspaceDraft(
+		sessions.state === "ready" ? sessions.data.map((session) => session.id) : [],
+	);
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
 	const subtitle = statusText(status);
@@ -133,6 +136,15 @@ export function WorkspaceRow({
 	);
 	const [hovered, setHovered] = useState(false);
 	const readShortcut = useLiveShortcut("sidebar.toggleRead");
+
+	const openDraft = () => {
+		if (draft === null) return;
+		void navigate({
+			to: "/repository/$repositoryId/workspace/$workspaceId",
+			params: { repositoryId: repo.id, workspaceId: workspace.id },
+			search: { tab: "session", sessionId: draft.sessionId },
+		});
+	};
 
 	const toggleRead = () => {
 		const failure = unread
@@ -178,7 +190,7 @@ export function WorkspaceRow({
 		>
 			{showRepo ? (
 				<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
-					<RepoAvatar repo={repo} />
+					<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
 				</span>
 			) : null}
 			<span className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden">
@@ -200,6 +212,7 @@ export function WorkspaceRow({
 					</span>
 					<span className="flex-1" />
 					<UnreadDot unread={unread} />
+					<DraftMarker place="workspace-row" draft={draft?.draft ?? null} onOpenDraft={openDraft} />
 					{counts !== null ? (
 						<span className="flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-2xs font-medium group-hover:hidden">
 							<span className="text-git-added">+{compactCount(counts.added)}</span>
@@ -226,7 +239,9 @@ export function WorkspaceRow({
 					)}
 				</span>
 				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
+					<span className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
+						{subtitle.text}
+					</span>
 				)}
 			</span>
 		</Link>

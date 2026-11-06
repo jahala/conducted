@@ -24,11 +24,16 @@
  * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
  * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
  * print OSC 633 markers: a program started, a command finished (with its exit code), and the
- * prompt. The service reads the markers from the output to keep `runningProgram` per terminal. The
- * files are rewritten at every app start so an update reaches existing installs; the user's own
- * `ZDOTDIR` is passed on in a second variable and restored by the shim; a shell that is not zsh,
- * and every script terminal, start without the shim; a marker split across two output chunks is
- * still read; output with a marker still reaches the screen unchanged.
+ * prompt. The service reads the markers from the output to keep `runningProgram` per terminal, as
+ * Conductor keeps it on its terminal session (services-map.md 5A.4.6); the research names no screen
+ * that shows it, so none does yet. The files are rewritten at every app start so an update reaches
+ * existing installs; the shim reads the user's `.zshenv` from their home folder, and when that file
+ * sets `ZDOTDIR` it reads their other dotfiles from that folder; a `ZDOTDIR` the app itself was
+ * launched with (`Shell.loginEnv().zdotdir`) reaches the shim as `CONDUCTED_USER_ZDOTDIR`, and the
+ * shim reads every user dotfile from it, as zsh would, then unsets it; a shell that is not
+ * zsh, and every script terminal, start without the shim; a marker split across two
+ * output chunks is still read; output with a marker still reaches the screen unchanged. Our design
+ * choice: the marker namespace is `Conducted`, so markers are ours and not Conductor's.
  * Our design choice: environment variables are named CONDUCTED_*. Scripts run as
  * `<login shell> -l -c <script>` with the captured login environment, not from a temp file, and
  * with the PATH the login shell sees in the script's folder (PLAT-07, services-map.md 5A.8.3), so
@@ -36,13 +41,14 @@
  * Closing a tab (`close`) kills its process and removes the row with its saved screen, as
  * Conductor's tab close destroys the terminal; `end` kills and marks the row ended but keeps it,
  * which is how script terminals end and how a tab's shell can be started again.
- * Built now (RUN-06, RUN-07, RUN-01, CHAT-23): tabs, the live connection, restart, repo terminal,
- * limit, folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript`, `stop` and
- * `runCommand`. `runCommand` starts a chat code block's command as a `run` terminal in the
+ * Built now (RUN-06, RUN-07, RUN-01, RUN-09, CHAT-23): tabs, the live connection, restart, repo
+ * terminal, limit, folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript`, `stop`
+ * and `runCommand`. `runCommand` starts a chat code block's command as a `run` terminal in the
  * workspace and returns its row; the chat shows its live stream, status, exit code, Stop and
  * Clear. `outputFor` reads the live screen, keeps the text of a finished terminal in memory, and
  * falls back to the saved screen for an older one. A run or spotlight script never saves its
- * screen, so its output stays off disk. Still a placeholder: the shell integration (RUN-09).
+ * screen, so its output stays off disk. `installShellIntegration` writes the zsh shim at app start
+ * and interactive zsh terminals start with it.
  * SET-13: every terminal and script gets `CONDUCTED_PATH_PREFIX`, the shim folder for the program
  * paths chosen in settings (or the bundled bin folder), so a chosen `claude` or `codex` is the one
  * the shell runs. A script that already carries the variable keeps it.
@@ -53,7 +59,6 @@ import {
 	appError,
 	createKeyedQueue,
 	err,
-	notImplemented,
 	ok,
 	type RepoId,
 	type Result,
@@ -67,6 +72,7 @@ import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
+import { zshIntegrationDir } from "./shell-integration.ts";
 
 /** The files of the zsh shim, in the order zsh reads them. */
 export const ZSH_INTEGRATION_FILE_NAMES = [".zshenv", ".zprofile", ".zshrc", ".zlogin"] as const;
@@ -77,33 +83,146 @@ export type ShellIntegrationEvent =
 	| { kind: "command_done"; exitCode: number | null }
 	| { kind: "prompt" };
 
+const SHELL_MARKER_PREFIX = `${String.fromCharCode(27)}]633;Conducted;`;
+const SHELL_MARKER_BEL = String.fromCharCode(7);
+const SHELL_MARKER_ST = `${String.fromCharCode(27)}\\`;
+
 /** The text of each shim file, by file name. */
 export function zshIntegrationFiles(): Readonly<
 	Record<(typeof ZSH_INTEGRATION_FILE_NAMES)[number], string>
 > {
-	return notImplemented("RUN-09");
+	return {
+		".zshenv": `# Conducted shell integration. Zsh reads this file first, from the shim folder.
+_conducted_shim_zdotdir="\${ZDOTDIR:-$HOME}"
+# Zsh reads a user's .zshenv from the ZDOTDIR the app was launched with, else their home folder,
+# as it would without the shim.
+_conducted_user_zdotdir="\${CONDUCTED_USER_ZDOTDIR:-$HOME}"
+unset CONDUCTED_USER_ZDOTDIR
+if [ "$_conducted_user_zdotdir" != "$_conducted_shim_zdotdir" ] && [ -f "$_conducted_user_zdotdir/.zshenv" ]; then
+  source "$_conducted_user_zdotdir/.zshenv"
+  # A .zshenv that sets ZDOTDIR names the folder that holds the user's other dotfiles.
+  if [ -n "\${ZDOTDIR:-}" ] && [ "$ZDOTDIR" != "$_conducted_shim_zdotdir" ]; then
+    _conducted_user_zdotdir="$ZDOTDIR"
+  fi
+fi
+# Keep loading the rest of the shim even when the user's .zshenv changes ZDOTDIR.
+ZDOTDIR="$_conducted_shim_zdotdir"
+`,
+		".zprofile": `# Conducted shell integration. Zsh reads this file for a login shell.
+if [ "$_conducted_user_zdotdir" != "$ZDOTDIR" ] && [ -f "$_conducted_user_zdotdir/.zprofile" ]; then
+  source "$_conducted_user_zdotdir/.zprofile"
+fi
+`,
+		".zshrc": `# Conducted shell integration. Zsh reads this file for an interactive shell.
+if [ "$_conducted_user_zdotdir" != "$ZDOTDIR" ] && [ -f "$_conducted_user_zdotdir/.zshrc" ]; then
+  source "$_conducted_user_zdotdir/.zshrc"
+fi
+
+_conducted_marker() {
+  printf '\\033]633;Conducted;%s\\007' "$1"
+}
+
+_conducted_preexec() {
+  _conducted_command_running=1
+  _conducted_marker "ProgramStart;\${1%% *}"
+}
+
+_conducted_precmd() {
+  local code=$?
+  if [ "\${_conducted_command_running:-0}" = "1" ]; then
+    _conducted_marker "CommandDone;$code"
+    _conducted_command_running=0
+  fi
+  _conducted_marker "Prompt"
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _conducted_preexec
+add-zsh-hook precmd _conducted_precmd
+`,
+		".zlogin": `# Conducted shell integration. Zsh reads this file last for a login shell.
+if [ "$_conducted_user_zdotdir" != "$ZDOTDIR" ] && [ -f "$_conducted_user_zdotdir/.zlogin" ]; then
+  source "$_conducted_user_zdotdir/.zlogin"
+fi
+`,
+	};
 }
 
 /**
- * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder, and the user's own
- * `ZDOTDIR` (or null when unset) travels in a second variable so the shim can restore it.
+ * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder. `launchZdotdir` is the
+ * `ZDOTDIR` the app was launched with; the shim reads the user's dotfiles from it, else from their
+ * home folder, and follows a `ZDOTDIR` their `.zshenv` sets. With none, no hand-over variable is
+ * set, so an empty one never sends a user to the wrong folder.
  */
 export function shellIntegrationEnv(
-	_shimDir: string,
-	_userZdotdir: string | null,
+	shimDir: string,
+	launchZdotdir: string | null,
 ): Readonly<Record<string, string>> {
-	return notImplemented("RUN-09");
+	return launchZdotdir === null
+		? { ZDOTDIR: shimDir }
+		: { ZDOTDIR: shimDir, CONDUCTED_USER_ZDOTDIR: launchZdotdir };
 }
+
+const parseShellMarker = (payload: string): ShellIntegrationEvent | null => {
+	const [kind, ...rest] = payload.split(";");
+	if (kind === "ProgramStart") {
+		const program = rest.join(";").trim();
+		return program === "" ? null : { kind: "program_start", program };
+	}
+	if (kind === "CommandDone") {
+		const raw = rest[0]?.trim() ?? "";
+		const exitCode = /^\d+$/.test(raw) ? Number(raw) : null;
+		return { kind: "command_done", exitCode };
+	}
+	if (kind === "Prompt") return { kind: "prompt" };
+	return null;
+};
+
+/** Length of the longest suffix of `text` that starts the marker prefix. */
+const partialMarkerPrefix = (text: string): number => {
+	const max = Math.min(text.length, SHELL_MARKER_PREFIX.length - 1);
+	for (let length = max; length > 0; length -= 1) {
+		if (text.endsWith(SHELL_MARKER_PREFIX.slice(0, length))) return length;
+	}
+	return 0;
+};
 
 /**
  * Finds the markers in one chunk of terminal output. `carry` is the unfinished marker left by the
  * previous chunk (empty at first); the returned `carry` goes into the next call.
  */
 export function scanShellIntegration(
-	_carry: string,
-	_chunk: string,
+	carry: string,
+	chunk: string,
 ): { events: ShellIntegrationEvent[]; carry: string } {
-	return notImplemented("RUN-09");
+	const text = carry + chunk;
+	const events: ShellIntegrationEvent[] = [];
+	let index = 0;
+	let afterLastMarker = 0;
+	for (;;) {
+		const start = text.indexOf(SHELL_MARKER_PREFIX, index);
+		if (start === -1) break;
+		const payloadStart = start + SHELL_MARKER_PREFIX.length;
+		const bel = text.indexOf(SHELL_MARKER_BEL, payloadStart);
+		const st = text.indexOf(SHELL_MARKER_ST, payloadStart);
+		let end = -1;
+		let terminatorLength = 0;
+		if (bel !== -1 && (st === -1 || bel < st)) {
+			end = bel;
+			terminatorLength = SHELL_MARKER_BEL.length;
+		} else if (st !== -1) {
+			end = st;
+			terminatorLength = SHELL_MARKER_ST.length;
+		}
+		if (end === -1) return { events, carry: text.slice(start) };
+		const event = parseShellMarker(text.slice(payloadStart, end));
+		if (event !== null) events.push(event);
+		index = end + terminatorLength;
+		afterLastMarker = index;
+	}
+	const tail = text.slice(afterLastMarker);
+	const kept = partialMarkerPrefix(tail);
+	return { events, carry: kept === 0 ? "" : tail.slice(tail.length - kept) };
 }
 
 export interface ScriptEnvInput {
@@ -278,6 +397,10 @@ interface ConnectionRecord {
 	pending: Uint8Array[];
 	unsubscribeData: TerminalUnsubscribe | null;
 	unsubscribeExit: TerminalUnsubscribe | null;
+	/** Turns output bytes into text for the shell markers. */
+	decoder: TextDecoder;
+	/** The unfinished shell marker from the previous output chunk. */
+	shellCarry: string;
 	connection: TerminalConnection;
 }
 
@@ -324,6 +447,10 @@ export class TerminalsService {
 	readonly #creates = createKeyedQueue<string>();
 	/** A second restart of one terminal joins the first, so it never spawns two shells. */
 	readonly #restarts = createSingleFlight<string>();
+	/** The zsh shim folder, or null when the login shell is not zsh. Set at app start. */
+	#shimDir: string | null = null;
+	/** The `ZDOTDIR` the app was launched with, read with the login shell at install (RUN-09). */
+	#launchZdotdir: string | null = null;
 
 	constructor(deps: TerminalsServiceDeps) {
 		this.#deps = deps;
@@ -337,9 +464,11 @@ export class TerminalsService {
 		}));
 	}
 
-	start(): Promise<Result<void>> {
+	async start(): Promise<Result<void>> {
+		const installed = await this.installShellIntegration();
+		if (!installed.ok) return installed;
 		this.store.setState({ loaded: true });
-		return Promise.resolve(ok(undefined));
+		return ok(undefined);
 	}
 
 	/** Reads the terminals of a workspace into the store. The screen calls it through useTerminals. */
@@ -434,6 +563,8 @@ export class TerminalsService {
 			pending: [],
 			unsubscribeData: null,
 			unsubscribeExit: null,
+			decoder: new TextDecoder(),
+			shellCarry: "",
 			connection: undefined as unknown as TerminalConnection,
 		};
 		record.connection = {
@@ -498,13 +629,18 @@ export class TerminalsService {
 			env?: Readonly<Record<string, string>>;
 		},
 	): Promise<Result<void>> {
+		// Only an interactive zsh terminal loads the shim. A script is not zsh and must not.
+		const env =
+			options?.command === undefined && terminal.kind === "terminal" && this.#shimDir !== null
+				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir, this.#launchZdotdir) }
+				: options?.env;
 		const spawned = await this.#deps.platform.pty.spawn({
 			cwd: terminal.cwd,
 			cols: DEFAULT_COLS,
 			rows: DEFAULT_ROWS,
 			scrollbackLimitBytes: this.#deps.scrollbackLimitBytes(),
 			...(options?.command === undefined ? {} : { command: options.command }),
-			...(options?.env === undefined ? {} : { env: options.env }),
+			...(env === undefined ? {} : { env }),
 		});
 		if (!spawned.ok) return spawned;
 
@@ -515,6 +651,8 @@ export class TerminalsService {
 		// A restarted shell has no output yet; text from the previous one must not come back.
 		record.rendered = null;
 		record.screenTicket += 1;
+		record.decoder = new TextDecoder();
+		record.shellCarry = "";
 		record.unsubscribeData = spawned.value.onData((chunk) => this.#emit(record, chunk));
 		record.unsubscribeExit = spawned.value.onExit((exitCode, historyError) => {
 			// The shell could not save the scrollback, so a reopened terminal will not show it.
@@ -526,11 +664,31 @@ export class TerminalsService {
 	}
 
 	#emit(record: ConnectionRecord, chunk: Uint8Array): void {
+		const scanned = scanShellIntegration(
+			record.shellCarry,
+			record.decoder.decode(chunk, { stream: true }),
+		);
+		record.shellCarry = scanned.carry;
+		if (scanned.events.length > 0) this.#applyShellEvents(record.terminal.id, scanned.events);
 		if (record.dataListeners.size === 0) {
 			record.pending.push(chunk);
 			return;
 		}
 		for (const listener of [...record.dataListeners]) listener(chunk);
+	}
+
+	/** Keeps the running program of a terminal from its shell markers. */
+	#applyShellEvents(id: TerminalId, events: readonly ShellIntegrationEvent[]): void {
+		const next = { ...this.store.getState().runningProgram };
+		let changed = false;
+		for (const event of events) {
+			const value = event.kind === "program_start" ? event.program : null;
+			if (next[id] !== value) {
+				next[id] = value;
+				changed = true;
+			}
+		}
+		if (changed) this.store.setState({ runningProgram: next });
 	}
 
 	#finish(id: TerminalId, exitCode: number | null): void {
@@ -551,6 +709,10 @@ export class TerminalsService {
 		const endedAt = this.#deps.now();
 		void this.#persistEnd(id, endedAt, exitCode);
 		this.#update(id, { endedAt, exitCode });
+		// An ended shell runs no program, so no label keeps naming one.
+		this.store.setState((state) => ({
+			runningProgram: { ...state.runningProgram, [id]: null },
+		}));
 		if (handle) {
 			const ticket = ++record.screenTicket;
 			record.rendered = this.#captureScreenText(record, handle, ticket);
@@ -676,8 +838,28 @@ export class TerminalsService {
 	}
 
 	/** Writes the zsh shim files into `zshIntegrationDir`. Runs at every app start. */
-	installShellIntegration(): Promise<Result<void>> {
-		return notImplemented("RUN-09");
+	async installShellIntegration(): Promise<Result<void>> {
+		let shell: string;
+		let launchZdotdir: string | null;
+		try {
+			({ shell, zdotdir: launchZdotdir } = await this.#deps.platform.shell.loginEnv());
+		} catch (cause) {
+			return err(
+				appError("shell_unknown", "Couldn't find your login shell to set up the terminal.", cause),
+			);
+		}
+
+		const dir = zshIntegrationDir(this.#deps.platform.fs.paths);
+		const made = await this.#deps.platform.fs.mkdirp(dir);
+		if (!made.ok) return made;
+		const files = zshIntegrationFiles();
+		for (const name of ZSH_INTEGRATION_FILE_NAMES) {
+			const written = await this.#deps.platform.fs.writeTextAtomic(`${dir}/${name}`, files[name]);
+			if (!written.ok) return written;
+		}
+		this.#shimDir = /(?:^|\/)zsh$/.test(shell) ? dir : null;
+		this.#launchZdotdir = launchZdotdir;
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.terminals.create`: an interactive login shell in the workspace folder. */

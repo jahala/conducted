@@ -1,7 +1,7 @@
 /**
  * @feature NAV-08 Which global overlay is open
  * Owns: the one piece of state for window-level overlays: the command palette, shortcuts dialog, Passport,
- * quick open and search in files. Only one is open at a time.
+ * quick open, search in files and the Feedback dialog (APP-09). Only one is open at a time.
  * Behaviour: ui-map.md 5.1 (palette with tabs), 3.10 (quick open and search in files), 5.2 (dialogs).
  * Our design choice: one zustand store, so a shortcut, a menu item and a sidebar row all open an overlay the
  * same way. Opening one closes any other.
@@ -10,7 +10,13 @@
  */
 import { create } from "zustand";
 
-export type OverlayId = "palette" | "shortcuts" | "passport" | "quick-open" | "search-files";
+export type OverlayId =
+	| "palette"
+	| "shortcuts"
+	| "passport"
+	| "quick-open"
+	| "search-files"
+	| "feedback";
 
 export interface OverlayState {
 	open: OverlayId | null;

@@ -36,10 +36,20 @@ export const SidebarLeftIcon = (p: P) => <Icon d="M2.5 3.5h11v9h-11zM6 3.5v9" {.
 export const SidebarRightIcon = (p: P) => <Icon d="M2.5 3.5h11v9h-11zM10 3.5v9" {...p} />;
 export const ArrowLeftIcon = (p: P) => <Icon d="M13 8H3M7 4L3 8l4 4" {...p} />;
 export const ArrowRightIcon = (p: P) => <Icon d="M3 8h10M9 4l4 4-4 4" {...p} />;
+export const ArrowLeftRightIcon = (p: P) => (
+	<Icon d="M5.5 2.5l-3 3 3 3M2.5 5.5h11M10.5 7.5l3 3-3 3M13.5 10.5h-11" {...p} />
+);
+/** An arrow pointing up and right: a control that opens a page outside the app. */
+export const ArrowUpRightIcon = (p: P) => <Icon d="M5 11l6-6M6 5h5v5" {...p} />;
 export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
 export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
 export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;
 export const ChevronRightIcon = (p: P) => <Icon d="M6 4l4 4-4 4" {...p} />;
+export const TargetIcon = (p: P) => (
+	<Icon d="M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM8 11A3 3 0 1 0 8 5a3 3 0 0 0 0 6zM8 8.01V8" {...p} />
+);
+export const PauseIcon = (p: P) => <Icon d="M5.5 3.5v9M10.5 3.5v9" {...p} />;
+export const PlayIcon = (p: P) => <Icon d="M5 3.5l7 4.5-7 4.5z" {...p} />;
 export const SearchIcon = (p: P) => (
 	<Icon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM14 14l-3.5-3.5" {...p} />
 );
@@ -156,7 +166,6 @@ export const ClipboardListIcon = (p: P) => (
 	/>
 );
 export const PromptIcon = (p: P) => <Icon d="M3 4.5l4 3.5-4 3.5M8.5 12h4.5" {...p} />;
-export const PlayIcon = (p: P) => <Icon d="M5 3.5l7.5 4.5L5 12.5z" {...p} />;
 export const BlocksIcon = (p: P) => (
 	<Icon d="M2.5 6.5h4v7h-4zM6.5 9.5h7v4h-7zM9.5 2.5h4v4h-4z" {...p} />
 );
@@ -232,7 +241,6 @@ export const CopyIcon = (p: P) => <Icon d="M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3" 
 export const MoreHorizontalIcon = (p: P) => (
 	<Icon d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.25" {...p} />
 );
-export const ArrowUpRightIcon = (p: P) => <Icon d="M5 11l6-6M6 5h5v5" {...p} />;
 export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
 export const UndoIcon = (p: P) => (
 	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />

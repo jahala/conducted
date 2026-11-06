@@ -22,7 +22,7 @@ import {
 } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../../logging/logger.ts";
 import { composeSidecar, type SidecarPorts } from "../../modes/sidecar-mode.ts";
-import { FakeCursorRun, FakeCursorSdk } from "../../test-support/cursor-fakes.ts";
+import { cursorSdkFiles, FakeCursorRun, FakeCursorSdk } from "../../test-support/cursor-fakes.ts";
 import { FakeApp } from "../../test-support/fake-app.ts";
 import { MemoryStorage } from "../../test-support/memory-storage.ts";
 import { createDeferred } from "../../util/deferred.ts";
@@ -55,7 +55,7 @@ const slot = (inner: string): string => `\${${inner}}`;
 
 const baseConfig: SessionConfig = {
 	agent: "cursor",
-	model: "cursor-composer-2-5",
+	model: "composer-2.5",
 	effort: "medium",
 	fastMode: false,
 	planMode: false,
@@ -101,10 +101,18 @@ function runner(
 		ids: cryptoIds,
 		probe: async () => ok({ stdout: "", stderr: "", exitCode: 0 }),
 		findExecutable: async () => null,
-		loadSdk: async () =>
-			sdk === null
-				? { ok: false, error: { code: "cursor_sdk_missing", message: "No SDK." } }
-				: ok(sdk),
+		sdk: {
+			locate: async () =>
+				ok(
+					sdk === null
+						? null
+						: { folder: "/app-data/agent-binaries/cursor/current", version: sdk.version },
+				),
+			load: async () =>
+				sdk === null
+					? { ok: false, error: { code: "cursor_sdk_missing", message: "No SDK." } }
+					: ok(sdk),
+		},
 		envLock: new EnvLock({ queue: createKeyedQueue(), target }),
 		storeRoot: "/app-data/cursor-sdk-store",
 		appToolsServer: async () => ({
@@ -138,9 +146,10 @@ describe("AGENT-09 Cursor runner", () => {
 		expect(subject.capabilities.interrupt).toBe(true);
 	});
 
-	test("detect reports the SDK it can load, with no invented version, and null when it cannot", async () => {
+	test("detect reports the installed SDK's folder and version, and null when there is none", async () => {
 		expect(await runner(new FakeCursorSdk()).detect({})).toEqual({
-			path: "@cursor/sdk",
+			path: "/app-data/agent-binaries/cursor/current",
+			version: "1.3.1",
 		});
 		expect(await runner(null).detect({})).toBeNull();
 	});
@@ -149,7 +158,26 @@ describe("AGENT-09 Cursor runner", () => {
 		const models = await runner(new FakeCursorSdk()).listModels();
 		expect(models).toEqual(CURSOR_MODELS.map((model) => ({ ...model })));
 		expect(models.filter((model) => model.isDefault)).toHaveLength(1);
-		expect(models.every((model) => model.efforts.length > 0)).toBe(true);
+		expect(models.filter((model) => model.efforts.length === 0).map((model) => model.id)).toEqual([
+			"auto",
+			"composer-2.5",
+		]);
+	});
+
+	test("the model catalog is Conductor's Cursor catalog, Grok 4.7 first and the default", async () => {
+		const models = await runner(new FakeCursorSdk()).listModels();
+		expect(models.map((model) => [model.id, model.label, model.efforts.length])).toEqual([
+			["grok-4.7", "Grok 4.7", 4],
+			["grok-4.6", "Grok 4.6", 4],
+			["auto", "Auto", 0],
+			["composer-2.5", "Composer 2.5", 0],
+			["grok-4.5", "Grok 4.5", 3],
+		]);
+		expect(models.find((model) => model.isDefault)?.id).toBe("grok-4.7");
+		expect(models.filter((model) => model.isNew).map((model) => model.id)).toEqual(["grok-4.7"]);
+		expect(models.every((model) => model.defaultEffort === "high" && model.supportsFastMode)).toBe(
+			true,
+		);
 	});
 
 	test("there are no slash commands and no MCP listing", async () => {
@@ -294,7 +322,10 @@ describe("AGENT-09 Cursor runner", () => {
 		const run = new FakeCursorRun();
 		const sdk = new FakeCursorSdk(run);
 		const root = await folder("cursor-store-");
-		const previous = process.env.CONDUCTED_CURSOR_STORE_DIR;
+		const previous = process.env.CURSOR_RIPGREP_PATH;
+		const binaries = path.join(root, "agent-binaries");
+		const installed = cursorSdkFiles(binaries, process.arch);
+		const imported: string[] = [];
 		const ports: SidecarPorts = {
 			app: new FakeApp(),
 			query: (() => {
@@ -302,7 +333,10 @@ describe("AGENT-09 Cursor runner", () => {
 			}) as unknown as SidecarPorts["query"],
 			spawnCodex: async () => err(appError("codex_unavailable", "Not used")),
 			spawnAcp: async () => err(appError("acp_unavailable", "Not used")),
-			loadCursorSdk: async () => ok(sdk),
+			importCursorSdk: async (entry) => {
+				imported.push(entry);
+				return sdk.module();
+			},
 			probe: async () => ok({ stdout: "", stderr: "", exitCode: 0 }),
 			findExecutable: async () => null,
 			shellEnv: {
@@ -324,7 +358,7 @@ describe("AGENT-09 Cursor runner", () => {
 			runCheckpointer: async () => ({ exitCode: 1, stdout: "", stderr: "not a repository" }),
 			outboxStorage: new MemoryStorage(),
 			makeTempDir: (prefix) => mkdtemp(path.join(tmpdir(), prefix)),
-			readText: async () => ok(null),
+			readText: installed.readText,
 			sidecarExecutable: "/bin/sidecar",
 			hasTranscript: async () => false,
 			readUserMessageText: async () => null,
@@ -341,7 +375,7 @@ describe("AGENT-09 Cursor runner", () => {
 				outboxRoot: path.join(root, "outbox"),
 				completionsDir: path.join(root, "completions"),
 				cursorStoreDir: storeRoot,
-				agentBinariesDir: path.join(root, "agent-binaries"),
+				agentBinariesDir: binaries,
 				logDir: path.join(root, "log"),
 				appVersion: "0.0.0",
 				logLevel: "info",
@@ -363,7 +397,18 @@ describe("AGENT-09 Cursor runner", () => {
 		const expected = cursorStoreFolder(storeRoot, workspace);
 		const resumed = createDeferred<void>();
 		sdk.onResume = () => {
-			expect(process.env.CONDUCTED_CURSOR_STORE_DIR).toBe(expected);
+			expect(process.env.CURSOR_RIPGREP_PATH).toBe(
+				path.join(
+					binaries,
+					"cursor",
+					"current",
+					"node_modules",
+					"@cursor",
+					`sdk-darwin-${process.arch}`,
+					"bin",
+					"rg",
+				),
+			);
 			resumed.resolve();
 		};
 		const outcome = session.runTurn(turnInput(), callbacks());
@@ -389,8 +434,21 @@ describe("AGENT-09 Cursor runner", () => {
 				env: { CONDUCTED_APP_TOOLS_TOKEN: "token" },
 			},
 		});
-		expect(sdk.resumeCalls[0]?.options.local.storeDir).toBe(expected);
+		expect(sdk.platformCalls).toEqual([{ stateRoot: expected, workspaceRef: workspace }]);
 		expect(expected.startsWith(storeRoot)).toBe(true);
-		expect(process.env.CONDUCTED_CURSOR_STORE_DIR).toBe(previous);
+		expect(process.env.CURSOR_RIPGREP_PATH).toBe(previous);
+		expect(imported).toEqual([
+			path.join(
+				binaries,
+				"cursor",
+				"current",
+				"node_modules",
+				"@cursor",
+				"sdk",
+				"dist",
+				"bundled",
+				"index.js",
+			),
+		]);
 	});
 });

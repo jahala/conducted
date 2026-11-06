@@ -17,7 +17,8 @@
  * its command line, so the profile is the preferred way); a notarisation that Apple rejects (the
  * log text is kept and returned); stapling the ticket so the app opens offline; a disk image or
  * archive built before signing (the release builds the app alone, then signs it, and only then
- * makes the disk image from the verified app).
+ * makes the disk image from the verified app; the update archive `tauri build` makes from the
+ * unsigned app is made again from the notarised one by `scripts/release.ts`).
  * Our design choice: every tool call goes through `RunTool`, so tests give it a scripted runner
  * and never sign anything. The privacy strings and entitlements live in files next to
  * `tauri.conf.json`, and `bundle.macOS` points at them. `bundle.externalBin` lives in
@@ -32,7 +33,6 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appError, err, ok, type Result } from "@conducted/shared";
-import tauriConfig from "../tauri.conf.json" with { type: "json" };
 import releaseConfig from "../tauri.release.conf.json" with { type: "json" };
 
 /** Entitlement keys the signed app must hold. */
@@ -146,7 +146,8 @@ export function sidecarBinaryPath(appPath: string): Result<string> {
 
 /**
  * The `tauri build` arguments for a release. Only the app is bundled, so Tauri never makes a disk
- * image or archive from an unsigned app; `scripts/release.ts` makes those after signing.
+ * image from an unsigned app. `createUpdaterArtifacts` still makes it write an update archive from
+ * the unsigned app; `scripts/release.ts` makes the disk image and that archive again after signing.
  */
 export function appBuildArguments(target: string, configPath: string): readonly string[] {
 	return [
@@ -309,20 +310,24 @@ export async function notariseDiskImage(
 
 /**
  * Mounts the shipped disk image and verifies the app inside it, so the file a person downloads is
- * the one that was checked, not a fresh app on disk.
+ * the one that was checked, not a fresh app on disk. The image's own ticket is required only when
+ * the release notarises; a signed-only release has none.
  */
 export async function verifyDiskImage(
 	run: RunTool,
 	dmgPath: string,
 	appName: string,
+	release: Pick<ExpectedBundle, "notarised">,
 ): Promise<Result<BundleReport>> {
-	const imageStaple = await runChecked(
-		run,
-		"xcrun",
-		["stapler", "validate", dmgPath],
-		"release_disk_image_not_notarised",
-	);
-	if (!imageStaple.ok) return imageStaple;
+	if (release.notarised) {
+		const imageStaple = await runChecked(
+			run,
+			"xcrun",
+			["stapler", "validate", dmgPath],
+			"release_disk_image_not_notarised",
+		);
+		if (!imageStaple.ok) return imageStaple;
+	}
 
 	const mountPoint = mkdtempSync(join(tmpdir(), "conducted-release-"));
 	const attached = await runChecked(
@@ -469,20 +474,29 @@ export async function verifyBundle(run: RunTool, appPath: string): Promise<Resul
 	});
 }
 
+/** What the release expects of the bundle it just built. */
+export interface ExpectedBundle {
+	identifier: string;
+	/** The version the release set, read after the bump. */
+	version: string;
+	/** Whether this release notarises; a signed-only release needs no ticket. */
+	notarised: boolean;
+}
+
 /** Every problem that stops this bundle from being released. Empty means ready. */
-export function bundleProblems(report: BundleReport): string[] {
+export function bundleProblems(report: BundleReport, expected: ExpectedBundle): string[] {
 	const problems: string[] = [];
 	if (report.bundleIdentifier === null) {
 		problems.push("The bundle has no CFBundleIdentifier.");
-	} else if (report.bundleIdentifier !== tauriConfig.identifier) {
+	} else if (report.bundleIdentifier !== expected.identifier) {
 		problems.push(
-			`The bundle identifier is ${report.bundleIdentifier}; expected ${tauriConfig.identifier}.`,
+			`The bundle identifier is ${report.bundleIdentifier}; expected ${expected.identifier}.`,
 		);
 	}
 	if (report.version === null) {
 		problems.push("The bundle has no version.");
-	} else if (report.version !== tauriConfig.version) {
-		problems.push(`The bundle version is ${report.version}; expected ${tauriConfig.version}.`);
+	} else if (report.version !== expected.version) {
+		problems.push(`The bundle version is ${report.version}; expected ${expected.version}.`);
 	}
 	for (const key of report.missingPrivacyKeys) {
 		problems.push(`Info.plist has no privacy string for ${key}.`);
@@ -504,7 +518,8 @@ export function bundleProblems(report: BundleReport): string[] {
 	for (const key of report.sidecarMissingEntitlements) {
 		problems.push(`The sidecar signature has no ${key} entitlement.`);
 	}
-	if (!report.notarised) problems.push("The app has no stapled notarisation ticket.");
+	if (expected.notarised && !report.notarised)
+		problems.push("The app has no stapled notarisation ticket.");
 	return problems;
 }
 

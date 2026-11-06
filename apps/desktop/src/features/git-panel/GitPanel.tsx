@@ -38,7 +38,8 @@
  * "Commit and push", "Start an AI code review" and "Show uncommitted changes" handled only while
  * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push",
  * "Merge the pull request" (Cmd+Shift+M) and "Fix errors" (Cmd+Shift+X) only while the header
- * offers that action, one review request at a time per workspace, and a
+ * offers that action, "Open the pull request" (Cmd+Shift+G, PR-07) opening it where "Open pull
+ * requests in" says whatever tab is on screen, one review request at a time per workspace, and a
  * workspace switch mid-request (the old request's result does not touch the new workspace's
  * dialog), and one header action at a time per workspace and action: the header button and the
  * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L, Cmd+Shift+M and Cmd+Shift+X shortcuts share one
@@ -83,6 +84,7 @@ import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
+import { openTargetOf, pullRequestOpenUrl } from "../pr/pr-open-target.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { ArtifactsTab } from "./artifacts/ArtifactsTab.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
@@ -190,6 +192,7 @@ export function GitPanel({
 	const automergeEnabled = useSetting<boolean>("automerge_enabled");
 	const optionalChecksBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 	const artifactsTabEnabled = useSetting<boolean>("artifacts_tab_enabled");
+	const openTarget = openTargetOf(useSetting<string>("pull_request_open_target"));
 
 	const [ownTab, setOwnTab] = useState<GitPanelTab>("changes");
 	const [showArtifacts, setShowArtifacts] = useState(false);
@@ -435,6 +438,17 @@ export function GitPanel({
 	useCommandHandler("pr.merge", "area", () => {
 		const offered = headerInputs === null ? null : computeGitHeader(headerInputs).action?.id;
 		if (offered === "merge" || offered === "merge_stack") void runGuarded(offered);
+		return true;
+	});
+
+	// Cmd+Shift+G opens the workspace's pull request where "Open pull requests in" says, as the PR
+	// tab's "#<number>" link does. With no pull request it passes on.
+	useCommandHandler("pr.open", "area", () => {
+		const pullRequest = git.state === "ready" ? git.data.pullRequest : null;
+		if (pullRequest === null) return false;
+		void actions.app.openUrl(pullRequestOpenUrl(pullRequest.url, openTarget)).then((result) => {
+			if (!result.ok) toastError("Couldn't open the pull request", result.error);
+		});
 		return true;
 	});
 

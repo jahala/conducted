@@ -58,7 +58,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 
 /** Commands of a done feature that no handler or caller names yet. */
 const KNOWN_UNUSED_COMMANDS: readonly string[] = [
-	"app.quit",
 	"terminal.clear",
 	"terminal.close",
 	"terminal.deleteLine",
@@ -69,7 +68,6 @@ const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"terminal.newline",
 	"terminal.wordBack",
 	"terminal.wordForward",
-	"view.toggleTerminalPanel",
 ];
 
 describe("registry entries are used", () => {

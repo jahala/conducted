@@ -21,6 +21,7 @@ import { toastError } from "../../../ui/Toast.tsx";
 import { ResetCalloutDismissals } from "../ResetCalloutDismissals.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
+import { SyncAgentConfigsRow } from "../SyncAgentConfigsDialog.tsx";
 
 const DISMISSED_CALLOUTS_KEY = "dismissed_callouts";
 const CALLOUT_DISMISSALS_HINT_ID = "callout-dismissals-hint";
@@ -122,6 +123,8 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				focusSettingKey={focusSettingKey}
 				exclude={GENERAL_UP_TO_SOUND}
 			/>
+			{/* Conductor lists Sync agent configs last on General, after the registry rows. */}
+			<SyncAgentConfigsRow />
 			<Callout
 				id={CALLOUT_DISMISSALS_HINT_ID}
 				dismissed={dismissedIds.includes(CALLOUT_DISMISSALS_HINT_ID)}

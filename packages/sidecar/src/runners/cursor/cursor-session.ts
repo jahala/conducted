@@ -3,12 +3,16 @@
  * Owns: one chat's Cursor agent and its current run, and implements AgentSession.
  * Behaviour: research/conductor/other-runners.md section 2.3: no child process of our own; the
  * agent id equals our session id (no separate id is stored); one run at a time ("A turn is already
- * in progress" otherwise); the run's stream is iterated and translated; steer calls run.steer and
- * a non-delivered outcome hands the message back as a follow-up; cancel sets a flag and calls
- * run.cancel; there are no permission callbacks, so Cursor runs with the SDK's own defaults.
+ * in progress" otherwise); the run's stream is iterated and translated, then awaited; steer calls
+ * run.steer and a revert_to_followup outcome hands the message back as a follow-up; cancel sets a
+ * flag and calls run.cancel; there are no permission callbacks, so Cursor runs with the SDK's own
+ * defaults. The SDK is loaded at the first turn, and the workspace's platform is opened on the
+ * chat's store folder (cursor-sdk.ts).
  * Must handle:
  *  - resume: resumeAgent first; if it fails and the failure is not a sign-in problem, createAgent
  *    with the same id and log that history is gone
+ *  - the run's result: "error" ends the turn with the SDK's message, "cancelled" ends it cancelled;
+ *    a failed run resolves, it does not throw
  *  - a missing or rejected API key: an error outcome whose message points to Settings, never the
  *    key itself
  *  - cancel during the start or the stream: the loop ends, the outcome is cancelled, late messages
@@ -23,12 +27,11 @@
  *    options)
  *  - contextUsage: null (the SDK reports none)
  *  - dispose ends a live run, stops a turn that is still starting (a run that `send` hands back
- *    later is cancelled at once), refuses later turns, and gives the app tools token back
- *  - a sign-in failure is told apart from other failures by whole words and phrases ("401
- *    Unauthorized", "invalid API key", "not signed in"), never by a substring such as "auth" in
- *    "author". The research names no SDK error class or code for it (other-runners.md 5 says only
- *    that a rejected key gets a message pointing to Settings); when the SDK is installed, match its
- *    own error type here instead
+ *    later is cancelled at once), refuses later turns, closes the agent and gives the app tools
+ *    token back; a restart closes the agent it replaces
+ *  - a sign-in failure: the SDK's own AuthenticationError (what @cursor/sdk throws for a 401), or,
+ *    for a run result that carries only text, whole words and phrases ("401 Unauthorized",
+ *    "invalid API key", "not signed in"), never a substring such as "auth" in "author"
  * Test first: with a fake SDK whose run streams one text message and finishes, runTurn emits one
  * text message and resolves success.
  */
@@ -48,7 +51,9 @@ import type {
 	CursorAgent,
 	CursorAgentOptions,
 	CursorModelParam,
+	CursorPlatform,
 	CursorRun,
+	CursorSdk,
 	LoadCursorSdk,
 } from "./cursor-sdk.ts";
 import type { EnvLock } from "./env-lock.ts";
@@ -65,7 +70,7 @@ export interface CursorSessionDeps {
 	apiKey: string | undefined;
 	/** The user's local Cursor MCP servers, read and validated by the runner, plus the app tools. */
 	mcpServers: Record<string, unknown>;
-	/** The folder for this chat's Cursor local run store. */
+	/** The folder of this workspace's Cursor run store: the platform's `stateRoot`. */
 	storeDir: string;
 	/** Runs once when the session is disposed: gives the chat's app tools token back. */
 	onDispose(): void;
@@ -119,6 +124,7 @@ export class CursorSession implements AgentSession {
 
 	private readonly log: Logger;
 	private readonly agentId: string;
+	private sdk: CursorSdk | null = null;
 	private agent: CursorAgent | null = null;
 	private active: ActiveRun | null = null;
 	/** Set synchronously so two overlapping runTurn calls cannot both pass the guard. */
@@ -165,7 +171,7 @@ export class CursorSession implements AgentSession {
 				run = await this.deps.envLock.withEnv(this.sdkEnv(), () => sdk.send(input.text));
 			} catch (cause) {
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
-				if (isCursorAuthError(cause)) return authOutcome();
+				if (this.isAuthError(cause)) return authOutcome();
 				return { kind: "error", message: messageOf(cause), retryable: false };
 			}
 
@@ -184,12 +190,18 @@ export class CursorSession implements AgentSession {
 					this.emit(this.deps.translator.push(message), callbacks);
 				}
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
-				await run.wait();
+				const result = await run.wait();
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
+				if (result.status === "cancelled") return { kind: "cancelled" };
+				if (result.status === "error") {
+					const failure = result.error ?? { message: "The Cursor run failed." };
+					if (isCursorAuthError(failure.message)) return authOutcome();
+					return { kind: "error", message: failure.message, retryable: false };
+				}
 				return { kind: "success" };
 			} catch (cause) {
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
-				if (isCursorAuthError(cause)) return authOutcome();
+				if (this.isAuthError(cause)) return authOutcome();
 				return { kind: "error", message: messageOf(cause), retryable: false };
 			}
 		} finally {
@@ -243,7 +255,7 @@ export class CursorSession implements AgentSession {
 		this.config = config;
 		// Cursor takes its model and parameters when the agent is created, so a change means a new
 		// agent resumed under the same id.
-		this.agent = null;
+		this.closeAgent();
 		return Promise.resolve("restart");
 	}
 
@@ -258,7 +270,7 @@ export class CursorSession implements AgentSession {
 		this.cancelledGeneration = this.generation;
 		const active = this.active;
 		if (active !== null) await this.cancelRun(active.run);
-		this.agent = null;
+		this.closeAgent();
 		this.deps.onDispose();
 	}
 
@@ -279,25 +291,41 @@ export class CursorSession implements AgentSession {
 				},
 			};
 		}
-		const sdk = loaded.value;
+		this.sdk = loaded.value;
 		const options = this.agentOptions(config);
 		return this.deps.envLock.withEnv(this.sdkEnv(), async () => {
+			let platform: CursorPlatform;
 			try {
-				const agent = await sdk.resumeAgent(this.agentId, options);
+				platform = await loaded.value.createPlatform({
+					stateRoot: this.deps.storeDir,
+					workspaceRef: this.start.workspace.workspacePath,
+				});
+			} catch (cause) {
+				return {
+					ok: false as const,
+					outcome: {
+						kind: "error",
+						message: `Cursor could not open its run store: ${messageOf(cause)}`,
+						retryable: false,
+					},
+				};
+			}
+			try {
+				const agent = await platform.resumeAgent(this.agentId, options);
 				this.agent = agent;
 				return { ok: true as const, agent };
 			} catch (cause) {
-				if (isCursorAuthError(cause)) return { ok: false as const, outcome: authOutcome() };
+				if (this.isAuthError(cause)) return { ok: false as const, outcome: authOutcome() };
 				this.log.warn("Cursor could not resume this chat; its history is gone", {
 					sessionId: this.sessionId,
 					reason: messageOf(cause),
 				});
 				try {
-					const agent = await sdk.createAgent({ ...options, agentId: this.agentId });
+					const agent = await platform.createAgent({ ...options, agentId: this.agentId });
 					this.agent = agent;
 					return { ok: true as const, agent };
 				} catch (created) {
-					if (isCursorAuthError(created)) {
+					if (this.isAuthError(created)) {
 						return { ok: false as const, outcome: authOutcome() };
 					}
 					return {
@@ -317,13 +345,32 @@ export class CursorSession implements AgentSession {
 		return {
 			apiKey: this.deps.apiKey ?? "",
 			model: { id: config.model, params: cursorModelParams(config) },
-			local: { cwd: this.start.workspace.workspacePath, storeDir: this.deps.storeDir },
+			local: { cwd: this.start.workspace.workspacePath },
 			mcpServers: this.deps.mcpServers,
 		};
 	}
 
+	/** The chat's environment and the SDK's native package variables, for every SDK call. */
 	private sdkEnv(): Record<string, string> {
-		return { ...this.start.env, CONDUCTED_CURSOR_STORE_DIR: this.deps.storeDir };
+		return { ...this.start.env, ...(this.sdk?.env ?? {}) };
+	}
+
+	private isAuthError(cause: unknown): boolean {
+		return this.sdk?.isAuthenticationError(cause) === true || isCursorAuthError(cause);
+	}
+
+	private closeAgent(): void {
+		const agent = this.agent;
+		this.agent = null;
+		if (agent === null) return;
+		try {
+			agent.close();
+		} catch (cause) {
+			this.log.warn("Cursor could not close its agent cleanly", {
+				sessionId: this.sessionId,
+				reason: messageOf(cause),
+			});
+		}
 	}
 
 	private emit(messages: AgentMessage[], callbacks: TurnCallbacks): void {

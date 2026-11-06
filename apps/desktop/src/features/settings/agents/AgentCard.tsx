@@ -6,7 +6,9 @@
  * configured", "Validation failed", "Recommended").
  * Data: the parent passes one AgentInstall from useAgentInstalls().
  * The program manager downloads, updates and removes programs (PLAT-28, D021); this card shows
- * what the catalogue reports. A missing program shows how to install it and a Refresh action.
+ * what the catalogue reports. A missing program shows how to install it and a Refresh action; a
+ * missing Cursor points to the Advanced page, where the app installs its SDK (AGENT-09).
+ * The parent may also pass one action that opens the agent's own config editor (SET-12).
  * Must handle: not installed, installed but not signed in, signed in, signed in status unknown,
  * version check failed, a custom path in use (marked), a long path (middle truncation, copyable),
  * sign-in in flight, and the ACP agents OpenCode and Pi sharing one agent kind (the card shows the
@@ -32,6 +34,8 @@ export interface AgentCardProps {
 	onProviders?: () => void;
 	/** Copies the program path. Left out when the page has no clipboard action. */
 	onCopyPath?: (path: string) => void;
+	/** Opens the agent's own config file, when the agent has one (SET-12). */
+	configAction?: { label: string; onClick: () => void };
 	/**
 	 * Offered beside a warning when the page passes it. The Agents page passes none: the research
 	 * shows no update action on an agent card (an open PLAT-28 item).
@@ -40,6 +44,17 @@ export interface AgentCardProps {
 }
 
 /** What the card calls the program's source, in Conductor's words (ui-map.md 6). */
+/**
+ * How to get a missing agent. Cursor runs through its SDK, which the app installs on the Advanced
+ * page and never bundles (AGENT-09, D083); every other agent is a program on this Mac.
+ */
+function installHelp(install: AgentInstall, name: string): string {
+	if (install.agent === "cursor") {
+		return "Install the Cursor SDK on the Advanced page, then choose Refresh.";
+	}
+	return `Install ${name} on this Mac, then choose Refresh.`;
+}
+
 export function agentState(install: AgentInstall): { label: string; tone: BadgeTone } | null {
 	if (install.warning !== undefined) return { label: "Validation failed", tone: "danger" };
 	if (!install.installed) return null;
@@ -65,6 +80,7 @@ export function AgentCard({
 	onProviders,
 	onCopyPath,
 	onUpdate,
+	configAction,
 }: AgentCardProps) {
 	const name = agentDisplayName(install);
 	const state = agentState(install);
@@ -83,7 +99,7 @@ export function AgentCard({
 					</div>
 					{notInstalled ? (
 						<p className={`mt-1 text-sm ${install.warning ? "text-danger" : "text-fg-muted"}`}>
-							{install.warning ?? `Install ${name} on this Mac, then choose Refresh.`}
+							{install.warning ?? installHelp(install, name)}
 						</p>
 					) : (
 						<p className="mt-1 text-xs text-fg-muted">
@@ -92,6 +108,11 @@ export function AgentCard({
 					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
+					{configAction ? (
+						<Button size="sm" variant="secondary" onClick={configAction.onClick}>
+							{configAction.label}
+						</Button>
+					) : null}
 					{!notInstalled && onProviders ? (
 						<Button size="sm" variant="secondary" onClick={onProviders}>
 							Providers

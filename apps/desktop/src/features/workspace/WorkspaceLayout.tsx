@@ -12,12 +12,16 @@
  * The header slot sits in a title-bar-height row that is a window drag region and starts with the title bar
  * inset, so the header component only fills the row.
  * Must handle: right panel collapsed (the header's toggle button reopens it; the header receives
- * `rightPanelOpen` and `toggleRightPanel`); the scripts panel collapsing to its 32px tab row
- * (ui/layout-sizes.ts). A window narrower than both minimums is left to the resizable group.
+ * `rightPanelOpen` and `toggleRightPanel`); the right panel and scripts panel starting collapsed from their
+ * saved state; the scripts panel collapsing to its 32px tab row (ui/layout-sizes.ts). The right and scripts
+ * panels register with app/zen-mode.ts, so Cmd+Alt+B, Cmd+J and zen mode reach them, and the right panel
+ * reports each change of its open state there (a divider drag too), which the shell saves. A window narrower
+ * than both minimums is left to the resizable group.
  * Test first: renders all three slots; toggleRightPanel hides and shows the right panel.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { useZenModeControls, useZenPanel } from "../../app/zen-mode.ts";
 import {
 	scriptsPanelCollapsedSize,
 	workspaceLayoutGroupId,
@@ -47,17 +51,53 @@ export function WorkspaceLayout({
 	scriptsPanel,
 }: WorkspaceLayoutProps) {
 	const rightRef = usePanelRef();
-	const [rightPanelOpen, setRightPanelOpen] = useState(true);
+	const scriptsRef = usePanelRef();
+	const zen = useZenModeControls();
+	const [initialRightOpen] = useState(() => zen?.initiallyOpen("right") ?? true);
+	const [rightPanelOpen, setRightPanelOpen] = useState(initialRightOpen);
+	const [scriptsPanelOpen, setScriptsPanelOpen] = useState(true);
+
+	useEffect(() => {
+		if (initialRightOpen) return;
+		rightRef.current?.collapse();
+	}, [initialRightOpen, rightRef]);
+
+	const rightPanelIsOpen = () => rightPanelOpen;
+
+	const applyRightOpen = (open: boolean) => {
+		setRightPanelOpen(open);
+		const panel = rightRef.current;
+		if (panel === null) return;
+		if (open && panel.isCollapsed()) panel.expand();
+		else if (!open && !panel.isCollapsed()) panel.collapse();
+	};
 
 	const toggleRightPanel = () => {
-		const next = !rightPanelOpen;
-		const panel = rightRef.current;
-		if (panel) {
-			if (next) panel.expand();
-			else panel.collapse();
+		if (zen !== null) {
+			zen.togglePanel("right");
+			return;
 		}
-		setRightPanelOpen(next);
+		applyRightOpen(!rightPanelIsOpen());
 	};
+
+	const applyScriptsOpen = (open: boolean) => {
+		setScriptsPanelOpen(open);
+		const panel = scriptsRef.current;
+		if (panel === null) return;
+		if (open && panel.isCollapsed()) panel.expand();
+		else if (!open && !panel.isCollapsed()) panel.collapse();
+	};
+
+	useZenPanel("right", { isOpen: rightPanelIsOpen, setOpen: applyRightOpen });
+	// Every change of the right panel's open state is reported, a divider drag included, so the
+	// shell saves what the screen shows.
+	useEffect(() => {
+		zen?.panelOpenChanged("right", rightPanelOpen);
+	}, [zen, rightPanelOpen]);
+	useZenPanel("terminal", {
+		isOpen: () => scriptsPanelOpen,
+		setOpen: applyScriptsOpen,
+	});
 
 	return (
 		<ResizableGroup
@@ -82,7 +122,7 @@ export function WorkspaceLayout({
 			<ResizablePanel
 				id="right-panel"
 				panelRef={rightRef}
-				defaultSize="35%"
+				defaultSize={initialRightOpen ? "35%" : "0%"}
 				minSize="30%"
 				collapsible
 				collapsedSize="0%"
@@ -104,12 +144,18 @@ export function WorkspaceLayout({
 						<ResizeHandle />
 						<ResizablePanel
 							id="scripts-panel"
+							panelRef={scriptsRef}
 							defaultSize="50%"
 							minSize="20%"
 							collapsible
 							collapsedSize={scriptsPanelCollapsedSize}
+							onResize={(size) =>
+								setScriptsPanelOpen(size.inPixels > Number.parseFloat(scriptsPanelCollapsedSize))
+							}
 						>
-							<div className="h-full min-h-0">{scriptsPanel}</div>
+							<div className="h-full min-h-0" data-scripts-panel-open={scriptsPanelOpen}>
+								{scriptsPanel}
+							</div>
 						</ResizablePanel>
 					</ResizableGroup>
 				</aside>

@@ -1,4 +1,5 @@
 //! @feature PLAT-15 App menu with accelerators from the command registry
+//! @feature APP-09 Send feedback: the Help menu item
 //!
 //! Owns: the macOS menu bar. Every custom item sends its command id to the UI; the shell does not
 //! run any of them. Accelerators come from the UI's command registry, so re-binding an item shows
@@ -33,8 +34,9 @@
 //! items keep Conductor's semantic names (`help.*`) while the registry names the same actions
 //! `app.*`; `menu_set_shortcuts` maps those registry ids onto the Help items, and a Help click
 //! emits the registry's command id. The handler for each id lives with the feature that owns the
-//! command. We leave out Conductor's "Best Practices", "Submit a Prompt" and "Send Feedback"
-//! items because they point at its hosted services. "Documentation" and "Changelog" stay as UI
+//! command. We leave out Conductor's "Best Practices" and "Submit a Prompt" items because they
+//! point at its hosted services. "Send Feedback" (Cmd+Alt+F) stays: ours opens the Feedback
+//! dialog, which files an issue on the project's GitHub page (APP-09). "Documentation" and "Changelog" stay as UI
 //! commands that open our docs. "Diagnostics" is left out until APP-03 adds the
 //! `app.openDiagnostics` registry command and its handler, because a menu item that emits an id
 //! nothing runs is worse than no item (D041).
@@ -132,6 +134,12 @@ pub const MENU_ITEMS: &[MenuItemSpec] = &[
         default_accelerator: None,
     },
     MenuItemSpec {
+        id: "help.sendFeedback",
+        label: "Send Feedback",
+        menu: "Help",
+        default_accelerator: Some("CmdOrCtrl+Alt+F"),
+    },
+    MenuItemSpec {
         id: "help.toggleInspector",
         label: "Debug",
         menu: "Help",
@@ -144,6 +152,7 @@ const MENU_ID_ALIASES: &[(&str, &str)] = &[
     ("app.showShortcuts", "help.keyboardShortcuts"),
     ("app.openDocumentation", "help.documentation"),
     ("app.openChangelog", "help.changelog"),
+    ("app.sendFeedback", "help.sendFeedback"),
     ("app.openDebugTools", "help.toggleInspector"),
 ];
 
@@ -407,10 +416,11 @@ pub fn build_menu(app: &AppHandle, state: &MenuState) -> tauri::Result<Menu<Wry>
         Submenu::with_id_and_items(app, WINDOW_SUBMENU_ID, "Window", true, &window_items)?;
 
     let help_separator = PredefinedMenuItem::separator(app)?;
-    let help_items: [&dyn IsMenuItem<Wry>; 5] = [
+    let help_items: [&dyn IsMenuItem<Wry>; 6] = [
         &handles["help.keyboardShortcuts"],
         &handles["help.documentation"],
         &handles["help.changelog"],
+        &handles["help.sendFeedback"],
         &help_separator,
         &handles["help.toggleInspector"],
     ];
@@ -531,6 +541,7 @@ mod tests {
                 "help.keyboardShortcuts",
                 "help.documentation",
                 "help.changelog",
+                "help.sendFeedback",
                 "help.toggleInspector",
             ]
         );
@@ -569,6 +580,25 @@ mod tests {
         assert_eq!(route_for("tab.close"), MenuRoute::Command("tab.close"));
         assert_eq!(route_for("app.quit"), MenuRoute::QuitRequested);
         assert_eq!(route_for("not.a.menu.item"), MenuRoute::Ignore);
+    }
+
+    #[test]
+    fn app_09_help_menu_sends_the_feedback_command_on_cmd_alt_f() {
+        let spec = MENU_ITEMS
+            .iter()
+            .find(|spec| spec.id == "help.sendFeedback")
+            .expect("the Help menu has Send Feedback");
+        assert_eq!(spec.label, "Send Feedback");
+        assert_eq!(spec.menu, "Help");
+        assert_eq!(spec.default_accelerator, Some("CmdOrCtrl+Alt+F"));
+        assert_eq!(
+            route_for("help.sendFeedback"),
+            MenuRoute::Command("app.sendFeedback")
+        );
+        assert_eq!(
+            menu_id_for_command("app.sendFeedback"),
+            Some("help.sendFeedback")
+        );
     }
 
     #[test]

@@ -8,21 +8,60 @@
  * workspace-draft-indicator, on a workspace row, tooltip "Draft"; it opens that workspace's draft; the exact
  * draft kind is not clear from the bundle).
  * Data: the caller passes the draft (useDraft for a chat, the composer store for the new-workspace draft).
- * Our design choice: "Open draft" opens the workspace with its draft chat active and the composer focused.
- * A draft with only spaces and no attachments counts as empty.
+ * Drawn as Conductor draws it (renderApp @10432391): a bare 12px pencil in the muted sidebar colour that
+ * brightens on hover, with no box.
+ * Our design choice: "Open draft" opens the workspace with its draft chat active. A draft with only spaces
+ * and no attachments counts as empty.
  * Must handle: an empty or whitespace-only draft (no marker); a draft with attachments but no text (marker);
  * the marker sitting beside the unread dot and the time without moving the row's columns; keyboard focus
  * on the workspace-row button; a screen reader reading "Open draft" for the button and "Draft" for the
  * Create-row marker.
  * Test first: a draft of "   " with no attachments renders no marker; "fix the login" renders one.
  */
-import { notImplemented } from "@conducted/shared";
 import type { Draft } from "../../core/api.ts";
+import { PencilIcon } from "../../ui/icons.tsx";
+import { Tooltip } from "../../ui/Tooltip.tsx";
 
 export type DraftMarkerProps =
 	| { place: "create-row"; draft: Draft | null }
 	| { place: "workspace-row"; draft: Draft | null; onOpenDraft: () => void };
 
-export function DraftMarker(_props: DraftMarkerProps): never {
-	return notImplemented("NAV-16");
+/** True when the draft holds text or an attachment. Whitespace alone is not a draft. */
+export function hasDraft(draft: Draft | null | undefined): draft is Draft {
+	return (
+		draft !== null &&
+		draft !== undefined &&
+		(draft.text.trim().length > 0 || draft.attachmentPaths.length > 0)
+	);
+}
+
+export function DraftMarker(props: DraftMarkerProps) {
+	if (!hasDraft(props.draft)) return null;
+	if (props.place === "create-row") {
+		return (
+			<span
+				role="img"
+				aria-label="Draft"
+				className="inline-block size-1.5 shrink-0 rounded-full bg-accent"
+			/>
+		);
+	}
+	return (
+		<Tooltip content="Draft">
+			<button
+				type="button"
+				aria-label="Open draft"
+				title="Draft"
+				data-testid="workspace-draft-indicator"
+				className="flex shrink-0 items-center justify-center rounded-sm px-0.5 py-1 text-sidebar-fg-muted transition-colors hover:text-sidebar-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+				onClick={(event) => {
+					event.preventDefault();
+					event.stopPropagation();
+					props.onOpenDraft();
+				}}
+			>
+				<PencilIcon className="size-3" />
+			</button>
+		</Tooltip>
+	);
 }

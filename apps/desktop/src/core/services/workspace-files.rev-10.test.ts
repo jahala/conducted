@@ -10,6 +10,7 @@
 import { ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import { WorkspaceFilesService } from "./workspace-files.ts";
 
 const workspaceId = "ws-artifacts" as WorkspaceId;
@@ -221,6 +222,7 @@ describe("REV-10 workspace artifacts service", () => {
 				fs: test.memory.platform.fs,
 				search: test.memory.platform.fileSearch,
 				shell: test.memory.platform.shell,
+				git: new FakeGitRunner(() => gitOutput()),
 				opener: test.memory.platform.opener,
 				rootsOf: async () => {
 					calls += 1;

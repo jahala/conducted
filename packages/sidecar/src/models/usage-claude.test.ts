@@ -169,7 +169,7 @@ describe("SIDE-17 the Claude session reads plan usage from the SDK", () => {
 				resetsAt: Date.parse("2026-11-04T10:00:00Z"),
 			},
 			{
-				label: "Weekly limit",
+				label: "7-day limit",
 				usedPercent: 60,
 				windowMinutes: 10_080,
 				resetsAt: Date.parse("2026-11-09T00:00:00Z"),

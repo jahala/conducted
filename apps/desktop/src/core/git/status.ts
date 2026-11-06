@@ -417,12 +417,34 @@ async function upstreamTipSeen(
 }
 
 /**
+ * How a local tip and its upstream tip differ: commits only the branch has (`ahead`), commits only
+ * the upstream has (`behind`), and whether the remote branch was rewritten. A branch counts as
+ * rewritten when it has diverged (commits on both sides) and the local tip is in the reflog of the
+ * remote-tracking ref: the remote once pointed at the local tip, and a force-push moved it off.
+ * The branch sync below and the stack catch-up (services-map 3.8.3 steps 1 and 4) both read it.
+ */
+export async function readUpstreamDivergence(
+	runner: GitRunner,
+	cwd: string,
+	headOid: string,
+	upstreamOid: string,
+): Promise<Result<{ ahead: number; behind: number; rewritten: boolean }>> {
+	const counts = await runner.stdout(revListLeftRightCount(upstreamOid, headOid), { cwd });
+	if (!counts.ok) return counts;
+	const parsed = parseLeftRightCount(counts.value);
+	if (!parsed.ok) return parsed;
+	const ahead = parsed.value.right;
+	const behind = parsed.value.left;
+	if (ahead === 0 || behind === 0) return ok({ ahead, behind, rewritten: false });
+	const seen = await upstreamTipSeen(runner, cwd, headOid);
+	if (!seen.ok) return seen;
+	return ok({ ahead, behind, rewritten: seen.value });
+}
+
+/**
  * Computes ahead and behind against the upstream and against the target (services-map 3.3.2
- * steps 8 and 9, 3.6.4), and whether the remote branch was rewritten. A branch counts as
- * rewritten when it has diverged (commits on both sides) and the local tip is in the reflog of
- * the remote-tracking ref: the remote once pointed at the local tip, and a force-push moved it
- * off. services-map 3.8.3 step 4 makes the same reflog check before it catches up a rewritten
- * branch. A local tip the remote never held is a plain divergence. A branch with no upstream returns
+ * steps 8 and 9, 3.6.4), and whether the remote branch was rewritten (`readUpstreamDivergence`).
+ * A local tip the remote never held is a plain divergence. A branch with no upstream returns
  * `hasUpstream: false` and zero counts, not an error.
  */
 export async function refreshBranchSync(
@@ -457,22 +479,11 @@ export async function refreshBranchSync(
 		return err(appError("git_parse", "Unexpected rev-parse HEAD @{u} output."));
 	}
 
-	const counts = await runner.stdout(revListLeftRightCount(upstreamOid, headOid), { cwd });
-	if (!counts.ok) return counts;
-	const parsed = parseLeftRightCount(counts.value);
-	if (!parsed.ok) return parsed;
-
-	const ahead = parsed.value.right;
-	const behind = parsed.value.left;
-	let rewritten = false;
-	if (ahead > 0 && behind > 0) {
-		const seen = await upstreamTipSeen(runner, cwd, headOid);
-		if (!seen.ok) return seen;
-		rewritten = seen.value;
-	}
+	const divergence = await readUpstreamDivergence(runner, cwd, headOid, upstreamOid);
+	if (!divergence.ok) return divergence;
 
 	return ok({
-		sync: { ahead, behind, rewritten, hasUpstream: true },
+		sync: { ...divergence.value, hasUpstream: true },
 		behindTarget: behindTarget.value,
 	});
 }

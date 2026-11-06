@@ -36,6 +36,8 @@ function buildContainer(): {
 		placeNames: { pick: () => "place" },
 		sound: { play: async () => {} },
 		windowFocused: () => true,
+		// This test starts no background work, so nothing is reported.
+		reportFailure: () => undefined,
 	});
 	return { container, memory };
 }

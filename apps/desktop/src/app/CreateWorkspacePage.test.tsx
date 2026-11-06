@@ -101,12 +101,36 @@ function makeContainer(sectionRows: readonly Section[] = []) {
 		lastFailedCreate: Workspace | null;
 		warnings: Record<string, readonly string[]>;
 	}>(() => ({ lastFailedCreate: null, warnings: {} }));
+	const composerStore = createStore<{
+		drafts: Record<string, { text: string; attachmentPaths: string[] }>;
+	}>(() => ({ drafts: {} }));
+	const composer = {
+		store: composerStore,
+		loadDraft: async (id: string) => {
+			const existing = composerStore.getState().drafts[id];
+			if (existing !== undefined) return ok(existing);
+			const draft = { text: "", attachmentPaths: [] };
+			composerStore.setState((state) => ({ drafts: { ...state.drafts, [id]: draft } }));
+			return ok(draft);
+		},
+		saveDraft: (id: string, draft: { text: string; attachmentPaths: string[] }) =>
+			composerStore.setState((state) => ({ drafts: { ...state.drafts, [id]: draft } })),
+		clearDraft: async (id: string) => {
+			composerStore.setState((state) => {
+				const drafts = { ...state.drafts };
+				delete drafts[id];
+				return { drafts };
+			});
+			return ok(undefined);
+		},
+	};
 	const container = {
 		services: {
 			repo: repoService,
 			settings,
 			sections: { store: sections },
 			workspace: { store: workspaceStore },
+			composer,
 		},
 		actions: {
 			workspaces: { create, retrySetup, recoverPrompt },

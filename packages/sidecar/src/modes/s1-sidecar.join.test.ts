@@ -56,9 +56,7 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import {
-	appError,
 	cryptoIds,
-	err,
 	type MessageId,
 	ok,
 	type SessionId,
@@ -70,8 +68,7 @@ import type { SidecarConfig } from "../config.ts";
 import { createLogger, type Logger, type LogRecord } from "../logging/logger.ts";
 import type { AcpChild } from "../runners/acp/acp-client.ts";
 import type { JsonRpcChild } from "../runners/codex/app-server-client.ts";
-import type { CursorSdk } from "../runners/cursor/cursor-sdk.ts";
-import { FakeCursorRun, FakeCursorSdk } from "../test-support/cursor-fakes.ts";
+import { cursorSdkFiles, FakeCursorRun, FakeCursorSdk } from "../test-support/cursor-fakes.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
 import { FakeChild, type JsonRpcMessage } from "../test-support/fake-child.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
@@ -181,6 +178,8 @@ interface Seen {
 	}[];
 	codexChildren: FakeChild[];
 	acpNewSessions: NewSessionRequest[];
+	/** The files the root imported Cursor's SDK from. */
+	cursorImports: string[];
 	logs: LogRecord[];
 	/** Resolves when the next Codex app server is spawned. */
 	nextCodexSpawn(): Promise<void>;
@@ -204,7 +203,8 @@ async function harness(
 		acpOptions?: SessionConfigOption[];
 		files?: Map<string, string>;
 		skillPluginDir?: string;
-		cursorSdk?: CursorSdk;
+		/** Cursor's SDK, installed in the agent binaries folder the way the program manager leaves it. */
+		cursorSdk?: FakeCursorSdk;
 		/** The app's bin and managed programs folders, when a test lays out managed copies. */
 		programs?: { binDir: string; agentBinariesDir: string };
 		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
@@ -221,6 +221,7 @@ async function harness(
 		codexSpawns: [],
 		codexChildren: [],
 		acpNewSessions: [],
+		cursorImports: [],
 		logs: [],
 		nextCodexSpawn: () => new Promise<void>((resolve) => spawnWaiters.push(resolve)),
 	};
@@ -230,13 +231,16 @@ async function harness(
 		env: { PATH: "/usr/bin", HOME: home },
 		providerSecrets: {},
 	};
+	const agentBinariesDir =
+		options.programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
+	const cursorFiles = cursorSdkFiles(agentBinariesDir, process.arch);
 	const host = composeSidecar(
 		{
 			binDir: options.programs?.binDir ?? BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
-			agentBinariesDir: options.programs?.agentBinariesDir ?? path.join(folder, "agent-binaries"),
+			agentBinariesDir,
 			logDir: path.join(folder, "log"),
 			skillPluginDir: options.skillPluginDir,
 			appVersion: "0.0.0",
@@ -253,10 +257,11 @@ async function harness(
 				return ok(child satisfies JsonRpcChild);
 			},
 			spawnAcp: scriptedAcp(options.acpOptions ?? [], seen.acpNewSessions),
-			loadCursorSdk: async () =>
-				options.cursorSdk === undefined
-					? err(appError("cursor_sdk_missing", "Cursor's SDK is not installed."))
-					: ok(options.cursorSdk),
+			importCursorSdk: async (entry) => {
+				seen.cursorImports.push(entry);
+				if (options.cursorSdk === undefined) throw new Error("No Cursor SDK in this test.");
+				return options.cursorSdk.module();
+			},
 			probe: async (command) =>
 				ok({ stdout: command.endsWith("opencode") ? "1.18.18" : "1.0.0", stderr: "", exitCode: 0 }),
 			// Every program is on the PATH, and a path the user chose is taken as it is.
@@ -265,7 +270,11 @@ async function harness(
 			runCheckpointer: async () => ({ exitCode: 1, stdout: "", stderr: "not a repository" }),
 			outboxStorage: new MemoryStorage(),
 			makeTempDir: (prefix) => mkdtemp(path.join(tmpdir(), prefix)),
-			readText: async (file) => ok(options.files?.get(file) ?? null),
+			readText: async (file) => {
+				const own = options.files?.get(file);
+				if (own !== undefined) return ok(own);
+				return options.cursorSdk === undefined ? ok(null) : cursorFiles.readText(file);
+			},
 			sidecarExecutable: "/Applications/Conducted.app/Contents/MacOS/sidecar",
 			hasTranscript: async () => false,
 			readUserMessageText: async (_agentSessionId, _cwd, uuid) =>
@@ -1231,7 +1240,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		const sessionId = "session-1" as SessionId;
 		try {
 			const sent = await h.handlers.sendMessage(
-				sendParams(folder, baseConfig({ agent: "cursor", model: "cursor-composer-2-5" }), {
+				sendParams(folder, baseConfig({ agent: "cursor", model: "composer-2.5" }), {
 					env: { CURSOR_API_KEY: "cursor-key" },
 					providerKeys: {},
 				}),
@@ -1242,7 +1251,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			expect(sdk.resumeCalls).toHaveLength(1);
 			expect(sdk.resumeCalls[0]?.agentId).toBe(sessionId);
 			expect(sdk.resumeCalls[0]?.options.apiKey).toBe("cursor-key");
-			expect(sdk.resumeCalls[0]?.options.model.id).toBe("cursor-composer-2-5");
+			expect(sdk.resumeCalls[0]?.options.model.id).toBe("composer-2.5");
 			expect(sdk.agent.sent).toEqual(["hello"]);
 
 			const agentMessages = h.app
@@ -1260,6 +1269,53 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		}
 	});
 
+	test("AGENT-09 the agent list shows Cursor's installed SDK as the app's own copy without loading it", async () => {
+		const folder = await workspaceFolder();
+		const installed = await harness(folder, { cursorSdk: new FakeCursorSdk() });
+		const missing = await harness(await workspaceFolder());
+
+		const withSdk = unwrap<{ agents: AgentInstall[] }>(
+			await installed.handlers.getAgentInstalls({}),
+		).agents.find((install) => install.agent === "cursor");
+		const withoutSdk = unwrap<{ agents: AgentInstall[] }>(
+			await missing.handlers.getAgentInstalls({}),
+		).agents.find((install) => install.agent === "cursor");
+
+		expect(withSdk).toMatchObject({
+			installed: true,
+			source: "managed",
+			version: "1.3.1",
+			path: path.join(folder, "agent-binaries", "cursor", "current"),
+		});
+		expect(withoutSdk?.installed).toBe(false);
+		expect(installed.seen.cursorImports).toEqual([]);
+		expect(missing.seen.cursorImports).toEqual([]);
+	});
+
+	test("AGENT-09 a Cursor chat without the SDK installed fails and points to the Advanced page", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ agent: "cursor", model: "composer-2.5" }), {
+					env: { CURSOR_API_KEY: "cursor-key" },
+					providerKeys: {},
+				}),
+			);
+			await waitForIdle(h, sessionId);
+
+			const errors = h.app
+				.notified("liveState")
+				.filter((entry) => entry.sessionId === sessionId)
+				.map((entry) => entry.liveState.error ?? "");
+			expect(errors.join("\n")).toContain("Install it on the Advanced page of Settings.");
+			expect(h.seen.cursorImports).toEqual([]);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("AGENT-09 a Cursor chat gets the app tools and its run store folder from the root", async () => {
 		const folder = await workspaceFolder();
 		const run = new FakeCursorRun();
@@ -1269,7 +1325,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		const sessionId = "session-1" as SessionId;
 		try {
 			await h.handlers.sendMessage(
-				sendParams(folder, baseConfig({ agent: "cursor", model: "cursor-composer-2-5" }), {
+				sendParams(folder, baseConfig({ agent: "cursor", model: "composer-2.5" }), {
 					env: { CURSOR_API_KEY: "cursor-key" },
 					providerKeys: {},
 				}),
@@ -1277,7 +1333,9 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			await waitForIdle(h, sessionId);
 
 			const options = sdk.resumeCalls[0]?.options;
-			expect(options?.local.storeDir?.startsWith(path.join(folder, "cursor-sdk-store"))).toBe(true);
+			expect(
+				sdk.platformCalls[0]?.stateRoot.startsWith(path.join(folder, "cursor-sdk-store")),
+			).toBe(true);
 			const server = options?.mcpServers?.conducted as {
 				command: string;
 				args: string[];

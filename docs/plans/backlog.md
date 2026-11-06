@@ -24,7 +24,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PLAT-10 | Keychain read and write                                               | R/keychain.rs                                               | native-and-sidecar-map A2                            | 2   | done    |                                    |
 | PLAT-11 | Native notifications, dock badge, click opens a deep link             | R/notifications.rs                                          | native-and-sidecar-map A2                            | 2   | done    |                                    |
 | PLAT-12 | On-device dictation                                                   | R/speech.rs                                                 | native-and-sidecar-map A2                            | 3   | done    |                                    |
-| PLAT-13 | Self-update that waits until agents are idle                          | R/updater.rs                                                | native-and-sidecar-map A9                            | 3   | stub    | PLAT-31, PLAT-28                   |
+| PLAT-13 | Self-update that waits until agents are idle                          | R/updater.rs                                                | native-and-sidecar-map A9                            | 3   | done    | PLAT-31, PLAT-28                   |
 | PLAT-14 | CPU and memory per process, grouped by workspace                      | R/resource_usage.rs                                         | native-and-sidecar-map A2                            | 3   | done    |                                    |
 | PLAT-15 | App menu with accelerators from the command registry                  | R/menu.rs                                                   | native-and-sidecar-map A5                            | 2   | done    | NAV-07                             |
 | PLAT-16 | `conducted://` deep links                                             | R/deep_link.rs                                              | native-and-sidecar-map A8                            | 3   | done    |                                    |
@@ -81,26 +81,26 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 ## Agent runners (AGENT)
 
-| ID       | Feature                                                                    | Owner                                                 | Research                                | P   | Status  | Needs                      |
-| -------- | -------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------- | --- | ------- | -------------------------- |
-| AGENT-01 | Runner contract                                                            | S/runners/runner.ts                                   | other-runners 1                         | 1   | done    |                            |
-| AGENT-02 | Claude: Agent SDK in streaming-input mode, resume, fork                    | S/runners/claude                                      | claude-runner 1                         | 1   | done    |                            |
-| AGENT-03 | Claude: translate SDK messages to the neutral format                       | S/runners/claude                                      | claude-runner 2                         | 1   | done    | AGENT-02                   |
-| AGENT-04 | Claude: tool approvals, plan mode, edit-path sandbox, live mode switch     | S/runners/claude                                      | claude-runner 3                         | 1   | done    | AGENT-02                   |
-| AGENT-05 | Claude: steer with a "read by the agent" receipt                           | S/runners/claude                                      | claude-runner 6                         | 2   | done    |                            |
-| AGENT-06 | Codex: `codex app-server` JSON-RPC, threads, steer, interrupt              | S/runners/codex                                       | other-runners 2.1                       | 2   | done    |                            |
-| AGENT-07 | Codex: translate items to the neutral format                               | S/runners/codex                                       | other-runners 3                         | 2   | done    |                            |
-| AGENT-08 | Codex: approvals, permission grants, MCP forms                             | S/runners/codex                                       | other-runners 4                         | 2   | done    |                            |
-| AGENT-09 | Cursor: SDK in process                                                     | S/runners/cursor                                      | other-runners 2.3                       | 3   | planned |                            |
-| AGENT-10 | Cursor: translate to the neutral format                                    | S/runners/cursor                                      | other-runners 3                         | 3   | done    |                            |
-| AGENT-11 | ACP client and runner                                                      | S/runners/acp                                         | other-runners 2.2                       | 2   | done    |                            |
-| AGENT-12 | ACP adapters for OpenCode and Pi, with translation                         | S/runners/acp                                         | other-runners 2.2, 3                    | 2   | done    |                            |
-| AGENT-13 | Codex goals: set, pause, resume, clear                                     | S/runners/codex, packages/protocol                    | other-runners 2.1, 3; sessions 2        | 3   | done    | AGENT-06                   |
-| AGENT-14 | Codex `/compact`                                                           | S/runners/codex                                       | other-runners 2.1                       | 3   | done    | AGENT-06                   |
-| AGENT-15 | Turns the Claude program starts by itself                                  | S/runners/claude, S/session                           | sessions 2; claude-runner 2.2           | 2   | done    | AGENT-02, SIDE-04, DATA-04 |
-| AGENT-16 | Chat options the settings offer: output style, personality, effort, Chrome | packages/protocol, S/runners/claude, S/runners/codex  | claude-runner 1.2, 1.5; other-runners 1 | 2   | done    | AGENT-02, AGENT-06, SET-01 |
-| AGENT-17 | ACP chat options beyond the model                                          | packages/protocol, S/runners/acp, D/features/composer | other-runners 2.2, 5                    | 2   | done    | AGENT-11, AGENT-12         |
-| AGENT-18 | Bundled skill that teaches agents the app                                  | S/runners/claude, apps/desktop/src-tauri              | claude-runner 1.2, 5.6                  | 3   | done    | AGENT-02, SIDE-23          |
+| ID       | Feature                                                                    | Owner                                                 | Research                                | P   | Status | Needs                      |
+| -------- | -------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------- | --- | ------ | -------------------------- |
+| AGENT-01 | Runner contract                                                            | S/runners/runner.ts                                   | other-runners 1                         | 1   | done   |                            |
+| AGENT-02 | Claude: Agent SDK in streaming-input mode, resume, fork                    | S/runners/claude                                      | claude-runner 1                         | 1   | done   |                            |
+| AGENT-03 | Claude: translate SDK messages to the neutral format                       | S/runners/claude                                      | claude-runner 2                         | 1   | done   | AGENT-02                   |
+| AGENT-04 | Claude: tool approvals, plan mode, edit-path sandbox, live mode switch     | S/runners/claude                                      | claude-runner 3                         | 1   | done   | AGENT-02                   |
+| AGENT-05 | Claude: steer with a "read by the agent" receipt                           | S/runners/claude                                      | claude-runner 6                         | 2   | done   |                            |
+| AGENT-06 | Codex: `codex app-server` JSON-RPC, threads, steer, interrupt              | S/runners/codex                                       | other-runners 2.1                       | 2   | done   |                            |
+| AGENT-07 | Codex: translate items to the neutral format                               | S/runners/codex                                       | other-runners 3                         | 2   | done   |                            |
+| AGENT-08 | Codex: approvals, permission grants, MCP forms                             | S/runners/codex                                       | other-runners 4                         | 2   | done   |                            |
+| AGENT-09 | Cursor: SDK in process                                                     | S/runners/cursor                                      | other-runners 2.3                       | 3   | done   |                            |
+| AGENT-10 | Cursor: translate to the neutral format                                    | S/runners/cursor                                      | other-runners 3                         | 3   | done   |                            |
+| AGENT-11 | ACP client and runner                                                      | S/runners/acp                                         | other-runners 2.2                       | 2   | done   |                            |
+| AGENT-12 | ACP adapters for OpenCode and Pi, with translation                         | S/runners/acp                                         | other-runners 2.2, 3                    | 2   | done   |                            |
+| AGENT-13 | Codex goals: set, pause, resume, clear                                     | S/runners/codex, packages/protocol                    | other-runners 2.1, 3; sessions 2        | 3   | done   | AGENT-06                   |
+| AGENT-14 | Codex `/compact`                                                           | S/runners/codex                                       | other-runners 2.1                       | 3   | done   | AGENT-06                   |
+| AGENT-15 | Turns the Claude program starts by itself                                  | S/runners/claude, S/session                           | sessions 2; claude-runner 2.2           | 2   | done   | AGENT-02, SIDE-04, DATA-04 |
+| AGENT-16 | Chat options the settings offer: output style, personality, effort, Chrome | packages/protocol, S/runners/claude, S/runners/codex  | claude-runner 1.2, 1.5; other-runners 1 | 2   | done   | AGENT-02, AGENT-06, SET-01 |
+| AGENT-17 | ACP chat options beyond the model                                          | packages/protocol, S/runners/acp, D/features/composer | other-runners 2.2, 5                    | 2   | done   | AGENT-11, AGENT-12         |
+| AGENT-18 | Bundled skill that teaches agents the app                                  | S/runners/claude, apps/desktop/src-tauri              | claude-runner 1.2, 5.6                  | 3   | done   | AGENT-02, SIDE-23          |
 
 ## Data layer (DATA)
 
@@ -124,7 +124,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PRJ-02 | Clone a project from GitHub                                           | D/core/services                              | ui-map 3.9           | 2   | done   | PRJ-01, PR-01                    |
 | PRJ-03 | Quick start a new project from a template                             | D/core/services                              | ui-map 3.9           | 3   | done   | PRJ-01, PR-01                    |
 | PRJ-04 | Per-repo config: scripts, files to copy, prompts                      | D/core/services                              | services-map 4.2     | 1   | done   | PRJ-01, DATA-05                  |
-| PRJ-05 | Repository icon                                                       | D/features/sidebar, D/features/settings      | ui-map 4, 5.2, 5.3   | 3   | stub   | PRJ-01, SET-07, NAV-04, APP-12   |
+| PRJ-05 | Repository icon                                                       | D/features/sidebar, D/features/settings      | ui-map 4, 5.2, 5.3   | 3   | done   | PRJ-01, SET-07, NAV-04, APP-12   |
 | WS-01  | Create a workspace: fetch, worktree, place name, branch prefix, port  | D/core/services                              | frontend 6           | 1   | done   | GIT-01, PRJ-04, DATA-05, DATA-01 |
 | WS-02  | Create from a branch, PR or issue                                     | D/core/services                              | ui-map 3.9           | 2   | done   | WS-01, PR-11                     |
 | WS-03  | Setup script in a terminal, with workspace variables and copied files | D/core/services                              | frontend 6           | 1   | done   | WS-01, RUN-06                    |
@@ -146,17 +146,17 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | NAV-03 | Sidebar: workspace list, group by status or project, sort, filter        | D/features/sidebar                      | ui-map 4                                       | 1   | done   | NAV-01, NAV-07, WS-09, DATA-01 |
 | NAV-04 | Pinned, sections, drag and drop, manual order                            | D/features/sidebar                      | ui-map 4                                       | 2   | done   | NAV-03, APP-05, APP-12         |
 | NAV-05 | Home grid of all workspaces                                              | D/features/home                         | ui-map 2                                       | 2   | done   | NAV-03, WS-09                  |
-| NAV-06 | Kanban dashboard                                                         | D/features/dashboard                    | ui-map 2                                       | 3   | stub   | NAV-05, WS-09                  |
+| NAV-06 | Kanban dashboard                                                         | D/features/dashboard                    | ui-map 2                                       | 3   | done   | NAV-05, WS-09                  |
 | NAV-07 | Command registry and default shortcuts                                   | D/core/registries                       | ui-map 5.4                                     | 1   | done   | SET-01                         |
 | NAV-08 | Command palette                                                          | D/features/palette                      | ui-map 5.1                                     | 2   | done   | NAV-07, APP-15, PLAT-06        |
-| NAV-09 | Shortcuts dialog and custom key bindings                                 | D/features/palette                      | ui-map 5.4                                     | 3   | stub   | NAV-07, NAV-14, SET-01         |
+| NAV-09 | Shortcuts dialog and custom key bindings                                 | D/features/palette                      | ui-map 5.4                                     | 3   | done   | NAV-07, NAV-14, SET-01         |
 | NAV-10 | Center tab strip: chat, terminal, file, PR and browser tabs, split panes | D/features/workspace                    | ui-map 3.2                                     | 1   | done   | NAV-01, NAV-02, CHAT-01        |
 | NAV-11 | Unread state and "next unread"                                           | D/features/sidebar                      | ui-map 4                                       | 2   | done   | NAV-03, CHAT-01, DATA-01       |
-| NAV-12 | Zen mode and panel toggles                                               | D/app                                   | ui-map 1.1                                     | 3   | stub   | NAV-01, NAV-14                 |
-| NAV-13 | World map of workspace place names                                       | D/features/passport                     | ui-map 4                                       | 3   | stub   | NAV-03, WS-01                  |
+| NAV-12 | Zen mode and panel toggles                                               | D/app                                   | ui-map 1.1                                     | 3   | done   | NAV-01, NAV-14                 |
+| NAV-13 | World map of workspace place names                                       | D/features/passport                     | ui-map 4                                       | 3   | done   | NAV-03, WS-01                  |
 | NAV-14 | Shortcut and menu dispatcher                                             | D/app                                   | ui-map 5.4, 8                                  | 1   | done   | NAV-07, DATA-05                |
 | NAV-15 | Terminals and previews that survive tab switches                         | D/app                                   | ui-map 1.1, 8                                  | 2   | done   | NAV-10, RUN-06                 |
-| NAV-16 | Draft markers on the Create row and on workspaces                        | D/features/sidebar, D/features/composer | ui-map 4.3                                     | 3   | stub   | NAV-03, COMP-01, WS-01         |
+| NAV-16 | Draft markers on the Create row and on workspaces                        | D/features/sidebar, D/features/composer | ui-map 4.3                                     | 3   | done   | NAV-03, COMP-01, WS-01         |
 | NAV-17 | Deep-link routes: settings, browser tab, create with a prompt            | D/core/services, D/app                  | native-and-sidecar-map A8; services-map 5B.2.5 | 3   | done   | PLAT-16, WS-01, SET-02         |
 
 ## Chat (CHAT)
@@ -188,11 +188,11 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | CHAT-23 | Run button on shell code blocks                                        | D/features/chat, D/core/services              | ui-map 3.3                                      | 3   | done   | CHAT-06, RUN-06                    |
 | CHAT-24 | Mermaid diagrams and video in replies                                  | D/features/chat                               | ui-map 3.3, 8                                   | 3   | done   | CHAT-06                            |
 | CHAT-25 | Turn outline and jump list                                             | D/features/chat                               | ui-map 3.3                                      | 3   | done   | CHAT-06                            |
-| CHAT-26 | Start a chat with earlier chats and plans                              | D/features/chat, D/core/services              | ui-map 3.3                                      | 3   | stub   | CHAT-01, CHAT-17, COMP-07          |
+| CHAT-26 | Start a chat with earlier chats and plans                              | D/features/chat, D/core/services              | ui-map 3.3                                      | 3   | done   | CHAT-01, CHAT-17, COMP-07          |
 | CHAT-27 | Visible auto-retry with Retry now                                      | D/features/chat, packages/protocol            | ui-map 3.3                                      | 2   | done   | CHAT-06, SIDE-04, AGENT-03         |
-| CHAT-28 | Account and rate-limit rows in the usage popover                       | D/features/chat, S/models                     | claude-runner 7                                 | 3   | stub   | CHAT-14, SIDE-17                   |
-| CHAT-29 | Attachment and image viewer: copy, save, open                          | D/features/file-viewer, D/features/chat       | ui-map 3.3                                      | 3   | stub   | CHAT-06, COMP-07, PLAT-05          |
-| CHAT-30 | Fast mode unavailable banner                                           | D/features/composer, packages/protocol        | ui-map 3.5                                      | 3   | stub   | COMP-02, SIDE-05, AGENT-02         |
+| CHAT-28 | Account and rate-limit rows in the usage popover                       | D/features/chat, S/models                     | claude-runner 7                                 | 3   | done   | CHAT-14, SIDE-17                   |
+| CHAT-29 | Attachment and image viewer: copy, save, open                          | D/features/file-viewer, D/features/chat       | ui-map 3.3                                      | 3   | done   | CHAT-06, COMP-07, PLAT-05          |
+| CHAT-30 | Fast mode unavailable banner                                           | D/features/composer, packages/protocol        | ui-map 3.5                                      | 3   | done   | COMP-02, SIDE-05, AGENT-02         |
 
 ## Composer (COMP)
 
@@ -202,12 +202,12 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | COMP-02 | Model picker: agent, model, effort, fast mode, favourites | D/features/composer | ui-map 3.5           | 1   | done   | SIDE-14, SET-01                  |
 | COMP-03 | Plan mode and approval toggles                            | D/features/composer | ui-map 3.5           | 2   | done   | AGENT-04                         |
 | COMP-04 | `@` file mentions                                         | D/features/composer | ui-map 3.5           | 2   | done   | PLAT-06                          |
-| COMP-05 | `#` PR and issue mentions                                 | D/features/composer | ui-map 3.5           | 3   | stub   | PR-11, PR-01                     |
+| COMP-05 | `#` PR and issue mentions                                 | D/features/composer | ui-map 3.5           | 3   | done   | PR-11, PR-01                     |
 | COMP-06 | `/` slash commands                                        | D/features/composer | ui-map 3.5           | 2   | done   | SIDE-16                          |
 | COMP-07 | Attachments: drop, paste, pick                            | D/features/composer | ui-map 3.5           | 2   | done   | PLAT-20, PLAT-33                 |
-| COMP-08 | Voice dictation button                                    | D/features/composer | ui-map 3.5           | 3   | stub   | PLAT-12                          |
-| COMP-09 | Prompt snippets                                           | D/features/composer | ui-map 3.5, 5.1, 5.2 | 3   | stub   | COMP-01, NAV-08, APP-12, DATA-01 |
-| COMP-10 | Codex goal bar and `/goal`                                | D/features/composer | ui-map 3.5           | 3   | stub   | COMP-01, COMP-06, AGENT-13       |
+| COMP-08 | Voice dictation button                                    | D/features/composer | ui-map 3.5           | 3   | done   | PLAT-12                          |
+| COMP-09 | Prompt snippets                                           | D/features/composer | ui-map 3.5, 5.1, 5.2 | 3   | done   | COMP-01, NAV-08, APP-12, DATA-01 |
+| COMP-10 | Codex goal bar and `/goal`                                | D/features/composer | ui-map 3.5           | 3   | done   | COMP-01, COMP-06, AGENT-13       |
 
 ## Review and files (REV)
 
@@ -223,7 +223,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | REV-08 | File viewer and editor with previews (Markdown, images, SVG, PDF, CSV) | D/features/file-viewer                  | ui-map 3.2                      | 2   | done   | PLAT-05, REV-06                  |
 | REV-09 | Changes per turn, from checkpoints                                     | D/core/services                         | services-map 3.12               | 2   | done   | SIDE-08, CHAT-07                 |
 | REV-10 | Artifacts tab for the workspace `.context` folder                      | D/features/git-panel, R/files.rs        | services-map 5A.5.1; ui-map 3.6 | 2   | done   | REV-06, PLAT-06, COMP-07, SET-01 |
-| REV-11 | Resolve conflicts inline: current, incoming or both                    | D/features/diff, D/features/file-viewer | ui-map 3.6                      | 3   | stub   | REV-02, REV-08, GIT-07           |
+| REV-11 | Resolve conflicts inline: current, incoming or both                    | D/features/diff, D/features/file-viewer | ui-map 3.6                      | 3   | done   | REV-02, REV-08, GIT-07           |
 | REV-12 | Review comment states, and which messages carried them                 | D/core/services, D/core/db              | services-map 2.2, 2.3           | 2   | done   | REV-03, DATA-08                  |
 | REV-13 | Pull request comments without a file, with author avatars              | D/core/services, D/features/pr          | services-map 5B                 | 3   | stub   | REV-04, PR-07, DATA-08           |
 
@@ -254,12 +254,12 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PR-04  | Checks and deployments tab with logs and re-run                   | D/features/git-panel                         | ui-map 3.6                      | 2   | done   | PR-03                   |
 | PR-05  | "Fix errors": send failing checks to the agent                    | D/core/services                              | ui-map 3.6                      | 2   | done   | PR-04, CHAT-02          |
 | PR-06  | Merge, auto-merge, ready for review, approve                      | D/core/services                              | services-map 3.7                | 2   | done   | PR-03                   |
-| PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | stub   | PR-03                   |
+| PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | done   | PR-03                   |
 | PR-08  | Stacked PRs and read-only Graphite                                | D/core/services                              | services-map 3.8                | 3   | done   | PR-03                   |
 | PR-09  | Linear issues: list, link, attach as context                      | D/core/services                              | services-map 5B                 | 3   | done   | PLAT-10                 |
 | PR-10  | Link a pull request by URL or number                              | D/features/pr, D/core/services               | ui-map 3.1, 3.10                | 3   | stub   | PR-01, PR-07            |
 | PR-11  | List and attach GitHub issues and pull requests                   | D/core/services                              | services-map 5B.1.10, 5B.8      | 2   | done   | PR-01, GIT-01           |
-| PR-12  | Catch up a stack branch after GitHub rewrites it                  | D/core/services                              | services-map 3.8.3              | 3   | stub   | PR-08                   |
+| PR-12  | Catch up a stack branch after GitHub rewrites it                  | D/core/services                              | services-map 3.8.3              | 3   | done   | PR-08                   |
 
 ## Run and preview (RUN)
 
@@ -268,12 +268,12 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | RUN-01 | Run actions with start and stop, concurrent or exclusive            | D/core/services               | ui-map 3.7                                     | 2   | done   | DATA-05, PLAT-03, PLAT-07 |
 | RUN-02 | Spotlight: test workspace changes in the repo root, restore on stop | D/core/services, bin          | services-map 3.12                              | 3   | done   | RUN-01, GIT-10            |
 | RUN-03 | One port per workspace, port detection, preview URLs                | D/core/services               | ui-map 3.7                                     | 2   | done   | RUN-01, PLAT-03           |
-| RUN-04 | Browser preview tab                                                 | D/features/browser-preview    | ui-map 3.2                                     | 3   | stub   | RUN-03, NAV-10            |
+| RUN-04 | Browser preview tab                                                 | D/features/browser-preview    | ui-map 3.2                                     | 3   | done   | RUN-03, NAV-10            |
 | RUN-05 | Point at page elements in the preview and send them to the chat     | D/features/browser-preview    | native-and-sidecar-map B3                      | 3   | stub   | RUN-04, COMP-07           |
 | RUN-06 | Terminal tabs: xterm, find, big terminal mode                       | D/features/terminal           | ui-map 3.7                                     | 1   | done   | PLAT-07                   |
 | RUN-07 | Terminal output for the GetTerminalOutput tool                      | D/core/services               | claude-runner 4.2                              | 2   | done   | RUN-06                    |
-| RUN-08 | `bin/spotlighter.sh`                                                | bin                           | native-and-sidecar-map C3                      | 3   | stub   | RUN-02, PLAT-35           |
-| RUN-09 | Zsh shell integration for terminals                                 | D/features/terminal, R/pty.rs | native-and-sidecar-map A5; services-map 5A.4.6 | 3   | stub   | PLAT-07, RUN-06           |
+| RUN-08 | `bin/spotlighter.sh`                                                | bin                           | native-and-sidecar-map C3                      | 3   | done   | RUN-02, PLAT-35           |
+| RUN-09 | Zsh shell integration for terminals                                 | D/features/terminal, R/pty.rs | native-and-sidecar-map A5; services-map 5A.4.6 | 3   | done   | PLAT-07, RUN-06           |
 
 ## Settings (SET)
 
@@ -283,14 +283,14 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | SET-02 | Settings pages and settings search                                | D/features/settings                | ui-map 6                  | 2   | done   | SET-01, APP-12, APP-15, NAV-02            |
 | SET-03 | Agents page: install status, versions, sign-in                    | D/features/settings                | ui-map 6                  | 1   | done   | SIDE-15, PLAT-04, APP-12                  |
 | SET-04 | Environment variables, stored in the Keychain                     | D/features/settings                | ui-map 6                  | 2   | done   | PLAT-10, DATA-05, APP-12, SIDE-21         |
-| SET-05 | MCP servers: list, status, logs                                   | D/features/settings                | ui-map 3.10               | 3   | stub   | SIDE-16, SET-03                           |
+| SET-05 | MCP servers: list, status, logs                                   | D/features/settings                | ui-map 3.10               | 3   | done   | SIDE-16, SET-03                           |
 | SET-06 | Appearance: theme, fonts, zoom                                    | D/features/settings                | ui-map 6                  | 2   | done   | SET-01, APP-14                            |
 | SET-07 | Repo pages: scripts, actions, prompts                             | D/features/settings                | ui-map 6                  | 2   | done   | SET-01, DATA-05, APP-12, PRJ-04           |
-| SET-08 | Sync agent configs between Claude Code and Codex                  | D/features/settings, S/models      | ui-map 5.2, 6             | 3   | stub   | SET-01, SET-02, SIDE-16, PLAT-05          |
+| SET-08 | Sync agent configs between Claude Code and Codex                  | D/features/settings, S/models      | ui-map 5.2, 6             | 3   | done   | SET-01, SET-02, SIDE-16, PLAT-05          |
 | SET-09 | Agent sign-in and API key forms                                   | D/features/settings, S/runners     | ui-map 6                  | 2   | done   | SET-03, APP-12, PLAT-10, SIDE-10, SIDE-21 |
 | SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | done   | SET-09, AGENT-12                          |
-| SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | stub   | SET-04                                    |
-| SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | stub   | SET-03, APP-12, AGENT-16                  |
+| SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | done   | SET-04                                    |
+| SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | done   | SET-03, APP-12, AGENT-16                  |
 | SET-13 | Chosen program paths reach terminals and scripts                  | D/core/services, R/shell.rs        | services-map 5A.8.2       | 3   | done   | SET-03, PLAT-04, PLAT-07                  |
 | SET-14 | Keep comments when the app rewrites a settings file               | D/core/services                    | services-map 4.2          | 2   | done   | DATA-05                                   |
 
@@ -306,7 +306,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | APP-06 | Update notice and restart when idle                                          | D/features/updates                | ui-map 1.3                     | 3   | stub    | PLAT-13                                    |
 | APP-07 | Resource usage table                                                         | D/features/sidebar                | ui-map 1.3                     | 3   | done    | PLAT-14                                    |
 | APP-08 | Start-up screens and notices                                                 | D/app, D/features/updates         | ui-map 1.3, 7.3, 7.4           | 2   | done    | APP-01, APP-04, PLAT-09, PLAT-17, PLAT-32  |
-| APP-09 | Send feedback                                                                | D/features/diagnostics, R/menu.rs | ui-map 5.1, 5.2                | 3   | stub    | APP-03, APP-12, PLAT-18                    |
+| APP-09 | Send feedback                                                                | D/features/diagnostics, R/menu.rs | ui-map 5.1, 5.2                | 3   | done    | APP-03, APP-12, PLAT-18                    |
 | APP-10 | Dismissible hints (callouts)                                                 | D/ui, D/features/settings         | ui-map 7.1                     | 3   | done    | APP-05, SET-01                             |
 | APP-11 | Async helpers: queue per key, single flight, latest wins, backoff            | D/core/async                      | services-map 1.5, 2.5.3, 3.0.3 | 1   | done    |                                            |
 | APP-12 | Form controls                                                                | D/ui                              | ui-map 8                       | 1   | done    | APP-05                                     |

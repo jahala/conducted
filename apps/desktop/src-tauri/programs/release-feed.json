@@ -58,5 +58,77 @@
 			"sha256": "2f2f3b084937256683adf86495f4e6ebb1b18cabd24892e171fcb1ec85f910c7",
 			"format": "tar-xz"
 		}
+	},
+	"cursor": {
+		"version": "1.3.1",
+		"packages": [
+			{
+				"name": "@cursor/sdk",
+				"version": "1.3.1",
+				"url": "https://registry.npmjs.org/@cursor/sdk/-/sdk-1.3.1.tgz",
+				"size": 4777475,
+				"sha256": "30d4aa44a1383cfb282f8f4747e2d54601c0a4a1250b9fb6606c799d1aff9fb6"
+			},
+			{
+				"name": "@bufbuild/protobuf",
+				"version": "1.10.0",
+				"url": "https://registry.npmjs.org/@bufbuild/protobuf/-/protobuf-1.10.0.tgz",
+				"size": 189348,
+				"sha256": "2219bc26e399a6e8ee56a3daf8a3bf47f4e935f425c22b812d991316dd665266"
+			},
+			{
+				"name": "@connectrpc/connect",
+				"version": "1.7.0",
+				"url": "https://registry.npmjs.org/@connectrpc/connect/-/connect-1.7.0.tgz",
+				"size": 104162,
+				"sha256": "cdcd4386d3f4d750bcfe5b56d1247eb6c2ed0b2ddd3e496517033f925cfe5206"
+			},
+			{
+				"name": "@connectrpc/connect-web",
+				"version": "1.7.0",
+				"url": "https://registry.npmjs.org/@connectrpc/connect-web/-/connect-web-1.7.0.tgz",
+				"size": 8004,
+				"sha256": "8c3fe6386c920e95cec20f483d228c2ba91e084fc99f9002a4445cd9707e700c"
+			},
+			{
+				"name": "@statsig/js-client",
+				"version": "3.31.0",
+				"url": "https://registry.npmjs.org/@statsig/js-client/-/js-client-3.31.0.tgz",
+				"size": 231613,
+				"sha256": "21d69db8b144ea65fd283aaac108398046a32885e10b65358e66aac290e42ec7"
+			},
+			{
+				"name": "@statsig/client-core",
+				"version": "3.31.0",
+				"url": "https://registry.npmjs.org/@statsig/client-core/-/client-core-3.31.0.tgz",
+				"size": 41491,
+				"sha256": "7b598abbc7b16ab5f519da5b2747fa503e888b83c2d04a4eb2ae3efae7adba76"
+			},
+			{
+				"name": "zod",
+				"version": "4.6.7",
+				"url": "https://registry.npmjs.org/zod/-/zod-4.6.7.tgz",
+				"size": 1141941,
+				"sha256": "84efd155bed93270286e793fc951be270b536cbd5b0eeb111f0fa3967201d698"
+			}
+		],
+		"darwinArm64": [
+			{
+				"name": "@cursor/sdk-darwin-arm64",
+				"version": "1.3.1",
+				"url": "https://registry.npmjs.org/@cursor/sdk-darwin-arm64/-/sdk-darwin-arm64-1.3.1.tgz",
+				"size": 3504563,
+				"sha256": "3d3be44a048dad974f89959ffb9ad43fdfccf8302e239cc4b45610bfdd514b48"
+			}
+		],
+		"darwinX64": [
+			{
+				"name": "@cursor/sdk-darwin-x64",
+				"version": "1.3.1",
+				"url": "https://registry.npmjs.org/@cursor/sdk-darwin-x64/-/sdk-darwin-x64-1.3.1.tgz",
+				"size": 3933166,
+				"sha256": "00b122633e10c7e454fd95d923854fad52cd9a556402235de7a8b23f1a967a06"
+			}
+		]
 	}
 }

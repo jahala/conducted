@@ -5,8 +5,13 @@
  * git URL (PRJ-02), removing one, and hiding one from the sidebar. Also owns PRJ-04's config
  * reads: scripts, files to copy and prompts come from `.conducted/settings.toml`, with
  * `.conducted/settings.local.toml` overriding it. Also owns Quick start: creating a project from
- * one of the three templates and creating its private GitHub repository (PRJ-03). Icons are a
- * placeholder for PRJ-05.
+ * one of the three templates and creating its private GitHub repository (PRJ-03). Also owns the
+ * repository icon (PRJ-05): validating and copying an uploaded image, saving an emoji, and clearing
+ * the icon back to its fallback. An upload is copied to a new file in the icons folder
+ * (`<repoId>-<uuid>.<ext>`), the database then points to it, and only then is the earlier upload
+ * trashed; a failed write trashes the new copy and keeps the old icon. Clearing or replacing an
+ * icon, or removing its project, trashes the uploaded file. The web view is given the icons
+ * folder (at start) and the one picked file (to read its size), never the folder it came from.
  * Behaviour: ui-map.md 3.9 (add project, Create project), 4 item 8 (Add project menu),
  * services-map.md 3.2 (add repository steps: `git init` when missing, remote URL read and
  * normalised, default branch detection; the create-a-new-GitHub-repo flow), 2.3.2 (repo
@@ -41,20 +46,22 @@
  * Test first: the repo's scripts, prompts, globs and run mode are read from
  * `.conducted/settings.toml`.
  * PRJ-03 test first: an empty template creates its folder, first commit and project row.
+ * PRJ-05 test first: an uploaded PNG is copied into app storage and saved as a file icon.
  */
 import {
 	type AppError,
 	appError,
 	err,
-	notImplemented,
+	type IdSource,
 	ok,
 	type RepoId,
 	type Result,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
-import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
+import { appDataPath, localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { copyFileKeepingMode, trashIfPresent } from "../fs-helpers.ts";
 import {
 	addAll,
 	addPath,
@@ -77,6 +84,7 @@ import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-comm
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
 import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
+import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.ts";
 import { isGithubRemoteUrl } from "./github.ts";
 import {
 	GSTACK_TEMPLATE_URL,
@@ -253,6 +261,24 @@ export function defaultBranchFrom(
 	);
 }
 
+/** The image types an uploaded repository icon may be. */
+const ICON_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+/** Largest uploaded icon. The message says 10MB; the cut is 10 MiB. */
+const MAX_ICON_BYTES = 10 * 1024 * 1024;
+const ICON_TYPE_MESSAGE = "Choose a PNG, JPEG, GIF, WebP, or SVG image";
+const ICON_SIZE_MESSAGE = "Image is too large. Choose one under 10MB.";
+const ICON_FAILED_MESSAGE = "Failed to set the icon. Try a different image.";
+
+/** Where uploaded repository icons live under the app data folder. */
+export const repoIconsDir = (paths: Platform["fs"]["paths"]): string => appDataPath(paths, "icons");
+
+/** The lower-case extension of a file name, or null when it has none. */
+function iconExtension(path: string): string | null {
+	const name = path.slice(path.lastIndexOf("/") + 1);
+	const dot = name.lastIndexOf(".");
+	return dot <= 0 ? null : name.slice(dot + 1).toLowerCase();
+}
+
 /** Called before a repo is removed so running scripts stop and workspaces go. */
 export interface RepoRemovalPort {
 	removeWorkspacesOf(repoId: RepoId): Promise<Result<void>>;
@@ -261,13 +287,15 @@ export interface RepoRemovalPort {
 }
 
 export interface RepoServiceDeps {
-	platform: Pick<Platform, "fs" | "opener" | "dialogs"> & {
+	platform: Pick<Platform, "fs" | "opener" | "dialogs" | "shell"> & {
 		window?: Pick<Platform["window"], "onFocusChanged">;
 	};
 	git: GitRunner;
 	repos: Pick<Repositories, "repos" | "settings">;
 	settings: Pick<SettingsService, "readSettingsFile" | "updateSettingsFile">;
 	removal: RepoRemovalPort;
+	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
+	ids: Pick<IdSource, "uuid">;
 }
 
 /** The value and the file that supplied it: the local file wins over the shared file. */
@@ -548,6 +576,14 @@ export class RepoService {
 		if (!listed.ok) {
 			this.store.setState((state) => ({ ...state, loaded: true, error: listed.error }));
 			return err(listed.error);
+		}
+		// Uploaded icons are shown through the asset protocol, which serves only registered folders.
+		const icons = await this.#deps.platform.fs.registerRoot(
+			repoIconsDir(this.#deps.platform.fs.paths),
+		);
+		if (!icons.ok) {
+			this.store.setState((state) => ({ ...state, loaded: true, error: icons.error }));
+			return icons;
 		}
 		// The file commands reach a project's folder only once it is registered, on every start.
 		for (const repo of listed.value) {
@@ -877,7 +913,11 @@ export class RepoService {
 			configDropped,
 			order: state.order.filter((id) => id !== repoId),
 		});
-		return ok(undefined);
+		// An uploaded icon belongs to its project and goes to the Trash with it.
+		const icon = fileIconPath(found.value.icon);
+		if (icon === null) return ok(undefined);
+		const trashed = await trashIfPresent(this.#deps.platform.fs, icon);
+		return trashed.ok ? ok(undefined) : trashed;
 	}
 
 	/**
@@ -1029,9 +1069,93 @@ export class RepoService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.projects.setIcon`. A file is checked (PNG, JPEG, GIF, WebP or SVG, under 10 MB) and copied. */
-	setIcon(_repoId: RepoId, _icon: RepoIconChoice): Promise<Result<void>> {
-		return notImplemented("PRJ-05");
+	/**
+	 * Backs `Actions.projects.setIcon`. An uploaded file must be a PNG, JPEG, GIF, WebP or SVG under
+	 * 10 MB; it is copied into the app's icon folder and the saved value names the copy. An emoji is
+	 * saved as text, and null clears the icon so the favicon, owner avatar or letter shows again.
+	 */
+	async setIcon(repoId: RepoId, icon: RepoIconChoice): Promise<Result<void>> {
+		const found = await this.#deps.repos.repos.get(repoId);
+		if (!found.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, found.error));
+		const repo = found.value;
+		if (repo === null) return err(appError("repo_unknown", "That project no longer exists."));
+
+		let stored: string | null;
+		let copiedTo: string | null = null;
+		if (icon === null) {
+			stored = null;
+		} else if (icon.kind === "emoji") {
+			const emoji = icon.emoji.trim();
+			if (emoji === "") {
+				return err(appError("repo_icon_empty", "Choose an emoji first."));
+			}
+			stored = emojiIconValue(emoji);
+		} else {
+			const extension = iconExtension(icon.path);
+			if (extension === null || !ICON_EXTENSIONS.has(extension)) {
+				return err(appError("repo_icon_type", ICON_TYPE_MESSAGE));
+			}
+			// Only the picked file is opened to the file commands for its size, never its folder.
+			const reachable = await this.#deps.platform.fs.registerRoot(icon.path);
+			if (!reachable.ok) {
+				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, reachable.error));
+			}
+			const stat = await this.#deps.platform.fs.stat(icon.path);
+			if (!stat.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, stat.error));
+			if (stat.value.isDirectory) return err(appError("repo_icon_type", ICON_TYPE_MESSAGE));
+			if (stat.value.size > MAX_ICON_BYTES) {
+				return err(appError("repo_icon_too_large", ICON_SIZE_MESSAGE));
+			}
+			const folder = repoIconsDir(this.#deps.platform.fs.paths);
+			const exposed = await this.#deps.platform.fs.registerRoot(folder);
+			if (!exposed.ok) {
+				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, exposed.error));
+			}
+			const made = await this.#deps.platform.fs.mkdirp(folder);
+			if (!made.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, made.error));
+			// A new name for every upload: the old file stays until the database points away from it,
+			// and the web view cannot show a cached image from the same address.
+			const destination = `${folder}/${repoId}-${this.#deps.ids.uuid()}.${extension}`;
+			const copied = await copyFileKeepingMode(this.#deps.platform.shell, icon.path, destination);
+			if (!copied.ok) {
+				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, copied.error));
+			}
+			stored = fileIconValue(destination);
+			copiedTo = destination;
+		}
+
+		const written = await this.#deps.repos.repos.setIcon(repoId, stored);
+		if (!written.ok) {
+			// The database kept the old icon, so the copy just made is not referenced.
+			if (copiedTo !== null) {
+				const cleaned = await trashIfPresent(this.#deps.platform.fs, copiedTo);
+				return err(
+					appError(
+						"repo_icon_failed",
+						ICON_FAILED_MESSAGE,
+						cleaned.ok ? written.error : cleaned.error,
+					),
+				);
+			}
+			return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, written.error));
+		}
+
+		this.#upsert({ ...repo, icon: stored });
+		// The database no longer points to the earlier upload, so it goes to the Trash.
+		const previous = fileIconPath(repo.icon);
+		if (previous !== null && previous !== copiedTo) {
+			const removed = await trashIfPresent(this.#deps.platform.fs, previous);
+			if (!removed.ok) {
+				return err(
+					appError(
+						"repo_icon_cleanup_failed",
+						"The icon changed, but the old image could not be moved to the Trash.",
+						removed.error,
+					),
+				);
+			}
+		}
+		return ok(undefined);
 	}
 
 	async setHidden(repoId: RepoId, hidden: boolean): Promise<Result<void>> {

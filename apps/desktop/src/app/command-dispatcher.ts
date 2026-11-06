@@ -73,7 +73,7 @@ import { resolveSendKey, type SendIntent, type SendWith } from "../features/comp
 import type { MenuShortcut } from "../platform/platform.ts";
 import { Kbd } from "../ui/Kbd.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
-import { useOverlayStore } from "./overlay-store.ts";
+import { type OverlayId, useOverlayStore } from "./overlay-store.ts";
 
 export type HandlerPriority = "base" | "area" | "modal";
 
@@ -381,7 +381,7 @@ export function keyPressOf(event: KeyboardEvent): KeyPress {
 }
 
 /** The send-key setting as the dispatcher's mode. */
-function useSendKeyMode(): SendKeyMode {
+export function useSendKeyMode(): SendKeyMode {
 	const sendKey = useSetting<string>("message_send_key");
 	return sendKey === "cmd-enter" ? "mod_enter" : "enter";
 }
@@ -407,14 +407,29 @@ export function keyBindings(overrides: ShortcutOverrides = {}): KeyBinding[] {
 	);
 }
 
+/**
+ * The first key a command answers to now: the user's own binding, or its default after the
+ * send-key swap. Null for an unknown or unbound command. The menus and the shortcuts dialog
+ * (NAV-09) show this, so they show what a key press does.
+ */
+export function liveBinding(
+	commandId: string,
+	overrides: ShortcutOverrides = {},
+	sendKeyMode: SendKeyMode = "enter",
+): string | null {
+	const command = getCommand(commandId);
+	if (command === undefined) return null;
+	const shortcut = effectiveShortcuts(command, overrides)[0];
+	return shortcut === undefined ? null : swappedShortcut(command.id, shortcut, sendKeyMode);
+}
+
 /** The menu accelerators in Tauri's syntax. Unbound commands send null, which clears the item. */
 export function menuShortcuts(
 	overrides: ShortcutOverrides = {},
 	sendKeyMode: SendKeyMode = "enter",
 ): MenuShortcut[] {
 	return COMMANDS.map((command) => {
-		const shortcut = effectiveShortcuts(command, overrides)[0];
-		const live = shortcut === undefined ? null : swappedShortcut(command.id, shortcut, sendKeyMode);
+		const live = liveBinding(command.id, overrides, sendKeyMode);
 		return {
 			commandId: command.id,
 			accelerator: live === null ? null : toAccelerator(live),
@@ -452,7 +467,7 @@ const ACCELERATOR_KEYS: Readonly<Record<string, string>> = {
 /** The active scopes for a focused element, most specific first. Always ends with `global`. */
 export function scopesForTarget(
 	target: EventTarget | null,
-	openOverlay: "palette" | "shortcuts" | "passport" | "quick-open" | "search-files" | null = null,
+	openOverlay: OverlayId | null = null,
 ): CommandScope[] {
 	const scopes: CommandScope[] = [];
 	const element = target instanceof Element ? target : null;
