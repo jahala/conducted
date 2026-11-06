@@ -41,6 +41,12 @@ export interface ShellCommand {
 	stdin?: string;
 	/** Kill the whole process group after this many milliseconds. Catches hangs, not slowness. */
 	timeoutMs?: number;
+	/**
+	 * Start from the login-shell environment as captured in `cwd`, so direnv and mise settings of
+	 * that folder apply, instead of the app-wide capture. The first command in a folder waits for
+	 * that folder's capture.
+	 */
+	envFromCwd?: boolean;
 }
 
 export interface ShellOutput {
@@ -58,8 +64,12 @@ export interface RunningCommand {
 export interface Shell {
 	run(command: ShellCommand): Promise<Result<ShellOutput>>;
 	start(command: ShellCommand): RunningCommand;
-	/** The user's login shell and PATH, captured once at startup by the Rust shell. */
-	loginEnv(): Promise<{ shell: string; path: string }>;
+	/**
+	 * The user's login shell and PATH. With `cwd`, as the login shell sees them in that folder,
+	 * captured once per folder; without it, the app-wide capture made at startup. A relative `cwd`
+	 * fails with `shell_bad_cwd`.
+	 */
+	loginEnv(cwd?: string): Promise<{ shell: string; path: string }>;
 }
 
 // ---------------------------------------------------------------- files
@@ -157,7 +167,8 @@ export interface PtyHandle {
 	kill(): Promise<void>;
 	/** Output arrives in chunks. Call `ack` with the byte count once rendered (flow control). */
 	onData(listener: (chunk: Uint8Array) => void): Unsubscribe;
-	ack(bytes: number): void;
+	/** An Err means the shell did not hear it, so output may stay paused. */
+	ack(bytes: number): Promise<Result<void>>;
 	onExit(listener: (exitCode: number | null) => void): Unsubscribe;
 	/** Plain text of the visible screen plus scrollback, for the GetTerminalOutput tool. */
 	screenText(maxLines: number): Promise<string>;

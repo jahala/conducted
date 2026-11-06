@@ -637,7 +637,7 @@ interface ShellDonePayload {
 	error: { code: string; message: string } | null;
 }
 
-/** `shell_run { command }`, `shell_start { id, command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
+/** `shell_run { command }`, `shell_start { id, command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env { cwd }`. */
 export function createTauriShell(bindings: TauriBindings): Shell {
 	const pending = new Map<string, (result: Result<ShellOutput>) => void>();
 	let listening: Promise<void> | null = null;
@@ -718,10 +718,11 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				},
 			};
 		},
-		loginEnv: async () => {
+		loginEnv: async (cwd) => {
 			const result = await invokeResult<{ shell: string; path: string }>(
 				bindings,
 				COMMANDS.shellLoginEnv,
+				{ cwd: cwd ?? null },
 			);
 			if (!result.ok) throw result.error;
 			return result.value;
@@ -899,9 +900,7 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 						dataListeners.delete(listener);
 					};
 				},
-				ack: (bytes) => {
-					void invokeResult<void>(bindings, COMMANDS.ptyAck, { id: spawnedId, bytes });
-				},
+				ack: (bytes) => invokeResult<void>(bindings, COMMANDS.ptyAck, { id: spawnedId, bytes }),
 				onExit: (listener) => {
 					if (exitCode !== undefined) {
 						const code = exitCode;

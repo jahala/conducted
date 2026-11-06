@@ -77,7 +77,7 @@ function fakeHandle(writes: string[], patch: Partial<PtyHandle> = {}): PtyHandle
 		resize: async () => {},
 		kill: async () => {},
 		onData: () => () => {},
-		ack: () => {},
+		ack: async () => ok(undefined),
 		onExit: () => () => {},
 		screenText: async () => "",
 		screenSnapshot: async () =>

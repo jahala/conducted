@@ -668,7 +668,7 @@ pub async fn pty_spawn(
     // The captured login-shell environment is the base of every child. It is already stripped of
     // provider keys and exported functions. The same capture names the user's login shell, so
     // there is one source of truth for both.
-    let login = crate::shell::shell_login_env(app.state::<crate::shell::ShellState>()).await?;
+    let login = crate::shell::app_login_env(&app.state::<crate::shell::ShellState>()).await?;
     let spawned = spawn_terminal(&request, &login.shell, &login.vars, state.next_id())?;
     let id = spawned.session.id.clone();
     let pid = spawned.session.pid;

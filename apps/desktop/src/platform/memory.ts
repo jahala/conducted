@@ -95,6 +95,8 @@ export interface MemoryPlatformControls {
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
 	queuePtyExit(code: number | null): void;
+	/** Makes every terminal's `ack` fail with this message; null makes them succeed again. */
+	failPtyAcks(message: string | null): void;
 	/** Changes what `system.info` reports, for a test about a Mac other than the default. */
 	setSystemInfo(info: SystemInfo): void;
 	/** Makes the next `system.info` calls fail with this message. */
@@ -359,6 +361,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let dockBadge: number | null = null;
 	let clipboardText: string | null = null;
 	let clipboardFilePaths: string[] = [];
+	let ptyAckFailure: string | null = null;
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
@@ -739,7 +742,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				finishPty(state, 143);
 			},
 			onData: (listener) => listen(state.dataListeners, listener),
-			ack: () => {},
+			ack: async () =>
+				ptyAckFailure === null ? ok(undefined) : err(appError("pty_ack_failed", ptyAckFailure)),
 			onExit: (listener) => {
 				if (state.exited) {
 					queueMicrotask(() => listener(state.exitCode));
@@ -814,7 +818,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			};
 			return running;
 		},
-		loginEnv: async () => ({ shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin" }),
+		loginEnv: async (cwd) => {
+			if (cwd !== undefined && !cwd.startsWith("/")) {
+				throw appError("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
+			}
+			return { shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin" };
+		},
 	};
 
 	// ---------------------------------------------------------------- sidecar
@@ -1089,6 +1098,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		queuePtyExit: (code) => {
 			ptyExitCodes.push(code);
+		},
+		failPtyAcks: (message) => {
+			ptyAckFailure = message;
 		},
 		setSystemInfo: (info) => {
 			systemInfo = info;

@@ -70,7 +70,7 @@ function harness() {
 		resize: async () => {},
 		kill: async () => {},
 		onData: () => () => {},
-		ack: () => {},
+		ack: async () => ok(undefined),
 		onExit: (listener) => {
 			exitListener = listener;
 			return () => {};

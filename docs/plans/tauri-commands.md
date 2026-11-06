@@ -21,7 +21,7 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | (startup)                                        | `db_version_check`                                                           | db.rs               |                                        |
 | `shell.run`                                      | `shell_run`                                                                  | shell.rs            |                                        |
 | `shell.start`, `RunningCommand.cancel`           | `shell_start`, `shell_cancel`                                                | shell.rs            | `shell://done`                         |
-| `shell.loginEnv`                                 | `shell_login_env`                                                            | shell.rs            |                                        |
+| `shell.loginEnv`                                 | `shell_login_env { cwd }` (null for the app-wide capture)                    | shell.rs            |                                        |
 | `fs.readText`                                    | `fs_read_text`                                                               | files.rs            |                                        |
 | `fs.writeTextAtomic`                             | `fs_write_text_atomic`                                                       | files.rs            |                                        |
 | `fs.exists`, `fs.stat`                           | `fs_stat`                                                                    | files.rs            |                                        |

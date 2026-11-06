@@ -6,7 +6,8 @@
  * kinds of terminals), 5A.1.2 and 5A.1.3 (setup and run scripts as terminals; the agent tool
  * bridge and its error texts), 5A.1.2 (the environment variables), ui-map.md 3.7.
  * Must handle: a terminal whose folder is gone (clear error, no spawn); output flow control (ack
- * after rendering, owned by the view); a script terminal ends with an exit code that is stored;
+ * after rendering, owned by the view; an ack the shell did not hear is the terminal's error, since
+ * its output may stay paused); a script terminal ends with an exit code that is stored;
  * the app quits while terminals run (kill all, mark them ended with no exit code); at most the
  * configured number of terminals per workspace; `getTerminalOutput` source "auto" picks the
  * Spotlight terminal, then the run terminal, then the newest interactive one, and says which it
@@ -24,7 +25,9 @@
  * and every script terminal, start without the shim; a marker split across two output chunks is
  * still read; output with a marker still reaches the screen unchanged.
  * Our design choice: environment variables are named CONDUCTED_*. Scripts run as
- * `<login shell> -l -c <script>` with the captured login environment, not from a temp file.
+ * `<login shell> -l -c <script>` with the captured login environment, not from a temp file, and
+ * with the PATH the login shell sees in the script's folder (PLAT-07, services-map.md 5A.8.3), so
+ * direnv and mise settings of a workspace apply; a PATH the script's own variables set wins.
  * Built now (RUN-06, RUN-07, RUN-01): tabs, the live connection, restart, repo terminal, limit,
  * folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript` and `stop`. `outputFor`
  * reads the live screen, keeps the text of a finished terminal in memory, and falls back to the
@@ -429,7 +432,14 @@ export class TerminalsService {
 					record.dataListeners.delete(listener);
 				};
 			},
-			ack: (bytes) => record.handle?.ack(bytes),
+			ack: (bytes) => {
+				const handle = record.handle;
+				if (handle === null) return;
+				// A lost acknowledgement can leave the terminal's output paused, so the view hears it.
+				void handle.ack(bytes).then((acked) => {
+					if (!acked.ok) this.#setError(`t:${terminal.id}`, acked.error);
+				});
+			},
 			onExit: (listener) => {
 				if (record.ended !== null) {
 					const code = record.ended.exitCode;
@@ -752,7 +762,8 @@ export class TerminalsService {
 
 		let login: { shell: string; path: string };
 		try {
-			login = await this.#deps.platform.shell.loginEnv();
+			// The script's own folder, so its direnv and mise settings reach the PATH (PLAT-07).
+			login = await this.#deps.platform.shell.loginEnv(input.cwd);
 		} catch (cause) {
 			await this.#persistEnd(started.value.id, this.#deps.now(), null);
 			return err(
@@ -762,7 +773,7 @@ export class TerminalsService {
 
 		const spawned = await this.#spawn(started.value, undefined, {
 			command: { program: login.shell, args: ["-l", "-c", input.command] },
-			env: environment.value ?? input.env,
+			env: { PATH: login.path, ...(environment.value ?? input.env) },
 		});
 		if (!spawned.ok) {
 			await this.#persistEnd(started.value.id, this.#deps.now(), null);

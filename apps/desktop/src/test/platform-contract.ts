@@ -193,6 +193,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"loginEnv gives a non-empty shell and path, the same on every call.",
 	),
 	c(
+		"shell",
+		"login-env-folder",
+		"loginEnv in a folder",
+		"loginEnv with an absolute folder gives a non-empty shell and path; a relative folder is refused with shell_bad_cwd.",
+	),
+	c(
 		"fileSearch",
 		"list-tree-ignores",
 		"listTree respects .gitignore",
@@ -933,6 +939,19 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"shell.login-env-folder": async (ctx) => {
+		const inFolder = await ctx.platform.shell.loginEnv(ctx.root);
+		ctx.assert(inFolder.shell.length > 0, "the login shell is empty");
+		ctx.assert(inFolder.path.length > 0, "the login PATH is empty");
+		let code: string | null = null;
+		try {
+			await ctx.platform.shell.loginEnv("relative/folder");
+		} catch (error) {
+			code = (error as AppError).code;
+		}
+		ctx.assert(code === "shell_bad_cwd", `a relative folder gave ${String(code)}`);
+	},
+
 	"fileSearch.list-tree-ignores": async (ctx) => {
 		const root = ctx.path("tree");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(root, ".git")), "mkdirp .git");
@@ -1175,7 +1194,7 @@ const STEPS: Record<string, ContractStep> = {
 			"pty data",
 		);
 		ctx.assert(text.includes("contract"), `pty output was ${JSON.stringify(text)}`);
-		handle.ack(new TextEncoder().encode(text).length);
+		expectOk(ctx, await handle.ack(new TextEncoder().encode(text).length), "ack");
 		await handle.kill();
 	},
 
@@ -1756,6 +1775,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"shell.start-cancel": ["shell.start", "shell.running.cancel"],
 	"shell.no-shell-string": ["shell.run"],
 	"shell.login-env": ["shell.loginEnv"],
+	"shell.login-env-folder": ["shell.loginEnv"],
 	"fileSearch.list-tree-ignores": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.listTree"],
 	"fileSearch.fuzzy": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.fuzzyMatch"],
 	"fileSearch.grep-bad-regex": ["fileSearch.grep"],

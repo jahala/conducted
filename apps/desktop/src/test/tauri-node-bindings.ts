@@ -373,8 +373,13 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 					return fail("traffic_lights_invalid", "window_set_traffic_lights needs an x and a y.");
 				}
 				return undefined;
-			case COMMANDS.shellLoginEnv:
+			case COMMANDS.shellLoginEnv: {
+				const cwd = args.cwd;
+				if (typeof cwd === "string" && !isAbsolute(cwd)) {
+					return fail("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
+				}
 				return { shell: process.env.SHELL ?? "/bin/sh", path: process.env.PATH ?? "" };
+			}
 			case COMMANDS.shellRun: {
 				const process_ = await launch(args.command as ShellCommand);
 				const ended = await process_.ended;
