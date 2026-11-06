@@ -1,7 +1,8 @@
 /**
  * @feature SIDE-01 Entry point and modes
- * Owns: reading the sidecar and logger startup settings from the environment the Rust shell sets, and
- * nothing else. Every other module receives plain values from here, never process.env.
+ * Owns: reading the sidecar and logger startup settings from the environment the Rust shell sets,
+ * including the optional bundled skill plugin folder, and nothing else. Every other module
+ * receives plain values from here, never process.env.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 steps 6 and 7 and B4 (Rust passes the
  * bin dir, the outbox root and a log location through environment variables).
  * Must handle: a missing or empty variable (return an error that names it, no silent default), a
@@ -24,6 +25,8 @@ export const SIDECAR_ENV = {
 	 * is not written or probed yet.
 	 */
 	logDir: "CONDUCTED_LOG_DIR",
+	/** Folder of the app's bundled Claude skill plugin, when the build has one (AGENT-18). */
+	skillPluginDir: "CONDUCTED_SKILL_PLUGIN_DIR",
 } as const;
 
 const absolutePath = z
@@ -35,6 +38,7 @@ const zSidecarConfig = z.object({
 	binDir: absolutePath,
 	outboxRoot: absolutePath,
 	logDir: absolutePath,
+	skillPluginDir: absolutePath.optional(),
 });
 export type SidecarConfig = z.infer<typeof zSidecarConfig>;
 
@@ -45,6 +49,7 @@ export function parseSidecarConfig(
 		binDir: env[SIDECAR_ENV.binDir],
 		outboxRoot: env[SIDECAR_ENV.outboxRoot],
 		logDir: env[SIDECAR_ENV.logDir],
+		skillPluginDir: env[SIDECAR_ENV.skillPluginDir],
 	});
 	if (parsed.success) return ok(parsed.data);
 	const problems = parsed.error.issues.map((issue) => {

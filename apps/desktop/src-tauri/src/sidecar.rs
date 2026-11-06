@@ -64,9 +64,10 @@
 //! (the parent pid, the outbox root, the log folder and the bin folder) plus the app version and
 //! log level its logger reads (SIDE-18). Agent binary folders, ACP provider folder and Cursor
 //! store arrive with the features that read them (PLAT-28, SIDE-15, AGENT-09). SIDE-22
-//! (`CONDUCTED_COMPLETIONS_DIR`) and AGENT-18 (`CONDUCTED_SKILL_PLUGIN_DIR`) add theirs when their
-//! resolvers stop being placeholders. There is no database path (the app owns the database) and no
-//! logger token or folder (D026, D028).
+//! (`CONDUCTED_COMPLETIONS_DIR`) adds its variable when its resolver stops being a placeholder.
+//! AGENT-18 sets `CONDUCTED_SKILL_PLUGIN_DIR` to the bundled skill folder when the build ships
+//! one. There is no database path (the app owns the database) and no logger token or folder
+//! (D026, D028).
 //! Packaging the sidecar needs `bundle.externalBin` in tauri.conf.json, which requires the
 //! compiled file to exist at build time. In development `CONDUCTED_SIDECAR_BIN` points at a
 //! binary or a wrapper script.
@@ -122,6 +123,8 @@ pub const ENV_SIDECAR_BIN: &str = "CONDUCTED_SIDECAR_BIN";
 pub const ENV_COMPLETIONS_DIR: &str = "CONDUCTED_COMPLETIONS_DIR";
 /// Environment variable that tells the sidecar where the bundled skill folder is.
 pub const ENV_SKILL_PLUGIN_DIR: &str = "CONDUCTED_SKILL_PLUGIN_DIR";
+/// Folder name of the bundled skill plugin inside the app's resources.
+pub const SKILL_PLUGIN_FOLDER: &str = "conducted-skill";
 
 /// Why a sidecar process ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -205,8 +208,21 @@ pub fn completions_dir(_app: &AppHandle) -> CommandResult<PathBuf> {
 }
 
 /// The bundled skill folder, or `None` when the build has none (a dev run).
-pub fn skill_plugin_dir(_app: &AppHandle) -> CommandResult<Option<PathBuf>> {
-    not_implemented!("AGENT-18")
+pub fn skill_plugin_dir<R: Runtime>(app: &AppHandle<R>) -> CommandResult<Option<PathBuf>> {
+    let resources = app
+        .path()
+        .resource_dir()
+        .map_err(|error| CommandError::Failed {
+            code: "sidecar_resources_dir_failed",
+            message: format!("Could not find the app resources folder: {error}"),
+        })?;
+    Ok(find_skill_plugin_dir(&resources))
+}
+
+/// The bundled skill folder under a resources folder, when that folder exists.
+fn find_skill_plugin_dir(resources: &Path) -> Option<PathBuf> {
+    let folder = resources.join(SKILL_PLUGIN_FOLDER);
+    folder.is_dir().then_some(folder)
 }
 
 /// Program name the bundled sidecar prints for `--version`. The one home for the name on this
@@ -519,21 +535,30 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
     }
 }
 
-/// The folders the sidecar reads at start: the parent pid, the outbox root, the log folder and the
-/// bin folder. The launcher creates each folder before the spawn, and `launch_environment` adds the
-/// app version and log level. Agent binaries, ACP providers and the Cursor store wait for the
+/// The folders the sidecar reads at start: the parent pid, the outbox root, the log folder, the
+/// bin folder and, when the build has one, the bundled skill plugin folder (AGENT-18). The
+/// launcher creates the folders it owns before the spawn, and `launch_environment` adds the app
+/// version and log level. Agent binaries, ACP providers and the Cursor store wait for the
 /// features that read them. There is no database path and no logger token or folder (D026, D028).
-pub fn sidecar_environment(pid: u32, data_dir: &Path) -> Vec<(String, String)> {
+pub fn sidecar_environment(
+    pid: u32,
+    data_dir: &Path,
+    skill_plugin_dir: Option<&Path>,
+) -> Vec<(String, String)> {
     let log_dir = data_dir.join("logs");
     let bin_dir = data_dir.join("bin");
     let outbox_root = data_dir.join("sidecar-v2-session-event-outbox");
     let text = |path: &Path| path.to_string_lossy().into_owned();
-    vec![
+    let mut environment = vec![
         ("CONDUCTED_PARENT_PID".to_string(), pid.to_string()),
         ("CONDUCTED_OUTBOX_ROOT".to_string(), text(&outbox_root)),
         ("CONDUCTED_LOG_DIR".to_string(), text(&log_dir)),
         ("CONDUCTED_BIN_DIR".to_string(), text(&bin_dir)),
-    ]
+    ];
+    if let Some(folder) = skill_plugin_dir {
+        environment.push((ENV_SKILL_PLUGIN_DIR.to_string(), text(folder)));
+    }
+    environment
 }
 
 /// The full environment of a launch: the folders above plus the app version and log level that the
@@ -543,8 +568,9 @@ pub fn launch_environment(
     data_dir: &Path,
     app_version: &str,
     log_level: &str,
+    skill_plugin_dir: Option<&Path>,
 ) -> Vec<(String, String)> {
-    let mut environment = sidecar_environment(pid, data_dir);
+    let mut environment = sidecar_environment(pid, data_dir, skill_plugin_dir);
     environment.push(("CONDUCTED_APP_VERSION".to_string(), app_version.to_string()));
     environment.push(("CONDUCTED_LOG_LEVEL".to_string(), log_level.to_string()));
     environment
@@ -586,9 +612,17 @@ fn blocking_start<R: Runtime>(
         let state = app.state::<logger::LoggerState>();
         logger::level_name(state.level.load(std::sync::atomic::Ordering::Relaxed))
     };
-    let environment = launch_environment(std::process::id(), &data_dir, &app_version, log_level);
+    let skill_dir = skill_plugin_dir(app)?;
+    let environment = launch_environment(
+        std::process::id(),
+        &data_dir,
+        &app_version,
+        log_level,
+        skill_dir.as_deref(),
+    );
     for (key, value) in &environment {
-        if is_folder_variable(key) {
+        // The skill folder ships with the app, so the launcher must not create or chmod it.
+        if is_folder_variable(key) && key != ENV_SKILL_PLUGIN_DIR {
             ensure_dir(Path::new(value), 0o700)?;
         }
     }
@@ -1581,7 +1615,7 @@ mod tests {
     #[test]
     fn plat_09_the_sidecar_environment_names_every_folder() {
         let data = Path::new("/tmp/conducted-data");
-        let environment = sidecar_environment(42, data);
+        let environment = sidecar_environment(42, data, None);
         let map: HashMap<&str, &str> = environment
             .iter()
             .map(|(key, value)| (key.as_str(), value.as_str()))
@@ -1607,7 +1641,7 @@ mod tests {
     #[test]
     fn plat_18_the_launch_environment_adds_the_app_version_and_log_level() {
         let environment =
-            launch_environment(42, Path::new("/tmp/conducted-data"), "1.2.3", "debug");
+            launch_environment(42, Path::new("/tmp/conducted-data"), "1.2.3", "debug", None);
         let map: HashMap<&str, &str> = environment
             .iter()
             .map(|(key, value)| (key.as_str(), value.as_str()))
@@ -1624,7 +1658,7 @@ mod tests {
             source.contains("CONDUCTED_BIN_DIR"),
             "the sidecar source was not found"
         );
-        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"));
+        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"), None);
         let keys: Vec<&str> = environment.iter().map(|(key, _)| key.as_str()).collect();
         for key in [
             "CONDUCTED_PARENT_PID",
@@ -1640,6 +1674,72 @@ mod tests {
                 "the launcher sets {key}, but packages/sidecar never reads it"
             );
         }
+    }
+
+    #[test]
+    fn agent_18_finds_the_bundled_skill_folder_only_when_it_exists() {
+        let folder = TempDir::new();
+        assert_eq!(find_skill_plugin_dir(folder.path()), None);
+        let skill = folder.path().join(SKILL_PLUGIN_FOLDER);
+        fs::create_dir_all(skill.join(".claude-plugin")).expect("create skill folder");
+        assert_eq!(find_skill_plugin_dir(folder.path()), Some(skill));
+    }
+
+    #[test]
+    fn agent_18_the_launch_environment_gives_the_sidecar_the_skill_folder() {
+        let folder = TempDir::new();
+        let environment = launch_environment(
+            42,
+            Path::new("/tmp/conducted-data"),
+            "1.2.3",
+            "debug",
+            Some(folder.path()),
+        );
+        let map: HashMap<&str, &str> = environment
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        let expected = folder.path().to_string_lossy().into_owned();
+        assert_eq!(
+            map.get(ENV_SKILL_PLUGIN_DIR).copied(),
+            Some(expected.as_str())
+        );
+        let source = sidecar_env_names();
+        assert!(
+            source.contains(&format!("\"{ENV_SKILL_PLUGIN_DIR}\"")),
+            "the launcher sets {ENV_SKILL_PLUGIN_DIR}, but packages/sidecar never reads it"
+        );
+    }
+
+    #[test]
+    fn agent_18_a_build_without_the_skill_folder_sets_no_variable() {
+        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"), None);
+        assert!(
+            !environment
+                .iter()
+                .any(|(key, _)| key == ENV_SKILL_PLUGIN_DIR)
+        );
+    }
+
+    #[test]
+    fn agent_18_the_bundled_skill_has_a_plugin_manifest_and_a_guide() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(SKILL_PLUGIN_FOLDER);
+        let manifest = fs::read_to_string(root.join(".claude-plugin").join("plugin.json"))
+            .expect("the bundled skill has a plugin manifest");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&manifest).expect("the plugin manifest is JSON");
+        assert_eq!(parsed["name"], "conducted");
+        let guide = fs::read_to_string(root.join("skills").join("conducted").join("SKILL.md"))
+            .expect("the bundled skill has a guide");
+        assert!(
+            guide.lines().count() >= 150,
+            "the guide is too short to teach the app"
+        );
+        assert!(guide.contains("CONDUCTED_WORKSPACE_PATH"));
+        assert!(
+            !guide.contains("CONDUCTOR_"),
+            "the guide must name only CONDUCTED_* variables (D027)"
+        );
     }
 
     #[test]

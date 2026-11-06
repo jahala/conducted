@@ -38,6 +38,8 @@
  *  - planUsage() asks the SDK's experimental usage request without the behavior scan and converts
  *    the response with the SIDE-17 model; with no live process it reports no limits, and a refusal
  *    is passed to the caller
+ *  - the bundled skill plugin folder is passed to the options when the build has one; a missing
+ *    folder is logged and the chat starts without it (AGENT-18)
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -45,6 +47,7 @@
  * translator, the permission handler and the app tools server are injected as well, so this
  * feature can be built and tested before AGENT-03, AGENT-04 and SIDE-12 exist.
  */
+import { existsSync } from "node:fs";
 import type {
 	CanUseTool,
 	Options,
@@ -78,6 +81,7 @@ import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
 import { createMirrorStore } from "./session-mirror.ts";
+import { bundledSkillPlugins } from "./skill-plugin.ts";
 import { SteerReceipts } from "./steer-receipts.ts";
 import type { ClaudeTranslator } from "./translate.ts";
 import { ClaudeTurnTracker, type Scheduler } from "./turn-tracker.ts";
@@ -99,6 +103,8 @@ export interface ClaudeSessionDeps {
 	translator: ClaudeTranslator;
 	/** Checks for a resumable transcript on disk. */
 	hasTranscript(sessionId: SessionId, cwd: string): Promise<boolean>;
+	/** Folder of the app's bundled skill plugin, when the build has one (AGENT-18). */
+	skillPluginDir?: string;
 	/** Resolves symlinks for the edit-path check. Returns null when the path cannot be resolved. */
 	realPath(path: string): Promise<string | null>;
 	newUuid(): string;
@@ -404,11 +410,20 @@ export class ClaudeSession implements AgentSession {
 						resume: { agentSessionId: this.agentSessionId ?? this.sessionId },
 					}
 				: this.start;
+		// A missing bundled skill starts the chat without it, but the log names what was wrong.
+		const plugins = bundledSkillPlugins(this.deps.skillPluginDir, existsSync);
+		if (!plugins.ok) {
+			this.deps.logger.warn("The bundled skill plugin was not loaded", {
+				sessionId: this.sessionId,
+				reason: plugins.error.message,
+			});
+		}
 		const options = buildClaudeOptions({
 			start: { ...start, config: this.config },
 			executablePath: this.deps.executablePath,
 			viaRuntime: this.deps.viaRuntime === true,
 			hasTranscript,
+			plugins: plugins.ok ? plugins.value : undefined,
 			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
 			hooks: { PreToolUse: [createCheckpointHook(gate)] },
 			mcpServers: this.deps.createMcpServers({
