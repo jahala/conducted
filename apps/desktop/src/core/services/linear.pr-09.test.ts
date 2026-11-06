@@ -610,9 +610,9 @@ describe("PR-09 Linear context", () => {
 				branchName: "eng-12-list-place",
 			}),
 		);
-		expect((test.calls[0]?.body as { variables: unknown }).variables).toEqual({
-			id: "issue-uuid-1",
-		});
+		expect(test.calls.map((call) => (call.body as { variables: unknown }).variables)).toEqual([
+			{ id: "issue-uuid-1" },
+		]);
 	});
 
 	it("reports an issue Linear does not know instead of an empty attachment", async () => {
