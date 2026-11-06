@@ -1,10 +1,12 @@
 /**
  * @feature REV-01 GitPanel
  * @feature GIT-06 Cmd+Shift+L and the pull outcome toasts
+ * @feature PR-05 Cmd+Shift+X sends the failing checks to the agent
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: All files, Changes or Checks. Entry point embedded by the workspace screen.
- * Behaviour: ui-map.md 3.6 (tab strip, header, tabs); frontend layout in structure-map.md 3.2.
+ * Behaviour: ui-map.md 3.6 (tab strip, header, tabs), 5.4 (Cmd+Shift+X fix errors); frontend
+ * layout in structure-map.md 3.2.
  * Data: useGitState, useWorkspaceStatus (agent working), useActions().
  * Children: GitHeader, GitPanelTabs, changes/ChangesTab, files/FilesTab, checks/ChecksTab. Each tab
  * body sits in its own NotBuiltYet boundary, keyed by the tab, so a tab that is not built or fails
@@ -19,12 +21,13 @@
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
  * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR",
  * "Commit and push", "Start an AI code review" and "Show uncommitted changes" handled only while
- * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push" and
- * "Merge the pull request" (Cmd+Shift+M) only while the header offers that action, one review request at a time per workspace, and a
+ * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push",
+ * "Merge the pull request" (Cmd+Shift+M) and "Fix errors" (Cmd+Shift+X) only while the header
+ * offers that action, one review request at a time per workspace, and a
  * workspace switch mid-request (the old request's result does not touch the new workspace's
  * dialog), and one header action at a time per workspace and action: the header button and the
- * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L and Cmd+Shift+M shortcuts share one single-flight guard, so a second
- * key press or click while the action runs is ignored.
+ * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L, Cmd+Shift+M and Cmd+Shift+X shortcuts share one
+ * single-flight guard, so a second key press or click while the action runs is ignored.
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
@@ -259,6 +262,14 @@ export function GitPanel({
 	useCommandHandler("pr.merge", "area", () => {
 		const offered = headerInputs === null ? null : computeGitHeader(headerInputs).action?.id;
 		if (offered === "merge" || offered === "merge_stack") void runGuarded(offered);
+		return true;
+	});
+
+	// Cmd+Shift+X reaches the same action as the header's Fix errors button, only while the header
+	// offers it: passing checks or a pending run is not something to send to the agent.
+	useCommandHandler("pr.fixErrors", "area", () => {
+		const offered = headerInputs === null ? null : computeGitHeader(headerInputs).action?.id;
+		if (offered === "fix_errors") void runGuarded("fix_errors");
 		return true;
 	});
 
