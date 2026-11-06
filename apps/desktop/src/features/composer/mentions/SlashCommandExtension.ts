@@ -11,8 +11,9 @@
  * argument hint writes '/name ' into the composer, so the user types the arguments and sends the
  * message; any other command runs at once through `onRun`. What it runs is `slashCommandAction`:
  * /clear, /restart, /compact (Codex), /plan, /fast and the terminal-effect commands act on the
- * app; a command the agent lists is sent to it as text; a built-in whose app action is not built
- * yet and that the agent does not list says "This command isn't available in this workspace."
+ * app; /add-dir opens the Link workspaces and directories dialog (WS-07); a command the agent
+ * lists is sent to it as text; a built-in whose app action is not built yet and that the agent
+ * does not list says "This command isn't available in this workspace."
  * Must handle: a command the agent does not offer (hidden from the list, and a typed one shows
  * "This command isn't available in this workspace."); /plan on an agent without plan mode ("Plan
  * mode is not available in this chat."); an argument hint (shown after the name, and the command
@@ -256,6 +257,7 @@ export type SlashAction =
 	| { kind: "clear" }
 	| { kind: "restart" }
 	| { kind: "compact" }
+	| { kind: "linkDirectories" }
 	| { kind: "screen"; commandId: "chat.togglePlanMode" | "chat.toggleFastMode" }
 	| { kind: "terminal" }
 	| { kind: "send"; text: string }
@@ -277,6 +279,8 @@ export function slashCommandAction(
 			return { kind: "clear" };
 		case "restart":
 			return { kind: "restart" };
+		case "add-dir":
+			return { kind: "linkDirectories" };
 		case "compact":
 			// Codex has its own compact call (AGENT-14); Claude takes /compact as message text.
 			if (agent === "codex") return { kind: "compact" };

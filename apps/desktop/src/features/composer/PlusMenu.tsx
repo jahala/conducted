@@ -5,8 +5,9 @@
  * plan mode' (Shift+Tab), 'Add attachment' (Cmd+U), 'Add snippet' (Cmd+;)), 5.2 (the composer's '+'
  * popover), 5.4 (the shortcuts come from the command registry).
  * Our design choice: Add attachment opens the file picker through the attachments controller.
- * Plan mode runs the same command as the toolbar chip. Link issue (PR-09), Link workspaces (WS-07)
- * and Add snippet (COMP-09) are listed disabled until their features build them.
+ * Plan mode runs the same command as the toolbar chip. Link workspaces (WS-07) opens the linked
+ * directories dialog. Link issue (PR-09) and Add snippet (COMP-09) are listed disabled until
+ * their features build them.
  * Must handle: a cancelled picker; a chat whose agent has no plan mode (the command explains); the
  * menu follows the live bindings.
  * Test first: choosing 'Add attachment' opens the file picker and adds the chosen paths to the
@@ -33,9 +34,11 @@ export interface PlusMenuProps {
 	sessionId: SessionId;
 	/** Opens the file picker and adds what the user chose. */
 	onAddAttachment: () => void;
+	/** Opens the Link workspaces and directories dialog. */
+	onLinkWorkspaces: () => void;
 }
 
-export function PlusMenu({ sessionId, onAddAttachment }: PlusMenuProps) {
+export function PlusMenu({ sessionId, onAddAttachment, onLinkWorkspaces }: PlusMenuProps) {
 	const { services } = useServices();
 	const runCommand = useRunCommandHandlers();
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
@@ -67,7 +70,7 @@ export function PlusMenu({ sessionId, onAddAttachment }: PlusMenuProps) {
 				>
 					Link issue
 				</MenuItem>
-				<MenuItem disabled title="Link workspaces is not built yet" icon={<FolderPlusIcon />}>
+				<MenuItem icon={<FolderPlusIcon />} onSelect={onLinkWorkspaces}>
 					Link workspaces
 				</MenuItem>
 				<MenuItem

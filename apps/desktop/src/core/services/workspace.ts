@@ -52,8 +52,11 @@
  * that cannot be restored is rolled back: the re-added folder and a branch the call created are
  * removed and the state goes back to archived. A rollback step that fails is named in the
  * returned error, and a workspace that cannot go back to archived stays initializing in the store.
- * Not built yet (placeholders): linked paths (WS-07), the kanban status (NAV-06) and the backlog
- * workspace operations (WS-11).
+ * Built now (WS-07): linked paths. An absolute folder path is stored for each linked workspace or
+ * extra folder, duplicates and empty entries are dropped, the loaded row keeps the new list, and
+ * every existing chat stores the folders so its next message carries them.
+ * Not built yet (placeholders): the kanban status (NAV-06) and the backlog workspace operations
+ * (WS-11).
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -602,6 +605,33 @@ export function remoteNameFromConfig(config: RepoConfig): Result<string> {
 	return isSafeRefName(name) ? ok(name) : err(invalidRefNameError(name));
 }
 
+/**
+ * The folders a workspace may link, as one clean list: empty entries and duplicates are dropped,
+ * and a path that is not absolute is refused because the agents and the sidecar need absolute
+ * paths. A trailing slash is removed, except on the root folder.
+ */
+export function normaliseLinkedPaths(paths: readonly string[]): Result<string[]> {
+	const cleaned: string[] = [];
+	const seen = new Set<string>();
+	for (const raw of paths) {
+		const trimmed = raw.trim();
+		if (trimmed === "") continue;
+		if (!trimmed.startsWith("/")) {
+			return err(
+				appError(
+					"linked_path_invalid",
+					`"${trimmed}" is not an absolute folder path, so it can't be linked.`,
+				),
+			);
+		}
+		const path = trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
+		if (seen.has(path)) continue;
+		seen.add(path);
+		cleaned.push(path);
+	}
+	return ok(cleaned);
+}
+
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -690,6 +720,11 @@ export interface WorkspaceSessionsPort {
 	createFirstChat(workspaceId: WorkspaceId, input: NewWorkspaceInput): Promise<Result<Session>>;
 	/** The first chat's draft, for "Recover prompt" after a failed creation. */
 	firstDraftOf(workspaceId: WorkspaceId): Promise<Result<Draft>>;
+	/**
+	 * WS-07: stores the workspace's linked folders in every chat already open in it, so the next
+	 * message carries them. Optional for a caller that has no chats to update.
+	 */
+	applyLinkedPaths?(workspaceId: WorkspaceId, paths: readonly string[]): Promise<Result<void>>;
 	cancelAll(workspaceId: WorkspaceId): Promise<Result<void>>;
 	hasWorkingChats(workspaceId: WorkspaceId): boolean;
 	markAllRead(workspaceId: WorkspaceId): Promise<Result<void>>;
@@ -1714,9 +1749,22 @@ export class WorkspaceService {
 		return ok({ needsBranchName: false, uncommittedChangesLost });
 	}
 
-	/** Backs `Actions.workspaces.setLinkedPaths`: extra folders agents may read and edit. */
-	setLinkedPaths(_id: WorkspaceId, _paths: readonly string[]): Promise<Result<void>> {
-		return notImplemented("WS-07");
+	/** Backs `Actions.workspaces.setLinkedPaths`: the extra folders agents may read and edit. */
+	async setLinkedPaths(id: WorkspaceId, paths: readonly string[]): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const normalised = normaliseLinkedPaths(paths);
+		if (!normalised.ok) return normalised;
+		const written = await this.#deps.repos.workspaces.setLinkedPaths(id, normalised.value);
+		if (!written.ok) return written;
+		this.#upsert({
+			...found.value,
+			linkedPaths: normalised.value,
+			updatedAt: this.#deps.now(),
+		});
+		return (await this.#deps.sessions.applyLinkedPaths?.(id, normalised.value)) ?? ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.remove`. */
