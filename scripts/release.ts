@@ -3,7 +3,13 @@
  *
  * Usage:
  *   pnpm release 0.2.0          dry run: says every step and how to undo it, changes nothing
- *   pnpm release 0.2.0 --go     does it: bump versions, run every check, commit, tag
+ *   pnpm release 0.2.0 --go     does it: check main's CI, bump versions, build, sign, commit, tag
+ *
+ * It runs no tests on this Mac: it releases only origin/main's HEAD, and only when main's CI passed
+ * for it (the owner's ruling, 2026-11-06). The dry run makes the same read-only checks, so it says
+ * whether --go would refuse. It signs with the keychain's Developer ID Application identity unless
+ * APPLE_SIGNING_IDENTITY names one, and notarises with the notarytool keychain profile "conducted"
+ * when that profile exists; without it the app is signed but not notarised, and the last lines say so.
  *
  * It never pushes. The last line prints the push command, so publishing stays a separate,
  * deliberate step.
@@ -16,14 +22,17 @@ import {
 	bundleProblems,
 	createDiskImage,
 	diskImagePath,
+	NOTARY_PROFILE_ENV,
 	notariseBundle,
 	notariseDiskImage,
 	runTool,
+	SIGNING_IDENTITY_ENV,
 	signBundle,
 	verifyBundle,
 	verifyDiskImage,
 } from "../apps/desktop/src-tauri/release/bundle.ts";
 import { VERSION_FILES } from "./guards/versions.ts";
+import { type CiRun, ciGate, parseIdentities, pickSigningIdentity } from "./release/gates.ts";
 
 const root = join(import.meta.dir, "..");
 const version = process.argv[2];
@@ -37,6 +46,8 @@ if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
 interface Step {
 	say: string;
 	undo: string;
+	/** A step that changes nothing also runs in the dry run, so the dry run says whether --go would stop. */
+	readOnly?: true;
 	run: () => void | Promise<void>;
 }
 
@@ -63,17 +74,71 @@ function sh(cmd: readonly string[], cwd = root): string {
 	return result.stdout.toString().trim();
 }
 
+function gate<T>(result: ToolResult<T>): T {
+	if (!result.ok) throw new Error(result.error.message);
+	return result.value;
+}
+
+/** The identity to sign with: APPLE_SIGNING_IDENTITY, else the keychain's longest-lasting Developer ID. */
+function signingIdentity(): string {
+	const named = process.env[SIGNING_IDENTITY_ENV]?.trim();
+	if (named) return named;
+	const identities = parseIdentities(sh(["security", "find-identity", "-v", "-p", "codesigning"]));
+	const dated = identities.map((identity) => {
+		const pems = sh(["security", "find-certificate", "-a", "-Z", "-p", "-c", identity.name]);
+		const block = pems.split(/^SHA-1 hash: /m).find((part) => part.startsWith(identity.hash));
+		const pem = block?.slice(block.indexOf("-----BEGIN CERTIFICATE-----"));
+		const end = pem
+			? Bun.spawnSync(["openssl", "x509", "-noout", "-enddate"], { stdin: Buffer.from(pem) })
+			: null;
+		const text = end?.exitCode === 0 ? end.stdout.toString().trim() : "";
+		return { ...identity, notAfter: new Date(text.replace(/^notAfter=/, "") || 0) };
+	});
+	return gate(pickSigningIdentity(dated));
+}
+
+const NOTARY_PROFILE = "conducted";
+
+/** Whether the notarytool keychain profile exists. Without it the release is signed only. */
+function notaryProfileExists(): boolean {
+	const result = Bun.spawnSync(
+		["xcrun", "notarytool", "history", "--keychain-profile", NOTARY_PROFILE],
+		{ stdout: "ignore", stderr: "ignore" },
+	);
+	return result.exitCode === 0;
+}
+
+let notarised = false;
 const tauriDir = join(root, "apps/desktop/src-tauri");
 const steps: Step[] = [
 	{
-		say: "Check the tree is clean and on main",
+		say: "Check the tree is clean, on main at origin/main, and main's CI passed for it",
 		undo: "nothing to undo",
+		readOnly: true,
 		run: () => {
 			if (sh(["git", "status", "--porcelain"]) !== "")
 				throw new Error("The working tree has changes.");
 			if (sh(["git", "branch", "--show-current"]) !== "main") throw new Error("Not on main.");
 			if (sh(["git", "tag", "--list", `v${version}`]) !== "")
 				throw new Error(`v${version} exists.`);
+			sh(["git", "fetch", "--quiet", "origin", "main"]);
+			const head = sh(["git", "rev-parse", "HEAD"]);
+			const runs = JSON.parse(
+				sh([
+					"gh",
+					"run",
+					"list",
+					"--branch",
+					"main",
+					"--commit",
+					head,
+					"--limit",
+					"20",
+					"--json",
+					"name,headSha,status,conclusion",
+				]),
+			) as CiRun[];
+			gate(ciGate({ head, mainHead: sh(["git", "rev-parse", "origin/main"]), runs }));
 		},
 	},
 	{
@@ -99,19 +164,15 @@ const steps: Step[] = [
 		},
 	},
 	{
-		say: "Run every check (pnpm check, cargo fmt, clippy, test)",
-		undo: "git checkout -- . (drops the version bump)",
-		run: () => {
-			sh(["pnpm", "check"]);
-			sh(["cargo", "fmt", "--check"], tauriDir);
-			sh(["cargo", "clippy", "--all-targets", "--", "-D", "warnings"], tauriDir);
-			sh(["cargo", "test"], tauriDir);
-		},
-	},
-	{
 		say: "Build the arm64 app alone, sign and notarise it, then make and verify the disk image",
-		undo: "nothing to undo; build output stays under apps/desktop/src-tauri/target",
+		undo: "git checkout -- . (drops the version bump); build output stays under apps/desktop/src-tauri/target",
 		run: async () => {
+			const env: Record<string, string | undefined> = {
+				...process.env,
+				[SIGNING_IDENTITY_ENV]: signingIdentity(),
+			};
+			const notarise = Boolean(env[NOTARY_PROFILE_ENV]?.trim()) || notaryProfileExists();
+			if (notarise && !env[NOTARY_PROFILE_ENV]?.trim()) env[NOTARY_PROFILE_ENV] = NOTARY_PROFILE;
 			sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
 			sh(appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json"));
 			const appPath = join(
@@ -123,13 +184,14 @@ const steps: Step[] = [
 				"macos",
 				"Conducted.app",
 			);
-			await must(signBundle(runTool, appPath, process.env));
-			await must(notariseBundle(runTool, appPath, process.env));
+			await must(signBundle(runTool, appPath, env));
+			if (notarise) await must(notariseBundle(runTool, appPath, env));
 			rejectProblems(await must(verifyBundle(runTool, appPath)));
 
 			const dmgPath = diskImagePath(appPath);
 			await must(createDiskImage(runTool, appPath, dmgPath));
-			await must(notariseDiskImage(runTool, dmgPath, process.env));
+			if (notarise) await must(notariseDiskImage(runTool, dmgPath, env));
+			notarised = notarise;
 			rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))));
 		},
 	},
@@ -147,13 +209,18 @@ const steps: Step[] = [
 console.log(go ? `Releasing v${version}` : `Dry run for v${version} (add --go to do it)`);
 for (const [index, step] of steps.entries()) {
 	console.log(`${index + 1}. ${step.say}\n   undo: ${step.undo}`);
-	if (!go) continue;
+	if (!go && !step.readOnly) continue;
 	try {
 		await step.run();
 	} catch (error) {
 		console.error(`\nStopped at step ${index + 1}: ${(error as Error).message}`);
 		process.exit(1);
 	}
+}
+if (go && !notarised) {
+	console.log(
+		`\nSigned but not notarised: there is no notarytool keychain profile "${NOTARY_PROFILE}". Store one with: xcrun notarytool store-credentials ${NOTARY_PROFILE} --team-id <team> --apple-id <Apple ID>`,
+	);
 }
 console.log(
 	go ? `\nDone. Publish with: git push origin main v${version}` : "\nNothing was changed.",
