@@ -27,13 +27,27 @@ const must = <T>(result: Result<T>): T => {
 };
 
 describe("SET-10 OpenCode provider catalogue", () => {
-	test("set_10_lists_about_ninety_providers_from_302_ai_to_z_ai", () => {
+	test("set_10_lists_conductors_97_entries_from_302_ai_to_z_ai", () => {
 		const providers = opencodeProviders();
-		expect(providers.length).toBeGreaterThanOrEqual(90);
-		expect(providers.length).toBeLessThanOrEqual(100);
+		// Conductor's table holds 97 entries, one per key variable (bundle main-BE1h_1MP.js, `_T`).
+		expect(providers).toHaveLength(97);
 		const labels = providers.map((provider) => provider.label);
 		expect(labels).toContain("302.AI");
-		expect(labels).toContain("Z.AI");
+		expect(labels).toContain("Z.AI / Z.AI Coding Plan / Zhipu AI Coding Plan / Zhipu AI");
+		expect(providers[0]).toEqual({ id: "302ai", label: "302.AI", keyEnvVars: ["302AI_API_KEY"] });
+		expect(providers.at(-1)).toEqual({
+			id: "zai",
+			label: "Z.AI / Z.AI Coding Plan / Zhipu AI Coding Plan / Zhipu AI",
+			keyEnvVars: ["ZHIPU_API_KEY"],
+		});
+		// A variable several providers read is one entry, so its key is stored once.
+		expect(providers.find((provider) => provider.keyEnvVars.includes("GITHUB_TOKEN"))).toEqual({
+			id: "github-copilot",
+			label: "GitHub Copilot / GitHub Models",
+			keyEnvVars: ["GITHUB_TOKEN"],
+		});
+		const variables = providers.flatMap((provider) => provider.keyEnvVars);
+		expect(new Set(variables).size).toBe(variables.length);
 	});
 
 	test("set_10_every_provider_has_a_unique_id_and_the_variables_its_key_goes_in", () => {
@@ -44,7 +58,8 @@ describe("SET-10 OpenCode provider catalogue", () => {
 			expect(provider.id.trim()).not.toBe("");
 			expect(provider.label.trim()).not.toBe("");
 			expect(provider.keyEnvVars.length).toBeGreaterThan(0);
-			for (const name of provider.keyEnvVars) expect(name).toMatch(/^[A-Z][A-Z0-9_]+$/);
+			// Conductor's names include ones that start with a digit, such as 302AI_API_KEY.
+			for (const name of provider.keyEnvVars) expect(name).toMatch(/^[A-Z0-9][A-Z0-9_]*$/);
 		}
 		const deepseek = providers.find((provider) => provider.id === "deepseek");
 		expect(deepseek?.keyEnvVars).toEqual(["DEEPSEEK_API_KEY"]);
@@ -56,7 +71,7 @@ describe("SET-10 OpenCode provider catalogue", () => {
 		first[0]?.keyEnvVars.push("NOT_A_KEY");
 
 		const second = opencodeProviders();
-		expect(second).toHaveLength(92);
+		expect(second).toHaveLength(97);
 		expect(second[0]?.keyEnvVars).toEqual(["302AI_API_KEY"]);
 	});
 
