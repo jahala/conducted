@@ -660,6 +660,7 @@ name = "conducted"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
+ "core-foundation 0.9.4",
  "futures-util",
  "globset",
  "grep-matcher",
@@ -679,7 +680,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+<<<<<<< HEAD
  "sysinfo",
+=======
+ "system-configuration",
+>>>>>>> node/plat.26
  "tauri",
  "tauri-build",
  "tauri-plugin-clipboard-manager",

@@ -194,6 +194,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 	let sidecar: ChildProcess | null = null;
 	let disposed = false;
 	let focused = true;
+	let networkOnline = true;
 	let tempCounter = 0;
 	let dockBadge: number | null = null;
 	let clipboardText: string | null = null;
@@ -263,6 +264,8 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return "ok";
 			case COMMANDS.appInfo:
 				return { version: "0.0.0-contract", channel: "dev" };
+			case COMMANDS.networkStatus:
+				return networkOnline;
 			case COMMANDS.fsPaths:
 				return paths;
 			case COMMANDS.logWrite:
@@ -485,6 +488,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		emitWindowFocus: (next) => {
 			focused = next;
 			windowEvents.emit(next ? EVENTS.windowFocus : EVENTS.windowBlur, undefined);
+		},
+		emitNetworkChanged: (online) => {
+			networkOnline = online;
+			events.emit(EVENTS.networkChanged, online);
 		},
 		get dockBadge() {
 			return dockBadge;
