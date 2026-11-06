@@ -47,6 +47,28 @@ describe("REV-08 WorkspaceFilesService drafts", () => {
 		}
 	});
 
+	it("drops the drafts of a workspace that leaves the store, and keeps the others", async () => {
+		const { test, workspace, firstModifiedAt, service, draftOf } = await setup(
+			"/code/workspaces/draft-removed",
+		);
+		try {
+			const other = await seedWorkspace(test.container, { path: "/code/workspaces/draft-other" });
+			service.editDraft(workspace.id, "a.ts", "mine", { text: "one", modifiedAt: firstModifiedAt });
+			service.editDraft(other.id, "b.ts", "theirs", { text: "", modifiedAt: firstModifiedAt });
+
+			// What the workspace service does when a workspace is deleted (#forgetWorkspace).
+			test.container.services.workspace.store.setState((state) => {
+				const { [workspace.id]: _removed, ...rest } = state.workspacesById;
+				return { workspacesById: rest };
+			});
+
+			expect(draftOf()).toBeUndefined();
+			expect(service.drafts.getState().drafts[fileDraftKey(other.id, "b.ts")]?.text).toBe("theirs");
+		} finally {
+			test.close();
+		}
+	});
+
 	it("drops the draft when an edit gives back the disk text", async () => {
 		const { test, workspace, firstModifiedAt, service, draftOf } = await setup(
 			"/code/workspaces/draft-back",

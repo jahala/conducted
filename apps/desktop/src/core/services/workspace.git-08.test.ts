@@ -9,8 +9,12 @@ import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
 import { createRepositories } from "../db/repositories.ts";
 
+let nextId = 0;
 const repositoriesOf = (database: Parameters<typeof createRepositories>[0]) =>
-	createRepositories(database, { clock: { now: () => 0 }, ids: { uuid: () => "test-id" } });
+	createRepositories(database, {
+		clock: { now: () => 0 },
+		ids: { uuid: () => `git-08-id-${++nextId}` },
+	});
 
 describe("GIT-08 intended target branch", () => {
 	it("stores the new target and updates the loaded workspace", async () => {

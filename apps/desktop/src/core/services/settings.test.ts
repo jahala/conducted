@@ -888,6 +888,35 @@ const customService = (
 };
 
 describe("DATA-05 hardening", () => {
+	it("installs no focus listener when stop comes while start is still reading", async () => {
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let reads = 0;
+		const { service, emitFocus } = customService(
+			{
+				async list() {
+					reads += 1;
+					if (reads === 1) await held;
+					return ok([]);
+				},
+			},
+			tomlCodec,
+			true,
+		);
+
+		const starting = service.start();
+		service.stop();
+		release();
+		await starting;
+		expect(reads).toBe(1);
+
+		// A focus listener left behind would start a reload here.
+		emitFocus(true);
+		expect(reads).toBe(1);
+	});
+
 	it("never lets a settings file write to the object prototype", async () => {
 		const test = harness();
 		test.fs.files.set(userFile(), '[__proto__]\npolluted = "yes"\n\n[models]\ndefault = "a"\n');

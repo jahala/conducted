@@ -67,7 +67,9 @@ export async function branchNameTaken(
 	git: GitRunner,
 	query: BranchNameQuery,
 ): Promise<Result<boolean>> {
-	if (await branchNameIsTaken(git, query)) return ok(true);
+	const local = await branchNameIsTaken(git, query);
+	if (!local.ok) return local;
+	if (local.value) return ok(true);
 
 	const cwd = query.repoRootPath;
 	// A repository with no remote, or a remote that is not GitHub, cannot have a pull request.

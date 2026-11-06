@@ -14,8 +14,10 @@
  * Dropped or picked files are copied into the chat's staging folder and get an attachment row; a
  * file named like one of the app's own context files is attached under another name. A
  * send copies each staged file into the workspace's `.context/attachments/<id>/<name>`, moves the
- * staging copy to the Trash and flips its row from draft to sent.
- * Not built yet: removing the draft files of deleted chats (DATA-06).
+ * staging copy to the Trash and flips its row from draft to sent. `flush` writes every draft
+ * still waiting for its debounce and waits for every write; the container's `stop` calls it, so
+ * the last edit before quitting is kept. Draft files of deleted chats, and drafts older than 30
+ * days, go to the Trash in the data-lifetime job (core/db/lifetime.ts, `remove-draft-files`).
  * Our design choice: drafts are files (see core/app-paths.ts) because migration 0001 has no
  * drafts table. Attachment rows use the existing `attachments` table.
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
@@ -42,6 +44,7 @@ import {
 	draftsDir,
 	isInsideFolder,
 } from "../app-paths.ts";
+import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";
@@ -220,11 +223,13 @@ export class ComposerService {
 	readonly store: StoreApi<ComposerState>;
 	readonly #deps: ComposerServiceDeps;
 	/** Cancels the pending debounced write of each chat. */
-	readonly #pending = new Map<string, { cancel: () => void; generation: number }>();
+	readonly #pending = new Map<SessionId, { cancel: () => void; generation: number }>();
 	/** The newest write of each chat. An older write that finishes late cannot change it. */
 	readonly #generation = new Map<string, number>();
 	/** Writes of one chat run one after the other, so a clear cannot be overtaken by an old save. */
-	readonly #writes = new Map<string, Promise<void>>();
+	readonly #writes = createKeyedQueue<SessionId>();
+	/** Every write not finished yet, so `flush` can wait for all of them. */
+	readonly #inFlight = new Set<Promise<Result<void>>>();
 	/** How many copies are running for each chat. A send waits until the count is zero. */
 	readonly #busy = new Map<string, number>();
 
@@ -244,7 +249,7 @@ export class ComposerService {
 		if (loaded !== undefined) return ok(loaded);
 		// A clear or save still writing must finish first, or the read could bring back a draft that
 		// was just cleared.
-		await this.#writes.get(sessionId);
+		if (this.#writes.isBusy(sessionId)) await this.#writes.run(sessionId, async () => undefined);
 		const stored = this.store.getState().drafts[sessionId];
 		if (stored !== undefined) return ok(stored);
 		const revision = this.#generation.get(sessionId) ?? 0;
@@ -290,6 +295,21 @@ export class ComposerService {
 			void this.#enqueue(sessionId, () => this.#writeDraft(sessionId, next, generation));
 		}, DRAFT_SAVE_DEBOUNCE_MS);
 		this.#pending.set(sessionId, { cancel, generation });
+	}
+
+	/**
+	 * Writes every draft still waiting for its debounce now, and waits until every write has
+	 * finished. The container calls it when the app stops, so the last edit before quitting is kept.
+	 */
+	async flush(): Promise<void> {
+		for (const [sessionId, pending] of [...this.#pending]) {
+			pending.cancel();
+			this.#pending.delete(sessionId);
+			const draft = this.store.getState().drafts[sessionId];
+			if (draft === undefined) continue;
+			void this.#enqueue(sessionId, () => this.#writeDraft(sessionId, draft, pending.generation));
+		}
+		await Promise.all([...this.#inFlight]);
 	}
 
 	/** Copies a picked or dropped file into the staging folder and adds an attachment row. */
@@ -565,14 +585,7 @@ export class ComposerService {
 	}
 
 	#enqueue(sessionId: SessionId, work: () => Promise<Result<void>>): Promise<Result<void>> {
-		const previous = this.#writes.get(sessionId) ?? Promise.resolve();
-		const run = previous.then(work, work);
-		const tracked = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		this.#writes.set(sessionId, tracked);
-		return run.then(
+		const recorded = this.#writes.run(sessionId, work).then(
 			(result) => {
 				this.#recordWrite(sessionId, result);
 				return result;
@@ -583,6 +596,12 @@ export class ComposerService {
 				return failure;
 			},
 		);
+		this.#inFlight.add(recorded);
+		const forget = (): void => {
+			this.#inFlight.delete(recorded);
+		};
+		void recorded.then(forget, forget);
+		return recorded;
 	}
 
 	/** Keeps the newest write error per chat so a screen can surface a failed save. */

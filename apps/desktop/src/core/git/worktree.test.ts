@@ -109,18 +109,24 @@ function fakeFs(initial: Record<string, string> = {}) {
 
 describe("WS-01 nextFreeName", () => {
 	it("returns the base when it is free", async () => {
-		expect(await nextFreeName("oslo", async () => false)).toEqual({ ok: true, value: "oslo" });
+		expect(await nextFreeName("oslo", async () => ok(false))).toEqual({ ok: true, value: "oslo" });
 	});
 	it("adds -v1, -v2 until a name is free", async () => {
 		const taken = new Set(["oslo", "oslo-v1"]);
-		expect(await nextFreeName("oslo", async (n) => taken.has(n))).toEqual({
+		expect(await nextFreeName("oslo", async (n) => ok(taken.has(n)))).toEqual({
 			ok: true,
 			value: "oslo-v2",
 		});
 	});
 	it("gives up after 1000 tries", async () => {
-		const result = await nextFreeName("oslo", async () => true);
+		const result = await nextFreeName("oslo", async () => ok(true));
 		expect(result.ok).toBe(false);
+	});
+	it("stops at a check that fails instead of calling the name free", async () => {
+		const result = await nextFreeName("oslo", async (n) =>
+			n === "oslo" ? ok(true) : err(appError("git_failed", "show-ref could not run")),
+		);
+		expect(result).toMatchObject({ ok: false, error: { code: "git_failed" } });
 	});
 });
 
@@ -486,7 +492,7 @@ describe("WS-01 branchNameIsTaken", () => {
 		});
 		expect(
 			await branchNameIsTaken(git, { repoRootPath: "/repo", remote: "origin", name: "oslo" }),
-		).toBe(true);
+		).toEqual(ok(true));
 	});
 
 	it("is true for a remote branch", async () => {
@@ -497,13 +503,23 @@ describe("WS-01 branchNameIsTaken", () => {
 		});
 		expect(
 			await branchNameIsTaken(git, { repoRootPath: "/repo", remote: "origin", name: "oslo" }),
-		).toBe(true);
+		).toEqual(ok(true));
 	});
 
 	it("is false when neither branch exists", async () => {
 		const { git } = makeRunner(() => output(1));
 		expect(
 			await branchNameIsTaken(git, { repoRootPath: "/repo", remote: "origin", name: "oslo" }),
-		).toBe(false);
+		).toEqual(ok(false));
+	});
+
+	it("is an error, never free, when git cannot tell", async () => {
+		const { git } = makeRunner(() => output(128, "", "fatal: not a git repository"));
+		const result = await branchNameIsTaken(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			name: "oslo",
+		});
+		expect(result).toMatchObject({ ok: false, error: { message: "fatal: not a git repository" } });
 	});
 });

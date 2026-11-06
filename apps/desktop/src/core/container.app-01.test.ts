@@ -11,7 +11,7 @@ import { appError, err, ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
-import { createContainer } from "./container.ts";
+import { createContainer, QUIT_STOP_LIMIT_MS } from "./container.ts";
 import type { Repo, Session, Workspace } from "./model.ts";
 import { tomlCodec } from "./services/toml-codec.ts";
 import { UPDATE_CHECK_INTERVAL_MS } from "./services/updates.ts";
@@ -390,9 +390,53 @@ describe("APP-01 after start", () => {
 
 		safe.mockReturnValue(true);
 		harness.memory.controls.emitQuitRequested();
-		expect(quit).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
 
 		await harness.container.stop();
+	});
+
+	it("quits once the stop limit passes, even when a stop step never ends", async () => {
+		const harness = build();
+		stubStartup(harness);
+		vi.spyOn(harness.container.services.updates, "isSafeToQuit").mockReturnValue(true);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		// A composer flush that hangs, as a stuck disk write would.
+		vi.spyOn(harness.container.services.composer, "flush").mockReturnValue(new Promise(() => {}));
+
+		await harness.container.start();
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		try {
+			harness.memory.controls.emitQuitRequested();
+			await vi.advanceTimersByTimeAsync(QUIT_STOP_LIMIT_MS - 1);
+			expect(quit).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(1);
+			expect(quit).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("stops the container before it quits, so drafts and stored events are written first", async () => {
+		const harness = build();
+		stubStartup(harness);
+		vi.spyOn(harness.container.services.updates, "isSafeToQuit").mockReturnValue(true);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const flush = vi.spyOn(harness.container.services.composer, "flush");
+		const detach = vi.mocked(harness.container.sidecar.stop);
+
+		await harness.container.start();
+		harness.memory.controls.emitQuitRequested();
+		// A second request while the first one stops the app does not stop or quit twice.
+		harness.memory.controls.emitQuitRequested();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		expect(flush).toHaveBeenCalledTimes(1);
+		expect(detach).toHaveBeenCalledTimes(1);
+		const [flushedAt] = flush.mock.invocationCallOrder;
+		const [detachedAt] = detach.mock.invocationCallOrder;
+		const [quitAt] = quit.mock.invocationCallOrder;
+		expect(flushedAt).toBeLessThan(quitAt ?? 0);
+		expect(detachedAt).toBeLessThan(quitAt ?? 0);
 	});
 
 	it("asks the user before quitting while agents are working", async () => {
