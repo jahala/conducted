@@ -1,4 +1,4 @@
-import { NotImplemented, type WorkspaceId } from "@conducted/shared";
+import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../../app/command-dispatcher.ts";
@@ -17,6 +17,12 @@ const state = vi.hoisted(() => ({
 	branchesThrow: null as Error | null,
 	setViewed: vi.fn(),
 	discardFile: vi.fn(),
+	toast: { error: vi.fn() },
+}));
+
+vi.mock("../../../ui/Toast.tsx", () => ({
+	toast: state.toast,
+	toastError: vi.fn(),
 }));
 
 vi.mock("../../../core/hooks.ts", () => ({
@@ -82,6 +88,7 @@ beforeEach(() => {
 	state.branchesThrow = null;
 	state.setViewed.mockReset();
 	state.discardFile.mockReset();
+	state.toast.error.mockReset();
 });
 
 afterEach(() => {
@@ -188,12 +195,30 @@ describe("REV-01 changes tab", () => {
 		renderChanges();
 		expect(screen.getByRole("heading", { name: "Changes appear here" })).toBeTruthy();
 	});
+
+	it("CHAT-15 refuses a single-file revert in a per-turn view", async () => {
+		state.files = { state: "ready", data: [file("src/a/x.ts")] };
+		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn() };
+		render(
+			<ChangesTab
+				{...props}
+				scope={{ kind: "turn", sessionId: "s1" as never, turnId: "t1" as never }}
+			/>,
+		);
+		fireEvent.contextMenu(screen.getByLabelText("Open src/a/x.ts"));
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Discard changes" }));
+		// Discard asks first, because it cannot be undone (the row menu's confirm, REV-06).
+		expect(await screen.findByRole("heading", { name: "Discard file changes?" })).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+		expect(state.toast.error).toHaveBeenCalledWith("Reverting to a turn is not supported yet.");
+		expect(state.discardFile).not.toHaveBeenCalled();
+	});
 });
 
 describe("REV-01 diff scope menu", () => {
-	it("keeps the menu working when the branch list is not built yet", async () => {
+	it("keeps the menu working when the branch list fails to load", async () => {
 		state.workspace = { state: "ready", data: { repoId: "r1" } as Workspace };
-		state.branchesThrow = new NotImplemented("WS-02");
+		state.branchesThrow = new Error("The branch list could not be read.");
 		vi.spyOn(console, "error").mockImplementation(() => undefined);
 		render(
 			<DiffScopeMenu workspaceId={workspaceId} scope={{ kind: "branch" }} onChange={vi.fn()} />,
@@ -203,7 +228,8 @@ describe("REV-01 diff scope menu", () => {
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const sub = await screen.findByRole("menuitem", { name: "Target branch" });
 		fireEvent.keyDown(sub, { key: "ArrowRight" });
-		expect(await screen.findByText(/Not built yet: WS-02/)).toBeTruthy();
+		// The inline boundary says its area and the failure on one line.
+		expect(await screen.findByText("Target branch: This part failed to load.")).toBeTruthy();
 		expect(screen.getByRole("menuitemradio", { name: /Uncommitted changes/ })).toBeTruthy();
 	});
 

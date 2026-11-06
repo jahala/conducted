@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { idleLiveState, type SessionEvent } from "@conducted/protocol";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, type MessageId, ok } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../platform/platform.ts";
 import { REPOS_SQL, repoToParams } from "../db/repos.ts";
@@ -129,7 +129,7 @@ const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 			store: { getState: () => ({ bySession: {}, pausedSessionIds: {} }) },
 		},
 		notifications: { onLiveStateChanged: vi.fn() },
-		launchFor: () => ({ env: {}, providerKeys: {} }),
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspaceContextOf: vi.fn(async () => ok(workspace)),
 		defaultConfig: async () => ok(sampleSession.config),
 		setting: <T>(key: string) => settings[key] as T,
@@ -362,6 +362,51 @@ describe("CHAT-02 sends a message as a new turn", () => {
 		await h.service.send(session.id, "Steer", [], "auto");
 
 		expect(h.queue.enqueue).toHaveBeenCalledTimes(1);
+		expect(sendMessageCalls(h.calls)).toHaveLength(0);
+	});
+});
+
+describe("CHAT-03 steering through the send path", () => {
+	it("sends a queued row under the row's own id, so startup repair can match it", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		h.service.store.setState({
+			liveStates: {
+				[session.id]: { ...idleLiveState, status: "working" },
+			},
+		});
+
+		const sent = await h.service.send(session.id, "Steer", [], "steer", "queued-7" as MessageId);
+
+		expect(sent).toEqual(ok(undefined));
+		const [call] = sendMessageCalls(h.calls);
+		expect(call?.params.messageId).toBe("queued-7");
+		expect(call?.params.delivery).toBe("steer");
+	});
+
+	it("refuses a steer asked for by name when the agent cannot steer, and queues nothing", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(
+			await h.service.create(workspaceId, {
+				...sampleSession.config,
+				agent: "acp",
+				acpAgent: "opencode",
+			}),
+		);
+		h.service.store.setState({
+			liveStates: {
+				[session.id]: { ...idleLiveState, status: "working" },
+			},
+		});
+
+		const sent = await h.service.send(session.id, "Steer", [], "steer");
+
+		expect(sent.ok).toBe(false);
+		if (sent.ok) return;
+		expect(sent.error.code).toBe("steer_unsupported");
+		expect(h.queue.enqueue).not.toHaveBeenCalled();
 		expect(sendMessageCalls(h.calls)).toHaveLength(0);
 	});
 });

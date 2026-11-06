@@ -1,11 +1,12 @@
 /**
  * @feature DATA-01 Query hook contract for screens
+ * @feature WS-02 Create from a branch, PR or issue
  * Owns: the git hooks: state, changed files, file diffs, branch commits and branches.
  * Behaviour: services-map.md 2.5 (queries for git data); core/hooks.ts states the contract.
  * Must handle: a branch whose commits cannot be read, a diff query that fails.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import { type AppError, appError, notImplemented, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, type WorkspaceId } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useStore } from "zustand";
@@ -18,6 +19,10 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 	const { services } = useServices();
 	const entry = useStore(services.git.store, (state) => state.byWorkspace[workspaceId]);
 	const prEntry = useStore(services.github.store, (state) => state.byWorkspace[workspaceId]);
+	// The pending action lives in the GitHub store, so this re-renders when an action starts and ends.
+	const pendingAction = useStore(services.github.store, () =>
+		services.github.pendingAction(workspaceId),
+	);
 	return useMemo<Loadable<GitState>>(() => {
 		if (entry === undefined || (entry.snapshot === null && entry.error === null)) {
 			return { state: "loading" };
@@ -31,13 +36,9 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 				),
 			};
 		}
-		const state = services.git.stateOf(
-			workspaceId,
-			prEntry,
-			services.github.pendingAction(workspaceId),
-		);
+		const state = services.git.stateOf(workspaceId, prEntry, pendingAction);
 		return state === null ? { state: "loading" } : { state: "ready", data: state };
-	}, [services.git, services.github, workspaceId, entry, prEntry]);
+	}, [services.git, workspaceId, entry, prEntry, pendingAction]);
 };
 const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
 	["git", "workspace", workspaceId, "changes", scope] as const;
@@ -105,4 +106,22 @@ export const useBranchCommits: Queries["useBranchCommits"] = (workspaceId) => {
 		};
 	}, [entry]);
 };
-export const useBranches: Queries["useBranches"] = () => notImplemented("WS-02");
+export const useBranches: Queries["useBranches"] = (repoId) => {
+	const { services } = useServices();
+	const repo = useStore(services.repo.store, (state) => state.reposById[repoId]);
+	const query = useQuery<string[], AppError>({
+		queryKey: ["git", "branches", repoId],
+		enabled: repo !== undefined,
+		queryFn: async () => {
+			if (repo === undefined) throw appError("repo_unknown", "That project was removed.");
+			const found = await services.git.listBranches(repo.rootPath);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+		staleTime: 5_000,
+	});
+	if (repo === undefined) return { state: "loading" };
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};

@@ -2,12 +2,58 @@
  * @feature CHAT-20 Send message card
  * Owns: The card for the agent sending a message to another chat.
  * Behaviour: ui-map.md 3.3 (send message).
- * Must handle: A target chat that was closed or deleted; a long message (collapsed).
+ * Must handle: A target chat that was closed or deleted (the result text is shown); a long message
+ * (it scrolls); a call that names no target.
  * Test first: A send_message call names the chat it went to.
  */
-import { notImplemented } from "@conducted/shared";
+import { ChatIcon } from "../../../../ui/icons.tsx";
+import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function SendMessageCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-20");
+export function SendMessageCard({ call, defaultExpanded }: ToolCardProps) {
+	const input = asRecord(call.item.input);
+	const target = textField(
+		input,
+		"chat",
+		"chatName",
+		"chat_name",
+		"target",
+		"targetChat",
+		"target_chat",
+		"session",
+		"sessionId",
+		"session_id",
+		"recipient",
+		"to",
+	);
+	const message = textField(input, "message", "text", "content", "prompt") ?? "";
+	const output = call.result?.output ?? "";
+	return (
+		<ToolCardFrame
+			title="Send message"
+			summary={target ?? undefined}
+			status={toolStatus(call)}
+			icon={<ChatIcon />}
+			expandAll={defaultExpanded}
+			body={
+				<div className="flex flex-col gap-2">
+					{target ? (
+						<p className="text-xs text-fg-muted">
+							Sent to <span className="font-medium text-fg">{target}</span>
+						</p>
+					) : (
+						<p className="text-xs text-fg-subtle">This call names no target chat.</p>
+					)}
+					{message.length > 0 ? (
+						<ToolOutput className="rounded-sm bg-surface p-2">{message}</ToolOutput>
+					) : null}
+					{output.length > 0 ? (
+						<pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
+							{output}
+						</pre>
+					) : null}
+				</div>
+			}
+		/>
+	);
 }

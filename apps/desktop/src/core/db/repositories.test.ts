@@ -1,7 +1,13 @@
 // @vitest-environment node
 import type { DatabaseSync } from "node:sqlite";
 import { idleLiveState } from "@conducted/protocol";
-import type { MessageId, RepoId, SessionId, WorkspaceId } from "@conducted/shared";
+import {
+	type MessageId,
+	ok,
+	type RepoId,
+	type SessionId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openTestDatabase } from "../../test/sqlite.ts";
 import { REPOS_SQL, repoToParams } from "./repos.ts";
@@ -169,6 +175,37 @@ describe("DATA-01 workspaces repository", () => {
 			ok: true,
 			value: false,
 		});
+	});
+
+	it("finishes an unarchive with the restored branch, folder and path, and clears the archive time", async () => {
+		seedWorkspace();
+		must(await repositories.workspaces.transitionState(workspaceId, "ready", "archiving"));
+		must(await repositories.workspaces.markArchived(workspaceId, "abc123"));
+		must(await repositories.workspaces.transitionState(workspaceId, "archived", "initializing"));
+		now = 7000;
+		expect(
+			await repositories.workspaces.finishUnarchive(workspaceId, {
+				branch: "feature/restored",
+				directoryName: "oslo-v1",
+				path: "/code/workspaces/Project/oslo-v1",
+			}),
+		).toEqual({ ok: true, value: true });
+		expect(must(await repositories.workspaces.get(workspaceId))).toMatchObject({
+			state: "ready",
+			branch: "feature/restored",
+			directoryName: "oslo-v1",
+			path: "/code/workspaces/Project/oslo-v1",
+			archivedAt: null,
+			archiveCommit: "abc123",
+			updatedAt: 7000,
+		});
+		expect(
+			await repositories.workspaces.finishUnarchive(workspaceId, {
+				branch: "feature/again",
+				directoryName: "oslo-v2",
+				path: "/code/workspaces/Project/oslo-v2",
+			}),
+		).toEqual({ ok: true, value: false });
 	});
 
 	it("moves activity forward only", async () => {
@@ -935,5 +972,31 @@ describe("DATA-01 terminals repository", () => {
 		expect(must(await repositories.terminals.listActive())).toHaveLength(0);
 		must(await repositories.terminals.setTitle(started.id, "server"));
 		expect(must(await repositories.terminals.get(started.id))?.title).toBe("server");
+	});
+
+	it("saves a terminal's screen state and reads it back, and clears it", async () => {
+		seedWorkspace();
+		const started = must(
+			await repositories.terminals.start({
+				workspaceId,
+				repoId: null,
+				kind: "terminal",
+				title: "zsh",
+				cwd: "/code/workspaces/oslo",
+				startCommand: null,
+				cols: 80,
+				rows: 24,
+			}),
+		);
+		expect(await repositories.terminals.getScreenState(started.id)).toEqual(ok(null));
+
+		const snapshot = JSON.stringify({ cursor: { row: 3, col: 7 }, alternateScreen: false });
+		expect(await repositories.terminals.setScreenState(started.id, snapshot)).toEqual(
+			ok(undefined),
+		);
+		expect(await repositories.terminals.getScreenState(started.id)).toEqual(ok(snapshot));
+
+		must(await repositories.terminals.setScreenState(started.id, null));
+		expect(await repositories.terminals.getScreenState(started.id)).toEqual(ok(null));
 	});
 });

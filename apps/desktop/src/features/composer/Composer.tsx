@@ -1,7 +1,7 @@
 /**
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
- * chips, MCP status) and the send or stop button.
+ * chips, ACP options, context wheel, MCP status) and the send or stop button.
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
@@ -13,40 +13,67 @@
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
  * when the app restarts; empty text (send disabled); attachments only (send enabled); the sidecar is
  * down (message kept, error shown, nothing lost); a draft write or clear that fails (error shown);
- * focus returns to the editor after sending; Cmd+L focuses the editor.
+ * focus returns to the editor after sending; Cmd+L focuses the editor; the file list fails to load
+ * (error shown) or an older list arrives after a newer one (dropped); a terminal for a slash
+ * command that cannot be created (shown on the bar, with Reopen terminal).
+ * The editor loads the `@` trigger (COMP-04) and the `/` trigger (COMP-06) from this composer, so
+ * both read the chat's service. The `@` menu lists the workspace's files, read again each time the
+ * menu opens, and offers "Attach current terminal output". The `#` trigger is left out until
+ * COMP-05 builds pull request search. A slash command the user picks does what
+ * `slashCommandAction` says: /clear opens a new chat tab (the tab strip's own Cmd+T handler) and
+ * closes this one, /restart restarts the agent, /plan and /fast run the plan and fast mode
+ * toggles of the toolbar, a command the agent lists is sent to it, and any other says it is not
+ * available. A terminal-effect command opens a terminal that runs it and shows the terminal
+ * command bar above the composer; the bar follows that terminal (closed, finished, failed) and
+ * restarts the agent when the user clicks Done.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
  * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
- * Dictation (COMP-08) and the context wheel (features/chat) are not mounted in this toolbar yet.
+ * Dictation (COMP-08) is not mounted in this toolbar yet.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
 
-import type { SessionId, WorkspaceId } from "@conducted/shared";
+import type { SlashCommand } from "@conducted/protocol";
+import type { SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, useSlashCommands } from "../../core/hooks.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
+import { ContextWheel } from "../chat/ContextWheel.tsx";
+import { AcpOptions } from "./AcpOptions.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
+import { buildComposerExtensions } from "./composer-extensions.ts";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
+import type { FileMentionItem } from "./mentions/FileMention.ts";
+import {
+	COMMAND_UNAVAILABLE,
+	PLAN_MODE_UNAVAILABLE,
+	type SlashListState,
+	slashCommandAction,
+	terminalCommandLine,
+} from "./mentions/SlashCommandExtension.ts";
 import { PlusMenu } from "./PlusMenu.tsx";
 import { SendButton, type SendButtonState } from "./SendButton.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
+import { TerminalCommandBar } from "./TerminalCommandBar.tsx";
 import { useDraftSync } from "./use-draft-sync.ts";
 
 export interface ComposerProps {
 	workspaceId: WorkspaceId;
 	sessionId: SessionId;
+	/** The editor once it exists, for a caller that needs to read or fill it. */
+	onEditorReady?: (editor: Editor | null) => void;
 }
 
 /** Below this measured width the toolbar folds into the 'More composer actions' menu. */
@@ -84,12 +111,65 @@ function MoreIcon() {
 	);
 }
 
-export function Composer({ sessionId }: ComposerProps) {
+/** A terminal-effect slash command and the terminal that runs it. */
+interface TerminalRun {
+	command: SlashCommand;
+	/** Null when the terminal could not be created. */
+	terminalId: TerminalId | null;
+	/** Why the terminal could not be created. */
+	error: string | null;
+}
+
+/** The terminal command bar, following the terminal that runs the command. */
+function TerminalCommandStatus({
+	workspaceId,
+	run,
+	onReopen,
+	onDone,
+}: {
+	workspaceId: WorkspaceId;
+	run: TerminalRun;
+	onReopen: () => void;
+	onDone: () => void;
+}) {
+	const { services } = useServices();
+	const terminal = useStore(services.terminals.store, (state) =>
+		run.terminalId === null
+			? undefined
+			: state.byWorkspace[workspaceId]?.find((entry) => entry.id === run.terminalId),
+	);
+	const exitCode = terminal?.exitCode ?? null;
+	const ended = terminal !== undefined && terminal.endedAt !== null;
+	// The command's `exit` ends the shell with its exit code. A terminal the user closed, or one
+	// killed by a signal, ends with no code: the command did not finish.
+	const finished = ended && exitCode !== null;
+	const closed = terminal === undefined || (ended && exitCode === null);
+	const failed = finished && exitCode !== 0;
+	return (
+		<TerminalCommandBar
+			command={run.command.name}
+			phase={finished ? "finished" : "running"}
+			error={run.error ?? (failed ? `The command exited with code ${exitCode}.` : null)}
+			terminalClosed={closed}
+			onReopen={onReopen}
+			onDone={onDone}
+		/>
+	);
+}
+
+export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProps) {
 	const actions = useActions();
 	const { services } = useServices();
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const narrow = useNarrowLayout(containerRef);
-	const [editor, setEditor] = useState<Editor | null>(null);
+	const [editor, setEditorState] = useState<Editor | null>(null);
+	const setEditor = useCallback(
+		(next: Editor | null) => {
+			setEditorState(next);
+			onEditorReady?.(next);
+		},
+		[onEditorReady],
+	);
 	const [attachments, setAttachments] = useState<string[]>([]);
 	const [text, setText] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -103,11 +183,169 @@ export function Composer({ sessionId }: ComposerProps) {
 		services.settings.store,
 		(state) => state.values.default_message_send_mode as string | undefined,
 	);
+	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
+	const slash = useSlashCommands(sessionId);
 	const working = live?.status === "working";
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
 	const queueByDefault = followUp === "queue";
 	const buttonState: SendButtonState = working ? (queueByDefault ? "queue" : "steer") : "send";
 	const disabled = busy || (text.trim().length === 0 && attachments.length === 0);
+
+	const runCommand = useRunCommandHandlers();
+	const slashCommands = useRef<readonly SlashCommand[]>([]);
+	const slashAgent = useRef(session?.config.agent);
+	const slashAcpAgent = useRef(session?.config.acpAgent);
+	const slashListState = useRef<SlashListState>({ state: "loading" });
+	slashCommands.current = slash.state === "ready" ? slash.data : [];
+	slashAgent.current = session?.config.agent;
+	slashAcpAgent.current = session?.config.acpAgent;
+	slashListState.current =
+		slash.state === "error"
+			? { state: "error", message: slash.error.message }
+			: { state: slash.state };
+	const [terminalRun, setTerminalRun] = useState<TerminalRun | null>(null);
+
+	// The '@' file list. It is read again each time the menu opens; only the newest answer is kept.
+	const files = useRef<FileMentionItem[]>([]);
+	const fileRequest = useRef(0);
+	const editorRef = useRef<Editor | null>(null);
+	editorRef.current = editor;
+	// A list read for another workspace must not show here.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the reset runs when the workspace changes
+	useEffect(() => {
+		fileRequest.current += 1;
+		files.current = [];
+	}, [workspaceId]);
+	const loadFiles = useCallback(async () => {
+		fileRequest.current += 1;
+		const request = fileRequest.current;
+		const listed = await services.workspaceFiles.tree(workspaceId);
+		if (request !== fileRequest.current) return;
+		if (!listed.ok) {
+			toastError("Couldn't list the workspace files", listed.error);
+			return;
+		}
+		files.current = listed.value.map((entry) => ({
+			path: entry.path,
+			isDirectory: entry.isDirectory,
+		}));
+		// Redraw an open '@' menu with the list that just arrived.
+		const view = editorRef.current?.isDestroyed === false ? editorRef.current.view : null;
+		view?.dispatch(view.state.tr);
+	}, [services, workspaceId]);
+
+	const attachTerminalOutput = useCallback(async () => {
+		const added = await actions.attachments.addTerminalOutput(sessionId);
+		if (!added.ok) {
+			toastError("Couldn't attach the terminal output", added.error);
+			return;
+		}
+		setAttachments((current) =>
+			current.includes(added.value) ? current : [...current, added.value],
+		);
+	}, [actions, sessionId]);
+
+	const startTerminalCommand = useCallback(
+		async (command: SlashCommand) => {
+			const line = terminalCommandLine(slashAgent.current, command);
+			if (line === null) {
+				toast.error(COMMAND_UNAVAILABLE);
+				return;
+			}
+			const created = await actions.terminals.create(workspaceId, { command: line });
+			setTerminalRun({
+				command,
+				terminalId: created.ok ? created.value.id : null,
+				error: created.ok ? null : created.error.message,
+			});
+		},
+		[actions, workspaceId],
+	);
+
+	const runSlashCommand = useCallback(
+		(command: SlashCommand) => {
+			const action = slashCommandAction(command, slashCommands.current, slashAgent.current);
+			switch (action.kind) {
+				case "terminal":
+					void startTerminalCommand(command);
+					return;
+				case "clear":
+					// The tab strip's own new-chat handler opens the fresh chat and shows it.
+					if (!runCommand("chat.newTab")) {
+						toast.error(COMMAND_UNAVAILABLE);
+						return;
+					}
+					void actions.sessions.close(sessionId).then((result) => {
+						if (!result.ok) toastError("Couldn't close the chat", result.error);
+					});
+					return;
+				case "restart":
+					void actions.sessions.restartAgent(sessionId).then((result) => {
+						if (!result.ok) toastError("Couldn't restart the agent", result.error);
+					});
+					return;
+				case "screen":
+					// The same handler the toolbar's plan chip and fast toggle register.
+					if (!runCommand(action.commandId)) {
+						toast.error(
+							action.commandId === "chat.togglePlanMode"
+								? PLAN_MODE_UNAVAILABLE
+								: COMMAND_UNAVAILABLE,
+						);
+					}
+					return;
+				case "send":
+					void actions.sessions.send(sessionId, action.text, [], "auto").then((result) => {
+						if (!result.ok) toastError("Couldn't run the slash command", result.error);
+					});
+					return;
+				case "unavailable":
+					toast.error(action.message);
+					return;
+			}
+		},
+		[actions, runCommand, sessionId, startTerminalCommand],
+	);
+
+	const finishTerminalCommand = useCallback(() => {
+		setTerminalRun(null);
+		void actions.sessions.restartAgent(sessionId).then((result) => {
+			if (!result.ok) toastError("Couldn't restart the agent", result.error);
+		});
+	}, [actions, sessionId]);
+
+	const extensions = useMemo(
+		() =>
+			buildComposerExtensions({
+				files: {
+					search: () => files.current,
+					onOpen: () => void loadFiles(),
+					actions: [
+						{
+							id: "terminal-output",
+							label: "Attach current terminal output",
+							onChoose: () => void attachTerminalOutput(),
+						},
+					],
+				},
+				slash: {
+					get commands() {
+						return [...slashCommands.current];
+					},
+					get agent() {
+						return slashAgent.current;
+					},
+					get acpAgent() {
+						return slashAcpAgent.current;
+					},
+					get listState() {
+						return slashListState.current;
+					},
+					onRun: runSlashCommand,
+				},
+			}),
+		[attachTerminalOutput, loadFiles, runSlashCommand],
+	);
 
 	const restore = useCallback((draft: Draft) => {
 		setAttachments([...draft.attachmentPaths]);
@@ -187,6 +425,16 @@ export function Composer({ sessionId }: ComposerProps) {
 			className="rounded-xl border border-border bg-surface shadow-xs"
 			data-narrow={narrow ? "true" : "false"}
 		>
+			{terminalRun === null ? null : (
+				<div className="px-2 pt-2">
+					<TerminalCommandStatus
+						workspaceId={workspaceId}
+						run={terminalRun}
+						onReopen={() => void startTerminalCommand(terminalRun.command)}
+						onDone={finishTerminalCommand}
+					/>
+				</div>
+			)}
 			<div className="flex items-center gap-1 px-2 pt-2">
 				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
 					<NotBuiltYet area="Attachments" variant="inline" resetKey={sessionId}>
@@ -198,8 +446,10 @@ export function Composer({ sessionId }: ComposerProps) {
 					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
 						<ModeChips sessionId={sessionId} />
 					</NotBuiltYet>
+					<AcpOptions sessionId={sessionId} />
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
+					<ContextWheel sessionId={sessionId} />
 					{narrow ? (
 						<Menu>
 							<MenuTrigger asChild>
@@ -220,6 +470,7 @@ export function Composer({ sessionId }: ComposerProps) {
 				onSubmit={(intent) => void send(intent)}
 				sendWith={sendWith}
 				onEditorReady={setEditor}
+				extensions={extensions}
 			/>
 			<div className="flex items-center justify-end gap-1 px-2 pb-2">
 				<SendButton

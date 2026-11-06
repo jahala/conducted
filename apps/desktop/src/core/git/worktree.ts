@@ -1,6 +1,8 @@
 /**
- * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin
- * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the
+ * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin; WS-06 unarchive
+ * @feature WS-02 Create from a branch, PR or issue
+ * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the base
+ * branch fetch and commit resolution, including a commit already resolved by the caller; the
  * archive snapshot, its discard repair, the HEAD pin, and the removal fallback; plus the rule that
  * makes a branch or folder name unique.
  * Behaviour: services-map.md 3.1 (workspace create), 3.13 (worktree-level config), 3.10 (archive
@@ -22,6 +24,8 @@ import type { FileSystem } from "../../platform/platform.ts";
 import { contextDir } from "../app-paths.ts";
 import {
 	addUpdatedPaths,
+	branchCreate,
+	checkpointerRestore,
 	commitEmptyInitial,
 	configGetLocal,
 	configGetWorktree,
@@ -35,6 +39,7 @@ import {
 	revParseHead,
 	showRefVerify,
 	updateRef,
+	worktreeAddExistingBranch,
 	worktreeAddNewBranch,
 	worktreeList,
 	worktreePrune,
@@ -124,6 +129,8 @@ export interface CreateWorktreeInput {
 	worktreePath: string;
 	/** Allow a local branch as the base when the repository has no usable remote. */
 	allowLocalBase: boolean;
+	/** A commit already resolved for the base. Skips the fetch. */
+	baseSha?: string;
 }
 
 export interface CreatedWorktree {
@@ -132,40 +139,28 @@ export interface CreatedWorktree {
 	warning: string | null;
 }
 
-/**
- * True when the worktree list names `path`, which tells a hook failure from a real one.
- * `git worktree list` prints real paths, so a symlinked workspaces root is resolved from inside
- * the new folder before comparing.
- */
-async function worktreeExists(
-	runner: GitRunner,
-	repoRootPath: string,
-	path: string,
-): Promise<boolean> {
-	const listed = await runner.stdout(worktreeList(), { cwd: repoRootPath });
-	if (!listed.ok) return false;
-	const paths = listed.value
-		.split("\n")
-		.filter((line) => line.startsWith("worktree "))
-		.map((line) => line.slice("worktree ".length));
-	if (paths.includes(path)) return true;
-	const real = await runner.stdout(revParse("--show-toplevel"), { cwd: path });
-	return real.ok && real.value !== "" && paths.includes(real.value);
+export interface ResolveBaseInput {
+	repoRootPath: string;
+	remote: string;
+	baseBranch: string;
+	/** Allow a local branch as the base when the repository has no usable remote. */
+	allowLocalBase: boolean;
 }
 
-/** Steps of services-map 3.1: empty-HEAD guard, fetch, resolve the base id, `worktree add`. */
-export async function createWorktree(
-	runner: GitRunner,
-	input: CreateWorktreeInput,
-): Promise<Result<CreatedWorktree>> {
-	const cwd = input.repoRootPath;
-	const head = await runner.runChecked(revParseHead(), { cwd });
-	if (!head.ok) {
-		if (!UNBORN_HEAD_PATTERN.test(head.error.message)) return head;
-		const committed = await runner.runChecked(commitEmptyInitial(), { cwd });
-		if (!committed.ok) return committed;
-	}
+export interface ResolvedBaseCommit {
+	baseSha: string;
+	warning: string | null;
+}
 
+/**
+ * Fetches the base branch and resolves its commit id, with services-map 3.1's offline and
+ * local-branch fallbacks. A caller that already resolved a commit skips this step.
+ */
+export async function resolveBaseCommit(
+	runner: GitRunner,
+	input: ResolveBaseInput,
+): Promise<Result<ResolvedBaseCommit>> {
+	const cwd = input.repoRootPath;
 	let warning: string | null = null;
 	let baseSha: string | null = null;
 	const fetched = await runner.runChecked(fetchBranchRefspec(input.remote, input.baseBranch), {
@@ -224,6 +219,53 @@ export async function createWorktree(
 			}
 			return err(appError("git_fetch_failed", fetched.error.message, fetched.error));
 		}
+	}
+	return baseSha === null
+		? err(appError("git_base_missing", "The base commit could not be resolved."))
+		: ok({ baseSha, warning });
+}
+
+/**
+ * True when the worktree list names `path`, which tells a hook failure from a real one.
+ * `git worktree list` prints real paths, so a symlinked workspaces root is resolved from inside
+ * the new folder before comparing.
+ */
+async function worktreeExists(
+	runner: GitRunner,
+	repoRootPath: string,
+	path: string,
+): Promise<boolean> {
+	const listed = await runner.stdout(worktreeList(), { cwd: repoRootPath });
+	if (!listed.ok) return false;
+	const paths = listed.value
+		.split("\n")
+		.filter((line) => line.startsWith("worktree "))
+		.map((line) => line.slice("worktree ".length));
+	if (paths.includes(path)) return true;
+	const real = await runner.stdout(revParse("--show-toplevel"), { cwd: path });
+	return real.ok && real.value !== "" && paths.includes(real.value);
+}
+
+/** Steps of services-map 3.1: empty-HEAD guard, fetch, resolve the base id, `worktree add`. */
+export async function createWorktree(
+	runner: GitRunner,
+	input: CreateWorktreeInput,
+): Promise<Result<CreatedWorktree>> {
+	const cwd = input.repoRootPath;
+	const head = await runner.runChecked(revParseHead(), { cwd });
+	if (!head.ok) {
+		if (!UNBORN_HEAD_PATTERN.test(head.error.message)) return head;
+		const committed = await runner.runChecked(commitEmptyInitial(), { cwd });
+		if (!committed.ok) return committed;
+	}
+
+	let warning: string | null = null;
+	let baseSha = input.baseSha ?? null;
+	if (baseSha === null) {
+		const resolved = await resolveBaseCommit(runner, input);
+		if (!resolved.ok) return resolved;
+		baseSha = resolved.value.baseSha;
+		warning = resolved.value.warning;
 	}
 
 	const added = await runner.runChecked(
@@ -431,6 +473,95 @@ export async function pinArchiveHead(
 		cwd: worktreePath,
 	});
 	return pinned.ok ? ok(head.value) : pinned;
+}
+
+/** The branches `git worktree list --porcelain` reports, as full ref names. */
+export function worktreeBranches(porcelain: string): string[] {
+	return porcelain
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.startsWith("branch "))
+		.map((line) => line.slice("branch ".length));
+}
+
+export interface BranchState {
+	exists: boolean;
+	tip: string | null;
+	/** True when another worktree has the branch checked out (services-map 3.10). */
+	checkedOutElsewhere: boolean;
+}
+
+/** Reads what unarchive needs to classify a branch: its existence, tip and checkout (3.10). */
+export async function readBranchState(
+	runner: GitRunner,
+	repoRootPath: string,
+	branch: string,
+): Promise<Result<BranchState>> {
+	const found = await runner.run(showRefVerify(`refs/heads/${branch}`), { cwd: repoRootPath });
+	if (!found.ok) return found;
+	const exists = found.value.exitCode === 0;
+	let tip: string | null = null;
+	if (exists) {
+		const resolved = await runner.stdout(revParse(`refs/heads/${branch}`), { cwd: repoRootPath });
+		if (!resolved.ok) return resolved;
+		tip = resolved.value === "" ? null : resolved.value;
+	}
+	const listed = await runner.stdout(worktreeList(), { cwd: repoRootPath });
+	if (!listed.ok) return listed;
+	return ok({
+		exists,
+		tip,
+		checkedOutElsewhere: worktreeBranches(listed.value).includes(`refs/heads/${branch}`),
+	});
+}
+
+export interface AddWorktreeOnBranchInput {
+	repoRootPath: string;
+	worktreePath: string;
+	branch: string;
+	/** The commit a missing branch is created from. Null reuses an existing branch. */
+	createFrom: string | null;
+}
+
+/** Adds a worktree on an existing branch, or creates the branch from `createFrom` first (3.10). */
+export async function addWorktreeOnBranch(
+	runner: GitRunner,
+	input: AddWorktreeOnBranchInput,
+): Promise<Result<void>> {
+	if (input.createFrom !== null) {
+		const created = await runner.runChecked(branchCreate(input.branch, input.createFrom), {
+			cwd: input.repoRootPath,
+		});
+		if (!created.ok) return created;
+	}
+	const added = await runner.runChecked(
+		worktreeAddExistingBranch(input.worktreePath, input.branch),
+		{ cwd: input.repoRootPath },
+	);
+	return added.ok ? ok(undefined) : added;
+}
+
+/** Restores the archive checkpoint; the caller treats a failure as a notice, not a failed restore. */
+export async function restoreArchiveCheckpoint(
+	runner: GitRunner,
+	checkpointerPath: string,
+	workspaceId: string,
+	worktreePath: string,
+): Promise<Result<void>> {
+	const restored = await runner.run(
+		checkpointerRestore(checkpointerPath, archiveCheckpointId(workspaceId)),
+		{ cwd: worktreePath },
+	);
+	if (!restored.ok) return restored;
+	if (restored.value.exitCode !== 0) {
+		return err(
+			appError(
+				"archive_restore_failed",
+				restored.value.stderr.trim() || "Couldn't restore the saved uncommitted changes.",
+			),
+		);
+	}
+	return ok(undefined);
 }
 
 /** Removes the worktree, falling back to the Trash and `worktree prune` (services-map 3.10). */

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type {
+	AcpConfigOption,
 	InteractionRequest,
 	LiveState,
 	ModelInfo,
@@ -142,6 +143,12 @@ class FakeAgentSession implements AgentSession {
 	disposeCalls = 0;
 	readonly appliedConfigs: SessionConfig[] = [];
 	readonly autoApprove: boolean[] = [];
+	listedOptions: AcpConfigOption[] = [];
+	readonly setOptionCalls: {
+		optionId: string;
+		value: string | boolean;
+		config: SessionConfig;
+	}[] = [];
 
 	constructor(readonly sessionId: SessionId) {}
 
@@ -175,6 +182,39 @@ class FakeAgentSession implements AgentSession {
 
 	setAutoApproveEdits(enabled: boolean): void {
 		this.autoApprove.push(enabled);
+	}
+
+	async listAcpConfigOptions(
+		_config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>> {
+		onAgentSessionId?.("acp-session-1");
+		return ok(this.listedOptions);
+	}
+
+	async setAcpConfigOption(
+		optionId: string,
+		value: string | boolean,
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>> {
+		onAgentSessionId?.("acp-session-1");
+		this.setOptionCalls.push({ optionId, value, config });
+		this.listedOptions = this.listedOptions.map((option) =>
+			option.id !== optionId
+				? option
+				: {
+						...option,
+						value:
+							option.value.kind === "switch"
+								? { kind: "switch", current: value === true }
+								: {
+										...option.value,
+										current: typeof value === "string" ? value : option.value.current,
+									},
+					},
+		);
+		return ok(this.listedOptions);
 	}
 }
 
@@ -482,6 +522,94 @@ function sendParams(
 	};
 }
 
+describe("AGENT-17 ACP chat options", () => {
+	test("AGENT-17 lists the options an ACP chat's live agent reports", async () => {
+		const h = harness({ runners: [new FakeRunner("acp")] });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+		await h.turns.last().succeed();
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		const options: AcpConfigOption[] = [
+			{
+				id: "thought_level",
+				name: "Thought level",
+				value: {
+					kind: "select",
+					current: "high",
+					choices: [{ value: "high", name: "High" }],
+				},
+			},
+		];
+		agent.listedOptions = options;
+
+		const listed = await h.manager.listAcpConfigOptions({ sessionId: sid("session-1") });
+
+		expect(listed).toEqual(ok({ options }));
+		expect(h.app.notifications).toContainEqual({
+			method: "agentSessionId",
+			params: { sessionId: sid("session-1"), agentSessionId: "acp-session-1" },
+		});
+	});
+
+	test("AGENT-17 sets one option and keeps it in the chat's config", async () => {
+		const h = harness({ runners: [new FakeRunner("acp")] });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+		await h.turns.last().succeed();
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		agent.listedOptions = [
+			{
+				id: "thought_level",
+				name: "Thought level",
+				value: {
+					kind: "select",
+					current: "medium",
+					choices: [
+						{ value: "medium", name: "Medium" },
+						{ value: "high", name: "High" },
+					],
+				},
+			},
+		];
+
+		const changed = await h.manager.setAcpConfigOption({
+			sessionId: sid("session-1"),
+			optionId: "thought_level",
+			value: "high",
+		});
+		const second = await h.manager.setAcpConfigOption({
+			sessionId: sid("session-1"),
+			optionId: "thought_level",
+			value: "high",
+		});
+
+		expect("ok" in changed && changed.ok).toBe(true);
+		expect("ok" in second && second.ok).toBe(true);
+		expect(agent.setOptionCalls[0]).toEqual({
+			optionId: "thought_level",
+			value: "high",
+			config: baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" }),
+		});
+		expect(agent.setOptionCalls[1]?.config.acpConfig).toEqual({ thought_level: "high" });
+	});
+
+	test("AGENT-17 refuses an option change while a reply is running", async () => {
+		const h = harness({ runners: [new HangingRunner("acp")] });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+
+		const changed = await h.manager.setAcpConfigOption({
+			sessionId: sid("session-1"),
+			optionId: "thought_level",
+			value: "high",
+		});
+
+		expect("ok" in changed && !changed.ok).toBe(true);
+		if ("ok" in changed && !changed.ok) expect(changed.error.code).toBe("acp_options_busy");
+		await h.manager.cancel({ sessionId: sid("session-1") });
+	});
+});
+
 describe("SIDE-03 duplicate guard and queue", () => {
 	test("SIDE-03 two sends with one message id start one turn and repeat the delivery", async () => {
 		const h = harness();
@@ -739,6 +867,54 @@ describe("SIDE-03 cancel, reset and status", () => {
 		h.manager.onAppAttached();
 		await until(() => h.app.requests.length === 1, "the interaction to be resent");
 		expect(h.app.requests[0]?.method).toBe("requestInteraction");
+	});
+});
+
+describe("CHAT-12 plan feedback is kept in the chat", () => {
+	const planAnswer = (approved: boolean, feedback?: string) => ({
+		sessionId: sid("session-1"),
+		interactionId: "plan-1" as InteractionId,
+		answer: {
+			kind: "plan_approval" as const,
+			approved,
+			...(feedback === undefined ? {} : { feedback }),
+		},
+	});
+	const feedbackEvents = (h: Harness) =>
+		h.publisher.events.filter(
+			(entry) => entry.event.type === "user_message" && entry.event.delivery === "plan_feedback",
+		);
+
+	test("CHAT-12 a plan rejected with feedback stores the feedback as a user message", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+
+		expect(
+			await h.manager.answerInteraction(planAnswer(false, "  Keep the old schema.  ")),
+		).toEqual(ok({ accepted: true, superseded: false }));
+
+		const stored = feedbackEvents(h);
+		expect(stored).toHaveLength(1);
+		expect(stored[0]?.sessionId).toBe(sid("session-1"));
+		expect(stored[0]?.event).toMatchObject({
+			type: "user_message",
+			turnId: tid("turn-1"),
+			text: "Keep the old schema.",
+			attachmentPaths: [],
+			delivery: "plan_feedback",
+		});
+	});
+
+	test("CHAT-12 an approval, a bare denial and a refused answer store no feedback", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+
+		await h.manager.answerInteraction(planAnswer(true));
+		await h.manager.answerInteraction(planAnswer(false));
+		h.interactions.answerResult = { accepted: false, superseded: true };
+		await h.manager.answerInteraction(planAnswer(false, "Too late."));
+
+		expect(feedbackEvents(h)).toEqual([]);
 	});
 });
 
@@ -1021,5 +1197,110 @@ describe("SIDE-03 real pipeline on one shared queue", () => {
 
 		expect(sent).toEqual(ok({ deliveredAs: "new_turn" }));
 		await h.manager.shutdown("signal");
+	});
+});
+
+describe("SIDE-21 a changed launch restarts the agent only when the chat is free", () => {
+	const withVariable = (value: string) => ({ env: { SETTING: value }, providerKeys: {} });
+	const warmParams = (launchValue: ReturnType<typeof withVariable>) => ({
+		sessionId: sid("session-1"),
+		config: baseConfig(),
+		workspace: workspace("/work/alpha"),
+		launch: launchValue,
+	});
+
+	test("SIDE-21 a change while a turn runs restarts nothing; the next idle message restarts with resume", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ launch: withVariable("one") }));
+		const runner = h.runners.get("claude") as FakeRunner;
+		const first = h.processes.agents.values().next().value as FakeAgentSession;
+
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+		expect(runner.started).toHaveLength(1);
+		expect(first.disposeCalls).toBe(0);
+
+		await h.turns.last().succeed();
+		await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				firstMessage: false,
+				launch: withVariable("two"),
+				resume: { agentSessionId: "agent-1" },
+			}),
+		);
+
+		expect(first.disposeCalls).toBe(1);
+		expect(runner.started).toHaveLength(2);
+		expect(runner.started[1]?.env.SETTING).toBe("two");
+		expect(runner.started[1]?.resume).toEqual({ agentSessionId: "agent-1" });
+	});
+
+	test("SIDE-21 background tasks keep the agent; the first request after they end restarts it", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ launch: withVariable("one") }));
+		await h.turns.last().succeed();
+		const runner = h.runners.get("claude") as FakeRunner;
+		h.liveState.set(sid("session-1"), {
+			...h.liveState.get(sid("session-1")),
+			backgroundTasks: [{ id: "task-1", kind: "shell", description: "npm run dev" }],
+		});
+
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+		expect(runner.started).toHaveLength(1);
+
+		h.liveState.set(sid("session-1"), {
+			...h.liveState.get(sid("session-1")),
+			backgroundTasks: [],
+		});
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+
+		expect(runner.started).toHaveLength(2);
+		expect(runner.started[1]?.env.SETTING).toBe("two");
+	});
+
+	test("SIDE-21 a launch changed and changed back while the chat worked restarts nothing", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ launch: withVariable("one") }));
+		const runner = h.runners.get("claude") as FakeRunner;
+
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+		await h.turns.last().succeed();
+		await h.manager.warmAgent(warmParams(withVariable("one")));
+
+		expect(runner.started).toHaveLength(1);
+		expect(h.processes.disconnected).toEqual([]);
+	});
+
+	test("SIDE-21 the program path of the chat's launch reaches the runner's start", async () => {
+		const h = harness();
+
+		await h.manager.sendMessage(
+			sendParams({ launch: { env: {}, providerKeys: {}, executablePath: "/opt/claude/claude" } }),
+		);
+
+		const runner = h.runners.get("claude") as FakeRunner;
+		expect(runner.started[0]?.executablePath).toBe("/opt/claude/claude");
+	});
+
+	test("SIDE-21 an ACP chat's environment holds only the keys of its own providers", async () => {
+		const h = harness({ runners: [new FakeRunner("acp")] });
+
+		await h.manager.sendMessage(
+			sendParams({
+				config: baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" }),
+				launch: {
+					env: {},
+					providerKeys: {
+						OPENROUTER_API_KEY: { value: "or-secret", source: "entered" },
+						CURSOR_API_KEY: { value: "cursor-secret", source: "entered" },
+					},
+				},
+			}),
+		);
+
+		const runner = h.runners.get("acp") as FakeRunner;
+		expect(runner.started[0]?.env.OPENROUTER_API_KEY).toBe("or-secret");
+		expect(runner.started[0]?.env.CURSOR_API_KEY).toBeUndefined();
 	});
 });

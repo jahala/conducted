@@ -1,7 +1,8 @@
 /**
  * @feature REV-01 Git panel tab bodies
- * Owns: tests that an unbuilt tab body (All files, Checks) does not take the whole panel down,
- * and that a review request started in one workspace does not change another workspace's panel.
+ * Owns: tests that an unbuilt tab body (Checks) does not take the whole panel down, that the built
+ * All files tab keeps the panel, and that a review request started in one workspace does not change
+ * another workspace's panel.
  * Test first: choosing the Checks tab keeps the header and the tab strip, and the Changes tab
  * works again afterwards.
  */
@@ -22,10 +23,16 @@ vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => null,
 	useSetting: () => false,
 	useLiveShortcut: () => null,
+	useFileTree: () => ({ state: "loading" }),
+	useWorkspace: () => ({ state: "loading" }),
+	useSessions: () => ({ state: "loading" }),
+	useChangedFiles: () => ({ state: "loading" }),
+	useDiffComments: () => ({ state: "ready", data: [] }),
 	useActions: () => ({
 		git: {},
 		pullRequests: { requestAiReview: state.requestAiReview },
-		files: { open: vi.fn() },
+		files: { open: vi.fn(), attachToChat: vi.fn() },
+		app: { copyText: vi.fn() },
 	}),
 }));
 
@@ -64,12 +71,12 @@ const choose = (name: string | RegExp) =>
 	fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0 });
 
 describe("REV-01 git panel with unbuilt tabs", () => {
-	it("keeps the header and tab strip when the Checks tab is not built, and recovers", () => {
+	it("keeps the header and tab strip when moving to the Checks tab, and recovers", () => {
 		render(<GitPanel workspaceId={"w1" as WorkspaceId} />);
 		expect(screen.getByText("changes body")).toBeTruthy();
 
 		choose("Checks");
-		expect(screen.getByText(/Not built yet: PR-04/)).toBeTruthy();
+		expect(screen.getByText("No pull request yet.")).toBeTruthy();
 		expect(screen.getByRole("tab", { name: /Changes/ })).toBeTruthy();
 		expect(screen.getAllByText("Uncommitted changes").length).toBeGreaterThan(0);
 
@@ -77,18 +84,19 @@ describe("REV-01 git panel with unbuilt tabs", () => {
 		expect(screen.getByText("changes body")).toBeTruthy();
 	});
 
-	it("keeps the panel when the All files tab is not built", () => {
+	it("keeps the panel when the built All files tab shows its loading state", () => {
 		render(<GitPanel workspaceId={"w1" as WorkspaceId} />);
 		choose("All files");
-		expect(screen.getByText(/Not built yet: REV-06/)).toBeTruthy();
+		expect(screen.getAllByRole("status", { name: "Loading files" }).length).toBeGreaterThan(0);
 		expect(screen.getByRole("tab", { name: "Checks" })).toBeTruthy();
 	});
 
-	it("moves from one unbuilt tab to the next without sticking on the first message", () => {
+	it("moves from an unbuilt tab to the built one without sticking on the first message", () => {
 		render(<GitPanel workspaceId={"w1" as WorkspaceId} />);
 		choose("Checks");
 		choose("All files");
-		expect(screen.getByText(/Not built yet: REV-06/)).toBeTruthy();
+		expect(screen.queryByText(/Not built yet: PR-04/)).toBeNull();
+		expect(screen.getAllByRole("status", { name: "Loading files" }).length).toBeGreaterThan(0);
 	});
 });
 

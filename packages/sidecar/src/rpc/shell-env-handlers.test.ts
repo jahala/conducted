@@ -33,6 +33,8 @@ function deps(shellEnv: ShellEnvProvider): HandlerDeps {
 			setAutoApproveEdits: async () => ({}),
 			getSessionStatus: async () => ({ known: true }),
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
+			listAcpConfigOptions: async () => ({ options: [] }),
+			setAcpConfigOption: async () => ({ options: [] }),
 			liveStateOf: () => undefined,
 			onAppAttached: () => {},
 			shutdown: async () => {},

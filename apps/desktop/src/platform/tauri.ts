@@ -19,7 +19,8 @@
  * event before it spawns, so a command that ends at once still reports its exit; a command that is slower
  * than its `timeoutMs` is the Rust side's job (it kills the process group); the database opens
  * `sqlite:conducted.db` through the sql plugin and must run `PRAGMA journal_mode = WAL` and
- * `PRAGMA foreign_keys = ON` on its connection before the first statement; `Database.transaction`
+ * `PRAGMA foreign_keys = ON` on its connection before the first statement; the database opens on
+ * its first statement so the startup version check runs before the migrator; `Database.transaction`
  * must serialise: every statement goes through one queue, and a transaction holds it from
  * BEGIN IMMEDIATE to COMMIT or ROLLBACK, so only one statement uses the plugin's pool at a time
  * and the lazily grown pool does not open a second connection while the transaction is open.
@@ -66,11 +67,13 @@ import type {
 	Clipboard,
 	Database,
 	Dialogs,
+	FileDropEvent,
 	FileSearch,
 	FileStat,
 	FileSystem,
 	GrepMatch,
 	Http,
+	HttpResponse,
 	Keychain,
 	Notifications,
 	Opener,
@@ -121,9 +124,17 @@ export interface TauriOpenerBindings {
 	openUrl(url: string): Promise<void>;
 }
 
+/** One drag and drop event from Tauri's window API. Positions are physical pixels. */
+export type TauriDragDropEvent =
+	| { type: "enter"; paths: string[]; position: { x: number; y: number } }
+	| { type: "over"; position: { x: number; y: number } }
+	| { type: "drop"; paths: string[]; position: { x: number; y: number } }
+	| { type: "leave" };
+
 export interface TauriWindowBindings {
 	isFocused(): Promise<boolean>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	onDragDropEvent(handler: (event: TauriDragDropEvent) => void): Promise<UnlistenFn>;
 }
 
 export interface TauriBindings {
@@ -172,6 +183,8 @@ export const realTauriBindings: TauriBindings = {
 		isFocused: () => getCurrentWindow().isFocused(),
 		listen: (event, handler) =>
 			getCurrentWindow().listen(event, (e) => handler(e.payload as never)),
+		onDragDropEvent: (handler) =>
+			getCurrentWindow().onDragDropEvent((event) => handler(event.payload)),
 	},
 	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
@@ -208,17 +221,15 @@ interface EventSource {
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
 }
 
-function onEvent<T>(
-	bindings: EventSource,
-	event: string,
+function subscribe<T>(
+	start: (handler: (payload: T) => void) => Promise<UnlistenFn>,
 	handler: (payload: T) => void,
 ): () => void {
 	let active = true;
 	let unlisten: UnlistenFn | null = null;
-	void bindings
-		.listen<T>(event, (payload) => {
-			if (active) handler(payload);
-		})
+	void start((payload) => {
+		if (active) handler(payload);
+	})
 		.then((stop) => {
 			if (active) unlisten = stop;
 			else stop();
@@ -234,6 +245,38 @@ function onEvent<T>(
 			unlisten = null;
 		}
 	};
+}
+
+function onEvent<T>(
+	bindings: EventSource,
+	event: string,
+	handler: (payload: T) => void,
+): () => void {
+	return subscribe((listener) => bindings.listen<T>(event, listener), handler);
+}
+
+/** Turns one Tauri drag event into the Platform's event, with its real paths and pixel position. */
+function toFileDropEvent(event: TauriDragDropEvent): FileDropEvent {
+	switch (event.type) {
+		case "enter":
+			return {
+				kind: "enter",
+				paths: [...event.paths],
+				x: event.position.x,
+				y: event.position.y,
+			};
+		case "over":
+			return { kind: "over", x: event.position.x, y: event.position.y };
+		case "drop":
+			return {
+				kind: "drop",
+				paths: [...event.paths],
+				x: event.position.x,
+				y: event.position.y,
+			};
+		case "leave":
+			return { kind: "leave" };
+	}
 }
 
 // ---------------------------------------------------------------- names (docs/plans/tauri-commands.md)
@@ -378,7 +421,15 @@ export async function checkHealth(bindings: Pick<TauriBindings, "invoke">): Prom
 
 // ---------------------------------------------------------------- groups (placeholders)
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`. Events: quit, deep link. */
+/** The answer of `db_version_check` in Rust (apps/desktop/src-tauri/src/db.rs). */
+interface DbVersionCheck {
+	state: "ok" | "fresh" | "failed_migration" | "database_newer";
+	appVersion: number;
+	dbVersion: number | null;
+	message: string | null;
+}
+
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`. Events: quit, deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -387,7 +438,31 @@ export function createTauriAppInfo(
 		version: info.version,
 		channel: info.channel,
 		health: () => checkHealth(bindings),
-		dbVersionWarning: () => notImplemented("PLAT-17"),
+		dbVersionWarning: async () => {
+			const checked = await invokeResult<DbVersionCheck>(bindings, COMMANDS.dbVersionCheck);
+			if (!checked.ok) return checked;
+			const { state, dbVersion, appVersion, message } = checked.value;
+			if (state === "database_newer") {
+				if (dbVersion === null) {
+					return err(
+						appError(
+							"db_version_unreadable",
+							message ?? "The database version could not be read, so startup cannot continue.",
+						),
+					);
+				}
+				return ok({ databaseVersion: dbVersion, appVersion });
+			}
+			if (state === "failed_migration") {
+				return err(
+					appError(
+						"db_migration_failed",
+						message ?? "A database upgrade did not finish, so startup cannot continue.",
+					),
+				);
+			}
+			return ok(null);
+		},
 		onDeepLink: () => notImplemented("PLAT-16"),
 		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
 		quit: async () => {
@@ -469,6 +544,41 @@ export async function createTauriDatabase(
 		return err(toAppError(error));
 	}
 	return ok(createQueuedDatabase(raw, options));
+}
+
+/**
+ * The same database, opened on its first statement instead of now. Startup asks the Rust shell
+ * whether the database is newer before any service touches it, so the plugin's migrator must not
+ * run while the Platform is built. A failed load reaches each call waiting on it as its `AppError`,
+ * and is then forgotten, so the next statement (after the startup screen's Retry) loads again.
+ */
+export function createLazyTauriDatabase(
+	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
+	options: TauriDatabaseOptions = {},
+): Database {
+	let opened: Promise<Result<Database>> | null = null;
+	const open = (): Promise<Result<Database>> => {
+		if (opened !== null) return opened;
+		const attempt = createTauriDatabase(bindings, options).then((result) => {
+			// A failed load must not stay cached, or a file locked at startup fails every statement.
+			if (!result.ok && opened === attempt) opened = null;
+			return result;
+		});
+		opened = attempt;
+		return attempt;
+	};
+	const handle = async (): Promise<Database> => {
+		const result = await open();
+		if (!result.ok) throw result.error;
+		return result.value;
+	};
+	return {
+		execute: async (sql, params) => (await handle()).execute(sql, params),
+		select: async <Row>(sql: string, params?: readonly unknown[]) =>
+			(await handle()).select<Row>(sql, params),
+		transaction: async <T>(work: (db: Database) => Promise<T>) =>
+			(await handle()).transaction(work),
+	};
 }
 
 /** Payload of `shell://done`, as shell.rs sends it. */
@@ -923,7 +1033,13 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 				stopBlur();
 			};
 		},
-		onFileDrop: () => notImplemented("PLAT-33"),
+		onFileDrop: (listener) => {
+			const window = currentWindow();
+			return subscribe<TauriDragDropEvent>(
+				(handler) => window.onDragDropEvent(handler),
+				(event) => listener(toFileDropEvent(event)),
+			);
+		},
 		setZoom: () => notImplemented("PLAT-23"),
 		setVibrancy: () => notImplemented("PLAT-23"),
 		setTrafficLightPosition: () => notImplemented("PLAT-23"),
@@ -936,10 +1052,11 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 }
 
 /** `menu_set_shortcuts { shortcuts }`, event `menu://command` (payload: command id). */
-export function createTauriMenu(_bindings: TauriBindings): AppMenu {
+export function createTauriMenu(bindings: TauriBindings): AppMenu {
 	return {
-		setShortcuts: () => notImplemented("PLAT-33"),
-		onCommand: () => notImplemented("PLAT-33"),
+		setShortcuts: (shortcuts) =>
+			invokeResult(bindings, COMMANDS.menuSetShortcuts, { shortcuts: [...shortcuts] }),
+		onCommand: (listener) => onEvent(bindings, EVENTS.menuCommand, listener),
 	};
 }
 
@@ -955,10 +1072,16 @@ export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 }
 
 /** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`. */
-export function createTauriAttachments(_bindings: TauriBindings): AttachmentFiles {
+export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles {
 	return {
-		materialize: () => notImplemented("PLAT-33"),
-		resizeImage: () => notImplemented("PLAT-33"),
+		materialize: (sourcePath, destinationPath, options) =>
+			invokeResult(bindings, COMMANDS.attachmentMaterialize, {
+				sourcePath,
+				destinationPath,
+				resizeImage: options.resizeImage,
+			}),
+		resizeImage: (sourcePath, destinationPath) =>
+			invokeResult(bindings, COMMANDS.imageResize, { sourcePath, destinationPath }),
 	};
 }
 
@@ -988,11 +1111,37 @@ export function createTauriPrograms(bindings: TauriBindings): Programs {
 	};
 }
 
-/** `http_fetch { request }`, `http_download { url, destinationPath, expectedSha256, onProgress: Channel }`, `http_cancel { id }`. */
-export function createTauriHttp(_bindings: TauriBindings): Http {
+/** `http_fetch { request }`, `http_download { id, url, destinationPath, expectedSha256, onProgress: Channel }`, `http_cancel { id }`. */
+export function createTauriHttp(bindings: TauriBindings): Http {
 	return {
-		fetch: () => notImplemented("PLAT-30"),
-		download: () => notImplemented("PLAT-30"),
+		fetch: (request) => invokeResult<HttpResponse>(bindings, COMMANDS.httpFetch, { request }),
+		download: (input) => {
+			const id = crypto.randomUUID();
+			const channel = new Channel<{ receivedBytes: number; totalBytes: number | null }>(
+				(message) => {
+					input.onProgress?.(message.receivedBytes, message.totalBytes);
+				},
+			);
+			const done = invokeResult<{ path: string; sizeBytes: number; sha256: string }>(
+				bindings,
+				COMMANDS.httpDownload,
+				{
+					id,
+					url: input.url,
+					destinationPath: input.destinationPath,
+					expectedSha256: input.expectedSha256 ?? null,
+					onProgress: channel,
+				},
+			);
+			return {
+				id,
+				done,
+				cancel: async () => {
+					const result = await invokeResult(bindings, COMMANDS.httpCancel, { id });
+					if (!result.ok) throw result.error;
+				},
+			};
+		},
 	};
 }
 
@@ -1009,8 +1158,9 @@ interface FsPathsPayload {
 }
 
 /**
- * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, database load, then
- * the groups above. Returns the first failure as an `Err`.
+ * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, then the groups above.
+ * The database opens on its first statement, so the startup version check runs before the plugin's
+ * migrator. Returns the first failed startup call as an `Err`.
  */
 export async function createTauriPlatform(
 	bindings: TauriBindings = realTauriBindings,
@@ -1025,12 +1175,10 @@ export async function createTauriPlatform(
 	if (!paths.ok) return paths;
 
 	const app = createTauriAppInfo(bindings, info.value);
-	const database = await createTauriDatabase(bindings, { log: createAppLogSink(app) });
-	if (!database.ok) return database;
 
 	const platform: Platform = {
 		app,
-		db: database.value,
+		db: createLazyTauriDatabase(bindings, { log: createAppLogSink(app) }),
 		shell: createTauriShell(bindings),
 		fs: createTauriFileSystem(bindings, paths.value),
 		fileSearch: createTauriFileSearch(bindings),

@@ -1,0 +1,54 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FileTreeRow, type FileTreeRowProps } from "./FileTreeRow.tsx";
+
+afterEach(cleanup);
+
+const row = (over: Partial<FileTreeRowProps> = {}): FileTreeRowProps => ({
+	name: "app.ts",
+	path: "src/app.ts",
+	depth: 1,
+	isDirectory: false,
+	expanded: false,
+	selected: false,
+	changed: false,
+	onToggle: vi.fn(),
+	onOpen: vi.fn(),
+	...over,
+});
+
+describe("REV-06 file tree row", () => {
+	it("shows the change marker for a changed file and hides it for an unchanged one", () => {
+		const props = row({ changed: true });
+		const view = render(<FileTreeRow {...props} />);
+		expect(screen.getByRole("img", { name: "Changed" })).toBeTruthy();
+
+		view.rerender(<FileTreeRow {...props} changed={false} />);
+		expect(screen.queryByRole("img", { name: "Changed" })).toBeNull();
+	});
+
+	it("chooses the file icon from the file type", () => {
+		const view = render(<FileTreeRow {...row()} />);
+		const icon = view.container.querySelector("[data-file-icon]");
+		expect(icon?.getAttribute("data-kind")).toBe("code");
+
+		view.rerender(<FileTreeRow {...row({ name: "README.md", path: "README.md" })} />);
+		expect(view.container.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe(
+			"document",
+		);
+	});
+
+	it("toggles a folder from its chevron and opens a file on double click", () => {
+		const onToggle = vi.fn();
+		const onOpen = vi.fn();
+		const view = render(
+			<FileTreeRow {...row({ name: "src", path: "src", isDirectory: true, onToggle, onOpen })} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Expand src" }));
+		expect(onToggle).toHaveBeenCalledTimes(1);
+
+		view.rerender(<FileTreeRow {...row({ onToggle, onOpen })} />);
+		fireEvent.doubleClick(screen.getByRole("treeitem"));
+		expect(onOpen).toHaveBeenCalledTimes(1);
+	});
+});

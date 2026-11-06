@@ -1,13 +1,15 @@
 /**
  * @feature REV-01 GitPanel
  * @feature GIT-06 Cmd+Shift+L and the pull outcome toasts
+ * @feature PR-06 Cmd+Shift+M merges the pull request
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: All files, Changes or Checks. Entry point embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs); frontend layout in structure-map.md 3.2.
  * Data: useGitState, useWorkspaceStatus (agent working), useActions().
  * Children: GitHeader, GitPanelTabs, changes/ChangesTab, files/FilesTab, checks/ChecksTab. Each tab
- * body sits in its own NotBuiltYet boundary, keyed by the tab, so an unbuilt tab (All files, Checks)
- * shows which feature is missing while the header and the tab strip stay usable.
+ * body sits in its own NotBuiltYet boundary, keyed by the tab, so a tab that is not built or fails
+ * shows which feature it is while the header and the tab strip stay usable. The Checks tab is marked
+ * failing when a check that blocks the merge failed (checks-summary.ts, the header's rule).
  * The "Artifacts", "Desktop" and "Chat" tabs of Conductor are cloud or team features and are left
  * out.
  * The workspace URL state (workspace/workspace-search.ts) holds `gitTab`, `scope` and the open
@@ -17,11 +19,11 @@
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
  * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR",
  * "Commit and push", "Start an AI code review" and "Show uncommitted changes" handled only while
- * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push" only
- * while the header offers that action, one review request at a time per workspace, and a
+ * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push" and
+ * "Merge the pull request" (Cmd+Shift+M) only while the header offers that action, one review request at a time per workspace, and a
  * workspace switch mid-request (the old request's result does not touch the new workspace's
  * dialog), and one header action at a time per workspace and action: the header button and the
- * Cmd+Shift+P, Cmd+Shift+Y and Cmd+Shift+L shortcuts share one single-flight guard, so a second
+ * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L and Cmd+Shift+M shortcuts share one single-flight guard, so a second
  * key press or click while the action runs is ignored.
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
@@ -46,6 +48,7 @@ import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
+import { summarizeChecks } from "./checks/checks-summary.ts";
 import { FilesTab } from "./files/FilesTab.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs } from "./GitPanelTabs.tsx";
@@ -250,6 +253,15 @@ export function GitPanel({
 		return true;
 	});
 
+	// Cmd+Shift+M reaches the same action as the header's merge button (the button shows this key
+	// for both "merge" and "merge_stack"), and only while the header offers it: a pull request that
+	// is not ready, or a viewer who cannot merge, gets no merge.
+	useCommandHandler("pr.merge", "area", () => {
+		const offered = headerInputs === null ? null : computeGitHeader(headerInputs).action?.id;
+		if (offered === "merge" || offered === "merge_stack") void runGuarded(offered);
+		return true;
+	});
+
 	const startReview = async (extraInstructions: string | null): Promise<void> => {
 		// One review at a time per workspace: a second press or the dialog's Send must not start
 		// another chat.
@@ -299,7 +311,9 @@ export function GitPanel({
 	const checksFailing =
 		git.state === "ready" &&
 		git.data.pullRequest !== null &&
-		git.data.pullRequest.checks.some((check) => check.state === "failure");
+		summarizeChecks(git.data.pullRequest.checks, {
+			treatOptionalAsBlocking: optionalChecksBlocking === true,
+		}).overall === "failing";
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">

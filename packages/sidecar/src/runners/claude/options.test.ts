@@ -51,6 +51,7 @@ function input(overrides: Partial<ClaudeOptionsInput> = {}): ClaudeOptionsInput 
 	return {
 		start: start(),
 		executablePath: "/bin/claude",
+		viaRuntime: false,
 		hasTranscript: false,
 		canUseTool: (async () => ({
 			behavior: "allow",
@@ -211,5 +212,52 @@ describe("AGENT-02 Claude SDK options", () => {
 		expect(options.fallbackModel).toBeUndefined();
 		expect(options.maxBudgetUsd).toBeUndefined();
 		expect(options.persistSession).toBeUndefined();
+	});
+});
+
+describe("AGENT-16 Claude options carry the chat's settings", () => {
+	test("output style, fast mode, ultracode and Chrome reach the SDK options", () => {
+		const options = buildClaudeOptions(
+			input({
+				start: start({
+					config: config({
+						claudeOutputStyle: "concise",
+						fastMode: true,
+						effort: "ultracode",
+						claudeInChrome: true,
+					}),
+				}),
+			}),
+		);
+
+		expect(options.settings).toEqual({
+			outputStyle: "concise",
+			fastMode: true,
+			ultracode: true,
+		});
+		expect(options.extraArgs).toEqual({ chrome: null });
+		expect(options.effort).toBeUndefined();
+		expect(options.thinking).toEqual({ type: "adaptive", display: "summarized" });
+	});
+
+	test("the default settings leave the settings and extra arguments unset", () => {
+		const options = buildClaudeOptions(input());
+
+		expect(options.settings).toBeUndefined();
+		expect(options.extraArgs).toBeUndefined();
+	});
+});
+
+describe("SIDE-21 the program the runner chose reaches the SDK", () => {
+	test("a .js program starts through node, and a native one names no runtime", () => {
+		const script = buildClaudeOptions(
+			input({ executablePath: "/opt/claude/cli.js", viaRuntime: true }),
+		);
+		const native = buildClaudeOptions(input({ executablePath: "/opt/claude/claude" }));
+
+		expect(script.pathToClaudeCodeExecutable).toBe("/opt/claude/cli.js");
+		expect(script.executable).toBe("node");
+		expect(native.pathToClaudeCodeExecutable).toBe("/opt/claude/claude");
+		expect(native.executable).toBeUndefined();
 	});
 });

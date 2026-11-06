@@ -251,7 +251,11 @@ describe("SIDE-24 utility prompt success", () => {
 			setTargetBranch: false,
 		});
 		expect(first.workspace.workspacePath).toBe("/work/alpha");
-		expect(first.env).toEqual({ PATH: "/usr/bin" });
+		expect(first.env).toMatchObject({
+			PATH: "/usr/bin",
+			CONDUCTED_WORKSPACE_PATH: "/work/alpha",
+			DISABLE_AUTO_UPDATE: "true",
+		});
 	});
 
 	test("SIDE-24 refuses every interaction and resolves beforeFirstWrite", async () => {
@@ -306,6 +310,30 @@ describe("SIDE-24 utility prompt success", () => {
 		expect(typeof finished?.data?.durationMs).toBe("number");
 		expect(JSON.stringify(records)).not.toContain("sk-secret");
 		expect(JSON.stringify(records)).not.toContain("not-a-secret");
+	});
+});
+
+describe("SIDE-21 utility prompt launch", () => {
+	test("SIDE-21 the launch's variables and own provider key reach the throwaway runner", async () => {
+		const { fake, service } = runner(async () => ({ kind: "success" }));
+
+		await service.run(
+			params({
+				launch: {
+					env: { FROM_THE_USER: "yes" },
+					providerKeys: {
+						ANTHROPIC_API_KEY: { value: "secret-anthropic", source: "entered" },
+						OPENAI_API_KEY: { value: "secret-openai", source: "entered" },
+					},
+				},
+			}),
+		);
+
+		const started = fake.starts[0];
+		if (started === undefined) throw new Error("no start was recorded");
+		expect(started.env.FROM_THE_USER).toBe("yes");
+		expect(started.env.ANTHROPIC_API_KEY).toBe("secret-anthropic");
+		expect(started.env.OPENAI_API_KEY).toBeUndefined();
 	});
 });
 

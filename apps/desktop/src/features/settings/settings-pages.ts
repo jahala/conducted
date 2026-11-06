@@ -4,20 +4,18 @@
  * string into a typed target.
  * Behaviour: ui-map.md 6, "Navigation": Personal (General, Account, Appearance, Keyboard shortcuts,
  * Default models, Git, Connections), Agents and environment (Agents, Environment), Repositories
- * (Scripts, Actions, Misc per repository; the brief also splits out Prompts), More (Experimental,
- * Advanced). Left out: Organization pages, Remote control (needs a hosted relay), Internal pages,
- * and the Big terminal page (its setting is listed on the Experimental page).
+ * (Scripts, Actions, Prompts, Misc per repository), More (Experimental, Advanced).
  * Page ids follow Conductor's route names (ui-map.md header: key-bindings). Titles are ours.
- * Our design choice: the router's `$page` is one path segment (app/router.tsx), so a repository page
- * is written "repo:<repoId>:<page>", for example "repo:3f2a:scripts". Ids are UUIDs and never hold
+ * Our design choice: the settings screen takes one page string, so a repository page is written
+ * "repo:<repoId>:<page>", for example "repo:3f2a:scripts". The router's repository settings route
+ * (`/settings/repos/$repoId/$page`, app/router.tsx) builds that string. Ids are UUIDs and never hold
  * a colon.
  * Must handle: an empty string, a trailing colon, a repository page with an empty id, an unknown
  * page (an error result, never a default page), and a page string with extra colons.
  * Test first: parseSettingsPage("repo:abc:scripts") gives kind "repo", repoId "abc", page
  * "scripts"; parseSettingsPage("nope") is an error.
  */
-import type { AppError, RepoId, Result } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 
 export type UserSettingsPageId =
 	| "general"
@@ -65,6 +63,60 @@ export const REPO_SETTINGS_PAGES: readonly { id: RepoSettingsPageId; title: stri
 	{ id: "misc", title: "Misc" },
 ];
 
-export function parseSettingsPage(_page: string): Result<SettingsTarget, AppError> {
-	return notImplemented("SET-02");
+export const SETTINGS_NAV_GROUP_TITLES: Readonly<Record<SettingsNavGroup, string>> = {
+	personal: "Personal",
+	agents_and_environment: "Agents & environment",
+	more: "More",
+};
+
+const USER_PAGE_IDS = new Set<string>(USER_SETTINGS_PAGES.map((page) => page.id));
+const REPO_PAGE_IDS = new Set<string>(REPO_SETTINGS_PAGES.map((page) => page.id));
+
+export function isUserSettingsPageId(value: string): value is UserSettingsPageId {
+	return USER_PAGE_IDS.has(value);
+}
+
+export function isRepoSettingsPageId(value: string): value is RepoSettingsPageId {
+	return REPO_PAGE_IDS.has(value);
+}
+
+const unknownPage = (page: string): AppError =>
+	appError("settings_page_unknown", `There is no settings page called "${page}".`);
+
+/**
+ * Parses one segment of the settings route. A user page is its id; a repository page is
+ * "repo:<repoId>:<page>". A page nobody knows is an error, so the screen can show its designed
+ * not-found state instead of falling back to General.
+ */
+export function parseSettingsPage(page: string): Result<SettingsTarget, AppError> {
+	const value = page.trim();
+	if (value === "") {
+		return err(appError("settings_page_missing", "Choose a settings page."));
+	}
+	if (value.startsWith("repo:")) {
+		const parts = value.slice("repo:".length).split(":");
+		if (parts.length !== 2) {
+			return err(unknownPage(page));
+		}
+		const [repoId, repoPage] = parts;
+		if (repoId === undefined || repoId === "") {
+			return err(appError("settings_page_repo_missing", "Choose a project for this page."));
+		}
+		if (repoPage === undefined || !isRepoSettingsPageId(repoPage)) {
+			return err(unknownPage(page));
+		}
+		return ok({ kind: "repo", repoId: repoId as RepoId, page: repoPage });
+	}
+	if (value.includes(":")) {
+		return err(unknownPage(page));
+	}
+	if (!isUserSettingsPageId(value)) {
+		return err(unknownPage(page));
+	}
+	return ok({ kind: "user", page: value });
+}
+
+/** A stable key for the active target, for comparisons in the navigation. */
+export function settingsTargetKey(target: SettingsTarget): string {
+	return target.kind === "user" ? target.page : `repo:${target.repoId}:${target.page}`;
 }

@@ -98,7 +98,7 @@ function makeRunner(
 	options: {
 		adapter?: AcpAdapter;
 		spawn?: ConstructorParameters<typeof AcpRunner>[0]["spawn"];
-		appToolsServers?: (options: StartOptions) => readonly unknown[];
+		appToolsServers?: AcpRunnerDeps["appToolsServers"];
 		probe?: AcpRunnerDeps["probe"];
 	} = {},
 ): AcpRunner {
@@ -216,16 +216,25 @@ describe("AGENT-11 ACP runner", () => {
 			args: [],
 			env: [],
 		};
+		let released = 0;
 		const runner = makeRunner({
 			spawn: bridge(seen).spawn,
-			appToolsServers: () => [appTools],
+			appToolsServers: async () => ({
+				servers: [appTools],
+				release: () => {
+					released += 1;
+				},
+			}),
 		});
 
 		const session: AgentSession = await runner.start(startOptions);
 		await session.runTurn({ text: "hello", attachmentPaths: [], config }, callbacks());
 
 		expect(seen.value?.mcpServers).toEqual([appTools]);
+		expect(released).toBe(0);
 		await session.dispose();
+		await session.dispose();
+		expect(released).toBe(1);
 	});
 
 	test("a file write asks for the start checkpoint through the runner", async () => {
@@ -576,5 +585,30 @@ describe("AGENT-12 ACP runner adapter hooks", () => {
 		expect(outcome.kind).toBe("error");
 		if (outcome.kind === "error") expect(outcome.message).toContain("does not know the command");
 		await session.dispose();
+	});
+});
+
+describe("SIDE-21 an ACP chat starts the program its launch names", () => {
+	test("SIDE-21 the user's program path is the one the child starts, never the PATH copy", async () => {
+		const commands: string[] = [];
+		const runner = makeRunner({
+			spawn: async (options) => {
+				commands.push(options.command);
+				return err({ code: "spawn_failed", message: "scripted" } as AppError);
+			},
+		});
+
+		const session = await runner.start({
+			...startOptions,
+			executablePath: "/opt/opencode/bin/opencode",
+		});
+		const outcome = await session.runTurn(
+			{ text: "hello", attachmentPaths: [], config },
+			callbacks(),
+		);
+		await session.dispose();
+
+		expect(outcome.kind).toBe("error");
+		expect(commands).toEqual(["/opt/opencode/bin/opencode"]);
 	});
 });

@@ -1,10 +1,13 @@
 /**
  * @feature GIT-02 Git service: polling change state; GIT-06 Push and pull; GIT-13 Fetch on demand,
  * at most once a minute
+ * @feature WS-02 Create from a branch, PR or issue
  * @feature GIT-05 Commit and push, done by the agent on request
  * @feature GIT-07 Resolve conflicts, done by the agent on request
- * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
- * and the last error per workspace. Also the write actions that move a branch across the remote:
+ * @feature GIT-12 Branch lists, branch commits and switch branch
+ * Owns: the repository's local branch list for the create-from picker; polling each shown
+ * workspace's git state at the requested depth, the four-slot limiter, and the last error per
+ * workspace. Also the write actions that move a branch across the remote:
  * push, including the first push's upstream setup; pull latest from the target, which fetches,
  * rechecks under the lock, fast-forwards or hands the work to the agent; resolve conflicts, which
  * reads the rebase or merge choice from pull.rebase and sends the instruction to the agent; and
@@ -48,6 +51,15 @@
  * features build them.
  * Changing the target branch is here (GIT-08): it stores the intended branch, moves an open pull
  * request's base, or fetches and resets a clean branch still at the old target.
+ * GIT-12: lists a repository's local and remote branches and the branches its worktrees have
+ * checked out, keeps that list fresh for the foreground repository every 5 s and the others every
+ * 60 s, and switches a workspace to another branch by fetching it, checking it out and
+ * fast-forwarding only when the branch can be fast-forwarded. The switch has its own mutex, apart
+ * from the other git actions. The branch commits the diff scope lists come from the workspace poll
+ * above. `dispose` stops every workspace and branch watcher, and the container's `stop()` calls
+ * it, so no poll outlives the app even when a caller never unsubscribed.
+ * The branch picker hooks, the "Switch branch?" confirmation and "Continue" from a detached HEAD
+ * belong to WS-02, the screen that shows the dialog and GIT-17; they are not built here.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -69,7 +81,9 @@ import { createLatestWins } from "../async/latest-wins.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
+	branchListLocal,
 	catFileExists,
+	checkout,
 	configGet,
 	configPullFf,
 	configPullRebase,
@@ -77,6 +91,8 @@ import {
 	fetch,
 	fetchBranchRefspec,
 	firstPushSteps,
+	forEachRefRemoteBranches,
+	isAncestor,
 	mergeBase,
 	mergeFastForwardOnly,
 	pull as pullCommand,
@@ -94,7 +110,9 @@ import {
 	showCommitNumstat,
 	showRefVerify,
 	statusPorcelainAll,
+	symbolicRefHead,
 	upstreamName,
+	worktreeList,
 } from "../git/commands.ts";
 import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
@@ -107,10 +125,12 @@ import {
 	parseLeftRightCount,
 	parseNameStatus,
 	parseNumstat,
+	parseWorktreeList,
 	readComparedChanges,
 	readOperation,
 	refreshWorkspaceChanges,
 	remoteTargetRef,
+	type WorktreeEntry,
 } from "../git/status.ts";
 import type { GitState, PullRequestAction } from "../model.ts";
 import {
@@ -158,11 +178,29 @@ export interface WorkspaceGitEntry {
 	refreshedAt: number | null;
 }
 
+/** The branch names of one repository, as the branch picker needs them. */
+export interface RepositoryBranches {
+	local: string[];
+	remote: string[];
+	/** Branches another worktree of the same repository has checked out. */
+	checkedOut: string[];
+}
+
+export interface BranchesEntry {
+	branches: RepositoryBranches | null;
+	error: { code: string; message: string } | null;
+	refreshedAt: number | null;
+}
+
 export interface GitServiceState {
 	byWorkspace: Readonly<Record<string, WorkspaceGitEntry>>;
+	/** Branch lists keyed by the repository's main worktree folder. */
+	branchesByRepo: Readonly<Record<string, BranchesEntry>>;
 }
 
 export type PollDepth = "metadata" | "uncommitted" | "full";
+/** Which repository the user is looking at, which sets how often its branches are read. */
+export type BranchWatchRole = "foreground" | "background";
 
 /** How often a workspace on screen is polled (services-map 3.3.1). */
 export const GIT_POLL_INTERVAL_MS = 5_000;
@@ -170,6 +208,52 @@ export const GIT_POLL_INTERVAL_MS = 5_000;
 export const POLL_FRESH_RATIO = 0.9;
 /** Most changes refreshes that run at once (services-map 3.3.1). */
 export const MAX_CONCURRENT_REFRESHES = 4;
+/** How often the foreground repository's branch list is read (services-map 3.3.1, 3.3.3). */
+export const BRANCH_POLL_INTERVAL_MS = 5_000;
+/** How often another tracked repository's branch list is read (services-map 3.3.1, 3.3.3). */
+export const BRANCH_BACKGROUND_POLL_INTERVAL_MS = 60_000;
+
+/** Splits a branch list on new lines, dropping blank lines and any full ref prefix. */
+function branchNamesFrom(text: string, prefix: string): string[] {
+	const names: string[] = [];
+	for (const raw of text.split("\n")) {
+		const line = raw.trim();
+		if (line.length === 0) continue;
+		const name = line.startsWith(prefix) ? line.slice(prefix.length) : line;
+		if (name.length > 0 && !names.includes(name)) names.push(name);
+	}
+	return names;
+}
+
+/** The local branch names from `git branch --format=%(refname:short)` (services-map 3.6.6). */
+export function parseLocalBranches(text: string): string[] {
+	return branchNamesFrom(text, "refs/heads/");
+}
+
+/**
+ * The branch names on one remote from `git for-each-ref` (services-map 3.6.6). The remote's `HEAD`
+ * symbolic ref is not a branch and is dropped.
+ */
+export function parseRemoteBranches(text: string, remote: string): string[] {
+	const prefix = remote.length > 0 ? `${remote}/` : "";
+	const names: string[] = [];
+	for (const name of branchNamesFrom(text, `refs/remotes/${remote}/`)) {
+		const bare = prefix.length > 0 && name.startsWith(prefix) ? name.slice(prefix.length) : name;
+		if (bare.length === 0 || bare === "HEAD") continue;
+		if (!names.includes(bare)) names.push(bare);
+	}
+	return names;
+}
+
+/** The branches checked out by the repository's worktrees (services-map 3.3.3). */
+export function parseCheckedOutBranches(text: string): string[] {
+	return branchNamesFrom(
+		parseWorktreeList(text)
+			.map((entry: WorktreeEntry) => entry.branch ?? "")
+			.join("\n"),
+		"",
+	);
+}
 
 /** Shown when a pull finds nothing to bring in. */
 export const PULL_UP_TO_DATE_MESSAGE = "Pulled latest changes. You're up to date!";
@@ -283,6 +367,17 @@ interface Watcher {
 	timer: ReturnType<typeof setTimeout> | null;
 }
 
+interface BranchWatcher {
+	count: number;
+	role: BranchWatchRole;
+	stopped: boolean;
+	timer: ReturnType<typeof setTimeout> | null;
+}
+
+/** How often a repository in this role is read (services-map 3.3.1). */
+const branchInterval = (role: BranchWatchRole): number =>
+	role === "foreground" ? BRANCH_POLL_INTERVAL_MS : BRANCH_BACKGROUND_POLL_INTERVAL_MS;
+
 export interface WorkspaceGitContext {
 	workspaceId: WorkspaceId;
 	workspacePath: string;
@@ -379,7 +474,7 @@ export interface GitServiceDeps {
 	 * an error instead of guessing when it is absent.
 	 */
 	promptFor?: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
-	/** Saves a renamed branch in the workspace row and its store (GIT-09). */
+	/** Saves the branch now checked out in the workspace row and its store (GIT-09, GIT-12). */
 	renameWorkspaceBranch: (workspaceId: WorkspaceId, branch: string) => Promise<Result<void>>;
 	now: () => number;
 	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
@@ -436,8 +531,12 @@ export class GitService {
 	/** When each repository and branch was last fetched, keyed by root path and branch. */
 	readonly #lastFetchAt = new Map<string, number>();
 	readonly #watchers = new Map<string, Watcher>();
+	readonly #branchWatchers = new Map<string, BranchWatcher>();
 	readonly #latest = createLatestWins<string>();
+	readonly #branchesLatest = createLatestWins<string>();
 	readonly #limiter = createRefreshLimiter();
+	/** Switch-branch requests for one workspace run one after another, apart from other actions. */
+	readonly #switchQueue = createKeyedQueue();
 	/** Viewed marks per workspace and path. Loaded from the file on first use. */
 	readonly #viewed = new Map<string, ViewedMark>();
 	readonly #viewedLoaded = new Set<string>();
@@ -448,7 +547,7 @@ export class GitService {
 
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<GitServiceState>(() => ({ byWorkspace: {} }));
+		this.store = createStore<GitServiceState>(() => ({ byWorkspace: {}, branchesByRepo: {} }));
 	}
 
 	/** Polls a workspace until the returned function is called. Several callers share one timer. */
@@ -491,6 +590,183 @@ export class GitService {
 		if (watcher.timer !== null) clearTimeout(watcher.timer);
 		this.#watchers.delete(key);
 		this.#latest.invalidate(key);
+	}
+
+	/**
+	 * Polls one repository's branches until the returned function is called. Several callers share
+	 * one timer, and a foreground caller raises the rate of a background one (services-map 3.3.1).
+	 */
+	watchBranches(repoRootPath: string, remote: string, role: BranchWatchRole): Unsubscribe {
+		const key = repoRootPath;
+		const existing = this.#branchWatchers.get(key);
+		if (existing !== undefined) {
+			existing.count += 1;
+			if (role === "foreground") existing.role = "foreground";
+			return () => this.#unwatchBranches(key);
+		}
+
+		const watcher: BranchWatcher = { count: 1, role, stopped: false, timer: null };
+		this.#branchWatchers.set(key, watcher);
+		const tick = async (): Promise<void> => {
+			if (watcher.stopped) return;
+			await this.#limiter.run(`branches:${key}`, watcher.role === "foreground", () =>
+				this.#refreshBranchesIfStale(repoRootPath, remote, branchInterval(watcher.role)),
+			);
+			if (watcher.stopped) return;
+			watcher.timer = setTimeout(() => {
+				void tick();
+			}, branchInterval(watcher.role));
+		};
+		void tick();
+		return () => this.#unwatchBranches(key);
+	}
+
+	#unwatchBranches(key: string): void {
+		const watcher = this.#branchWatchers.get(key);
+		if (watcher === undefined) return;
+		watcher.count -= 1;
+		if (watcher.count > 0) return;
+		watcher.stopped = true;
+		if (watcher.timer !== null) clearTimeout(watcher.timer);
+		this.#branchWatchers.delete(key);
+		this.#branchesLatest.invalidate(key);
+	}
+
+	/**
+	 * Stops every workspace and branch watcher and drops their timers. The container's `stop()`
+	 * calls it. An unsubscribe that arrives later finds nothing and does nothing.
+	 */
+	dispose(): void {
+		for (const [key, watcher] of this.#watchers) {
+			watcher.stopped = true;
+			if (watcher.timer !== null) clearTimeout(watcher.timer);
+			this.#latest.invalidate(key);
+		}
+		this.#watchers.clear();
+		for (const [key, watcher] of this.#branchWatchers) {
+			watcher.stopped = true;
+			if (watcher.timer !== null) clearTimeout(watcher.timer);
+			this.#branchesLatest.invalidate(key);
+		}
+		this.#branchWatchers.clear();
+	}
+
+	/** The last branch list of a repository, or null until one was read. */
+	branchesOf(repoRootPath: string): BranchesEntry | null {
+		return this.store.getState().branchesByRepo[repoRootPath] ?? null;
+	}
+
+	async #refreshBranchesIfStale(
+		repoRootPath: string,
+		remote: string,
+		intervalMs: number,
+	): Promise<Result<void>> {
+		const entry = this.branchesOf(repoRootPath);
+		if (
+			entry?.branches != null &&
+			entry.refreshedAt !== null &&
+			this.#deps.now() - entry.refreshedAt < intervalMs * POLL_FRESH_RATIO
+		) {
+			return ok(undefined);
+		}
+		return this.#refreshBranchesNow(repoRootPath, remote, false);
+	}
+
+	/**
+	 * The repository's local branches, newest commit first, for the create-from picker. With a
+	 * remote, it also refreshes and returns the branch list the branch picker shows.
+	 */
+	async listBranches(repoRootPath: string, remote: string): Promise<Result<RepositoryBranches>>;
+	async listBranches(repoRootPath: string): Promise<Result<string[]>>;
+	async listBranches(
+		repoRootPath: string,
+		remote?: string,
+	): Promise<Result<string[] | RepositoryBranches>> {
+		if (remote === undefined) {
+			const listed = await this.#deps.git.stdout(branchListLocal(), { cwd: repoRootPath });
+			if (!listed.ok) return listed;
+			return ok(parseLocalBranches(listed.value));
+		}
+		const refreshed = await this.#refreshBranchesNow(repoRootPath, remote, true);
+		if (!refreshed.ok) return refreshed;
+		const entry = this.branchesOf(repoRootPath);
+		if (entry?.branches == null) {
+			return err(appError("git_failed", "The branch list could not be read."));
+		}
+		return ok(entry.branches);
+	}
+
+	/** Reads a repository's branches without the user asking first, for the watcher. */
+	async refreshBranches(repoRootPath: string, remote: string): Promise<Result<void>> {
+		return this.#refreshBranchesNow(repoRootPath, remote, false);
+	}
+
+	async #refreshBranchesNow(
+		repoRootPath: string,
+		remote: string,
+		fetchRemote: boolean,
+	): Promise<Result<void>> {
+		const key = repoRootPath;
+		const ticket = this.#branchesLatest.begin(key);
+		if (fetchRemote && remote.length > 0) {
+			const fetched = await this.#deps.git.runChecked(fetch(remote), { cwd: repoRootPath });
+			if (!fetched.ok) {
+				if (this.#branchesLatest.isLatest(ticket)) {
+					this.#recordBranchFailure(key, fetched.error);
+				}
+				this.#branchesLatest.settle(ticket);
+				return err(fetched.error);
+			}
+		}
+
+		const [local, remoteBranches, worktrees] = await Promise.all([
+			this.#deps.git.stdout(branchListLocal(), { cwd: repoRootPath }),
+			this.#deps.git.stdout(forEachRefRemoteBranches(remote), { cwd: repoRootPath }),
+			this.#deps.git.stdout(worktreeList(), { cwd: repoRootPath }),
+		]);
+		const fail = (error: AppError): Result<void> => {
+			if (this.#branchesLatest.isLatest(ticket)) this.#recordBranchFailure(key, error);
+			this.#branchesLatest.settle(ticket);
+			return err(error);
+		};
+		if (!local.ok) return fail(local.error);
+		if (!remoteBranches.ok) return fail(remoteBranches.error);
+		if (!worktrees.ok) return fail(worktrees.error);
+
+		if (!this.#branchesLatest.isLatest(ticket)) {
+			this.#branchesLatest.settle(ticket);
+			return ok(undefined);
+		}
+		this.#branchesLatest.settle(ticket);
+
+		const branches: RepositoryBranches = {
+			local: parseLocalBranches(local.value),
+			remote: parseRemoteBranches(remoteBranches.value, remote),
+			checkedOut: parseCheckedOutBranches(worktrees.value),
+		};
+		this.store.setState((state) => ({
+			...state,
+			branchesByRepo: {
+				...state.branchesByRepo,
+				[key]: { branches, error: null, refreshedAt: this.#deps.now() },
+			},
+		}));
+		return ok(undefined);
+	}
+
+	#recordBranchFailure(key: string, error: AppError): void {
+		const previous = this.store.getState().branchesByRepo[key];
+		this.store.setState((state) => ({
+			...state,
+			branchesByRepo: {
+				...state.branchesByRepo,
+				[key]: {
+					branches: previous?.branches ?? null,
+					error: { code: error.code, message: error.message },
+					refreshedAt: this.#deps.now(),
+				},
+			},
+		}));
 	}
 
 	async #refreshIfStale(
@@ -1394,9 +1670,83 @@ export class GitService {
 		});
 	}
 
-	/** Backs `Actions.git.switchBranch`. Has its own lock, apart from the other git actions. */
-	switchBranch(_workspaceId: WorkspaceId, _branch: string): Promise<Result<void>> {
-		return notImplemented("GIT-12");
+	/**
+	 * Backs `Actions.git.switchBranch`: fetches the branch, checks it out, then fast-forwards it
+	 * when HEAD is behind its remote-tracking ref (services-map 3.11). Its own mutex runs one
+	 * switch at a time for a workspace, apart from the other git actions.
+	 */
+	switchBranch(workspaceId: WorkspaceId, branch: string): Promise<Result<void>> {
+		return this.#switchQueue.run(`switch:${String(workspaceId)}`, () =>
+			this.#switchBranchNow(workspaceId, branch),
+		);
+	}
+
+	async #switchBranchNow(workspaceId: WorkspaceId, branch: string): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		const name = branchNameWithoutRemote(branch.trim(), context.remote);
+		if (!isSafeRefName(name)) {
+			return err(
+				appError("workspace_branch_invalid", `"${name}" can't be used as a Git branch name.`),
+			);
+		}
+
+		const cwd = context.workspacePath;
+		const remote = context.remote.trim();
+		const switched = await this.#deps.git.withWorktreeLock(cwd, async (): Promise<Result<void>> => {
+			// A branch that exists locally can still be checked out when the fetch fails, because
+			// the user may be offline; a branch known only on the remote needs the fetch.
+			if (remote.length > 0) {
+				const fetched = await this.#deps.git.runChecked(fetchBranchRefspec(remote, name), { cwd });
+				if (!fetched.ok) {
+					const local = await this.#refExists(cwd, `refs/heads/${name}`);
+					if (!local.ok) return local;
+					if (!local.value) return fetched;
+				}
+			}
+
+			const checkedOut = await this.#deps.git.runChecked(checkout(name), { cwd });
+			if (!checkedOut.ok) return checkedOut;
+
+			// Only the branch git actually checked out may lead to a fast-forward.
+			const head = await this.#deps.git.stdout(symbolicRefHead(), { cwd });
+			if (!head.ok) return head;
+			const headName = head.value.replace(/^refs\/heads\//, "");
+			if (headName !== name) {
+				return err(
+					appError("git_branch_mismatch", `Git checked out "${headName}" instead of "${name}".`),
+				);
+			}
+
+			if (remote.length === 0) return ok(undefined);
+			const remoteRef = `refs/remotes/${remote}/${name}`;
+			const exists = await this.#refExists(cwd, remoteRef);
+			if (!exists.ok) return exists;
+			if (!exists.value) return ok(undefined);
+
+			const ancestor = await this.#deps.git.run(isAncestor("HEAD", remoteRef), { cwd });
+			if (!ancestor.ok) return ancestor;
+			if (ancestor.value.exitCode === 1) return ok(undefined);
+			if (ancestor.value.exitCode !== 0) {
+				return err(
+					appError(
+						"git_failed",
+						ancestor.value.stderr.trim() ||
+							`git merge-base exited with code ${ancestor.value.exitCode}`,
+					),
+				);
+			}
+
+			const merged = await this.#deps.git.runChecked(mergeFastForwardOnly(remoteRef), { cwd });
+			return merged.ok ? ok(undefined) : merged;
+		});
+		if (!switched.ok) return switched;
+
+		// The workspace row and the poll both need the new name before the changes are read again.
+		const saved = await this.#deps.renameWorkspaceBranch(workspaceId, name);
+		if (!saved.ok) return saved;
+		return this.#refreshNow(workspaceId, "full");
 	}
 
 	/** Backs `Actions.git.continueOnNewBranch`, and tells the open chat that the branch changed. */

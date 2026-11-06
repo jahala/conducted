@@ -58,10 +58,13 @@ describe("chooseDelivery", () => {
 			chooseDelivery({ mode: "auto", working: true, defaultMode: "steer", canSteer: true }),
 		).toBe("steer");
 	});
-	it("turns a steer into a follow-up for agents that cannot steer", () => {
+	it("turns the default steer into a follow-up for agents that cannot steer", () => {
+		expect(
+			chooseDelivery({ mode: "auto", working: true, defaultMode: "steer", canSteer: false }),
+		).toBe("queue");
 		expect(
 			chooseDelivery({ mode: "steer", working: true, defaultMode: "steer", canSteer: false }),
-		).toBe("queue");
+		).toBe("steer_unsupported");
 	});
 });
 

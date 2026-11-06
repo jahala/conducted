@@ -12,7 +12,7 @@
  */
 import { toolCardFor } from "../registry.ts";
 import { ToolCardBoundary } from "../ToolCard.tsx";
-import { ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import { ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function SubAgentCard({ call, sessionId, defaultExpanded }: ToolCardProps) {
@@ -39,11 +39,7 @@ export function SubAgentCard({ call, sessionId, defaultExpanded }: ToolCardProps
 							</ToolCardBoundary>
 						);
 					})}
-					{answer.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-							{answer}
-						</pre>
-					) : null}
+					{answer.length > 0 ? <ToolOutput>{answer}</ToolOutput> : null}
 				</div>
 			}
 		/>

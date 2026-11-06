@@ -89,6 +89,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"dot-segments",
+		"a path with . and .. names the file it resolves to",
+		"Writing through `inner/./../note.txt` writes `note.txt` next to `inner`; exists and readText agree on the resolved path, and nothing lands inside `inner`.",
+	),
+	c(
+		"fs",
 		"trash",
 		"trash removes from the folder without deleting for good",
 		"After trash the path no longer exists; on the Tauri side the item is in the macOS Trash.",
@@ -600,6 +606,21 @@ const STEPS: Record<string, ContractStep> = {
 		const sub = entries.find((entry) => entry.path.endsWith("sub"));
 		ctx.assert(file !== undefined && !file.isDirectory, "b.txt is a file");
 		ctx.assert(sub?.isDirectory === true, "sub is a folder");
+	},
+
+	"fs.dot-segments": async (ctx) => {
+		const folder = ctx.path("dots");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(folder, "inner")), "mkdirp");
+		const spelled = joinPath(folder, "inner/./../note.txt");
+		const resolved = joinPath(folder, "note.txt");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(spelled, "dots"), "writeTextAtomic");
+		ctx.assert(await ctx.platform.fs.exists(resolved), "the file is at the resolved path");
+		const read = expectOk(ctx, await ctx.platform.fs.readText(resolved), "readText");
+		ctx.assert(read === "dots", `readText returned ${JSON.stringify(read)}`);
+		ctx.assert(
+			!(await ctx.platform.fs.exists(joinPath(folder, "inner/note.txt"))),
+			"the file landed inside inner",
+		);
 	},
 
 	"fs.trash": async (ctx) => {
@@ -1339,13 +1360,13 @@ const STEPS: Record<string, ContractStep> = {
 		const result = expectOk(
 			ctx,
 			await ctx.platform.menu.setShortcuts([
-				{ commandId: "palette.open", accelerator: "CmdOrCtrl+Shift+P" },
-				{ commandId: "chat.new", accelerator: null },
+				{ commandId: "view.toggleLeftSidebar", accelerator: "CmdOrCtrl+B" },
+				{ commandId: "help.documentation", accelerator: null },
 			]),
 			"menu.setShortcuts",
 		);
 		ctx.assert(
-			result.applied.includes("palette.open"),
+			result.applied.includes("view.toggleLeftSidebar"),
 			`applied was ${JSON.stringify(result.applied)}`,
 		);
 		ctx.assert(result.rejected.length === 0, `rejected was ${JSON.stringify(result.rejected)}`);
@@ -1488,6 +1509,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
+	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
 	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
 	"db.roundtrip": ["db.execute", "db.select"],
 	"db.rows-affected": ["db.execute"],
@@ -1600,17 +1622,18 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"app.setLogLevel": "Changes the Rust logger; the Rust logger tests own it.",
 	"app.exportLogs": "Zips the Rust log folder; the Rust logger tests own it.",
 	"app.setQuitHandlerReady": "Needs the Rust quit hook; the Rust job owns it.",
-	"window.onFileDrop": "PLAT-33 builds it; needs a real window drag.",
+	"window.onFileDrop": "Needs a real window drag; the Tauri adapter tests own the event mapping.",
 	"window.toggleInspector": "Opens the web inspector; nothing a stand-in can show.",
-	"menu.onCommand": "PLAT-33 builds it; needs a real menu.",
+	"menu.onCommand": "Needs a real menu; the Tauri adapter tests own the event door.",
 	"system.onNetworkChanged": "PLAT-26 builds it.",
 	"system.openFullDiskAccessSettings": "Opens System Settings; nothing a stand-in can show.",
 	"programs.redownload": "PLAT-28 builds it.",
 	"programs.prefetchForUpdate": "PLAT-28 builds it.",
 	"programs.verificationErrors": "Reads the Rust launch check; the Rust job owns it.",
 	"programs.syncPathOverrides": "SET-13 builds it.",
-	"http.download": "PLAT-30 builds it.",
-	"http.download.cancel": "PLAT-30 builds it.",
+	"http.download":
+		"Streams to a file in Rust; the Rust download tests own progress, checksum and cancel.",
+	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",
 };
 
 /** Methods that are neither covered by a case nor listed with a reason. */

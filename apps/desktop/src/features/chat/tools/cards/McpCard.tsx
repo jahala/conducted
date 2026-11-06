@@ -7,7 +7,7 @@
  * Test first: A call named mcp__linear__get_issue renders 'linear' and 'get_issue'.
  */
 import { useState } from "react";
-import { formatJson, ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
+import { formatJson, ToolCardFrame, ToolOutput, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 function splitName(rawName: string): { server: string; tool: string } {
@@ -35,11 +35,7 @@ export function McpCard({ call, defaultExpanded }: ToolCardProps) {
 							? formatJson(call.item.input)
 							: (JSON.stringify(call.item.input) ?? String(call.item.input))}
 					</pre>
-					{output.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-							{output}
-						</pre>
-					) : null}
+					{output.length > 0 ? <ToolOutput>{output}</ToolOutput> : null}
 				</div>
 			}
 			footer={

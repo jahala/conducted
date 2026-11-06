@@ -135,7 +135,7 @@ const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 		composer,
 		queue,
 		notifications: { onLiveStateChanged: vi.fn() },
-		launchFor: () => ({ env: {}, providerKeys: {} }),
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspaceContextOf: vi.fn(async () => ok(workspace)),
 		defaultConfig: async () => ok(sampleSession.config),
 		setting: <T>(key: string) => settings[key] as T,

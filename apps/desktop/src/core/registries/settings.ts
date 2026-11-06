@@ -854,6 +854,19 @@ const SETTINGS_TABLE = [
 			{ value: "always_approve", label: "Always approve" },
 		],
 	},
+	// Our design choice: off by default, as the research gives none. No settings file key, as in the research.
+	{
+		key: "chrome_mode_enabled",
+		page: "agents",
+		scopes: ["user"],
+		title: "Use Claude Code with Chrome",
+		description:
+			"Start Claude with its Chrome browser tools in new chats. A change restarts a running Claude chat at its next message.",
+		searchTerms: ["claude", "chrome", "browser"],
+		feature: "AGENT-16",
+		type: "bool",
+		default: false,
+	},
 	// Our design choice: empty means the standard Claude sign-in.
 	{
 		key: "claude_provider",
@@ -1618,6 +1631,19 @@ const SETTINGS_TABLE = [
 		description: "Whether you closed the banner that offers to import local environment variables.",
 		searchTerms: ["env", "banner", "import"],
 		feature: "SET-04",
+		type: "bool",
+		default: false,
+	},
+	// Our design choice: unchecked by default, so resetting the chat alone cannot lose files by accident.
+	{
+		key: "reset_chat_also_reset_files",
+		page: "state",
+		scopes: ["user"],
+		title: "Reset chat also resets files",
+		description:
+			"Whether Reset chat also restores the working tree to the turn's start checkpoint.",
+		searchTerms: ["reset", "revert", "checkpoint", "files"],
+		feature: "CHAT-15",
 		type: "bool",
 		default: false,
 	},

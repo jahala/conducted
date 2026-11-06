@@ -8,17 +8,17 @@
  * place so the window does not jump. A workspace id nobody knows gets its own not-found card.
  * Must handle: loading; a load error; a workspace id with no row ("Workspace not found" with the deleted
  * hint); archived; a workspace in "initializing" or "failed" state (shown by the header and Git panel,
- * tabs stay usable).
- * Test first: an archived workspace shows "This workspace is archived"; a ready one renders its children.
+ * tabs stay usable); unarchive that needs a branch name; a refused branch name (shown under the
+ * field). The toasts for a failure and for lost uncommitted changes come from `runUnarchive`.
+ * Test first: an archived workspace shows "Workspace archived"; a ready one renders its children.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
-import { toastError } from "../../ui/Toast.tsx";
 import { ArchivedNotice } from "./ArchivedNotice.tsx";
-import { unarchiveWorkspace } from "./workspace-actions.ts";
+import { runUnarchive } from "./workspace-actions.ts";
 
 export function WorkspaceGate({
 	workspaceId,
@@ -30,12 +30,19 @@ export function WorkspaceGate({
 	const workspace = useWorkspace(workspaceId);
 	const actions = useActions();
 	const [unarchiving, setUnarchiving] = useState(false);
+	const [branchNameRequired, setBranchNameRequired] = useState(false);
+	const [branchError, setBranchError] = useState<string | null>(null);
 
-	const unarchive = async () => {
+	const unarchive = async (branchName: string | null) => {
 		setUnarchiving(true);
 		try {
-			const result = await unarchiveWorkspace(actions, workspaceId);
-			if (!result.ok) toastError("Couldn't unarchive the workspace", result.error);
+			const result = await runUnarchive(actions, workspaceId, { branchName, clearChats: false });
+			if (!result.ok) {
+				setBranchError(branchName === null ? null : result.error.message);
+				return;
+			}
+			setBranchNameRequired(result.value.needsBranchName);
+			if (!result.value.needsBranchName) setBranchError(null);
 		} finally {
 			setUnarchiving(false);
 		}
@@ -59,7 +66,12 @@ export function WorkspaceGate({
 		>
 			{(data) =>
 				data.state === "archived" ? (
-					<ArchivedNotice onUnarchive={unarchive} busy={unarchiving} />
+					<ArchivedNotice
+						onUnarchive={(branchName) => void unarchive(branchName)}
+						busy={unarchiving}
+						branchNameRequired={branchNameRequired}
+						branchError={branchError}
+					/>
 				) : (
 					children
 				)

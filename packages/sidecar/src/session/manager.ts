@@ -1,8 +1,11 @@
 /**
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
- * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus and
- * answerInteraction.
+ * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
+ * answerInteraction, and the ACP chat options of a live chat (AGENT-17). It also builds each
+ * agent's environment from the chat's launch settings, hands the runner the program the launch
+ * names, and restarts an agent whose launch changed once no turn and no background task runs
+ * (SIDE-21, `decideLaunchChange` in process/launch-fingerprint.ts).
  * Behaviour: research/conductor/sessions.md sections 2, 3 and 6, sessions-and-chats.md "What
  * happens when you send a message" and "While the agent is working", other-runners.md section 2.4
  * (steering policy). Conductor splits this over a server (`CJi`), a host (`PFe`) and a send
@@ -18,6 +21,10 @@
  *    "restart"); every message applies its config to a live agent; a change during a turn waits
  *    for the next turn (answer "on_next_turn")
  *  - a changed agent kind for an existing chat disposes the old agent first
+ *  - a changed launch (program, variables, keys, provider, base URL) restarts the agent with resume
+ *    at the first request that finds the chat idle with no background task; a request while a turn
+ *    or a background task runs leaves the agent alone, and a launch changed back to the running one
+ *    restarts nothing
  *  - getSessionStatus for a chat the sidecar does not know: known false (it restarted)
  *  - the first message adds the workspace instruction block (prompt/); later ones do not
  *  - cancel drops queued messages, withdraws interactions, asks the running turn to take the end
@@ -29,6 +36,9 @@
  *  - the same agent session id is stored from the first callback and sent to the app once
  *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
  *    app with the reason, so the app's stored config agrees
+ *  - a plan answer the broker accepts with feedback is stored as a user_message with delivery
+ *    plan_feedback in the running turn, so the chat keeps what the user asked for (CHAT-12,
+ *    claude-runner 3.5); an approval, a denial with no feedback and a refused answer store nothing
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
@@ -54,10 +64,12 @@ import type {
 	MessageId,
 	Result,
 	SessionId,
+	TurnId,
 } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import type { CheckpointService } from "../checkpoints/checkpoint-service.ts";
 import type { Logger } from "../logging/logger.ts";
+import { decideLaunchChange, launchFingerprint } from "../process/launch-fingerprint.ts";
 import type { ProcessManager } from "../process/process-manager.ts";
 import { processKey } from "../process/process-manager.ts";
 import type { PromptAssembler } from "../prompt/assemble.ts";
@@ -71,6 +83,7 @@ import {
 	SteerNotSupportedError,
 	SteerRevertedError,
 } from "../runners/errors.ts";
+import { buildAgentEnvironment } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type {
 	AgentConfigChangeReason,
@@ -80,7 +93,7 @@ import type {
 	TurnOutcome,
 } from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
-import { messageOf } from "../util/errors.ts";
+import { isAppError, messageOf } from "../util/errors.ts";
 import type { DuplicateGuard } from "./duplicate-guard.ts";
 import { DuplicateGuard as Guard } from "./duplicate-guard.ts";
 import type { EventPublisher } from "./event-batcher.ts";
@@ -136,6 +149,14 @@ export interface SessionManager {
 	answerInteraction(
 		params: AppToSidecarRequestParams<"answerInteraction">,
 	): Promise<AppToSidecarHandlerValue<"answerInteraction">>;
+	/** ACP only: the chat's own options beyond the model, after the saved choices are applied. */
+	listAcpConfigOptions(
+		params: AppToSidecarRequestParams<"listAcpConfigOptions">,
+	): Promise<AppToSidecarHandlerValue<"listAcpConfigOptions">>;
+	/** ACP only: set one chat option between turns. */
+	setAcpConfigOption(
+		params: AppToSidecarRequestParams<"setAcpConfigOption">,
+	): Promise<AppToSidecarHandlerValue<"setAcpConfigOption">>;
 	/** Live state of a chat, for the process manager's busy and idle marks. */
 	liveStateOf(sessionId: SessionId): LiveState | undefined;
 	/** Called when the app connection attaches: resend open interactions. */
@@ -166,6 +187,7 @@ type ResumeParams = AppToSidecarRequestParams<"sendMessage">["resume"];
 interface ActiveTurn {
 	turn: SessionTurn;
 	messageId: MessageId;
+	turnId: TurnId;
 }
 
 interface SessionState {
@@ -173,6 +195,8 @@ interface SessionState {
 	config: SessionConfig;
 	workspace: WorkspaceContext;
 	launch: AgentLaunch;
+	/** The fingerprint the running agent was started with. Null when no agent runs. */
+	agentLaunchFingerprint: string | null;
 	resume: ResumeParams;
 	agent: AgentSession | null;
 	agentConfig: SessionConfig | null;
@@ -236,6 +260,7 @@ export class DefaultSessionManager implements SessionManager {
 				return ok({ deliveredAs });
 			}
 
+			await this.restartForLaunchChange(state);
 			state.duplicates.markInFlight(params.messageId);
 			const setup = new AbortController();
 			state.setup = setup;
@@ -330,6 +355,7 @@ export class DefaultSessionManager implements SessionManager {
 		return this.deps.queue.run(queueKey(params.sessionId), async () => {
 			const state = this.ensureSession(params);
 			if (state.activeTurn !== null) return ok({});
+			await this.restartForLaunchChange(state);
 			const runnerResult = this.runnerFor(params.config);
 			if (!runnerResult.ok) {
 				this.deps.logger.warn("Could not warm the agent", {
@@ -352,9 +378,18 @@ export class DefaultSessionManager implements SessionManager {
 			state.config = config;
 			await this.replaceAgentIfKindChanged(state, config);
 
-			const env = await this.deps.shellEnv.get(params.workspace.workspacePath);
-			if (!env.ok) {
+			const captured = await this.deps.shellEnv.get(params.workspace.workspacePath);
+			if (!captured.ok) {
 				this.deps.logger.warn("Could not warm the agent without the login-shell environment", {
+					sessionId: state.sessionId,
+					code: captured.error.code,
+					message: captured.error.message,
+				});
+				return ok({});
+			}
+			const env = this.agentEnvironment(state, config, params.workspace, captured.value.env);
+			if (!env.ok) {
+				this.deps.logger.warn("Could not warm the agent with the chat's launch settings", {
 					sessionId: state.sessionId,
 					code: env.error.code,
 					message: env.error.message,
@@ -365,7 +400,7 @@ export class DefaultSessionManager implements SessionManager {
 			const key = processKey(config.agent, config.acpAgent, state.sessionId);
 			try {
 				await this.deps.processes.ensureWarm(key, () =>
-					this.startAgent(state, runnerResult.value, config, params.workspace, env.value.env),
+					this.startAgent(state, runnerResult.value, config, params.workspace, env.value),
 				);
 			} catch (cause) {
 				this.deps.logger.warn("Warming the agent failed", {
@@ -454,7 +489,107 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<AppToSidecarHandlerValue<"answerInteraction">> {
 		const state = this.sessions.get(params.sessionId);
 		if (state === undefined) return ok({ accepted: false, superseded: true });
-		return ok(this.deps.interactions.answer(state.sessionId, params.interactionId, params.answer));
+		const result = this.deps.interactions.answer(
+			state.sessionId,
+			params.interactionId,
+			params.answer,
+		);
+		if (result.accepted) this.publishPlanFeedback(state, params.answer);
+		return ok(result);
+	}
+
+	/** Stores the feedback that rejected a plan as a user message in the running turn. */
+	private publishPlanFeedback(
+		state: SessionState,
+		answer: AppToSidecarRequestParams<"answerInteraction">["answer"],
+	): void {
+		if (answer.kind !== "plan_approval" || answer.approved) return;
+		const text = answer.feedback?.trim() ?? "";
+		if (text.length === 0 || state.activeTurn === null) return;
+		const event: SessionEvent = {
+			type: "user_message",
+			eventId: this.deps.ids.uuid() as EventId,
+			at: this.deps.clock.now(),
+			messageId: this.deps.ids.uuid() as MessageId,
+			turnId: state.activeTurn.turnId,
+			text,
+			attachmentPaths: [],
+			delivery: "plan_feedback",
+			config: state.config,
+		};
+		this.deps.publisher.publish(state.sessionId, event);
+	}
+
+	listAcpConfigOptions(
+		params: AppToSidecarRequestParams<"listAcpConfigOptions">,
+	): Promise<AppToSidecarHandlerValue<"listAcpConfigOptions">> {
+		return this.deps.queue.run(queueKey(params.sessionId), async () => {
+			const state = this.sessions.get(params.sessionId);
+			if (state === undefined) {
+				return err(appError("session_unknown", "The sidecar has no state for this chat."));
+			}
+			if (this.configRefused(state)) {
+				return err(
+					appError("acp_options_busy", "Chat options cannot change while a reply is running."),
+				);
+			}
+			const ensured = await this.ensureConfigAgent(state);
+			if (!ensured.ok) return err(ensured.error);
+			try {
+				const list = ensured.value.agent.listAcpConfigOptions;
+				if (list === undefined) {
+					return err(appError("acp_options_unsupported", "This agent has no chat options."));
+				}
+				const listed = await list.call(ensured.value.agent, state.config, (agentSessionId) =>
+					this.rememberAgentSessionId(state, agentSessionId),
+				);
+				if (!listed.ok) return err(listed.error);
+				return ok({ options: listed.value });
+			} finally {
+				ensured.value.release();
+			}
+		});
+	}
+
+	setAcpConfigOption(
+		params: AppToSidecarRequestParams<"setAcpConfigOption">,
+	): Promise<AppToSidecarHandlerValue<"setAcpConfigOption">> {
+		return this.deps.queue.run(queueKey(params.sessionId), async () => {
+			const state = this.sessions.get(params.sessionId);
+			if (state === undefined) {
+				return err(appError("session_unknown", "The sidecar has no state for this chat."));
+			}
+			if (this.configRefused(state)) {
+				return err(
+					appError("acp_options_busy", "Chat options cannot change while a reply is running."),
+				);
+			}
+			const ensured = await this.ensureConfigAgent(state);
+			if (!ensured.ok) return err(ensured.error);
+			try {
+				const set = ensured.value.agent.setAcpConfigOption;
+				if (set === undefined) {
+					return err(appError("acp_options_unsupported", "This agent has no chat options."));
+				}
+				const changed = await set.call(
+					ensured.value.agent,
+					params.optionId,
+					params.value,
+					state.config,
+					(agentSessionId) => this.rememberAgentSessionId(state, agentSessionId),
+				);
+				if (!changed.ok) return err(changed.error);
+				const next: SessionConfig = {
+					...state.config,
+					acpConfig: { ...(state.config.acpConfig ?? {}), [params.optionId]: params.value },
+				};
+				state.config = next;
+				if (state.agentConfig !== null) state.agentConfig = next;
+				return ok({ options: changed.value });
+			} finally {
+				ensured.value.release();
+			}
+		});
 	}
 
 	liveStateOf(sessionId: SessionId): LiveState | undefined {
@@ -534,6 +669,7 @@ export class DefaultSessionManager implements SessionManager {
 				config: params.config,
 				workspace: params.workspace,
 				launch: params.launch,
+				agentLaunchFingerprint: null,
 				resume: params.resume,
 				agent: null,
 				agentConfig: null,
@@ -556,6 +692,59 @@ export class DefaultSessionManager implements SessionManager {
 			if (params.resume !== undefined) state.resume = params.resume;
 		}
 		return state;
+	}
+
+	/**
+	 * Restarts the agent when its launch changed and the chat is idle with no background task,
+	 * keeping its resume token. Otherwise the agent keeps running, and every later request asks
+	 * again with the launch it carries, so a launch changed back to the running one restarts nothing.
+	 */
+	private async restartForLaunchChange(state: SessionState): Promise<void> {
+		if (state.agent === null) return;
+		const change = decideLaunchChange({
+			previous: state.agentLaunchFingerprint,
+			next: launchFingerprint(state.launch),
+			chatWorking: state.activeTurn !== null || this.liveStatus(state.sessionId) === "working",
+			hasBackgroundTasks: this.deps.liveState.get(state.sessionId).backgroundTasks.length > 0,
+		});
+		if (change !== "restart_now") return;
+		await this.disposeAgent(state, state.agentConfig ?? state.config, true);
+	}
+
+	/** The environment a chat's agent starts with, from the capture and the chat's launch. */
+	private agentEnvironment(
+		state: SessionState,
+		config: SessionConfig,
+		workspace: WorkspaceContext,
+		base: Readonly<Record<string, string>>,
+	): Result<Record<string, string>> {
+		return buildAgentEnvironment({
+			agent: config.agent,
+			...(config.acpAgent === undefined ? {} : { acpAgent: config.acpAgent }),
+			sessionId: state.sessionId,
+			workspace,
+			base,
+			launch: state.launch,
+		});
+	}
+
+	private configRefused(state: SessionState): boolean {
+		return state.activeTurn !== null || this.liveStatus(state.sessionId) === "working";
+	}
+
+	/** The chat's live agent, started when it is not running yet, with the lease to give back. */
+	private async ensureConfigAgent(
+		state: SessionState,
+	): Promise<Result<{ agent: AgentSession; release: () => void }, AppError>> {
+		if (state.agent !== null) return ok({ agent: state.agent, release: () => {} });
+		const runner = this.runnerFor(state.config);
+		if (!runner.ok) return err(runner.error);
+		const claimed = await this.claimAgent(state, runner.value, state.config, state.workspace);
+		if (!claimed.ok) return err(claimed.error);
+		return ok({
+			agent: claimed.value.agent,
+			release: () => this.releaseLease(state, claimed.value.lease),
+		});
 	}
 
 	private runnerFor(config: SessionConfig): Result<Runner, AppError> {
@@ -641,7 +830,7 @@ export class DefaultSessionManager implements SessionManager {
 		const turn = this.createTurn(this.turnDeps(state, agent), request);
 		state.duplicates.markRunning(request.messageId);
 		state.duplicates.rememberDelivery(request.messageId, "new_turn");
-		state.activeTurn = { turn, messageId: request.messageId };
+		state.activeTurn = { turn, messageId: request.messageId, turnId: request.turnId };
 		try {
 			await turn.start();
 			return true;
@@ -846,12 +1035,16 @@ export class DefaultSessionManager implements SessionManager {
 			config,
 			workspace,
 			env,
+			...(state.launch.executablePath === undefined
+				? {}
+				: { executablePath: state.launch.executablePath }),
 			...(resume === undefined ? {} : { resume }),
 			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
 		});
 		state.agent = agent;
 		state.agentConfig = config;
 		state.runner = runner;
+		state.agentLaunchFingerprint = launchFingerprint(state.launch);
 		if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
 		return agent;
 	}
@@ -877,11 +1070,13 @@ export class DefaultSessionManager implements SessionManager {
 		config: SessionConfig,
 		workspace: WorkspaceContext,
 	): Promise<Result<{ agent: AgentSession; lease: { release(): void } }, AppError>> {
-		const env = await this.deps.shellEnv.get(workspace.workspacePath);
+		const captured = await this.deps.shellEnv.get(workspace.workspacePath);
+		if (!captured.ok) return err(captured.error);
+		const env = this.agentEnvironment(state, config, workspace, captured.value.env);
 		if (!env.ok) return err(env.error);
 		const key = processKey(config.agent, config.acpAgent, state.sessionId);
 		const start = (): Promise<AgentSession> =>
-			this.startAgent(state, runner, config, workspace, env.value.env);
+			this.startAgent(state, runner, config, workspace, env.value);
 
 		try {
 			const lease = await this.deps.processes.claimActive(key, start);
@@ -891,8 +1086,10 @@ export class DefaultSessionManager implements SessionManager {
 			state.runner = runner;
 			return ok({ agent: lease.agent, lease });
 		} catch (cause) {
-			const message = messageOf(cause);
-			return err(appError("agent_start_failed", message, cause));
+			// Runners throw an AppError (a plain object) for a missing program or a stopped bridge;
+			// it is kept whole, so its own code and message reach the app.
+			if (isAppError(cause)) return err(cause);
+			return err(appError("agent_start_failed", messageOf(cause), cause));
 		}
 	}
 
@@ -905,6 +1102,7 @@ export class DefaultSessionManager implements SessionManager {
 		state.agent = null;
 		state.agentConfig = null;
 		state.runner = null;
+		state.agentLaunchFingerprint = null;
 		if (!keepResume) {
 			state.agentSessionId = null;
 			state.resume = undefined;

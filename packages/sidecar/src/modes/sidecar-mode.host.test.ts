@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -141,13 +141,15 @@ function callOnce(
 
 describe("SIDE-01 the real sidecar host", () => {
 	test(
-		"SIDE-01 starts without an app tools bridge, answers a request and exits 0 on SIGTERM",
+		"SIDE-01 starts the app tools bridge, answers a request and exits 0 on SIGTERM",
 		async () => {
 			const folder = await ownedFolder();
 			const host = await startHost(folder);
 
 			expect(host.socketPath.startsWith(folder)).toBe(true);
 			expect(host.stdout()).toBe(`${handshakeLine(host.socketPath)}\n`);
+			const bridgeFolders = (await readdir(folder)).filter((name) => name.startsWith("cmcp-"));
+			expect(bridgeFolders).toHaveLength(1);
 
 			const reply = await callOnce(host.socketPath, {
 				jsonrpc: "2.0",
@@ -163,8 +165,10 @@ describe("SIDE-01 the real sidecar host", () => {
 			// The only stdout line is still the handshake: logs go to stderr.
 			expect(host.stdout()).toBe(`${handshakeLine(host.socketPath)}\n`);
 			expect(host.stderr()).not.toContain("The sidecar could not start");
-			// The socket file is removed on a clean exit.
+			// The socket file and the bridge folder are removed on a clean exit.
 			await expect(stat(host.socketPath)).rejects.toMatchObject({ code: "ENOENT" });
+			const remaining = (await readdir(folder)).filter((name) => name.startsWith("cmcp-"));
+			expect(remaining).toEqual([]);
 		},
 		HANG_LIMIT_MS,
 	);

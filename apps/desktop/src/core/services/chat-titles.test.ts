@@ -86,6 +86,7 @@ function harness(
 		titlesEnabled?: boolean;
 		response?: Result<{ text: string }>;
 		model?: string | null;
+		launch?: Result<AgentLaunch>;
 	} = {},
 ): Harness {
 	const requests: { method: string; params: unknown }[] = [];
@@ -98,7 +99,7 @@ function harness(
 		sidecar: { request },
 		titlesEnabled: () => options.titlesEnabled ?? true,
 		cheapestModel: () => (options.model === undefined ? "cheap-model" : options.model),
-		launchFor: () => launch,
+		launchFor: async () => options.launch ?? ok(launch),
 		log: (_level, message) => logs.push(message),
 	});
 	return { service, requests, logs };
@@ -118,6 +119,22 @@ const branchInput = {
 };
 
 describe("SIDE-24 chat titles", () => {
+	it("SIDE-24 sends nothing and returns the launch's error when the launch cannot be built", async () => {
+		const missing = appError(
+			"keychain_value_missing",
+			"The ANTHROPIC_API_KEY value is not in the Keychain.",
+		);
+		const { service, requests, logs } = harness({ launch: err(missing) });
+
+		expect(await service.suggestChatTitle(titleInput)).toEqual(err(missing));
+		expect(await service.suggestBranchName(branchInput)).toEqual(err(missing));
+		expect(requests).toEqual([]);
+		expect(logs).toEqual([
+			"Failed to generate LLM session title",
+			"Failed to generate a branch name",
+		]);
+	});
+
 	it("SIDE-24 sends no request when AI generated titles are off", async () => {
 		const { service, requests } = harness({ titlesEnabled: false });
 

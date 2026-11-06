@@ -102,7 +102,7 @@ describe("app shell", () => {
 		await screen.findByRole("heading", { name: "Run agents side by side" });
 		fireEvent.click(screen.getByRole("button", { name: "Search" }));
 		expect(useOverlayStore.getState().open).toBe("palette");
-		expect(await screen.findByText("Command palette")).toBeTruthy();
+		expect(await screen.findByRole("dialog", { name: "Command palette" })).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Close" }));
 		expect(useOverlayStore.getState().open).toBeNull();
 	});
@@ -157,13 +157,17 @@ describe("routes", () => {
 		expect(await within(main).findByRole("tab", { name: "All files" })).toBeTruthy();
 	});
 
-	it.each([
-		["/settings/general", "Settings", "SET-02"],
-		["/diagnostics", "Diagnostics", "APP-03"],
-	])("%s renders without the sidebar", async (path, area, id) => {
-		await openApp(path);
-		expect(await screen.findByText(area)).toBeTruthy();
-		expect(screen.getByText(`Not built yet: ${id}`)).toBeTruthy();
+	it("/settings/general renders without the sidebar", async () => {
+		await openApp("/settings/general");
+		expect(await screen.findByRole("navigation", { name: "Settings" })).toBeTruthy();
+		expect(await screen.findByRole("heading", { name: "General" })).toBeTruthy();
+		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
+	});
+
+	it("/diagnostics renders without the sidebar", async () => {
+		await openApp("/diagnostics");
+		expect(await screen.findByText("Diagnostics")).toBeTruthy();
+		expect(screen.getByText("Not built yet: APP-03")).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});
 
@@ -177,7 +181,7 @@ describe("routes", () => {
 
 	it("sends /settings to the general page", async () => {
 		const router = await openApp("/settings");
-		expect(await screen.findByText("Settings")).toBeTruthy();
+		expect(await screen.findByRole("heading", { name: "General" })).toBeTruthy();
 		expect(router.state.location.pathname).toBe("/settings/general");
 	});
 

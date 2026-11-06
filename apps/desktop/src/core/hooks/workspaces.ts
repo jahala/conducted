@@ -7,7 +7,8 @@
  * Test first: the test for a hook body lives with the feature that implements it.
  */
 import { idleLiveState } from "@conducted/protocol";
-import { appError, notImplemented, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, notImplemented, type WorkspaceId } from "@conducted/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
@@ -91,17 +92,35 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 	// Subscribe to the git entry so a new poll re-renders; stateOf reads the store itself.
 	useStore(git.store, (s) => s.byWorkspace[workspaceId]);
 	const prEntry = useStore(github.store, (s) => s.byWorkspace[workspaceId]);
+	// The pending action lives in the GitHub store, so this re-renders when an action starts and ends.
+	const pendingAction = useStore(github.store, () => github.pendingAction(workspaceId));
 
 	if (state === undefined) return null;
 	return deriveWorkspaceStatus({
 		state,
 		settingUp,
 		chats,
-		git: git.stateOf(workspaceId, prEntry, github.pendingAction(workspaceId)),
+		git: git.stateOf(workspaceId, prEntry, pendingAction),
 	});
 };
 
-export const useInstalledApps: Queries["useInstalledApps"] = () => notImplemented("WS-08");
+export const useInstalledApps: Queries["useInstalledApps"] = () => {
+	const { platform } = useServices();
+	const query = useQuery<string[], AppError>({
+		queryKey: ["opener", "installed-apps"],
+		queryFn: async () => {
+			try {
+				return await platform.opener.installedApps();
+			} catch (cause) {
+				throw appError("installed_apps_failed", "The apps on this Mac could not be listed.", cause);
+			}
+		},
+		staleTime: 30_000,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => notImplemented("WS-11");
 export const useSetupState: Queries["useSetupState"] = (workspaceId) => {
 	const container = useServices();

@@ -8,7 +8,7 @@
  * Test first: A call with tool 'unknown' and raw name 'FooTool' renders 'FooTool' and its input as
  * JSON.
  */
-import { formatJson, ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
+import { formatJson, ToolCardFrame, ToolOutput, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function GenericToolCard({ call, defaultExpanded }: ToolCardProps) {
@@ -23,11 +23,7 @@ export function GenericToolCard({ call, defaultExpanded }: ToolCardProps) {
 					<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
 						{formatJson(call.item.input)}
 					</pre>
-					{output.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-							{output}
-						</pre>
-					) : null}
+					{output.length > 0 ? <ToolOutput>{output}</ToolOutput> : null}
 				</div>
 			}
 		/>

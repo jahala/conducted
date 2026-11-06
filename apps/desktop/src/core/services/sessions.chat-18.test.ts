@@ -80,6 +80,7 @@ const harness = async (): Promise<Harness> => {
 		db: planned.database,
 		repositories: () => repositories,
 		repositoriesOn: (db: Database): Repositories => createRepositories(db, deps),
+		notifications: { onLiveStateChanged: vi.fn() },
 		now: () => 1000,
 		newId: () => `gen-${++next}`,
 	} as unknown as SessionsServiceDeps);
@@ -165,6 +166,7 @@ describe("CHAT-18 live state", () => {
 					upsert: async () => err(appError("db.failed", "The live state was not stored")),
 				},
 			}),
+			notifications: { onLiveStateChanged: vi.fn() },
 			now: () => 1000,
 		} as unknown as SessionsServiceDeps);
 

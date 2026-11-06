@@ -73,12 +73,15 @@ export type CodexUserInput = CodexUserInputText | CodexLocalImageInput;
 
 export type CodexApprovalPolicy = "untrusted" | "on-failure" | "on-request" | "never";
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
+/** The tone Codex uses. "none" leaves the model's own tone alone. */
+export type CodexPersonality = "none" | "friendly" | "pragmatic";
 
 export interface CodexThreadStartParams {
 	model?: string | null;
 	cwd?: string | null;
 	approvalPolicy?: CodexApprovalPolicy | null;
 	sandbox?: CodexSandboxMode | null;
+	personality?: CodexPersonality | null;
 	/** Config overrides, for example the MCP server entry for the app tools. */
 	config?: Record<string, unknown> | null;
 }
@@ -102,7 +105,7 @@ export interface CodexTurnStartParams {
 	model?: string | null;
 	effort?: string | null;
 	approvalPolicy?: CodexApprovalPolicy | null;
-	sandbox?: CodexSandboxMode | null;
+	personality?: CodexPersonality | null;
 }
 
 export type CodexTurnStatus = "completed" | "interrupted" | "failed" | "inProgress";

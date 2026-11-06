@@ -8,17 +8,19 @@
  * turn or background task, otherwise at its next request), claude-runner.md 1.2.
  * Must handle: the same launch in a different key order (same fingerprint); a launch with secrets
  * (the fingerprint is a hash, never the values, and is safe to log); a first launch (no previous
- * fingerprint: nothing to restart); a change while a turn runs or background tasks exist (restart
- * at the next turn, not now); a change on an idle chat (restart now, with resume); a change that
- * only reorders keys (none).
+ * fingerprint: nothing to restart); a change while a turn runs or background tasks exist (not now:
+ * the session manager asks again at each later request and restarts once both are over); a change
+ * on an idle chat (restart now, with resume); a change that only reorders keys, or a change back to
+ * the running launch (none). The session manager (`session/manager.ts`) is the one caller.
  * Our design choice: the fingerprint is per chat, because the process key is agent plus session
  * (D032), not per workspace folder as in Conductor.
  * Test first: two launches that differ only in the order of their environment keys have equal
  * fingerprints; changing one provider key changes the fingerprint.
  */
+import { createHash } from "node:crypto";
 import type { AgentLaunch } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
 
+/** "restart_next_turn": not now, because the chat is busy; a later request asks again. */
 export type LaunchChange = "none" | "restart_now" | "restart_next_turn";
 
 export interface LaunchChangeInput {
@@ -30,11 +32,31 @@ export interface LaunchChangeInput {
 }
 
 /** A hash of everything in the launch that decides how the agent program starts. */
-export function launchFingerprint(_launch: AgentLaunch): string {
-	return notImplemented("SIDE-21");
+export function launchFingerprint(launch: AgentLaunch): string {
+	const canonical = JSON.stringify({
+		executablePath: launch.executablePath ?? null,
+		env: sortedPairs(launch.env),
+		providerKeys: sortedPairs(
+			Object.fromEntries(
+				Object.entries(launch.providerKeys).map(([name, key]) => [name, key.value]),
+			),
+		),
+		provider: launch.provider ?? null,
+		baseUrl: launch.baseUrl ?? null,
+	});
+	return createHash("sha256").update(canonical).digest("hex");
 }
 
 /** What a new fingerprint means for the running agent. */
-export function decideLaunchChange(_input: LaunchChangeInput): LaunchChange {
-	return notImplemented("SIDE-21");
+export function decideLaunchChange(input: LaunchChangeInput): LaunchChange {
+	if (input.previous === null || input.previous === input.next) return "none";
+	if (input.chatWorking || input.hasBackgroundTasks) return "restart_next_turn";
+	return "restart_now";
+}
+
+/** Key-value pairs in name order, so two launches that differ only in insertion order match. */
+function sortedPairs(values: Readonly<Record<string, string>>): [string, string][] {
+	return Object.entries(values).sort(([left], [right]) =>
+		left < right ? -1 : left > right ? 1 : 0,
+	);
 }

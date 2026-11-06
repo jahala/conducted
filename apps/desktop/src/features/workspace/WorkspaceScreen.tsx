@@ -11,7 +11,8 @@
  * Must handle: switching workspaces (all regions reset); the right panel closed (header shows the toggle, see
  * WorkspaceHeader); archived workspace (the gate shows the notice, panels explain themselves); search state
  * is the URL's, changes go through onSearchChange; the Git panel's tab and diff scope follow the URL's `gitTab`
- * and `scope`, so a chat's "Open diff" shows its turn in the Changes tab.
+ * and `scope`, so a chat's "Open diff" shows its turn in the Changes tab; a file opened from the Git panel
+ * (All files or Changes) becomes the URL's file tab (`tab=file`, `path`, `fileMode`).
  * Test first: renders the header, centre content, Git panel and Scripts panel regions for a workspace id.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
@@ -63,6 +64,7 @@ export function WorkspaceScreen({
 						onTabChange={(gitTab) => onSearchChange({ gitTab })}
 						scope={gitScope}
 						onScopeChange={(scope) => onSearchChange({ scope: formatDiffScope(scope) })}
+						onOpenFile={(path, fileMode) => onSearchChange({ tab: "file", path, fileMode })}
 					/>
 				</NotBuiltYet>
 			}

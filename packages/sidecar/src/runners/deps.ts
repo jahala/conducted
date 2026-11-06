@@ -18,7 +18,10 @@ export type ProbeCommand = (
 	options: { env: Readonly<Record<string, string>>; cwd?: string; timeoutMs: number },
 ) => Promise<Result<{ stdout: string; stderr: string; exitCode: number }, AppError>>;
 
-/** Finds an executable by name on the PATH in `env`. Returns its absolute path or null. */
+/**
+ * Finds an executable by name on the PATH in `env`. Returns its absolute path or null. A name with
+ * a slash is a path and is checked as it is, as a shell does.
+ */
 export type FindExecutable = (
 	name: string,
 	env: Readonly<Record<string, string>>,

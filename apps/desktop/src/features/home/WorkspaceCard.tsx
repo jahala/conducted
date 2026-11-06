@@ -3,13 +3,15 @@
  * Owns: one card in the Home grid: name, repository, branch, status and last activity, plus the
  * actions an archived card offers.
  * Behaviour: ui-map.md 2 (Home cards), 3.8 (status model), 4 (archived workspace actions:
- * "Unarchive workspace", "Open in Finder", "Copy path").
+ * "Unarchive workspace", "Clear & unarchive", "Open in Finder", "Copy path").
  * Our design choice: an active card is one link to the workspace. An archived card is not a link;
- * it offers Unarchive, Open in Finder and Copy path, because the router refuses to open an
- * archived workspace. Line changes wait for GIT-04, which supplies git state.
- * Must handle: an archived card (muted, with Unarchive instead of opening); a long name
- * truncates; status unknown (no status line); the whole active card is one link, so its buttons
- * are never nested links; keyboard focus ring.
+ * it offers Unarchive, Clear & unarchive, Open in Finder and Copy path, because the router refuses
+ * to open an archived workspace. Line changes wait for GIT-04, which supplies git state.
+ * Must handle: an archived card (muted, with Unarchive instead of opening); a branch that is taken
+ * or has moved (a dialog asks for a new branch name and keeps the "Clear & unarchive" choice); a
+ * failure or lost uncommitted changes (the toasts from `runUnarchive`); a long name truncates;
+ * status unknown (no status line); the whole active card is one link, so its buttons are never
+ * nested links; keyboard focus ring.
  * Test first: an archived workspace's card shows an Unarchive button and does not link to the
  * workspace.
  */
@@ -25,9 +27,10 @@ import { cn } from "../../ui/cn.ts";
 import { GitBranchIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
+import { RenameDialog } from "../workspace/RenameDialog.tsx";
 import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
-import { unarchiveWorkspace } from "../workspace/workspace-actions.ts";
+import { runUnarchive } from "../workspace/workspace-actions.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { type HomeDisplay, isArchived } from "./home-query.ts";
 
@@ -49,7 +52,8 @@ const toneClass: Record<StatusTone, string> = {
 
 function ArchivedActions({ workspace }: { workspace: Workspace }) {
 	const actions = useActions();
-	const [busy, setBusy] = useState(false);
+	const [busy, setBusy] = useState<"unarchive" | "clear" | null>(null);
+	const [branchPrompt, setBranchPrompt] = useState<{ clearChats: boolean } | null>(null);
 
 	const run = (title: string, work: () => Promise<Result<unknown>>) => {
 		void work().then((result) => {
@@ -57,22 +61,36 @@ function ArchivedActions({ workspace }: { workspace: Workspace }) {
 		});
 	};
 
+	const restore = (kind: "unarchive" | "clear") => {
+		setBusy(kind);
+		const clearChats = kind === "clear";
+		void runUnarchive(actions, workspace.id, { branchName: null, clearChats })
+			.then((result) => {
+				// The branch is taken or has moved: ask for a new name, and keep the Clear choice.
+				if (result.ok && result.value.needsBranchName) setBranchPrompt({ clearChats });
+			})
+			.finally(() => setBusy(null));
+	};
+
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
 			<Button
 				variant="secondary"
 				size="xs"
-				loading={busy}
-				onClick={() => {
-					setBusy(true);
-					void unarchiveWorkspace(actions, workspace.id)
-						.then((result) => {
-							if (!result.ok) toastError("Couldn't unarchive the workspace", result.error);
-						})
-						.finally(() => setBusy(false));
-				}}
+				loading={busy === "unarchive"}
+				disabled={busy !== null && busy !== "unarchive"}
+				onClick={() => restore("unarchive")}
 			>
 				Unarchive
+			</Button>
+			<Button
+				variant="ghost"
+				size="xs"
+				loading={busy === "clear"}
+				disabled={busy !== null && busy !== "clear"}
+				onClick={() => restore("clear")}
+			>
+				Clear & unarchive
 			</Button>
 			<Button
 				variant="ghost"
@@ -92,6 +110,22 @@ function ArchivedActions({ workspace }: { workspace: Workspace }) {
 			>
 				Copy path
 			</Button>
+			<RenameDialog
+				open={branchPrompt !== null}
+				onOpenChange={(open) => {
+					if (!open) setBranchPrompt(null);
+				}}
+				title="Unarchive workspace"
+				initialName={workspace.branch}
+				fieldLabel="Branch name"
+				submitLabel="Unarchive"
+				onSubmit={(name) =>
+					runUnarchive(actions, workspace.id, {
+						branchName: name,
+						clearChats: branchPrompt?.clearChats ?? false,
+					})
+				}
+			/>
 		</div>
 	);
 }

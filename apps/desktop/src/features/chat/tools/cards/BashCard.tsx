@@ -15,6 +15,7 @@ import {
 	formatJson,
 	stripAnsi,
 	ToolCardFrame,
+	ToolOutput,
 	textField,
 	toolStatus,
 } from "../ToolCardFrame.tsx";
@@ -45,11 +46,7 @@ export function BashCard({ call, defaultExpanded }: ToolCardProps) {
 							Running in the background; its new output appears in the Bash output card.
 						</p>
 					) : null}
-					{hasOutput ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-							{output}
-						</pre>
-					) : null}
+					{hasOutput ? <ToolOutput>{output}</ToolOutput> : null}
 					{call.result?.truncated ? (
 						<p className="text-xs text-fg-subtle">Output was cut; the start and end are shown.</p>
 					) : null}

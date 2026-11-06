@@ -42,6 +42,11 @@ const settings: Record<string, unknown> = {
 	default_plan_mode: false,
 	tool_approvals_enabled: true,
 	default_claude_effort_level: "medium",
+	// The registry defaults of the AGENT-16 chat options, as the real settings service returns them.
+	default_claude_personality: "default",
+	default_codex_personality: "",
+	chrome_mode_enabled: false,
+	codex_tool_approval_policy: "default",
 };
 
 const harness = (): SessionsService => {

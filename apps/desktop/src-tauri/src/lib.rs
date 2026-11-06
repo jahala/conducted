@@ -35,6 +35,7 @@ pub mod deep_link;
 pub mod error;
 pub mod file_search;
 pub mod files;
+pub mod http;
 pub mod keychain;
 pub mod logger;
 pub mod menu;
@@ -291,6 +292,7 @@ pub fn run() {
         .manage(resource_usage::ResourceUsageState::default())
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
+        .manage(http::HttpState::default())
         .menu(|app| {
             let state = app.state::<menu::MenuState>();
             menu::build_menu(app, state.inner())
@@ -333,6 +335,9 @@ pub fn run() {
             files::fs_read_dir,
             files::fs_trash,
             files::fs_paths,
+            http::http_fetch,
+            http::http_download,
+            http::http_cancel,
             file_search::search_list_tree,
             file_search::search_fuzzy,
             file_search::search_grep,

@@ -6,9 +6,10 @@
  * Our design choice: One list for the header. Cloud items (follow, reassign, share) are left out.
  * Shortcut hints come from the command registry. The sidebar's right-click surface belongs to
  * NAV-03's workspace row, which is not wired yet.
- * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); mark as read or unread
- * follows the chats' unread count; move to section lists the known sections and 'New section...'; a
- * failed action shows a toast.
+ * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); unarchive that needs a
+ * new branch name (a small dialog asks for one); a restore that lost uncommitted changes (the
+ * warning from `runUnarchive`); mark as read or unread follows the chats' unread
+ * count; move to section lists the known sections and 'New section...'; a failed action shows a toast.
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
@@ -35,8 +36,9 @@ import {
 import { toastError } from "../../ui/Toast.tsx";
 import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
 import { SectionDialog } from "../sidebar/SectionDialog.tsx";
+import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
-import { unarchiveWorkspace } from "./workspace-actions.ts";
+import { runUnarchive } from "./workspace-actions.ts";
 
 export interface WorkspaceActionsMenuProps {
 	workspaceId: WorkspaceId;
@@ -55,6 +57,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const archiveShortcut = useLiveShortcut("workspace.archive");
 	const [renaming, setRenaming] = useState(false);
 	const [newSection, setNewSection] = useState(false);
+	const [branchPrompt, setBranchPrompt] = useState(false);
 
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const archived = data?.state === "archived";
@@ -81,6 +84,13 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const moveTo = (section: Section) =>
 		void run("Couldn't move the workspace", () =>
 			actions.sections.place(workspaceId, section.id, 0),
+		);
+
+	const startUnarchive = () =>
+		void runUnarchive(actions, workspaceId, { branchName: null, clearChats: false }).then(
+			(result) => {
+				if (result.ok && result.value.needsBranchName) setBranchPrompt(true);
+			},
 		);
 
 	return (
@@ -144,15 +154,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 					</MenuSub>
 					<MenuSeparator />
 					{archived ? (
-						<MenuItem
-							onSelect={() =>
-								void run("Couldn't unarchive the workspace", () =>
-									unarchiveWorkspace(actions, workspaceId),
-								)
-							}
-						>
-							Unarchive
-						</MenuItem>
+						<MenuItem onSelect={startUnarchive}>Unarchive</MenuItem>
 					) : (
 						<>
 							<MenuItem onSelect={() => setRenaming(true)}>Rename</MenuItem>
@@ -183,6 +185,17 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				</MenuContent>
 			</Menu>
 			<WorkspaceRenameDialog workspaceId={workspaceId} open={renaming} onOpenChange={setRenaming} />
+			<RenameDialog
+				open={branchPrompt}
+				onOpenChange={setBranchPrompt}
+				title="Unarchive workspace"
+				initialName={data?.branch ?? ""}
+				fieldLabel="Branch name"
+				submitLabel="Unarchive"
+				onSubmit={(name) =>
+					runUnarchive(actions, workspaceId, { branchName: name, clearChats: false })
+				}
+			/>
 			<SectionDialog open={newSection} onOpenChange={setNewSection} section={null} />
 		</>
 	);

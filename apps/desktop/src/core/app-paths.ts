@@ -2,9 +2,14 @@
  * @feature DATA-02 Where the app keeps its own files
  * Owns: the folder layout under the app data folder, as pure functions of `Platform.fs.paths`, so
  * every service and the data-lifetime job agree on where drafts, attachments and logs live.
- * Behaviour: services-map.md 5A.6.2 (draft staging folder, sweep of old drafts), 5A.1.2 (setup log).
+ * A folder that only one feature uses may be named in that feature's file, joined with
+ * `appDataPath`: the git caches (services/git-cache.ts) and the zsh shim
+ * (services/shell-integration.ts).
+ * Behaviour: services-map.md 5A.6.2 (draft staging folder, sweep of old drafts), 5A.1.2 (setup log)
+ * and 5A.4.7 (saved terminal scrollback files).
  * Callers pass ids from the id source, never user text, so no name here holds a path separator.
- * Nothing in this file checks that; a caller that passed user text would escape the folder.
+ * The builders do not check that; a caller that passed user text would escape the folder. A path
+ * read back from storage is checked with `isInsideFolder` before anything deletes it.
  * Our design choice: drafts are JSON files, one per chat, because migration 0001 has no drafts
  * table. A new table would need a new migration; files need none.
  * Test first: draftFile joins appData, "drafts" and "<sessionId>.json" with single slashes.
@@ -18,6 +23,20 @@ const join = (...parts: string[]): string =>
 		.map((part, index) => (index === 0 ? part.replace(/\/+$/, "") : part.replace(/^\/+|\/+$/g, "")))
 		.join("/");
 
+/**
+ * True when `path` names something inside `folder`, never the folder itself. Both are absolute,
+ * with `/` separators. An empty, `.` or `..` segment or a NUL byte makes the answer false, so a
+ * path cannot climb out of the folder by how it is spelled.
+ */
+export const isInsideFolder = (folder: string, path: string): boolean => {
+	const base = folder.replace(/\/+$/, "");
+	if (base.length === 0 || path.includes("\u0000") || !path.startsWith(`${base}/`)) return false;
+	return path
+		.slice(base.length + 1)
+		.split("/")
+		.every((part) => part !== "" && part !== "." && part !== "..");
+};
+
 /** Folder with one `<sessionId>.json` per chat that has an unsent draft. */
 export const draftsDir = (paths: AppPaths): string => join(paths.appData, "drafts");
 
@@ -27,6 +46,18 @@ export const draftFile = (paths: AppPaths, sessionId: string): string =>
 /** Staging folder for attachments that are not yet part of a sent message. */
 export const draftAttachmentsDir = (paths: AppPaths, sessionId: string): string =>
 	join(paths.appData, "draft-attachments", sessionId);
+
+/** Folder holding one staging folder per chat with draft attachments. */
+export const draftAttachmentsRoot = (paths: AppPaths): string =>
+	join(paths.appData, "draft-attachments");
+
+/** Folder where the Rust shell writes the saved scrollback of ended terminals (PLAT-08). */
+export const terminalHistoryDir = (paths: AppPaths): string =>
+	join(paths.appData, "terminal-history");
+
+/** The saved scrollback file of one terminal. */
+export const terminalHistoryFile = (paths: AppPaths, terminalId: string): string =>
+	join(terminalHistoryDir(paths), `${terminalId}.bin`);
 
 /** Where the setup script's output is written for one workspace. */
 export const setupLogFile = (paths: AppPaths, workspaceId: string): string =>
@@ -59,14 +90,6 @@ export const contextDir = (workspacePath: string): string => join(workspacePath,
 export const viewedFilesFile = (paths: AppPaths, workspaceId: string): string =>
 	join(paths.appData, "viewed-files", `${workspaceId}.json`);
 
-/** Folder with the zsh files that make a terminal report its running program (RUN-09). */
-export const zshIntegrationDir = (paths: AppPaths): string =>
-	join(paths.appData, "terminal-shell-integration", "zsh");
-
-/** The last changed-file list of one workspace, so a restart can paint at once (DATA-07). */
-export const changesCacheFile = (paths: AppPaths, workspaceId: string): string =>
-	join(paths.appData, "git-cache", "changes", `${workspaceId}.json`);
-
-/** The last pull request information of one workspace (DATA-07). */
-export const prInfoCacheFile = (paths: AppPaths, workspaceId: string): string =>
-	join(paths.appData, "git-cache", "pr-info", `${workspaceId}.json`);
+/** A path under the app data folder, for a feature that names its own folders in its own file. */
+export const appDataPath = (paths: AppPaths, ...parts: string[]): string =>
+	join(paths.appData, ...parts);

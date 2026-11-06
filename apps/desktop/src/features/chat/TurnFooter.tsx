@@ -3,25 +3,31 @@
  * Owns: The footer under a finished turn: copy actions, token and time details and the fork and reset
  * menu. The files the turn changed are listed above it by TurnChanges.
  * Behaviour: ui-map.md 3.3 (Turn footer: 'Copy final message', 'Copy summary', hover card with
- * start and end time and Input, Output, Cache read, Cache write tokens; More menu: 'Fork to new
- * tab', 'Fork to new workspace', 'Reset chat', copy options).
+ * start and end time, Fast mode state and Input, Output, Cache read, Cache write tokens; More
+ * menu: 'Fork to new tab', 'Fork to new workspace', 'Reset chat', copy options).
+ * Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
+ * also shows the cost the agent reported for this turn. Conductor shows cost only for cloud runs.
  * Our design choice: Fork to a new workspace is not in the scaffold backlog beyond CHAT-16; its
  * item is shown disabled with the reason until built.
  * Must handle: A running turn (no footer, TurnItem shows the spinner instead); no usage reported (the hover card
- * says so); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
- * copies); a copy, fork or reset that fails (a toast). The More menu repeats the copy actions; the row wraps
- * at a narrow width instead of collapsing into the menu.
+ * says so); an agent that does not report fast mode or cost (that line is left out); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
+ * copies); a copy or fork that fails (a toast); Reset opens the confirmation dialog instead of changing
+ * anything at once. The More menu repeats the copy actions; the row wraps at a narrow width instead of
+ * collapsing into the menu.
  * Test first: A finished turn with usage shows token counts in the hover card; without a checkpoint
  * Reset is disabled.
  */
 import type { SessionId } from "@conducted/shared";
-import { useActions } from "../../core/hooks.ts";
+import { useState } from "react";
+import { useActions, useSetting } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
 import { ChevronDownIcon, ClockIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
+import { formatCost } from "./ContextWheel.tsx";
+import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
 
 export interface TurnFooterProps {
@@ -55,17 +61,26 @@ function summaryOf(turn: ChatTurn, finalMessage: string): string {
 	return lines.join("\n");
 }
 
-function detailsOf(turn: ChatTurn): string {
+function detailsOf(turn: ChatTurn, showCost: boolean): string {
 	const end = turn.endedAt === null ? "running" : clock(turn.endedAt);
-	const usage =
-		turn.usage === null
-			? "No usage reported."
-			: `Input ${turn.usage.inputTokens} · Output ${turn.usage.outputTokens} · Cache read ${turn.usage.cacheReadTokens} · Cache write ${turn.usage.cacheWriteTokens}`;
-	return `${clock(turn.startedAt)} to ${end}\n${usage}`;
+	const lines = [`${clock(turn.startedAt)} to ${end}`];
+	const usage = turn.usage;
+	if (usage === null) {
+		lines.push("No usage reported.");
+		return lines.join("\n");
+	}
+	if (usage.fastMode !== null) lines.push(`Fast mode ${usage.fastMode ? "on" : "off"}`);
+	lines.push(
+		`Input ${usage.inputTokens} · Output ${usage.outputTokens} · Cache read ${usage.cacheReadTokens} · Cache write ${usage.cacheWriteTokens}`,
+	);
+	if (showCost && usage.costUsd !== null) lines.push(`Cost ${formatCost(usage.costUsd)}`);
+	return lines.join("\n");
 }
 
 export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 	const actions = useActions();
+	const showCost = useSetting<boolean>("experimental_show_agent_cost") === true;
+	const [resetOpen, setResetOpen] = useState(false);
 	const finalMessage = finalMessageOf(turn);
 	const summary = summaryOf(turn, finalMessage);
 	const canReset = turn.startCheckpointId !== null;
@@ -85,7 +100,7 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 				disabled={finalMessage.length === 0}
 			/>
 			<CopyButton text={summary} onCopy={copy} label="Copy summary" size="xs" />
-			<Tooltip content={detailsOf(turn)}>
+			<Tooltip content={detailsOf(turn, showCost)}>
 				<Button variant="ghost" size="xs" aria-label="Turn details" className="gap-1">
 					<ClockIcon />
 					<span>{clock(turn.startedAt)}</span>
@@ -116,12 +131,7 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					<MenuItem
 						disabled={!canReset}
 						title={canReset ? undefined : "This turn has no checkpoint to reset to."}
-						onSelect={() => {
-							void reportFailure(
-								actions.sessions.revertTo(sessionId, turn.turnId),
-								"Couldn't reset the chat",
-							);
-						}}
+						onSelect={() => setResetOpen(true)}
 					>
 						Reset chat
 					</MenuItem>
@@ -135,6 +145,14 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					<MenuItem onSelect={() => copyFromMenu(summary)}>Copy summary</MenuItem>
 				</MenuContent>
 			</Menu>
+			<ResetChatDialog
+				open={resetOpen}
+				onOpenChange={setResetOpen}
+				sessionId={sessionId}
+				turnId={turn.turnId}
+				changedFileCount={turn.changes.length}
+				busy={turn.outcome === "running"}
+			/>
 		</div>
 	);
 }

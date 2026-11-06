@@ -74,6 +74,8 @@ const harness = async (
 		apply: {
 			adoptLiveState: (sessionId, liveState) => sessions.applyLiveState(sessionId, liveState),
 			markInterrupted: (sessionId) => sessions.markInterrupted(sessionId),
+			// The warm is SIDE-21's; these CHAT-18 cases do not look at it unless they replace it.
+			warm: async () => ok(undefined),
 			...overrides,
 		},
 	});
@@ -255,5 +257,52 @@ describe("CHAT-18 resume after restart", () => {
 
 		expect(report.ok && report.value.interrupted).toEqual([h.sessionId]);
 		expect(h.sidecar.request).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("SIDE-21 resume warms a lost chat's agent", () => {
+	it("warms an interrupted chat with its stored resume token", async () => {
+		const warmed: SessionId[] = [];
+		const h = await harness(async () => ok({ known: false }), {
+			warm: async (sessionId) => {
+				warmed.push(sessionId);
+				return ok(undefined);
+			},
+		});
+
+		const result = await h.resume.resume();
+
+		expect(result.ok && result.value.interrupted).toEqual([h.sessionId]);
+		expect(warmed).toEqual([h.sessionId]);
+	});
+
+	it("does not warm an adopted chat, whose agent the sidecar still runs", async () => {
+		const warmed: SessionId[] = [];
+		const h = await harness(async () => ok({ known: true, liveState: working }), {
+			warm: async (sessionId) => {
+				warmed.push(sessionId);
+				return ok(undefined);
+			},
+		});
+
+		const result = await h.resume.resume();
+
+		expect(result.ok && result.value.adopted).toEqual([h.sessionId]);
+		expect(warmed).toEqual([]);
+	});
+
+	it("reports a warm that fails, with its reason, and still counts the chat as interrupted", async () => {
+		const h = await harness(async () => ok({ known: false }), {
+			warm: async () => err(appError("launch_secret_missing", "The value of KEY is missing.")),
+		});
+
+		const result = await h.resume.resume();
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.interrupted).toEqual([h.sessionId]);
+		expect(result.value.failed).toEqual([
+			{ sessionId: h.sessionId, message: "The value of KEY is missing." },
+		]);
 	});
 });

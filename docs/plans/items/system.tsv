@@ -50,7 +50,7 @@ SIDE-04	rule	Step 9: the turn ends on the result message, then the end checkpoin
 SIDE-05	state	Chat status is only idle or working; other conditions are flags on the live state.	sessions-and-chats what happens, last line	covered
 CHAT-04	rule	Follow-up queue: a user row with no sent time and a queue order; edit, reorder and delete.	sessions-and-chats while working	covered
 CHAT-03	rule	Steer is a send with steering delivery, shown as pending until the agent reads it.	sessions-and-chats while working	covered
-CHAT-03	rule	Agents that cannot steer do not offer steering in the UI, as in Conductor; ours sends the message as a normal follow-up.	sessions-and-chats while working	partly
+CHAT-03	rule	Agents that cannot steer do not offer steering in the UI, as in Conductor; a message sent with the default mode goes to them as a normal follow-up, and a steer asked for by name fails visibly.	sessions-and-chats while working	partly
 CHAT-05	rule	Cancel stops the turn, takes the end checkpoint and drops the queued follow-ups; ours pauses the app queue instead of dropping it.	sessions-and-chats while working	missing
 AGENT-02	rule	Cancel for Claude tries an in-protocol interrupt first, then SIGTERM and SIGKILL after 5 s (D015).	sessions-and-chats while working	covered
 SIDE-04	rule	Run numbers drop late results of a cancelled run.	sessions-and-chats while working	covered
@@ -1365,7 +1365,7 @@ REV-01	rule	Step 6 reads the modified time and size of each changed file.	servic
 GIT-02	rule	Step 7 has an uncommitted-only variant that compares against HEAD.	services-map 3.3.2	covered
 GIT-03	git	Step 8 reads HEAD and its upstream with rev-parse HEAD @{u}.	services-map 3.3.2	covered
 GIT-03	git	Step 8 counts commits ahead and behind the upstream with a left-right count.	services-map 3.3.2	covered
-GIT-03	rule	A remote branch counts as rewritten when the local tip is not in the remote ref's reflog.	services-map 3.8.3	covered
+GIT-03	rule	A diverged remote branch counts as rewritten when the local tip is in the remote ref's reflog: the remote once pointed at it, then a force-push moved it away.	services-map 3.8.3	covered
 GIT-02	git	Step 9 counts how far the branch is behind its target.	services-map 3.3.2	covered
 GIT-02	git	Step 10 lists the branch commits with a log over the range.	services-map 3.3.2	covered
 GIT-02	rule	A cheaper poll reads only the local branch, and an answer for a branch that has since changed is dropped.	services-map 3.3.3	covered
@@ -1820,7 +1820,7 @@ APP-01	startup	After start, wire notification clicks to open the right workspace
 APP-01	startup	After start, wire deep link handling.	services-map 6	missing
 APP-01	startup	After start, wire update checks.	services-map 6	missing
 APP-01	startup	After start, wire the quit handler that waits for agents.	services-map 6	missing
-APP-01	startup	After start, heal Spotlight state left by a crash.	services-map 6	missing
+APP-01	startup	After start, heal Spotlight state left by a crash.	services-map 6	covered
 PLAT-02	command	The app exposes a grouped set of custom Tauri commands, listed in docs/plans/tauri-commands.md.	frontend 3a	covered
 PLAT-09	command	A command starts the sidecar if it is not running.	frontend 3a	covered
 PLAT-18	command	A command returns the sidecar log path.	frontend 3a	covered
@@ -2182,7 +2182,7 @@ RC-02	capability	Remote control is allowed per chat through our own switch (Clau
 APP-03	operation	Diagnostics captures the login shell, PATH and environment, with values hashed except a safe list.	ui-map 2	covered
 PLAT-18	operation	Diagnostics copies the app logs on request and warns that they may contain personal data.	ui-map 2	covered
 APP-03	operation	The Diagnostics Restart button restarts the app.	ui-map 2	covered
-WS-08	integration	A workspace card can reveal its folder in Finder.	ui-map 4	covered
+NAV-05	integration	A workspace card can reveal its folder in Finder: the archived card's 'Open in Finder' (moved from WS-08 by the slice 2 step 2 audit).	ui-map 4	covered
 GIT-02	git	Each sidebar row shows added and removed line counts taken from the git status poll.	ui-map 4	partly
 CLOUD-10	state	A sidebar row shows a Forwarding ports badge while a cloud workspace forwards ports.	ui-map 4, 3.7	missing
 DATA-05	store	The sidebar width and the open state of both panels are saved as the settings left_panel_width, left_panel_visible and right_panel_visible.	ui-map 1.1	partly
@@ -2350,7 +2350,6 @@ GIT-02	message	A note says some untracked files are not shown when the untracked
 PR-03	state	The Checks tab lists checks with states Running, Failed, Cancelled and Pending.	ui-map 3.6	covered
 PR-03	state	A check can be Waiting; our check state type has no waiting value.	ui-map 3.6	partly
 PR-04	operation	Check logs open from a check row, with messages for logs that cannot load or have expired.	ui-map 3.6, 3.7	covered
-PR-06	git	Re-run failed checks re-runs the failed jobs through gh.	ui-map 3.6	covered
 PR-04	operation	Queue checks is offered on the checks list; what it does is not yet known.	ui-map 3.6	partly
 PR-03	state	Deployments show states Deployed, Failed, Deploying, Pending and Inactive for known providers.	ui-map 3.6	covered
 PR-04	git	PR comments show Resolved and Outdated markers and can be resolved.	ui-map 3.6	covered
@@ -3043,3 +3042,6 @@ PLAT-33	rule	Menu accelerators and menu clicks in the live app: `createTauriMenu
 SET-04	integration	The Environment page's variables reach a running agent: SET-04 adds them to the agent launch that SIDE-21 builds (global variables, then the repository's of the same name), and an idle agent restarts with resume when they change.	native-and-sidecar-map B4	missing
 SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) when PLAT-28 installs it; until then the order is Settings path, then PATH.	other-runners 5	missing
 SIDE-21	integration	The desktop composition root (core/container.ts) passes launchFor to SessionsService and ChatTitlesService, built from the saved settings: program paths, provider and base URL, and provider keys from the Keychain. Accepted by a test over createTestContainer that sends one message and sees the launch in the sidecar request, with no chat_launch_missing (D054).	claude-runner 1.2	missing
+CHAT-15	rule	After a revert the agent forgets the reverted turns: revertTo asks the sidecar to resetAgent, and the chat's next send resumes the agent at the chosen turn with resume.atNativeMessageId. Until then the agent keeps them in memory although the chat hides them (moved by the s2-2 core-1 audit).	sessions 2	missing
+PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	missing
+PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	missing

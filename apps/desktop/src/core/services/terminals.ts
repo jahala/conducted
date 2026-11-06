@@ -634,7 +634,8 @@ export class TerminalsService {
 
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId,
-			repoId: workspace.value.repoId,
+			// A workspace terminal has no repo id: the table keeps exactly one of the two (0004).
+			repoId: null,
 			kind: "terminal",
 			title: nextTerminalTitle(existing),
 			cwd: workspace.value.path,
@@ -710,7 +711,7 @@ export class TerminalsService {
 
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId: input.workspaceId,
-			repoId: workspace.value.repoId,
+			repoId: null,
 			kind: input.kind,
 			title: input.title,
 			cwd: input.cwd,

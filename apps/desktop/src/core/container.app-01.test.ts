@@ -19,7 +19,13 @@ import { SessionResume } from "./sidecar/resume.ts";
 
 vi.mock("./db/lifetime.ts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("./db/lifetime.ts")>();
-	return { ...actual, runDataLifetimeJob: async () => ({ ok: true, value: undefined }) };
+	return {
+		...actual,
+		runDataLifetimeJob: async () => ({
+			ok: true,
+			value: { kind: "skipped", lastRunAt: 0 },
+		}),
+	};
 });
 
 const clock = { now: () => 1_000 };

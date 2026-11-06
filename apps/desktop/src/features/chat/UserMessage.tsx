@@ -7,9 +7,10 @@
  * because a message that was never sent has nothing to revert to; FailedSends passes it); a very long
  * message collapses with 'Show more'; an image attachment tries a thumbnail from its path and a missing file shows
  * its name (a local path does not load in the webview until the Platform hands out file URLs); mention chips for
- * files and PRs open the file or PR tab; text is selectable and copyable.
+ * files and PRs open the file or PR tab; text is selectable and copyable; Revert opens the confirmation
+ * dialog instead of changing anything at once.
  * Test first: A message with two attachment paths renders two attachment items; a failed send shows
- * Retry and Discard; a PR chip opens the PR tab on that number.
+ * Retry and Discard; a PR chip opens the PR tab on that number; Revert opens the reset dialog.
  */
 import { MENTION_TOKEN, type MentionKind } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
@@ -19,7 +20,9 @@ import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { FileIcon, PullRequestIcon } from "../../ui/icons.tsx";
+import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
+import { fileNameOf } from "./tools/ToolCardFrame.tsx";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
 const LONG_MESSAGE = 800;
@@ -32,17 +35,11 @@ export interface UserMessageProps {
 	failed?: { message: string; error: string | null } | null;
 	onRetry?: () => void;
 	onDiscard?: () => void;
-	onRevert?: () => void;
-}
-
-function baseName(path: string): string {
-	const parts = path.split(/[\\/]/);
-	return parts.at(-1) ?? path;
 }
 
 function AttachmentItem({ path }: { path: string }) {
 	const [failed, setFailed] = useState(false);
-	const name = baseName(path);
+	const name = fileNameOf(path);
 	const image = IMAGE.test(path);
 	return (
 		<figure
@@ -102,12 +99,12 @@ export function UserMessage({
 	failed = null,
 	onRetry,
 	onDiscard,
-	onRevert,
 }: UserMessageProps) {
 	const actions = useActions();
 	const links = useWorkspaceLinks();
 	const message = turn.userMessage;
 	const [expanded, setExpanded] = useState(false);
+	const [resetOpen, setResetOpen] = useState(false);
 	if (message === null) return null;
 
 	const openMention = (kind: MentionKind, value: string) => {
@@ -117,17 +114,6 @@ export function UserMessage({
 		}
 		const number = Number(value);
 		if (Number.isInteger(number) && number > 0) links.openPullRequest(number);
-	};
-
-	const revert = () => {
-		if (onRevert !== undefined) {
-			onRevert();
-			return;
-		}
-		void reportFailure(
-			actions.sessions.revertTo(sessionId, turn.turnId),
-			"Couldn't reset the chat",
-		);
 	};
 
 	const tooLong = message.text.length > LONG_MESSAGE && !expanded;
@@ -179,7 +165,7 @@ export function UserMessage({
 				{failed === null ? (
 					<button
 						type="button"
-						onClick={revert}
+						onClick={() => setResetOpen(true)}
 						aria-label="Revert to before this message"
 						className="rounded-sm px-1 text-2xs text-fg-subtle opacity-0 hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
 					>
@@ -199,6 +185,14 @@ export function UserMessage({
 					</Button>
 				</div>
 			) : null}
+			<ResetChatDialog
+				open={resetOpen}
+				onOpenChange={setResetOpen}
+				sessionId={sessionId}
+				turnId={turn.turnId}
+				changedFileCount={turn.changes.length}
+				busy={turn.outcome === "running"}
+			/>
 		</div>
 	);
 }

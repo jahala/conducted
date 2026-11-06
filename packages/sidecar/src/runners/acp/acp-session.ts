@@ -8,7 +8,10 @@
  * without awaiting it, and settles when the loop sees the end of the turn; steering is not
  * supported; cancel sends session/cancel, sets a flag and resolves every open permission and
  * question as cancelled; the ACP session id is stored as the agent session id; model changes
- * use session/set_config_option on the option with category "model".
+ * use session/set_config_option on the option with category "model". AGENT-17 adds the chat's
+ * other config options: list them, apply saved values, and set one between turns. Telling the
+ * agent which model a reloaded chat uses is part of the same reconcile step, which runs before the
+ * options are listed and before the first prompt.
  * Must handle:
  *  - steer(): SteerNotSupportedError("acp"); the manager queues the message
  *  - each prompt carries a turn token; an answer to an earlier prompt is dropped, so a late reply
@@ -22,6 +25,10 @@
  *    declined (a withdrawn form is cancelled)
  *  - config changes while a turn runs are deferred to the next turn; model and options are live
  *    between turns, while a change of additional folders needs a restart
+ *  - a saved option the agent no longer offers, or one the agent refuses to set, is skipped with a
+ *    log line and the chat still opens; the option keeps the agent's own value, so the listed
+ *    options show the app which saved choices did not load (the model is not skipped: a model the
+ *    agent refuses fails the turn)
  *  - OpenCode: after session/new wait up to adapter.waitForModelCatalogMs for the model option
  *    before the first prompt, else the turn fails with a sign-in hint
  *  - the first prompt of a resumed session whose resume fell back to a new session is flagged to the
@@ -33,6 +40,7 @@
  *  - an error from the translator ends the turn with an error that names it, and later turns fail
  *    instead of hanging
  *  - contextUsage from the last usage_update
+ *  - dispose runs the runner's onDispose once, which gives the app tools token back (SIDE-13)
  * Test first: with an in-memory client, runTurn buffers two text chunks, then a stop reason of
  * end_turn flushes one text message and resolves success.
  */
@@ -48,12 +56,13 @@ import type {
 	StopReason,
 } from "@agentclientprotocol/sdk";
 import type {
+	AcpConfigOption,
 	AgentMessage,
 	Interaction,
 	InteractionAnswer,
 	SessionConfig,
 } from "@conducted/protocol";
-import { type AppError, appError, type SessionId } from "@conducted/shared";
+import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { createDeferred } from "../../util/deferred.ts";
@@ -86,6 +95,8 @@ export interface AcpSessionDeps {
 	/** The app tools MCP servers to pass to session/new. */
 	mcpServers: readonly unknown[];
 	logger: Logger;
+	/** Runs once when the session is disposed: the runner gives the app tools token back. */
+	onDispose?: () => void;
 }
 
 type SessionEvent =
@@ -121,6 +132,8 @@ export class AcpSession implements AgentSession {
 	private resumeSessionId: string | undefined;
 	private readonly events = new AsyncQueue<SessionEvent>();
 	private stopGeneration = 0;
+	/** True once onDispose ran, so a second dispose does not run it again. */
+	private released = false;
 	private resumeWarningPending = false;
 	private usage: { usedTokens: number; windowTokens: number } | null = null;
 	private lastText = "";
@@ -327,6 +340,121 @@ export class AcpSession implements AgentSession {
 		return this.usage;
 	}
 
+	/**
+	 * Fetches the agent's chat options beyond the model (AGENT-17). The saved model and options are
+	 * applied first, so a saved chat shows the choices it was left with.
+	 */
+	async listAcpConfigOptions(
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>> {
+		const ready = await this.openForConfig(config, onAgentSessionId);
+		if (!ready.ok) return ready;
+		return ok(this.publicConfigOptions());
+	}
+
+	/** Sets one option between turns and returns every option, since one choice can change others. */
+	async setAcpConfigOption(
+		optionId: string,
+		value: string | boolean,
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>> {
+		if (this.activeTurn !== null || this.starting) {
+			return err(
+				appError("acp_turn_running", "Chat options cannot change while a reply is running."),
+			);
+		}
+		const ready = await this.openForConfig(config, onAgentSessionId);
+		if (!ready.ok) return ready;
+		const client = this.client;
+		const opened = this.opened;
+		if (client === null || opened === null) {
+			return err(appError("acp_session_not_ready", "The ACP agent has not opened its session."));
+		}
+		const option = this.configOptions.find((entry) => entry.id === optionId);
+		if (option === undefined) {
+			return err(appError("acp_option_unknown", "The agent no longer offers that option."));
+		}
+		if (isModelOption(option)) {
+			return err(appError("acp_option_is_model", "The model is chosen in the model picker."));
+		}
+		if (!optionAcceptsValue(option, value)) {
+			return err(
+				appError(
+					"acp_option_value_invalid",
+					`The ${this.deps.adapter.displayName} agent does not accept that value for ${option.name}.`,
+				),
+			);
+		}
+		if (option.currentValue === value) return ok(this.publicConfigOptions());
+		const changed = await client.setConfigOption(opened.acpSessionId, optionId, value);
+		if (!changed.ok) return err(changed.error);
+		this.refreshOptions(client, optionId, value);
+		return ok(this.publicConfigOptions());
+	}
+
+	/** Opens the session when needed, then applies the saved model and options. */
+	private async openForConfig(
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<{ ok: true } | { ok: false; error: AppError }> {
+		if (this.activeTurn !== null || this.starting) {
+			return {
+				ok: false,
+				error: appError("acp_turn_running", "Chat options cannot change while a reply is running."),
+			};
+		}
+		await this.writeChain;
+		const opened = await this.ensureSession({
+			onAgentSessionId: (agentSessionId) => {
+				this.resumeSessionId = agentSessionId;
+				onAgentSessionId?.(agentSessionId);
+			},
+		});
+		if (!opened.ok) {
+			return {
+				ok: false,
+				error: appError(
+					"acp_session_failed",
+					opened.outcome.kind === "error"
+						? opened.outcome.message
+						: "The ACP agent could not open its session.",
+				),
+			};
+		}
+		return this.reconcileConfig(config);
+	}
+
+	private publicConfigOptions(): AcpConfigOption[] {
+		return this.configOptions
+			.filter((option) => !isModelOption(option))
+			.map((option) => ({
+				id: option.id,
+				name: option.name,
+				...(option.description === null || option.description === undefined
+					? {}
+					: { description: option.description }),
+				...(option.category === null || option.category === undefined
+					? {}
+					: { category: option.category }),
+				value:
+					option.type === "boolean"
+						? { kind: "switch" as const, current: option.currentValue }
+						: {
+								kind: "select" as const,
+								current: option.currentValue,
+								choices: optionValues(option).map((choice) => ({
+									value: choice.value,
+									name: choice.name,
+									...(choice.description === null || choice.description === undefined
+										? {}
+										: { description: choice.description }),
+								})),
+							},
+			}));
+	}
+
 	async dispose(): Promise<void> {
 		this.stopGeneration += 1;
 		const turn = this.activeTurn;
@@ -340,7 +468,14 @@ export class AcpSession implements AgentSession {
 		this.client = null;
 		this.opened = null;
 		this.events.close();
-		if (client !== null) await client.close();
+		try {
+			if (client !== null) await client.close();
+		} finally {
+			if (!this.released) {
+				this.released = true;
+				this.deps.onDispose?.();
+			}
+		}
 	}
 
 	/** Runs before a file write so the start checkpoint exists. */
@@ -538,7 +673,7 @@ export class AcpSession implements AgentSession {
 	}
 
 	private async ensureSession(
-		callbacks: TurnCallbacks,
+		callbacks: Pick<TurnCallbacks, "onAgentSessionId">,
 	): Promise<{ ok: true } | { ok: false; outcome: TurnOutcome }> {
 		if (this.client !== null && this.opened !== null) return { ok: true };
 		let client: AcpClient;
@@ -663,9 +798,28 @@ export class AcpSession implements AgentSession {
 
 		for (const [optionId, value] of Object.entries(config.acpConfig ?? {})) {
 			const option = this.configOptions.find((entry) => entry.id === optionId);
-			if (option === undefined || option.currentValue === value) continue;
+			if (option !== undefined && isModelOption(option)) continue;
+			// A saved value the agent no longer offers is not sent, and one the agent refuses is
+			// skipped too. Either way the option keeps the agent's value, which is how the app sees
+			// that the saved choice did not load and asks the user to choose again.
+			if (option === undefined || !optionAcceptsValue(option, value)) {
+				this.deps.logger.warn("A saved ACP option is no longer offered; skipped", {
+					adapter: this.deps.adapter.id,
+					optionId,
+				});
+				continue;
+			}
+			if (option.currentValue === value) continue;
 			const changed = await client.setConfigOption(opened.acpSessionId, optionId, value);
-			if (!changed.ok) return { ok: false, error: changed.error };
+			if (!changed.ok) {
+				this.deps.logger.warn("The ACP agent refused a saved option; skipped", {
+					adapter: this.deps.adapter.id,
+					optionId,
+					code: changed.error.code,
+					message: changed.error.message,
+				});
+				continue;
+			}
 			this.refreshOptions(client, optionId, value);
 		}
 		return { ok: true };
@@ -838,9 +992,26 @@ function readElicitationField(field: ElicitationField, values: readonly string[]
 	return { ok: true, value: raw };
 }
 
+function optionValues(
+	option: SessionConfigOption,
+): { value: string; name: string; description?: string | null }[] {
+	if (option.type !== "select" || option.options.length === 0) return [];
+	const first = option.options[0];
+	if (first !== undefined && "group" in first) {
+		return option.options.flatMap((entry) => ("group" in entry ? entry.options : []));
+	}
+	return option.options as { value: string; name: string; description?: string | null }[];
+}
+
+function isModelOption(option: SessionConfigOption): boolean {
+	return option.category === "model" || option.id === "model";
+}
+
+function optionAcceptsValue(option: SessionConfigOption, value: string | boolean): boolean {
+	if (option.type === "boolean") return typeof value === "boolean";
+	return typeof value === "string" && optionValues(option).some((choice) => choice.value === value);
+}
+
 function modelValues(option: SessionConfigOption): string[] {
-	if (!("options" in option)) return [];
-	return option.options.flatMap((entry) =>
-		"group" in entry ? entry.options.map((choice) => choice.value) : [entry.value],
-	);
+	return optionValues(option).map((choice) => choice.value);
 }

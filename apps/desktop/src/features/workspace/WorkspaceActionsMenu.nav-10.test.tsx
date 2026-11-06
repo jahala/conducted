@@ -251,6 +251,10 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 			state: "ready",
 			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
 		};
+		state.unarchive.mockResolvedValue({
+			ok: true,
+			value: { needsBranchName: false, uncommittedChangesLost: false },
+		});
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Unarchive" }));
 		await waitFor(() =>
@@ -259,6 +263,27 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 				clearChats: false,
 			}),
 		);
+	});
+
+	it("warns when unarchive could not recover the uncommitted changes", async () => {
+		const warned = vi.spyOn(toast, "warning").mockReturnValue("t");
+		try {
+			state.workspace = {
+				state: "ready",
+				data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
+			};
+			state.unarchive.mockResolvedValue({
+				ok: true,
+				value: { needsBranchName: false, uncommittedChangesLost: true },
+			});
+			await openMenu();
+			fireEvent.click(await screen.findByRole("menuitem", { name: "Unarchive" }));
+			await waitFor(() =>
+				expect(warned).toHaveBeenCalledWith("Uncommitted changes couldn't be recovered."),
+			);
+		} finally {
+			warned.mockRestore();
+		}
 	});
 
 	it("lists the statuses in board order", async () => {

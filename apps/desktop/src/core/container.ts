@@ -16,7 +16,8 @@
  * the command dispatcher (NAV-14), which is mounted with the app root, so this file does not
  * listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
- * the repo service, kills terminals and runs, waits for chat events that are being stored, and
+ * the repo service, stops every git poll and branch watcher, kills terminals and runs, waits for
+ * chat events that are being stored, and
  * detaches from the sidecar; every stop step runs even when an earlier one
  * fails (the failure is logged), and a `stop` that comes during `start` lets the running
  * step finish, ends the start before it wires anything new, and then tears down; the
@@ -28,6 +29,8 @@
  * Test first: createContainer returns a container whose `services` has every service named in
  * the `Services` interface, and builds without calling any placeholder.
  */
+
+import type { AgentLaunch } from "@conducted/protocol";
 import {
 	appError,
 	type Clock,
@@ -43,14 +46,16 @@ import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
 import { checkpointerScript, spotlighterScript } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
-import { DEFAULT_LIFETIME_LIMITS, runDataLifetimeJob } from "./db/lifetime.ts";
+import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import { AgentCatalogService } from "./services/agent-catalog.ts";
-import { CheckpointService } from "./services/checkpoint.ts";
+import type { Session } from "./model.ts";
+import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
+import { ChatTitleService } from "./services/chat-titles.ts";
+import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { FavoriteModelsService } from "./services/favorite-models.ts";
@@ -77,7 +82,12 @@ import { SessionsService } from "./services/sessions.ts";
 import { SettingsService, type TomlCodec } from "./services/settings.ts";
 import { SpotlightService } from "./services/spotlight.ts";
 import { SystemService } from "./services/system.ts";
-import { TerminalsService, terminalLimit } from "./services/terminals.ts";
+import {
+	DEFAULT_TERMINAL_OUTPUT_LINES,
+	NO_TERMINAL_OUTPUT,
+	TerminalsService,
+	terminalLimit,
+} from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
@@ -283,7 +293,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			},
 			addForSession: async (sessionId, comments) => {
 				const found = lookups.workspaceOfSession(sessionId);
-				return found.ok ? review.addFromAgent(found.value.id, comments) : found;
+				if (!found.ok) return found;
+				// The agent's comments carry the chat's model as their author.
+				const model = sessions.store.getState().sessions[sessionId]?.config.model ?? null;
+				return review.addFromAgent(found.value.id, comments, model);
 			},
 		},
 		terminalOutput: {
@@ -331,6 +344,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		apply: {
 			adoptLiveState: (sessionId, liveState) => sessions.applyLiveState(sessionId, liveState),
 			markInterrupted: (sessionId) => sessions.markInterrupted(sessionId),
+			warm: (sessionId) => sessions.warm(sessionId),
 		},
 	});
 
@@ -340,13 +354,167 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: () => repo.store,
 		sessions: () => sessions.store,
 	});
+	const agentCatalog = new AgentCatalogService({
+		sidecar: client,
+		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+	});
 	const settings = new SettingsService({
 		platform,
 		repos: repositories,
 		toml: inputs.toml,
 		git: gitRunner,
 	});
-	const ports = new PortService({ platform });
+	/**
+	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
+	 * region or project, the Environment page's variables (a repository's replacing the global one
+	 * of the same name) and the provider keys that belong to that agent. Secrets come from the
+	 * Keychain; a key chosen from the Mac is skipped because the app cannot read it. A list that
+	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
+	 * that names it, so the send or warm that asked shows it instead of starting without it.
+	 */
+	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
+		const env: Record<string, string> = {};
+		const providerKeys: AgentLaunch["providerKeys"] = {};
+		const workspace = lookups.workspace(session.workspaceId);
+		if (!workspace.ok) return workspace;
+		const providerSetting =
+			session.config.agent === "claude"
+				? "claude_provider"
+				: session.config.agent === "codex"
+					? "codex_provider"
+					: null;
+		const chosenProvider =
+			providerSetting === null ? undefined : setting<string>(providerSetting).trim().toLowerCase();
+		const defaultProvider =
+			session.config.agent === "claude"
+				? "anthropic"
+				: session.config.agent === "codex"
+					? "openai"
+					: session.config.agent === "cursor"
+						? "cursor"
+						: null;
+		const providerAllowed = (provider: string): boolean => {
+			if (chosenProvider !== undefined && chosenProvider !== "") {
+				return provider.toLowerCase() === chosenProvider;
+			}
+			// OpenCode and Pi choose a provider in their own config, so every stored key may apply.
+			return defaultProvider === null || provider.toLowerCase() === defaultProvider;
+		};
+		const readSecret = async (ref: string, name: string): Promise<Result<string>> => {
+			const read = await platform.keychain.get(ref);
+			if (!read.ok) {
+				return err(
+					appError(
+						"launch_secret_unreadable",
+						`The value of ${name} could not be read from the Keychain: ${read.error.message}`,
+						read.error,
+					),
+				);
+			}
+			if (read.value === null) {
+				return err(
+					appError(
+						"launch_secret_missing",
+						`The value of ${name} is missing from the Keychain. Enter it again in Settings.`,
+					),
+				);
+			}
+			return ok(read.value);
+		};
+		// Claude reads its Bedrock region and Vertex project from these variables. They go in first,
+		// so a variable of the same name on the Environment page wins.
+		if (session.config.agent === "claude" && chosenProvider === "bedrock") {
+			const region = setting<string>("bedrock_region").trim();
+			if (region !== "") env.AWS_REGION = region;
+		}
+		if (session.config.agent === "claude" && chosenProvider === "vertex") {
+			const project = setting<string>("vertex_project_id").trim();
+			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
+		}
+		const listed = await repositories.envVars.listForRepo(workspace.value.repoId);
+		if (!listed.ok) {
+			return err(
+				appError(
+					"launch_variables_unreadable",
+					`The environment variables could not be read: ${listed.error.message}`,
+					listed.error,
+				),
+			);
+		}
+		// Rows come in name order, global before repository, so a repository's value replaces the
+		// global one. Its Keychain value missing is an error, never the global value instead.
+		for (const entry of listed.value) {
+			const value = await readSecret(entry.keychainRef, entry.name);
+			if (!value.ok) return value;
+			env[entry.name] = value.value;
+		}
+		const keys = await repositories.providerKeys.listForAgent(
+			session.config.agent,
+			session.config.acpAgent ?? null,
+		);
+		if (!keys.ok) {
+			return err(
+				appError(
+					"launch_keys_unreadable",
+					`The provider keys could not be read: ${keys.error.message}`,
+					keys.error,
+				),
+			);
+		}
+		for (const key of keys.value) {
+			if (!providerAllowed(key.provider)) continue;
+			if (key.source === "this_mac") {
+				platform.app.writeLog(
+					"debug",
+					`The key for ${key.envVar} is chosen from this Mac, which the app cannot read yet.`,
+				);
+				continue;
+			}
+			if (key.keychainRef === null) continue;
+			const value = await readSecret(key.keychainRef, key.envVar);
+			if (!value.ok) return value;
+			providerKeys[key.envVar] = { value: value.value, source: "entered" };
+		}
+		const executableKey =
+			session.config.agent === "claude"
+				? "claude_executable_path"
+				: session.config.agent === "codex"
+					? "codex_executable_path"
+					: session.config.agent === "acp" && session.config.acpAgent === "opencode"
+						? "opencode_executable_path"
+						: null;
+		const executablePath = executableKey === null ? "" : setting<string>(executableKey).trim();
+		const provider =
+			chosenProvider === undefined || chosenProvider === "" ? undefined : chosenProvider;
+		return ok({
+			env,
+			providerKeys,
+			...(executablePath === "" ? {} : { executablePath }),
+			...(provider === undefined ? {} : { provider }),
+		});
+	};
+	const chatTitles = new ChatTitleService({
+		sidecar: client,
+		titlesEnabled: () =>
+			setting<boolean>("ai_generated_chat_titles") !== false &&
+			!setting<boolean>("enterprise_data_privacy"),
+		// The catalog has no price field, so the default picker model is the utility choice.
+		cheapestModel: (session) => {
+			const models =
+				agentCatalog.store.getState().models[
+					agentKey(session.config.agent, session.config.acpAgent)
+				];
+			if (models?.state === "ready") {
+				const picker = models.data.filter((model) => model.status === "picker");
+				const choice = picker.find((model) => model.isDefault) ?? picker[0];
+				if (choice !== undefined) return choice.id;
+			}
+			return session.config.model === "" ? null : session.config.model;
+		},
+		launchFor,
+		log,
+	});
+	const ports = new PortService({ platform, repos: repositories });
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -360,6 +528,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const handle = setTimeout(callback, ms);
 			return () => clearTimeout(handle);
 		},
+		activeSessionOf: (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? ok(found.value.activeSessionId) : found;
+		},
+		terminalOutputOf: async (sessionId) => {
+			const workspace = lookups.workspaceOfSession(sessionId);
+			if (!workspace.ok) return workspace;
+			const output = await terminals.outputFor(
+				workspace.value.id,
+				"auto",
+				DEFAULT_TERMINAL_OUTPUT_LINES,
+			);
+			if (!output.ok) return output;
+			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
+			return ok({ text: output.value.output, source: output.value.source });
+		},
 	});
 	const notifications = new NotificationService({
 		platform,
@@ -367,6 +551,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		setting,
 		isViewing: (sessionId) => sessions.store.getState().viewingSessionId === sessionId,
 		windowFocused: inputs.windowFocused,
+		sessionOf: (sessionId) => sessions.store.getState().sessions[sessionId],
+		workspaceOf: (workspaceId) => workspace.store.getState().workspacesById[workspaceId],
+		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
+		queuedCountOf: (sessionId) =>
+			(followUpQueue.store.getState().bySession[sessionId] ?? []).length,
 		workspaces: () => {
 			const byId = workspace.store.getState().workspacesById;
 			return new Map(
@@ -374,22 +563,53 @@ export function createContainer(inputs: ContainerInputs): Container {
 			);
 		},
 		sessions: () => Object.values(sessions.store.getState().sessions),
+		setTimer: (callback, ms) => {
+			const handle = setTimeout(callback, ms);
+			return () => clearTimeout(handle);
+		},
+		log,
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
-		deliver: (row) => sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery),
+		// The row id is the message id, so startup repair can tell that a row in `sending` was
+		// already delivered, and the sidecar's duplicate guard drops a second send of it.
+		deliver: (row) =>
+			sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery, row.id),
 		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
 	});
 	const sessions: SessionsService = new SessionsService({
 		db: platform.db,
 		repositories: () => repositories,
 		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
+		fs: platform.fs,
 		sidecar: client,
 		composer,
 		queue: followUpQueue,
 		notifications,
+		pruneCheckpoints: async (sessionId, workspaceId) => {
+			const workspace = await repositories.workspaces.get(workspaceId);
+			if (!workspace.ok) return workspace;
+			if (workspace.value === null)
+				return err(appError("workspace_unknown", "That workspace no longer exists."));
+			const repository = await repositories.repos.get(workspace.value.repoId);
+			if (!repository.ok) return repository;
+			if (repository.value === null)
+				return err(appError("repo_unknown", "That project was removed."));
+			// The refs live in the project's repository. A project folder that is gone took them
+			// with it, and git cannot run there, so the chat is deleted with nothing to prune.
+			if (!(await platform.fs.exists(repository.value.rootPath))) return ok(0);
+			return checkpoint.pruneForChat(sessionId, repository.value.rootPath);
+		},
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
+		launchFor,
+		onFirstMessage: async (session, text) => {
+			const renamed = await workspace.renameBranchAfterFirstMessage(session.id, text);
+			if (!renamed.ok) {
+				log("warn", `Couldn't rename the branch after the first message: ${renamed.error.message}`);
+			}
+		},
+		log,
 		setting,
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
@@ -411,6 +631,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
 		shell: platform.shell,
+		ports,
+		log,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -427,6 +649,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
+		github: {
+			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
+		},
+		branchNames: chatTitles,
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,
@@ -434,10 +660,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
-	const agentCatalog = new AgentCatalogService({
-		sidecar: client,
-		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
-	});
 	const mcp = new McpService({ sidecar: client });
 	const linear = new LinearService({
 		http: createCurlLinearHttp(platform.shell),
@@ -487,6 +709,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		checkpointerPath: checkpointerScript(paths),
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		events: repositories.sessionEvents,
+		markViewReverted: (sessionId, turnId, at) => sessions.markReverted(sessionId, turnId, at),
+		setting,
+		repositories: () => repositories,
+		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({
 		git: gitRunner,
@@ -502,6 +729,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		git: gitRunner,
 		agent: sessions,
+		fs: platform.fs,
+		workspacePathOf: async (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? ok(found.value.path) : found;
+		},
 		customPromptOf: async (id) => {
 			const found = lookups.repoOf(id);
 			if (!found.ok) return found;
@@ -599,16 +831,25 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
 		{
+			name: "checkpoint pruning",
+			phase: "sidecar",
+			fatal: false,
+			run: () => checkpoint.pruneArchived(CHECKPOINT_PRUNE_AFTER_DAYS),
+		},
+		{
 			name: "data lifetime",
 			phase: "sidecar",
 			fatal: false,
-			run: () =>
-				runDataLifetimeJob({
+			run: async () => {
+				const ran = await runDataLifetimeJob({
 					db: platform.db,
 					fs: platform.fs,
 					clock,
 					limits: DEFAULT_LIFETIME_LIMITS,
-				}),
+				});
+				// A step that failed sits inside the report; this makes it a start warning.
+				return ran.ok ? lifetimeJobResult(ran.value) : ran;
+			},
 		},
 	];
 	let started: Promise<Result<StartReport>> | null = null;
@@ -817,7 +1058,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 				keepAwakeTimer = null;
 			});
 			await step("keep-awake", () => keepAwake.stop());
+			await step("notifications", () => notifications.stop());
 			await step("the repo service", () => repo.dispose());
+			await step("git polling", () => git.dispose());
 			await step("GitHub polling", () => github.dispose());
 			await step("terminals", () => terminals.killAll());
 			await step("run scripts", () => runScripts.stopAll());

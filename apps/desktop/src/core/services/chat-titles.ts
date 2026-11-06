@@ -14,7 +14,8 @@
  * The privacy switch, the cheapest model, the launch and the sidecar client arrive as injected
  * functions. When `titlesEnabled` is false this file sends no request, so the chat text never
  * leaves the user's own agent.
- * The branch's prefix, its clash retry and the rename itself belong to WS-04.
+ * The branch's prefix, its clash retry and the rename itself belong to WS-04. The repository's
+ * Rename branch prompt is appended to the branch prompt when the repository has one.
  * Our design choice: this service does no settings, catalogue or launch work. Building it belongs
  * to APP-01 (`core/container.ts`): the "AI generated chat titles" key and the
  * `enterprise_data_privacy` consumer belong to SET-02, the launch to SIDE-21, the first-answer
@@ -41,8 +42,11 @@ export interface ChatTitleServiceDeps {
 	titlesEnabled: () => boolean;
 	/** The cheapest model of an agent's catalog, or null when the catalog is empty. */
 	cheapestModel: (session: Session) => string | null;
-	/** How to start the chat's agent: program path, environment and keys (SIDE-21). */
-	launchFor: (session: Session) => AgentLaunch;
+	/**
+	 * How to start the chat's agent: program path, environment and keys (SIDE-21). A launch that
+	 * cannot be built (a Keychain value is missing) is an error, and nothing is sent.
+	 */
+	launchFor: (session: Session) => Promise<Result<AgentLaunch>>;
 	/** One line for a call that failed. */
 	log: (level: "warn" | "info", message: string) => void;
 }
@@ -54,6 +58,8 @@ export interface ChatTitleInput {
 	firstUserMessage: string;
 	/** The agent's first answer; the title prompt carries it whole. */
 	firstAnswer: string;
+	/** The repository's Rename branch prompt, added to the built-in branch text. */
+	customPrompt?: string | null;
 }
 
 export class ChatTitleService {
@@ -78,13 +84,18 @@ export class ChatTitleService {
 			return err(appError("utility_model_missing", "No model is available to name this chat."));
 		}
 
+		const launch = await this.#deps.launchFor(input.session);
+		if (!launch.ok) {
+			this.#deps.log("warn", "Failed to generate LLM session title");
+			return launch;
+		}
 		const asked = await this.#deps.sidecar.request("runUtilityPrompt", {
 			...agentRef(input.session),
 			model,
 			prompt: chatTitlePrompt(firstMessage, input.firstAnswer.trim()),
 			cwd: input.workspace.path,
 			fastMode: input.session.config.fastMode,
-			launch: this.#deps.launchFor(input.session),
+			launch: launch.value,
 		});
 		if (!asked.ok) {
 			this.#deps.log("warn", "Failed to generate LLM session title");
@@ -109,13 +120,18 @@ export class ChatTitleService {
 			return err(appError("utility_model_missing", "No model is available to name this branch."));
 		}
 
+		const launch = await this.#deps.launchFor(input.session);
+		if (!launch.ok) {
+			this.#deps.log("warn", "Failed to generate a branch name");
+			return launch;
+		}
 		const asked = await this.#deps.sidecar.request("runUtilityPrompt", {
 			...agentRef(input.session),
 			model,
-			prompt: branchNamePrompt(firstMessage),
+			prompt: branchNamePrompt(firstMessage, input.customPrompt ?? null),
 			cwd: input.workspace.path,
 			fastMode: input.session.config.fastMode,
-			launch: this.#deps.launchFor(input.session),
+			launch: launch.value,
 		});
 		if (!asked.ok) {
 			this.#deps.log("warn", "Failed to generate a branch name");
@@ -148,15 +164,20 @@ function chatTitlePrompt(firstMessage: string, firstAnswer: string): string {
 	].join("\n");
 }
 
-function branchNamePrompt(firstMessage: string): string {
-	return [
+function branchNamePrompt(firstMessage: string, customPrompt: string | null): string {
+	const lines = [
 		"Write a short git branch name for this task.",
 		"Use lowercase words joined by hyphens, at most 30 characters, with no prefix.",
 		`Reply with the name only. If the task suggests no clear name, reply ${NO_BRANCH_NAME}.`,
 		"",
 		"The user's first message:",
 		firstMessage,
-	].join("\n");
+	];
+	const custom = customPrompt?.trim() ?? "";
+	if (custom !== "") {
+		lines.push("", "Repository instructions for naming the branch:", custom);
+	}
+	return lines.join("\n");
 }
 
 function firstNonEmptyLine(text: string): string | null {

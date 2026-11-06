@@ -6,7 +6,8 @@
  * allowed"; Cmd+J "Toggle terminal panel").
  * Must handle: a status dot on Setup (running, failed) and Run (running), the limit disabling "new
  * terminal" with the reason as its title, many terminals (the strip scrolls), middle-click closing
- * a terminal tab, and the Ports tab being hidden until a port is detected (Our design choice).
+ * a terminal tab, and the Ports tab being hidden until a port is detected or its scan fails (Our
+ * design choice).
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";

@@ -117,8 +117,8 @@ describe("NAV-02 route tree", () => {
 
 	it("renders a repository settings page without the sidebar", async () => {
 		await openApp("/settings/repos/r1/scripts");
-		expect(await screen.findByText("Settings")).toBeTruthy();
-		expect(screen.getByText("Not built yet: SET-02")).toBeTruthy();
+		expect(await screen.findByRole("navigation", { name: "Settings" })).toBeTruthy();
+		expect(await screen.findByText("Pick a project")).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});
 });

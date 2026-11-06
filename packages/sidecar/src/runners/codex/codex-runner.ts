@@ -10,7 +10,11 @@
  *  - listModels(): pages until nextCursor is null, drops hidden models, maps the supported
  *    reasoning efforts to our effort names (efforts we do not know are dropped, not renamed)
  *  - the app tools reach Codex as an MCP server entry in the thread config (tools/mcp-launch.ts);
- *    the entry is built at start() from the bridge endpoint and token
+ *    the entry is built at start() from the bridge endpoint and token, and the session gives the
+ *    token back when it is disposed (SIDE-13)
+ *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
+ *    path, else the copy on the login-shell PATH; a user path that cannot run is an error that
+ *    names it
  *  - listSlashCommands(): from `skills/list`; names are shown with the leading slash by the UI,
  *    each entry is a skill, and its scope (user, repo, system) and plugin id give its source
  *  - listMcpServers(): pages `mcpServerStatus/list`; its connection state, tool names, scope and
@@ -24,6 +28,7 @@ import { type AppError, appError, err, ok, type Result } from "@conducted/shared
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
+import { findAgentProgram } from "../launch-env.ts";
 import type {
 	AgentSession,
 	McpServerView,
@@ -50,9 +55,19 @@ export type CodexRunnerDeps = RunnerCommonDeps & {
 	spawn: SpawnJsonRpcChild;
 	random(): number;
 	sleep(ms: number): Promise<void>;
-	/** Builds the `--config` arguments that register the app tools MCP server for a chat. */
-	appToolsConfigArgs(options: StartOptions): readonly string[];
+	/**
+	 * Builds the `--config` arguments and child environment for the app tools MCP server, and the
+	 * release that ends the chat's bridge token when the session is disposed.
+	 */
+	appToolsConfig(options: StartOptions): Promise<CodexAppTools>;
 };
+
+/** The app tools server for one Codex session. */
+export interface CodexAppTools {
+	args: readonly string[];
+	env: Readonly<Record<string, string>>;
+	release(): void;
+}
 
 export interface CodexAccount {
 	authenticated: boolean;
@@ -104,16 +119,25 @@ export class CodexRunner implements Runner {
 	}
 
 	async start(options: StartOptions): Promise<AgentSession> {
-		const codexPath = await this.requirePath(options.env);
+		const program = await findAgentProgram({
+			agent: "codex",
+			name: "codex",
+			executablePath: options.executablePath,
+			env: options.env,
+			findExecutable: this.deps.findExecutable,
+		});
+		if (!program.ok) throw program.error;
+		const codexPath = program.value.path;
 		const translator = new CodexTranslator({ logger: this.deps.logger });
+		const appTools = await this.deps.appToolsConfig(options);
 		return new CodexSession(
 			{
 				connectClient: async () => {
 					const client = this.createClient({
 						codexPath,
 						cwd: options.workspace.workspacePath,
-						env: options.env,
-						extraArgs: this.deps.appToolsConfigArgs(options),
+						env: { ...options.env, ...appTools.env },
+						extraArgs: appTools.args,
 					});
 					const connected = await client.connect();
 					if (!connected.ok) {
@@ -126,6 +150,7 @@ export class CodexRunner implements Runner {
 				logger: this.deps.logger,
 				random: () => this.deps.random(),
 				sleep: (ms) => this.deps.sleep(ms),
+				onDispose: () => appTools.release(),
 			},
 			options,
 		);

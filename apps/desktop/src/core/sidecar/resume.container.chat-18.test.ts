@@ -14,10 +14,16 @@ import { createRepositories, type Repositories } from "../db/repositories.ts";
 import { sampleSession, userMessageEvent } from "../db/test-fixtures.ts";
 import { SessionResume } from "./resume.ts";
 
-// DATA-02 owns the lifetime job and is not built yet; its startup step is unrelated to resume.
+// The lifetime job's startup step is unrelated to resume, so it reports a skipped run.
 vi.mock("../db/lifetime.ts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../db/lifetime.ts")>();
-	return { ...actual, runDataLifetimeJob: async () => ({ ok: true, value: undefined }) };
+	return {
+		...actual,
+		runDataLifetimeJob: async () => ({
+			ok: true,
+			value: { kind: "skipped", lastRunAt: 0 },
+		}),
+	};
 });
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
@@ -43,14 +49,20 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
-/** Starts the real container but for the services unrelated to the sidecar connection. */
-const startContainer = async (): Promise<TestContainer> => {
+/**
+ * Starts the real container but for the services unrelated to the sidecar connection. With
+ * `loadStores` the project and workspace stores load for real, for a test that reads them.
+ */
+const startContainer = async (options: { loadStores?: boolean } = {}): Promise<TestContainer> => {
 	const test = createTestContainer({ clock: containerClock, ids: containerIds });
 	open = test;
+	const stores =
+		options.loadStores === true
+			? []
+			: [test.container.services.repo, test.container.services.workspace];
 	const quiet = [
 		test.container.services.settings,
-		test.container.services.repo,
-		test.container.services.workspace,
+		...stores,
 		test.container.services.sections,
 		test.container.services.favoriteModels,
 		test.container.services.terminals,
@@ -147,6 +159,38 @@ describe("CHAT-18 container reconnect", () => {
 		});
 		expect(test.container.services.sessions.store.getState().liveStates[id]).toEqual(idleLiveState);
 		expect(runs).toHaveLength(2);
+	});
+
+	it("SIDE-21 warms a lost chat's agent with its launch and stored resume token", async () => {
+		// The warm reads the chat's workspace and project from their stores, so they load for real.
+		const test = await startContainer({ loadStores: true });
+		const { id, repositories } = await seedChat(test);
+		must(await repositories.sessions.setAgentSessionId(id, "agent-lost"));
+		must(await repositories.sessionEvents.append(id, userMessageEvent("e1", "t1", 900), 900));
+		await test.container.services.sessions.applyLiveState(id, working);
+
+		test.memory.controls.emitSidecarRestart();
+		await vi.waitFor(() => {
+			expect(sidecarMessages(test).some((message) => message.method === "getSessionStatus")).toBe(
+				true,
+			);
+		});
+		respondToStatus(test, false);
+
+		await vi.waitFor(() => {
+			expect(sidecarMessages(test).some((message) => message.method === "warmAgent")).toBe(true);
+		});
+		const warm = sidecarMessages(test).find((message) => message.method === "warmAgent");
+		expect(warm?.params).toMatchObject({
+			sessionId: id,
+			resume: { agentSessionId: "agent-lost" },
+			launch: { env: {}, providerKeys: {} },
+		});
+		if (warm?.id !== undefined) {
+			test.memory.controls.emitSidecarLine(
+				JSON.stringify({ jsonrpc: "2.0", id: warm.id, result: {} }),
+			);
+		}
 	});
 
 	it("stores the agent session id a notification carries through the real handlers", async () => {

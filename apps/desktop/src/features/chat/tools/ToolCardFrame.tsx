@@ -1,7 +1,8 @@
 /**
  * @feature CHAT-08 Tool card frame
  * Owns: the shared look of every tool card: a header row with an icon, the tool's title and a one-line summary,
- * a status mark, a collapsible body and an optional footer.
+ * a status mark, a collapsible body and an optional footer, and the scrolling text block (`ToolOutput`) the
+ * cards show output in.
  * Behaviour: ui-map.md 8 (the Tool family: header, title, description, content, footer, is the base of tool
  * cards), 3.3 (tool cards).
  * Our design choice: a card is collapsed by default unless it needs attention (running or failed). The summary
@@ -130,6 +131,12 @@ function keyedLines(text: string, prefix: string) {
 	return withKeys(textLines(text), (line) => line, prefix);
 }
 
+/** The last part of a path: the file's own name. */
+export function fileNameOf(path: string): string {
+	const parts = path.split(/[\\/]/);
+	return parts.at(-1) ?? path;
+}
+
 /** Old and new text as a small diff: removed lines carry "-", added lines carry "+". */
 export function DiffLines({ removed, added }: { removed: string; added: string }) {
 	return (
@@ -150,6 +157,33 @@ export function DiffLines({ removed, added }: { removed: string; added: string }
 					{line}
 				</div>
 			))}
+		</pre>
+	);
+}
+
+/**
+ * The scrolling monospace block a card shows a tool's text in: its output, raw result or message.
+ * One home, so every card scrolls and wraps the same way.
+ */
+export function ToolOutput({
+	children,
+	muted = false,
+	className,
+}: {
+	children: ReactNode;
+	/** Secondary text, such as a raw result shown when it could not be read. */
+	muted?: boolean;
+	className?: string;
+}) {
+	return (
+		<pre
+			className={cn(
+				"max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs",
+				muted ? "text-fg-muted" : "text-fg",
+				className,
+			)}
+		>
+			{children}
 		</pre>
 	);
 }

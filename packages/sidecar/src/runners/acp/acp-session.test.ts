@@ -1,7 +1,8 @@
 /**
  * @feature AGENT-11 ACP client and runner: the session
  * Owns: tests for turns, output buffering, permission and elicitation answers, cancel, model
- * reconciliation, the resume warning, usage and the empty-answer error.
+ * reconciliation, the resume warning, usage, the empty-answer error, and the chat options beyond
+ * the model (AGENT-17).
  * Test first: two text chunks then end_turn flush one text message and resolve success.
  */
 import { describe, expect, test } from "bun:test";
@@ -69,6 +70,8 @@ class FakeClient implements AcpClient {
 	how: OpenedAcpSession["how"] = "new";
 	acpSessionId = "acp-session-1";
 	configOptions: SessionConfigOption[] = [];
+	/** Option ids whose session/set_config_option the agent answers with an error. */
+	readonly refusedOptions = new Set<string>();
 	promptCalls = 0;
 	private readonly promptResolvers: ((result: Result<StopReason, AppError>) => void)[] = [];
 	private closeListeners: ((reason: string) => void)[] = [];
@@ -115,8 +118,15 @@ class FakeClient implements AcpClient {
 		this.cancelled = true;
 	}
 
-	async setConfigOption(_id: string, optionId: string, value: string | boolean) {
+	async setConfigOption(
+		_id: string,
+		optionId: string,
+		value: string | boolean,
+	): Promise<Result<void, AppError>> {
 		this.setConfigCalls.push({ optionId, value });
+		if (this.refusedOptions.has(optionId)) {
+			return err(appError("acp_request_failed", `The agent refused ${optionId}.`));
+		}
 		return ok(undefined);
 	}
 
@@ -793,6 +803,226 @@ describe("AGENT-11 ACP session", () => {
 		expect(
 			await session.applyConfig({ ...baseConfig, additionalDirectories: ["/another/folder"] }),
 		).toBe("restart");
+	});
+
+	test("AGENT-17 lists the chat options beyond the model and applies the saved choices", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "model",
+				name: "Model",
+				category: "model",
+				currentValue: "one",
+				options: [
+					{ value: "one", name: "One" },
+					{ value: "two", name: "Two" },
+				],
+			},
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				category: "thought_level",
+				currentValue: "medium",
+				options: [
+					{ value: "low", name: "Low" },
+					{ value: "medium", name: "Medium" },
+					{ value: "high", name: "High" },
+				],
+			},
+			{ type: "boolean", id: "web_search", name: "Web search", currentValue: false },
+		];
+		const session = makeSession(client, { configOptions: client.configOptions });
+		const config: SessionConfig = {
+			...baseConfig,
+			model: "two",
+			acpConfig: { thought_level: "high", web_search: true },
+		};
+
+		const listed = await session.listAcpConfigOptions(config);
+
+		expect(listed.ok).toBe(true);
+		if (!listed.ok) return;
+		expect(listed.value.map((option) => option.id)).toEqual(["thought_level", "web_search"]);
+		expect(listed.value).toEqual([
+			{
+				id: "thought_level",
+				name: "Thought level",
+				category: "thought_level",
+				value: {
+					kind: "select",
+					current: "high",
+					choices: [
+						{ value: "low", name: "Low" },
+						{ value: "medium", name: "Medium" },
+						{ value: "high", name: "High" },
+					],
+				},
+			},
+			{ id: "web_search", name: "Web search", value: { kind: "switch", current: true } },
+		]);
+		expect(client.setConfigCalls).toEqual([
+			{ optionId: "model", value: "two" },
+			{ optionId: "thought_level", value: "high" },
+			{ optionId: "web_search", value: true },
+		]);
+	});
+
+	test("AGENT-17 a saved option the agent refuses is skipped, keeps the agent's value, and the chat opens", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				currentValue: "medium",
+				options: [
+					{ value: "medium", name: "Medium" },
+					{ value: "high", name: "High" },
+				],
+			},
+			{ type: "boolean", id: "web_search", name: "Web search", currentValue: false },
+		];
+		client.refusedOptions.add("thought_level");
+		const session = makeSession(client, { configOptions: client.configOptions });
+		const config: SessionConfig = {
+			...baseConfig,
+			acpConfig: { thought_level: "high", web_search: true },
+		};
+
+		const listed = await session.listAcpConfigOptions(config);
+
+		expect(listed.ok).toBe(true);
+		if (!listed.ok) return;
+		expect(listed.value.map((option) => [option.id, option.value.current])).toEqual([
+			["thought_level", "medium"],
+			["web_search", true],
+		]);
+		expect(client.setConfigCalls).toEqual([
+			{ optionId: "thought_level", value: "high" },
+			{ optionId: "web_search", value: true },
+		]);
+	});
+
+	test("AGENT-17 a refused saved option does not fail the turn", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				currentValue: "medium",
+				options: [
+					{ value: "medium", name: "Medium" },
+					{ value: "high", name: "High" },
+				],
+			},
+		];
+		client.refusedOptions.add("thought_level");
+		const session = makeSession(client, { configOptions: client.configOptions });
+
+		const outcome = session.runTurn(
+			{
+				text: "hello",
+				attachmentPaths: [],
+				config: { ...baseConfig, acpConfig: { thought_level: "high" } },
+			},
+			callbacks(),
+		);
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+		session.handleUpdate(textChunk("done"));
+		client.finishPrompt("end_turn");
+
+		expect(await outcome).toEqual({ kind: "success" });
+		expect(client.setConfigCalls).toEqual([{ optionId: "thought_level", value: "high" }]);
+	});
+
+	test("AGENT-17 sets one option and returns every option", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				currentValue: "medium",
+				options: [
+					{ value: "low", name: "Low" },
+					{ value: "medium", name: "Medium" },
+					{ value: "high", name: "High" },
+				],
+			},
+		];
+		const session = makeSession(client, { configOptions: client.configOptions });
+
+		const changed = await session.setAcpConfigOption("thought_level", "high", baseConfig);
+
+		expect(changed.ok).toBe(true);
+		if (!changed.ok) return;
+		expect(client.setConfigCalls).toEqual([{ optionId: "thought_level", value: "high" }]);
+		expect(changed.value[0]?.value).toEqual({
+			kind: "select",
+			current: "high",
+			choices: [
+				{ value: "low", name: "Low" },
+				{ value: "medium", name: "Medium" },
+				{ value: "high", name: "High" },
+			],
+		});
+	});
+
+	test("AGENT-17 refuses an unknown option, a value it does not offer, and the model", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "model",
+				name: "Model",
+				category: "model",
+				currentValue: "one",
+				options: [
+					{ value: "one", name: "One" },
+					{ value: "two", name: "Two" },
+				],
+			},
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				currentValue: "medium",
+				options: [
+					{ value: "low", name: "Low" },
+					{ value: "medium", name: "Medium" },
+				],
+			},
+			{ type: "boolean", id: "web_search", name: "Web search", currentValue: false },
+		];
+		const session = makeSession(client, { configOptions: client.configOptions });
+
+		const unknown = await session.setAcpConfigOption("ghost", "x", baseConfig);
+		const invalid = await session.setAcpConfigOption("thought_level", "high", baseConfig);
+		const wrongType = await session.setAcpConfigOption("web_search", "yes", baseConfig);
+		const model = await session.setAcpConfigOption("model", "two", baseConfig);
+
+		expect(unknown.ok).toBe(false);
+		expect(invalid.ok).toBe(false);
+		expect(wrongType.ok).toBe(false);
+		expect(model.ok).toBe(false);
+		expect(client.setConfigCalls).toEqual([]);
+	});
+
+	test("AGENT-17 refuses a change while a turn runs", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client);
+		const running = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+
+		const changed = await session.setAcpConfigOption("thought_level", "high", baseConfig);
+
+		expect(changed.ok).toBe(false);
+		if (!changed.ok) expect(changed.error.code).toBe("acp_turn_running");
+		client.finishPrompt("cancelled");
+		await running;
 	});
 
 	test("context usage comes from the last usage update", async () => {

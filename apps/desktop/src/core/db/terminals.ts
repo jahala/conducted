@@ -12,7 +12,6 @@
  */
 import {
 	err,
-	notImplemented,
 	ok,
 	type RepoId,
 	type Result,
@@ -197,8 +196,19 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 			executeExisting(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
 		setSize: (id, cols, rows) =>
 			executeVoid(db, TERMINALS_SQL.setSize, [cols, rows, id], "Resizing a terminal"),
-		getScreenState: async () => notImplemented("PLAT-08"),
-		setScreenState: async () => notImplemented("PLAT-08"),
+		getScreenState: async (id) => {
+			const rows = await selectRows<Pick<TerminalRow, "screen_state">>(
+				db,
+				TERMINALS_SQL.getScreenState,
+				[id],
+				"Reading a terminal's screen",
+			);
+			if (!rows.ok) return err(rows.error);
+			return ok(rows.value[0]?.screen_state ?? null);
+		},
+		// A terminal removed before its screen was saved has no row; there is nothing to keep then.
+		setScreenState: (id, json) =>
+			executeVoid(db, TERMINALS_SQL.setScreenState, [json, id], "Saving a terminal's screen"),
 		markEnded: async (id, endedAt, exitCode) => {
 			const written = await executeStatement(
 				db,

@@ -72,6 +72,7 @@ import { ClaudeBackgroundTasks } from "./background-tasks.ts";
 import { type CheckpointGate, createCheckpointHook } from "./checkpoint-hook.ts";
 import { classifyConfigChange } from "./config-change.ts";
 import { INTERRUPT_GRACE_MS } from "./constants.ts";
+import { claudeEffortOption } from "./launch-settings.ts";
 import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
@@ -89,6 +90,8 @@ export type QueryFunction = (params: {
 export interface ClaudeSessionDeps {
 	query: QueryFunction;
 	executablePath: string;
+	/** True when `executablePath` is a `.js` file that starts through node (SIDE-21). */
+	viaRuntime?: boolean;
 	appTools: AppToolBackend;
 	logger: Logger;
 	/** Turns SDK messages into our neutral format (AGENT-03). */
@@ -417,6 +420,7 @@ export class ClaudeSession implements AgentSession {
 		const options = buildClaudeOptions({
 			start: { ...start, config: this.config },
 			executablePath: this.deps.executablePath,
+			viaRuntime: this.deps.viaRuntime === true,
 			hasTranscript,
 			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
 			hooks: { PreToolUse: [createCheckpointHook(gate)] },
@@ -744,15 +748,8 @@ export class ClaudeSession implements AgentSession {
 
 /** The SDK's effort setting for a chat effort; null clears it. */
 function effortSetting(effort: Effort): "low" | "medium" | "high" | "xhigh" | "max" | null {
-	switch (effort) {
-		case "none":
-		case "ultracode":
-			return null;
-		case "ultra":
-			return "max";
-		default:
-			return effort;
-	}
+	const option = claudeEffortOption(effort);
+	return typeof option === "string" ? option : null;
 }
 
 /** A function that runs once; later calls share the first promise. */
