@@ -231,9 +231,7 @@ describe("s1-ui-2 join", () => {
 			await waitFor(() =>
 				expect(test.container.services.settings.store.getState().values.zoom_level_v2).toBe(1.1),
 			);
-			await waitFor(() =>
-				expect(document.documentElement.style.getPropertyValue("zoom")).toBe("1.1"),
-			);
+			await waitFor(() => expect(test.memory.controls.windowZoom).toBe(1.1));
 		} finally {
 			await test.container.stop();
 			test.close();

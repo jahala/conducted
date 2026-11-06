@@ -50,6 +50,7 @@ pub mod sidecar;
 pub mod speech;
 pub mod terminal_history;
 pub mod updater;
+pub mod window;
 
 use error::{CommandError, CommandResult};
 use serde::Serialize;
@@ -321,6 +322,8 @@ pub fn run() {
             app_quit,
             set_quit_handler_ready,
             window_toggle_inspector,
+            window::window_set_vibrancy,
+            window::window_set_traffic_lights,
             db::db_version_check,
             logger::log_write,
             logger::log_set_level,

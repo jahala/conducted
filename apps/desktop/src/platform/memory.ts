@@ -108,6 +108,11 @@ export interface MemoryPlatformControls {
 	emitWindowFocus(focused: boolean): void;
 	/** Delivers one file drag event to every file drop listener. */
 	emitFileDrop(event: FileDropEvent): void;
+	/** The app zoom, window theme, sidebar vibrancy and traffic-light inset last set. */
+	readonly windowZoom: number | null;
+	readonly windowTheme: "light" | "dark" | null;
+	readonly vibrancy: boolean | null;
+	readonly trafficLightPosition: { x: number; y: number } | null;
 	/** Notifications shown and the last dock badge. */
 	readonly notificationsShown: readonly { title: string; body: string; deepLink?: string }[];
 	readonly dockBadge: number | null;
@@ -306,6 +311,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
 	let windowFocused = true;
+	let windowZoom: number | null = null;
+	let windowTheme: "light" | "dark" | null = null;
+	let vibrancy: boolean | null = null;
+	let trafficLightPosition: { x: number; y: number } | null = null;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -814,10 +823,21 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		isFocused: async () => windowFocused,
 		onFocusChanged: (listener) => listen(focusListeners, listener),
 		onFileDrop: (listener) => listen(fileDropListeners, listener),
-		setZoom: async () => ok(undefined),
-		setVibrancy: async () => ok(undefined),
-		setTrafficLightPosition: async () => ok(undefined),
-		setTheme: async () => {},
+		setZoom: async (factor) => {
+			windowZoom = factor;
+			return ok(undefined);
+		},
+		setVibrancy: async (enabled) => {
+			vibrancy = enabled;
+			return ok(undefined);
+		},
+		setTrafficLightPosition: async (x, y) => {
+			trafficLightPosition = { x, y };
+			return ok(undefined);
+		},
+		setTheme: async (theme) => {
+			windowTheme = theme;
+		},
 		toggleInspector: async () => {},
 	};
 
@@ -980,6 +1000,18 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			emit(focusListeners, focused);
 		},
 		emitFileDrop: (event) => emit(fileDropListeners, event),
+		get windowZoom() {
+			return windowZoom;
+		},
+		get windowTheme() {
+			return windowTheme;
+		},
+		get vibrancy() {
+			return vibrancy;
+		},
+		get trafficLightPosition() {
+			return trafficLightPosition;
+		},
 		get notificationsShown() {
 			return notificationsShown;
 		},

@@ -27,6 +27,8 @@
 		"clipboard-manager:default",
 		"deep-link:default",
 		"window-state:default",
-		"core:window:allow-start-dragging"
+		"core:window:allow-start-dragging",
+		"core:window:allow-set-theme",
+		"core:webview:allow-set-webview-zoom"
 	]
 }

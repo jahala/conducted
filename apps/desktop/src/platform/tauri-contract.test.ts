@@ -29,7 +29,6 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"opener.installed-apps": `${NEEDS_RUST}: lists /Applications`,
 	"speech.available": `${NEEDS_RUST}: Apple dictation, and the adapter is a placeholder (PLAT-12)`,
 	"speech.stop-ends": `${NEEDS_RUST}: Apple dictation, and the adapter is a placeholder (PLAT-12)`,
-	"window.setters": `${NEEDS_RUST}: a real window, and the adapter is a placeholder (PLAT-23)`,
 	"system.info": `${NEEDS_RUST}: the macOS version and CPU`,
 };
 

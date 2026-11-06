@@ -51,6 +51,11 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSGeometry", "objc2-core-foundation"] }
+
 [dev-dependencies]
 # The mock app that lets a test hear the events a command emits (PLAT-36 builds on it).
 tauri = { version = "2", features = ["test"] }
