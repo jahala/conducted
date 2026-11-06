@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatTurn } from "../../core/model.ts";
 
+const navigate = vi.hoisted(() => vi.fn());
+
 const state = vi.hoisted(() => ({
 	copyText: vi.fn(),
 	cancel: vi.fn(),
@@ -12,6 +14,8 @@ const state = vi.hoisted(() => ({
 	toastError: vi.fn(),
 	settings: {} as Record<string, unknown>,
 }));
+
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 
 vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
@@ -163,7 +167,7 @@ describe("CHAT-06 turn footer", () => {
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Fork to new tab" }));
 		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith("Couldn't fork the chat", error),
+			expect(state.toastError).toHaveBeenCalledWith("Unable to fork chat", error),
 		);
 	});
 

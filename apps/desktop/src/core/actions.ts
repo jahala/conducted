@@ -84,7 +84,7 @@ export function createActions(
 			answer: (id, interactionId, answer) => services.sessions.answer(id, interactionId, answer),
 			updateConfig: (id, config) => services.sessions.updateConfig(id, config),
 			revertTo: (id, turnId) => services.checkpoint.revertTo(id, turnId),
-			forkFrom: (id, turnId) => services.checkpoint.forkFrom(id, turnId),
+			forkFrom: (id, turnId) => services.sessions.forkFrom(id, turnId),
 			saveDraft: (id, draft) => services.composer.saveDraft(id, draft),
 			copyTranscript: (id, detail) => services.sessions.copyTranscript(id, detail),
 			startFromPlan: (id, planText, target) =>

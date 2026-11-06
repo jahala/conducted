@@ -1,14 +1,14 @@
 /**
- * @feature CHAT-01 Chat tab context menu
+ * @feature CHAT-01 Chat tab context menu; CHAT-16 Fork a chat from a turn
  * Owns: The right-click menu of a chat tab.
  * Behaviour: ui-map.md 3.2 (chat tab menu: Mark as read or unread, Rename chat, Fork to new tab,
  * Copy concise transcript, Copy full transcript, Copy link, Close tab, Close others).
  * Our design choice: The rename form is RenameDialog, the one rename dialog. 'Close tab' only reports
  * the choice (onClose); the tab strip closes the chat, so there is one close path and one error
- * toast. Copy session info is an internal item and is left out. Fork to new tab needs a
- * checkpoint and is disabled without one. The two transcript items wait for CHAT-17, so they
- * stay disabled until their services exist.
- * Must handle: Fork disabled without a checkpoint; Close others with one tab open is disabled by
+ * toast. Copy session info is an internal item and is left out. Fork to new tab (CHAT-16) shows
+ * only while the Experimental setting is on, and its action belongs to the tab strip. The two
+ * transcript items wait for CHAT-17, so they stay disabled until their services exist.
+ * Must handle: Fork hidden while the setting is off; Close others with one tab open is disabled by
  * leaving its callback out; items show shortcuts from the command registry.
  * Test first: 'Rename chat' calls sessions.rename with the typed name.
  */
@@ -33,8 +33,10 @@ export interface TabContextMenuProps {
 	onClose?: () => void;
 	/** Called by 'Close others'. Disabled when the tab strip has only this tab. */
 	onCloseOthers?: () => void;
-	/** True when the chat has a checkpoint to fork from. */
-	canFork?: boolean;
+	/** True while the Experimental 'Fork chat to new tab' setting is on (CHAT-16). */
+	forkEnabled?: boolean;
+	/** Forks the chat and opens the new tab. */
+	onFork?: () => void;
 }
 
 export function TabContextMenu({
@@ -44,7 +46,8 @@ export function TabContextMenu({
 	workspaceId,
 	onClose,
 	onCloseOthers,
-	canFork = false,
+	forkEnabled = false,
+	onFork,
 }: TabContextMenuProps) {
 	const actions = useActions();
 	const forkShortcut = useLiveShortcut("chat.fork");
@@ -78,9 +81,15 @@ export function TabContextMenu({
 							{unread ? "Mark as read" : "Mark as unread"}
 						</ContextMenuItem>
 						<ContextMenuItem onSelect={() => setRenaming(true)}>Rename chat</ContextMenuItem>
-						<ContextMenuItem disabled={!canFork} shortcut={forkShortcut ?? undefined}>
-							Fork to new tab
-						</ContextMenuItem>
+						{forkEnabled ? (
+							<ContextMenuItem
+								disabled={onFork === undefined}
+								shortcut={forkShortcut ?? undefined}
+								onSelect={onFork}
+							>
+								Fork to new tab
+							</ContextMenuItem>
+						) : null}
 						<ContextMenuSeparator />
 						<ContextMenuItem disabled shortcut={transcriptShortcut ?? undefined}>
 							Copy concise transcript
