@@ -19,6 +19,10 @@ const hooks = vi.hoisted(() => ({
 	markUnread: vi.fn(),
 }));
 
+vi.mock("../composer/draft-sources.ts", () => ({
+	useWorkspaceDraft: () => null,
+}));
+
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useSessions: () => hooks.sessions,

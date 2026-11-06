@@ -13,9 +13,10 @@
  * only go to the Trash through `fs.trash`, and a file is trashed before its row is deleted so a
  * failure leaves a row to retry; a stored attachment path is trashed only when it lies inside the
  * draft attachment folder, so a row that points at the user's own file loses its row, keeps the
- * file, and fails its step with the path named; every step is safe to run twice (a second run
- * finds nothing); `lifetimeJobResult` turns the steps that failed into one error, so the startup
- * step reports them as a start warning instead of hiding them inside the report.
+ * file, and fails its step with the path named; the new-workspace draft has no chat row and stays
+ * until its own age limit; every step is safe to run twice (a second run finds nothing);
+ * `lifetimeJobResult` turns the steps that failed into one error, so the startup step reports them
+ * as a start warning instead of hiding them inside the report.
  * Test first: ageCutoff turns a day count into a time, and the cut statement is idempotent.
  */
 import { appError, type Clock, err, ok, type Result } from "@conducted/shared";
@@ -24,6 +25,7 @@ import {
 	draftAttachmentsRoot,
 	draftsDir,
 	isInsideFolder,
+	NEW_WORKSPACE_DRAFT_ID,
 	terminalHistoryFile,
 } from "../app-paths.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
@@ -274,7 +276,7 @@ async function sweepStagingFolders(fs: FileSystem, cutoff: number): Promise<Resu
 const removeDraftFiles: LifetimeStep = {
 	id: "remove-draft-files",
 	description:
-		"Move `<sessionId>.json` drafts to the Trash when older than the draft limit or when the chat no longer exists.",
+		"Move `<sessionId>.json` drafts to the Trash when older than the draft limit or when the chat no longer exists. The new-workspace draft has no chat, so it stays until it expires.",
 	run: async ({ db, fs, clock, limits }) => {
 		const listing = await fs.readDir(draftsDir(fs.paths));
 		if (!listing.ok) return missingFolder(listing.error) ? ok(nothingDone()) : listing;
@@ -290,7 +292,9 @@ const removeDraftFiles: LifetimeStep = {
 			if (!existing.ok) return existing;
 			for (const entry of batch) {
 				const expired = entry.modifiedAt < cutoff;
-				const orphaned = !existing.value.has(draftSessionId(entry.path));
+				const orphaned =
+					draftSessionId(entry.path) !== NEW_WORKSPACE_DRAFT_ID &&
+					!existing.value.has(draftSessionId(entry.path));
 				if (!expired && !orphaned) continue;
 				const removed = await trashIfPresent(fs, entry.path);
 				if (!removed.ok) return removed;

@@ -1,7 +1,9 @@
 /**
  * @feature DATA-02 Where the app keeps its own files
+ * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: the folder layout under the app data folder, as pure functions of `Platform.fs.paths`, so
- * every service and the data-lifetime job agree on where drafts, attachments and logs live.
+ * every service and the data-lifetime job agree on where drafts, attachments and logs live, and the
+ * reserved composer key of the Create page's draft.
  * A folder that only one feature uses may be named in that feature's file, joined with
  * `appDataPath`: the git caches (services/git-cache.ts) and the zsh shim
  * (services/shell-integration.ts).
@@ -39,6 +41,12 @@ export const isInsideFolder = (folder: string, path: string): boolean => {
 
 /** Folder with one `<sessionId>.json` per chat that has an unsent draft. */
 export const draftsDir = (paths: AppPaths): string => join(paths.appData, "drafts");
+
+/**
+ * The composer key of the Create page's draft (NAV-16). It is stored in the drafts folder like a chat
+ * draft, but no chat has this id, so the data-lifetime job keeps it until it expires.
+ */
+export const NEW_WORKSPACE_DRAFT_ID = "new-workspace";
 
 export const draftFile = (paths: AppPaths, sessionId: string): string =>
 	join(draftsDir(paths), `${sessionId}.json`);

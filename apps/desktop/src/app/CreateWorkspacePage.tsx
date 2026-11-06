@@ -3,10 +3,13 @@
  * @feature WS-02 Create from a branch, PR or issue
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature WS-11 Backlog workspaces: save now, start later
+ * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: the full-page "new workspace" flow at /create: repository picker, the toggleable "create from"
  * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
- * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
- * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
+ * model field and plan mode, section picker, and the "Create workspace" button. The first message is kept as
+ * the new-workspace draft in the composer store, so the Create row can mark it and the page restores it
+ * (NAV-16). Typing '@' in the first message offers the chosen repository's own files before any workspace
+ * exists (SIDE-22).
  * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button. A deep
  * link may open the page with its project, branch and first message already filled; a project it names
  * that is not loaded gives "Repository not found", and the page keeps its usual first project.
@@ -48,6 +51,7 @@ import {
 } from "../core/hooks.ts";
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
 import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
+import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
@@ -217,6 +221,9 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [branchTouched, setBranchTouched] = useState(false);
 	const flight = useRef(createSingleFlight()).current;
 	const backfilled = useRef<string | null>(null);
+	const newWorkspaceDraft = useNewWorkspaceDraft();
+	const draftRestored = useRef(false);
+	const promptTouched = useRef(false);
 
 	const readyRepos = repos.state === "ready" ? repos.data : [];
 	const selectedRepo = readyRepos.find((repo) => repo.id === repoId) ?? readyRepos[0];
@@ -249,6 +256,28 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	useEffect(() => {
 		if (promptFromSearch !== undefined) setPrompt(promptFromSearch);
 	}, [promptFromSearch]);
+
+	// Restore the new-workspace draft once, unless a link already filled the field or the user typed
+	// before the saved draft arrived. Then keep every edit in the composer store, so the Create row
+	// marks it. A backlog workspace starts from its saved row, so it never touches this draft.
+	useEffect(() => {
+		if (!newWorkspaceDraft.loaded || draftRestored.current) return;
+		draftRestored.current = true;
+		if (startMode || promptTouched.current || promptFromSearch !== undefined) return;
+		setPrompt(newWorkspaceDraft.draft.text);
+	}, [newWorkspaceDraft.loaded, newWorkspaceDraft.draft.text, promptFromSearch, startMode]);
+	useEffect(() => {
+		if (startMode || !newWorkspaceDraft.loaded || !draftRestored.current) return;
+		// Do not clear a saved draft with the first render's empty field before it is restored.
+		if (!promptTouched.current && prompt === "" && newWorkspaceDraft.draft.text !== "") return;
+		newWorkspaceDraft.save({ text: prompt, attachmentPaths: [] });
+	}, [
+		prompt,
+		startMode,
+		newWorkspaceDraft.loaded,
+		newWorkspaceDraft.draft.text,
+		newWorkspaceDraft.save,
+	]);
 
 	const branchFromSearch = search.branch;
 	useEffect(() => {
@@ -397,6 +426,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 				return;
 			}
 			toast.success("Added to backlog");
+			newWorkspaceDraft.clear();
 			void navigate({ to: "/backlog" });
 		});
 	}
@@ -438,6 +468,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 				return;
 			}
 			toastWarnings(result.value.id);
+			newWorkspaceDraft.clear();
 			openWorkspace(result.value.repoId, result.value.id);
 		});
 	}
@@ -624,6 +655,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						value={prompt}
 						onChange={(event) => {
 							const caret = event.target.selectionStart ?? event.target.value.length;
+							promptTouched.current = true;
 							setPrompt(event.target.value);
 							setMention(fileMentionAt(event.target.value, caret));
 							setSlashMention(slashMentionAt(event.target.value, caret));
