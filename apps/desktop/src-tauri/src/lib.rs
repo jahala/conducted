@@ -44,6 +44,7 @@ pub mod keychain;
 pub mod logger;
 pub mod menu;
 pub mod navigation;
+pub mod network;
 pub mod notifications;
 pub mod open_with;
 pub mod permissions;
@@ -553,6 +554,7 @@ pub fn run() {
         .manage(updater::UpdaterState::default())
         .manage(resource_usage::ResourceUsageState::default())
         .manage(menu::MenuState::default())
+        .manage(network::NetworkState::default())
         .manage(logger::LoggerState::default())
         .manage(http::HttpState::default())
         .menu(|app| {
@@ -577,6 +579,7 @@ pub fn run() {
             navigation::install_guard(app.handle())?;
             deep_link::register(app.handle())?;
             shell::start_background_capture(app.handle().clone());
+            network::start_watcher(app.handle().clone())?;
             binaries::start_verification(app.handle().clone());
             binaries::prepare_on_launch(app.handle());
             Ok(())
@@ -588,6 +591,7 @@ pub fn run() {
             permissions::full_disk_access_check,
             permissions::full_disk_access_open_settings,
             app_quit,
+            network::network_status,
             set_quit_handler_ready,
             window_toggle_inspector,
             window::window_set_vibrancy,

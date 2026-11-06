@@ -112,6 +112,8 @@ export interface MemoryPlatformControls {
 	emitQuitRequested(): void;
 	/** Changes the window's focus and tells every focus listener. */
 	emitWindowFocus(focused: boolean): void;
+	/** Changes the network state and tells every network listener. */
+	emitNetworkChanged(online: boolean): void;
 	/** Delivers one file drag event to every file drop listener. */
 	emitFileDrop(event: FileDropEvent): void;
 	/** The app zoom, window theme, sidebar vibrancy and traffic-light inset last set. */
@@ -324,6 +326,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let windowTheme: "light" | "dark" | null = null;
 	let vibrancy: boolean | null = null;
 	let trafficLightPosition: { x: number; y: number } | null = null;
+	let networkOnline = true;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -861,7 +864,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			if (systemInfoFailure !== null) throw new Error(systemInfoFailure);
 			return systemInfo;
 		},
-		isOnline: async () => true,
+		isOnline: async () => networkOnline,
 		onNetworkChanged: (listener) => listen(networkListeners, listener),
 		hasFullDiskAccess: async () => {
 			if (fullDiskAccessFailure !== null) throw new Error(fullDiskAccessFailure);
@@ -1022,6 +1025,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		emitWindowFocus: (focused) => {
 			windowFocused = focused;
 			emit(focusListeners, focused);
+		},
+		emitNetworkChanged: (online) => {
+			networkOnline = online;
+			emit(networkListeners, online);
 		},
 		emitFileDrop: (event) => emit(fileDropListeners, event),
 		get windowZoom() {

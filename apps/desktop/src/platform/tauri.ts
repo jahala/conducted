@@ -312,7 +312,7 @@ export const COMMANDS = {
 	logSetLevel: "log_set_level",
 	setQuitHandlerReady: "set_quit_handler_ready",
 	systemInfo: "system_info",
-	networkStatus: "network_status", // PLAT-26
+	networkStatus: "network_status",
 	fullDiskAccessCheck: "full_disk_access_check",
 	fullDiskAccessOpenSettings: "full_disk_access_open_settings",
 	windowSetVibrancy: "window_set_vibrancy",
@@ -1146,8 +1146,8 @@ export function createTauriMenu(bindings: TauriBindings): AppMenu {
 export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	return {
 		info: () => bindings.invoke<SystemInfo>(COMMANDS.systemInfo),
-		isOnline: () => notImplemented("PLAT-26"),
-		onNetworkChanged: () => notImplemented("PLAT-26"),
+		isOnline: () => bindings.invoke<boolean>(COMMANDS.networkStatus),
+		onNetworkChanged: (listener) => onEvent<boolean>(bindings, EVENTS.networkChanged, listener),
 		hasFullDiskAccess: async () => {
 			const result = await invokeResult<boolean>(bindings, COMMANDS.fullDiskAccessCheck);
 			if (!result.ok) throw result.error;

@@ -409,9 +409,22 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"system",
-		"online-and-access",
-		"isOnline and hasFullDiskAccess return booleans",
-		"Both calls resolve booleans and never throw.",
+		"online",
+		"isOnline reports whether the Mac has a network connection",
+		"isOnline resolves a boolean that follows the last network event.",
+	),
+	c(
+		"system",
+		"full-disk-access",
+		"hasFullDiskAccess reports the Mac setting",
+		"hasFullDiskAccess resolves a boolean.",
+	),
+	c(
+		"system",
+		"network-events",
+		"onNetworkChanged reports the Mac going offline and online",
+		"Listeners hear offline then online, isOnline follows, and a listener removed before a later change hears nothing.",
+		"controls",
 	),
 	c(
 		"attachments",
@@ -461,6 +474,7 @@ export interface ContractControls {
 	emitSidecarRestart?(): void | Promise<void>;
 	emitNotificationClick?(deepLink: string): void | Promise<void>;
 	emitWindowFocus?(focused: boolean): void | Promise<void>;
+	emitNetworkChanged?(online: boolean): void | Promise<void>;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -1493,11 +1507,29 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
-	"system.online-and-access": async (ctx) => {
+	"system.online": async (ctx) => {
 		const online = await ctx.platform.system.isOnline();
 		ctx.assert(typeof online === "boolean", `isOnline returned ${String(online)}`);
+	},
+
+	"system.full-disk-access": async (ctx) => {
 		const access = await ctx.platform.system.hasFullDiskAccess();
 		ctx.assert(typeof access === "boolean", `hasFullDiskAccess returned ${String(access)}`);
+	},
+
+	"system.network-events": async (ctx) => {
+		const emit = ctx.controls?.emitNetworkChanged;
+		ctx.assert(emit !== undefined, "the controls do not expose emitNetworkChanged");
+		if (emit === undefined) return;
+		const seen: boolean[] = [];
+		const stop = ctx.platform.system.onNetworkChanged((online) => seen.push(online));
+		await emit(false);
+		await emit(true);
+		ctx.assert(seen.join(",") === "false,true", `the listener saw ${seen.join(",")}`);
+		ctx.assert((await ctx.platform.system.isOnline()) === true, "isOnline kept the old state");
+		stop();
+		await emit(false);
+		ctx.assert(seen.length === 2, "a listener kept running after it was removed");
 	},
 
 	"attachments.materialize": async (ctx) => {
@@ -1695,7 +1727,9 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	],
 	"menu.set-shortcuts": ["menu.setShortcuts"],
 	"system.info": ["system.info"],
-	"system.online-and-access": ["system.isOnline", "system.hasFullDiskAccess"],
+	"system.online": ["system.isOnline"],
+	"system.full-disk-access": ["system.hasFullDiskAccess"],
+	"system.network-events": ["system.onNetworkChanged", "system.isOnline"],
 	"attachments.materialize": [
 		"fs.mkdirp",
 		"fs.writeTextAtomic",
@@ -1748,7 +1782,6 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"window.onFileDrop": "Needs a real window drag; the Tauri adapter tests own the event mapping.",
 	"window.toggleInspector": "Opens the web inspector; nothing a stand-in can show.",
 	"menu.onCommand": "Needs a real menu; the Tauri adapter tests own the event door.",
-	"system.onNetworkChanged": "PLAT-26 builds it.",
 	"system.openFullDiskAccessSettings": "Opens System Settings; nothing a stand-in can show.",
 	"programs.redownload":
 		"Uses the same install path as programs.install, which the install-status case covers.",

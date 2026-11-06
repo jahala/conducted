@@ -41,7 +41,6 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 const NOT_BUILT: Readonly<Record<string, { feature: string; method: string }>> = {
 	"updater.check": { feature: "PLAT-13", method: "updater.check" },
 	"updater.installed-update": { feature: "PLAT-13", method: "updater.installedUpdate" },
-	"system.online-and-access": { feature: "PLAT-26", method: "system.isOnline" },
 };
 
 const TAURI_RUN_SKIPS: Readonly<Record<string, string>> = {
