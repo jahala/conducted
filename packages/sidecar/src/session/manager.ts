@@ -154,8 +154,7 @@ const REMOTE_CONTROL_LINKED: ReadonlySet<RemoteControlStatus["state"]> = new Set
 ]);
 
 /** The notice a message from claude.ai leaves when Claude's transcript never showed its text. */
-const REMOTE_TEXT_MISSING =
-	"A message sent via Claude could not be read from Claude's transcript.";
+const REMOTE_TEXT_MISSING = "A message sent via Claude could not be read from Claude's transcript.";
 
 /** How long shutdown waits for running turns, from the research (10 s). */
 export const SHUTDOWN_TURN_WAIT_MS = 10_000;
