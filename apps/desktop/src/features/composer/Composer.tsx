@@ -17,11 +17,13 @@
  * focus returns to the editor after sending; Cmd+L focuses the editor; the file list fails to load
  * (error shown) or an older list arrives after a newer one (dropped); a terminal for a slash
  * command that cannot be created (shown on the bar, with Reopen terminal).
- * The editor loads the `@` trigger (COMP-04) and the `/` trigger (COMP-06) from this composer, so
- * both read the chat's service. The `@` menu lists the workspace's files and its linked folders,
- * read again each time the menu opens, and offers "Attach current terminal output" and "Select
- * working directories" (WS-07). The `#` trigger is left out until COMP-05 builds pull request
- * search. A slash command the user picks does what `slashCommandAction` says: /clear opens a new
+ * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05) and the `/` trigger
+ * (COMP-06) from this composer, so all read the chat's service. The `@` menu lists the workspace's
+ * files and its linked folders, read again each time the menu opens, and offers "Attach current
+ * terminal output" and "Select working directories" (WS-07). The `#` menu lists the project's pull
+ * requests and issues, writes the chosen item's context file and inserts a chip; a failed write
+ * shows "Failed to save PR context". A slash command the user picks does what
+ * `slashCommandAction` says: /clear opens a new
  * chat tab (the tab strip's own Cmd+T handler) and closes this one, /restart restarts the agent,
  * /compact asks a Codex chat to summarise its history, /add-dir opens the Link workspaces and
  * directories dialog (WS-07), /plan and /fast run the plan and fast mode toggles of the toolbar,
@@ -43,7 +45,15 @@
  */
 
 import type { SlashCommand } from "@conducted/protocol";
-import type { SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	ok,
+	type SessionId,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -68,6 +78,11 @@ import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import type { FileMentionItem } from "./mentions/FileMention.ts";
+import {
+	PR_MENTION_LIMIT,
+	type PrMentionItem,
+	type PrMentionSearchResult,
+} from "./mentions/PrMention.ts";
 import {
 	COMMAND_UNAVAILABLE,
 	PLAN_MODE_UNAVAILABLE,
@@ -260,6 +275,120 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		view?.dispatch(view.state.tr);
 	}, [services, workspaceId]);
 
+	const searchPrMentions = useCallback(
+		async (query: string) => {
+			const row = services.workspace.store.getState().workspacesById[workspaceId];
+			const repo =
+				row === undefined ? undefined : services.repo.store.getState().reposById[row.repoId];
+			const remoteUrl = repo?.remoteUrl ?? null;
+			const access = services.github.store.getState().access;
+			const items: PrMentionItem[] = [];
+			const notices: string[] = [];
+			const errors: AppError[] = [];
+			if (remoteUrl === null) {
+				notices.push("This project has no GitHub remote.");
+			} else if (access.status === "gh_missing") {
+				notices.push("Install GitHub CLI (gh) to list pull requests and issues.");
+			} else if (access.status === "signed_out" || access.status === "unauthorized") {
+				notices.push('Run "gh auth login" to connect GitHub.');
+			} else if (access.status === "offline") {
+				notices.push("You're offline. Pull requests and issues can't be listed.");
+			} else {
+				const [pulls, issues] = await Promise.all([
+					services.github.listPullRequests(remoteUrl, query),
+					services.github.listIssues(remoteUrl, query),
+				]);
+				if (pulls.ok) {
+					items.push(
+						...pulls.value.map((pull) => ({
+							kind: "pull_request" as const,
+							provider: "github" as const,
+							number: pull.number,
+							identifier: `#${pull.number}`,
+							title: pull.title,
+							id: String(pull.number),
+						})),
+					);
+				} else {
+					errors.push(pulls.error);
+				}
+				if (issues.ok) {
+					items.push(
+						...issues.value.map((issue) => ({
+							kind: "issue" as const,
+							provider: "github" as const,
+							number: Number(issue.id),
+							identifier: issue.identifier,
+							title: issue.title,
+							url: issue.url,
+							id: issue.id,
+						})),
+					);
+				} else {
+					errors.push(issues.error);
+				}
+			}
+			if (services.linear.store.getState().connection === "connected") {
+				const found =
+					query.trim() === ""
+						? await services.linear.loadMyIssues()
+						: await services.linear.search(query);
+				if (found.ok) {
+					items.push(
+						...found.value.map((issue) => ({
+							kind: "issue" as const,
+							provider: "linear" as const,
+							number: null,
+							identifier: issue.identifier,
+							title: issue.title,
+							url: issue.url,
+							id: issue.id,
+						})),
+					);
+				} else {
+					errors.push(found.error);
+				}
+			}
+			if (items.length === 0 && errors.length > 0) {
+				const first = errors[0];
+				if (first !== undefined) return err(first);
+			}
+			if (errors.length > 0 && items.length > 0) {
+				const first = errors[0];
+				if (first !== undefined) notices.push(first.message);
+			}
+			const value: PrMentionSearchResult = {
+				items: items.slice(0, PR_MENTION_LIMIT),
+				notice: notices.length > 0 ? notices.join(" ") : undefined,
+			};
+			return ok(value);
+		},
+		[services, workspaceId],
+	);
+
+	const attachPrMention = useCallback(
+		async (item: PrMentionItem) => {
+			if (item.kind === "pull_request") {
+				if (item.number === null) {
+					return err(appError("pr_mention_unknown", "That pull request has no number to write."));
+				}
+				return services.github.attachPullRequestToWorkspace(workspaceId, item.number);
+			}
+			if (item.provider === "linear") {
+				return services.linear.attachToWorkspace(workspaceId, item.id);
+			}
+			return services.github.attachIssueToWorkspace(workspaceId, {
+				provider: "github",
+				id: item.id,
+			});
+		},
+		[services, workspaceId],
+	);
+
+	const reportPrMentionError = useCallback((error: AppError) => {
+		toastError("Failed to save PR context", error);
+	}, []);
+
 	const attachTerminalOutput = useCallback(async () => {
 		const added = await actions.attachments.addTerminalOutput(sessionId);
 		if (!added.ok) {
@@ -370,6 +499,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 						},
 					],
 				},
+				pullRequests: {
+					search: searchPrMentions,
+					attach: attachPrMention,
+					onError: reportPrMentionError,
+				},
 				slash: {
 					get commands() {
 						return [...slashCommands.current];
@@ -386,7 +520,14 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					onRun: runSlashCommand,
 				},
 			}),
-		[attachTerminalOutput, loadFiles, runSlashCommand],
+		[
+			attachPrMention,
+			attachTerminalOutput,
+			loadFiles,
+			reportPrMentionError,
+			runSlashCommand,
+			searchPrMentions,
+		],
 	);
 
 	const restore = useCallback((draft: Draft) => {
