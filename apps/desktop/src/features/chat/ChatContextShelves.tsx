@@ -17,9 +17,8 @@
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useMemo, useState } from "react";
-import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
-import { useActions, usePlans, useSessions } from "../../core/hooks.ts";
+import { useActions, useDraft, usePlans, useSessions } from "../../core/hooks.ts";
 import type { PlanEntry, Session } from "../../core/model.ts";
 import { chatTranscriptFileName, planFileName } from "../../core/services/composer.ts";
 import { Button } from "../../ui/Button.tsx";
@@ -121,18 +120,10 @@ function ShelfItem({ label, icon, selected, importing, onPick, className }: Shel
 	);
 }
 
+/** Reads what the shelves list; draws them only when there is something to add. */
 export function ChatContextShelves({ sessionId, workspaceId, directory }: ChatContextShelvesProps) {
-	const { services } = useServices();
-	const actions = useActions();
 	const sessions = useSessions(workspaceId);
 	const plans = usePlans(workspaceId);
-	const attached = useStore(
-		services.composer.store,
-		(state) => state.drafts[sessionId]?.attachmentPaths,
-	);
-	const [importingChats, setImportingChats] = useState<readonly SessionId[]>([]);
-	const [importingPlans, setImportingPlans] = useState<readonly string[]>([]);
-
 	const chats = useMemo(() => {
 		if (sessions.state !== "ready") return [];
 		return sessions.data
@@ -140,9 +131,24 @@ export function ChatContextShelves({ sessionId, workspaceId, directory }: ChatCo
 			.sort((a, b) => (b.lastUserMessageAt ?? 0) - (a.lastUserMessageAt ?? 0));
 	}, [sessions, sessionId]);
 	const planList = plans.state === "ready" ? plans.data : [];
-	const attachedByName = new Map((attached ?? []).map((path) => [baseName(path), path]));
-
 	if (chats.length === 0 && planList.length === 0) return null;
+	return <Shelves sessionId={sessionId} directory={directory} chats={chats} plans={planList} />;
+}
+
+interface ShelvesProps {
+	sessionId: SessionId;
+	directory: string;
+	chats: readonly Session[];
+	plans: readonly PlanEntry[];
+}
+
+function Shelves({ sessionId, directory, chats, plans: planList }: ShelvesProps) {
+	const { services } = useServices();
+	const actions = useActions();
+	const attached = useDraft(sessionId).attachmentPaths;
+	const [importingChats, setImportingChats] = useState<readonly SessionId[]>([]);
+	const [importingPlans, setImportingPlans] = useState<readonly string[]>([]);
+	const attachedByName = new Map(attached.map((path) => [baseName(path), path]));
 
 	const detach = async (path: string) => {
 		const removed = await services.composer.removeAttachment(sessionId, path);

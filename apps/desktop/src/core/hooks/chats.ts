@@ -9,7 +9,7 @@
  */
 import { type AppError, appError, type SessionId, type TurnId } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
@@ -87,24 +87,34 @@ export const useChat: Queries["useChat"] = (sessionId) => {
 };
 export const useClosedSessions: Queries["useClosedSessions"] = (workspaceId) =>
 	useSessionList(workspaceId, true);
+
 /**
- * The plans agents proposed in a workspace's chats, newest first (CHAT-26). Read each time a
- * screen asks, so an empty chat opened after a new plan lists it.
+ * The plans agents proposed in a workspace's chats, newest first (CHAT-26). Read when a screen
+ * mounts or the workspace changes, so an empty chat opened after a new plan lists it. An answer
+ * for a workspace the screen has left is dropped.
  */
 export const usePlans: Queries["usePlans"] = (workspaceId) => {
 	const sessions = useServices().services.sessions;
-	const query = useQuery<PlanEntry[], AppError>({
-		queryKey: ["plans", workspaceId],
-		queryFn: async () => {
-			const result = await sessions.listPlans(workspaceId);
-			if (!result.ok) throw result.error;
-			return result.value;
-		},
-		staleTime: 0,
+	const [plans, setPlans] = useState<{ workspaceId: string; value: Loadable<PlanEntry[]> }>({
+		workspaceId,
+		value: { state: "loading" },
 	});
-	if (query.isError && query.error !== null) return { state: "error", error: query.error };
-	if (query.data === undefined) return { state: "loading" };
-	return { state: "ready", data: query.data };
+	useEffect(() => {
+		let current = true;
+		void sessions.listPlans(workspaceId).then((result) => {
+			if (!current) return;
+			setPlans({
+				workspaceId,
+				value: result.ok
+					? { state: "ready", data: result.value }
+					: { state: "error", error: result.error },
+			});
+		});
+		return () => {
+			current = false;
+		};
+	}, [sessions, workspaceId]);
+	return plans.workspaceId === workspaceId ? plans.value : { state: "loading" };
 };
 
 const changedSinceTurnKey = (sessionId: SessionId, turnId: TurnId) =>
