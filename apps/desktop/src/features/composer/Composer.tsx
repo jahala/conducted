@@ -30,6 +30,8 @@
  * that terminal (closed, finished, failed) and
  * restarts the agent when the user clicks Done. Attachments are added from the '+' menu, a drop or
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
+ * The '+' menu's "Link issue", Cmd+I and the palette's "Link issue" open the Link issue dialog
+ * (PR-09) of the chat on screen; the issue it links joins the same attachment list.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
@@ -59,6 +61,7 @@ import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
+import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import type { FileMentionItem } from "./mentions/FileMention.ts";
@@ -181,6 +184,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const [text, setText] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+	const [issueDialogOpen, setIssueDialogOpen] = useState(false);
 	const attachmentsController = useAttachments({
 		sessionId,
 		editor,
@@ -418,6 +422,22 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		return true;
 	});
 
+	// Cmd+I and the palette's "Link issue" open or close the dialog. Only the chat on screen takes
+	// it, so a second chat beside it in a split pane does not open its own.
+	useCommandHandler("chat.linkIssue", "area", () => {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
+		setIssueDialogOpen((open) => !open);
+		return true;
+	});
+
+	const addLinkedIssue = useCallback((path: string) => {
+		setAttachments((current) => (current.includes(path) ? current : [...current, path]));
+	}, []);
+
+	const focusEditorAtEnd = useCallback(() => {
+		editorRef.current?.commands.focus("end");
+	}, []);
+
 	useCommandHandler("chat.cancelAgent", "area", () => {
 		if (!working) return false;
 		void stop();
@@ -475,6 +495,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					<PlusMenu
 						sessionId={sessionId}
 						onAddAttachment={() => void attachmentsController.pick()}
+						onLinkIssue={() => setIssueDialogOpen(true)}
 						onLinkWorkspaces={() => setLinkDialogOpen(true)}
 					/>
 					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
@@ -519,6 +540,14 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				open={linkDialogOpen}
 				onOpenChange={setLinkDialogOpen}
 				workspaceId={workspaceId}
+			/>
+			<LinkIssueDialog
+				open={issueDialogOpen}
+				onOpenChange={setIssueDialogOpen}
+				workspaceId={workspaceId}
+				sessionId={sessionId}
+				onAttached={addLinkedIssue}
+				onFocusEditor={focusEditorAtEnd}
 			/>
 			<div className="flex items-center justify-end gap-1 px-2 pb-2">
 				<SendButton

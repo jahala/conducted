@@ -282,7 +282,7 @@ REV-01	shortcut	Cmd+Alt+U show uncommitted changes	ui-map 5.4	covered
 CHAT-01	shortcut	Cmd+T new chat tab	ui-map 5.4	covered
 COMP-01	shortcut	Enter submits, Shift+Enter inserts a new line	ui-map 5.4	covered
 CHAT-03	shortcut	Cmd+Enter submits with the opposite follow-up behaviour	ui-map 5.4	covered
-COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths (needs Clipboard.readFilePaths in platform.ts and its Rust command)	ui-map 5.4	missing
+COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths (needs Clipboard.readFilePaths in platform.ts and its Rust command)	ui-map 5.4	covered
 COMP-01	shortcut	Cmd+L focuses the chat input	ui-map 5.4	covered
 COMP-03	shortcut	Shift+Tab toggles plan mode while typing	ui-map 5.4	covered
 CHAT-12	shortcut	Cmd+Shift+Enter approves the plan	ui-map 5.4	covered
@@ -530,8 +530,8 @@ COMP-08	control	Speech to text: waveform, 'Stop recording', 'Transcribing...', s
 COMP-01	menu	'More composer actions' menu on narrow layouts	ui-map 3.5	covered
 COMP-01	control	Send, Queue and Save button	ui-map 3.5	covered
 CHAT-05	control	Stop button (tooltip 'Cancel')	ui-map 3.5	covered
-COMP-07	action	Attachments by file picker, drag and drop, and paste (a pasted image needs AttachmentFiles.writeBytes in platform.ts and its Rust command)	ui-map 3.5	partly
-COMP-07	action	'Paste copied files as paths' (needs Clipboard.readFilePaths)	ui-map 3.5	missing
+COMP-07	action	Attachments by file picker, drag and drop, and paste (a pasted image needs AttachmentFiles.writeBytes in platform.ts and its Rust command)	ui-map 3.5	covered
+COMP-07	action	'Paste copied files as paths' (needs Clipboard.readFilePaths)	ui-map 3.5	covered
 COMP-07	setting	Pasted text over 5000 characters becomes an attachment (setting)	ui-map 3.5	covered
 COMP-07	rule	Images over 5MB fail with a message	ui-map 3.5	covered
 COMP-07	rule	Sending waits until the workspace is initialised and says so	services-map 5A.6.2	partly
@@ -613,7 +613,7 @@ PR-04	action	'Queue checks'	ui-map 3.6	partly
 PR-04	region	Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons	ui-map 3.6	covered
 PR-04	region	PR comments with Resolved and Outdated markers and 'Resolve'	ui-map 3.6	covered
 PR-04	action	Comments: 'Add to chat' and 'Add all to chat'	ui-map 3.6	covered
-PR-04	action	Comments: 'Hide' (stored or local, still to decide)	ui-map 3.6	partly
+PR-04	action	Comments: 'Hide' (the comment's stored state becomes hidden through comments.setHidden; a sync keeps it hidden)	ui-map 3.6	covered
 PR-06	region	Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review	ui-map 3.6	covered
 PR-06	action	'Request review'	ui-map 3.6	partly
 PR-06	action	Add or remove reviewers	services-map 3.7.5	missing
@@ -710,10 +710,10 @@ WS-01	rule	Git work after submit: fetch, worktree, names, setup	frontend 6	cover
 PRJ-01	control	'Open project' in the Add project menu	ui-map 3.9	covered
 PRJ-01	region	'Recents' group of recently opened project folders in the Add project menu	inventory text R@10176291	missing
 PRJ-02	rule	Clone with owner and repo picker from GitHub	services-map 3.2, 3.9	missing
-PR-09	dialog	Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'	ui-map 3.10	missing
+PR-09	dialog	Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'	ui-map 3.10	covered
 PR-11	rule	Issues list is disabled when there is no GitHub remote or access	services-map 5B.8.2	missing
 PR-11	action	A GitHub issue or PR becomes a context file in the workspace	services-map 5B.8.3	missing
-PR-09	rule	Linear issue context carries comments and times	services-map 5B.8.1	partly
+PR-09	rule	Linear issue context carries comments and times	services-map 5B.8.1	covered
 WS-07	dialog	Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'	ui-map 3.10	missing
 SET-05	dialog	MCP status: 'MCP status', 'No MCP servers configured.', 'Refresh MCP status', logs	ui-map 3.10	covered
 SET-05	state	MCP server status shows an error reason when a server failed	services-map 5B.6	partly
@@ -1058,5 +1058,5 @@ SET-07	rule	The repository Scripts, Actions, Prompts and Misc pages take focusSe
 SET-03	rule	The Agents page shows every registry row the settings search sends to it (claude_provider, codex_provider, bedrock_region, vertex_project_id, tool_approvals_enabled, codex_tool_approval_policy, chrome_mode_enabled) and marks the searched row (moved from SET-02 by the slice 2 step 2 audit).	docs/reports/audits/s2-step-2	missing
 SET-04	rule	The Environment page shows environment_variable_files and marks it when a settings search opens the page (moved from SET-02 by the slice 2 step 2 audit).	docs/reports/audits/s2-step-2	missing
 REV-08	shortcut	The file editor has undo, redo, the default key map and Tab indent (needs the @codemirror/commands 6.x dependency, not installed overnight).	ui-map 3.2	missing
-REV-08	action	Reveal in Finder from a preview that cannot show (needs files.reveal in core/api.ts, backed by platform.opener.revealInFinder).	ui-map 3.2	missing
+REV-08	action	Reveal in Finder and Open in another app from a preview that cannot show (files.reveal and files.openInApp in core/api.ts; the default "Open in" app opens the file).	ui-map 3.2	covered
 CHAT-04	action	Retry a failed queued message goes through Actions (needs sessions.queue.retry in core/api.ts and actions.ts; QueueBox calls the service directly until then).	ui-map 3.4	partly

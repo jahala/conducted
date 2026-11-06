@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { AgentLaunch, WorkspaceContext } from "@conducted/protocol";
+import {
+	type AgentLaunch,
+	agentProviders,
+	opencodeProviders,
+	type WorkspaceContext,
+} from "@conducted/protocol";
 import type { Result, SessionId, WorkspaceId } from "@conducted/shared";
-import { agentProviders, buildAgentEnvironment } from "../launch-env.ts";
-import { opencodeProviders } from "./opencode-providers.ts";
+import { buildAgentEnvironment } from "../launch-env.ts";
 
 const workspace: WorkspaceContext = {
 	workspaceId: "w1" as WorkspaceId,

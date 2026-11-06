@@ -124,6 +124,7 @@ interface HarnessOptions {
 	sidecar?: Pick<SidecarClient, "notify">;
 	runInTransaction?: <T>(work: (repos: Repositories) => Promise<T>) => Promise<T>;
 	onStored?: IngestListener["onStored"];
+	onContextWindow?: IngestListener["onContextWindow"];
 	log?: (level: "warn" | "error", message: string, data?: unknown) => void;
 }
 
@@ -140,6 +141,7 @@ function makeHarness(options: HarnessOptions = {}): Harness {
 		onStored:
 			options.onStored ?? ((id, envelope, idx) => stored.push({ sessionId: id, envelope, idx })),
 		isViewing: options.viewing ?? (() => false),
+		onContextWindow: options.onContextWindow ?? (() => {}),
 	};
 	const sidecar = options.sidecar ?? makeSidecar().sidecar;
 	const runInTransaction =
@@ -354,6 +356,27 @@ describe("DATA-04 event ingest", () => {
 		);
 		session = must(await harness.repositories.sessions.get(sessionId));
 		expect(session?.unreadCount).toBe(1);
+	});
+});
+
+describe("CHAT-14 event ingest remembers each model's context window", () => {
+	it("records the window a usage item reports for the chat's agent and model", async () => {
+		seedWorkspace();
+		seedSession();
+		const remembered: { agent: string; model: string; windowTokens: number }[] = [];
+		const harness = makeHarness({
+			onContextWindow: (agent, model, windowTokens) =>
+				remembered.push({ agent, model, windowTokens }),
+		});
+
+		await harness.ingest.ingest(envelope(agentEvent("a1", "t1", 6000, [usage(1200, 200000)]), 0));
+
+		expect(must(await harness.repositories.modelContextWindows.list())).toEqual([
+			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000, updatedAt: 1000 },
+		]);
+		expect(remembered).toEqual([
+			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000 },
+		]);
 	});
 });
 

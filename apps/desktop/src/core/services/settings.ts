@@ -31,14 +31,22 @@
  * user-only key.
  * SET-14 test first: saving one setting into a hand-written file changes only that value's text.
  */
-import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	createKeyedQueue,
+	err,
+	type KeyedQueue,
+	ok,
+	type RepoId,
+	type Result,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Loadable } from "../api.ts";
 import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import type { EnvVar } from "../db/env-vars.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -827,8 +835,11 @@ export type SettingsPlatform = Pick<Platform, "fs" | "keychain" | "app"> & {
 export interface SettingsServiceDeps {
 	platform: SettingsPlatform;
 	repos: Pick<Repositories, "settings" | "envVars"> & {
-		/** The repository list, so a global variable can say how many repositories override it. */
-		repos?: Pick<RepoRepository, "list">;
+		/**
+		 * The repository list, so a global variable can say how many repositories override it, and
+		 * a repository's folder, for a reset of one of its values.
+		 */
+		repos?: Pick<RepoRepository, "list" | "get">;
 	};
 	toml: TomlCodec;
 	/** The GIT-01 runner. The remote default-branch layer reads through it. */
@@ -1062,11 +1073,20 @@ export class SettingsService {
 	}
 
 	/**
-	 * Resets one repository's personal value, so the repo shared file (or a higher layer) supplies
-	 * it again. The button in the UI is "Reset to your repo's settings.toml".
+	 * Backs `Actions.settings.resetForRepo`. Resets one repository's personal value, so the repo
+	 * shared file (or a higher layer) supplies it again.
 	 */
-	async resetForRepo(repoRootPath: string, key: string): Promise<Result<void>> {
-		return this.setForRepo(repoRootPath, key, null);
+	async resetForRepo(repoId: RepoId, key: string): Promise<Result<void>> {
+		const repositories = this.#deps.repos.repos;
+		if (repositories === undefined) {
+			return err(appError("repo_unknown", "The project list is not available."));
+		}
+		const found = await repositories.get(repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		return this.setForRepo(found.value.rootPath, key, null);
 	}
 
 	/** Backs `Actions.settings.set`. Validates with the registry, then writes to the right place. */
@@ -1344,11 +1364,15 @@ export class SettingsService {
 	/**
 	 * The Environment page's variables for one repository, the one rule both its scripts and its agents'
 	 * launch use. Rows come in name order with the global row before the repository's (env-vars.ts), so
-	 * a repository's value replaces the global one of the same name. A value the Keychain cannot give
-	 * back fails the whole read with a message that names the variable, never the global value instead.
+	 * a repository's value replaces the global one of the same name. Without a repository (an agent's
+	 * model list), the global variables only. A value the Keychain cannot give back fails the whole read
+	 * with a message that names the variable, never the global value instead.
 	 */
-	async environmentFor(repoId: RepoId): Promise<Result<Record<string, string>>> {
-		const listed = await this.#deps.repos.envVars.listForRepo(repoId);
+	async environmentFor(repoId: RepoId | null): Promise<Result<Record<string, string>>> {
+		const listed =
+			repoId === null
+				? await this.#deps.repos.envVars.listGlobal()
+				: await this.#deps.repos.envVars.listForRepo(repoId);
 		if (!listed.ok) {
 			return err(
 				appError(

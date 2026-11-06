@@ -170,7 +170,10 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 		},
 	};
 
-	const settings: Record<string, unknown> = { worktree_push_auto_setup_remote: true };
+	const settings: Record<string, unknown> = {
+		worktree_push_auto_setup_remote: true,
+		conducted_root_path: "~/conducted",
+	};
 	const deps = {
 		platform: {
 			fs: {
@@ -193,6 +196,9 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 					return ok([]);
 				},
 				async trash() {
+					return ok(undefined);
+				},
+				async registerRoot() {
 					return ok(undefined);
 				},
 				paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },

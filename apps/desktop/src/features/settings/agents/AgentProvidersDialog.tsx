@@ -23,15 +23,16 @@
  * removes, a failed save or removal (shown and toasted, never shown as saved; a save of several parts
  * stops at the first failure), a provider with no key yet, a custom provider without a workspace
  * ID, an OpenCode provider list that is loading or failed, and a model filter that cannot be saved.
- * Our design choice: the subscription token is saved under the Anthropic provider because both sign
- * Claude Code in; the Bedrock test model is saved as `ANTHROPIC_MODEL`; a custom workspace ID is
- * saved as the workspace variable its agent family uses. The Custom provider form is a group named
+ * The choices, their providers and the variables each key is saved as come from the agent-provider
+ * table in packages/protocol (the subscription token under the Anthropic provider, the Bedrock test
+ * model as `ANTHROPIC_MODEL`, a custom workspace ID as the variable its agent family uses).
+ * Our design choice: the Custom provider form is a group named
  * "Custom provider" (ui-map.md 6, "Agents page"); under OpenCode's and Pi's provider list the name
  * shows as its heading. Each Save key button's accessible name says which key it saves, so two in
  * one dialog differ.
  * Test first: saving an Anthropic key stores it in the Keychain and removing it deletes the entry.
  */
-import type { AgentInstall } from "@conducted/protocol";
+import { type AgentInstall, BEDROCK_ENV, type SignInId } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useActions, useAgentProviders, useProviderKeys, useSetting } from "../../../core/hooks.ts";
@@ -46,7 +47,6 @@ import { toast, toastError } from "../../../ui/Toast.tsx";
 import {
 	initialProviderChoice,
 	keyEnvVarFor,
-	type ProviderChoiceId,
 	providerChoices,
 	providerIdFor,
 	providerSettingKey,
@@ -300,13 +300,13 @@ interface BedrockFormProps {
 	onRemove: (keys: readonly string[]) => Promise<void>;
 }
 
-const BEDROCK_API_KEY_VARS = ["AWS_BEARER_TOKEN_BEDROCK"] as const;
+const BEDROCK_API_KEY_VARS = [BEDROCK_ENV.apiKey] as const;
 const BEDROCK_ACCESS_KEY_VARS = [
-	"AWS_ACCESS_KEY_ID",
-	"AWS_SECRET_ACCESS_KEY",
-	"AWS_SESSION_TOKEN",
+	BEDROCK_ENV.accessKeyId,
+	BEDROCK_ENV.secretAccessKey,
+	BEDROCK_ENV.sessionToken,
 ] as const;
-const BEDROCK_TEST_MODEL_VAR = "ANTHROPIC_MODEL";
+const BEDROCK_TEST_MODEL_VAR = BEDROCK_ENV.testModel;
 
 /**
  * Amazon Bedrock: one Bedrock API key, or AWS access keys with an optional session token, the region and
@@ -316,7 +316,7 @@ const BEDROCK_TEST_MODEL_VAR = "ANTHROPIC_MODEL";
  */
 function BedrockForm({ agent, keys, region, onSave, onRemove }: BedrockFormProps) {
 	const [mode, setMode] = useState<"api_key" | "access_keys">(
-		hasKey(keys, "bedrock", "AWS_ACCESS_KEY_ID") ? "access_keys" : "api_key",
+		hasKey(keys, "bedrock", BEDROCK_ENV.accessKeyId) ? "access_keys" : "api_key",
 	);
 	const [apiKey, setApiKey] = useState("");
 	const [accessKeyId, setAccessKeyId] = useState("");
@@ -341,19 +341,19 @@ function BedrockForm({ agent, keys, region, onSave, onRemove }: BedrockFormProps
 				setError("Enter all required Bedrock fields.");
 				return;
 			}
-			entries.push({ envVar: "AWS_BEARER_TOKEN_BEDROCK", value: apiKey.trim() });
+			entries.push({ envVar: BEDROCK_ENV.apiKey, value: apiKey.trim() });
 			remove.push(...BEDROCK_ACCESS_KEY_VARS.filter((envVar) => hasKey(keys, "bedrock", envVar)));
 		} else {
 			if (accessKeyId.trim() === "" || secretKey.trim() === "") {
 				setError("Enter all required Bedrock fields.");
 				return;
 			}
-			entries.push({ envVar: "AWS_ACCESS_KEY_ID", value: accessKeyId.trim() });
-			entries.push({ envVar: "AWS_SECRET_ACCESS_KEY", value: secretKey.trim() });
+			entries.push({ envVar: BEDROCK_ENV.accessKeyId, value: accessKeyId.trim() });
+			entries.push({ envVar: BEDROCK_ENV.secretAccessKey, value: secretKey.trim() });
 			if (sessionToken.trim() !== "") {
-				entries.push({ envVar: "AWS_SESSION_TOKEN", value: sessionToken.trim() });
-			} else if (hasKey(keys, "bedrock", "AWS_SESSION_TOKEN")) {
-				remove.push("AWS_SESSION_TOKEN");
+				entries.push({ envVar: BEDROCK_ENV.sessionToken, value: sessionToken.trim() });
+			} else if (hasKey(keys, "bedrock", BEDROCK_ENV.sessionToken)) {
+				remove.push(BEDROCK_ENV.sessionToken);
 			}
 			remove.push(...BEDROCK_API_KEY_VARS.filter((envVar) => hasKey(keys, "bedrock", envVar)));
 		}
@@ -659,7 +659,7 @@ export function AgentProvidersDialog({
 	const setting = useSetting<string>(settingKey ?? "");
 	const keys = useProviderKeys(agent, install.acpAgent);
 	const choices = providerChoices(agent, install.acpAgent);
-	const [selected, setSelected] = useState<ProviderChoiceId | null>(null);
+	const [selected, setSelected] = useState<SignInId | null>(null);
 	const [busy, setBusy] = useState(false);
 	const bedrockRegion = useSetting<string>("bedrock_region");
 	const vertexProject = useSetting<string>("vertex_project_id");
@@ -672,11 +672,11 @@ export function AgentProvidersDialog({
 	const choice = selected ?? initialProviderChoice(agent, settingKey === null ? null : setting);
 	const current = choices.find((entry) => entry.id === choice) ?? choices[0];
 
-	const choose = (id: ProviderChoiceId) => {
+	const choose = (id: SignInId) => {
 		setSelected(id);
 		const next = choices.find((entry) => entry.id === id);
-		if (settingKey !== null && next !== undefined && next.settingValue !== null) {
-			void actions.settings.set(settingKey, next.settingValue).then((result) => {
+		if (settingKey !== null && next !== undefined && next.launchProvider !== null) {
+			void actions.settings.set(settingKey, next.launchProvider).then((result) => {
 				if (!result.ok) toastError("Couldn't save the provider choice", result.error);
 			});
 		}
@@ -761,7 +761,7 @@ export function AgentProvidersDialog({
 		const saved =
 			(credentials === null ||
 				(await saveMany("vertex", [
-					{ envVar: "GOOGLE_APPLICATION_CREDENTIALS", value: credentials },
+					{ envVar: keyEnvVarFor(agent, "vertex"), value: credentials },
 				]))) &&
 			(await saveSetting("vertex_project_id", project, "Couldn't save the Vertex project"));
 		setBusy(false);
@@ -860,8 +860,8 @@ export function AgentProvidersDialog({
 							key="subscription"
 							agent={agent}
 							acpAgent={acpAgent}
-							provider={providerIdFor("subscription")}
-							envVar="CLAUDE_CODE_OAUTH_TOKEN"
+							provider={providerIdFor(agent, "subscription")}
+							envVar={keyEnvVarFor(agent, "subscription")}
 							label="Claude Code subscription token"
 							description="Paste the token from claude setup-token. It is stored in the Keychain."
 							keys={saved}
@@ -875,15 +875,9 @@ export function AgentProvidersDialog({
 							key={current.id}
 							agent={agent}
 							acpAgent={acpAgent}
-							provider={providerIdFor(current.id)}
+							provider={providerIdFor(agent, current.id)}
 							envVar={envVar}
-							label={
-								current.id === "anthropic"
-									? "Anthropic API key"
-									: current.id === "openai"
-										? "OpenAI API key"
-										: "Cursor API key"
-							}
+							label={current.label}
 							description="The key is stored in the Keychain and never shown again."
 							keys={saved}
 							onSave={saveKey}

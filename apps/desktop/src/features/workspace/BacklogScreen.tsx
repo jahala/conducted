@@ -6,20 +6,26 @@
  * (Cmd+Enter starts the backlog workspace).
  * Our design choice: the backlog lives on its own screen reached from the create page. A row shows
  * its repository, name, first message and the Unstarted label, with the same Start and Remove
- * choices in its Workspace actions menu. Cmd+Enter starts the selected row, or the first one.
- * Must handle: loading, an empty backlog, a failed start (an error toast and the row stays), removal.
+ * choices in its Workspace actions menu. Cmd+Enter starts the selected row, or the first one. Each
+ * row has a "Switch repo" picker (the create flow's name for its repository picker, ui-map 3.9);
+ * a draft whose repository was removed says "No ready repository. Pick one to start this
+ * workspace." until one is picked.
+ * Must handle: loading, an empty backlog, a failed start (an error toast and the row stays), removal,
+ * a draft with no repository, and a pick that fails (an error toast, the draft keeps its repository).
  * Test first: pressing Cmd+Enter starts the selected backlog workspace.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useBacklogWorkspaces, useRepos, useSetting } from "../../core/hooks.ts";
-import type { BacklogWorkspace } from "../../core/model.ts";
+import type { BacklogWorkspace, Repo } from "../../core/model.ts";
+import { WorkspaceService } from "../../core/services/workspace.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
+import { Select } from "../../ui/Select.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { statusText } from "./status-text.ts";
 
@@ -43,10 +49,20 @@ export function BacklogScreen(_props: Record<string, never>) {
 	const enabled = useSetting<boolean>("unstarted_workspaces_enabled");
 
 	const entries = backlog.state === "ready" ? backlog.data : [];
-	const repoName = (id: BacklogWorkspace["repoId"]): string =>
-		repos.state === "ready" ? (repos.data.find((repo) => repo.id === id)?.name ?? "") : "";
+	const repoList: readonly Repo[] = repos.state === "ready" ? repos.data : [];
+	/** The draft's repository; undefined while the list loads or when it was removed. */
+	const repoOf = (entry: BacklogWorkspace): Repo | undefined =>
+		entry.repoId === null ? undefined : repoList.find((repo) => repo.id === entry.repoId);
+	const repoOptions = repoList.map((repo) => ({ value: repo.id as string, label: repo.name }));
 
-	const open = (repoId: BacklogWorkspace["repoId"], workspaceId: WorkspaceId) => {
+	const pickRepo = async (entry: BacklogWorkspace, repoId: string) => {
+		const repo = repoList.find((candidate) => candidate.id === repoId);
+		if (repo === undefined) return;
+		const result = await actions.workspaces.setBacklogRepo(entry.id, repo.id);
+		if (!result.ok) toastError("Couldn't change the repository", result.error);
+	};
+
+	const open = (repoId: RepoId, workspaceId: WorkspaceId) => {
 		void navigate({
 			to: "/repository/$repositoryId/workspace/$workspaceId",
 			params: { repositoryId: repoId, workspaceId },
@@ -135,39 +151,57 @@ export function BacklogScreen(_props: Record<string, never>) {
 				/>
 			) : (
 				<ul aria-label="Backlog workspaces" className="flex flex-col gap-1 px-4 py-4">
-					{entries.map((entry) => (
-						<li key={entry.id}>
-							<div className="flex items-center gap-3 rounded-md px-4 py-3 hover:bg-hover">
-								<button
-									type="button"
-									aria-current={entry.id === selected ? "true" : undefined}
-									className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-sm text-left aria-current:text-fg"
-									onClick={() => setSelected(entry.id)}
-								>
-									<span className="truncate text-sm font-medium text-fg">{backlogName(entry)}</span>
-									<span className="truncate text-xs text-fg-muted">
-										{repoName(entry.repoId)} · {unstarted.text}
-									</span>
-								</button>
-								<Button size="sm" onClick={() => void start(entry)}>
-									Start
-								</Button>
-								<Menu>
-									<MenuTrigger asChild>
-										<Button size="sm" variant="ghost" aria-label="Workspace actions">
-											More
-										</Button>
-									</MenuTrigger>
-									<MenuContent aria-label="Workspace actions">
-										<MenuItem onSelect={() => void start(entry)}>Start</MenuItem>
-										<MenuItem destructive onSelect={() => void remove(entry)}>
-											Remove from backlog
-										</MenuItem>
-									</MenuContent>
-								</Menu>
-							</div>
-						</li>
-					))}
+					{entries.map((entry) => {
+						const repo = repoOf(entry);
+						const missing = repos.state === "ready" && repo === undefined;
+						return (
+							<li key={entry.id}>
+								<div className="flex items-center gap-3 rounded-md px-4 py-3 hover:bg-hover">
+									<button
+										type="button"
+										aria-current={entry.id === selected ? "true" : undefined}
+										className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-sm text-left aria-current:text-fg"
+										onClick={() => setSelected(entry.id)}
+									>
+										<span className="truncate text-sm font-medium text-fg">
+											{backlogName(entry)}
+										</span>
+										<span className="truncate text-xs text-fg-muted">
+											{repo === undefined ? unstarted.text : `${repo.name} · ${unstarted.text}`}
+										</span>
+										{missing ? (
+											<span className="text-xs text-warning">
+												{WorkspaceService.NO_READY_REPOSITORY_MESSAGE}
+											</span>
+										) : null}
+									</button>
+									<Select
+										aria-label="Switch repo"
+										size="sm"
+										value={repo?.id ?? ""}
+										options={repoOptions}
+										onValueChange={(next) => void pickRepo(entry, next)}
+									/>
+									<Button size="sm" onClick={() => void start(entry)}>
+										Start
+									</Button>
+									<Menu>
+										<MenuTrigger asChild>
+											<Button size="sm" variant="ghost" aria-label="Workspace actions">
+												More
+											</Button>
+										</MenuTrigger>
+										<MenuContent aria-label="Workspace actions">
+											<MenuItem onSelect={() => void start(entry)}>Start</MenuItem>
+											<MenuItem destructive onSelect={() => void remove(entry)}>
+												Remove from backlog
+											</MenuItem>
+										</MenuContent>
+									</Menu>
+								</div>
+							</li>
+						);
+					})}
 				</ul>
 			)}
 		</div>

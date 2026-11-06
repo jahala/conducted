@@ -21,6 +21,7 @@ import {
 	type LinearHttp,
 	type LinearIssue,
 	LinearService,
+	linearIssueContextFile,
 	linearIssueContextPath,
 	linearIssueToView,
 } from "./linear.ts";
@@ -368,6 +369,30 @@ describe("PR-09 Linear queries", () => {
 		expect(sent).toContain("ENG-12");
 	});
 
+	it("searches by the identifier in a pasted Linear issue link", async () => {
+		const calls: Call[] = [];
+		const test = harness({
+			key: "lin_api_good",
+			http: answerByOperation(
+				{
+					GetUserTeamIds: viewerTeams,
+					SearchIssuesWithTeamFilter: data({ searchIssues: { nodes: [] } }),
+					GetIssueById: data({ issue: issueRaw() }),
+				},
+				calls,
+			),
+		});
+		const result = await test.service.search(
+			"  https://linear.app/acme/issue/ENG-12/the-list-loses-its-place  ",
+		);
+		expect(result.ok && result.value.map((issue) => issue.identifier)).toEqual(["ENG-12"]);
+		const variables = calls.map(
+			(call) => (call.body as { variables: Record<string, unknown> }).variables,
+		);
+		expect(variables).toContainEqual({ id: "ENG-12" });
+		expect(variables).toContainEqual({ term: "ENG-12", teamIds: ["team-1"] });
+	});
+
 	it("keeps a search to the viewer's teams and leaves out completed and canceled issues", async () => {
 		const calls: Call[] = [];
 		const test = harness({
@@ -570,6 +595,30 @@ describe("PR-09 Linear context", () => {
 		expect([...test.files.keys()][0]).toBe(
 			`${WORKSPACE_PATH}/.context/attachments/linear-issue-uuid-1/[LINEAR]-ENG-12.md`,
 		);
+	});
+
+	it("gives a linked issue as a [LINEAR]-<identifier>.md attachment with its branch name", async () => {
+		const test = harness({
+			key: "lin_api_good",
+			answers: [data({ issue: issueRaw() })],
+		});
+		const result = await test.service.issueAttachment("issue-uuid-1");
+		expect(result).toEqual(
+			ok({
+				fileName: "[LINEAR]-ENG-12.md",
+				text: linearIssueContextFile(issue()),
+				branchName: "eng-12-list-place",
+			}),
+		);
+		expect(test.calls.map((call) => (call.body as { variables: unknown }).variables)).toEqual([
+			{ id: "issue-uuid-1" },
+		]);
+	});
+
+	it("reports an issue Linear does not know instead of an empty attachment", async () => {
+		const test = harness({ key: "lin_api_good", answers: [data({ issue: null })] });
+		const result = await test.service.issueAttachment("ENG-404");
+		expect(!result.ok && result.error.code).toBe("linear_issue_not_found");
 	});
 
 	it("maps an issue to the screens' issue view with its branch name", () => {

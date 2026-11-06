@@ -16,7 +16,9 @@
  * Test first: Dropping row A after row B in manual order calls the order action with A after B
  * and not before.
  */
+
 import type { Result, SectionId, WorkspaceId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import { type DragEvent, useCallback, useEffect, useState } from "react";
 import { fireAndForget } from "../../core/async/fire-and-forget.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
@@ -134,7 +136,7 @@ export function useWorkspaceDrag(callbacks: WorkspaceDragCallbacks = {}): Worksp
 				},
 				(cause: unknown) => {
 					drops.settle(ticket);
-					const message = cause instanceof Error ? cause.message : String(cause);
+					const message = messageOf(cause);
 					onError?.(title, { message });
 				},
 			);

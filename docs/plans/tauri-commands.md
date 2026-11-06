@@ -4,7 +4,7 @@ The names the Rust shell registers and `apps/desktop/src/platform/tauri.ts` call
 
 Binary data (terminal output, history, images) travels as base64 strings or through a `tauri::ipc::Channel`, never as JSON number arrays.
 
-Dialogs, clipboard, opening URLs, notifications permission and the SQL database use their Tauri plugins directly from `platform/tauri.ts`. Window focus, theme and drag and drop, and the webview zoom, use Tauri's window and webview API (the zoom needs `core:webview:allow-set-webview-zoom` in `capabilities/default.json`). They need no custom command.
+Dialogs, clipboard text and images, opening URLs, notifications permission and the SQL database use their Tauri plugins directly from `platform/tauri.ts`. Window focus, theme and drag and drop, and the webview zoom, use Tauri's window and webview API (the zoom needs `core:webview:allow-set-webview-zoom` in `capabilities/default.json`). They need no custom command.
 
 | Platform method                                  | Command                                                                      | Rust module         | Events emitted                         |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------- | -------------------------------------- |
@@ -12,7 +12,8 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | `app.dbVersionWarning`                           | `db_version_check`                                                           | db.rs               |                                        |
 | `app.version`, `app.channel`                     | `app_info`                                                                   | lib.rs              |                                        |
 | `app.onQuitRequested`, `app.quit`                | `app_quit`                                                                   | lib.rs              | `app://quit-requested`                 |
-| `app.onDeepLink`                                 | (plugin)                                                                     | deep_link.rs        | `app://deep-link`                      |
+| `app.onDeepLink`                                 | `deep_link_launch` (the launch links)                                        | deep_link.rs        | `app://deep-link`                      |
+| `app.onDeepLinkRejected`                         | `deep_link_launch` (the refused launch links)                                | deep_link.rs        | `app://deep-link-rejected`             |
 | `app.resourceUsage`                              | `resource_usage`                                                             | resource_usage.rs   |                                        |
 | `app.writeLog`                                   | `log_write`                                                                  | logger.rs           |                                        |
 | `app.setLogLevel`                                | `log_set_level`                                                              | logger.rs           |                                        |
@@ -21,7 +22,7 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | (startup)                                        | `db_version_check`                                                           | db.rs               |                                        |
 | `shell.run`                                      | `shell_run`                                                                  | shell.rs            |                                        |
 | `shell.start`, `RunningCommand.cancel`           | `shell_start`, `shell_cancel`                                                | shell.rs            | `shell://done`                         |
-| `shell.loginEnv`                                 | `shell_login_env`                                                            | shell.rs            |                                        |
+| `shell.loginEnv`                                 | `shell_login_env { cwd }` (null for the app-wide capture)                    | shell.rs            |                                        |
 | `fs.readText`                                    | `fs_read_text`                                                               | files.rs            |                                        |
 | `fs.writeTextAtomic`                             | `fs_write_text_atomic`                                                       | files.rs            |                                        |
 | `fs.exists`, `fs.stat`                           | `fs_stat`                                                                    | files.rs            |                                        |
@@ -29,11 +30,13 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | `fs.readDir`                                     | `fs_read_dir`                                                                | files.rs            |                                        |
 | `fs.trash`                                       | `fs_trash`                                                                   | files.rs            |                                        |
 | `fs.paths`                                       | `fs_paths`                                                                   | files.rs            |                                        |
+| `fs.registerRoot`                                | `fs_register_root` (also adds the folder to the asset protocol's scope)      | files.rs            |                                        |
+| `fs.assetUrl`                                    | (`convertFileSrc`, the asset protocol)                                       | files.rs            |                                        |
 | `fileSearch.listTree`                            | `search_list_tree`                                                           | file_search.rs      |                                        |
 | `fileSearch.fuzzyMatch`                          | `search_fuzzy`                                                               | file_search.rs      |                                        |
 | `fileSearch.grep`                                | `search_grep`                                                                | file_search.rs      |                                        |
 | `fileSearch.listArtifacts`                       | `search_list_artifacts`                                                      | file_search.rs      |                                        |
-| `pty.spawn`                                      | `pty_spawn` (takes a Channel for output)                                     | pty.rs              | `pty://exit`                           |
+| `pty.spawn`                                      | `pty_spawn` (takes a Channel for output)                                     | pty.rs              | `pty://exit` (with `historyError`)     |
 | `PtyHandle.write`                                | `pty_write`                                                                  | pty.rs              |                                        |
 | `PtyHandle.resize`                               | `pty_resize`                                                                 | pty.rs              |                                        |
 | `PtyHandle.kill`                                 | `pty_kill`                                                                   | pty.rs              |                                        |
@@ -55,6 +58,8 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | `updater.check`, `.install`, `.relaunch`         | `updater_check`, `updater_install`, `updater_relaunch`                       | updater.rs          | `updater://status`                     |
 | `updater.installedUpdate`                        | `updater_installed_update`                                                   | updater.rs          |                                        |
 | `attachments.materialize`, `.resizeImage`        | `attachment_materialize`, `image_resize`                                     | attachments.rs      |                                        |
+| `attachments.writeBytes`                         | `attachment_write_bytes` (bytes as base64)                                   | attachments.rs      |                                        |
+| `clipboard.readFilePaths`                        | `clipboard_read_file_paths`                                                  | pasteboard.rs       |                                        |
 | `menu.setShortcuts`, `menu.onCommand`            | `menu_set_shortcuts`                                                         | menu.rs             | `menu://command` (payload: command id) |
 | `window.isFocused`, `.onFocusChanged`            | (window API)                                                                 |                     | `tauri://focus`, `tauri://blur`        |
 | `window.onFileDrop`                              | (webview API `onDragDropEvent`)                                              |                     |                                        |

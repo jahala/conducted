@@ -168,7 +168,7 @@ describe("AGENT-06 Codex runner", () => {
 		const runner = makeRunner({ spawn });
 		await runner.detect({ PATH: "/usr/bin" });
 
-		const models = await runner.listModels();
+		const models = await runner.listModels({ env: {} });
 
 		expect(models.map((model) => model.id)).toEqual(["gpt-visible", "gpt-second"]);
 		expect(models[0]?.efforts).toEqual(["low", "max"]);
@@ -255,7 +255,7 @@ describe("AGENT-06 Codex runner", () => {
 		const runner = makeRunner({ spawn });
 		await runner.detect({ PATH: "/usr/bin" });
 
-		const commands = await runner.listSlashCommands("/workspace");
+		const commands = await runner.listSlashCommands("/workspace", { env: {} });
 
 		expect(commands).toEqual([
 			{
@@ -324,7 +324,7 @@ describe("SIDE-16 Codex MCP server listing", () => {
 		const runner = makeRunner({ spawn });
 		await runner.detect({ PATH: "/usr/bin" });
 
-		const servers = await runner.listMcpServers("/workspace");
+		const servers = await runner.listMcpServers("/workspace", { env: {} });
 
 		expect(servers).toEqual([
 			{
@@ -392,7 +392,7 @@ describe("SIDE-16 Codex MCP server listing", () => {
 		const runner = makeRunner({ spawn });
 		await runner.detect({ PATH: "/usr/bin" });
 
-		const servers = await runner.listMcpServers("/workspace");
+		const servers = await runner.listMcpServers("/workspace", { env: {} });
 
 		expect(cursors).toEqual([null, "page-2"]);
 		expect(servers.map((server) => server.name)).toEqual(["first", "second"]);

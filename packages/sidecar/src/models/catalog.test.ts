@@ -9,12 +9,13 @@
  * "model_unknown".
  */
 import { describe, expect, test } from "bun:test";
-import type { ModelInfo, SessionConfig } from "@conducted/protocol";
+import type { AgentLaunch, ModelInfo, SessionConfig } from "@conducted/protocol";
 import type { AgentKind, Clock } from "@conducted/shared";
 import { appError } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
 import { MapRunnerRegistry, type RunnerSelector } from "../runners/registry.ts";
-import type { AgentSession, Runner, StartOptions } from "../runners/runner.ts";
+import type { AgentSession, ListingContext, Runner, StartOptions } from "../runners/runner.ts";
+import { loginShellOver } from "../test-support/login-shell.ts";
 import {
 	AGENT_NOT_INSTALLED,
 	defaultModel,
@@ -65,7 +66,10 @@ function fakeLogger() {
 	});
 }
 
-function fakeRunner(agent: AgentKind, listModels: () => Promise<ModelInfo[]>): Runner {
+function fakeRunner(
+	agent: AgentKind,
+	listModels: (context: ListingContext) => Promise<ModelInfo[]>,
+): Runner {
 	return {
 		agent,
 		capabilities: {
@@ -89,9 +93,10 @@ function fakeRunner(agent: AgentKind, listModels: () => Promise<ModelInfo[]>): R
 function catalogWith(
 	entries: {
 		selector: RunnerSelector;
-		listModels: () => Promise<ModelInfo[]>;
+		listModels: (context: ListingContext) => Promise<ModelInfo[]>;
 	}[],
 	clock: Clock,
+	shell: Readonly<Record<string, string>> = { PATH: "/usr/bin" },
 ): RunnerModelCatalog {
 	const runners = entries.map((entry) => ({
 		selector: entry.selector,
@@ -99,6 +104,7 @@ function catalogWith(
 	}));
 	return new RunnerModelCatalog({
 		runners: new MapRunnerRegistry(runners),
+		shellEnv: loginShellOver(shell, fakeLogger()),
 		logger: fakeLogger(),
 		clock,
 	});
@@ -271,12 +277,13 @@ describe("SIDE-14 model catalog", () => {
 		const oldCall = catalog.list("claude");
 		catalog.invalidate();
 		const newCall = catalog.list("claude");
-		expect(calls).toBe(2);
 
 		firstGate.resolve([baseModel]);
 		expect(await oldCall).toEqual({ ok: true, value: [baseModel] });
 		secondGate.resolve([otherModel]);
 		expect(await newCall).toEqual({ ok: true, value: [otherModel] });
+		// Each list first captures the login shell, so the runner is asked only after that.
+		expect(calls).toBe(2);
 
 		const cached = await catalog.list("claude");
 		expect(cached).toEqual({ ok: true, value: [otherModel] });
@@ -509,6 +516,100 @@ describe("SIDE-14 model catalog", () => {
 
 		expect(hiddenResult).toEqual({ ok: true, value: hidden });
 		expect(deprecatedResult).toEqual({ ok: true, value: deprecated });
+	});
+
+	test("SIDE-21 a list with the app's launch runs the chosen program with the agent's own keys", async () => {
+		const seen: ListingContext[] = [];
+		const catalog = catalogWith(
+			[
+				{
+					selector: { agent: "claude" },
+					listModels: async (context) => {
+						seen.push(context);
+						return [baseModel];
+					},
+				},
+			],
+			fakeClock().clock,
+			{ PATH: "/usr/bin", ANTHROPIC_API_KEY: "sk-from-shell" },
+		);
+		const launch: AgentLaunch = {
+			executablePath: "/opt/claude/bin/claude",
+			env: { HTTPS_PROXY: "http://proxy" },
+			providerKeys: {
+				ANTHROPIC_API_KEY: { value: "", source: "this_mac" },
+				OPENAI_API_KEY: { value: "sk-codex", source: "entered" },
+			},
+			provider: "anthropic",
+		};
+
+		const listed = await catalog.list("claude", undefined, launch);
+
+		expect(listed.ok).toBe(true);
+		expect(seen).toHaveLength(1);
+		expect(seen[0]?.executablePath).toBe("/opt/claude/bin/claude");
+		expect(seen[0]?.env.PATH).toBe("/usr/bin");
+		expect(seen[0]?.env.HTTPS_PROXY).toBe("http://proxy");
+		expect(seen[0]?.env.ANTHROPIC_API_KEY).toBe("sk-from-shell");
+		expect(seen[0]?.env.OPENAI_API_KEY).toBeUndefined();
+	});
+
+	test("SIDE-21 lists of two launches are cached apart, and a list without one has no keys", async () => {
+		const seen: ListingContext[] = [];
+		const catalog = catalogWith(
+			[
+				{
+					selector: { agent: "codex" },
+					listModels: async (context) => {
+						seen.push(context);
+						return [baseModel];
+					},
+				},
+			],
+			fakeClock().clock,
+		);
+		const launch = (path: string): AgentLaunch => ({
+			executablePath: path,
+			env: {},
+			providerKeys: {},
+		});
+
+		await catalog.list("codex", undefined, launch("/a/codex"));
+		await catalog.list("codex", undefined, launch("/a/codex"));
+		await catalog.list("codex", undefined, launch("/b/codex"));
+		await catalog.list("codex");
+
+		expect(seen.map((context) => context.executablePath)).toEqual([
+			"/a/codex",
+			"/b/codex",
+			undefined,
+		]);
+		expect(seen[2]?.env).toEqual({ PATH: "/usr/bin" });
+	});
+
+	test("SIDE-21 a key from this Mac that the shell does not set fails the list with its name", async () => {
+		let listed = false;
+		const catalog = catalogWith(
+			[
+				{
+					selector: { agent: "claude" },
+					listModels: async () => {
+						listed = true;
+						return [baseModel];
+					},
+				},
+			],
+			fakeClock().clock,
+		);
+
+		const result = await catalog.list("claude", undefined, {
+			env: {},
+			providerKeys: { ANTHROPIC_API_KEY: { value: "", source: "this_mac" } },
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("ANTHROPIC_API_KEY");
+		expect(listed).toBe(false);
 	});
 
 	test("defaultModel returns the entry the runner marks as the default", () => {

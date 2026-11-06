@@ -264,6 +264,56 @@ describe("SIDE-21 the container's launch", () => {
 	});
 });
 
+describe("SIDE-21 model lists use the user's program and keys", () => {
+	it("sends a model list with the program path and the chosen sign-in's key", async () => {
+		const test = createTestContainer();
+		try {
+			const transport = test.memory.platform.sidecar;
+			const originalSend = transport.send.bind(transport);
+			let sent: SentLine | null = null;
+			transport.send = async (line) => {
+				const answered = await originalSend(line);
+				const parsed = JSON.parse(line) as SentLine;
+				if (parsed.method === "listModels") {
+					sent = parsed;
+					queueMicrotask(() =>
+						test.memory.controls.emitSidecarLine(
+							JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { models: [] } }),
+						),
+					);
+				}
+				return answered;
+			};
+			must(await test.container.sidecar.start());
+			const repositories = seedRepositoriesOf(test);
+			must(
+				await repositories.providerKeys.set(
+					{ agent: "codex", acpAgent: null, provider: "openai", envVar: "OPENAI_API_KEY" },
+					{ source: "entered", keychainRef: "list-provider-value" },
+				),
+			);
+			must(await test.memory.platform.keychain.set("list-provider-value", "sk-openai"));
+			const settings = test.container.services.settings;
+			must(await settings.start());
+			must(await settings.set("codex_executable_path", "/opt/codex/bin/codex"));
+			must(await settings.set("codex_provider", "openai"));
+
+			must(await test.container.services.agentCatalog.loadModels("codex"));
+
+			const launch = (sent as SentLine | null)?.params.launch;
+			expect(launch?.executablePath).toBe("/opt/codex/bin/codex");
+			expect(launch?.provider).toBe("openai");
+			expect(launch?.providerKeys.OPENAI_API_KEY).toEqual({
+				value: "sk-openai",
+				source: "entered",
+			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
 describe("AGENT-16 the chat options the settings offer", () => {
 	it("gives a new chat the settings' output style, Chrome, personality and approval policy", async () => {
 		const test = createTestContainer();

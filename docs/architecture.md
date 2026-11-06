@@ -10,7 +10,7 @@ What the parts are, what each may depend on, and where each kind of logic lives.
 | Web UI     | `apps/desktop/src`       | the WebKit view inside the app | Everything visible, all database reads and writes, all git and `gh` commands, the follow-up queue, settings                                                           |
 | Sidecar    | `packages/sidecar`       | a separate Bun process         | Agent processes (one per active chat), turns, steering, interactions, checkpoints, prompt assembly, the write-ahead event log, the app tools agents call              |
 | Protocol   | `packages/protocol`      | library                        | Zod schemas for every message between the UI and the sidecar, the session events, live state and the neutral agent-message format                                     |
-| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock` and `IdSource`                                                                                                       |
+| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock`, `IdSource`, the error helpers and the keyed serial queue                                                            |
 | Scripts    | `bin/`                   | shell                          | Git snapshots (`checkpointer.sh`), the busy-repo check, Spotlight                                                                                                     |
 
 How they talk:
@@ -35,19 +35,20 @@ How they talk:
 
 ## Where each kind of logic lives
 
-| Logic                                             | One home                                           | Also used by                                             |
-| ------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------- |
-| Message shapes between UI and sidecar             | `packages/protocol`                                | both sides parse with the same schemas                   |
-| Mention tokens (`@file`, `#PR`)                   | `packages/protocol/src/mentions.ts`                | composer writes them, sidecar expands them               |
-| Canonical tool names                              | `packages/protocol/src/tools.ts`                   | runners map to them, chat cards key on them              |
-| Workspace status (sidebar, Home, tabs, Git panel) | `apps/desktop/src/core/status/workspace-status.ts` | every screen that shows a status                         |
-| Git panel header state and its main action        | `apps/desktop/src/core/status/git-header.ts`       | Git panel, command palette                               |
-| Commands and their shortcuts                      | `apps/desktop/src/core/registries/commands.ts`     | menus (sent to Rust), palette, shortcut dialog, tooltips |
-| Shortcut conflict rule                            | `apps/desktop/src/core/registries/commands.ts`     | settings page, custom bindings                           |
-| Settings, their scopes and defaults               | `apps/desktop/src/core/registries/settings.ts`     | settings pages, settings search, services                |
-| Session lifecycle (queue, steer, cancel, idle)    | `packages/sidecar/src/session`                     | every runner                                             |
-| Turn grouping for display                         | `apps/desktop/src/core/services` (turn builder)    | the chat list                                            |
-| Database schema                                   | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                             |
+| Logic                                             | One home                                           | Also used by                                                                 |
+| ------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Message shapes between UI and sidecar             | `packages/protocol`                                | both sides parse with the same schemas                                       |
+| Mention tokens (`@file`, `#PR`)                   | `packages/protocol/src/mentions.ts`                | composer writes them, sidecar expands them                                   |
+| Canonical tool names                              | `packages/protocol/src/tools.ts`                   | runners map to them, chat cards key on them                                  |
+| Agent providers, sign-ins and their key variables | `packages/protocol/src/agent-providers.ts`         | the sidecar's key filter and routing, the Providers dialog, the app's launch |
+| Workspace status (sidebar, Home, tabs, Git panel) | `apps/desktop/src/core/status/workspace-status.ts` | every screen that shows a status                                             |
+| Git panel header state and its main action        | `apps/desktop/src/core/status/git-header.ts`       | Git panel, command palette                                                   |
+| Commands and their shortcuts                      | `apps/desktop/src/core/registries/commands.ts`     | menus (sent to Rust), palette, shortcut dialog, tooltips                     |
+| Shortcut conflict rule                            | `apps/desktop/src/core/registries/commands.ts`     | settings page, custom bindings                                               |
+| Settings, their scopes and defaults               | `apps/desktop/src/core/registries/settings.ts`     | settings pages, settings search, services                                    |
+| Session lifecycle (queue, steer, cancel, idle)    | `packages/sidecar/src/session`                     | every runner                                                                 |
+| Turn grouping for display                         | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
+| Database schema                                   | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
 
 ## Shared helpers
 
@@ -55,8 +56,8 @@ Use these before writing your own. A second copy is a finding in review.
 
 | Need                                       | Use                                              | Lives in                                                                |
 | ------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| Run work one at a time per key             | `createKeyedQueue`                               | `apps/desktop/src/core/async/serial-queue.ts`                           |
-| Store, then acknowledge, in order          | `persistThenAck`                                 | `apps/desktop/src/core/async/serial-queue.ts`                           |
+| Run work one at a time per key             | `createKeyedQueue`                               | `packages/shared/src/serial-queue.ts`                                   |
+| Store, then acknowledge, in order          | `persistThenAck`                                 | `packages/shared/src/serial-queue.ts`                                   |
 | Ignore a second request while one runs     | `createSingleFlight`                             | `apps/desktop/src/core/async/single-flight.ts`                          |
 | Let only the newest answer change state    | `createLatestWins`                               | `apps/desktop/src/core/async/latest-wins.ts`                            |
 | Optimistic change with rollback            | `createOptimisticStore`                          | `apps/desktop/src/core/async/optimistic.ts`                             |
@@ -70,7 +71,7 @@ Use these before writing your own. A second copy is a finding in review.
 | Show an error toast from a `Result`        | `toastError`                                     | `apps/desktop/src/ui/Toast.tsx`                                         |
 | Light or dark mode for code views          | `useThemeType`                                   | `apps/desktop/src/ui/use-theme-type.ts`                                 |
 | Menu and context-menu parts and classes    | `menuItemClass`, `MenuItemContents` and siblings | `apps/desktop/src/ui/Menu.tsx`                                          |
-| Error text and error checks in the sidecar | `messageOf`, `isAppError`                        | `packages/sidecar/src/util/errors.ts`                                   |
+| Error text and error checks                | `messageOf`, `isAppError`, `asAppError`          | `packages/shared/src/errors.ts`                                         |
 | Signal a process group (Rust)              | `process_group`                                  | `apps/desktop/src-tauri/src/process_group.rs`                           |
 | Lock a mutex, even a poisoned one (Rust)   | `lock`                                           | `apps/desktop/src-tauri/src/error.rs`                                   |
 | The main window or `window_missing` (Rust) | `main_window`                                    | `apps/desktop/src-tauri/src/window.rs`                                  |

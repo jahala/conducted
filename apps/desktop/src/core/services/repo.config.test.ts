@@ -79,6 +79,9 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home/me", appData: "/app", temp: "/tmp", resources: "/resources" },
 	} as unknown as FileSystem;
 
@@ -162,7 +165,7 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		git: {} as GitRunner,
 		repos: { repos, settings: {} as RepoServiceDeps["repos"]["settings"] },
 		settings,
-		removal: { removeWorkspacesOf: async () => ok(undefined) },
+		removal: { removeWorkspacesOf: async () => ok(undefined), releaseBacklogOf: () => {} },
 	});
 
 	return {

@@ -229,37 +229,37 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 ## Git and pull requests (GIT, PR)
 
-| ID     | Feature                                                           | Owner                                        | Research                        | P   | Status  | Needs                   |
-| ------ | ----------------------------------------------------------------- | -------------------------------------------- | ------------------------------- | --- | ------- | ----------------------- |
-| GIT-01 | Git runner and command catalogue                                  | D/core/git                                   | services-map 3.0                | 1   | done    |                         |
-| GIT-02 | Status polling: changed files, line counts, operation in progress | D/core/git                                   | services-map 3.3                | 1   | done    | GIT-01                  |
-| GIT-03 | Branch sync: ahead, behind, rewritten remote                      | D/core/git                                   | services-map 3.6                | 2   | done    | GIT-13                  |
-| GIT-04 | Git header state machine                                          | D/core/services                              | ui-map 3.6                      | 2   | done    |                         |
-| GIT-05 | Commit and push, done by the agent on request                     | D/core/services                              | services-map 3.5                | 2   | done    |                         |
-| GIT-06 | Pull and push                                                     | D/core/git                                   | services-map 3.6                | 2   | done    |                         |
-| GIT-07 | Resolve conflicts, done by the agent on request                   | D/core/services                              | services-map 3.8                | 2   | done    |                         |
-| GIT-08 | Change the target branch                                          | D/core/services                              | services-map 3.11               | 2   | done    |                         |
-| GIT-09 | Rename the branch                                                 | D/core/git                                   | services-map 3.11               | 2   | done    |                         |
-| GIT-10 | `bin/checkpointer.sh`: save, restore, diff with private refs      | bin                                          | native-and-sidecar-map C1       | 1   | done    |                         |
-| GIT-11 | `bin/git-busy-check.sh`                                           | bin                                          | native-and-sidecar-map C2       | 1   | done    |                         |
-| GIT-12 | Branch lists, branch commits and switch branch                    | D/core/services/git.ts                       | services-map 3.3.3, 3.6.6, 3.11 | 2   | done    | GIT-01, GIT-13, PLAT-31 |
-| GIT-13 | Fetch on demand, at most once a minute                            | D/core/services/git.ts                       | services-map 3.0.2, 3.3.4       | 2   | done    | GIT-01                  |
-| GIT-14 | Local-git forge for repos without GitHub                          | D/core/services                              | services-map 3.7.7, 5B.1.5      | 3   | done    | GIT-01, GIT-05          |
-| GIT-15 | Git extras: sparse checkout, external diff tool                   | D/core/services/git.ts                       | services-map 3.11, 5A.5.3       | 3   | done    | GIT-01                  |
-| GIT-16 | Explain a blocked git (Xcode licence) and offer the fix           | D/core/git, D/app                            | services-map 5A.8; ui-map 7.4   | 2   | done    | GIT-01, PLAT-07         |
-| GIT-17 | Continue after a merge or from a detached HEAD                    | D/core/services/git.ts, D/features/git-panel | services-map 3.1                | 2   | done    | GIT-12, GIT-04, CHAT-02 |
-| PR-01  | GitHub access through `gh`                                        | D/core/services                              | services-map 3.9                | 1   | done    | GIT-01                  |
-| PR-02  | Create PR, done by the agent with written instructions            | D/core/services                              | frontend 7                      | 1   | done    | PR-01, CHAT-02          |
-| PR-03  | PR status polling, batched, behind a rate-limit gate              | D/core/services                              | services-map 3.7                | 2   | done    | PR-01                   |
-| PR-04  | Checks and deployments tab with logs and re-run                   | D/features/git-panel                         | ui-map 3.6                      | 2   | done    | PR-03                   |
-| PR-05  | "Fix errors": send failing checks to the agent                    | D/core/services                              | ui-map 3.6                      | 2   | done    | PR-04, CHAT-02          |
-| PR-06  | Merge, auto-merge, ready for review, approve                      | D/core/services                              | services-map 3.7                | 2   | done    | PR-03                   |
-| PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | stub    | PR-03                   |
-| PR-08  | Stacked PRs and read-only Graphite                                | D/core/services                              | services-map 3.8                | 3   | planned | PR-03                   |
-| PR-09  | Linear issues: list, link, attach as context                      | D/core/services                              | services-map 5B                 | 3   | planned | PLAT-10                 |
-| PR-10  | Link a pull request by URL or number                              | D/features/pr, D/core/services               | ui-map 3.1, 3.10                | 3   | stub    | PR-01, PR-07            |
-| PR-11  | List and attach GitHub issues and pull requests                   | D/core/services                              | services-map 5B.1.10, 5B.8      | 2   | done    | PR-01, GIT-01           |
-| PR-12  | Catch up a stack branch after GitHub rewrites it                  | D/core/services                              | services-map 3.8.3              | 3   | stub    | PR-08                   |
+| ID     | Feature                                                           | Owner                                        | Research                        | P   | Status | Needs                   |
+| ------ | ----------------------------------------------------------------- | -------------------------------------------- | ------------------------------- | --- | ------ | ----------------------- |
+| GIT-01 | Git runner and command catalogue                                  | D/core/git                                   | services-map 3.0                | 1   | done   |                         |
+| GIT-02 | Status polling: changed files, line counts, operation in progress | D/core/git                                   | services-map 3.3                | 1   | done   | GIT-01                  |
+| GIT-03 | Branch sync: ahead, behind, rewritten remote                      | D/core/git                                   | services-map 3.6                | 2   | done   | GIT-13                  |
+| GIT-04 | Git header state machine                                          | D/core/services                              | ui-map 3.6                      | 2   | done   |                         |
+| GIT-05 | Commit and push, done by the agent on request                     | D/core/services                              | services-map 3.5                | 2   | done   |                         |
+| GIT-06 | Pull and push                                                     | D/core/git                                   | services-map 3.6                | 2   | done   |                         |
+| GIT-07 | Resolve conflicts, done by the agent on request                   | D/core/services                              | services-map 3.8                | 2   | done   |                         |
+| GIT-08 | Change the target branch                                          | D/core/services                              | services-map 3.11               | 2   | done   |                         |
+| GIT-09 | Rename the branch                                                 | D/core/git                                   | services-map 3.11               | 2   | done   |                         |
+| GIT-10 | `bin/checkpointer.sh`: save, restore, diff with private refs      | bin                                          | native-and-sidecar-map C1       | 1   | done   |                         |
+| GIT-11 | `bin/git-busy-check.sh`                                           | bin                                          | native-and-sidecar-map C2       | 1   | done   |                         |
+| GIT-12 | Branch lists, branch commits and switch branch                    | D/core/services/git.ts                       | services-map 3.3.3, 3.6.6, 3.11 | 2   | done   | GIT-01, GIT-13, PLAT-31 |
+| GIT-13 | Fetch on demand, at most once a minute                            | D/core/services/git.ts                       | services-map 3.0.2, 3.3.4       | 2   | done   | GIT-01                  |
+| GIT-14 | Local-git forge for repos without GitHub                          | D/core/services                              | services-map 3.7.7, 5B.1.5      | 3   | done   | GIT-01, GIT-05          |
+| GIT-15 | Git extras: sparse checkout, external diff tool                   | D/core/services/git.ts                       | services-map 3.11, 5A.5.3       | 3   | done   | GIT-01                  |
+| GIT-16 | Explain a blocked git (Xcode licence) and offer the fix           | D/core/git, D/app                            | services-map 5A.8; ui-map 7.4   | 2   | done   | GIT-01, PLAT-07         |
+| GIT-17 | Continue after a merge or from a detached HEAD                    | D/core/services/git.ts, D/features/git-panel | services-map 3.1                | 2   | done   | GIT-12, GIT-04, CHAT-02 |
+| PR-01  | GitHub access through `gh`                                        | D/core/services                              | services-map 3.9                | 1   | done   | GIT-01                  |
+| PR-02  | Create PR, done by the agent with written instructions            | D/core/services                              | frontend 7                      | 1   | done   | PR-01, CHAT-02          |
+| PR-03  | PR status polling, batched, behind a rate-limit gate              | D/core/services                              | services-map 3.7                | 2   | done   | PR-01                   |
+| PR-04  | Checks and deployments tab with logs and re-run                   | D/features/git-panel                         | ui-map 3.6                      | 2   | done   | PR-03                   |
+| PR-05  | "Fix errors": send failing checks to the agent                    | D/core/services                              | ui-map 3.6                      | 2   | done   | PR-04, CHAT-02          |
+| PR-06  | Merge, auto-merge, ready for review, approve                      | D/core/services                              | services-map 3.7                | 2   | done   | PR-03                   |
+| PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | stub   | PR-03                   |
+| PR-08  | Stacked PRs and read-only Graphite                                | D/core/services                              | services-map 3.8                | 3   | stub   | PR-03                   |
+| PR-09  | Linear issues: list, link, attach as context                      | D/core/services                              | services-map 5B                 | 3   | done   | PLAT-10                 |
+| PR-10  | Link a pull request by URL or number                              | D/features/pr, D/core/services               | ui-map 3.1, 3.10                | 3   | stub   | PR-01, PR-07            |
+| PR-11  | List and attach GitHub issues and pull requests                   | D/core/services                              | services-map 5B.1.10, 5B.8      | 2   | done   | PR-01, GIT-01           |
+| PR-12  | Catch up a stack branch after GitHub rewrites it                  | D/core/services                              | services-map 3.8.3              | 3   | stub   | PR-08                   |
 
 ## Run and preview (RUN)
 

@@ -17,7 +17,7 @@ function commandBindings(
 }
 
 describe("PLAT-14 Tauri resource usage", () => {
-	it("PLAT-14 asks the Rust shell for usage and returns the rows", async () => {
+	it("PLAT-14 asks the Rust shell for usage of the given workspaces and returns the rows", async () => {
 		const calls: Call[] = [];
 		const rows = [
 			{ pid: 7, name: "sleep", cpuPercent: 1.5, memoryBytes: 1024, workspacePath: "/tmp/ws" },
@@ -31,11 +31,13 @@ describe("PLAT-14 Tauri resource usage", () => {
 			{ version: "0.1.0", channel: "dev" },
 		);
 
-		await expect(app.resourceUsage()).resolves.toEqual(rows);
-		expect(calls).toEqual([{ command: COMMANDS.resourceUsage, args: { workspacePaths: [] } }]);
+		await expect(app.resourceUsage(["/tmp/ws"])).resolves.toEqual({ ok: true, value: rows });
+		expect(calls).toEqual([
+			{ command: COMMANDS.resourceUsage, args: { workspacePaths: ["/tmp/ws"] } },
+		]);
 	});
 
-	it("PLAT-14 throws the Rust error because the method returns no Result", async () => {
+	it("PLAT-14 returns the Rust error as an Err", async () => {
 		const app = createTauriAppInfo(
 			commandBindings(() => {
 				throw { code: "resource_usage_failed", message: "The process table could not be read" };
@@ -43,8 +45,9 @@ describe("PLAT-14 Tauri resource usage", () => {
 			{ version: "0.1.0", channel: "dev" },
 		);
 
-		await expect(app.resourceUsage()).rejects.toMatchObject({
-			code: "resource_usage_failed",
+		await expect(app.resourceUsage([])).resolves.toMatchObject({
+			ok: false,
+			error: { code: "resource_usage_failed" },
 		});
 	});
 });

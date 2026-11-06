@@ -483,6 +483,24 @@ Context: slice 3's parts 1a and 1b each took about three hours from start to mer
 Chosen: the night ends at 07:00 UTC for starting work. A part that would start after that does not start. The remaining batches wait for the next run, from `bun scripts/overnight/drive.ts step 1 --priority 3`.
 Why: a part started at 07:41 would still be building, half audited, when the owner wakes, which is the half-built state D065 avoids.
 
+## D069. The approved contract changes land in one PR, built by area (2026-11-06)
+
+Context: the owner approved every contract change the slice-2 and overnight reports list, in one PR, with migrations as new steps. There were 24 changes across `platform.ts` and Rust, `core/api.ts`, `model.ts` and the migrations, and `packages/protocol` and `packages/shared`.
+Chosen: three Opus agents built one area each on its own branch (platform, core, protocol), each change through contract, implementation and callers with a test seen failing first. The lead read each diff and merged the three into `contracts/day`, one PR (#325). Migrations 0005 to 0008 are new files. `mainWorktreePath` was not added: `WorkspaceContext.repoRootPath` already carries the main worktree to every runner, and a second field would hold the same fact twice. PR-08's `mergeStack` is a named placeholder behind the API, and PR-08 is `stub` again until it is built.
+Why: one area per agent keeps each branch's files apart, and one PR keeps the contract change one reviewable step.
+
+## D070. "Open in another app" opens the Open in menu's app (2026-11-06)
+
+Context: REV-08's rebuilt "Open in another app" failed with "No default app configured" whenever no default was chosen. The research gives only the toast. Conductor's own code (renderApp: `pe = B && fe.some(...) ? B : fe[0]?.id`) opens the chosen app when it is installed, else the first app of its Open in list, and shows that toast only for an empty list.
+Chosen: the same rule, written once (`defaultOpenInApp` in `features/open-in/open-in-apps.ts`) and read by the Open in menu and the file tab through `useOpenInApps`. `files.openInApp` takes the app name.
+Why: D020, checked against Conductor itself where the research is silent.
+
+## D071. A test that builds its own container gets the missing service; the hardening moves it to the test container (2026-11-06)
+
+Context: the contract PR's CI failed in `composer-shell.test.tsx`: the context wheel now reads the new `contextWindows` service, and the test hands the app a partial container cast as `Container`, so the service was missing. 17 desktop test files build such a container; the slice-2 tests hardening listed 15 of them for `createTestContainer` (APP-16).
+Chosen: the failing test's container gets the service now, so the contract PR can land. Moving every hand-built container to `createTestContainer` is the tests-and-scripts hardening's job today (APP-16), where the whole set is changed and checked at once.
+Why: the cause is the hand-built container, and fixing the set belongs in one change with a guard, not in a contract PR.
+
 ## D072. Rewriting a settings file keeps the user's comments (2026-11-06)
 
 Context: Conductor rewrites a whole settings file on every save. It sorts the keys and drops every comment (services-map 4.2.1, main @290816). SET-14 asks that a rewrite keep the user's comments, or warn before the first rewrite that would drop them.

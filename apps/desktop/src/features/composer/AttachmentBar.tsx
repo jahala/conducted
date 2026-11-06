@@ -3,8 +3,9 @@
  * Owns: the row of file chips above the editor, each removable, and the row that says a copy is
  * still running.
  * Behaviour: ui-map.md 3.5 (attachments), 3.3 ('Image too large' is reported by the add path).
- * Our design choice: a chip carries the file's name and a type icon. A thumbnail needs a binary
- * read the Platform does not offer, so the bar does not claim to show one.
+ * Our design choice: a chip carries the file's name and a type icon, and no thumbnail yet.
+ * `Platform.fs.assetUrl` can load a staged image now; showing one is a visible change to settle
+ * against Conductor first.
  * Must handle: no attachments (renders nothing); many attachments (wrap); remove by keyboard (the
  * chip's button); a copy in progress (a status row).
  * Test first: two attachments render two removable items; removing one updates the draft.

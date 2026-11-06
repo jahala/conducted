@@ -5,7 +5,7 @@
  * (Space or K play and pause; J and L jump 10 seconds; comma and period step a frame; less-than
  * and greater-than change speed; M mutes and F goes fullscreen).
  * Must handle: a codec the webview cannot play (error card with Retry, and "Open in another app"
- * when the caller can open files; the file viewer cannot yet, see CHAT-29), no autoplay, and the
+ * when the caller passes a handler; the file viewer does), no autoplay, and the
  * file changing on disk (the URL carries the modified time, so the player loads again and an
  * earlier failure clears).
  * Test first: a load error shows the error card with an Open in another app action.

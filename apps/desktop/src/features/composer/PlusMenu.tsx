@@ -6,8 +6,8 @@
  * popover), 5.4 (the shortcuts come from the command registry).
  * Our design choice: Add attachment opens the file picker through the attachments controller.
  * Plan mode runs the same command as the toolbar chip. Link workspaces (WS-07) opens the linked
- * directories dialog. Link issue (PR-09) and Add snippet (COMP-09) are listed disabled until
- * their features build them.
+ * directories dialog, and Link issue (PR-09) the Link issue dialog. Add snippet (COMP-09) is listed
+ * disabled until its feature builds it.
  * Must handle: a cancelled picker; a chat whose agent has no plan mode (the command explains); the
  * menu follows the live bindings.
  * Test first: choosing 'Add attachment' opens the file picker and adds the chosen paths to the
@@ -34,11 +34,18 @@ export interface PlusMenuProps {
 	sessionId: SessionId;
 	/** Opens the file picker and adds what the user chose. */
 	onAddAttachment: () => void;
+	/** Opens the Link issue dialog. */
+	onLinkIssue: () => void;
 	/** Opens the Link workspaces and directories dialog. */
 	onLinkWorkspaces: () => void;
 }
 
-export function PlusMenu({ sessionId, onAddAttachment, onLinkWorkspaces }: PlusMenuProps) {
+export function PlusMenu({
+	sessionId,
+	onAddAttachment,
+	onLinkIssue,
+	onLinkWorkspaces,
+}: PlusMenuProps) {
 	const { services } = useServices();
 	const runCommand = useRunCommandHandlers();
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
@@ -63,10 +70,9 @@ export function PlusMenu({ sessionId, onAddAttachment, onLinkWorkspaces }: PlusM
 					Add attachment
 				</MenuItem>
 				<MenuItem
-					disabled
-					title="Link issue needs Linear"
 					shortcut={issueShortcut ?? undefined}
 					icon={<SearchIcon />}
+					onSelect={onLinkIssue}
 				>
 					Link issue
 				</MenuItem>

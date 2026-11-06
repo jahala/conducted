@@ -225,12 +225,16 @@ export class CheckpointService {
 		return ok(copyChanges(files));
 	}
 
-	/** Number of files that differ between a checkpoint and the working tree now. */
-	async changedSince(sessionId: SessionId, checkpointId: string): Promise<Result<number>> {
+	/**
+	 * Backs `useChangedSinceTurn`: the number of files that differ between a turn's start checkpoint
+	 * and the working tree now, which is what a reset with "Also reset files" puts back.
+	 */
+	async changedSinceTurn(sessionId: SessionId, turnId: TurnId): Promise<Result<number>> {
 		const folder = await this.#deps.workspacePathOf(sessionId);
 		if (!folder.ok) return folder;
+		const startId = turnCheckpointId(sessionId, turnId, "start");
 		const result = await this.#deps.git.runChecked(
-			checkpointerDiff(this.#deps.checkpointerPath, checkpointId, "current", ["--name-only", "-z"]),
+			checkpointerDiff(this.#deps.checkpointerPath, startId, "current", ["--name-only", "-z"]),
 			{ cwd: folder.value },
 		);
 		if (!result.ok) return result;

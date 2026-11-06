@@ -11,6 +11,9 @@
  *  - a runner failure: an error value that keeps an AppError's code
  *  - a runner that declares the MCP capability but has no listing operation: a typed error, never
  *    an invented empty list
+ *  - a request with the app's launch (SIDE-21): the runner lists with the program and keys the
+ *    launch names, in the login shell captured for the workspace (`listingContext`); a launch that
+ *    cannot be built (a key from this Mac the shell does not set) is an error value
  * Test first: for an agent whose capabilities.slashCommands is false the lister returns an empty
  * list without calling the runner.
  * Our design choice: MCP listing is read from the Runner's optional listMcpServers operation.
@@ -20,13 +23,14 @@
  * an agent does not label falls back to MCP for an "mcp__" name and to builtin otherwise. An
  * unlabelled Codex entry is a skill; any other unlabelled entry is a command.
  */
-import type { SlashCommand } from "@conducted/protocol";
+import type { AgentLaunch, SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { type AppError, appError, asAppError, err, ok, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
+import { listingContext } from "../runners/launch-env.ts";
 import { type RunnerRegistry, selectorKey } from "../runners/registry.ts";
 import type { McpServerView, RunnerSlashCommand } from "../runners/runner.ts";
-import { asAppError } from "../util/errors.ts";
+import type { ShellEnvProvider } from "../shell-env/capture.ts";
 
 /** The runner could not list slash commands. */
 export const SLASH_COMMANDS_FAILED = "slash_commands_failed";
@@ -43,6 +47,7 @@ export interface SlashCommandLister {
 		agent: AgentKind,
 		acpAgent: AcpAgent | undefined,
 		workspacePath: string,
+		launch?: AgentLaunch,
 	): Promise<Result<SlashCommand[], AppError>>;
 }
 
@@ -51,6 +56,7 @@ export interface McpServerLister {
 		agent: AgentKind,
 		acpAgent: AcpAgent | undefined,
 		workspacePath: string,
+		launch?: AgentLaunch,
 	): Promise<Result<McpServerStatusView[], AppError>>;
 }
 
@@ -72,12 +78,19 @@ function toSlashCommands(
 }
 
 export class RunnerSlashCommandLister implements SlashCommandLister {
-	constructor(protected readonly deps: { runners: RunnerRegistry; logger: Logger }) {}
+	constructor(
+		protected readonly deps: {
+			runners: RunnerRegistry;
+			shellEnv: ShellEnvProvider;
+			logger: Logger;
+		},
+	) {}
 
 	async list(
 		agent: AgentKind,
 		acpAgent: AcpAgent | undefined,
 		workspacePath: string,
+		launch?: AgentLaunch,
 	): Promise<Result<SlashCommand[], AppError>> {
 		const found = this.deps.runners.get({ agent, acpAgent });
 		if (!found.ok) return err(found.error);
@@ -89,8 +102,15 @@ export class RunnerSlashCommandLister implements SlashCommandLister {
 			return ok([]);
 		}
 
+		const context = await listingContext({
+			agent,
+			shellEnv: this.deps.shellEnv,
+			folder: workspacePath,
+			...(launch === undefined ? {} : { launch }),
+		});
+		if (!context.ok) return context;
 		try {
-			const commands = await runner.listSlashCommands(workspacePath);
+			const commands = await runner.listSlashCommands(workspacePath, context.value);
 			this.deps.logger.debug("Listed agent slash commands", {
 				agent: key,
 				commands: commands.length,
@@ -112,12 +132,19 @@ export class RunnerSlashCommandLister implements SlashCommandLister {
 }
 
 export class RunnerMcpServerLister implements McpServerLister {
-	constructor(protected readonly deps: { runners: RunnerRegistry; logger: Logger }) {}
+	constructor(
+		protected readonly deps: {
+			runners: RunnerRegistry;
+			shellEnv: ShellEnvProvider;
+			logger: Logger;
+		},
+	) {}
 
 	async list(
 		agent: AgentKind,
 		acpAgent: AcpAgent | undefined,
 		workspacePath: string,
+		launch?: AgentLaunch,
 	): Promise<Result<McpServerStatusView[], AppError>> {
 		const found = this.deps.runners.get({ agent, acpAgent });
 		if (!found.ok) return err(found.error);
@@ -142,8 +169,15 @@ export class RunnerMcpServerLister implements McpServerLister {
 			return err(error);
 		}
 
+		const context = await listingContext({
+			agent,
+			shellEnv: this.deps.shellEnv,
+			folder: workspacePath,
+			...(launch === undefined ? {} : { launch }),
+		});
+		if (!context.ok) return context;
 		try {
-			const servers = await listMcpServers.call(runner, workspacePath);
+			const servers = await listMcpServers.call(runner, workspacePath, context.value);
 			this.deps.logger.debug("Listed agent MCP servers", {
 				agent: key,
 				servers: servers.length,

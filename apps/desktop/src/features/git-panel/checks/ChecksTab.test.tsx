@@ -162,7 +162,7 @@ describe("PR-04 Checks tab", () => {
 		}
 	});
 
-	async function mountWithPullRequest() {
+	async function mountWithPullRequest(shownPullRequest: PullRequest | null = pullRequest) {
 		const test = createTestContainer();
 		const workspace = await seedWorkspace(test.container);
 		test.container.services.git.store.setState((state) => ({
@@ -194,7 +194,7 @@ describe("PR-04 Checks tab", () => {
 			...state,
 			byWorkspace: {
 				...state.byWorkspace,
-				[workspace.id]: { pullRequest, unavailable: "none", fetchedAt: 1 },
+				[workspace.id]: { pullRequest: shownPullRequest, unavailable: "none", fetchedAt: 1 },
 			},
 		}));
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -212,7 +212,7 @@ describe("PR-04 Checks tab", () => {
 		const { test } = await mountWithPullRequest();
 		try {
 			const openUrl = vi.spyOn(test.container.platform.opener, "openUrl");
-			const create = vi.spyOn(test.container.services.github, "openOnGithub");
+			const create = vi.spyOn(test.container.actions.pullRequests, "openOnGithub");
 
 			fireEvent.click(await screen.findByRole("button", { name: "Open on GitHub" }));
 
@@ -223,7 +223,22 @@ describe("PR-04 Checks tab", () => {
 		}
 	});
 
-	it("offers no Hide on a GitHub comment while comments cannot be hidden", async () => {
+	it("opens GitHub's new pull request page from Create PR through the action", async () => {
+		const { test, workspace } = await mountWithPullRequest(null);
+		try {
+			const create = vi
+				.spyOn(test.container.actions.pullRequests, "openOnGithub")
+				.mockResolvedValue(ok(undefined));
+
+			fireEvent.click(await screen.findByRole("button", { name: "Create PR" }));
+
+			await waitFor(() => expect(create).toHaveBeenCalledWith(workspace.id));
+		} finally {
+			test.close();
+		}
+	});
+
+	it("hides a GitHub comment through the action", async () => {
 		shown.comments = [
 			{
 				id: "c1",
@@ -247,9 +262,14 @@ describe("PR-04 Checks tab", () => {
 		];
 		const { test } = await mountWithPullRequest();
 		try {
+			const hide = vi
+				.spyOn(test.container.actions.comments, "setHidden")
+				.mockResolvedValue(ok(undefined));
 			expect(await screen.findByText("Rename this")).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Add to chat" })).toBeTruthy();
-			expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
+
+			fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+
+			await waitFor(() => expect(hide).toHaveBeenCalledWith("c1", true));
 		} finally {
 			test.close();
 		}

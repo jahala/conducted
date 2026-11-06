@@ -166,6 +166,7 @@ describe("sessions", () => {
 		"last_user_message_at",
 		"created_at",
 		"updated_at",
+		"fork_resume_native_message_id",
 	];
 
 	it("round-trips the config", () => {
@@ -321,6 +322,7 @@ describe("diff comments", () => {
 				"location",
 				"created_at",
 				"updated_at",
+				"suggestion_base_code",
 			],
 			params,
 		);
@@ -357,6 +359,7 @@ describe("diff comments", () => {
 				"location",
 				"created_at",
 				"updated_at",
+				"suggestion_base_code",
 			],
 			params,
 		);
@@ -536,7 +539,7 @@ describe("repair and lifetime helpers", () => {
 });
 
 describe("createRepositories", () => {
-	it("returns all sixteen repositories", () => {
+	it("returns all seventeen repositories", () => {
 		const unused = {} as never;
 		const repositories = createRepositories(unused, unused);
 		expect(Object.keys(repositories).sort()).toEqual(
@@ -557,6 +560,7 @@ describe("createRepositories", () => {
 				"backlogWorkspaces",
 				"snippets",
 				"providerKeys",
+				"modelContextWindows",
 			].sort(),
 		);
 	});

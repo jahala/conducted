@@ -5,8 +5,8 @@
  * Behaviour: ui-map.md 3.10 ("Open in" app menu; Cmd+O opens in the default app, Cmd+Shift+O opens
  * the menu); the order of recently used apps and the default app are settings (open_in_mru_order,
  * default_open_in in services-map.md 4.2.3).
- * Data: useWorkspace (path, archived), useSetting for the default and recent order,
- * useActions().workspaces.openIn(id, appName). Which apps are installed comes from useInstalledApps.
+ * Data: useWorkspace (path, archived), useActions().workspaces.openIn(id, appName), and useOpenInApps
+ * for the listed apps and the default one (shared with the file tab's "Open in another app").
  * Children: OpenInButton, OpenInItem; open-in-apps.ts for the catalog and ordering.
  * Must handle: the installed-apps list loading or failing (Finder alone still works), no editor
  * installed (only Finder), the default app having been uninstalled (falls back to the first
@@ -19,44 +19,23 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
-import { useActions, useInstalledApps, useSetting, useWorkspace } from "../../core/hooks.ts";
+import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { Menu, MenuContent, MenuLabel } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { OpenInButton } from "./OpenInButton.tsx";
 import { OpenInItem } from "./OpenInItem.tsx";
-import {
-	type OpenInApp,
-	openInCatalog,
-	openInFailureTitle,
-	visibleOpenInApps,
-} from "./open-in-apps.ts";
-
-const NO_APPS: readonly string[] = [];
-
-const parseRecent = (value: string): string[] =>
-	value
-		.split(",")
-		.map((name) => name.trim())
-		.filter((name) => name !== "");
+import { type OpenInApp, openInFailureTitle } from "./open-in-apps.ts";
+import { useOpenInApps } from "./use-open-in-apps.ts";
 
 export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const workspace = useWorkspace(workspaceId);
 	const actions = useActions();
-	const installed = useInstalledApps();
-	const storedDefault = useSetting<string>("default_open_in");
-	const recentSetting = useSetting<string>("open_in_mru_order");
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
 	// One open at a time: a second click or Cmd+O while an app is opening joins the first.
 	const flight = useRef(createSingleFlight<"open">()).current;
 
-	const recentNames = useMemo(() => parseRecent(recentSetting), [recentSetting]);
-	const installedNames = installed.state === "ready" ? installed.data : NO_APPS;
-	const apps = useMemo(
-		() => visibleOpenInApps(openInCatalog(), installedNames, recentNames),
-		[installedNames, recentNames],
-	);
-	const defaultApp = apps.find((app) => app.appName === storedDefault) ?? apps[0] ?? null;
+	const { apps, defaultApp, storedDefault, recentNames, listFailed } = useOpenInApps();
 
 	const archived = workspace.state === "ready" && workspace.data.state === "archived";
 	const disabledReason =
@@ -145,9 +124,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 						onSetDefault={setDefault}
 					/>
 				))}
-				{installed.state === "error" ? (
-					<MenuLabel>Could not list the apps on this Mac.</MenuLabel>
-				) : null}
+				{listFailed ? <MenuLabel>Could not list the apps on this Mac.</MenuLabel> : null}
 			</MenuContent>
 		</Menu>
 	);

@@ -1,6 +1,6 @@
 /**
  * The app's domain types, shared by services (src/core) and screens (src/features).
- * Rows mirror the migrations (0001 to 0004) after parsing; view models are what screens render.
+ * Rows mirror the migrations (0001 to 0008) after parsing; view models are what screens render.
  * Screens never read the database: they get these types from services through hooks.
  */
 import type {
@@ -134,7 +134,8 @@ export interface Workspace {
  */
 export interface BacklogWorkspace {
 	id: WorkspaceId;
-	repoId: RepoId;
+	/** Null when its repository was removed; the user picks another before starting it. */
+	repoId: RepoId | null;
 	/** The name the user gave it, shown in the sidebar. Null: the first line of the prompt. */
 	displayName: string | null;
 	/** The first message for the first chat. */
@@ -152,6 +153,11 @@ export interface Session {
 	title: string | null;
 	config: SessionConfig;
 	agentSessionId: string | null;
+	/**
+	 * A chat forked from a turn: the agent's own id of the last message the fork keeps, where its
+	 * first send resumes the origin's agent session (CHAT-16). Null once that send is recorded.
+	 */
+	forkResumeNativeMessageId: string | null;
 	unreadCount: number;
 	contextUsedTokens: number | null;
 	contextWindowTokens: number | null;
@@ -206,7 +212,10 @@ export interface DiffComment {
 	side: "deletions" | "additions";
 	threadId: string | null;
 	replyToId: CommentId | null;
+	/** Replacement code the comment suggests. Null: no suggested change. */
 	suggestion: string | null;
+	/** The original lines the suggestion replaces, as they were when it was written. */
+	suggestionBaseCode: string | null;
 	remoteUrl: string | null;
 	resolved: boolean;
 	outdated: boolean;
@@ -429,6 +438,15 @@ export interface DeploymentView {
 	state: DeploymentState;
 	url: string | null;
 	updatedAt: number;
+}
+
+/** A workspace's sparse checkout, which git itself stores (services-map.md 3.11, 5A.5.3). */
+export interface SparseCheckoutSettings {
+	enabled: boolean;
+	/** The directories git includes, empty when sparse checkout is off. */
+	directories: string[];
+	/** The top-level folders of the checked-out commit, the choices to offer the user. */
+	topLevelDirectories: string[];
 }
 
 /** One commit on the workspace branch that is not on the target branch yet. */
@@ -737,7 +755,10 @@ export interface ArtifactsView {
 	entries: ArtifactEntry[];
 	/** True while more pages are left to load. */
 	hasMore: boolean;
-	/** How many files the list leaves out (build output, dependency folders, large files). */
+	/**
+	 * How many files of the whole `.context` folder the list leaves out: the files the app keeps
+	 * for itself. Every page reports the same total.
+	 */
 	omitted: number;
 }
 

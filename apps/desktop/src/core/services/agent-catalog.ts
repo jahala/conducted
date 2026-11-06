@@ -33,12 +33,14 @@
  * key lists for one agent, answered out of order, leave the newer answer; two provider lists for
  * one agent, answered out of order, leave the newer answer.
  */
-import type {
-	AgentInstall,
-	AgentLogin,
-	AgentProvider,
-	ModelInfo,
-	SlashCommand,
+import {
+	AGENT_PROVIDER_TABLE,
+	type AgentInstall,
+	type AgentLaunch,
+	type AgentLogin,
+	type AgentProvider,
+	type ModelInfo,
+	type SlashCommand,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { appError, err, notImplemented, ok } from "@conducted/shared";
@@ -97,6 +99,16 @@ export interface AgentCatalogServiceDeps {
 	 * which is the key the new-workspace composer reads before any workspace exists (SIDE-22).
 	 */
 	repoRootPathOf: (sessionId: SessionId) => Promise<Result<string>>;
+	/**
+	 * How the agent would start (SIDE-21): its program, variables and keys, for a chat's workspace
+	 * when `sessionId` is given and with the global variables otherwise. Model and slash-command
+	 * lists send it, so the sidecar lists with the program and keys the user chose.
+	 */
+	launchFor: (
+		agent: AgentKind,
+		acpAgent: AcpAgent | undefined,
+		sessionId: SessionId | null,
+	) => Promise<Result<AgentLaunch>>;
 	/** The provider key rows. Absent only in tests that do not use provider keys. */
 	providerKeys?: ProviderKeyRepository;
 	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
@@ -104,10 +116,12 @@ export interface AgentCatalogServiceDeps {
 }
 
 /**
- * Whether every stored key of the agent reaches its launch, whatever the provider. True for the
- * ACP agents: they pick a provider in their own config, so the container passes them all.
+ * Whether every stored key of the agent reaches its launch, whatever the provider: true for an agent
+ * that picks a provider in its own config (the agent-provider table's `configProviders`, OpenCode
+ * and Pi), so the container passes them all.
  */
-export const keysShareVariables = (agent: AgentKind): boolean => agent === "acp";
+const keysShareVariables = (agent: AgentKind): boolean =>
+	AGENT_PROVIDER_TABLE[agent].configProviders !== undefined;
 
 /** The Keychain entry for one provider key. Stable, so saving twice replaces one entry. */
 export function providerKeychainRef(key: ProviderKeyRef): string {
@@ -179,10 +193,15 @@ export class AgentCatalogService {
 		this.store.setState((state) => ({
 			models: { ...state.models, [key]: { state: "loading" } },
 		}));
-		const result = await this.#deps.sidecar.request(
-			"listModels",
-			acpAgent === undefined ? { agent } : { agent, acpAgent },
-		);
+		const launch = await this.#deps.launchFor(agent, acpAgent, null);
+		const result = launch.ok
+			? await this.#deps.sidecar.request(
+					"listModels",
+					acpAgent === undefined
+						? { agent, launch: launch.value }
+						: { agent, acpAgent, launch: launch.value },
+				)
+			: launch;
 		if (this.#modelRequests.get(key) !== request) {
 			return result.ok ? ok(result.value.models) : err(result.error);
 		}
@@ -211,7 +230,7 @@ export class AgentCatalogService {
 		this.store.setState((state) => ({
 			slashCommands: { ...state.slashCommands, [sessionId]: { state: "loading" } },
 		}));
-		const folders = await this.#chatFolders(sessionId);
+		const folders = await this.#chatFolders(sessionId, agent, acpAgent);
 		if (!folders.ok) {
 			if (this.#slashRequests.isLatest(ticket)) {
 				this.#slashRequests.settle(ticket);
@@ -231,6 +250,7 @@ export class AgentCatalogService {
 			// the new-workspace composer reads before a workspace exists (SIDE-22).
 			workspacePath: folders.value.workspacePath,
 			repoRootPath: folders.value.repoRootPath,
+			launch: folders.value.launch,
 		});
 		if (!this.#slashRequests.isLatest(ticket)) {
 			this.#slashRequests.settle(ticket);
@@ -255,15 +275,23 @@ export class AgentCatalogService {
 		return ok(result.value.commands);
 	}
 
-	/** A chat's workspace folder and its repository's root folder. */
+	/** A chat's workspace folder, its repository's root folder, and how its agent would start. */
 	async #chatFolders(
 		sessionId: SessionId,
-	): Promise<Result<{ workspacePath: string; repoRootPath: string }>> {
+		agent: AgentKind,
+		acpAgent: AcpAgent | undefined,
+	): Promise<Result<{ workspacePath: string; repoRootPath: string; launch: AgentLaunch }>> {
 		const workspacePath = await this.#deps.workspacePathOf(sessionId);
 		if (!workspacePath.ok) return workspacePath;
 		const repoRootPath = await this.#deps.repoRootPathOf(sessionId);
 		if (!repoRootPath.ok) return repoRootPath;
-		return ok({ workspacePath: workspacePath.value, repoRootPath: repoRootPath.value });
+		const launch = await this.#deps.launchFor(agent, acpAgent, sessionId);
+		if (!launch.ok) return launch;
+		return ok({
+			workspacePath: workspacePath.value,
+			repoRootPath: repoRootPath.value,
+			launch: launch.value,
+		});
 	}
 
 	/**

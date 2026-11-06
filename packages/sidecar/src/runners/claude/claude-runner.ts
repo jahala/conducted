@@ -12,6 +12,8 @@
  *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
  *    path, else the copy on the login-shell PATH; a user path that cannot run is an error that
  *    names it; a `.js` path starts through node
+ *  - the listing calls run the program and environment of their `ListingContext` (the app's
+ *    launch), by the same rule as start()
  *  - listModels(): from supportedModels() of a throwaway metadata query; efforts from
  *    supportedEffortLevels, fast mode from supportsFastMode; the default effort is the middle of
  *    the list when the SDK gives none
@@ -36,11 +38,11 @@ import type {
 import type { Effort, ModelInfo } from "@conducted/protocol";
 import { appError } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
-import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
-import { findAgentProgram } from "../launch-env.ts";
+import { type AgentProgram, findAgentProgram } from "../launch-env.ts";
 import type {
 	AgentSession,
+	ListingContext,
 	McpServerView,
 	Runner,
 	RunnerCapabilities,
@@ -91,14 +93,11 @@ export class ClaudeRunner implements Runner {
 		contextUsage: true,
 	};
 
-	private lastEnv: Readonly<Record<string, string>> = {};
-
 	constructor(protected readonly deps: ClaudeRunnerDeps) {}
 
 	async detect(
 		env: Readonly<Record<string, string>>,
 	): Promise<{ path: string; version: string } | null> {
-		this.lastEnv = env;
 		const path = await this.deps.findExecutable("claude", env);
 		if (path === null) return null;
 		const probed = await this.deps.probe(path, ["--version"], {
@@ -163,9 +162,9 @@ export class ClaudeRunner implements Runner {
 		);
 	}
 
-	async listModels(): Promise<ModelInfo[]> {
-		const executablePath = await this.requireExecutable();
-		const metadata = this.metadataQuery(executablePath);
+	async listModels(context: ListingContext): Promise<ModelInfo[]> {
+		const program = await this.requireProgram(context);
+		const metadata = this.metadataQuery(program, context.env);
 		try {
 			const models = await metadata.query.supportedModels();
 			return models.map(toModelInfo);
@@ -174,9 +173,12 @@ export class ClaudeRunner implements Runner {
 		}
 	}
 
-	async listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]> {
-		const executablePath = await this.requireExecutable();
-		const metadata = this.metadataQuery(executablePath, workspacePath);
+	async listSlashCommands(
+		workspacePath: string,
+		context: ListingContext,
+	): Promise<RunnerSlashCommand[]> {
+		const program = await this.requireProgram(context);
+		const metadata = this.metadataQuery(program, context.env, workspacePath);
 		try {
 			const commands = await metadata.query.supportedCommands();
 			return commands.map(toRunnerSlashCommand);
@@ -185,9 +187,9 @@ export class ClaudeRunner implements Runner {
 		}
 	}
 
-	async listMcpServers(workspacePath: string): Promise<McpServerView[]> {
-		const executablePath = await this.requireExecutable();
-		const metadata = this.metadataQuery(executablePath, workspacePath);
+	async listMcpServers(workspacePath: string, context: ListingContext): Promise<McpServerView[]> {
+		const program = await this.requireProgram(context);
+		const metadata = this.metadataQuery(program, context.env, workspacePath);
 		try {
 			const servers = await metadata.query.mcpServerStatus();
 			return servers.map(toMcpServerView);
@@ -196,25 +198,38 @@ export class ClaudeRunner implements Runner {
 		}
 	}
 
-	private async requireExecutable(): Promise<string> {
-		const path = await this.deps.findExecutable("claude", this.lastEnv);
-		if (path === null) throw claudeNotInstalled();
-		return path;
+	/** The program a listing runs, by the rule a chat's start uses (`findAgentProgram`). */
+	private async requireProgram(context: ListingContext): Promise<AgentProgram> {
+		const program = await findAgentProgram({
+			agent: "claude",
+			name: "claude",
+			executablePath: context.executablePath,
+			env: context.env,
+			findExecutable: this.deps.findExecutable,
+		});
+		if (!program.ok) throw program.error;
+		return program.value;
 	}
 
 	/**
 	 * A throwaway query for asking the CLI about models or slash commands. Its prompt never yields,
 	 * and `end()` aborts the process so nothing is left behind.
 	 */
-	private metadataQuery(executablePath: string, cwd?: string): { query: Query; end(): void } {
+	private metadataQuery(
+		program: AgentProgram,
+		env: Readonly<Record<string, string>>,
+		cwd?: string,
+	): { query: Query; end(): void } {
 		const abort = new AbortController();
 		const prompt = createMetadataPrompt();
 		const query = this.deps.query({
 			prompt: prompt.iterable,
 			options: {
 				abortController: abort,
-				pathToClaudeCodeExecutable: executablePath,
-				env: { ...this.lastEnv },
+				pathToClaudeCodeExecutable: program.path,
+				// A `.js` program runs through node, as a chat's start does (options.ts).
+				...(program.viaRuntime ? { executable: "node" as const } : {}),
+				env: { ...env },
 				permissionMode: "default",
 				settingSources: [...CLAUDE_SETTING_SOURCES],
 				...(cwd === undefined ? {} : { cwd }),
@@ -228,14 +243,6 @@ export class ClaudeRunner implements Runner {
 			},
 		};
 	}
-}
-
-/** One home for the error both start() and the metadata queries return. */
-function claudeNotInstalled() {
-	return appError(
-		AGENT_NOT_INSTALLED,
-		"Claude Code was not found. Install it in settings and try again.",
-	);
 }
 
 /**

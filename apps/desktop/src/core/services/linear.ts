@@ -5,12 +5,15 @@
  * Behaviour: services-map.md 5B.8.1 (queries: my active issues, search, by identifier, team ids
  * and repository suggestions), 5B.8.3 (an issue becomes a file
  * `.context/attachments/<key>/[LINEAR]-<identifier>.md`), frontend.md 7 (the context carried into
- * a chat), ui-map.md 6 (Account connects Linear with an API key).
+ * a chat), ui-map.md 6 (Account connects Linear with an API key), 3.10 (the Link issue dialog,
+ * whose chosen issue becomes a `[LINEAR]-<identifier>.md` attachment of the chat's draft, and
+ * whose search takes a pasted Linear issue link as its identifier; Conductor's renderApp).
  * Must handle: no key stored (state "not connected", no request); the startup check, which reads
  * the stored key once so the Account page knows the state after a restart; a 401 answer (state "key
  * rejected", and later calls make no request until the key changes); a search keeps to the
  * viewer's teams and leaves out completed and canceled issues; an identifier like `ABC-123`
- * runs the by-id query and the search together; lists are cached for 15 seconds, by-id for 60 and
+ * runs the by-id query and the search together, and so does a link such as
+ * `https://linear.app/<org>/issue/ABC-123/<slug>`; lists are cached for 15 seconds, by-id for 60 and
  * team ids and suggestions for 600; the key never reaches a message or a log; only the newest
  * issue list changes the store; a failed write is reported instead of returning a path that does
  * not exist.
@@ -23,12 +26,15 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Platform } from "../../platform/platform.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import type { IssueView } from "../model.ts";
-import { sanitizeIssueKey } from "./github.ts";
+import { type IssueAttachment, sanitizeIssueKey } from "./github.ts";
 
 export const LINEAR_GRAPHQL_URL = "https://api.linear.app/graphql";
 export const LINEAR_API_KEY_KEYCHAIN_KEY = "linear_api_key";
 /** An identifier such as `ABC-123`, taken from services-map.md 5B.8.1. */
 export const LINEAR_IDENTIFIER_REGEX = /^(\w{1,7})-(\d{1,9})$/;
+/** A Linear issue link; the search uses the identifier inside it (Conductor's renderApp). */
+const LINEAR_ISSUE_LINK_REGEX =
+	/^(?:https?:\/\/)?(?:www\.)?linear\.app\/[^/\s]+\/issue\/(\w{1,7}-\d{1,9})(?:[/?#]|$)/i;
 export const LINEAR_MY_ISSUES_CACHE_MS = 15_000;
 export const LINEAR_SEARCH_CACHE_MS = 15_000;
 export const LINEAR_BY_ID_CACHE_MS = 60_000;
@@ -325,9 +331,20 @@ export function linearIssueToView(issue: LinearIssue): IssueView {
 	};
 }
 
+/** The file name a Linear issue's context file has, here and as a chat attachment. */
+export function linearIssueFileName(issue: Pick<LinearIssue, "identifier">): string {
+	return `[LINEAR]-${issue.identifier}.md`;
+}
+
 /** Relative path of a Linear issue's context file inside a workspace. */
 export function linearIssueContextPath(issue: Pick<LinearIssue, "id" | "identifier">): string {
-	return `.context/attachments/${sanitizeIssueKey(`linear:${issue.id}`)}/[LINEAR]-${issue.identifier}.md`;
+	return `.context/attachments/${sanitizeIssueKey(`linear:${issue.id}`)}/${linearIssueFileName(issue)}`;
+}
+
+/** The search text, with a pasted Linear issue link reduced to its identifier. */
+export function linearSearchTerm(term: string): string {
+	const trimmed = term.trim();
+	return LINEAR_ISSUE_LINK_REGEX.exec(trimmed)?.[1] ?? trimmed;
 }
 
 /** The Markdown a Linear issue becomes, with its comments and times (services-map.md 5B.8.1). */
@@ -470,9 +487,12 @@ export class LinearService {
 		return ok(parsed.value);
 	}
 
-	/** Searches by title or identifier. An identifier also runs the by-id query, as Conductor does. */
+	/**
+	 * Searches by title, identifier or issue link. An identifier also runs the by-id query, as
+	 * Conductor does.
+	 */
 	async search(term: string): Promise<Result<LinearIssue[]>> {
-		const trimmed = term.trim();
+		const trimmed = linearSearchTerm(term);
 		if (trimmed === "") return this.loadMyIssues();
 		if (!LINEAR_IDENTIFIER_REGEX.test(trimmed)) return this.#searchTerm(trimmed);
 		// Conductor runs both queries for an identifier, so the exact issue arrives even when the
@@ -547,6 +567,20 @@ export class LinearService {
 		}
 		this.#writeCache(cacheKey, suggestions);
 		return ok(suggestions);
+	}
+
+	/**
+	 * Backs the Link issue dialog: the issue as a `[LINEAR]-<identifier>.md` attachment for a chat's
+	 * draft, with the branch name Linear suggests.
+	 */
+	async issueAttachment(issueId: string): Promise<Result<IssueAttachment>> {
+		const issue = await this.getIssue(issueId);
+		if (!issue.ok) return issue;
+		return ok({
+			fileName: linearIssueFileName(issue.value),
+			text: linearIssueContextFile(issue.value),
+			branchName: suggestedBranchName(issue.value),
+		});
 	}
 
 	/** Writes the context file for an issue into a workspace and returns its path. */

@@ -26,8 +26,9 @@
  *    contextUsage true
  * Test first: capabilities.steer is false for both adapters.
  * Our design choice: a client factory is a dependency, so the model and command listing can be
- * tested without starting an agent process. The listing sessions use the environment from
- * detect() only; they do not apply the adapter's approval policy or session storage.
+ * tested without starting an agent process. The listing sessions run the program and
+ * environment of their `ListingContext` (the app's launch); they do not apply the adapter's
+ * approval policy or session storage.
  */
 import type {
 	ContentBlock,
@@ -39,7 +40,13 @@ import { appError, err, ok } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import { findAgentProgram } from "../launch-env.ts";
-import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
+import type {
+	AgentSession,
+	ListingContext,
+	Runner,
+	RunnerCapabilities,
+	StartOptions,
+} from "../runner.ts";
 import {
 	type AcpClient,
 	type AcpClientHandlers,
@@ -117,14 +124,11 @@ export class AcpRunner implements Runner {
 		contextUsage: true,
 	};
 
-	private lastEnv: Readonly<Record<string, string>> = {};
-
 	constructor(protected readonly deps: AcpRunnerDeps) {}
 
 	async detect(
 		env: Readonly<Record<string, string>>,
 	): Promise<{ path: string; version: string } | null> {
-		this.lastEnv = env;
 		const path = await this.deps.findExecutable(this.deps.adapter.command.executable, env);
 		if (path === null) return null;
 		return { path, version: await this.readVersion(path, env) };
@@ -156,7 +160,6 @@ export class AcpRunner implements Runner {
 
 	async start(options: StartOptions): Promise<AgentSession> {
 		const logger = this.deps.logger.child(ACP_LOG_TAG);
-		this.lastEnv = options.env;
 		const program = await findAgentProgram({
 			agent: "acp",
 			name: this.deps.adapter.command.executable,
@@ -243,14 +246,14 @@ export class AcpRunner implements Runner {
 		return session;
 	}
 
-	async listModels(): Promise<ModelInfo[]> {
+	async listModels(context: ListingContext): Promise<ModelInfo[]> {
 		const started = this.deps.clock.now();
-		const executablePath = await this.requirePath();
+		const executablePath = await this.requirePath(context);
 		const collector = new AcpUpdateCollector();
 		const client = this.createClient(
 			executablePath,
 			process.cwd(),
-			this.lastEnv,
+			context.env,
 			collector.handlers,
 		);
 		const connected = await client.connect();
@@ -288,13 +291,14 @@ export class AcpRunner implements Runner {
 
 	async listSlashCommands(
 		workspacePath: string,
+		context: ListingContext,
 	): Promise<{ name: string; description: string; argumentHint?: string }[]> {
-		const executablePath = await this.requirePath();
+		const executablePath = await this.requirePath(context);
 		const collector = new AcpUpdateCollector();
 		const client = this.createClient(
 			executablePath,
 			workspacePath,
-			this.lastEnv,
+			context.env,
 			collector.handlers,
 		);
 		const connected = await client.connect();
@@ -318,18 +322,17 @@ export class AcpRunner implements Runner {
 		}
 	}
 
-	private async requirePath(): Promise<string> {
-		const found = await this.deps.findExecutable(
-			this.deps.adapter.command.executable,
-			this.lastEnv,
-		);
-		if (found === null) {
-			throw appError(
-				"agent_not_installed",
-				`${this.deps.adapter.displayName} is not installed. Install ${this.deps.adapter.command.executable} or add it to your PATH.`,
-			);
-		}
-		return found;
+	/** The program a listing runs, by the rule a chat's start uses (`findAgentProgram`). */
+	private async requirePath(context: ListingContext): Promise<string> {
+		const program = await findAgentProgram({
+			agent: "acp",
+			name: this.deps.adapter.command.executable,
+			executablePath: context.executablePath,
+			env: context.env,
+			findExecutable: this.deps.findExecutable,
+		});
+		if (!program.ok) throw program.error;
+		return program.value.path;
 	}
 
 	private createClient(

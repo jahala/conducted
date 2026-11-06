@@ -10,17 +10,18 @@
  * with no preview (the unavailable notice), a binary file with no URL the webview can load, and a
  * Markdown file's links: a web link opens in the browser, a relative link opens that workspace
  * file in the tab, and a relative image loads from the workspace folder.
- * "Open in another app" and "Reveal in Finder" are not offered: the Actions table has no call that
- * opens or reveals a file (CHAT-29 owns `attachments.openExternally`).
+ * A file the tab cannot show (too large, no preview, a video the webview cannot play) offers "Open
+ * in another app", which opens it in the default "Open in" app, and a file with no preview also
+ * offers "Reveal in Finder" (use-open-elsewhere.ts).
  * Test first: a path ending in ".md" renders the Markdown preview, and ".bin" renders the
  * unavailable notice.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useServices } from "../../core/context.tsx";
 import {
 	fileQueryKey,
-	previewUrlOf,
 	useActions,
 	useFileContent,
 	useSetting,
@@ -36,6 +37,7 @@ import { PreviewUnavailable } from "./preview/PreviewUnavailable.tsx";
 import { classifyPreview } from "./preview/preview-kind.ts";
 import { SvgPreview } from "./preview/SvgPreview.tsx";
 import { VideoPreview } from "./preview/VideoPreview.tsx";
+import { useOpenElsewhere } from "./use-open-elsewhere.ts";
 
 export interface FilePreviewPaneProps {
 	workspaceId: WorkspaceId;
@@ -53,7 +55,9 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 	const queryClient = useQueryClient();
 	const markdownStyle = useSetting<"default" | "tufte">("markdown_style");
 	const actions = useActions();
+	const { platform } = useServices();
 	const [svgView, setSvgView] = useState<"rendered" | "source">("rendered");
+	const elsewhere = useOpenElsewhere(workspaceId, path);
 
 	const retry = (): void => {
 		void queryClient.invalidateQueries({ queryKey: fileQueryKey(workspaceId, path) });
@@ -68,7 +72,7 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 	const workspaceRoot =
 		workspace.state === "ready" ? workspace.data.path.replace(/\/+$/, "") : null;
 	const imageUrlFor = (relativePath: string): string | null =>
-		workspaceRoot === null ? null : previewUrlOf(`${workspaceRoot}/${relativePath}`, null);
+		workspaceRoot === null ? null : platform.fs.assetUrl(`${workspaceRoot}/${relativePath}`);
 
 	if (content.state === "loading") {
 		return <FileTabState kind="loading" detail={null} onAction={retry} />;
@@ -82,7 +86,7 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 		return <FileTabState kind="missing" detail={null} onAction={retry} />;
 	}
 	if (data.kind === "too_large") {
-		return <FileTabState kind="too_large" detail={null} />;
+		return <FileTabState kind="too_large" detail={null} onAction={elsewhere.openInApp} />;
 	}
 
 	const isBinary = data.kind === "binary";
@@ -95,6 +99,8 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 				fileName={fileName}
 				sizeBytes={isBinary ? data.sizeBytes : null}
 				reason="This file can't be shown here."
+				onOpenExternally={elsewhere.openInApp}
+				onReveal={elsewhere.reveal}
 			/>
 		);
 	}
@@ -108,13 +114,17 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 			return <PdfPreview url={previewUrl} fileName={fileName} />;
 		}
 		if (kind === "video" && previewUrl !== null) {
-			return <VideoPreview url={previewUrl} fileName={fileName} />;
+			return (
+				<VideoPreview url={previewUrl} fileName={fileName} onOpenExternally={elsewhere.openInApp} />
+			);
 		}
 		return (
 			<PreviewUnavailable
 				fileName={fileName}
 				sizeBytes={data.sizeBytes}
 				reason="This file can't be shown here."
+				onOpenExternally={elsewhere.openInApp}
+				onReveal={elsewhere.reveal}
 			/>
 		);
 	}

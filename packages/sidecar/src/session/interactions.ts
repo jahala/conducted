@@ -43,9 +43,9 @@ import type {
 } from "@conducted/protocol";
 import { CODEX_INTERACTION_TIMEOUT_MS } from "@conducted/protocol";
 import type { Clock, IdSource, InteractionId, SessionId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
-import { messageOf } from "../util/errors.ts";
 import { closeInteraction, type LiveStateStore, openInteraction } from "./live-state.ts";
 
 export interface InteractionBroker {

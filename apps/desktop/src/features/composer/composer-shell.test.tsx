@@ -76,6 +76,12 @@ const fakeFs = () => {
 			files.delete(path);
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths,
 	};
 	return { fs, files, fail };
@@ -148,7 +154,7 @@ const harness = (options: HarnessOptions = {}) => {
 		loadSlashCommands: vi.fn(async () => ok([])),
 	};
 	const platform = {
-		app: { writeLog: vi.fn(), onDeepLink: () => () => {} },
+		app: { writeLog: vi.fn(), onDeepLink: () => () => {}, onDeepLinkRejected: () => () => {} },
 		menu: {
 			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
 			onCommand: () => () => {},
@@ -165,6 +171,8 @@ const harness = (options: HarnessOptions = {}) => {
 			workspace,
 			commands,
 			agentCatalog,
+			// The context wheel reads the sizes agents reported (CHAT-14); this chat has none.
+			contextWindows: { store: createStore(() => ({ byModel: {} })) },
 		},
 		actions: {
 			sessions: {

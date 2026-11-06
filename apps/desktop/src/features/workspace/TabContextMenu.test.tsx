@@ -47,6 +47,7 @@ const chat = (over: Partial<Session> = {}): Session => ({
 		appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
 	},
 	agentSessionId: null,
+	forkResumeNativeMessageId: null,
 	unreadCount: 0,
 	contextUsedTokens: null,
 	contextWindowTokens: null,

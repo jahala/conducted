@@ -15,7 +15,7 @@
  * path.
  * Test first: with a database marked newer than the app, runStartup reports `blocked` and starts no service.
  */
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import type { Container } from "../core/container.ts";
 import type { Platform } from "../platform/platform.ts";
 
@@ -51,7 +51,7 @@ export async function runStartup(
 	try {
 		warning = await platform.app.dbVersionWarning();
 	} catch (cause) {
-		const message = cause instanceof Error ? cause.message : String(cause);
+		const message = messageOf(cause);
 		report({
 			kind: "failed",
 			phase: "database",
@@ -97,7 +97,7 @@ export async function runStartup(
 		report({ kind: "ready" });
 		return ok(undefined);
 	} catch (cause) {
-		const message = cause instanceof Error ? cause.message : String(cause);
+		const message = messageOf(cause);
 		platform.app.writeLog("error", "Startup failed", { message });
 		report({
 			kind: "failed",
@@ -157,7 +157,7 @@ async function sidecarLogPath(platform: Platform): Promise<string | null> {
 	try {
 		return await platform.sidecar.logPath();
 	} catch (cause) {
-		const message = cause instanceof Error ? cause.message : String(cause);
+		const message = messageOf(cause);
 		platform.app.writeLog("warn", "The sidecar log path could not be read", { message });
 		return null;
 	}

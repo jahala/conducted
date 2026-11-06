@@ -19,16 +19,22 @@ pub enum CommandError {
     Failed { code: &'static str, message: String },
 }
 
-impl Serialize for CommandError {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStruct;
-        let code = match self {
+impl CommandError {
+    /// The code the UI reads, the same one the error is serialised with.
+    pub fn code(&self) -> &'static str {
+        match self {
             CommandError::NotImplemented(_) => "not_implemented",
             CommandError::Io(_) => "io",
             CommandError::Failed { code, .. } => code,
-        };
+        }
+    }
+}
+
+impl Serialize for CommandError {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
         let mut s = serializer.serialize_struct("CommandError", 2)?;
-        s.serialize_field("code", code)?;
+        s.serialize_field("code", self.code())?;
         s.serialize_field("message", &self.to_string())?;
         s.end()
     }

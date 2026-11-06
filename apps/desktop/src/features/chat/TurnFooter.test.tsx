@@ -26,6 +26,7 @@ vi.mock("../../core/hooks.ts", () => ({
 		settings: { set: state.setSetting },
 	}),
 	useSetting: (key: string) => state.settings[key] ?? false,
+	useChangedSinceTurn: () => ({ state: "ready", data: 0 }),
 }));
 
 const { TurnFooter } = await import("./TurnFooter.tsx");

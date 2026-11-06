@@ -305,28 +305,21 @@ describe("COMP-07 attachments in the composer", () => {
 		}
 	});
 
-	it("pastes copied file paths as text on Cmd+Shift+V", async () => {
-		const { session, workspace, wrapper, close } = await setup();
-		const original = navigator.clipboard;
-		const readText = vi.fn(async () => "/tmp/copied-one.txt\n/tmp/copied-two.txt");
-		Object.defineProperty(navigator, "clipboard", {
-			configurable: true,
-			value: { readText, writeText: vi.fn() },
-		});
+	it("pastes the files copied in Finder as paths on Cmd+Shift+V", async () => {
+		const { test, session, workspace, wrapper, close } = await setup();
 		try {
+			test.memory.controls.setClipboardFilePaths(["/tmp/copied-one.txt", "/tmp/copied-two.txt"]);
 			render(<Composer workspaceId={workspace.id} sessionId={session.id} />, { wrapper });
 			await waitFor(() => expect(editor()).toBeTruthy());
 			editor().focus();
 
 			fireEvent.keyDown(editor(), { key: "v", metaKey: true, shiftKey: true });
 
-			await waitFor(() => expect(editor().textContent).toContain("/tmp/copied-one.txt"));
-			expect(editor().textContent).toContain("/tmp/copied-two.txt");
+			await waitFor(() =>
+				expect(editor().textContent).toContain("/tmp/copied-one.txt /tmp/copied-two.txt"),
+			);
+			expect(attachmentNames()).toEqual([]);
 		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				configurable: true,
-				value: original,
-			});
 			close();
 		}
 	});
@@ -377,8 +370,8 @@ describe("COMP-07 attachments in the composer", () => {
 		}
 	});
 
-	it("reports a pasted file with no path as unavailable", async () => {
-		const { session, workspace, wrapper, close } = await setup();
+	it("adds a pasted image that has no path to the draft", async () => {
+		const { test, session, workspace, wrapper, close } = await setup();
 		const toasted = vi.spyOn(toast, "error").mockReturnValue("toast-id");
 		try {
 			render(<Composer workspaceId={workspace.id} sessionId={session.id} />, { wrapper });
@@ -391,8 +384,11 @@ describe("COMP-07 attachments in the composer", () => {
 				},
 			});
 
-			await waitFor(() => expect(toasted).toHaveBeenCalledWith("Attachments not available"));
-			expect(attachmentNames()).toEqual([]);
+			await waitFor(() => expect(attachmentNames()).toHaveLength(1));
+			expect(attachmentNames()[0]).toContain("shot.png");
+			const [path] = test.container.services.composer.draftOf(session.id).attachmentPaths;
+			expect(path === undefined ? undefined : test.memory.controls.files.get(path)).toBe("image");
+			expect(toasted).not.toHaveBeenCalled();
 		} finally {
 			close();
 		}
