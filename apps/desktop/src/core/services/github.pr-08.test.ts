@@ -288,6 +288,68 @@ describe("PR-08 GitHub stack read", () => {
 	});
 });
 
+describe("PR-08 GitHub stack members for a range", () => {
+	const answer = (command: { program: string; args: readonly string[] }) => {
+		if (command.program === "git") return gitOutput("git@github.com:o/r.git\n");
+		if (command.args.includes("graphql")) return gitOutput(stackAnswer(stackEntry));
+		if (command.args[1]?.includes("/stacks/5") === true) return gitOutput(membersAnswer());
+		return gitOutput();
+	};
+	const membersReads = (git: FakeGitRunner) =>
+		git.commands.filter((command) => command.args[1]?.includes("/stacks/5") === true).length;
+
+	it("hands the range the stack the last read found, with each base branch, without asking GitHub again", async () => {
+		const git = new FakeGitRunner(answer);
+		const service = makeService(git);
+		const read = await service.readStack(workspaceId);
+		expect(read.ok).toBe(true);
+		// The stack view's entries do not carry the base branch; the range's members do.
+		expect(read.ok && read.value.some((entry) => "baseBranch" in entry)).toBe(false);
+
+		const members = await service.stackMembersOf(workspaceId);
+
+		expect(membersReads(git)).toBe(1);
+		expect(members.ok && members.value.map((member) => [member.number, member.baseBranch])).toEqual(
+			[
+				[10, "main"],
+				[11, "feat-a"],
+				[12, "feat-b"],
+			],
+		);
+	});
+
+	it("reads the stack when nothing has read it yet", async () => {
+		const git = new FakeGitRunner(answer);
+		const service = makeService(git);
+
+		const members = await service.stackMembersOf(workspaceId);
+
+		expect(membersReads(git)).toBe(1);
+		expect(members.ok && members.value.map((member) => member.headSha)).toEqual(["a1", "b1", "c1"]);
+	});
+
+	it("forgets the stack when a later read finds the pull request outside a stack", async () => {
+		let inStack = true;
+		const git = new FakeGitRunner((command) => {
+			if (
+				command.args.includes("graphql") &&
+				command.args.some((arg) => arg.includes("stackEntry"))
+			) {
+				return gitOutput(stackAnswer(inStack ? stackEntry : null));
+			}
+			return answer(command);
+		});
+		const service = makeService(git);
+		await service.readStack(workspaceId);
+		inStack = false;
+		await service.readStack(workspaceId);
+
+		const members = await service.stackMembersOf(workspaceId);
+
+		expect(members).toEqual(ok([]));
+	});
+});
+
 describe("PR-08 GitHub stack merge", () => {
 	it("merges the stack with the repository's first allowed method", async () => {
 		const git = new FakeGitRunner((command) => {

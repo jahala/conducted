@@ -1,7 +1,8 @@
 /**
- * @feature CHAT-06 Message list; CHAT-27 Visible auto-retry with Retry now
+ * @feature CHAT-06 Message list; CHAT-27 Visible auto-retry with Retry now; CHAT-25 Turn outline
  * Owns: The virtualised list of turns in a chat, with a header for older history, a footer for the
- * live state, the running turn's retry line, and the scroll-to-bottom behaviour.
+ * live state, the running turn's retry line, the scroll-to-bottom behaviour, and the turn outline
+ * beside the list.
  * Behaviour: frontend.md 5 (one virtualised item per turn, keyed by turn id; Header for history
  * loading; Footer; a 'Scroll to bottom' button over the list; increaseViewportBy 600), ui-map.md
  * 3.3 (list; 'Something went wrong, retrying n/m' with Retry now on the running turn).
@@ -21,7 +22,7 @@
  * Test first: With 2000 turns only a small window of TurnItem is mounted; appending a block to the
  * last turn re-renders only that item.
  */
-import type { SessionId, WorkspaceId } from "@conducted/shared";
+import type { SessionId, TurnId, WorkspaceId } from "@conducted/shared";
 import { type RefObject, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
@@ -33,6 +34,7 @@ import { EmptyChat } from "./EmptyChat.tsx";
 import { reportFailure } from "./report-failure.ts";
 import { ScrollToBottomButton } from "./ScrollToBottomButton.tsx";
 import { TurnItem } from "./TurnItem.tsx";
+import { TurnOutline } from "./TurnOutline.tsx";
 
 export interface MessageListProps {
 	sessionId: SessionId;
@@ -77,6 +79,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 	const ownListRef = useRef<VirtuosoHandle>(null);
 	const listRef = parentListRef ?? ownListRef;
 	const [atBottom, setAtBottom] = useState(true);
+	const [currentTurnId, setCurrentTurnId] = useState<TurnId | null>(null);
 
 	useCommandHandler("chat.expandAllToolCalls", "area", () => {
 		void reportFailure(
@@ -128,9 +131,25 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 							increaseViewportBy={600}
 							followOutput={(isAtBottom) => (isAtBottom ? "smooth" : false)}
 							atBottomStateChange={setAtBottom}
+							rangeChanged={(range) => {
+								const turn = data.turns[range.startIndex];
+								if (turn === undefined) return;
+								setCurrentTurnId((previous) => (previous === turn.turnId ? previous : turn.turnId));
+							}}
 							components={{ Header: HistoryHeader, Footer: ListFooter }}
 							className="h-full"
 						/>
+						<div className="absolute right-2 top-1/2 z-10 -translate-y-1/2">
+							<TurnOutline
+								turns={data.turns}
+								currentTurnId={currentTurnId}
+								onJumpToTurn={(turnId) => {
+									const index = data.turns.findIndex((turn) => turn.turnId === turnId);
+									if (index < 0) return;
+									listRef.current?.scrollToIndex({ index, align: "start" });
+								}}
+							/>
+						</div>
 						<ScrollToBottomButton
 							visible={!atBottom}
 							hasNew={!atBottom && data.liveState.status === "working"}

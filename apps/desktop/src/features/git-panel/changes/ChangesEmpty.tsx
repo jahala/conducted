@@ -5,7 +5,8 @@
  * Reasons: "no_changes" (changes will appear here), "no_git_status" (the repository could not be
  * read), "operation_in_progress" (finish the rebase or merge to see changes), "filter_no_match"
  * (no file matches the filter, with a clear-filter action), "untracked_truncated" (a note under a
- * non-empty list: some untracked files are not shown).
+ * non-empty list: some untracked files are not shown), "no_range_changes" (the chosen stack pull
+ * requests change nothing; Conductor's words, PR-08).
  * Must handle: each reason has its own text and at most one action, "no_git_status" showing the
  * error's own message when the caller has one, and the note variant sitting below the list without
  * hiding it.
@@ -19,7 +20,8 @@ export type ChangesEmptyReason =
 	| "no_git_status"
 	| "operation_in_progress"
 	| "filter_no_match"
-	| "untracked_truncated";
+	| "untracked_truncated"
+	| "no_range_changes";
 
 export interface ChangesEmptyProps {
 	reason: ChangesEmptyReason;
@@ -38,6 +40,9 @@ const operationLabel: Record<NonNullable<ChangesEmptyProps["operation"]>, string
 };
 
 export function ChangesEmpty({ reason, operation, onClearFilter, message }: ChangesEmptyProps) {
+	if (reason === "no_range_changes") {
+		return <EmptyState compact title="No changes in the selected PRs" />;
+	}
 	if (reason === "untracked_truncated") {
 		return (
 			<p role="note" className="px-3 py-2 text-xs text-fg-muted">
