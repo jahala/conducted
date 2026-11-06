@@ -3,23 +3,167 @@
  * Owns: a center tab with an in-app browser preview of the workspace's dev server. Entry point
  * embedded by the workspace tab strip.
  * Behaviour: ui-map.md 3.2, "Tab content: Browser" ("Reload", "Open in browser", "Port and path"
- * picker, "Starting preview...", an annotation overlay with "Add to chat"; setting "In-app browser
- * preview"); native-and-sidecar-map.md (Agentation: a proxy injects the annotation toolbar into the
- * page).
- * Children: BrowserToolbar, PreviewFrame, AnnotationOverlay, BrowserState.
- * Data: useRunState (is the dev server running, detected ports), useWorkspace, useSetting. Where
- * the page is drawn and how annotations reach the app are open questions (see PreviewFrame.tsx).
+ * picker, "Starting preview..."; setting "In-app browser preview").
+ * Children: BrowserToolbar, PreviewFrame, BrowserState.
+ * Data: useRunState (is the dev server running, detected ports), useWorkspace, useSetting.
+ * Our design choice: the tab draws the page it was opened with. A typed address on another origin
+ * opens in the system browser, and a failure to open there shows the "Couldn't open browser tab"
+ * toast. The workspace gate hides this tab for an archived workspace.
  * Must handle: the server not running or not yet listening ("Starting preview..." then a timeout
- * with a Retry), the page failing to load, a navigation to another origin (kept inside only for
- * localhost; other URLs open in the system browser, Our design choice), the setting being off (the
- * tab says previews open in the system browser and offers that), an archived workspace, and the
- * tab being hidden (the page keeps its state).
+ * with a Retry), the page failing to load, a navigation to another origin opening outside the
+ * app, the setting being off (the tab says previews open in the system browser and offers that),
+ * and a system-browser failure.
  * Test first: with the server not listening the tab shows "Starting preview" and, after the
  * timeout, a Retry action.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { useEffect, useState } from "react";
+import { useActions, useRunState, useSetting, useWorkspace } from "../../core/hooks.ts";
+import { toastError } from "../../ui/Toast.tsx";
+import { BrowserState, type BrowserStateKind } from "./BrowserState.tsx";
+import { BrowserToolbar, parseBrowserAddress } from "./BrowserToolbar.tsx";
+import { PreviewFrame, type PreviewLoadState } from "./PreviewFrame.tsx";
 
-export function BrowserTab(_props: { workspaceId: WorkspaceId; url: string }): never {
-	return notImplemented("RUN-04");
+export function BrowserTab({ workspaceId, url }: { workspaceId: WorkspaceId; url: string }) {
+	const actions = useActions();
+	const workspace = useWorkspace(workspaceId);
+	const runState = useRunState(workspaceId);
+	const previewEnabled = useSetting<boolean>("experimental_in_app_browser_preview");
+	const [history, setHistory] = useState<string[]>([url]);
+	const [index, setIndex] = useState(0);
+	const [reloadToken, setReloadToken] = useState(0);
+	const [loadState, setLoadState] = useState<PreviewLoadState>({ kind: "loading" });
+	const currentUrl = history[index] ?? url;
+
+	useEffect(() => {
+		setHistory([url]);
+		setIndex(0);
+		setLoadState({ kind: "loading" });
+	}, [url]);
+
+	const openExternal = (target: string) => {
+		void actions.app.openUrl(target).then((result) => {
+			if (!result.ok) toastError("Couldn't open browser tab", result.error);
+		});
+	};
+
+	const navigate = (raw: string) => {
+		const parsed = parseBrowserAddress(raw);
+		if (!parsed.ok) {
+			toastError("Couldn't open browser tab", parsed.error);
+			return;
+		}
+		if (!parsed.value.localhost) {
+			openExternal(parsed.value.url);
+			return;
+		}
+		setHistory((previous) => [...previous.slice(0, index + 1), parsed.value.url]);
+		setIndex((previous) => previous + 1);
+		setLoadState({ kind: "loading" });
+		setReloadToken((token) => token + 1);
+	};
+
+	const reload = () => {
+		setLoadState({ kind: "loading" });
+		setReloadToken((token) => token + 1);
+	};
+
+	const back = () => {
+		if (index === 0) return;
+		setIndex((previous) => previous - 1);
+		setLoadState({ kind: "loading" });
+	};
+
+	const forward = () => {
+		if (index >= history.length - 1) return;
+		setIndex((previous) => previous + 1);
+		setLoadState({ kind: "loading" });
+	};
+
+	const detectedPorts =
+		runState.state === "ready" ? runState.data.detectedPorts.map((entry) => entry.port) : [];
+	const runPorts =
+		runState.state === "ready"
+			? runState.data.running.flatMap((entry) => {
+					if (entry.url === null) return [];
+					const parsed = parseBrowserAddress(entry.url);
+					return parsed.ok && parsed.value.port !== null ? [parsed.value.port] : [];
+				})
+			: [];
+	const listening = new Set([...detectedPorts, ...runPorts]);
+
+	const currentAddress = parseBrowserAddress(currentUrl);
+	const targetPort = currentAddress.ok ? currentAddress.value.port : null;
+	const workspacePort = workspace.state === "ready" ? workspace.data.port : (targetPort ?? 0);
+
+	const serverQuiet =
+		loadState.kind === "failed" &&
+		(loadState.reason === "timeout" || loadState.reason === "refused");
+	const failedKind: BrowserStateKind =
+		serverQuiet && runState.state === "ready" && targetPort !== null && !listening.has(targetPort)
+			? "server_not_running"
+			: "load_failed";
+	const failureDetail = loadState.kind === "failed" ? detailFor(loadState, targetPort) : null;
+
+	return (
+		<div className="flex h-full flex-col bg-canvas" data-browser-tab="">
+			<BrowserToolbar
+				url={currentUrl}
+				loading={loadState.kind === "loading"}
+				canGoBack={index > 0}
+				canGoForward={index < history.length - 1}
+				workspacePort={workspacePort}
+				detectedPorts={detectedPorts}
+				onNavigate={navigate}
+				onBack={back}
+				onForward={forward}
+				onReload={reload}
+				onOpenExternally={() => openExternal(currentUrl)}
+			/>
+			<div className="relative min-h-0 flex-1">
+				{previewEnabled ? (
+					<>
+						<PreviewFrame
+							key={`${currentUrl}:${reloadToken}`}
+							url={currentUrl}
+							onLoadState={setLoadState}
+						/>
+						{loadState.kind === "loading" ? (
+							<div className="absolute inset-0 bg-canvas">
+								<BrowserState kind="starting" detail={null} onAction={reload} />
+							</div>
+						) : null}
+						{loadState.kind === "failed" ? (
+							<div className="absolute inset-0 bg-canvas">
+								<BrowserState kind={failedKind} detail={failureDetail} onAction={reload} />
+							</div>
+						) : null}
+					</>
+				) : (
+					<BrowserState
+						kind="preview_off"
+						detail={null}
+						onAction={() => openExternal(currentUrl)}
+					/>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function detailFor(
+	state: Extract<PreviewLoadState, { kind: "failed" }>,
+	port: number | null,
+): string {
+	const address = port === null ? "the preview" : `localhost:${port}`;
+	switch (state.reason) {
+		case "refused":
+			return `The connection to ${address} was refused.`;
+		case "timeout":
+			return `The preview at ${address} did not answer in time.`;
+		case "blocked":
+			return "This page cannot be shown inside the app.";
+		case "other":
+			return "The preview could not be loaded.";
+	}
 }
