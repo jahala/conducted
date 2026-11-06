@@ -514,6 +514,6 @@ export class FollowUpQueue {
 }
 
 /** Queue rows are shown in their stored order. */
-function byPosition(a: QueuedMessage, b: QueuedMessage): number {
+export function byPosition(a: QueuedMessage, b: QueuedMessage): number {
 	return a.position - b.position || a.id.localeCompare(b.id);
 }

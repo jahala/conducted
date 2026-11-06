@@ -24,7 +24,7 @@ import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
 import type { QueuedMessage } from "../../core/model.ts";
-import { agentCanSteer } from "../../core/services/follow-up-queue.ts";
+import { agentCanSteer, byPosition } from "../../core/services/follow-up-queue.ts";
 import { Button } from "../../ui/Button.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 
@@ -35,9 +35,6 @@ export interface QueueBoxProps {
 const QUEUE_DRAG_MIME = "application/x-conducted-queued-message";
 /** Rows beyond this count stay folded away until the queue is expanded. */
 const COLLAPSED_ROW_LIMIT = 3;
-
-const byPosition = (a: QueuedMessage, b: QueuedMessage): number =>
-	a.position - b.position || a.id.localeCompare(b.id);
 
 function fileName(path: string): string {
 	const parts = path.split(/[\\/]/);

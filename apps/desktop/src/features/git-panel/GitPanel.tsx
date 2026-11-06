@@ -27,14 +27,9 @@
  * offers that action, one review request at a time per workspace, and a
  * workspace switch mid-request (the old request's result does not touch the new workspace's
  * dialog), and one header action at a time per workspace and action: the header button and the
-<<<<<<< HEAD
- * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L and Cmd+Shift+M shortcuts share one single-flight guard, so a second
- * key press or click while the action runs is ignored, and a merged pull request or a detached HEAD
- * gets the Continue header instead of the computed header.
-=======
  * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L, Cmd+Shift+M and Cmd+Shift+X shortcuts share one
- * single-flight guard, so a second key press or click while the action runs is ignored.
->>>>>>> e4776646039c19f825619ad81d0ef62e17e2cf5a
+ * single-flight guard, so a second key press or click while the action runs is ignored, and a
+ * merged pull request or a detached HEAD gets the Continue header instead of the computed header.
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
