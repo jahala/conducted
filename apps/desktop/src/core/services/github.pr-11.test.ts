@@ -397,6 +397,23 @@ describe("PR-11 context files", () => {
 		expect(githubIssueContextPath("7")).toBe(".context/attachments/github-7/[GITHUB]-7.md");
 	});
 
+	it("gives a linked issue as a [GITHUB]-<n>.md attachment without writing to the workspace", async () => {
+		const git = fakeGit({
+			stdout: (command) => (command.program === "git" ? ok(remoteUrl) : ok("")),
+			run: () => output(0, JSON.stringify(issueJson[0])),
+		});
+		const fs = fakeFs();
+		const service = makeService(git, { fs: fs.fs });
+
+		const result = await service.issueAttachment(workspaceId, "7");
+
+		expect(result.ok && result.value.fileName).toBe("[GITHUB]-7.md");
+		expect(result.ok && result.value.branchName).toBe(null);
+		expect(result.ok && result.value.text).toContain("# #7: The list loses its place");
+		expect(result.ok && result.value.text).toContain("Scrolling resets when a new row arrives.");
+		expect(fs.files.size).toBe(0);
+	});
+
 	it("writes a pull request picked as an issue to .context/pull-requests/<n>.md", async () => {
 		const pullRequestIssue = {
 			...pullRequestJson[0],
