@@ -75,7 +75,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 use crate::process_group;
 
 /// Event delivered when a command started with `shell_start` ends.
@@ -1144,13 +1144,10 @@ pub async fn shell_run(
     let base_env = captured_env(&state).await?;
     let roots = program_roots(&app);
     let timeout_ms = command.timeout_ms;
-    let joined =
-        tauri::async_runtime::spawn_blocking(move || run_blocking(&command, &base_env, &roots))
-            .await
-            .map_err(|error| CommandError::Failed {
-                code: "shell_wait_failed",
-                message: format!("The command task failed: {error}"),
-            })??;
+    let joined = blocking("shell_wait_failed", move || {
+        run_blocking(&command, &base_env, &roots)
+    })
+    .await?;
 
     run_output(joined, timeout_ms)
 }
@@ -1196,13 +1193,11 @@ pub async fn shell_cancel(state: State<'_, ShellState>, id: String) -> CommandRe
     let Some(pid) = request_cancel(&state.running, &id) else {
         return Ok(());
     };
-    tauri::async_runtime::spawn_blocking(move || terminate_group(pid))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "shell_cancel_failed",
-            message: format!("The cancellation task failed: {error}"),
-        })?;
-    Ok(())
+    blocking("shell_cancel_failed", move || {
+        terminate_group(pid);
+        Ok(())
+    })
+    .await
 }
 
 /// Returns the login shell and its PATH, capturing them on the first call. Later calls reuse the
@@ -1213,9 +1208,7 @@ pub async fn shell_login_env(state: State<'_, ShellState>) -> CommandResult<Logi
     if let Some(login) = cached.as_ref() {
         return Ok(login.clone());
     }
-    let login = tauri::async_runtime::spawn_blocking(capture_login_env)
-        .await
-        .map_err(|error| login_env_error(format!("The capture task failed: {error}")))??;
+    let login = blocking("login_env_failed", capture_login_env).await?;
     repair_process_path(&login);
     *cached = Some(login.clone());
     Ok(login)

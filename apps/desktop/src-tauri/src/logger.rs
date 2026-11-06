@@ -67,7 +67,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use tauri::{AppHandle, Manager, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 
 /// Days of app log files kept.
 pub const KEEP_DAYS: u64 = 14;
@@ -242,14 +242,10 @@ pub async fn log_set_level(state: State<'_, LoggerState>, level: String) -> Comm
 #[tauri::command]
 pub async fn logs_export(app: AppHandle) -> CommandResult<String> {
     let data_dir = app_data_dir(&app)?;
-    tauri::async_runtime::spawn_blocking(move || export_logs_in(&data_dir, now_ms()))
-        .await
-        .map_err(|error| {
-            failed(
-                "log_export_task_failed",
-                format!("The log export task failed: {error}"),
-            )
-        })?
+    blocking("log_export_task_failed", move || {
+        export_logs_in(&data_dir, now_ms())
+    })
+    .await
 }
 
 fn now_ms() -> i64 {

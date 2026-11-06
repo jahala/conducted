@@ -90,7 +90,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 use crate::logger;
 use crate::not_implemented;
 use crate::process_group;
@@ -222,12 +222,10 @@ pub fn expected_version_line(app_version: &str) -> String {
 pub async fn check_binary_version(binary: &Path, app_version: &str) -> CommandResult<()> {
     let binary = binary.to_path_buf();
     let app_version = app_version.to_string();
-    tauri::async_runtime::spawn_blocking(move || check_version_blocking(&binary, &app_version))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "sidecar_version_check_failed",
-            message: format!("The sidecar version check task failed: {error}"),
-        })?
+    blocking("sidecar_version_check_failed", move || {
+        check_version_blocking(&binary, &app_version)
+    })
+    .await
 }
 
 /// Runs the version command and compares the one line it prints with the app version.
@@ -561,12 +559,10 @@ pub async fn start_process<R: Runtime>(
 ) -> CommandResult<StartedSidecar> {
     let app = app.clone();
     let binary = binary.to_path_buf();
-    tauri::async_runtime::spawn_blocking(move || blocking_start(&app, &binary, generation))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "sidecar_start_task_failed",
-            message: format!("The sidecar start task failed: {error}"),
-        })?
+    blocking("sidecar_start_task_failed", move || {
+        blocking_start(&app, &binary, generation)
+    })
+    .await
 }
 
 pub struct StartedSidecar {
@@ -1099,14 +1095,11 @@ pub async fn shutdown(state: &SidecarState) -> CommandResult<()> {
             _ => return Ok(()),
         }
     };
-    let stopped = tauri::async_runtime::spawn_blocking(move || {
+    blocking("sidecar_stop_failed", move || {
         process_group::terminate_group(pid, Duration::from_millis(KILL_GRACE_MS));
+        Ok(())
     })
-    .await;
-    stopped.map_err(|error| CommandError::Failed {
-        code: "sidecar_stop_failed",
-        message: format!("The sidecar stop task failed: {error}"),
-    })
+    .await
 }
 
 /// Starts the sidecar if it is not running. Returns when the socket is connected.
