@@ -14,8 +14,8 @@
  * routes a chosen item by its id prefix. A command runs the way its shortcut would: a screen's own
  * handler first, then the service-level runner. Choosing a project opens the new-workspace page with
  * that project chosen; the research does not record what Conductor opens. Cloud groups
- * (organizations, people, templates) are left out. Chat history search results are not built here
- * (CHAT-17).
+ * (organizations, people, templates) are left out. Chat history search asks the sessions service for
+ * stored messages that match the query and shows the newest hits as its own group.
  * Must handle: no workspace selected (workspace actions hidden); archived workspaces only under
  * Archived; a disabled command shown muted and doing nothing; Escape closes; opening again starts
  * clean; the section sub-page for "Move to section"; renaming and removing a section from the
@@ -27,6 +27,7 @@ import type { SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "zustand";
 import {
 	useCommandHandler,
 	useRunCommandHandlers,
@@ -44,6 +45,7 @@ import {
 	useSetting,
 	useWorkspaces,
 } from "../../core/hooks.ts";
+import { HISTORY_SEARCH_MIN_QUERY, type HistoryHit } from "../../core/services/transcript.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import type { OverlayProps } from "../../ui/overlay-props.ts";
 import { Spinner } from "../../ui/Spinner.tsx";
@@ -88,8 +90,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
 	const [installedApps, setInstalledApps] = useState<string[]>([]);
 	const [appsError, setAppsError] = useState<string | null>(null);
+	const [historyHits, setHistoryHits] = useState<HistoryHit[]>([]);
+	const [historyError, setHistoryError] = useState<string | null>(null);
 
 	const latestApps = useRef(createLatestWins<"installed-apps">()).current;
+	const latestHistory = useRef(createLatestWins<"history">()).current;
 
 	useEffect(() => {
 		if (!open) {
@@ -124,10 +129,39 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		return () => latestApps.invalidate("installed-apps");
 	}, [latestApps, open, services]);
 
+	useEffect(() => {
+		if (!open) {
+			setHistoryHits([]);
+			setHistoryError(null);
+			return;
+		}
+		const trimmed = query.trim();
+		if (trimmed.length < HISTORY_SEARCH_MIN_QUERY || (tab !== "all" && tab !== "workspaces")) {
+			setHistoryHits([]);
+			setHistoryError(null);
+			return;
+		}
+		const ticket = latestHistory.begin("history");
+		void services.services.sessions.searchHistory(trimmed, 8).then((result) => {
+			const latest = latestHistory.isLatest(ticket);
+			latestHistory.settle(ticket);
+			if (!latest) return;
+			if (!result.ok) {
+				setHistoryHits([]);
+				setHistoryError(result.error.message);
+				return;
+			}
+			setHistoryError(null);
+			setHistoryHits(result.value);
+		});
+		return () => latestHistory.invalidate("history");
+	}, [latestHistory, open, query, services, tab]);
+
 	const repoList = repos.state === "ready" ? repos.data : [];
 	const workspaceList = workspaces.state === "ready" ? workspaces.data : [];
 	const sectionList = sections.state === "ready" ? sections.data : [];
 	const sessionList = workspaceId !== null && sessions.state === "ready" ? sessions.data : [];
+	const allSessions = useStore(services.services.sessions.store, (state) => state.sessions);
 
 	const visibleGroups = useMemo(() => {
 		if (subpage === "sections") {
@@ -157,6 +191,25 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		workspaceId,
 		workspaceList,
 	]);
+
+	const historyGroup = useMemo(() => {
+		if (subpage !== "root") return null;
+		if (tab !== "all" && tab !== "workspaces") return null;
+		const items: PaletteItem[] = [];
+		for (const hit of historyHits) {
+			const session = allSessions[hit.sessionId];
+			if (session === undefined) continue;
+			const workspace = workspaceList.find((entry) => entry.id === session.workspaceId) ?? null;
+			items.push({
+				id: `history:${hit.sessionId}:${hit.turnId}:${hit.at}`,
+				label: `${session.title ?? "New chat"}: ${hit.excerpt}`,
+				hint: workspace?.displayName ?? workspace?.directoryName ?? "Chat history",
+				shortcut: null,
+				disabled: false,
+			});
+		}
+		return items.length === 0 ? null : { heading: "Chat history", items };
+	}, [allSessions, historyHits, subpage, tab, workspaceList]);
 
 	const loading = repos.state === "loading" || workspaces.state === "loading";
 	const loadError =
@@ -265,6 +318,20 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		if (item.id.startsWith("project:")) {
 			void navigate({ to: "/create", search: { repo: item.id.slice("project:".length) } });
 			close();
+			return;
+		}
+		if (item.id.startsWith("history:")) {
+			const sessionId = item.id.split(":")[1];
+			const session = sessionId === undefined ? undefined : allSessions[sessionId];
+			const workspace = session === undefined ? null : workspaceById(session.workspaceId);
+			if (session !== undefined && workspace !== null) {
+				void navigate({
+					to: "/repository/$repositoryId/workspace/$workspaceId",
+					params: { repositoryId: workspace.repoId, workspaceId: workspace.id },
+					search: { tab: "session", sessionId: session.id },
+				});
+				close();
+			}
 			return;
 		}
 		if (item.id.startsWith("chat:")) {
@@ -404,6 +471,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 					Couldn't list the apps to open the workspace in. {appsError}
 				</p>
 			) : null}
+			{historyError !== null ? (
+				<p role="alert" className="px-3 py-2 text-xs text-danger">
+					Couldn't search chat history. {historyError}
+				</p>
+			) : null}
 			{editing !== null ? (
 				<div className="flex items-center gap-2 p-3">
 					<label className="sr-only" htmlFor="palette-section-name">
@@ -446,7 +518,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 				</div>
 			) : null}
 			<Command.List className="max-h-(--palette-max-height) overflow-y-auto p-2">
-				{visibleGroups.map((group) => (
+				{(historyGroup === null ? visibleGroups : [...visibleGroups, historyGroup]).map((group) => (
 					<Command.Group
 						key={group.heading}
 						heading={group.heading}

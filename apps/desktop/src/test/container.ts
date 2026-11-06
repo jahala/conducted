@@ -1,8 +1,8 @@
 /**
  * @feature test support A container wired to the in-memory Platform and a real database
  * Owns: building the real composition root for tests, inert values for every outside world it
- * needs, and two seed helpers that write a row through the repositories and load it into the
- * matching service store.
+ * needs, and the seed helpers that write rows through the repositories and load them into the
+ * matching service stores.
  * Behaviour: not applicable, test support only.
  * Must handle: every container input except the platform can be overridden, ids are never a
  * constant, and `close` releases the database (a test that started the container awaits
@@ -10,7 +10,8 @@
  * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
-import type { Clock } from "@conducted/shared";
+import type { SessionEvent } from "@conducted/protocol";
+import type { Clock, SessionId } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
@@ -88,6 +89,16 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
 	return result.value;
 };
+
+/** Appends one stored event through the repositories, so a service that reads the database sees it. */
+export async function seedSessionEvent(
+	container: Container,
+	sessionId: SessionId,
+	event: SessionEvent,
+	receivedAt: number,
+): Promise<void> {
+	must(await seedRepositories(container).sessionEvents.append(sessionId, event, receivedAt));
+}
 
 /** Writes one project through the repositories and loads the repo store from the database. */
 export async function seedRepo(

@@ -6,8 +6,7 @@
  * Our design choice: The rename form is RenameDialog, the one rename dialog. 'Close tab' only reports
  * the choice (onClose); the tab strip closes the chat, so there is one close path and one error
  * toast. Copy session info is an internal item and is left out. Fork to new tab needs a
- * checkpoint and is disabled without one. The two transcript items wait for CHAT-17, so they
- * stay disabled until their services exist.
+ * checkpoint and is disabled without one. The two transcript items copy the chat's stored turns.
  * Must handle: Fork disabled without a checkpoint; Close others with one tab open is disabled by
  * leaving its callback out; items show shortcuts from the command registry.
  * Test first: 'Rename chat' calls sessions.rename with the typed name.
@@ -58,6 +57,11 @@ export function TabContextMenu({
 		if (!copied.ok) toastError("Couldn't copy the link", copied.error);
 	};
 
+	const copyTranscript = async (detail: "concise" | "full") => {
+		const copied = await actions.sessions.copyTranscript(sessionId, detail);
+		if (!copied.ok) toastError("Couldn't copy the transcript", copied.error);
+	};
+
 	const unread = (session?.unreadCount ?? 0) > 0;
 
 	const toggleRead = () => {
@@ -82,10 +86,15 @@ export function TabContextMenu({
 							Fork to new tab
 						</ContextMenuItem>
 						<ContextMenuSeparator />
-						<ContextMenuItem disabled shortcut={transcriptShortcut ?? undefined}>
+						<ContextMenuItem
+							shortcut={transcriptShortcut ?? undefined}
+							onSelect={() => void copyTranscript("concise")}
+						>
 							Copy concise transcript
 						</ContextMenuItem>
-						<ContextMenuItem disabled>Copy full transcript</ContextMenuItem>
+						<ContextMenuItem onSelect={() => void copyTranscript("full")}>
+							Copy full transcript
+						</ContextMenuItem>
 						<ContextMenuItem disabled={workspaceId === undefined} onSelect={() => void copyLink()}>
 							Copy link
 						</ContextMenuItem>

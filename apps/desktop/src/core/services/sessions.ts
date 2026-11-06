@@ -1,6 +1,7 @@
 /**
- * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
- * Cancel a turn; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
+ * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn;
+ * CHAT-05 Cancel a turn; CHAT-17 Copy transcript and search chat history; CHAT-27 Retry a failed
+ * turn in a new chat; WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
@@ -9,8 +10,9 @@
  * cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
- * and starting a failed turn's message again in a new chat of the same workspace, and handing a
- * plan to a chosen chat or a new one.
+ * and starting a failed turn's message again in a new chat of the same workspace, handing a
+ * plan to a chosen chat or a new one, copying a chat's concise or full transcript, and searching
+ * stored message text for the command palette.
  * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
  * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
  * 3.2, sessions-and-chats.md "What happens when
@@ -107,6 +109,12 @@ import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
 import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
 import type { NotificationService } from "./notifications.ts";
+import {
+	createHistorySearch,
+	formatTranscript,
+	type HistoryHit,
+	searchHistory,
+} from "./transcript.ts";
 import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
 
 /**
@@ -292,6 +300,8 @@ export interface SessionsServiceDeps {
 	/** Default config for a new chat, from settings and the last used model. */
 	defaultConfig: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	setting: <T>(key: string) => T;
+	/** Writes text to the clipboard for a copied transcript. The composition root passes the SystemService's one copy path. */
+	copyText?: (text: string) => Promise<Result<void>>;
 	now: () => number;
 	newId: () => string;
 }
@@ -336,6 +346,8 @@ export class SessionsService implements AgentMessenger {
 	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** The newest option-list request per chat. An older answer never changes the store. */
 	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
+	/** The stored-history search over the event log. */
+	readonly #historySearch: (query: string, limit: number) => Promise<Result<HistoryHit[]>>;
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
@@ -344,6 +356,7 @@ export class SessionsService implements AgentMessenger {
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
+		this.#historySearch = createHistorySearch(deps.db);
 		this.store = createStore<SessionsState>(() => ({
 			loaded: false,
 			loadError: null,
@@ -1240,9 +1253,32 @@ export class SessionsService implements AgentMessenger {
 		return notImplemented("APP-03");
 	}
 
-	/** Backs `Actions.sessions.copyTranscript`. */
-	copyTranscript(_id: SessionId, _detail: "concise" | "full"): Promise<Result<void>> {
-		return notImplemented("CHAT-17");
+	/**
+	 * Backs `Actions.sessions.copyTranscript`: loads the chat's stored events if needed, builds its
+	 * turns and writes the concise or full text to the clipboard.
+	 */
+	async copyTranscript(id: SessionId, detail: "concise" | "full"): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const opened = await this.open(id);
+		if (!opened.ok) return opened;
+		const state = this.store.getState();
+		const liveState = state.liveStates[id] ?? idleLiveState;
+		const pending = (state.sending[id] ?? []).map((send) => ({
+			...send,
+			messageId: send.messageId as MessageId,
+		}));
+		const text = formatTranscript(buildTurns(state.events[id] ?? [], liveState, pending), detail);
+		const copyText = this.#deps.copyText;
+		if (copyText === undefined) {
+			return err(appError("chat_copy_unavailable", "Copying is not available right now."));
+		}
+		return copyText(text);
+	}
+
+	/** Backs chat history search, newest matching stored text first. */
+	searchHistory(query: string, limit: number): Promise<Result<HistoryHit[]>> {
+		return searchHistory({ search: this.#historySearch }, query, limit);
 	}
 
 	// ---- the port the workspace service uses (WorkspaceSessionsPort) ----
