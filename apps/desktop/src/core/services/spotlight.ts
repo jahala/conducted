@@ -27,7 +27,8 @@
  * root and removes the sync loop's `cp-spotlight-*` checkpoints.
  * Our design choice: the saved id and the helper scripts come from core/git/refs.ts and
  * core/app-paths.ts, so bin/ and the UI agree. File watching is done by the script, not the UI.
- * Watchexec comes from the PATH until PLAT-35 installs a managed copy.
+ * Watchexec is passed by name. The terminal's PATH starts with the app's bin folder, so the
+ * managed copy runs (PLAT-35), and the user's own copy when there is none.
  * Test first: starting with a leftover pre-spotlight checkpoint restores it before saving a new one.
  */
 import {
@@ -139,7 +140,10 @@ export interface SpotlightServiceDeps {
 	spotlighterPath: string;
 	/** bin/git-busy-check.sh, which says whether a merge or rebase is in progress. */
 	busyCheckPath?: string;
-	/** The watcher the sync loop runs. "watchexec" means the copy on the user's PATH. */
+	/**
+	 * The watcher the sync loop runs. "watchexec" is found on the terminal's PATH, which starts
+	 * with the app's bin folder, so the managed copy wins (PLAT-35).
+	 */
 	watchexecPath?: string;
 	configFor?: (workspaceId: WorkspaceId) => Promise<Result<RepoConfig>>;
 	workspaceFor?: (workspaceId: WorkspaceId) => Promise<Result<Workspace>>;

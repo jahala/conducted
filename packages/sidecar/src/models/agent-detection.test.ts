@@ -297,6 +297,26 @@ describe("SIDE-15 agent detection", () => {
 		expect(detected).toBe(false);
 	});
 
+	test("PLAT-28 a program path chosen in Settings wins over the managed copy, as the runner starts it", async () => {
+		const probe: ProbeCommand = async (_command, args) =>
+			args[0] === "--version"
+				? ok({ stdout: "2.1.0 (Claude Code)\n", stderr: "", exitCode: 0 })
+				: err(appError("probe_failed", "not signed in"));
+		const agents = await detector({
+			detect: async () => ({ path: "/path/claude", version: "1.0.0" }),
+			probe,
+			deps: {
+				executablePath: () => "/custom/claude",
+				findManagedProgram: async () => ({
+					path: "/app/agent-binaries/claude/2.1.308/claude",
+					version: "2.1.308",
+				}),
+			},
+		}).detectAll();
+
+		expect(agents[0]).toMatchObject({ installed: true, path: "/custom/claude", source: "user" });
+	});
+
 	test("Codex account state comes from account/read", async () => {
 		const codex: CodexAuthPort = {
 			account: async () => ok({ authenticated: true, authMethod: "chatgpt" }),

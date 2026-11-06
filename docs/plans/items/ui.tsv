@@ -1001,7 +1001,7 @@ WS-03	rule	Files to copy: .worktreeinclude, file_include_globs, default .env*, 2
 CHAT-04	rule	Failed first send can be retried or discarded (API actions)	ui-map 3.3	partly
 NAV-07	rule	Missing registry commands: select loadout 1 to 5, insert snippet, save goal, open sidecar logs, forward ports	ui-map 5.4	partly
 SET-09	rule	Provider keys are stripped from the agent environment unless the provider is 'custom'	services-map 4.2.8	partly
-PLAT-28	rule	The app downloads the official Claude Code and Codex releases, verifies them and keeps them up to date	ui-map 6, 7.4	partly
+PLAT-28	rule	The app downloads the official Claude Code and Codex releases, verifies them and keeps them up to date	ui-map 6, 7.4	covered
 AGENT-13	rule	Codex goal state reaches the goal bar through protocol calls	ui-map 3.5	missing
 CHAT-18	state	A chat resumes after an app restart or sidecar reconnect without losing events	sessions 8	covered
 CHAT-18	state	A turn cut off by a crash is shown as 'interrupted' (adds information, D008)	sessions 8	covered

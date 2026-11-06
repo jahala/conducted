@@ -39,14 +39,14 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PLAT-25 | Release bundle: privacy strings, entitlements, signing, notarisation  | apps/desktop/src-tauri, scripts                             | native-and-sidecar-map A1                            | 2   | done    | SIDE-23                            |
 | PLAT-26 | Online and offline events                                             | R/network.rs, D/platform                                    | native-and-sidecar-map A2, A4; services-map 6        | 3   | done    | PLAT-02                            |
 | PLAT-27 | Startup hardening: file limit, panics in the log, one instance        | R/lib.rs                                                    | native-and-sidecar-map A2, A5                        | 3   | done    |                                    |
-| PLAT-28 | Agent program manager: download, verify, update, prune                | R/binaries.rs, D/platform, D/features/settings              | native-and-sidecar-map A2, A6, A9; services-map 5A.8 | 2   | planned | PLAT-02, PLAT-04, PLAT-09, PLAT-30 |
+| PLAT-28 | Agent program manager: download, verify, update, prune                | R/binaries.rs, D/platform, D/features/settings              | native-and-sidecar-map A2, A6, A9; services-map 5A.8 | 2   | done    | PLAT-02, PLAT-04, PLAT-09, PLAT-30 |
 | PLAT-29 | Limit the paths, programs and links the webview can reach             | R/files.rs, R/shell.rs, apps/desktop/src-tauri/capabilities | native-and-sidecar-map A3                            | 2   | done    | PLAT-03, PLAT-05                   |
 | PLAT-30 | HTTP from Rust: fetch and download with progress, checksum, cancel    | R/http.rs, D/platform                                       | native-and-sidecar-map A2; services-map 1.1          | 2   | done    | PLAT-02, PLAT-29                   |
 | PLAT-31 | Window focus and blur events                                          | D/platform, R/lib.rs                                        | services-map 1.1, 3.3.1, 6                           | 2   | done    | PLAT-02                            |
 | PLAT-32 | System facts: macOS version and the build's CPU                       | R/lib.rs, D/platform                                        | ui-map 6, 7.4                                        | 2   | done    | PLAT-02                            |
 | PLAT-33 | Platform doors for dropped files, attachments and menu shortcuts      | D/platform                                                  | native-and-sidecar-map A2, A4                        | 2   | done    | PLAT-02, PLAT-15, PLAT-20          |
 | PLAT-34 | Check the bundled helper programs at launch                           | R/binaries.rs                                               | native-and-sidecar-map A2, A9                        | 2   | done    | PLAT-09                            |
-| PLAT-35 | Install and update gh and watchexec (D024)                            | R/binaries.rs                                               | overview 5; native-and-sidecar-map A9                | 2   | stub    | PLAT-28                            |
+| PLAT-35 | Install and update gh and watchexec (D024)                            | R/binaries.rs                                               | overview 5; native-and-sidecar-map A9                | 2   | done    | PLAT-28                            |
 | PLAT-36 | Rust command tests through a mock Tauri app                           | R                                                           | native-and-sidecar-map A2                            | 2   | planned | PLAT-03, PLAT-05, PLAT-07          |
 
 ## Sidecar core (SIDE)
@@ -277,22 +277,22 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 ## Settings (SET)
 
-| ID     | Feature                                                           | Owner                              | Research                  | P   | Status  | Needs                                     |
-| ------ | ----------------------------------------------------------------- | ---------------------------------- | ------------------------- | --- | ------- | ----------------------------------------- |
-| SET-01 | Settings registry                                                 | D/core/registries                  | ui-map 6                  | 1   | done    | DATA-05                                   |
-| SET-02 | Settings pages and settings search                                | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, APP-12, APP-15, NAV-02            |
-| SET-03 | Agents page: install status, versions, sign-in                    | D/features/settings                | ui-map 6                  | 1   | done    | SIDE-15, PLAT-04, APP-12                  |
-| SET-04 | Environment variables, stored in the Keychain                     | D/features/settings                | ui-map 6                  | 2   | done    | PLAT-10, DATA-05, APP-12, SIDE-21         |
-| SET-05 | MCP servers: list, status, logs                                   | D/features/settings                | ui-map 3.10               | 3   | stub    | SIDE-16, SET-03                           |
-| SET-06 | Appearance: theme, fonts, zoom                                    | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, APP-14                            |
-| SET-07 | Repo pages: scripts, actions, prompts                             | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, DATA-05, APP-12, PRJ-04           |
-| SET-08 | Sync agent configs between Claude Code and Codex                  | D/features/settings, S/models      | ui-map 5.2, 6             | 3   | stub    | SET-01, SET-02, SIDE-16, PLAT-05          |
-| SET-09 | Agent sign-in and API key forms                                   | D/features/settings, S/runners     | ui-map 6                  | 2   | done    | SET-03, APP-12, PLAT-10, SIDE-10, SIDE-21 |
-| SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | done    | SET-09, AGENT-12                          |
-| SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | stub    | SET-04                                    |
-| SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | stub    | SET-03, APP-12, AGENT-16                  |
-| SET-13 | Chosen program paths reach terminals and scripts                  | D/core/services, R/shell.rs        | services-map 5A.8.2       | 3   | done    | SET-03, PLAT-04, PLAT-07                  |
-| SET-14 | Keep comments when the app rewrites a settings file               | D/core/services                    | services-map 4.2          | 2   | planned | DATA-05                                   |
+| ID     | Feature                                                           | Owner                              | Research                  | P   | Status | Needs                                     |
+| ------ | ----------------------------------------------------------------- | ---------------------------------- | ------------------------- | --- | ------ | ----------------------------------------- |
+| SET-01 | Settings registry                                                 | D/core/registries                  | ui-map 6                  | 1   | done   | DATA-05                                   |
+| SET-02 | Settings pages and settings search                                | D/features/settings                | ui-map 6                  | 2   | done   | SET-01, APP-12, APP-15, NAV-02            |
+| SET-03 | Agents page: install status, versions, sign-in                    | D/features/settings                | ui-map 6                  | 1   | done   | SIDE-15, PLAT-04, APP-12                  |
+| SET-04 | Environment variables, stored in the Keychain                     | D/features/settings                | ui-map 6                  | 2   | done   | PLAT-10, DATA-05, APP-12, SIDE-21         |
+| SET-05 | MCP servers: list, status, logs                                   | D/features/settings                | ui-map 3.10               | 3   | stub   | SIDE-16, SET-03                           |
+| SET-06 | Appearance: theme, fonts, zoom                                    | D/features/settings                | ui-map 6                  | 2   | done   | SET-01, APP-14                            |
+| SET-07 | Repo pages: scripts, actions, prompts                             | D/features/settings                | ui-map 6                  | 2   | done   | SET-01, DATA-05, APP-12, PRJ-04           |
+| SET-08 | Sync agent configs between Claude Code and Codex                  | D/features/settings, S/models      | ui-map 5.2, 6             | 3   | stub   | SET-01, SET-02, SIDE-16, PLAT-05          |
+| SET-09 | Agent sign-in and API key forms                                   | D/features/settings, S/runners     | ui-map 6                  | 2   | done   | SET-03, APP-12, PLAT-10, SIDE-10, SIDE-21 |
+| SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | done   | SET-09, AGENT-12                          |
+| SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | stub   | SET-04                                    |
+| SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | stub   | SET-03, APP-12, AGENT-16                  |
+| SET-13 | Chosen program paths reach terminals and scripts                  | D/core/services, R/shell.rs        | services-map 5A.8.2       | 3   | done   | SET-03, PLAT-04, PLAT-07                  |
+| SET-14 | Keep comments when the app rewrites a settings file               | D/core/services                    | services-map 4.2          | 2   | done   | DATA-05                                   |
 
 ## App (APP)
 

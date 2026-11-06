@@ -117,6 +117,12 @@ import type { LoadCursorSdk } from "../runners/cursor/cursor-sdk.ts";
 import { EnvLock } from "../runners/cursor/env-lock.ts";
 import { createCursorSdkLoader } from "../runners/cursor/load-sdk.ts";
 import type { FindExecutable, ProbeCommand, RunnerCommonDeps } from "../runners/deps.ts";
+import {
+	createManagedProgramFinder,
+	type FindManagedProgram,
+	nodeManagedProgramFiles,
+	shellEnvWithBinDirFirst,
+} from "../runners/managed-programs.ts";
 import type { RunnerRegistry, RunnerSelector } from "../runners/registry.ts";
 import { MapRunnerRegistry } from "../runners/registry.ts";
 import type { Runner, StartOptions } from "../runners/runner.ts";
@@ -768,6 +774,9 @@ export interface SidecarComposition {
 	completions: FileCompletionsCache;
 }
 
+/** The agents whose programs the app downloads and keeps (PLAT-28, D021). */
+const MANAGED_AGENTS: ReadonlySet<string> = new Set(["claude", "codex"]);
+
 /** Builds every module of the host from the ports, in dependency order. Starts nothing. */
 export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): SidecarComposition {
 	const { app, clock, ids, logger } = ports;
@@ -795,14 +804,21 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		makeTempDir: ports.makeTempDir,
 	});
 
+	// Agents find the managed gh and watchexec before any copy of their own (PLAT-35, D024).
+	const shellEnv = shellEnvWithBinDirFirst(ports.shellEnv, config.binDir);
+	const findManagedProgram = createManagedProgramFinder({
+		binDir: config.binDir,
+		agentBinariesDir: config.agentBinariesDir,
+		files: nodeManagedProgramFiles,
+	});
 	const runners = createRunnerRegistry({
 		ports,
 		appTools: backend,
 		bridge,
 		skillPluginDir: config.skillPluginDir,
 		cursorStoreDir: config.cursorStoreDir,
+		findManagedProgram,
 	});
-	const shellEnv = ports.shellEnv;
 	const models = new RunnerModelCatalog({ runners, shellEnv, logger, clock });
 	const utilityPrompt = new AgentUtilityPromptRunner({
 		runners,
@@ -823,6 +839,8 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		ids,
 		probe: ports.probe,
 		clock,
+		findManagedProgram: async (selector) =>
+			MANAGED_AGENTS.has(selector.agent) ? findManagedProgram(selector.agent) : null,
 	});
 	const checkpointer = path.join(config.binDir, "checkpointer.sh");
 	const sessions = new DefaultSessionManager({
@@ -1046,6 +1064,8 @@ function createRunnerRegistry(input: {
 	skillPluginDir: string | undefined;
 	/** The root of the Cursor SDK's local run stores (AGENT-09). */
 	cursorStoreDir: string;
+	/** The app's managed copies of the agent programs (PLAT-28). */
+	findManagedProgram: FindManagedProgram;
 }): RunnerRegistry {
 	const { ports, bridge } = input;
 	const { logger } = ports;
@@ -1055,6 +1075,7 @@ function createRunnerRegistry(input: {
 		ids: ports.ids,
 		probe: ports.probe,
 		findExecutable: ports.findExecutable,
+		findManagedProgram: input.findManagedProgram,
 	};
 	const scheduler = createScheduler();
 	const queueForCursor = createKeyedQueue();

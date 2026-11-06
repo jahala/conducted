@@ -1,22 +1,27 @@
 /**
  * @feature NAV-15 Terminals and previews that survive tab switches
  * @feature NAV-01 App shell: the surface layout registry
- * Owns: the surface layout registry the app shell creates (the surfaces a tab has shown, where each one's
- * anchor is, and which surface asked for focus); the slot a terminal tab renders, which registers its
- * terminal and reports its anchor; and the host the shell mounts once, which draws the registry through
- * SurfaceLayer.
+ * Owns: the surface layout registry the app shell creates (the surfaces on show, where each one's
+ * anchor is, and which surface asked for focus); the slots that register a terminal and report its
+ * anchor (a centre terminal tab's, and the Scripts panel Run tab's); and the host the shell mounts
+ * once, which draws the registry through SurfaceLayer.
  * Behaviour: services-map.md 1.5 (surface layout registry: anchors, surface configs, placements, requested
  * focus surface), ui-map.md 1.1 (a surface layer mounted once at the root keeps terminals alive over
- * anchors) and 8.
- * Our design choice: a terminal is registered the first time its tab is shown, so a terminal nobody looked
- * at starts no view. It stays mounted while it is one of the tabs the strip draws for a workspace that
- * still exists and is not archived (terminalTabs in TabStrip.tsx). Once its tab is gone, its registration
- * is removed and its view unmounts. The registry is a store the shell creates for itself, not module
- * state. Browser previews have no surface yet: their tab is RUN-04's placeholder.
- * Must handle: a tab switch (the anchor unmounts, its placement becomes null, the terminal hides and keeps
- * its scrollback and shell); the tab shown again (the anchor reports its box, the terminal shows and takes
- * focus); a tab that leaves the strip, or a workspace that is archived or deleted (the terminal unmounts);
- * a terminal list or workspace list that has not loaded yet (the registration waits, nothing is drawn).
+ * anchors) and 8. Conductor's bundle also draws the Run tab's action terminal through this layer (a
+ * surface of kind "run" over an anchor in the right panel); its Setup tab draws in place.
+ * Our design choice: a terminal is registered the first time its slot is shown, so a terminal nobody
+ * looked at starts no view. A tab's terminal stays mounted while it is one of the tabs the strip draws
+ * for a workspace that still exists and is not archived (terminalTabs in TabStrip.tsx); once its tab is
+ * gone, its registration is removed and its view unmounts. Each workspace has at most one run surface:
+ * the Run tab's newest output, which replaces the one before it and stays while the workspace exists and
+ * is not archived, so the Run tab shows it again after a workspace switch. A run surface does not take
+ * focus. The registry is a store the shell creates for itself, not module state. Browser previews have
+ * no surface yet: their tab is RUN-04's placeholder.
+ * Must handle: a tab or workspace switch (the anchor unmounts, its placement becomes null, the terminal
+ * hides and keeps its scrollback and shell); the slot shown again (the anchor reports its box, the
+ * terminal shows, and a tab's terminal takes focus); a tab that leaves the strip, a newer run, or a
+ * workspace that is archived or deleted (the terminal unmounts); a terminal list or workspace list that
+ * has not loaded yet (the registration waits, nothing is drawn).
  * Test first: over the real container and router, switching from a terminal tab to a chat and back keeps
  * the same terminal element mounted, hidden in between.
  */
@@ -38,10 +43,11 @@ import {
 	usableRect,
 } from "./SurfaceLayer.tsx";
 
-/** One terminal a tab has shown. */
+/** One terminal a slot has shown: a centre terminal tab's, or the Run tab's action output. */
 export interface TerminalSurfaceConfig {
 	surfaceId: string;
 	kind: "terminal";
+	owner: "tab" | "run";
 	workspaceId: WorkspaceId;
 	terminalId: TerminalId;
 }
@@ -55,7 +61,10 @@ export interface SurfaceRegistryState {
 
 export interface SurfaceRegistry {
 	readonly store: StoreApi<SurfaceRegistryState>;
-	/** A tab shows this surface: register it if it is new, and ask for focus. */
+	/**
+	 * A slot shows this surface: register it if it is new. A tab's surface asks for focus; a run
+	 * surface replaces the workspace's earlier run surface.
+	 */
 	show(config: TerminalSurfaceConfig): void;
 	/** An anchor moved, resized or unmounted (null). */
 	place(surfaceId: string, rect: SurfaceRect | null): void;
@@ -81,12 +90,27 @@ export function createSurfaceRegistry(): SurfaceRegistry {
 	return {
 		store,
 		show: (config) =>
-			store.setState((state) => ({
-				surfaces: state.surfaces.some((surface) => surface.surfaceId === config.surfaceId)
-					? state.surfaces
-					: [...state.surfaces, config],
-				focusSurfaceId: config.surfaceId,
-			})),
+			store.setState((state) => {
+				if (config.owner === "tab") {
+					return {
+						surfaces: state.surfaces.some((surface) => surface.surfaceId === config.surfaceId)
+							? state.surfaces
+							: [...state.surfaces, config],
+						focusSurfaceId: config.surfaceId,
+					};
+				}
+				if (state.surfaces.some((surface) => surface.surfaceId === config.surfaceId)) return {};
+				// One run surface per workspace: a newer run's output replaces the earlier one.
+				const replaced = state.surfaces.filter(
+					(surface) => surface.owner === "run" && surface.workspaceId === config.workspaceId,
+				);
+				const placements = new Map(state.placements);
+				for (const surface of replaced) placements.delete(surface.surfaceId);
+				return {
+					surfaces: [...state.surfaces.filter((surface) => !replaced.includes(surface)), config],
+					placements,
+				};
+			}),
 		place: (surfaceId, rect) => {
 			const { placements } = store.getState();
 			if (sameRect(placements.get(surfaceId), rect)) return;
@@ -145,17 +169,70 @@ export function TerminalTabSlot({
 	workspaceId: WorkspaceId;
 	terminalId: TerminalId;
 }) {
+	return (
+		<TerminalSlot
+			owner="tab"
+			surfaceId={tabRef({ kind: "terminal", terminalId }) ?? ""}
+			workspaceId={workspaceId}
+			terminalId={terminalId}
+		/>
+	);
+}
+
+/** The slot the Run tab renders for an action's output terminal; the shell draws the terminal over it. */
+export function RunTerminalSlot({
+	workspaceId,
+	terminalId,
+}: {
+	workspaceId: WorkspaceId;
+	terminalId: TerminalId;
+}) {
+	return (
+		<TerminalSlot
+			owner="run"
+			surfaceId={`run:${terminalId}`}
+			workspaceId={workspaceId}
+			terminalId={terminalId}
+		/>
+	);
+}
+
+/** The terminal of the workspace's run surface, so the Run tab shows it again after a switch. */
+export function useRunSurfaceTerminal(workspaceId: WorkspaceId): TerminalId | null {
 	const registry = useSurfaceRegistry();
-	const surfaceId = tabRef({ kind: "terminal", terminalId }) ?? "";
+	return useStore(
+		registry.store,
+		(state) =>
+			state.surfaces.find(
+				(surface) => surface.owner === "run" && surface.workspaceId === workspaceId,
+			)?.terminalId ?? null,
+	);
+}
+
+function TerminalSlot({
+	owner,
+	surfaceId,
+	workspaceId,
+	terminalId,
+}: {
+	owner: TerminalSurfaceConfig["owner"];
+	surfaceId: string;
+	workspaceId: WorkspaceId;
+	terminalId: TerminalId;
+}) {
+	const registry = useSurfaceRegistry();
 	useEffect(() => {
-		registry.show({ surfaceId, kind: "terminal", workspaceId, terminalId });
-	}, [registry, surfaceId, workspaceId, terminalId]);
+		registry.show({ surfaceId, kind: "terminal", owner, workspaceId, terminalId });
+	}, [registry, surfaceId, owner, workspaceId, terminalId]);
 	return <SurfaceAnchor surfaceId={surfaceId} onPlace={registry.place} />;
 }
 
 type TabState = "open" | "closed" | "unknown";
 
-/** Whether a registered terminal is still a tab the strip draws. Unknown while a list is loading. */
+/**
+ * Whether a registered terminal can still be shown: a tab's while the strip draws its tab, a run's while
+ * its workspace is open. Unknown while a list is loading.
+ */
 function terminalTabState(
 	surface: TerminalSurfaceConfig,
 	workspaces: { loaded: boolean; byId: Readonly<Record<string, Workspace>> },
@@ -164,6 +241,7 @@ function terminalTabState(
 	if (!workspaces.loaded) return "unknown";
 	const workspace = workspaces.byId[surface.workspaceId];
 	if (workspace === undefined || workspace.state === "archived") return "closed";
+	if (surface.owner === "run") return "open";
 	const listed = terminals[surface.workspaceId];
 	if (listed === undefined) return "unknown";
 	return terminalTabs(listed).some((tab) => tab.terminalId === surface.terminalId)
@@ -171,7 +249,7 @@ function terminalTabState(
 		: "closed";
 }
 
-/** Mounted once by the app shell: draws every terminal whose tab is open, over its tab's anchor. */
+/** Mounted once by the app shell: draws every terminal whose slot can still show it, over its anchor. */
 export function SurfaceHost({ registry }: { registry: SurfaceRegistry }) {
 	const { services } = useServices();
 	const surfaces = useStore(registry.store, (state) => state.surfaces);
@@ -206,7 +284,7 @@ export function SurfaceHost({ registry }: { registry: SurfaceRegistry }) {
 						terminalId={surface.terminalId}
 						workspaceId={surface.workspaceId}
 						visible={usableRect(placements.get(surface.surfaceId))}
-						focusOnMount={focusSurfaceId === surface.surfaceId}
+						focusOnMount={surface.owner === "tab" && focusSurfaceId === surface.surfaceId}
 					/>
 				</NotBuiltYet>
 			),

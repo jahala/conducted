@@ -340,6 +340,7 @@ describe("AGENT-09 Cursor runner", () => {
 				outboxRoot: path.join(root, "outbox"),
 				completionsDir: path.join(root, "completions"),
 				cursorStoreDir: storeRoot,
+				agentBinariesDir: path.join(root, "agent-binaries"),
 				logDir: path.join(root, "log"),
 				appVersion: "0.0.0",
 				logLevel: "info",

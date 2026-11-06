@@ -45,6 +45,9 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Slash command cache | app data `sidecar-v2-completions/slash-command-snapshots.json` | An entry expires 30 days after its last refresh. At most 500 entries and 5 MiB; the oldest go first. | SIDE-22 |
 | Cursor SDK run stores | app data `cursor-sdk-store/<hash of the workspace path>/` | Written by the Cursor SDK, which is not bundled (D010), so nothing writes here today. Nothing removes a workspace's folder yet; that removal is owed by AGENT-09 before the SDK can run. | none |
 | Sidecar log files | app data `logs/sidecar-<pid>.log` | The Rust shell writes the sidecar's redacted stderr there; the newest five files are kept and older ones are removed. | PLAT-09 |
+| Managed programs | app data `agent-binaries/<program>/<version>/` for claude, codex, gh and watchexec | One version per program: once a new version installs, older ones move to the Trash. Remove moves the program to the Trash. A compressed download is removed once its program is unpacked. | PLAT-28 |
+| Program install records | app data `agent-binaries/.meta/<program>-<version>.json` | About 200 bytes per version ever installed. Nothing removes them yet, as in Conductor. | none |
+| Program links | app data `bin/` | One link per managed program, replaced at each install and removed with the program, beside the copy of the bundled scripts (PLAT-34). | PLAT-28 |
 | Terminal scrollback | app data `terminal-history/` | 14 days after the terminal ends, and at most 50 MB in total, oldest first. | PLAT-08 |
 | Draft attachments | app data `draft-attachments/` | 7 days for drafts never sent. | DATA-02 |
 | Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |

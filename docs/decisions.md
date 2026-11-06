@@ -501,6 +501,12 @@ Context: the contract PR's CI failed in `composer-shell.test.tsx`: the context w
 Chosen: the failing test's container gets the service now, so the contract PR can land. Moving every hand-built container to `createTestContainer` is the tests-and-scripts hardening's job today (APP-16), where the whole set is changed and checked at once.
 Why: the cause is the hand-built container, and fixing the set belongs in one change with a guard, not in a contract PR.
 
+## D072. Rewriting a settings file keeps the user's comments (2026-11-06)
+
+Context: Conductor rewrites a whole settings file on every save. It sorts the keys and drops every comment (services-map 4.2.1, main @290816). SET-14 asks that a rewrite keep the user's comments, or warn before the first rewrite that would drop them.
+Chosen: an existing settings file is patched in place with `@decimalturn/toml-patch` (MIT, no dependencies, released monthly). Only entries whose values change are rewritten; comments, blank lines and key order stay. A new file is written whole and sorted, as before. A comment beside or directly above an entry that the save removes goes with that entry. When a save would drop any other comment (a legacy `[tasks]` table moved to `scripts.run`, or a file the patch cannot edit), the first such save is refused with a warning that quotes the comments, and the next save that would drop the same ones goes ahead. The warning's wording is ours: the research has none, because Conductor drops comments without a word.
+Why: a hand-written file belongs to the user, and a save that deletes their notes removes information. Keeping the user's key order differs from Conductor's sorted output; sorting an existing file would move the user's own lines. A hand-rolled format-preserving TOML editor would be a second TOML parser to maintain, with TOML's four string kinds, dotted keys and inline tables to get right.
+
 ## D074. Remote Control goes ahead on path A (2026-11-06)
 
 Context: the Remote Control spike (RC-01, docs/plans/cloud-and-remote.md Part 2) passed all three checks with the owner on claude.ai: the chat appears, a message typed there starts a turn in our stream, and an approval answered there settles our own. It works through the query object's `enableRemoteControl`, which the SDK ships but does not put in its public types; the documented `remoteControlAtStartup` setting does nothing for an SDK chat.

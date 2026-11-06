@@ -50,7 +50,9 @@ describe("PLAT-08 terminal scrollback", () => {
 			test.memory.controls.failPtyHistory("The disk is full.");
 			const terminal = must(await test.container.services.terminals.create(workspace.id));
 
-			must(await test.container.services.terminals.close(terminal.id));
+			// The terminal ends and stays (as a script terminal does); a closed tab's terminal is
+			// removed with its errors (NAV-10), so there is nothing left to show the error on.
+			must(await test.container.services.terminals.end(terminal.id));
 
 			await vi.waitFor(() =>
 				expect(

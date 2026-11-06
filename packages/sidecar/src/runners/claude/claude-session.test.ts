@@ -1497,6 +1497,66 @@ describe("AGENT-02 Claude session", () => {
 			await session.dispose();
 		});
 	});
+
+	describe("AGENT-15 cancel during work the CLI started by itself", () => {
+		function stateChanged(state: "running" | "idle"): SDKMessage {
+			return {
+				type: "system",
+				subtype: "session_state_changed",
+				state,
+				uuid: `state-${state}`,
+				session_id: "s1",
+			} as unknown as SDKMessage;
+		}
+
+		/** A warm session whose CLI started work by itself, with the reports the host received. */
+		async function workingByItself(scheduler: FakeScheduler) {
+			const { query, script } = scriptedQuery();
+			const reports: { inProgress: boolean; outcome: string | undefined }[] = [];
+			const session = new ClaudeSession(makeDeps({ query, scheduler }), {
+				...start(),
+				selfStartedTurns: {
+					onInProgressChanged: (inProgress, end) =>
+						reports.push({ inProgress, outcome: end?.outcome }),
+					onMessage: () => {},
+				},
+			});
+			await session.warm();
+			script.emit(stateChanged("running"));
+			script.emit(assistantMessage("Checking the build"));
+			await until(() => reports.length === 1);
+			return { session, script, reports };
+		}
+
+		test("AGENT-15 cancel interrupts the work and keeps the process when the work stops", async () => {
+			const scheduler = fakeScheduler();
+			const { session, script, reports } = await workingByItself(scheduler);
+			script.onInterrupt = () => script.emit(stateChanged("idle"));
+
+			await session.cancel();
+
+			expect(script.actions.interrupt).toBe(1);
+			expect(script.signal?.aborted).toBe(false);
+			expect(reports.at(-1)).toEqual({ inProgress: false, outcome: "success" });
+			await session.dispose();
+		});
+
+		test("AGENT-15 cancel stops the process when the work goes on after the interrupt grace", async () => {
+			const scheduler = fakeScheduler();
+			const { session, script, reports } = await workingByItself(scheduler);
+
+			const cancelling = session.cancel();
+			await until(() => scheduler.pending() === 1);
+			scheduler.fire(INTERRUPT_GRACE_MS);
+			await cancelling;
+
+			expect(script.actions.interrupt).toBe(1);
+			expect(script.signal?.aborted).toBe(true);
+			// The stopped stream reports nothing more, so the work ends with the stop.
+			expect(reports.at(-1)).toEqual({ inProgress: false, outcome: "interrupted" });
+			await session.dispose();
+		});
+	});
 });
 
 describe("SIDE-18 SDK debug tap", () => {

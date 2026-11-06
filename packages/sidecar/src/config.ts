@@ -5,7 +5,7 @@
  * @feature AGENT-18 Bundled skill that teaches agents the app
  * @feature AGENT-09 Cursor: SDK in process
  * Owns: reading the sidecar startup settings from the environment the Rust shell sets: the bin
- * folder, the outbox root, the slash-command cache folder, the Cursor run store folder, the log
+ * folder, the managed programs folder (PLAT-28), the outbox root, the slash-command cache folder, the Cursor run store folder, the log
  * folder, the app version, the log level and, when the build has one, the bundled skill plugin
  * folder. Nothing else. Every other module receives plain values from here, never process.env.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 steps 6 and 7 and B4 (Rust passes
@@ -25,8 +25,13 @@ import { LOG_LEVELS, type LogLevel } from "./logging/logger.ts";
 
 /** Names of the environment variables the Rust launcher sets for the sidecar. */
 export const SIDECAR_ENV = {
-	/** Folder holding checkpointer.sh, git-busy-check.sh and spotlighter.sh. */
+	/**
+	 * The app's bin folder: checkpointer.sh, git-busy-check.sh and spotlighter.sh, and the program
+	 * manager's links to the managed programs (PLAT-28, PLAT-35).
+	 */
 	binDir: "CONDUCTED_BIN_DIR",
+	/** Folder the program manager downloads the managed programs into (PLAT-28). */
+	agentBinariesDir: "CONDUCTED_AGENT_BINARIES_DIR",
 	/** Folder for the write-ahead event log, one file per chat. */
 	outboxRoot: "CONDUCTED_OUTBOX_ROOT",
 	/** Folder for the saved slash-command lists the new-workspace composer reads (SIDE-22). */
@@ -50,6 +55,7 @@ const absolutePath = z
 
 const zSidecarConfig = z.object({
 	binDir: absolutePath,
+	agentBinariesDir: absolutePath,
 	outboxRoot: absolutePath,
 	completionsDir: absolutePath,
 	cursorStoreDir: absolutePath,
@@ -65,6 +71,7 @@ export function parseSidecarConfig(
 ): Result<SidecarConfig> {
 	const parsed = zSidecarConfig.safeParse({
 		binDir: env[SIDECAR_ENV.binDir],
+		agentBinariesDir: env[SIDECAR_ENV.agentBinariesDir],
 		outboxRoot: env[SIDECAR_ENV.outboxRoot],
 		completionsDir: env[SIDECAR_ENV.completionsDir],
 		cursorStoreDir: env[SIDECAR_ENV.cursorStoreDir],
