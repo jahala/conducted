@@ -1,32 +1,44 @@
 /**
- * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in
+ * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in; SET-09 provider keys
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
- * agent, the slash commands of a workspace, and starting a sign-in flow. Also the display name
- * and catalogue key that the Agents page and the model picker share.
+ * agent, the slash commands of a workspace, starting a sign-in flow, and an agent's provider keys.
+ * Also the display name and catalogue key that the Agents page and the model picker share.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
- * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states).
+ * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states and provider
+ * credential forms), services-map.md 4.2.8 (provider keys), D033 (one strip list; only the agent's
+ * own provider keys reach it).
  * Must handle: the sidecar is not up yet (the install list stays "loading" until the request
  * answers, and a request that fails shows its error); an `agentInstallsChanged` notification
  * replaces the list without a request; a model
  * list request for an agent that is not installed returns an Err with the sidecar's code
  * `agentNotInstalled`; slow model lists (ACP) must not block the picker's other agents; only the
- * newest answer for an install list wins (a late answer for an older request is dropped); a
- * sign-in flow returns instructions and optionally a URL, a user code or a terminal command, ends
- * with finishLogin or cancelLogin. A key an agent hands back (Cursor) has no Keychain home until
- * SET-09 builds it, so this service refuses the outcome instead of dropping the secret on the
- * floor.
+ * newest answer for an install list or a provider-key list wins; a sign-in flow returns
+ * instructions and optionally a URL, a user code or a terminal command, ends with finishLogin or
+ * cancelLogin. A key an agent hands back (Cursor) is refused: the user enters it in the provider
+ * forms instead. A provider key typed on the page goes into the Keychain and its row into
+ * `provider_keys`; "use the key from this Mac" stores only the choice. Removing a key removes both
+ * the row and its Keychain entry.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
- * saved to disk.
+ * saved to disk. A provider key's Keychain name is built from the agent, ACP agent, provider and
+ * variable, so saving the same key twice replaces one entry.
  * Test first: two refreshes of the install list, answered out of order, leave the newer answer;
- * two model lists for one agent key, answered out of order, leave the newer answer.
+ * two model lists for one agent key, answered out of order, leave the newer answer; two provider
+ * key lists for one agent, answered out of order, leave the newer answer.
  */
 import type { AgentInstall, AgentLogin, ModelInfo, SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { appError, err, notImplemented, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import type { AgentConfigFile, ConfigSyncCategory, ConfigSyncResult } from "../model.ts";
+import type { ProviderKey, ProviderKeyRepository } from "../db/provider-keys.ts";
+import type {
+	AgentConfigFile,
+	ConfigSyncCategory,
+	ConfigSyncResult,
+	ProviderKeyView,
+} from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 
 export interface AgentCatalogState {
@@ -34,6 +46,8 @@ export interface AgentCatalogState {
 	/** Keyed by `agentKey(agent, acpAgent)`. */
 	models: Readonly<Record<string, Loadable<ModelInfo[]>>>;
 	slashCommands: Readonly<Record<string, Loadable<SlashCommand[]>>>;
+	/** Keyed by `agentKey(agent, acpAgent)`. Optional so older test stores need no new slice. */
+	providerKeys?: Readonly<Record<string, Loadable<ProviderKeyView[]>>>;
 }
 
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
@@ -53,6 +67,26 @@ export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
 	/** Workspace folder of a chat, for slash commands. */
 	workspacePathOf: (sessionId: SessionId) => Promise<Result<string>>;
+	/** The provider key rows. Absent only in tests that do not use provider keys. */
+	providerKeys?: ProviderKeyRepository;
+	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
+	keychain?: Pick<Keychain, "get" | "set" | "delete">;
+}
+
+/** The Keychain entry for one provider key. Stable, so saving twice replaces one entry. */
+export function providerKeychainRef(key: ProviderKeyRef): string {
+	return ["provider", key.agent, key.acpAgent ?? "", key.provider, key.envVar].join(":");
+}
+
+/** What the page may know about a saved key: never the value. */
+function providerKeyView(key: ProviderKey): ProviderKeyView {
+	return {
+		agent: key.agent,
+		acpAgent: key.acpAgent,
+		provider: key.provider,
+		envVar: key.envVar,
+		source: key.source,
+	};
 }
 
 export class AgentCatalogService {
@@ -64,6 +98,8 @@ export class AgentCatalogService {
 	#installRequest = 0;
 	/** Only the newest slash-command request for a chat changes state. */
 	readonly #slashRequests = createLatestWins<SessionId>();
+	/** Only the newest provider-key request for an agent changes state. */
+	readonly #providerKeyRequests = createLatestWins<string>();
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -71,6 +107,7 @@ export class AgentCatalogService {
 			installs: { state: "loading" },
 			models: {},
 			slashCommands: {},
+			providerKeys: {},
 		}));
 	}
 
@@ -195,7 +232,7 @@ export class AgentCatalogService {
 			return err(
 				appError(
 					"agent_key_not_stored",
-					"This agent signs in with an API key, and storing that key is not built yet. Enter the key in the agent's own settings.",
+					"This agent signs in with an API key. Enter it under Providers on the Agents page.",
 				),
 			);
 		}
@@ -208,17 +245,135 @@ export class AgentCatalogService {
 		return result.ok ? ok(undefined) : result;
 	}
 
+	/**
+	 * Backs `useProviderKeys`. Reads the rows of one agent. A late answer for an older request
+	 * never replaces the newer list.
+	 */
+	async loadProviderKeys(
+		agent: AgentKind,
+		acpAgent?: AcpAgent,
+	): Promise<Result<ProviderKeyView[]>> {
+		const key = agentKey(agent, acpAgent);
+		const ticket = this.#providerKeyRequests.begin(key);
+		this.store.setState((state) => ({
+			providerKeys: { ...state.providerKeys, [key]: { state: "loading" } },
+		}));
+		if (this.#deps.providerKeys === undefined) {
+			const failure = appError(
+				"agent_key_store_unavailable",
+				"The provider key store is not available.",
+			);
+			this.#providerKeyRequests.settle(ticket);
+			this.store.setState((state) => ({
+				providerKeys: { ...state.providerKeys, [key]: { state: "error", error: failure } },
+			}));
+			return err(failure);
+		}
+		const listed = await this.#deps.providerKeys.listForAgent(agent, acpAgent ?? null);
+		if (!this.#providerKeyRequests.isLatest(ticket)) {
+			this.#providerKeyRequests.settle(ticket);
+			return listed.ok ? ok(listed.value.map(providerKeyView)) : err(listed.error);
+		}
+		this.#providerKeyRequests.settle(ticket);
+		if (!listed.ok) {
+			this.store.setState((state) => ({
+				providerKeys: { ...state.providerKeys, [key]: { state: "error", error: listed.error } },
+			}));
+			return err(listed.error);
+		}
+		const views = listed.value.map(providerKeyView);
+		this.store.setState((state) => ({
+			providerKeys: { ...state.providerKeys, [key]: { state: "ready", data: views } },
+		}));
+		return ok(views);
+	}
+
 	/** Backs `Actions.agents.setProviderKey`. */
-	setProviderKey(
-		_key: ProviderKeyRef,
-		_value: { kind: "entered"; value: string } | { kind: "this_mac" },
+	async setProviderKey(
+		key: ProviderKeyRef,
+		value: { kind: "entered"; value: string } | { kind: "this_mac" },
 	): Promise<Result<void>> {
-		return notImplemented("SET-09");
+		const repository = this.#deps.providerKeys;
+		const keychain = this.#deps.keychain;
+		if (repository === undefined || keychain === undefined) {
+			return err(
+				appError("agent_key_store_unavailable", "The provider key store is not available."),
+			);
+		}
+		const name = {
+			agent: key.agent,
+			acpAgent: key.acpAgent,
+			provider: key.provider,
+			envVar: key.envVar,
+		};
+		const existing = await repository.get(name);
+		if (!existing.ok) return err(existing.error);
+
+		if (value.kind === "entered") {
+			const secret = value.value.trim();
+			if (secret === "") {
+				return err(appError("agent_key_empty", `Enter a value for ${key.envVar}.`));
+			}
+			const ref = providerKeychainRef(key);
+			const stored = await keychain.set(ref, secret);
+			if (!stored.ok) {
+				return err(
+					appError(
+						"agent_key_not_saved",
+						`The key could not be saved in the Keychain: ${stored.error.message}`,
+						stored.error,
+					),
+				);
+			}
+			const saved = await repository.set(name, { source: "entered", keychainRef: ref });
+			if (!saved.ok) {
+				const removed = await keychain.delete(ref);
+				return removed.ok ? err(saved.error) : err(removed.error);
+			}
+			const oldRef = existing.value?.keychainRef;
+			if (oldRef !== null && oldRef !== undefined && oldRef !== ref) {
+				const removed = await keychain.delete(oldRef);
+				if (!removed.ok) return err(removed.error);
+			}
+		} else {
+			const saved = await repository.set(name, { source: "this_mac" });
+			if (!saved.ok) return err(saved.error);
+			const oldRef = existing.value?.keychainRef;
+			if (oldRef !== null && oldRef !== undefined) {
+				const removed = await keychain.delete(oldRef);
+				if (!removed.ok) return err(removed.error);
+			}
+		}
+		const loaded = await this.loadProviderKeys(key.agent, key.acpAgent ?? undefined);
+		return loaded.ok ? ok(undefined) : err(loaded.error);
 	}
 
 	/** Backs `Actions.agents.removeProviderKey`. Also removes the Keychain entry. */
-	removeProviderKey(_key: ProviderKeyRef): Promise<Result<void>> {
-		return notImplemented("SET-09");
+	async removeProviderKey(key: ProviderKeyRef): Promise<Result<void>> {
+		const repository = this.#deps.providerKeys;
+		const keychain = this.#deps.keychain;
+		if (repository === undefined || keychain === undefined) {
+			return err(
+				appError("agent_key_store_unavailable", "The provider key store is not available."),
+			);
+		}
+		const name = {
+			agent: key.agent,
+			acpAgent: key.acpAgent,
+			provider: key.provider,
+			envVar: key.envVar,
+		};
+		const existing = await repository.get(name);
+		if (!existing.ok) return err(existing.error);
+		const deleted = await repository.delete(name);
+		if (!deleted.ok) return err(deleted.error);
+		const ref = existing.value?.keychainRef;
+		if (ref !== null && ref !== undefined) {
+			const removed = await keychain.delete(ref);
+			if (!removed.ok) return err(removed.error);
+		}
+		const loaded = await this.loadProviderKeys(key.agent, key.acpAgent ?? undefined);
+		return loaded.ok ? ok(undefined) : err(loaded.error);
 	}
 
 	/** Backs `Actions.agents.saveConfigFile`. */

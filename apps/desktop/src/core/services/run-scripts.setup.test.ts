@@ -79,7 +79,13 @@ const config = (overrides: Partial<RepoConfig> = {}): RepoConfig => ({
 	...overrides,
 });
 
-function harness(options: { setupScript?: string | null; exitCode?: number | null } = {}) {
+function harness(
+	options: {
+		setupScript?: string | null;
+		exitCode?: number | null;
+		environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
+	} = {},
+) {
 	let started = 0;
 	const runScript = vi.fn(
 		async (_input: {
@@ -122,9 +128,28 @@ function harness(options: { setupScript?: string | null; exitCode?: number | nul
 		workspaceFor: async () => ok(workspace),
 		repoFor: async () => ok(repo),
 		fs,
+		...(options.environmentFor === undefined ? {} : { environmentFor: options.environmentFor }),
 	});
 	return { service, runScript, close, transcripts };
 }
+
+describe("SET-04 environment variables reach scripts", () => {
+	it("gives the setup, archive and run scripts the repository's saved variables", async () => {
+		const seen: Record<string, string>[] = [];
+		const { service, runScript } = harness({
+			environmentFor: async () => ok({ TOKEN: "secret" }),
+		});
+		runScript.mockImplementation(async (input: { env: Record<string, string> }) => {
+			seen.push({ ...input.env });
+			return ok({ terminalId: "t1" as TerminalId, exit: Promise.resolve(0) });
+		});
+
+		await service.runSetup(workspace.id);
+
+		expect(runScript).toHaveBeenCalledTimes(1);
+		expect(seen[0]?.TOKEN).toBe("secret");
+	});
+});
 
 describe("WS-03 RunScriptsService.runSetup", () => {
 	it("runs the script as a setup terminal with the workspace variables", async () => {

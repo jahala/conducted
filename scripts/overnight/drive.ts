@@ -14,7 +14,8 @@
  *                                                         before any worker starts from it
  *   bun scripts/overnight/drive.ts mark-done <tree> <ID...>
  *                                                         set rows to done in <tree>'s backlog,
- *                                                         refusing an id with placeholders left
+ *                                                         refusing an id with placeholders left,
+ *                                                         then run the guards on <tree>
  *   bun scripts/overnight/drive.ts balance                print the DeepSeek balance in USD
  *   bun scripts/overnight/drive.ts audit-prompt <ids-file> <findings-file>
  *                                                         the read-only audit agent's prompt for the
@@ -229,6 +230,37 @@ export function selectFeatures(batch: Batch, only: string | undefined): BacklogR
 }
 
 /** Sets stub rows to done in backlog text. Refuses an id with no stub row. */
+/** Runs `pnpm -s <script>` in `cwd`. */
+function pnpmScript(cwd: string, script: string): CheckRun {
+	const run = Bun.spawnSync(["pnpm", "-s", script], { cwd, stdout: "pipe", stderr: "pipe" });
+	return { exitCode: run.exitCode, output: `${run.stdout.toString()}${run.stderr.toString()}` };
+}
+
+/** One quick check's exit code and its combined output. */
+export interface CheckRun {
+	exitCode: number;
+	output: string;
+}
+
+/** The quick gate the step branch must pass: the same three every worker runs before it stops. */
+export const QUICK_CHECKS = ["typecheck", "lint", "guards"] as const;
+
+/**
+ * Runs the quick checks in order through `spawn` and stops at the first that fails. Null when all
+ * pass. Preflight runs all three; mark-done runs the guards, because rows set to done bring their
+ * files into the guards' scope (test-only-exports skips a stub feature's files).
+ */
+export function runQuickChecks(
+	spawn: (script: string) => CheckRun,
+	scripts: readonly string[] = QUICK_CHECKS,
+): { script: string; output: string } | null {
+	for (const script of scripts) {
+		const run = spawn(script);
+		if (run.exitCode !== 0) return { script, output: run.output };
+	}
+	return null;
+}
+
 export function markDone(text: string, ids: string[]): string {
 	let next = text;
 	for (const id of ids) {
@@ -319,19 +351,13 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 		}
 	} else if (command === "preflight") {
 		// Every node starts from the step branch, so a red check here fails every node at once.
-		for (const script of ["typecheck", "lint", "guards"]) {
-			const run = Bun.spawnSync(["pnpm", "-s", script], {
-				cwd: root,
-				stdout: "pipe",
-				stderr: "pipe",
-			});
-			if (run.exitCode !== 0) {
-				console.error(`${run.stdout.toString()}${run.stderr.toString()}`.slice(-4000));
-				console.error(`preflight: pnpm ${script} failed on the step branch; start no worker.`);
-				process.exit(1);
-			}
-			console.log(`ok   ${script}`);
+		const failed = runQuickChecks((script) => pnpmScript(root, script));
+		if (failed !== null) {
+			console.error(failed.output.slice(-4000));
+			console.error(`preflight: pnpm ${failed.script} failed on the step branch; start no worker.`);
+			process.exit(1);
 		}
+		console.log(`ok   ${QUICK_CHECKS.join(", ")}`);
 	} else if (command === "mark-done") {
 		const [tree, ...ids] = args;
 		if (!tree || ids.length === 0) throw new Error("Usage: mark-done <tree> <ID...>");
@@ -342,6 +368,13 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 		const path = join(tree, "docs/plans/backlog.md");
 		writeFileSync(path, markDone(readFileSync(path, "utf8"), ids));
 		console.log(`Marked done: ${ids.join(", ")}`);
+		// Done rows bring their files into the guards' scope, so a guard can go red only now.
+		const failed = runQuickChecks((script) => pnpmScript(tree, script), ["guards"]);
+		if (failed !== null) {
+			console.error(failed.output.slice(-4000));
+			console.error("mark-done: the guards fail with these rows done; fix that before the PR.");
+			process.exit(1);
+		}
 	} else if (command === "balance") {
 		console.log(await deepseekBalance(process.env.DEEPSEEK_API_KEY));
 	} else if (command === "audit-prompt") {

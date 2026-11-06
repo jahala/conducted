@@ -16,6 +16,7 @@ import {
 	nodeId,
 	promptFor,
 	RULES,
+	runQuickChecks,
 	selectFeatures,
 } from "./drive.ts";
 import type { Batch } from "./plan-batches.ts";
@@ -140,4 +141,29 @@ test("every builder prompt carries the reach-it-from-the-real-app rule (D054)", 
 	expect(prompt).toContain("Reach it from the real app (D054)");
 	expect(prompt).toContain("createTestContainer");
 	expect(RULES).toContain("Never assert placeholder text");
+});
+
+test("the quick checks run in order and stop at the first that fails, with its output", () => {
+	const ran: string[] = [];
+	const spawn = (script: string) => {
+		ran.push(script);
+		return script === "guards"
+			? { exitCode: 1, output: "FAIL test-only-exports" }
+			: { exitCode: 0, output: "" };
+	};
+	expect(runQuickChecks(spawn)).toEqual({ script: "guards", output: "FAIL test-only-exports" });
+	expect(ran).toEqual(["typecheck", "lint", "guards"]);
+
+	ran.length = 0;
+	expect(runQuickChecks(() => ({ exitCode: 0, output: "" }))).toBeNull();
+	expect(
+		runQuickChecks(
+			(script) => {
+				ran.push(script);
+				return { exitCode: 0, output: "" };
+			},
+			["guards"],
+		),
+	).toBeNull();
+	expect(ran).toEqual(["guards"]);
 });

@@ -83,6 +83,8 @@ beforeEach(async () => {
 						backgroundTasks: [],
 						fastModeAvailable: true,
 					},
+		newId: () => `queue-${++next}`,
+		now: () => 1000,
 	});
 });
 

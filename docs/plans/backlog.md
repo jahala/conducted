@@ -39,7 +39,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PLAT-25 | Release bundle: privacy strings, entitlements, signing, notarisation  | apps/desktop/src-tauri, scripts                             | native-and-sidecar-map A1                            | 2   | done    | SIDE-23                            |
 | PLAT-26 | Online and offline events                                             | R/network.rs, D/platform                                    | native-and-sidecar-map A2, A4; services-map 6        | 3   | stub    | PLAT-02                            |
 | PLAT-27 | Startup hardening: file limit, panics in the log, one instance        | R/lib.rs                                                    | native-and-sidecar-map A2, A5                        | 3   | stub    |                                    |
-| PLAT-28 | Agent program manager: download, verify, update, prune                | R/binaries.rs, D/platform, D/features/settings              | native-and-sidecar-map A2, A6, A9; services-map 5A.8 | 2   | stub    | PLAT-02, PLAT-04, PLAT-09, PLAT-30 |
+| PLAT-28 | Agent program manager: download, verify, update, prune                | R/binaries.rs, D/platform, D/features/settings              | native-and-sidecar-map A2, A6, A9; services-map 5A.8 | 2   | planned | PLAT-02, PLAT-04, PLAT-09, PLAT-30 |
 | PLAT-29 | Limit the paths, programs and links the webview can reach             | R/files.rs, R/shell.rs, apps/desktop/src-tauri/capabilities | native-and-sidecar-map A3                            | 2   | done    | PLAT-03, PLAT-05                   |
 | PLAT-30 | HTTP from Rust: fetch and download with progress, checksum, cancel    | R/http.rs, D/platform                                       | native-and-sidecar-map A2; services-map 1.1          | 2   | done    | PLAT-02, PLAT-29                   |
 | PLAT-31 | Window focus and blur events                                          | D/platform, R/lib.rs                                        | services-map 1.1, 3.3.1, 6                           | 2   | done    | PLAT-02                            |
@@ -166,7 +166,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | CHAT-01 | Create, close, rename chats; chat history                              | D/core/services                               | ui-map 3.2                                      | 1   | done   | DATA-01                            |
 | CHAT-02 | Send a message as a new turn                                           | D/core/services                               | sessions-and-chats "What happens"               | 1   | done   | SIDE-03, SIDE-09, DATA-04, COMP-01 |
 | CHAT-03 | Steer a running turn                                                   | D/core/services                               | sessions-and-chats "While the agent is working" | 2   | done   | CHAT-02, AGENT-05                  |
-| CHAT-04 | Follow-up queue: edit, reorder, delete, pause, send now as steer       | D/core/services                               | ui-map 3.4                                      | 2   | stub   | CHAT-02, CHAT-03                   |
+| CHAT-04 | Follow-up queue: edit, reorder, delete, pause, send now as steer       | D/core/services                               | ui-map 3.4                                      | 2   | done   | CHAT-02, CHAT-03                   |
 | CHAT-05 | Cancel a turn                                                          | D/core/services                               | sessions 6                                      | 1   | done   | CHAT-02, SIDE-04                   |
 | CHAT-06 | Message list: virtualised, one item per turn, only the tail re-renders | D/features/chat                               | frontend 5                                      | 1   | done   | CHAT-07, CHAT-08, APP-13           |
 | CHAT-07 | Turn builder: events to turns, sub-agent grouping                      | D/core/services                               | frontend 5                                      | 1   | done   | DATA-04                            |
@@ -204,7 +204,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | COMP-04 | `@` file mentions                                         | D/features/composer | ui-map 3.5           | 2   | done   | PLAT-06                          |
 | COMP-05 | `#` PR and issue mentions                                 | D/features/composer | ui-map 3.5           | 3   | stub   | PR-11, PR-01                     |
 | COMP-06 | `/` slash commands                                        | D/features/composer | ui-map 3.5           | 2   | done   | SIDE-16                          |
-| COMP-07 | Attachments: drop, paste, pick                            | D/features/composer | ui-map 3.5           | 2   | stub   | PLAT-20, PLAT-33                 |
+| COMP-07 | Attachments: drop, paste, pick                            | D/features/composer | ui-map 3.5           | 2   | done   | PLAT-20, PLAT-33                 |
 | COMP-08 | Voice dictation button                                    | D/features/composer | ui-map 3.5           | 3   | stub   | PLAT-12                          |
 | COMP-09 | Prompt snippets                                           | D/features/composer | ui-map 3.5, 5.1, 5.2 | 3   | stub   | COMP-01, NAV-08, APP-12, DATA-01 |
 | COMP-10 | Codex goal bar and `/goal`                                | D/features/composer | ui-map 3.5           | 3   | stub   | COMP-01, COMP-06, AGENT-13       |
@@ -220,11 +220,11 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | REV-05 | AI code review in a new chat                                           | D/core/services                         | ui-map 3.6                      | 2   | done   | CHAT-01, REV-01                  |
 | REV-06 | File tree tab                                                          | D/features/git-panel                    | ui-map 3.6                      | 2   | done   | PLAT-06, REV-01                  |
 | REV-07 | Quick open and search in files                                         | D/features/palette                      | ui-map 3.10                     | 2   | done   | PLAT-06                          |
-| REV-08 | File viewer and editor with previews (Markdown, images, SVG, PDF, CSV) | D/features/file-viewer                  | ui-map 3.2                      | 2   | stub   | PLAT-05, REV-06                  |
+| REV-08 | File viewer and editor with previews (Markdown, images, SVG, PDF, CSV) | D/features/file-viewer                  | ui-map 3.2                      | 2   | done   | PLAT-05, REV-06                  |
 | REV-09 | Changes per turn, from checkpoints                                     | D/core/services                         | services-map 3.12               | 2   | done   | SIDE-08, CHAT-07                 |
 | REV-10 | Artifacts tab for the workspace `.context` folder                      | D/features/git-panel, R/files.rs        | services-map 5A.5.1; ui-map 3.6 | 2   | stub   | REV-06, PLAT-06, COMP-07, SET-01 |
 | REV-11 | Resolve conflicts inline: current, incoming or both                    | D/features/diff, D/features/file-viewer | ui-map 3.6                      | 3   | stub   | REV-02, REV-08, GIT-07           |
-| REV-12 | Review comment states, and which messages carried them                 | D/core/services, D/core/db              | services-map 2.2, 2.3           | 2   | stub   | REV-03, DATA-08                  |
+| REV-12 | Review comment states, and which messages carried them                 | D/core/services, D/core/db              | services-map 2.2, 2.3           | 2   | done   | REV-03, DATA-08                  |
 | REV-13 | Pull request comments without a file, with author avatars              | D/core/services, D/features/pr          | services-map 5B                 | 3   | stub   | REV-04, PR-07, DATA-08           |
 
 ## Git and pull requests (GIT, PR)
@@ -247,12 +247,12 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | GIT-14 | Local-git forge for repos without GitHub                          | D/core/services                              | services-map 3.7.7, 5B.1.5      | 3   | stub   | GIT-01, GIT-05          |
 | GIT-15 | Git extras: sparse checkout, external diff tool                   | D/core/services/git.ts                       | services-map 3.11, 5A.5.3       | 3   | stub   | GIT-01                  |
 | GIT-16 | Explain a blocked git (Xcode licence) and offer the fix           | D/core/git, D/app                            | services-map 5A.8; ui-map 7.4   | 2   | done   | GIT-01, PLAT-07         |
-| GIT-17 | Continue after a merge or from a detached HEAD                    | D/core/services/git.ts, D/features/git-panel | services-map 3.1                | 2   | stub   | GIT-12, GIT-04, CHAT-02 |
+| GIT-17 | Continue after a merge or from a detached HEAD                    | D/core/services/git.ts, D/features/git-panel | services-map 3.1                | 2   | done   | GIT-12, GIT-04, CHAT-02 |
 | PR-01  | GitHub access through `gh`                                        | D/core/services                              | services-map 3.9                | 1   | done   | GIT-01                  |
 | PR-02  | Create PR, done by the agent with written instructions            | D/core/services                              | frontend 7                      | 1   | done   | PR-01, CHAT-02          |
 | PR-03  | PR status polling, batched, behind a rate-limit gate              | D/core/services                              | services-map 3.7                | 2   | done   | PR-01                   |
 | PR-04  | Checks and deployments tab with logs and re-run                   | D/features/git-panel                         | ui-map 3.6                      | 2   | done   | PR-03                   |
-| PR-05  | "Fix errors": send failing checks to the agent                    | D/core/services                              | ui-map 3.6                      | 2   | stub   | PR-04, CHAT-02          |
+| PR-05  | "Fix errors": send failing checks to the agent                    | D/core/services                              | ui-map 3.6                      | 2   | done   | PR-04, CHAT-02          |
 | PR-06  | Merge, auto-merge, ready for review, approve                      | D/core/services                              | services-map 3.7                | 2   | done   | PR-03                   |
 | PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | stub   | PR-03                   |
 | PR-08  | Stacked PRs and read-only Graphite                                | D/core/services                              | services-map 3.8                | 3   | stub   | PR-03                   |
@@ -282,12 +282,12 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | SET-01 | Settings registry                                                 | D/core/registries                  | ui-map 6                  | 1   | done    | DATA-05                                   |
 | SET-02 | Settings pages and settings search                                | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, APP-12, APP-15, NAV-02            |
 | SET-03 | Agents page: install status, versions, sign-in                    | D/features/settings                | ui-map 6                  | 1   | done    | SIDE-15, PLAT-04, APP-12                  |
-| SET-04 | Environment variables, stored in the Keychain                     | D/features/settings                | ui-map 6                  | 2   | stub    | PLAT-10, DATA-05, APP-12, SIDE-21         |
+| SET-04 | Environment variables, stored in the Keychain                     | D/features/settings                | ui-map 6                  | 2   | done    | PLAT-10, DATA-05, APP-12, SIDE-21         |
 | SET-05 | MCP servers: list, status, logs                                   | D/features/settings                | ui-map 3.10               | 3   | stub    | SIDE-16, SET-03                           |
 | SET-06 | Appearance: theme, fonts, zoom                                    | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, APP-14                            |
 | SET-07 | Repo pages: scripts, actions, prompts                             | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, DATA-05, APP-12, PRJ-04           |
 | SET-08 | Sync agent configs between Claude Code and Codex                  | D/features/settings, S/models      | ui-map 5.2, 6             | 3   | stub    | SET-01, SET-02, SIDE-16, PLAT-05          |
-| SET-09 | Agent sign-in and API key forms                                   | D/features/settings, S/runners     | ui-map 6                  | 2   | stub    | SET-03, APP-12, PLAT-10, SIDE-10, SIDE-21 |
+| SET-09 | Agent sign-in and API key forms                                   | D/features/settings, S/runners     | ui-map 6                  | 2   | done    | SET-03, APP-12, PLAT-10, SIDE-10, SIDE-21 |
 | SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | stub    | SET-09, AGENT-12                          |
 | SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | stub    | SET-04                                    |
 | SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | stub    | SET-03, APP-12, AGENT-16                  |
@@ -305,7 +305,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | APP-05 | Design system: components and tokens                                         | D/ui                              | ui-map 8                       | 1   | done    |                                            |
 | APP-06 | Update notice and restart when idle                                          | D/features/updates                | ui-map 1.3                     | 3   | stub    | PLAT-13                                    |
 | APP-07 | Resource usage table                                                         | D/features/sidebar                | ui-map 1.3                     | 3   | stub    | PLAT-14                                    |
-| APP-08 | Start-up screens and notices                                                 | D/app, D/features/updates         | ui-map 1.3, 7.3, 7.4           | 2   | stub    | APP-01, APP-04, PLAT-09, PLAT-17, PLAT-32  |
+| APP-08 | Start-up screens and notices                                                 | D/app, D/features/updates         | ui-map 1.3, 7.3, 7.4           | 2   | done    | APP-01, APP-04, PLAT-09, PLAT-17, PLAT-32  |
 | APP-09 | Send feedback                                                                | D/features/diagnostics, R/menu.rs | ui-map 5.1, 5.2                | 3   | stub    | APP-03, APP-12, PLAT-18                    |
 | APP-10 | Dismissible hints (callouts)                                                 | D/ui, D/features/settings         | ui-map 7.1                     | 3   | stub    | APP-05, SET-01                             |
 | APP-11 | Async helpers: queue per key, single flight, latest wins, backoff            | D/core/async                      | services-map 1.5, 2.5.3, 3.0.3 | 1   | done    |                                            |

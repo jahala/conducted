@@ -13,6 +13,7 @@ import {
 	commandForKeyPress,
 	createCommandRegistry,
 	dispatchCommand,
+	fieldOwnsKey,
 	type KeyBinding,
 	type KeyPress,
 	keyBindings,
@@ -308,6 +309,60 @@ describe("NAV-14 scopesForTarget", () => {
 
 		expect(scopesForTarget(terminalChild)).toEqual(["terminal", "global"]);
 		expect(scopesForTarget(diffChild)).toEqual(["diff", "global"]);
+	});
+
+	it("leaves the keys that type and move the caret to a focused text field", () => {
+		const viewer = document.createElement("div");
+		viewer.setAttribute("data-file-viewer", "");
+		const editor = document.createElement("div");
+		editor.setAttribute("contenteditable", "true");
+		viewer.appendChild(editor);
+		const other = document.createElement("textarea");
+		const card = document.createElement("div");
+		card.tabIndex = 0;
+		document.body.append(viewer, other, card);
+
+		// The diff binds bare ArrowUp and ArrowDown to the previous and next file, the question card
+		// binds digits and the queue binds E: in a field they type or move the caret instead.
+		expect(fieldOwnsKey(press({ key: "ArrowDown" }), editor)).toBe(true);
+		expect(fieldOwnsKey(press({ key: "ArrowUp", shiftKey: true }), editor)).toBe(true);
+		expect(fieldOwnsKey(press({ key: "1" }), other)).toBe(true);
+		expect(fieldOwnsKey(press({ key: "E", shiftKey: true }), other)).toBe(true);
+		expect(fieldOwnsKey(press({ key: "Backspace" }), other)).toBe(true);
+		// Shortcuts with Cmd, Ctrl or Alt, and Tab, Enter and Escape, still reach the dispatcher.
+		expect(fieldOwnsKey(press({ key: "f", metaKey: true }), editor)).toBe(false);
+		expect(fieldOwnsKey(press({ key: "ArrowDown", altKey: true }), editor)).toBe(false);
+		expect(fieldOwnsKey(press({ key: "Tab" }), other)).toBe(false);
+		expect(fieldOwnsKey(press({ key: "Enter" }), other)).toBe(false);
+		expect(fieldOwnsKey(press({ key: "Escape" }), editor)).toBe(false);
+		// Outside a field, the bare keys are shortcuts as before.
+		expect(fieldOwnsKey(press({ key: "ArrowDown" }), card)).toBe(false);
+		expect(fieldOwnsKey(press({ key: "ArrowDown" }), null)).toBe(false);
+	});
+
+	it("keeps a text field inside the file viewer or a diff area out of the chat input", () => {
+		const viewer = document.createElement("div");
+		viewer.setAttribute("data-file-viewer", "");
+		const editor = document.createElement("div");
+		editor.setAttribute("contenteditable", "true");
+		viewer.appendChild(editor);
+		document.body.appendChild(viewer);
+
+		const comments = document.createElement("div");
+		comments.setAttribute("data-command-scope", "diff");
+		const reply = document.createElement("textarea");
+		comments.appendChild(reply);
+		document.body.appendChild(comments);
+
+		expect(scopesForTarget(editor)).toEqual(["diff", "global"]);
+		expect(scopesForTarget(reply)).toEqual(["diff", "global"]);
+		expect(
+			commandForKeyPress(
+				press({ key: "f", metaKey: true }),
+				scopesForTarget(editor),
+				keyBindings(),
+			),
+		).toBe("review.findInFile");
 	});
 
 	it("returns global when there is no element", () => {

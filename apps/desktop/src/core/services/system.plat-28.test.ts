@@ -1,0 +1,185 @@
+/**
+ * @feature PLAT-28 Agent program manager
+ * Owns: tests for the program status store and the install, re-download and remove actions.
+ * Test first: install while a download of the same program runs starts no second download.
+ */
+import { appError, err, ok, type Result } from "@conducted/shared";
+import { describe, expect, it, vi } from "vitest";
+import type { ProgramStatus } from "../../platform/platform.ts";
+import { createTestContainer } from "../../test/container.ts";
+import { SystemService } from "./system.ts";
+
+function deferred<T>(): {
+	promise: Promise<T>;
+	resolve: (value: T) => void;
+} {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
+}
+
+describe("PLAT-28 SystemService programs", () => {
+	it("installs a program once when two installs of it overlap", async () => {
+		const test = createTestContainer();
+		try {
+			const gate = deferred<Result<void>>();
+			let calls = 0;
+			vi.spyOn(test.container.platform.programs, "install").mockImplementation(() => {
+				calls += 1;
+				return gate.promise;
+			});
+
+			const first = test.container.services.system.installProgram("claude");
+			const second = test.container.services.system.installProgram("claude");
+			expect(calls).toBe(1);
+
+			gate.resolve(ok(undefined));
+			expect((await first).ok).toBe(true);
+			expect((await second).ok).toBe(true);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("reaches the platform through the container's program actions", async () => {
+		const test = createTestContainer();
+		try {
+			const install = vi.spyOn(test.container.platform.programs, "install");
+
+			const result = await test.container.actions.programs.install("claude");
+
+			expect(result.ok).toBe(true);
+			expect(install).toHaveBeenCalledWith("claude");
+		} finally {
+			test.close();
+		}
+	});
+
+	it("starts a new install after the first one has finished", async () => {
+		const test = createTestContainer();
+		try {
+			const install = vi.spyOn(test.container.platform.programs, "install");
+
+			expect((await test.container.services.system.installProgram("codex")).ok).toBe(true);
+			expect((await test.container.services.system.installProgram("codex")).ok).toBe(true);
+
+			expect(install).toHaveBeenCalledTimes(2);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("loads the program statuses and follows their changes", async () => {
+		const test = createTestContainer();
+		try {
+			expect((await test.container.services.system.start()).ok).toBe(true);
+			expect((await test.container.platform.programs.install("claude")).ok).toBe(true);
+
+			const programs = test.container.services.system.store.getState().programs;
+			expect(programs.state).toBe("ready");
+			if (programs.state !== "ready") return;
+			const claude = programs.data.find((view) => view.status.program === "claude");
+			expect(claude?.status.state).toBe("ready");
+			expect(claude?.status.path).not.toBeNull();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("does not let a status list that finishes late overwrite a newer status", async () => {
+		const test = createTestContainer();
+		try {
+			const gate = deferred<Result<ProgramStatus[]>>();
+			vi.spyOn(test.container.platform.programs, "statuses").mockImplementation(() => gate.promise);
+
+			const started = test.container.services.system.start();
+			expect((await test.container.platform.programs.install("claude")).ok).toBe(true);
+			gate.resolve(ok([]));
+			expect((await started).ok).toBe(true);
+
+			const programs = test.container.services.system.store.getState().programs;
+			expect(programs.state).toBe("ready");
+			if (programs.state !== "ready") return;
+			expect(programs.data.map((view) => view.status.program)).toEqual(["claude"]);
+			expect(programs.data[0]?.status.state).toBe("ready");
+		} finally {
+			test.close();
+		}
+	});
+
+	it("reports a status list that cannot be read", async () => {
+		const test = createTestContainer();
+		try {
+			const failure: Result<ProgramStatus[]> = err(
+				appError("programs_state_failed", "The list could not be read."),
+			);
+			vi.spyOn(test.container.platform.programs, "statuses").mockResolvedValue(failure);
+
+			const result = await test.container.services.system.start();
+
+			expect(result.ok).toBe(false);
+			expect(test.container.services.system.store.getState().programs.state).toBe("error");
+		} finally {
+			test.close();
+		}
+	});
+
+	it("re-downloads and removes a program through the platform", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.services.system.start();
+			expect((await test.container.services.system.redownloadProgram("claude")).ok).toBe(true);
+			expect((await test.container.services.system.removeProgram("claude")).ok).toBe(true);
+
+			const programs = test.container.services.system.store.getState().programs;
+			expect(programs.state).toBe("ready");
+			if (programs.state !== "ready") return;
+			expect(programs.data.find((view) => view.status.program === "claude")?.status.state).toBe(
+				"missing",
+			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("shows the path the user chose instead of the managed copy", async () => {
+		const test = createTestContainer();
+		try {
+			const service = new SystemService({
+				platform: test.container.platform,
+				setting: <T>(key: string) => (key === "claude_executable_path" ? "/opt/claude" : "") as T,
+			});
+			await service.start();
+			await test.container.platform.programs.install("claude");
+
+			const programs = service.store.getState().programs;
+			expect(programs.state).toBe("ready");
+			if (programs.state !== "ready") return;
+			expect(programs.data.find((view) => view.status.program === "claude")?.userPath).toBe(
+				"/opt/claude",
+			);
+			service.dispose();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("stops following status events after dispose", async () => {
+		const test = createTestContainer();
+		try {
+			const service = test.container.services.system;
+			await service.start();
+			service.dispose();
+			await test.container.platform.programs.install("claude");
+
+			const programs = service.store.getState().programs;
+			expect(programs.state).toBe("ready");
+			if (programs.state !== "ready") return;
+			expect(programs.data).toEqual([]);
+		} finally {
+			test.close();
+		}
+	});
+});

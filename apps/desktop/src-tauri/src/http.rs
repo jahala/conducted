@@ -425,7 +425,7 @@ fn cancelled_error() -> CommandError {
     }
 }
 
-async fn download_request(
+pub(crate) async fn download_request(
     allowed_hosts: &[&str],
     url_text: &str,
     destination: &Path,

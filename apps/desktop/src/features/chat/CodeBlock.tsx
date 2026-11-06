@@ -13,41 +13,13 @@
 import { useEffect, useState } from "react";
 import { useActions } from "../../core/hooks.ts";
 import { CopyButton } from "../../ui/CopyButton.tsx";
+import { useThemeType } from "../../ui/use-theme-type.ts";
 
 const LARGE_BLOCK = 4000;
 
 interface HighlightToken {
 	content: string;
 	color: string | undefined;
-}
-
-function currentTheme(): "light" | "dark" {
-	if (typeof document === "undefined") return "dark";
-	const forced = document.documentElement.dataset.theme;
-	if (forced === "light" || forced === "dark") return forced;
-	if (typeof window === "undefined") return "dark";
-	const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-	return media?.matches ? "dark" : "light";
-}
-
-function useDocumentTheme(): "light" | "dark" {
-	const [theme, setTheme] = useState<"light" | "dark">(currentTheme);
-	useEffect(() => {
-		const update = () => setTheme(currentTheme());
-		const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-		media?.addEventListener?.("change", update);
-		const observer =
-			typeof MutationObserver === "undefined" ? null : new MutationObserver(() => update());
-		observer?.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["data-theme"],
-		});
-		return () => {
-			media?.removeEventListener?.("change", update);
-			observer?.disconnect();
-		};
-	}, []);
-	return theme;
 }
 
 export interface CodeBlockProps {
@@ -63,7 +35,7 @@ interface Highlighted {
 
 export function CodeBlock({ code, language }: CodeBlockProps) {
 	const actions = useActions();
-	const theme = useDocumentTheme();
+	const theme = useThemeType();
 	const [highlighted, setHighlighted] = useState<Highlighted | null>(null);
 	const [showAll, setShowAll] = useState(false);
 	const tooLarge = code.length > LARGE_BLOCK && !showAll;

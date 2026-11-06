@@ -13,11 +13,12 @@
  * Titles are the research wording; "N" is a count, "M" a total.
  *
  *   kind                  when                                         title                       main action
- *   merged                PR state merged                              Merged                      none
+ *   merged                PR state merged                              Merged                      Continue (GIT-17)
  *   in_merge_queue        PR is in the merge queue                     In merge queue              none
  *   working               agent working and no PR                      Working...                  none
  *   conflicts             conflicted files, or merge/rebase underway,  Merge conflicts             Resolve (agent)
  *                         or PR mergeable is "conflicting"
+ *   detached              no branch is checked out (detached HEAD)     Detached HEAD               Continue (GIT-17)
  *   uncommitted           uncommittedFiles > 0                         Uncommitted changes         Commit and push (agent)
  *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve (agent)
  *                                                                      Remote branch was rebased
@@ -86,13 +87,15 @@ export type GitHeaderActionId =
 	| "approve"
 	| "merge"
 	| "merge_stack"
-	| "retry";
+	| "retry"
+	| "continue";
 
 export type GitHeaderKind =
 	| "merged"
 	| "in_merge_queue"
 	| "working"
 	| "conflicts"
+	| "detached"
 	| "uncommitted"
 	| "diverged"
 	| "behind"
@@ -213,8 +216,14 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 	const active = isActivePullRequest(pullRequest) ? pullRequest : null;
 	const canUseGithub = forge === "github";
 
+	// Continue starts a new branch in the same workspace (services-map.md 3.1).
 	if (pullRequest?.state === "merged") {
-		return { kind: "merged", title: "Merged", tone: "done", action: null };
+		return {
+			kind: "merged",
+			title: "Merged",
+			tone: "done",
+			action: action("continue", "Continue"),
+		};
 	}
 	if (active?.inMergeQueue === true) {
 		return { kind: "in_merge_queue", title: "In merge queue", tone: "busy", action: null };
@@ -228,6 +237,15 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			title: "Merge conflicts",
 			tone: "danger",
 			action: action("resolve", "Resolve"),
+		};
+	}
+	// A rebase or merge also detaches HEAD; those are conflicts above, not a place to continue.
+	if (git.branch === "") {
+		return {
+			kind: "detached",
+			title: "Detached HEAD",
+			tone: "attention",
+			action: action("continue", "Continue"),
 		};
 	}
 	if (git.uncommittedFiles > 0) {

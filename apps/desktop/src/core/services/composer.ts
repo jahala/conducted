@@ -7,12 +7,15 @@
  * Must handle: saving is debounced and the newest text wins (an older write that finishes late
  * is dropped); a clear or save still writing finishes before a draft is read back; an empty
  * draft removes its file; text pasted over 90 lines or 5000 characters is classed as an
- * attachment by `convertsToAttachment` (the paste handler belongs to COMP-07); a failed write, a
- * failed room-making pass or an oversized draft is kept in `store.errors` so a screen can tell
- * the user it did not save; the drafts folder is capped at 5 MiB by trashing the oldest other
- * drafts.
- * Not built yet: staging dropped files, copying them into the workspace on send
- * (`materializeForSend`), and removing the draft files of deleted chats (COMP-07, DATA-06).
+ * attachment by `convertsToAttachment` (the paste handler is in the COMP-07 attachments hook); a
+ * failed write, a failed room-making pass or an oversized draft is kept in `store.errors` so a
+ * screen can tell the user it did not save; the drafts folder is capped at 5 MiB by trashing the
+ * oldest other drafts.
+ * Dropped or picked files are copied into the chat's staging folder and get an attachment row; a
+ * file named like one of the app's own context files is attached under another name. A
+ * send copies each staged file into the workspace's `.context/attachments/<id>/<name>`, moves the
+ * staging copy to the Trash and flips its row from draft to sent.
+ * Not built yet: removing the draft files of deleted chats (DATA-06).
  * Our design choice: drafts are files (see core/app-paths.ts) because migration 0001 has no
  * drafts table. Attachment rows use the existing `attachments` table.
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
@@ -32,8 +35,15 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, SnippetInput } from "../api.ts";
-import { draftAttachmentsDir, draftFile, draftsDir } from "../app-paths.ts";
+import {
+	draftAttachmentsDir,
+	draftAttachmentsRoot,
+	draftFile,
+	draftsDir,
+	isInsideFolder,
+} from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";
 
 export const PASTE_ATTACHMENT_MIN_LINES = 90;
@@ -43,6 +53,8 @@ export const DRAFT_SAVE_DEBOUNCE_MS = 400;
 export const DRAFT_STORE_LIMIT_BYTES = 5 * 1024 * 1024;
 export const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 7_800;
+/** The composer refuses images over 5 MB before the Rust copy runs. */
+export const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 const IMAGE_EXTENSIONS = new Set([
 	"png",
@@ -117,6 +129,33 @@ export function classifyAttachment(fileName: string): AttachmentClass {
 export const convertsToAttachment = (text: string): boolean =>
 	text.length > PASTE_ATTACHMENT_MIN_CHARS || text.split("\n").length > PASTE_ATTACHMENT_MIN_LINES;
 
+/** The stored kind of a file. A PDF is its own kind; the rest follow the name rule above. */
+export function attachmentKindOf(fileName: string): AttachmentClass {
+	return fileName.toLowerCase().endsWith(".pdf") ? "pdf" : classifyAttachment(fileName);
+}
+
+/**
+ * File names the app keeps for its own context files (services-map.md 5A.6.2 item 6, 5B.8.3): the PR,
+ * review and fix-errors instructions, GitHub and Linear issue files, and terminal output.
+ */
+const RESERVED_CONTEXT_NAMES: readonly RegExp[] = [
+	/^PR instructions\.md$/i,
+	/^Review request\.md$/i,
+	/^Fix errors instructions\.md$/i,
+	/^\[GITHUB\]-\d+\.md$/i,
+	/^\[LINEAR\]-\w{1,7}-\d+\.md$/i,
+	/^terminal-output(-.*)?\.txt$/i,
+];
+
+/**
+ * The name a user's picked, dropped or pasted file is attached under. A reserved context name cannot be
+ * used, so the app would never take the user's file for its own.
+ * Our design choice: such a file is renamed to `attached-<name>` instead of refused, so it still attaches.
+ */
+function userAttachmentName(name: string): string {
+	return RESERVED_CONTEXT_NAMES.some((pattern) => pattern.test(name)) ? `attached-${name}` : name;
+}
+
 /** Keeps a file name inside the staging folder. A name without an extension gets `.txt`. */
 export function attachmentFileName(name: string): string {
 	const cleaned = name.replace(/[/\\]/g, "-").replace(/\.\./g, "-").trim();
@@ -166,7 +205,7 @@ export interface ComposerState {
 }
 
 export interface ComposerServiceDeps {
-	platform: Pick<Platform, "fs" | "dialogs" | "clipboard">;
+	platform: Pick<Platform, "fs" | "dialogs" | "clipboard"> & Partial<Pick<Platform, "attachments">>;
 	repos: Pick<Repositories, "attachments">;
 	setDebounce: (callback: () => void, ms: number) => () => void;
 	/** The chat tab open in a workspace, for "Attach in chat" (REV-06). */
@@ -186,6 +225,8 @@ export class ComposerService {
 	readonly #generation = new Map<string, number>();
 	/** Writes of one chat run one after the other, so a clear cannot be overtaken by an old save. */
 	readonly #writes = new Map<string, Promise<void>>();
+	/** How many copies are running for each chat. A send waits until the count is zero. */
+	readonly #busy = new Map<string, number>();
 
 	constructor(deps: ComposerServiceDeps) {
 		this.#deps = deps;
@@ -252,16 +293,76 @@ export class ComposerService {
 	}
 
 	/** Copies a picked or dropped file into the staging folder and adds an attachment row. */
-	addAttachment(_sessionId: SessionId, _sourcePath: string): Promise<Result<Attachment>> {
-		return notImplemented("COMP-07");
+	async addAttachment(sessionId: SessionId, sourcePath: string): Promise<Result<Attachment>> {
+		this.#beginBusy(sessionId);
+		try {
+			return await this.#addAttachment(sessionId, sourcePath);
+		} finally {
+			this.#endBusy(sessionId);
+		}
+	}
+
+	async #addAttachment(sessionId: SessionId, sourcePath: string): Promise<Result<Attachment>> {
+		const loaded = await this.loadDraft(sessionId);
+		if (!loaded.ok) return loaded;
+		const fs = this.#deps.platform.fs;
+		const stat = await fs.stat(sourcePath);
+		if (!stat.ok) {
+			return err(appError("attachment_unavailable", "Attachments not available", stat.error));
+		}
+		if (stat.value.isDirectory) {
+			return err(appError("attachment_is_directory", "Folders can't be uploaded"));
+		}
+		const originalName = userAttachmentName(sourcePath.split("/").pop() ?? sourcePath);
+		const kind = attachmentKindOf(originalName);
+		if (kind === "image" && stat.value.size > MAX_IMAGE_ATTACHMENT_BYTES) {
+			return err(appError("attachment_too_large", "Image too large"));
+		}
+		const files = this.#deps.platform.attachments;
+		if (files === undefined) {
+			return err(appError("attachment_unavailable", "Attachments not available"));
+		}
+		const folder = draftAttachmentsDir(fs.paths, sessionId);
+		const made = await fs.mkdirp(folder);
+		if (!made.ok) return made;
+		const destination = await this.#freePath(folder, attachmentFileName(originalName));
+		const materialized = await files.materialize(sourcePath, destination, {
+			resizeImage: kind === "image",
+		});
+		if (!materialized.ok) return err(this.#copyError(materialized.error));
+		const added = await this.#deps.repos.attachments.addDraft({
+			sessionId,
+			kind,
+			originalName,
+			path: materialized.value.path,
+			commentId: null,
+		});
+		if (!added.ok) {
+			await trashIfPresent(fs, materialized.value.path);
+			return added;
+		}
+		this.#appendToDraft(sessionId, added.value.path);
+		return ok(added.value);
 	}
 
 	/**
 	 * Backs `Actions.attachments.add`: stages every file and returns where the copies are. A file
 	 * that fails to copy fails the call with its name in the message; the files before it stay.
 	 */
-	addAttachments(_sessionId: SessionId, _sourcePaths: string[]): Promise<Result<string[]>> {
-		return notImplemented("COMP-07");
+	async addAttachments(sessionId: SessionId, sourcePaths: string[]): Promise<Result<string[]>> {
+		this.#beginBusy(sessionId);
+		try {
+			const paths: string[] = [];
+			let failure: AppError | null = null;
+			for (const sourcePath of sourcePaths) {
+				const added = await this.#addAttachment(sessionId, sourcePath);
+				if (added.ok) paths.push(added.value.path);
+				else if (failure === null) failure = added.error;
+			}
+			return failure === null ? ok(paths) : err(failure);
+		} finally {
+			this.#endBusy(sessionId);
+		}
 	}
 
 	/** Backs `Actions.files.attachToChat`: adds workspace files to the active chat's draft. */
@@ -292,28 +393,104 @@ export class ComposerService {
 		return ok(undefined);
 	}
 
-	/** Stores clipboard image bytes as a staged attachment. */
-	addImageBytes(
-		_sessionId: SessionId,
-		_bytes: Uint8Array,
-		_fileName: string,
-	): Promise<Result<Attachment>> {
-		return notImplemented("COMP-07");
-	}
-
-	removeAttachment(_sessionId: SessionId, _attachmentPath: string): Promise<Result<void>> {
-		return notImplemented("COMP-07");
+	/** Removes one draft attachment, moves its staged file to the Trash and updates the draft. */
+	async removeAttachment(sessionId: SessionId, attachmentPath: string): Promise<Result<void>> {
+		const loaded = await this.loadDraft(sessionId);
+		if (!loaded.ok) return loaded;
+		const listed = await this.#deps.repos.attachments.listDraftsBySession(sessionId);
+		if (!listed.ok) return listed;
+		const row = listed.value.find((entry) => entry.path === attachmentPath);
+		if (row !== undefined) {
+			const removed = await this.#deps.repos.attachments.removeDraft(sessionId, row.id);
+			if (!removed.ok) return removed;
+		}
+		const fs = this.#deps.platform.fs;
+		if (isInsideFolder(draftAttachmentsRoot(fs.paths), attachmentPath)) {
+			const trashed = await trashIfPresent(fs, attachmentPath);
+			if (!trashed.ok) return trashed;
+		}
+		const draft = this.store.getState().drafts[sessionId];
+		if (draft !== undefined) {
+			this.store.setState((state) => ({
+				drafts: {
+					...state.drafts,
+					[sessionId]: {
+						...draft,
+						attachmentPaths: draft.attachmentPaths.filter((path) => path !== attachmentPath),
+					},
+				},
+			}));
+		}
+		return ok(undefined);
 	}
 
 	/**
-	 * Copies staged attachments into the workspace, marks them as sent, and returns the final
-	 * paths to put in the message. Runs before a message is sent.
+	 * Copies staged attachments into the workspace, marks their rows as sent with `messageId`, and
+	 * returns the final paths to put in the message. Runs before a message is sent.
 	 */
-	materializeForSend(_sessionId: SessionId, _workspacePath: string): Promise<Result<string[]>> {
-		return notImplemented("COMP-07");
+	async materializeForSend(
+		sessionId: SessionId,
+		workspacePath: string,
+		messageId: string,
+	): Promise<Result<string[]>> {
+		if ((this.#busy.get(sessionId) ?? 0) > 0) {
+			return err(appError("attachment_processing", "Wait for attachments to finish processing."));
+		}
+		const loaded = await this.loadDraft(sessionId);
+		if (!loaded.ok) return loaded;
+		const draft = loaded.value;
+		if (draft.attachmentPaths.length === 0) return ok([]);
+		const listed = await this.#deps.repos.attachments.listDraftsBySession(sessionId);
+		if (!listed.ok) return listed;
+		const files = this.#deps.platform.attachments;
+		if (files === undefined) {
+			return err(appError("attachment_unavailable", "Attachments not available"));
+		}
+		const fs = this.#deps.platform.fs;
+		const finalPaths: string[] = [];
+		const sent: Attachment["id"][] = [];
+		for (const path of draft.attachmentPaths) {
+			const row = listed.value.find((entry) => entry.path === path);
+			if (row === undefined) {
+				if (!(await fs.exists(path))) {
+					return err(appError("attachment_unavailable", "Attachments not available"));
+				}
+				finalPaths.push(path);
+				continue;
+			}
+			const source = await fs.stat(path);
+			if (!source.ok) {
+				return err(appError("attachment_unavailable", "Attachments not available", source.error));
+			}
+			const folder = `${workspacePath}/.context/attachments/${row.id}`;
+			const made = await fs.mkdirp(folder);
+			if (!made.ok) return made;
+			const destination = `${folder}/${attachmentFileName(row.originalName)}`;
+			let finalPath = destination;
+			if (!(await fs.exists(destination))) {
+				const materialized = await files.materialize(path, destination, {
+					resizeImage: row.kind === "image",
+				});
+				if (!materialized.ok) return err(this.#copyError(materialized.error));
+				finalPath = materialized.value.path;
+			}
+			if (isInsideFolder(draftAttachmentsRoot(fs.paths), path)) {
+				const trashed = await trashIfPresent(fs, path);
+				if (!trashed.ok) return trashed;
+			}
+			const saved = await this.#deps.repos.attachments.setPath(row.id, finalPath);
+			if (!saved.ok) return saved;
+			sent.push(row.id);
+			finalPaths.push(finalPath);
+		}
+		if (sent.length > 0) {
+			const attached = await this.#deps.repos.attachments.attachDrafts(sessionId, messageId, sent);
+			if (!attached.ok) return attached;
+		}
+		return ok(finalPaths);
 	}
 
-	/** Clears the draft after a successful send. */
+	/** Clears the draft after a successful send. The staged files move when the message is sent. */
 	async clearDraft(sessionId: SessionId): Promise<Result<void>> {
 		this.#bump(sessionId);
 		const pending = this.#pending.get(sessionId);
@@ -323,6 +500,60 @@ export class ComposerService {
 		delete drafts[sessionId];
 		this.store.setState({ drafts });
 		return this.#enqueue(sessionId, () => this.#removeFile(sessionId));
+	}
+
+	#beginBusy(sessionId: SessionId): void {
+		this.#busy.set(sessionId, (this.#busy.get(sessionId) ?? 0) + 1);
+	}
+
+	#endBusy(sessionId: SessionId): void {
+		const next = (this.#busy.get(sessionId) ?? 0) - 1;
+		if (next <= 0) this.#busy.delete(sessionId);
+		else this.#busy.set(sessionId, next);
+	}
+
+	/** Keeps an added path in the loaded draft, so a send and a screen see the same list. */
+	#appendToDraft(sessionId: SessionId, path: string): void {
+		const draft = this.store.getState().drafts[sessionId];
+		if (draft === undefined) return;
+		this.store.setState((state) => ({
+			drafts: {
+				...state.drafts,
+				[sessionId]: {
+					...draft,
+					attachmentPaths: [...draft.attachmentPaths, path],
+				},
+			},
+		}));
+	}
+
+	/** A path in `folder` that no other file uses yet. */
+	async #freePath(folder: string, name: string): Promise<string> {
+		const fs = this.#deps.platform.fs;
+		let path = `${folder}/${name}`;
+		let suffix = 1;
+		while (await fs.exists(path)) {
+			const dot = name.lastIndexOf(".");
+			const stem = dot === -1 ? name : name.slice(0, dot);
+			const extension = dot === -1 ? "" : name.slice(dot);
+			path = `${folder}/${stem}-${suffix}${extension}`;
+			suffix += 1;
+		}
+		return path;
+	}
+
+	/** Turns a Rust copy failure into the message the user sees. */
+	#copyError(error: AppError): AppError {
+		if (error.code === "attachment_is_directory") {
+			return appError(error.code, "Folders can't be uploaded", error);
+		}
+		if (error.code === "attachment_too_large") {
+			return appError(error.code, "Image too large", error);
+		}
+		if (error.code === "attachment_missing") {
+			return appError("attachment_unavailable", "Attachments not available", error);
+		}
+		return error;
 	}
 
 	#bump(sessionId: SessionId): void {
@@ -464,16 +695,7 @@ export class ComposerService {
 		const made = await fs.mkdirp(folder);
 		if (!made.ok) return made;
 
-		let path = `${folder}/${name}`;
-		let suffix = 1;
-		while (await fs.exists(path)) {
-			const dot = name.lastIndexOf(".");
-			const stem = dot === -1 ? name : name.slice(0, dot);
-			const extension = dot === -1 ? "" : name.slice(dot);
-			path = `${folder}/${stem}-${suffix}${extension}`;
-			suffix += 1;
-		}
-
+		const path = await this.#freePath(folder, name);
 		const written = await fs.writeTextAtomic(path, text);
 		if (!written.ok) return written;
 		const added = await this.#deps.repos.attachments.addDraft({
@@ -485,18 +707,7 @@ export class ComposerService {
 		});
 		if (!added.ok) return added;
 
-		const draft = this.store.getState().drafts[sessionId];
-		if (draft !== undefined) {
-			this.store.setState((state) => ({
-				drafts: {
-					...state.drafts,
-					[sessionId]: {
-						...draft,
-						attachmentPaths: [...draft.attachmentPaths, path],
-					},
-				},
-			}));
-		}
+		this.#appendToDraft(sessionId, path);
 		return ok(path);
 	}
 

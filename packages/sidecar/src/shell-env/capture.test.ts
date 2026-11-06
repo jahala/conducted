@@ -128,6 +128,26 @@ describe("SIDE-10 login-shell capture", () => {
 		expect(calls[0]?.command.args[1]).toContain(`'${marker}'`);
 	});
 
+	test("keeps the stripped provider keys apart for a key chosen from this Mac", async () => {
+		const { spawnText } = recordingSpawn(() =>
+			ok(
+				dump("M1", {
+					PATH: "/usr/bin",
+					ANTHROPIC_API_KEY: "secret",
+					CONDUCTED_CWD: "/work",
+					SHELL: "/bin/zsh",
+				}),
+			),
+		);
+
+		const result = await provider("/bin/zsh", spawnText).get();
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.env.ANTHROPIC_API_KEY).toBeUndefined();
+		expect(result.value.providerSecrets).toEqual({ ANTHROPIC_API_KEY: "secret" });
+	});
+
 	test("gives the primary 5 seconds and the fallback 3 seconds with a fresh marker", async () => {
 		const { spawnText, calls } = recordingSpawn((call) =>
 			call.timeoutMs === PRIMARY_CAPTURE_TIMEOUT_MS

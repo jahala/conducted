@@ -1,7 +1,11 @@
 /**
  * @feature REV-06 Workspace files: tree, quick open, search, read and write
- * Owns: listing a workspace's files, fuzzy file search, content search, and reading and saving a
- * file for the viewer and editor.
+ * @feature REV-08 File content for the viewer, the editor's unsaved drafts and the open-in-tab request
+ * Owns: listing a workspace's files, fuzzy file search, content search, reading and saving a file
+ * for the viewer and editor, the modified time the viewer polls, and the editor's unsaved drafts.
+ * The drafts live in this service's store, keyed by workspace and path, so they outlive the tab:
+ * switching tabs, toggling Diff and Edit, or moving to the next file keeps them. A draft is kept
+ * in memory until it is saved or discarded, or the app quits.
  * Behaviour: services-map.md 5A.5 (transport pattern, UI queries, minimum search length 2, polling
  * the tree), ui-map.md 3.6 (All files tab, quick open, search in files). The tab polls `tree`
  * because JS file watchers do nothing under CEF (services-map.md 5A.9).
@@ -9,7 +13,12 @@
  * file is read or written; the tree respects `.gitignore` (done by the Rust search commands); a
  * query under two characters returns no rows; a bad regular expression returns the platform's
  * pattern error; saving writes atomically and refuses when the file changed on disk since it was
- * opened (returns a conflict Err with the new modified time).
+ * opened (returns a conflict Err with the new modified time); a draft the user kept after the
+ * file was deleted is saved by writing the file again, and refused if the file came back; an edit
+ * that brings the text back to the disk text drops the draft; a second save while one runs is
+ * ignored; typing during a save keeps the newer text as a draft.
+ * Our design choice: a preview URL carries the file's modified time as a query string. The asset
+ * handler reads only the path, and the webview loads the file again when it changes.
  * Our design choice: before every file call the path is checked in TypeScript: it must be relative
  * and must not climb with `..`. This check is lexical. It does not follow symlinks, so a link inside
  * the workspace that points outside it passes here; resolving links is the Rust file commands' scope
@@ -26,8 +35,10 @@ import {
 	type Result,
 	type WorkspaceId,
 } from "@conducted/shared";
+import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platform/platform.ts";
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
+import type { FileContent } from "../model.ts";
 import { workspaceRelativePath } from "./git.ts";
 
 /** Search in files shows this many matches, and asks for a narrower query when there are more. */
@@ -39,6 +50,45 @@ export interface WorkspaceFilesServiceDeps {
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
 }
+
+/** One request from the Git panel or a shortcut to show a file in the centre. */
+export interface OpenFileRequest {
+	workspaceId: WorkspaceId;
+	path: string;
+	mode: "diff" | "edit";
+	scope: DiffScope;
+}
+
+type OpenFileListener = (request: OpenFileRequest) => void;
+
+/** Unsaved edits of one file in the editor. */
+export interface FileDraft {
+	text: string;
+	/** The modified time on disk the edits started from. A save refuses when the disk moved on. */
+	baseModifiedAt: number;
+	/** The user chose Keep mine after the file was deleted on disk; a save writes it again. */
+	keptAfterDelete: boolean;
+	saving: boolean;
+	/** The last save's failure, shown in the tab header until the next edit or save. */
+	saveError: string | null;
+}
+
+export interface FileDraftsState {
+	drafts: Readonly<Record<string, FileDraft>>;
+}
+
+/** The store key of a file's draft. */
+export const fileDraftKey = (workspaceId: WorkspaceId, relativePath: string): string =>
+	`${workspaceId}\u0000${relativePath}`;
+
+/**
+ * The URL the webview loads a file's preview from. The modified time changes the URL when the file
+ * changes, so an image, PDF or video loads again.
+ */
+export const previewUrlOf = (absolutePath: string, modifiedAt: number | null): string => {
+	const url = `asset://localhost/${encodeURIComponent(absolutePath)}`;
+	return modifiedAt === null ? url : `${url}?v=${modifiedAt}`;
+};
 
 interface ResolvedPath {
 	root: string;
@@ -70,9 +120,20 @@ const toEntries = (root: string, entries: readonly TreeEntry[]): FileEntry[] => 
 
 export class WorkspaceFilesService {
 	readonly #deps: WorkspaceFilesServiceDeps;
+	readonly #openListeners = new Set<OpenFileListener>();
+	/** The editor's unsaved drafts. See the header for their lifetime. */
+	readonly drafts: StoreApi<FileDraftsState> = createStore<FileDraftsState>(() => ({ drafts: {} }));
 
 	constructor(deps: WorkspaceFilesServiceDeps) {
 		this.#deps = deps;
+	}
+
+	/** The workspace screen subscribes here so `Actions.files.open` reaches the URL. */
+	onOpen(listener: OpenFileListener): () => void {
+		this.#openListeners.add(listener);
+		return () => {
+			this.#openListeners.delete(listener);
+		};
 	}
 
 	/** Backs `useFileTree`. The platform lists the whole tree; the tab shows depth 1 until expanded. */
@@ -136,14 +197,163 @@ export class WorkspaceFilesService {
 		return ok({ text: read.value, modifiedAt: stat.value.modifiedAt });
 	}
 
+	/** Reads a file for the viewer, with a URL for the previews the webview can draw. */
+	async readContent(workspaceId: WorkspaceId, relativePath: string): Promise<Result<FileContent>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		const absolute = resolved.value.absolute;
+		const stat = await this.#deps.fs.stat(absolute);
+		if (!stat.ok) {
+			if (stat.error.code === "fs_not_found") return ok({ kind: "missing" });
+			return stat;
+		}
+		if (stat.value.isDirectory) {
+			return err(appError("fs_is_a_directory", `"${relativePath}" is a folder.`));
+		}
+		const sizeBytes = stat.value.size;
+		const modifiedAt = stat.value.modifiedAt;
+		const read = await this.#deps.fs.readText(absolute);
+		if (read.ok) {
+			return ok({ kind: "text", text: read.value, modifiedAt, sizeBytes });
+		}
+		if (read.error.code === "fs_not_utf8") {
+			return ok({
+				kind: "binary",
+				sizeBytes,
+				modifiedAt,
+				previewUrl: previewUrlOf(absolute, modifiedAt),
+			});
+		}
+		if (read.error.code === "fs_file_too_large") return ok({ kind: "too_large", sizeBytes });
+		if (read.error.code === "fs_not_found") return ok({ kind: "missing" });
+		return read;
+	}
+
+	/** The modified time the viewer polls. Null when the file is gone. */
+	async modifiedAtOf(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+	): Promise<Result<number | null>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		const stat = await this.#deps.fs.stat(resolved.value.absolute);
+		if (!stat.ok) return stat.error.code === "fs_not_found" ? ok(null) : stat;
+		return ok(stat.value.modifiedAt);
+	}
+
+	/**
+	 * Records the user's edit. The first edit starts from the disk text and its modified time; an
+	 * edit that gives back the disk text drops the draft, so the file reads as clean again.
+	 */
+	editDraft(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		text: string,
+		disk: { text: string; modifiedAt: number } | null,
+	): void {
+		const key = fileDraftKey(workspaceId, relativePath);
+		const current = this.drafts.getState().drafts[key];
+		const baseModifiedAt = current?.baseModifiedAt ?? disk?.modifiedAt;
+		if (baseModifiedAt === undefined) return;
+		const backToDisk =
+			disk !== null &&
+			text === disk.text &&
+			baseModifiedAt === disk.modifiedAt &&
+			current?.saving !== true;
+		if (backToDisk) {
+			this.#removeDraft(key);
+			return;
+		}
+		this.#setDraft(key, {
+			text,
+			baseModifiedAt,
+			keptAfterDelete: current?.keptAfterDelete ?? false,
+			saving: current?.saving ?? false,
+			saveError: null,
+		});
+	}
+
+	/** Discard my edits: the editor shows the disk version again. */
+	discardDraft(workspaceId: WorkspaceId, relativePath: string): void {
+		this.#removeDraft(fileDraftKey(workspaceId, relativePath));
+	}
+
+	/**
+	 * Keep mine: the next save overwrites the disk version on purpose. A null modified time means
+	 * the file was deleted, and the next save writes it again.
+	 */
+	keepDraft(workspaceId: WorkspaceId, relativePath: string, diskModifiedAt: number | null): void {
+		const key = fileDraftKey(workspaceId, relativePath);
+		const current = this.drafts.getState().drafts[key];
+		if (current === undefined) return;
+		this.#setDraft(
+			key,
+			diskModifiedAt === null
+				? { ...current, keptAfterDelete: true }
+				: { ...current, baseModifiedAt: diskModifiedAt, keptAfterDelete: false },
+		);
+	}
+
+	/**
+	 * Saves the draft. `ok(null)` when there is nothing to save or a save is already running. On
+	 * success the saved text and its modified time come back, so the caller can show them at once.
+	 */
+	async saveDraft(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+	): Promise<Result<{ text: string; modifiedAt: number } | null>> {
+		const key = fileDraftKey(workspaceId, relativePath);
+		const draft = this.drafts.getState().drafts[key];
+		if (draft === undefined || draft.saving) return ok(null);
+		this.#setDraft(key, { ...draft, saving: true, saveError: null });
+		const saved = draft.keptAfterDelete
+			? await this.#writeAgain(workspaceId, relativePath, draft.text)
+			: await this.saveFile(workspaceId, relativePath, draft.text, draft.baseModifiedAt);
+		const current = this.drafts.getState().drafts[key];
+		if (!saved.ok) {
+			if (current !== undefined) {
+				const saveError = saved.error.code === "changed_on_disk" ? null : saved.error.message;
+				this.#setDraft(key, { ...current, saving: false, saveError });
+			}
+			return saved;
+		}
+		if (current !== undefined) {
+			if (current.text === draft.text) {
+				this.#removeDraft(key);
+			} else {
+				this.#setDraft(key, {
+					...current,
+					baseModifiedAt: saved.value.modifiedAt,
+					keptAfterDelete: false,
+					saving: false,
+				});
+			}
+		}
+		return ok({ text: draft.text, modifiedAt: saved.value.modifiedAt });
+	}
+
 	/** Backs `Actions.files.open`: asks the workspace screen to show the file in a tab. */
-	open(
-		_workspaceId: WorkspaceId,
-		_relativePath: string,
-		_mode: "diff" | "edit",
-		_scope: DiffScope,
+	async open(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		mode: "diff" | "edit",
+		scope: DiffScope,
 	): Promise<Result<void>> {
-		return notImplemented("REV-08");
+		const checked = workspaceRelativePath(relativePath);
+		if (!checked.ok) return checked;
+		if (this.#openListeners.size === 0) {
+			return err(
+				appError("file_open_unavailable", "No workspace screen is open to show this file."),
+			);
+		}
+		const request: OpenFileRequest = {
+			workspaceId,
+			path: checked.value,
+			mode,
+			scope,
+		};
+		for (const listener of this.#openListeners) listener(request);
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.files.write`. Fails with code "changed_on_disk" when the file moved on. */
@@ -197,6 +407,39 @@ export class WorkspaceFilesService {
 	/** Backs `Actions.artifacts.upload`. */
 	uploadArtifacts(_workspaceId: WorkspaceId, _paths: readonly string[]): Promise<Result<void>> {
 		return notImplemented("REV-10");
+	}
+
+	/** Writes a file that was deleted on disk. Refused when it came back in the meantime. */
+	async #writeAgain(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		text: string,
+	): Promise<Result<{ modifiedAt: number }>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		const stat = await this.#deps.fs.stat(resolved.value.absolute);
+		if (stat.ok) {
+			return err(
+				appError("changed_on_disk", `"${relativePath}" is back on disk with other content.`, {
+					modifiedAt: stat.value.modifiedAt,
+				}),
+			);
+		}
+		if (stat.error.code !== "fs_not_found") return stat;
+		const written = await this.#deps.fs.writeTextAtomic(resolved.value.absolute, text);
+		if (!written.ok) return err(appError("other", written.error.message, written.error));
+		const after = await this.#deps.fs.stat(resolved.value.absolute);
+		if (!after.ok) return after;
+		return ok({ modifiedAt: after.value.modifiedAt });
+	}
+
+	#setDraft(key: string, draft: FileDraft): void {
+		this.drafts.setState((state) => ({ drafts: { ...state.drafts, [key]: draft } }));
+	}
+
+	#removeDraft(key: string): void {
+		const { [key]: _removed, ...rest } = this.drafts.getState().drafts;
+		this.drafts.setState({ drafts: rest });
 	}
 
 	async #rootOf(workspaceId: WorkspaceId): Promise<Result<string>> {

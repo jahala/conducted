@@ -165,7 +165,12 @@ async function harness(
 		logs: [],
 		nextCodexSpawn: () => new Promise<void>((resolve) => spawnWaiters.push(resolve)),
 	};
-	const captured = { shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin", HOME: home } };
+	const captured = {
+		shell: "/bin/zsh",
+		path: "/usr/bin",
+		env: { PATH: "/usr/bin", HOME: home },
+		providerSecrets: {},
+	};
 	const host = composeSidecar(
 		{ binDir: BIN_DIR, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
 		{

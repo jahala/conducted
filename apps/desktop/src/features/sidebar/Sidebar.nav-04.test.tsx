@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { Sidebar } from "./Sidebar.tsx";
@@ -55,10 +56,14 @@ function renderSidebar(container: ReturnType<typeof createTestContainer>["contai
 		]),
 		history: createMemoryHistory({ initialEntries: ["/"] }),
 	});
+	// The app's providers, as main.tsx mounts them: the footer's macOS warning reads the Mac's facts
+	// through a query (useSystemInfo).
 	return render(
-		<ServicesProvider container={container}>
-			<RouterProvider router={router} />
-		</ServicesProvider>,
+		<AppProviders client={createQueryClient(() => {})}>
+			<ServicesProvider container={container}>
+				<RouterProvider router={router} />
+			</ServicesProvider>
+		</AppProviders>,
 	);
 }
 

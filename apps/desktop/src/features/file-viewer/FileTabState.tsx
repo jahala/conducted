@@ -7,6 +7,8 @@
  * unavailable").
  * Must handle: each state has one clear action at most (Retry, Unarchive, Open in another app),
  * loading uses a skeleton with role "status", and the error text comes from the AppError message.
+ * A state whose caller gives no action shows no button: the binary and too-large states offer
+ * "Open in another app" only when a handler is passed.
  * Test first: state "archived" shows an Unarchive action that calls onAction.
  */
 import { Button } from "../../ui/Button.tsx";
@@ -25,7 +27,8 @@ export interface FileTabStateProps {
 	kind: FileTabStateKind;
 	/** Plain-language detail, e.g. the error message or the file size. */
 	detail: string | null;
-	onAction: () => void;
+	/** The state's one action. Without it the state shows no button. */
+	onAction?: () => void;
 }
 
 export function FileTabState({ kind, detail, onAction }: FileTabStateProps) {
@@ -45,9 +48,11 @@ export function FileTabState({ kind, detail, onAction }: FileTabStateProps) {
 				title="This workspace is archived"
 				body="Workspace archived. Unarchive this workspace to view files, terminals and browser previews."
 				action={
-					<Button variant="default" onClick={onAction}>
-						Unarchive
-					</Button>
+					onAction === undefined ? undefined : (
+						<Button variant="default" onClick={onAction}>
+							Unarchive
+						</Button>
+					)
 				}
 			/>
 		);
@@ -59,9 +64,11 @@ export function FileTabState({ kind, detail, onAction }: FileTabStateProps) {
 				title="Couldn't load this file"
 				body={detail ?? "The file could not be read."}
 				action={
-					<Button variant="secondary" onClick={onAction}>
-						Try again
-					</Button>
+					onAction === undefined ? undefined : (
+						<Button variant="secondary" onClick={onAction}>
+							Try again
+						</Button>
+					)
 				}
 			/>
 		);
@@ -77,9 +84,11 @@ export function FileTabState({ kind, detail, onAction }: FileTabStateProps) {
 				title="Binary file"
 				body="This file can't be shown as text."
 				action={
-					<Button variant="secondary" onClick={onAction}>
-						Open in another app
-					</Button>
+					onAction === undefined ? undefined : (
+						<Button variant="secondary" onClick={onAction}>
+							Open in another app
+						</Button>
+					)
 				}
 			/>
 		);
@@ -87,11 +96,13 @@ export function FileTabState({ kind, detail, onAction }: FileTabStateProps) {
 	return (
 		<EmptyState
 			title="File is too large"
-			body={detail ?? "Open it in another app to view it."}
+			body={detail ?? "This file is too large to show here."}
 			action={
-				<Button variant="secondary" onClick={onAction}>
-					Open in another app
-				</Button>
+				onAction === undefined ? undefined : (
+					<Button variant="secondary" onClick={onAction}>
+						Open in another app
+					</Button>
+				)
 			}
 		/>
 	);

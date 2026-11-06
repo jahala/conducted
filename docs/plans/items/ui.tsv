@@ -282,7 +282,7 @@ REV-01	shortcut	Cmd+Alt+U show uncommitted changes	ui-map 5.4	covered
 CHAT-01	shortcut	Cmd+T new chat tab	ui-map 5.4	covered
 COMP-01	shortcut	Enter submits, Shift+Enter inserts a new line	ui-map 5.4	covered
 CHAT-03	shortcut	Cmd+Enter submits with the opposite follow-up behaviour	ui-map 5.4	covered
-COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths	ui-map 5.4	covered
+COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths (needs Clipboard.readFilePaths in platform.ts and its Rust command)	ui-map 5.4	missing
 COMP-01	shortcut	Cmd+L focuses the chat input	ui-map 5.4	covered
 COMP-03	shortcut	Shift+Tab toggles plan mode while typing	ui-map 5.4	covered
 CHAT-12	shortcut	Cmd+Shift+Enter approves the plan	ui-map 5.4	covered
@@ -530,8 +530,8 @@ COMP-08	control	Speech to text: waveform, 'Stop recording', 'Transcribing...', s
 COMP-01	menu	'More composer actions' menu on narrow layouts	ui-map 3.5	covered
 COMP-01	control	Send, Queue and Save button	ui-map 3.5	covered
 CHAT-05	control	Stop button (tooltip 'Cancel')	ui-map 3.5	covered
-COMP-07	action	Attachments by file picker, drag and drop, and paste	ui-map 3.5	covered
-COMP-07	action	'Paste copied files as paths'	ui-map 3.5	covered
+COMP-07	action	Attachments by file picker, drag and drop, and paste (a pasted image needs AttachmentFiles.writeBytes in platform.ts and its Rust command)	ui-map 3.5	partly
+COMP-07	action	'Paste copied files as paths' (needs Clipboard.readFilePaths)	ui-map 3.5	missing
 COMP-07	setting	Pasted text over 5000 characters becomes an attachment (setting)	ui-map 3.5	covered
 COMP-07	rule	Images over 5MB fail with a message	ui-map 3.5	covered
 COMP-07	rule	Sending waits until the workspace is initialised and says so	services-map 5A.6.2	partly
@@ -1001,7 +1001,7 @@ WS-03	rule	Files to copy: .worktreeinclude, file_include_globs, default .env*, 2
 CHAT-04	rule	Failed first send can be retried or discarded (API actions)	ui-map 3.3	partly
 NAV-07	rule	Missing registry commands: select loadout 1 to 5, insert snippet, save goal, open sidecar logs, forward ports	ui-map 5.4	partly
 SET-09	rule	Provider keys are stripped from the agent environment unless the provider is 'custom'	services-map 4.2.8	partly
-PLAT-28	rule	The app downloads the official Claude Code and Codex releases, verifies them and keeps them up to date	ui-map 6, 7.4	missing
+PLAT-28	rule	The app downloads the official Claude Code and Codex releases, verifies them and keeps them up to date	ui-map 6, 7.4	partly
 AGENT-13	rule	Codex goal state reaches the goal bar through protocol calls	ui-map 3.5	missing
 CHAT-18	state	A chat resumes after an app restart or sidecar reconnect without losing events	sessions 8	covered
 CHAT-18	state	A turn cut off by a crash is shown as 'interrupted' (adds information, D008)	sessions 8	covered
@@ -1057,3 +1057,6 @@ REV-08	integration	A file opened from the All files tab, the Changes list, quick
 SET-07	rule	The repository Scripts, Actions, Prompts and Misc pages take focusSettingKey from SettingsScreen and mark the row a settings search opened (data-setting-key, data-highlighted) (moved from SET-02 by the slice 2 step 2 audit).	docs/reports/audits/s2-step-2	missing
 SET-03	rule	The Agents page shows every registry row the settings search sends to it (claude_provider, codex_provider, bedrock_region, vertex_project_id, tool_approvals_enabled, codex_tool_approval_policy, chrome_mode_enabled) and marks the searched row (moved from SET-02 by the slice 2 step 2 audit).	docs/reports/audits/s2-step-2	missing
 SET-04	rule	The Environment page shows environment_variable_files and marks it when a settings search opens the page (moved from SET-02 by the slice 2 step 2 audit).	docs/reports/audits/s2-step-2	missing
+REV-08	shortcut	The file editor has undo, redo, the default key map and Tab indent (needs the @codemirror/commands 6.x dependency, not installed overnight).	ui-map 3.2	missing
+REV-08	action	Reveal in Finder from a preview that cannot show (needs files.reveal in core/api.ts, backed by platform.opener.revealInFinder).	ui-map 3.2	missing
+CHAT-04	action	Retry a failed queued message goes through Actions (needs sessions.queue.retry in core/api.ts and actions.ts; QueueBox calls the service directly until then).	ui-map 3.4	partly

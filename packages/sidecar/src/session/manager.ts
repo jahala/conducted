@@ -83,7 +83,7 @@ import {
 	SteerNotSupportedError,
 	SteerRevertedError,
 } from "../runners/errors.ts";
-import { buildAgentEnvironment } from "../runners/launch-env.ts";
+import { agentEnvironmentFromCapture } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type {
 	AgentConfigChangeReason,
@@ -92,7 +92,7 @@ import type {
 	RunnerCapabilities,
 	TurnOutcome,
 } from "../runners/runner.ts";
-import type { ShellEnvProvider } from "../shell-env/capture.ts";
+import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import { isAppError, messageOf } from "../util/errors.ts";
 import type { DuplicateGuard } from "./duplicate-guard.ts";
 import { DuplicateGuard as Guard } from "./duplicate-guard.ts";
@@ -387,7 +387,7 @@ export class DefaultSessionManager implements SessionManager {
 				});
 				return ok({});
 			}
-			const env = this.agentEnvironment(state, config, params.workspace, captured.value.env);
+			const env = this.agentEnvironment(state, config, params.workspace, captured.value);
 			if (!env.ok) {
 				this.deps.logger.warn("Could not warm the agent with the chat's launch settings", {
 					sessionId: state.sessionId,
@@ -716,14 +716,14 @@ export class DefaultSessionManager implements SessionManager {
 		state: SessionState,
 		config: SessionConfig,
 		workspace: WorkspaceContext,
-		base: Readonly<Record<string, string>>,
+		captured: CapturedShellEnv,
 	): Result<Record<string, string>> {
-		return buildAgentEnvironment({
+		return agentEnvironmentFromCapture({
 			agent: config.agent,
 			...(config.acpAgent === undefined ? {} : { acpAgent: config.acpAgent }),
 			sessionId: state.sessionId,
 			workspace,
-			base,
+			captured,
 			launch: state.launch,
 		});
 	}
@@ -1072,7 +1072,7 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<Result<{ agent: AgentSession; lease: { release(): void } }, AppError>> {
 		const captured = await this.deps.shellEnv.get(workspace.workspacePath);
 		if (!captured.ok) return err(captured.error);
-		const env = this.agentEnvironment(state, config, workspace, captured.value.env);
+		const env = this.agentEnvironment(state, config, workspace, captured.value);
 		if (!env.ok) return err(env.error);
 		const key = processKey(config.agent, config.acpAgent, state.sessionId);
 		const start = (): Promise<AgentSession> =>

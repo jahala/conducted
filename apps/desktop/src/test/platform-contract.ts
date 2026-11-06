@@ -1627,8 +1627,10 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"menu.onCommand": "Needs a real menu; the Tauri adapter tests own the event door.",
 	"system.onNetworkChanged": "PLAT-26 builds it.",
 	"system.openFullDiskAccessSettings": "Opens System Settings; nothing a stand-in can show.",
-	"programs.redownload": "PLAT-28 builds it.",
-	"programs.prefetchForUpdate": "PLAT-28 builds it.",
+	"programs.redownload":
+		"Uses the same install path as programs.install, which the install-status case covers.",
+	"programs.prefetchForUpdate":
+		"Starts installs in the background with no answer to compare; the plugin's install path is covered.",
 	"programs.verificationErrors": "Reads the Rust launch check; the Rust job owns it.",
 	"programs.syncPathOverrides": "SET-13 builds it.",
 	"http.download":

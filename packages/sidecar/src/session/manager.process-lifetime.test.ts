@@ -190,8 +190,10 @@ function harness() {
 		checkpoints: new NoCheckpoints(),
 		prompt: new EchoPrompt(),
 		shellEnv: {
-			get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" } }),
-			refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" } }),
+			get: async () =>
+				ok({ shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" }, providerSecrets: {} }),
+			refresh: async () =>
+				ok({ shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" }, providerSecrets: {} }),
 		},
 		publisher,
 		liveState,

@@ -20,7 +20,7 @@ import { constants as osConstants } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { FileStat, ShellCommand, ShellOutput } from "../platform/platform.ts";
+import type { FileStat, ProgramStatus, ShellCommand, ShellOutput } from "../platform/platform.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";
 import type { ContractControls } from "./platform-contract.ts";
@@ -201,6 +201,25 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 	const folderAnswers: (string | null)[] = [];
 	const fileAnswers: string[][] = [];
 	const confirmAnswers: boolean[] = [];
+	const programStatuses = new Map<string, ProgramStatus>();
+
+	const statusFor = (program: string): ProgramStatus =>
+		programStatuses.get(program) ?? {
+			program: program as ProgramStatus["program"],
+			state: "missing",
+			version: null,
+			bytesDownloaded: 0,
+			bytesTotal: null,
+			attempt: 0,
+			nextAttemptAt: null,
+			error: null,
+			path: null,
+		};
+
+	const setProgramStatus = (status: ProgramStatus): void => {
+		programStatuses.set(status.program, status);
+		events.emit(EVENTS.programsStatus, status);
+	};
 
 	const startSidecar = (): Promise<void> =>
 		new Promise((resolve, reject) => {
@@ -358,6 +377,31 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				});
 				return undefined;
 			}
+			case COMMANDS.programsState:
+				return [...programStatuses.values()];
+			case COMMANDS.programInstall:
+			case COMMANDS.programRedownload: {
+				const program = String(args.program);
+				setProgramStatus({
+					...statusFor(program),
+					state: "ready",
+					version: "contract",
+					path: join(paths.appData, "agent-binaries", program, "contract", program),
+				});
+				return undefined;
+			}
+			case COMMANDS.programRemove: {
+				const program = String(args.program);
+				setProgramStatus({
+					...statusFor(program),
+					state: "missing",
+					version: null,
+					path: null,
+				});
+				return undefined;
+			}
+			case COMMANDS.programsPrefetch:
+				return undefined;
 			case COMMANDS.setDockBadge:
 				dockBadge = (args.count as number | null) ?? null;
 				return undefined;

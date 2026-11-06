@@ -20,12 +20,16 @@
  * that unmounts (its registration is removed); a command that is disabled (neither a key press nor a
  * menu pick runs it, and the key press is not swallowed); a menu pick for an id the registry does not
  * know (reported, not thrown); a modal's focus trap that takes Tab and Shift+Tab before the root
- * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`).
+ * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`); a bare
+ * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`).
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
  * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
  * names, space separated). Without a mark, editable fields count as `chat-input` and the shared
- * `.xterm` and `[data-diff]` wrappers count as their area. Every lookup ends with `global`.
+ * `.xterm` and `[data-diff]` wrappers count as their area. A field inside a diff area (marked, or
+ * under `[data-diff]` or `[data-file-viewer]`) is that area's field, never `chat-input`: the file
+ * editor's Cmd+F is Find in file, not Search in the chat (ui-map.md 5.4, "Open code editor search").
+ * Every lookup ends with `global`.
  * Our design choice: the handler registry is an object the caller passes in (`CommandRegistry`).
  * `CommandDispatcher` creates one per app root and provides it to `useCommandHandler`. The no-argument
  * helpers keep a registry of their own so screens that have not moved to the provider still work; the
@@ -273,6 +277,34 @@ function composerOwnsKey(
 	);
 }
 
+/** Keys that move the caret or delete text in a field, as opposed to Tab, Enter and Escape. */
+const CARET_KEYS: ReadonlySet<string> = new Set([
+	"ArrowUp",
+	"ArrowDown",
+	"ArrowLeft",
+	"ArrowRight",
+	"Backspace",
+	"Delete",
+	"Home",
+	"End",
+	"PageUp",
+	"PageDown",
+]);
+
+/**
+ * True when a key press is a focused text field's own typing or caret movement, so no command may
+ * take it: a character, an arrow, Backspace, Delete, Home, End or a page key, with no Cmd, Ctrl or
+ * Alt. Without this, the diff's bare ArrowUp and ArrowDown (previous and next file), the question
+ * card's digits and the queue's E would fire while the user types in the file editor, the "Other"
+ * answer or the queued message's editor. Tab, Enter, Escape and modified keys still reach the
+ * dispatcher, which the palette, the composer and every shortcut rely on.
+ */
+export function fieldOwnsKey(press: KeyPress, target: Element | null): boolean {
+	if (target === null || !isTextEntry(target)) return false;
+	if (press.metaKey || press.ctrlKey || press.altKey) return false;
+	return press.key.length === 1 || CARET_KEYS.has(press.key);
+}
+
 /**
  * Finds the command for a key press. `scopes` lists the active scopes, most specific first.
  * Null means the key is not a shortcut here and the browser keeps it.
@@ -368,13 +400,16 @@ export function scopesForTarget(
 		if (SCOPES.has(name)) scopes.push(name as CommandScope);
 	}
 
-	if (element !== null && isTextEntry(element)) scopes.push("chat-input");
+	// A field inside a diff or the file viewer (the file editor, its find bar, a comment) belongs to
+	// that area, so Cmd+F there is Find in file and the chat composer's keys stay out of it.
+	const inDiff =
+		scopes.includes("diff") ||
+		(element !== null && element.closest("[data-diff], [data-file-viewer]") !== null);
+	if (element !== null && !inDiff && isTextEntry(element)) scopes.push("chat-input");
 	if (element !== null && element.closest(".xterm, [data-terminal]") !== null) {
 		scopes.push("terminal");
 	}
-	if (element !== null && element.closest("[data-diff], [data-file-viewer]") !== null) {
-		scopes.push("diff");
-	}
+	if (inDiff) scopes.push("diff");
 
 	scopes.push("global");
 	return [...new Set(scopes)];
@@ -636,6 +671,7 @@ export function useCommandDispatcher(
 			const active = scopesForTarget(event.target, useOverlayStore.getState().open);
 			const scopes = onlyScope === null ? active : active.filter((scope) => scope === onlyScope);
 			if (composerOwnsKey(press, scopes, sendKeyMode)) return false;
+			if (fieldOwnsKey(press, event.target instanceof Element ? event.target : null)) return false;
 			const commandId = commandForKeyPress(press, scopes, bindings, sendKeyMode);
 			if (commandId === null) return false;
 			if (!deps.isEnabled(commandId)) return false;

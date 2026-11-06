@@ -55,8 +55,8 @@ const deps = (): HandlerDeps => ({
 	mcpServers: { list: async () => ok([]) },
 	usage: { contextUsage: async () => ok({ usedTokens: 0, windowTokens: 1, rateLimits: [] }) },
 	shellEnv: {
-		get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
-		refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
+		get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
+		refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 	},
 	utilityPrompt: { run: async () => ok({ text: "" }) },
 	setLogLevel: () => {},
@@ -70,7 +70,14 @@ describe("SIDE-21 agent providers request", () => {
 
 		expect(answered).toEqual(
 			ok({
-				providers: [{ id: "openai", label: "OpenAI API key", keyEnvVars: ["OPENAI_API_KEY"] }],
+				providers: [
+					{ id: "openai", label: "OpenAI API key", keyEnvVars: ["OPENAI_API_KEY"] },
+					{
+						id: "custom",
+						label: "Custom provider",
+						keyEnvVars: ["OPENAI_API_KEY", "OPENAI_ORG_ID"],
+					},
+				],
 			}),
 		);
 	});

@@ -304,12 +304,14 @@ pub fn run() {
             }
         })
         .manage(binaries::BinariesState::default())
+        .manage(binaries::ProgramsState::default())
         .setup(|app| {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             binaries::start_verification(app.handle().clone());
+            binaries::prepare_on_launch(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -372,11 +374,18 @@ pub fn run() {
             attachments::image_resize,
             menu::menu_set_shortcuts,
             binaries::programs_verification_errors,
+            binaries::programs_state,
+            binaries::program_install,
+            binaries::program_redownload,
+            binaries::program_remove,
+            binaries::programs_prefetch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Conducted")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                // Agent program downloads stop, also those waiting to retry (PLAT-28).
+                app.state::<binaries::ProgramsState>().cancel_all();
                 // Commands started with `shell_start` run in their own process groups, so they
                 // would outlive the app. End them before the sidecar.
                 shell::terminate_all(

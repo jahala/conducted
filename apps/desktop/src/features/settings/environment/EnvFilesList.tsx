@@ -1,23 +1,183 @@
 /**
  * @feature SET-04 Environment files list
- * Owns: the list of files in the repository that hold more variables, to be loaded into new
- * workspaces' scripts.
+ * Owns: the list of dotenv files in the repository that hold more variables.
  * Behaviour: ui-map.md 6, "Environment page" (env files list, "Cancel adding env file");
  * services-map.md 4.2.3 (environment_variable_files).
  * Must handle: no files, a file that does not exist (marked), a path outside the repository
  * (refused), adding by picking from a list of dotenv-style files found in the repository, and
  * removing an entry without touching the file.
+ * The dotenv reader here only reads names and values; the caller decides what to save.
  * Test first: adding a path outside the repository root is refused.
  */
-import { notImplemented } from "@conducted/shared";
+import { useState } from "react";
+import { Button } from "../../../ui/Button.tsx";
+import { Input } from "../../../ui/Input.tsx";
+
+/** Collapses `.` and `..` by spelling, so a path cannot leave the repository it was given. */
+const normalize = (path: string): string => {
+	const absolute = path.startsWith("/");
+	const parts: string[] = [];
+	for (const part of path.split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") {
+			parts.pop();
+			continue;
+		}
+		parts.push(part);
+	}
+	return `${absolute ? "/" : ""}${parts.join("/")}`;
+};
+
+/** The path inside `root`, or null when it is empty or points outside the repository. */
+export function pathInsideRepository(root: string, path: string): string | null {
+	const value = path.trim();
+	if (value === "") return null;
+	const base = normalize(root);
+	const resolved = normalize(value.startsWith("/") ? value : `${base}/${value}`);
+	if (resolved === base) return null;
+	return resolved.startsWith(`${base}/`) ? resolved.slice(base.length + 1) : null;
+}
+
+/** A dotenv file's name and value pairs. Quotes around a value are removed; `#` starts a comment. */
+export function parseDotenv(text: string): { name: string; value: string }[] {
+	const pairs: { name: string; value: string }[] = [];
+	for (const raw of text.split("\n")) {
+		const line = raw.trim();
+		if (line === "" || line.startsWith("#")) continue;
+		const withoutExport = line.startsWith("export ") ? line.slice("export ".length) : line;
+		const at = withoutExport.indexOf("=");
+		if (at <= 0) continue;
+		const name = withoutExport.slice(0, at).trim();
+		let value = withoutExport.slice(at + 1).trim();
+		const quoted = value.match(/^(['"])(.*)\1$/);
+		if (quoted !== null) value = quoted[2] ?? "";
+		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
+		pairs.push({ name, value });
+	}
+	return pairs;
+}
 
 export interface EnvFilesListProps {
 	files: { path: string; exists: boolean }[];
 	candidates: string[];
+	/** Every path must stay inside this folder. Without it, only a candidate can be added. */
+	repositoryRoot?: string;
 	onAdd: (path: string) => Promise<boolean>;
 	onRemove: (path: string) => Promise<boolean>;
 }
 
-export function EnvFilesList(_props: EnvFilesListProps): never {
-	return notImplemented("SET-04");
+export function EnvFilesList({
+	files,
+	candidates,
+	repositoryRoot,
+	onAdd,
+	onRemove,
+}: EnvFilesListProps) {
+	const [adding, setAdding] = useState(false);
+	const [path, setPath] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [saving, setSaving] = useState(false);
+
+	const add = async () => {
+		const candidate = path.trim();
+		if (candidate === "") {
+			setError("Choose a dotenv file to add.");
+			return;
+		}
+		if (repositoryRoot === undefined) {
+			if (!candidates.includes(candidate)) {
+				setError("Choose one of the dotenv files found in this repository.");
+				return;
+			}
+		} else if (pathInsideRepository(repositoryRoot, candidate) === null) {
+			setError("Choose a file inside the repository.");
+			return;
+		}
+		setSaving(true);
+		const saved = await onAdd(candidate);
+		setSaving(false);
+		if (!saved) {
+			setError("Couldn't add the file.");
+			return;
+		}
+		setPath("");
+		setError(null);
+		setAdding(false);
+	};
+
+	return (
+		<div className="flex flex-col gap-2">
+			{files.length === 0 ? (
+				<p className="text-sm text-fg-muted">No environment files yet.</p>
+			) : (
+				<ul className="flex flex-col">
+					{files.map((file) => (
+						<li
+							key={file.path}
+							className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm"
+						>
+							<div className="flex min-w-0 items-center gap-2">
+								<span className="truncate font-mono text-code text-fg">{file.path}</span>
+								{file.exists ? null : <span className="text-xs text-danger">File not found</span>}
+							</div>
+							<Button
+								size="sm"
+								variant="ghost"
+								onClick={() => void onRemove(file.path)}
+								aria-label={`Remove ${file.path}`}
+							>
+								Remove
+							</Button>
+						</li>
+					))}
+				</ul>
+			)}
+			{adding ? (
+				<div className="flex flex-col gap-2">
+					<div className="flex items-end gap-2">
+						<Input
+							aria-label="Environment file path"
+							placeholder=".env.local"
+							list="environment-file-candidates"
+							value={path}
+							autoCapitalize="off"
+							spellCheck={false}
+							className="font-mono"
+							onChange={(event) => setPath(event.target.value)}
+						/>
+						<datalist id="environment-file-candidates">
+							{candidates.map((candidate) => (
+								<option key={candidate} value={candidate} />
+							))}
+						</datalist>
+						<Button size="sm" loading={saving} onClick={() => void add()}>
+							Add
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => {
+								setAdding(false);
+								setPath("");
+								setError(null);
+							}}
+						>
+							Cancel adding env file
+						</Button>
+					</div>
+					{error === null ? null : (
+						<p role="alert" className="text-xs text-danger">
+							{error}
+						</p>
+					)}
+				</div>
+			) : (
+				<div>
+					<Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
+						Add env file
+					</Button>
+				</div>
+			)}
+		</div>
+	);
 }

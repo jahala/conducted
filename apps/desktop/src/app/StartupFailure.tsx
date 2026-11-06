@@ -9,21 +9,27 @@
  * Left out on purpose: the "Database rollback" terminal (staff tool), "Update required" and "isn't available
  * in your region" (hosted service checks, D025).
  * Data: `StartupState` from app/startup.ts for the first and third screens. The CPU facts come from
- * useSystemInfo (core/hooks.ts, PLAT-32): `machineArch` arm64 with `buildArch` x86_64. Update runs
- * `Actions.app.checkForUpdates` then `installUpdate`; diagnostics copy through `Actions.app.copyText`; the
- * log opens with `Actions.app.openSidecarLogs`.
+ * useSystemInfo (core/hooks/system.ts, PLAT-32): `machineArch` arm64 with `buildArch` x86_64. Update runs
+ * `Actions.app.checkForUpdates`; diagnostics copy through `Actions.app.copyText`. The wrong-CPU screen's
+ * "Download for Apple silicon" opens the release page main.tsx passes in, through `Actions.app.openUrl`.
+ * Our design choice: the wrong-CPU screen offers "Continue anyway" through the softer confirm dialog in
+ * features/updates/RosettaConfirm.tsx, so the hard block is not the only way forward. Only that dialog's
+ * "Continue anyway" lets the app in; a download, Escape or an outside click leaves the screen up. The
+ * wrong-CPU screen has no Update button, because an update would install the Intel build again.
  * Product name: the screens say "Conducted" (see StartupScreen.tsx).
- * Must handle: a database newer than the app (no step after it runs, the screen explains that the data is
- * untouched, and Update is the one primary action); no update available (Update says so and stays
- * useful: "Quit" is offered); a failed start with no log path (diagnostics still copy the message); Retry
- * while a retry runs (disabled, one run only); diagnostics that contain home-folder paths (shown to the
- * user before they send them anywhere, nothing is sent by the app); the window draggable; the message in
- * plain words, never a stack trace.
+ * Must handle: a database newer than the app (the screen names both versions and says the data is untouched,
+ * and Update is the one primary action); a failed start with or without a log path (the message is shown, and
+ * diagnostics still copy it); the wrong-CPU mismatch with a download action and a continue action; the window
+ * draggable; the message in plain words, never a stack trace.
  * Test first: a `blocked` state shows "Database from a newer version" and an Update button; clicking it
  * checks for updates once.
  */
-import { notImplemented } from "@conducted/shared";
+import { useState } from "react";
 import type { SystemInfo } from "../core/model.ts";
+import { RosettaConfirm, useOpenDownload } from "../features/updates/RosettaConfirm.tsx";
+import { Button } from "../ui/Button.tsx";
+import { EmptyState } from "../ui/EmptyState.tsx";
+import { FullPage } from "./FullPage.tsx";
 import type { StartupState } from "./startup.ts";
 
 export type StartupBlocker =
@@ -36,8 +42,128 @@ export interface StartupFailureProps {
 	onRetry: () => void;
 	onCopyDiagnostics: () => void;
 	onQuit: () => void;
+	/** Wrong-CPU screen only: continue with this build after the confirm dialog. */
+	onContinueAnyway?: () => void;
+	/** Wrong-CPU screen only: where the build for this Mac can be downloaded. Null when unknown. */
+	downloadUrl?: string | null;
 }
 
-export function StartupFailure(_props: StartupFailureProps): never {
-	return notImplemented("APP-08");
+export function StartupFailure({
+	blocker,
+	onUpdate,
+	onRetry,
+	onCopyDiagnostics,
+	onQuit,
+	onContinueAnyway,
+	downloadUrl = null,
+}: StartupFailureProps) {
+	if (blocker.kind === "wrong_cpu_build") {
+		return (
+			<WrongCpuScreen
+				system={blocker.system}
+				downloadUrl={downloadUrl}
+				onQuit={onQuit}
+				onContinueAnyway={onContinueAnyway}
+			/>
+		);
+	}
+
+	if (blocker.kind === "blocked") {
+		return (
+			<FullPage>
+				<EmptyState
+					tone="failed"
+					title="Database from a newer version"
+					body={`This database (schema version ${blocker.databaseVersion}) was created by a newer version of Conducted than the one running (which supports up to version ${blocker.appVersion}). Update Conducted to continue. Your work is untouched.`}
+					action={
+						<div className="flex flex-wrap justify-center gap-2">
+							<Button onClick={onUpdate}>Update</Button>
+							<Button variant="ghost" onClick={onQuit}>
+								Quit
+							</Button>
+						</div>
+					}
+				/>
+			</FullPage>
+		);
+	}
+
+	return (
+		<FullPage>
+			<EmptyState
+				tone="failed"
+				title="Failed to start agents"
+				body="Conducted will not work. Please report this error."
+				action={
+					<div className="flex max-w-prose flex-col items-center gap-3">
+						<p className="text-sm text-fg-muted">{blocker.message}</p>
+						{blocker.logPath === null ? null : (
+							<p className="break-all text-xs text-fg-subtle">{blocker.logPath}</p>
+						)}
+						<div className="flex flex-wrap justify-center gap-2">
+							<Button onClick={onRetry}>Retry</Button>
+							<Button variant="secondary" onClick={onCopyDiagnostics}>
+								Copy diagnostics
+							</Button>
+							<Button variant="ghost" onClick={onQuit}>
+								Quit
+							</Button>
+						</div>
+					</div>
+				}
+			/>
+		</FullPage>
+	);
+}
+
+/** The full-window "Wrong version" screen: download the right build, continue through the confirm, or quit. */
+function WrongCpuScreen({
+	system,
+	downloadUrl,
+	onQuit,
+	onContinueAnyway,
+}: {
+	system: SystemInfo;
+	downloadUrl: string | null;
+	onQuit: () => void;
+	onContinueAnyway: (() => void) | undefined;
+}) {
+	const [confirmOpen, setConfirmOpen] = useState(false);
+	const { openDownload, opening } = useOpenDownload(downloadUrl);
+	return (
+		<FullPage>
+			<EmptyState
+				tone="failed"
+				title="Wrong version of Conducted for this Mac"
+				body="This is the Intel build of Conducted, and this Mac has Apple silicon. Download the Apple silicon build to get the fastest, most reliable version."
+				action={
+					<div className="flex flex-col items-center gap-2">
+						<div className="flex flex-wrap justify-center gap-2">
+							{downloadUrl === null ? null : (
+								<Button loading={opening} onClick={() => void openDownload()}>
+									Download for Apple silicon
+								</Button>
+							)}
+							<Button variant="secondary" onClick={() => setConfirmOpen(true)}>
+								Continue anyway
+							</Button>
+							<Button variant="ghost" onClick={onQuit}>
+								Quit
+							</Button>
+						</div>
+						<p className="max-w-prose text-xs text-fg-subtle">
+							Conducted works under Rosetta, but slowly and with some features missing.
+						</p>
+					</div>
+				}
+			/>
+			<RosettaConfirm
+				open={confirmOpen}
+				onOpenChange={setConfirmOpen}
+				onContinue={() => onContinueAnyway?.()}
+				system={system}
+				downloadUrl={downloadUrl}
+			/>
+		</FullPage>
+	);
 }

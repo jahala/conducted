@@ -26,7 +26,7 @@
 import type { AppError, Result } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { parseEnvDump, stripProviderSecrets } from "./env.ts";
+import { parseEnvDump, providerSecretsOf, stripProviderSecrets } from "./env.ts";
 
 export const PRIMARY_CAPTURE_TIMEOUT_MS = 5_000;
 export const FALLBACK_CAPTURE_TIMEOUT_MS = 3_000;
@@ -114,6 +114,11 @@ export interface CapturedShellEnv {
 	path: string;
 	/** The captured variables with provider secrets already removed. */
 	env: Readonly<Record<string, string>>;
+	/**
+	 * The provider keys the login shell had (the names `env` strips). Only a launch key chosen as "Use the
+	 * key from this Mac" reads them (runners/launch-env.ts `fillMacKeys`). Never logged.
+	 */
+	providerSecrets: Readonly<Record<string, string>>;
 }
 
 export interface ShellEnvProvider {
@@ -213,12 +218,13 @@ export class LoginShellEnvProvider implements ShellEnvProvider {
 		const parsed = parseEnvDump(spawned.value, marker);
 		if (!parsed.ok) return parsed;
 		const env = stripProviderSecrets(parsed.value);
+		const providerSecrets = providerSecretsOf(parsed.value);
 		const path = env.PATH;
 		// A dump without PATH is a failed capture: an empty PATH would make every agent "not installed".
 		if (path === undefined || path === "") {
 			return err(appError("env_path_missing", "The login shell printed no PATH."));
 		}
 		this.deps.logger.debug("Captured the login-shell environment", { shell, folder });
-		return ok({ shell, path, env });
+		return ok({ shell, path, env, providerSecrets });
 	}
 }

@@ -7,13 +7,17 @@
  */
 import { type AppError, appError, notImplemented } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import type { SystemInfo } from "../model.ts";
 
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
 export const useDiagnostics: Queries["useDiagnostics"] = () => notImplemented("APP-03");
-export const useAgentPrograms: Queries["useAgentPrograms"] = () => notImplemented("PLAT-28");
+
+/** PLAT-28: the program store the system service fills at startup and on every status event. */
+export const useAgentPrograms: Queries["useAgentPrograms"] = () =>
+	useStore(useServices().services.system.store, (state) => state.programs);
 
 const SYSTEM_INFO_KEY = ["system", "info"] as const;
 

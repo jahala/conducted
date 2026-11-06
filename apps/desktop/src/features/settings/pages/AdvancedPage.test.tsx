@@ -1,10 +1,26 @@
 import { ok } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
+import type { AgentProgramView } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import "../../../test/dom-polyfills.ts";
 import { AdvancedPage } from "./AdvancedPage.tsx";
+
+const claude: AgentProgramView = {
+	status: {
+		program: "claude",
+		state: "ready",
+		version: "2.1.308",
+		bytesDownloaded: 10,
+		bytesTotal: 10,
+		attempt: 0,
+		nextAttemptAt: null,
+		error: null,
+		path: "/app/agent-binaries/claude/2.1.308/claude",
+	},
+	userPath: null,
+};
 
 let test: TestContainer | undefined;
 
@@ -38,6 +54,48 @@ describe("SET-02 AdvancedPage", () => {
 			await screen.findByText("No program exists at /definitely/not/here/claude."),
 		).toBeTruthy();
 		expect(set).not.toHaveBeenCalled();
+	});
+
+	it("re-downloads an installed agent program from the Agent binaries section", async () => {
+		const mounted = await mountPage();
+		const redownload = vi.spyOn(mounted.container.platform.programs, "redownload");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: { state: "ready", data: [claude] },
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Re-download" }));
+
+		expect(redownload).toHaveBeenCalledWith("claude");
+	});
+
+	it("offers Retry after a failed agent program download", async () => {
+		const mounted = await mountPage();
+		const install = vi.spyOn(mounted.container.platform.programs, "install");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: {
+					state: "ready",
+					data: [
+						{
+							...claude,
+							status: {
+								...claude.status,
+								state: "failed",
+								version: null,
+								error: "The download was cut off.",
+								path: null,
+							},
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+		expect(install).toHaveBeenCalledWith("claude");
 	});
 
 	it("asks before changing the root folder and saves the new path", async () => {

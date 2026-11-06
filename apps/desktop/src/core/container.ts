@@ -32,6 +32,7 @@
 
 import type { AgentLaunch } from "@conducted/protocol";
 import {
+	type AgentKind,
 	appError,
 	type Clock,
 	err,
@@ -212,6 +213,19 @@ export function createArchiveOnMerged(
 }
 
 /** Builds everything. Does no I/O. */
+/**
+ * The provider key variables a sign-in choice leaves out of an agent's launch (SET-09), by agent and by the
+ * stored provider setting. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
+ * subscription, so its API key stays out; the "anthropic" choice is the API key, so the subscription token
+ * stays out. Codex's standard sign-in is the ChatGPT account, so the OpenAI API key stays out. Only the
+ * credential the user chose reaches the agent.
+ */
+const LEFT_OUT_BY_SIGN_IN: Partial<Record<AgentKind, Readonly<Record<string, readonly string[]>>>> =
+	{
+		claude: { "": ["ANTHROPIC_API_KEY"], anthropic: ["CLAUDE_CODE_OAUTH_TOKEN"] },
+		codex: { "": ["OPENAI_API_KEY"] },
+	};
+
 export function createContainer(inputs: ContainerInputs): Container {
 	const { platform, clock, ids } = inputs;
 	const repositoryDeps = { clock, ids };
@@ -357,6 +371,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		providerKeys: repositories.providerKeys,
+		keychain: platform.keychain,
 	});
 	const settings = new SettingsService({
 		platform,
@@ -367,8 +383,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
 	 * region or project, the Environment page's variables (a repository's replacing the global one
-	 * of the same name) and the provider keys that belong to that agent. Secrets come from the
-	 * Keychain; a key chosen from the Mac is skipped because the app cannot read it. A list that
+	 * of the same name) and the provider keys that belong to that agent and its sign-in choice
+	 * (LEFT_OUT_BY_SIGN_IN). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
+	 * the sidecar fills from the login shell it captured. A list that
 	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
 	 * that names it, so the send or warm that asked shows it instead of starting without it.
 	 */
@@ -431,23 +448,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const project = setting<string>("vertex_project_id").trim();
 			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
 		}
-		const listed = await repositories.envVars.listForRepo(workspace.value.repoId);
-		if (!listed.ok) {
-			return err(
-				appError(
-					"launch_variables_unreadable",
-					`The environment variables could not be read: ${listed.error.message}`,
-					listed.error,
-				),
-			);
-		}
-		// Rows come in name order, global before repository, so a repository's value replaces the
-		// global one. Its Keychain value missing is an error, never the global value instead.
-		for (const entry of listed.value) {
-			const value = await readSecret(entry.keychainRef, entry.name);
-			if (!value.ok) return value;
-			env[entry.name] = value.value;
-		}
+		// The Environment page's variables, by the one rule the repository scripts also use.
+		const variables = await settings.environmentFor(workspace.value.repoId);
+		if (!variables.ok) return variables;
+		Object.assign(env, variables.value);
 		const keys = await repositories.providerKeys.listForAgent(
 			session.config.agent,
 			session.config.acpAgent ?? null,
@@ -461,13 +465,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 				),
 			);
 		}
+		const leftOut =
+			chosenProvider === undefined
+				? []
+				: (LEFT_OUT_BY_SIGN_IN[session.config.agent]?.[chosenProvider] ?? []);
 		for (const key of keys.value) {
 			if (!providerAllowed(key.provider)) continue;
+			if (leftOut.includes(key.envVar)) continue;
 			if (key.source === "this_mac") {
-				platform.app.writeLog(
-					"debug",
-					`The key for ${key.envVar} is chosen from this Mac, which the app cannot read yet.`,
-				);
+				// The app cannot read the Mac's environment. The sidecar fills the value in from the login
+				// shell it captured, and fails the launch when that variable is not set there.
+				providerKeys[key.envVar] = { value: "", source: "this_mac" };
 				continue;
 			}
 			if (key.keychainRef === null) continue;
@@ -576,6 +584,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		deliver: (row) =>
 			sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery, row.id),
 		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
+		newId: () => ids.uuid(),
+		now: () => clock.now(),
+		log,
 	});
 	const sessions: SessionsService = new SessionsService({
 		db: platform.db,
@@ -633,6 +644,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		shell: platform.shell,
 		ports,
 		log,
+		environmentFor: (repoId) => settings.environmentFor(repoId),
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -696,6 +708,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 		keychain: platform.keychain,
 		setting,
+		fixErrorsPromptOf: async (id) => {
+			const found = lookups.repoOf(id);
+			if (!found.ok) return found;
+			const config = await repo.loadConfig(found.value.id);
+			return config.ok ? ok(config.value.prompts.fixErrors) : config;
+		},
 		probeCwd: platform.fs.paths.home,
 		fs: platform.fs,
 	});
@@ -855,6 +873,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 	let started: Promise<Result<StartReport>> | null = null;
 	let detachReconnect: (() => void) | null = null;
 	const cleanups: (() => void)[] = [];
+	// The queue drains when a chat can take a message, and pauses when a turn adds an error.
+	// Watching the store here covers every chat, not only the one on screen.
+	cleanups.push(
+		sessions.store.subscribe((state) => {
+			for (const sessionId of Object.keys(state.liveStates)) {
+				followUpQueue.observeLiveState(sessionId as SessionId);
+			}
+		}),
+	);
 	let updateTimer: ReturnType<typeof setInterval> | null = null;
 	let keepAwakeTimer: ReturnType<typeof setInterval> | null = null;
 	let wired = false;
@@ -1059,6 +1086,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			});
 			await step("keep-awake", () => keepAwake.stop());
 			await step("notifications", () => notifications.stop());
+			await step("agent programs", () => system.dispose());
 			await step("the repo service", () => repo.dispose());
 			await step("git polling", () => git.dispose());
 			await step("GitHub polling", () => github.dispose());

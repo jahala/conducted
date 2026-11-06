@@ -51,8 +51,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"experimental_new_workspace_page",
 	"internal_workspace_status_matrix",
 	"last_clone_directory",
-	"using_split_view",
-	"wrap_lines",
 ];
 
 /** Commands of a done feature that no handler or caller names yet. */
@@ -66,9 +64,6 @@ const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"chat.question.previous",
 	"chat.question.selectOption",
 	"dialog.confirm",
-	"review.nextFile",
-	"review.previousFile",
-	"review.toggleViewed",
 	"terminal.clear",
 	"terminal.close",
 	"terminal.deleteLine",

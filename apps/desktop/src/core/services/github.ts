@@ -2,6 +2,7 @@
  * @feature PR-01 GitHub access, health, merge and the personal access token
  * @feature PR-03 the pull request poller: per-workspace timers, repo batches, skip rules and the
  * rate-limit gate's live caller
+ * @feature PR-05 sending failing checks and their log tails to the agent
  * @feature PR-11 REST reads for issues and pull requests, and the context files they write
  * @feature PRJ-02 the owners and repositories the clone picker lists
  * @feature GIT-08 moving an open pull request's base when the target branch changes
@@ -10,16 +11,17 @@
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
- * approve), the one pending action state, PR-03's polling of watched pull requests, PR-11's REST
- * reads, PRJ-02's clone pickers, and GIT-08's base move.
+ * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
+ * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, and GIT-08's base move.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
- * method cached per repo, and one call at a time for each action), 3.7.2 and 5B.1.2 to 5B.1.4
+ * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
+ * the agent as an instruction), 3.7.2 and 5B.1.2 to 5B.1.4
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
  * rate-limit gate), 2.5.2 and 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open
  * issues, 50 newest), 5B.8.3 (an issue becomes `[GITHUB]-<n>.md`, a pull request
- * `.context/pull-requests/<n>.md`), ui-map.md 6 (Account: GitHub through the `gh` CLI or a
- * personal access token).
+ * `.context/pull-requests/<n>.md`), ui-map.md 3.6 and 6 (the Fix errors action and its repo prompt;
+ * Account: GitHub through the `gh` CLI or a personal access token).
  * Must handle: `gh` missing, signed out, unauthorized, offline, an SSO requirement and a missing
  * scope, with the failure class kept on the access state; only unauthorized marks access broken;
  * GH_TOKEN is passed only when the resolved method is pat; a merge is pinned to the local HEAD
@@ -31,7 +33,10 @@
  * once while it is in flight, and the pending action state in the store names it; a write that
  * succeeded polls the workspace before its pending state clears, so the header shows GitHub's new
  * state without waiting for the next timed poll; every write and the base move share one `gh`
- * runner, so their failures are mapped alike; a token that does not look
+ * runner, so their failures are mapped alike; Fix errors refuses when no check failed, reads each
+ * failing check's log tail four at a time, strips its terminal escapes and keeps its last 100
+ * lines, names the reason when a log could not be read, sends one instruction, and a repository
+ * prompt replaces its default text; a token that does not look
  * like one is a warning the caller can confirm, not a refusal, but an empty one is refused; every
  * `gh` result updates the health store; only the newest access check writes the access state; a
  * response the app cannot parse is an error, not an empty list; a context file is reported as
@@ -45,12 +50,13 @@
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
  * the Checks tab's required marks need the branch-protection read. The stack actions and the stack
- * catch-up belong to other features (PR-08, PR-12); failed-check fixes belong to PR-05, and
- * re-running failed checks belongs to PR-04, which owns the Checks tab's button. The
+ * catch-up belong to other features (PR-08, PR-12); re-running failed checks belongs to PR-04,
+ * which owns the Checks tab's button. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
  * calls `onMerged` and the workspace service archives the workspace.
  * Test first: two merge calls at once send one `gh pr merge`.
  * PR-03 test first: two watched workspaces of one repository ask GitHub in one batched query.
+ * PR-05 test first: two failing checks send one instruction with both log tails.
  * PR-06 test first: enabling auto-merge sends `gh pr merge --auto` pinned to the local HEAD.
  * PR-11 test first: an issue with a `pull_request` field is left out of the issues list.
  */
@@ -108,6 +114,7 @@ import {
 	isSuccessfulExit,
 } from "../git/runner.ts";
 import type {
+	CheckRun,
 	GitHubAccess as GitHubAccessView,
 	GitHubOwner,
 	GitHubRepoSummary,
@@ -116,7 +123,11 @@ import type {
 	PullRequestAction,
 	PullRequestSummary,
 } from "../model.ts";
-import { createPrInstruction } from "./agent-instructions.ts";
+import {
+	createPrInstruction,
+	type FailingCheck,
+	fixErrorsInstruction,
+} from "./agent-instructions.ts";
 import { parseTargetBranch } from "./git.ts";
 import type { GitCache } from "./git-cache.ts";
 import { buildDeepLink } from "./notifications.ts";
@@ -906,6 +917,12 @@ export interface GithubServiceDeps {
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
 	/** Reads `gh_auth_method` (services-map 3.9, D029). */
 	setting?: <T>(key: string) => T;
+	/**
+	 * The repository's Fix errors prompt, or null when it has none. The container always supplies
+	 * it. Tests that never fix errors may leave it out; `fixErrors` returns an error instead of
+	 * guessing when it is absent.
+	 */
+	fixErrorsPromptOf?: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
 	/** Folder for probes that belong to no workspace, normally the user's home folder. */
 	probeCwd: string;
 	/** Writes a context file into a workspace (PR-11). */
@@ -1062,6 +1079,49 @@ export function checkLogTail(text: string, maxLines = 1000): string {
 	const lines = text.split("\n");
 	if (lines.length <= maxLines) return text;
 	return lines.slice(lines.length - maxLines).join("\n");
+}
+
+/** How many log lines of each failing check go into the Fix errors message. */
+export const FIX_ERRORS_LOG_LINES = 100;
+/** How many check logs Fix errors reads from GitHub at once. */
+export const FIX_ERRORS_LOG_READS = 4;
+
+const ESC = String.fromCharCode(27);
+const BEL = String.fromCharCode(7);
+/**
+ * Terminal escapes in a log: control sequences (colours, cursor moves), operating system commands
+ * (window titles, links) ended by BEL or ESC backslash, character set choices, and the
+ * two-character escapes.
+ */
+const TERMINAL_ESCAPES = new RegExp(
+	`${ESC}\\[[0-?]*[ -/]*[@-~]|${ESC}\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|${ESC}[ -/]+[0-~]|${ESC}[@-_]`,
+	"g",
+);
+
+/**
+ * A check log as the Fix errors message shows it: escape sequences removed, because the message
+ * is plain text the user reads in the chat, and only the last lines, so several failing checks
+ * still make a message of readable length.
+ */
+export function fixErrorsLogTail(log: string): string {
+	return checkLogTail(log.replace(TERMINAL_ESCAPES, ""), FIX_ERRORS_LOG_LINES);
+}
+
+/**
+ * Runs `work` over `items` with at most `limit` calls at once and keeps the input order. Used to
+ * read check logs in parallel without starting one `gh` call per check at the same moment.
+ */
+async function mapInBatches<T, R>(
+	items: readonly T[],
+	limit: number,
+	work: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results: R[] = [];
+	for (let start = 0; start < items.length; start += limit) {
+		const batch = await Promise.all(items.slice(start, start + limit).map(work));
+		results.push(...batch);
+	}
+	return results;
 }
 
 export class GithubService {
@@ -1954,9 +2014,62 @@ export class GithubService {
 			: err(appError("github_not_github", "This repository has no GitHub remote."));
 	}
 
-	/** Backs `Actions.pullRequests.fixErrors`: sends failing checks and log tails to the agent. */
-	fixErrors(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-05");
+	/**
+	 * Backs `Actions.pullRequests.fixErrors`: sends failing checks and log tails to the agent. The
+	 * logs are read a few at a time, so many failing jobs do not wait for each other in a row.
+	 */
+	fixErrors(workspaceId: WorkspaceId): Promise<Result<void>> {
+		return this.#flights.run(`fixErrors:${workspaceId}`, async () => {
+			const pullRequest = this.store.getState().byWorkspace[String(workspaceId)]?.pullRequest;
+			const failingChecks = (pullRequest?.checks ?? []).filter(
+				(check) => check.state === "failure",
+			);
+			if (failingChecks.length === 0) {
+				return err(appError("github_no_failed_checks", "No failing checks to fix."));
+			}
+
+			const context = await this.#deps.contextOf(workspaceId);
+			if (!context.ok) return err(context.error);
+			const found = context.value;
+			const promptFor = this.#deps.fixErrorsPromptOf;
+			if (promptFor === undefined) {
+				return err(
+					appError("github_context_unavailable", "The repository settings are not available."),
+				);
+			}
+			const customPrompt = await promptFor(workspaceId);
+			if (!customPrompt.ok) return err(customPrompt.error);
+
+			const custom = customPrompt.value?.trim() ?? "";
+			// A repository prompt replaces the whole instruction, so its logs are not read.
+			const failing =
+				custom.length > 0
+					? failingChecks.map((check) => ({ check, logTail: null, logError: null }))
+					: await mapInBatches(failingChecks, FIX_ERRORS_LOG_READS, (check) =>
+							this.#checkLogTail(workspaceId, check),
+						);
+
+			const text = fixErrorsInstruction({
+				branch: found.branch,
+				customPrompt: customPrompt.value,
+				failing,
+			});
+			const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+			return sent.ok ? ok(undefined) : err(sent.error);
+		});
+	}
+
+	/**
+	 * A failing check with the last lines of its log, as plain text. A check that is not a
+	 * workflow job has no log. A log that could not be read keeps its reason, so the message tells
+	 * the agent and the user why it is missing; the check is still sent.
+	 */
+	async #checkLogTail(workspaceId: WorkspaceId, check: CheckRun): Promise<FailingCheck> {
+		if (parseCheckJob(check.url) === null) return { check, logTail: null, logError: null };
+		const log = await this.readCheckLog(workspaceId, check.url);
+		return log.ok
+			? { check, logTail: fixErrorsLogTail(log.value), logError: null }
+			: { check, logTail: null, logError: log.error.message };
 	}
 
 	/**
