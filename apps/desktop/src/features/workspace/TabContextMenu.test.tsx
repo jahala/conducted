@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
 	rename: vi.fn(),
 	close: vi.fn(),
 	copyText: vi.fn(),
+	copyTranscript: vi.fn(),
 	markRead: vi.fn(),
 	markUnread: vi.fn(),
 }));
@@ -20,6 +21,7 @@ vi.mock("../../core/hooks.ts", () => ({
 			close: state.close,
 			markRead: state.markRead,
 			markUnread: state.markUnread,
+			copyTranscript: state.copyTranscript,
 		},
 		app: { copyText: state.copyText },
 	}),
@@ -71,23 +73,20 @@ beforeEach(() => {
 	state.rename.mockResolvedValue({ ok: true, value: undefined });
 	state.close.mockResolvedValue({ ok: true, value: undefined });
 	state.copyText.mockResolvedValue({ ok: true, value: undefined });
+	state.copyTranscript.mockResolvedValue({ ok: true, value: undefined });
 	state.markRead.mockResolvedValue({ ok: true, value: undefined });
 	state.markUnread.mockResolvedValue({ ok: true, value: undefined });
 });
 
 afterEach(cleanup);
 
-describe("CHAT-01 chat tab context menu", () => {
-	it("keeps the transcript items disabled until CHAT-17 builds them", async () => {
+describe("CHAT-01 chat tab context menu; CHAT-17 copy transcript", () => {
+	it("copies the concise and full transcript from the menu", async () => {
 		await openMenu();
-		expect(
-			(await screen.findByRole("menuitem", { name: /Copy concise transcript/ })).getAttribute(
-				"aria-disabled",
-			),
-		).toBe("true");
-		expect(
-			screen.getByRole("menuitem", { name: /Copy full transcript/ }).getAttribute("aria-disabled"),
-		).toBe("true");
+		fireEvent.click(await screen.findByRole("menuitem", { name: /Copy concise transcript/ }));
+		await waitFor(() => expect(state.copyTranscript).toHaveBeenCalledWith(sessionId, "concise"));
+		fireEvent.click(screen.getByRole("menuitem", { name: /Copy full transcript/ }));
+		await waitFor(() => expect(state.copyTranscript).toHaveBeenCalledWith(sessionId, "full"));
 	});
 
 	it("marks the chat read or unread from the menu", async () => {

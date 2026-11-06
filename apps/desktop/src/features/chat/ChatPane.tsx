@@ -1,9 +1,9 @@
 /**
- * @feature CHAT-06 Chat tab
+ * @feature CHAT-06 Chat tab; CHAT-17 Chat search bar and copy transcript
  * Owns: the layout of one chat tab: the message list on top and, below it, the messages that were not sent,
  * the open interaction, the progress line, the follow-up queue and the composer. It also loads the chat's
- * stored messages, records the chat on screen and clears the workspace's unread chats that do not wait for
- * the user.
+ * stored messages, records the chat on screen, clears the workspace's unread chats that do not wait for
+ * the user, and hosts the find bar and the copy-transcript shortcut.
  * Behaviour: ui-map.md 3.3 (chat view), 3.2 ("[progress line] [queue] [composer]" under the list),
  * 3.4 (queue), 3.5 (composer), 4 (opening a workspace clears its unread chats).
  * Our design choice: every approval, question and plan review appears in one dock between the list and the
@@ -15,12 +15,15 @@
  * Test first: renders the list, progress, queue and composer regions for a session id.
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
+import { useActions } from "../../core/hooks.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { Composer } from "../composer/Composer.tsx";
 import { QueueBox } from "../composer/QueueBox.tsx";
+import { ChatSearchBar } from "./ChatSearchBar.tsx";
 import { FailedSends } from "./FailedSends.tsx";
 import { InteractionDock } from "./interactions/InteractionDock.tsx";
 import { MessageList } from "./MessageList.tsx";
@@ -35,6 +38,19 @@ export function ChatPane({
 	sessionId: SessionId;
 }) {
 	const { services } = useServices();
+	const actions = useActions();
+	const [findOpen, setFindOpen] = useState(false);
+
+	useCommandHandler("chat.search", "area", () => {
+		setFindOpen(true);
+		return true;
+	});
+	useCommandHandler("chat.copyTranscript", "base", () => {
+		void actions.sessions.copyTranscript(sessionId, "concise").then((result) => {
+			if (!result.ok) toastError("Couldn't copy the transcript", result.error);
+		});
+		return true;
+	});
 
 	useEffect(() => {
 		services.sessions.setViewing(sessionId);
@@ -59,7 +75,12 @@ export function ChatPane({
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div data-region="messages" className="relative min-h-0 flex-1">
+			<div
+				data-command-scope="chat-input"
+				data-region="messages"
+				className="relative min-h-0 flex-1"
+			>
+				<ChatSearchBar sessionId={sessionId} open={findOpen} onClose={() => setFindOpen(false)} />
 				<div className="absolute right-3 top-2 z-10">
 					<NextUnreadButton currentSessionId={sessionId} />
 				</div>

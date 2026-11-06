@@ -631,6 +631,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		log,
 		setting,
+		copyText: (text) => system.copyText(text),
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
 	});
