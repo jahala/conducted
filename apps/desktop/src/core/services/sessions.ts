@@ -24,7 +24,8 @@
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a queued row is sent under its own id,
  * so a crash before the row is removed cannot send it twice; an explicit steer for an agent that
- * cannot steer is refused (CHAT-03); a send that fails keeps its text for
+ * cannot steer is refused (CHAT-03); a message to an idle chat whose agent program is still being
+ * made ready waits in the follow-up queue (`programHeld`, PLAT-28, services-map 5A.8.1); a send that fails keeps its text for
  * Retry and Discard; a chat whose first message cannot be sent is removed, so a retry does not
  * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
@@ -99,6 +100,7 @@ import {
 	type WorkspaceContext,
 } from "@conducted/protocol";
 import {
+	type AgentKind,
 	type AppError,
 	appError,
 	type CheckpointId,
@@ -304,6 +306,12 @@ export interface SessionsServiceDeps {
 	>;
 	queue: Pick<FollowUpQueue, "enqueue" | "release" | "pauseOnCancel" | "store">;
 	notifications: Pick<NotificationService, "onLiveStateChanged">;
+	/**
+	 * True while the agent's managed program is still being made ready and the user chose no
+	 * program of their own (PLAT-28, services-map 5A.8.1). A message to an idle chat then waits in
+	 * the follow-up queue instead of going to the sidecar.
+	 */
+	programHeld?: (agent: AgentKind) => boolean;
 	/**
 	 * How to start the chat's agent, from the composition root. A send fails with a clear error
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
@@ -933,7 +941,12 @@ export class SessionsService implements AgentMessenger {
 				),
 			);
 		}
-		if (decision === "queue") {
+		// A row the follow-up queue delivers (it carries `messageId`) passed the queue's own hold.
+		const held =
+			decision === "send_now" &&
+			messageId === undefined &&
+			this.#deps.programHeld?.(session.config.agent) === true;
+		if (decision === "queue" || held) {
 			const queued = await this.#deps.queue.enqueue({
 				sessionId: id,
 				text,

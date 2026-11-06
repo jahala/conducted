@@ -6,7 +6,7 @@
 import { ok } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import { binDir } from "../app-paths.ts";
+import { programsBinDir } from "../app-paths.ts";
 
 describe("SET-13 terminals receive the chosen program path prefix", () => {
 	it("adds the prefix to an interactive terminal", async () => {
@@ -28,7 +28,7 @@ describe("SET-13 terminals receive the chosen program path prefix", () => {
 
 			expect(created.ok).toBe(true);
 			expect(spawn.mock.calls[0]?.[0].env?.CONDUCTED_PATH_PREFIX).toBe(
-				`/data/bin-overrides/abc:${binDir(test.container.platform.fs.paths)}`,
+				`/data/bin-overrides/abc:${programsBinDir(test.container.platform.fs.paths)}`,
 			);
 		} finally {
 			test.close();
@@ -59,7 +59,7 @@ describe("SET-13 terminals receive the chosen program path prefix", () => {
 			expect(spawn.mock.calls[0]?.[0].env).toMatchObject({
 				CONDUCTED_PORT: "55010",
 				TERM: "xterm-256color",
-				CONDUCTED_PATH_PREFIX: `/data/bin-overrides/abc:${binDir(
+				CONDUCTED_PATH_PREFIX: `/data/bin-overrides/abc:${programsBinDir(
 					test.container.platform.fs.paths,
 				)}`,
 			});

@@ -150,6 +150,7 @@ async function harness(): Promise<{
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
+			agentBinariesDir: path.join(folder, "agent-binaries"),
 			logDir: path.join(folder, "log"),
 			appVersion: "0.0.0",
 			logLevel: "info",

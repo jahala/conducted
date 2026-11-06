@@ -65,6 +65,7 @@ Use these before writing your own. A second copy is a finding in review.
 | Start work without awaiting it             | `fireAndForget`                                  | `apps/desktop/src/core/async/fire-and-forget.ts`                        |
 | Trash an app data file if it is there      | `trashIfPresent`                                 | `apps/desktop/src/core/fs-helpers.ts`                                   |
 | Copy a file, keeping its mode (`cp -p`)    | `copyFileKeepingMode`                            | `apps/desktop/src/core/fs-helpers.ts`                                   |
+| Write a settings file, keeping comments    | `SettingsService.updateSettingsFile`             | `apps/desktop/src/core/services/settings.ts`                            |
 | A database write that returns nothing      | `executeVoid`                                    | `apps/desktop/src/core/db/row-codec.ts`                                 |
 | Parse a JSON column, collect results       | `parseJsonColumn`, `collectResults`              | `apps/desktop/src/core/db/row-codec.ts`                                 |
 | Show an error toast from a `Result`        | `toastError`                                     | `apps/desktop/src/ui/Toast.tsx`                                         |

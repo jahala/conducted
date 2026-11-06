@@ -46,6 +46,7 @@ import type { EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
 import {
 	beginTurn,
+	CANCELLED_BY_USER,
 	endTurn,
 	type LiveStateStore,
 	markFastModeUnavailable,
@@ -108,7 +109,7 @@ function liveError(outcome: TurnOutcome): string | undefined {
 		case "error":
 			return outcome.message;
 		case "cancelled":
-			return "aborted by user";
+			return CANCELLED_BY_USER;
 	}
 }
 

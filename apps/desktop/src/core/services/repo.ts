@@ -29,7 +29,8 @@
  * project's folder, an add registers the picked folder and its work tree root before reading
  * them, and a clone or Quick start registers the folder chosen to hold the new project.
  * Our design choice: `RepoConfig` is the shared file overlaid by the local file. The shared file
- * stays committed and read-only in the UI; `updateConfig` writes the local file only, and writes a
+ * stays committed and read-only in the UI; `updateConfig` writes the local file only, through the
+ * settings service's `updateSettingsFile` (which keeps the file's comments, SET-14), and writes a
  * key only when it differs from the shared value. A key that matches is removed, so a later edit
  * to the shared file reaches the user again.
  * Gaps against services-map.md 4.2: the remote default-branch copy of `settings.toml` and the
@@ -86,15 +87,12 @@ import {
 import {
 	actionIdsEqual,
 	actionLabel,
-	buildSettingsDocument,
 	type DroppedSetting,
 	mergeSettingActions,
-	SETTINGS_SAVE_FAILED_MESSAGE,
 	type SettingAction,
 	type SettingsFileContents,
 	type SettingsService,
 } from "./settings.ts";
-import { tomlCodec } from "./toml-codec.ts";
 
 /** What the clone dialog shows while a repository is cloned and after it ends. */
 export interface CloneProgress {
@@ -268,7 +266,7 @@ export interface RepoServiceDeps {
 	};
 	git: GitRunner;
 	repos: Pick<Repositories, "repos" | "settings">;
-	settings: Pick<SettingsService, "readSettingsFile">;
+	settings: Pick<SettingsService, "readSettingsFile" | "updateSettingsFile">;
 	removal: RepoRemovalPort;
 }
 
@@ -947,82 +945,73 @@ export class RepoService {
 			sharedSettingsFile(found.value.rootPath),
 		);
 		if (!shared.ok) return shared;
-		const existing = await this.#deps.settings.readSettingsFile(file);
-		if (!existing.ok) return existing;
-		const contents = existing.value;
 		const sharedConfig = repoConfigFrom(shared.value, emptyFileContents(shared.value.file)).config;
 
-		writeText(contents, "setup_script", config.setupScript, sharedConfig.setupScript);
-		writeText(contents, "archive_script", config.archiveScript, sharedConfig.archiveScript);
-		writeIfDifferent(contents, "run_script_mode", config.runMode, sharedConfig.runMode);
-		writeList(contents, "file_include_globs", config.copyFiles, sharedConfig.copyFiles);
-		writeList(
-			contents,
-			"open_url_template",
-			config.previewUrlTemplate === null ? [] : [config.previewUrlTemplate],
-			sharedConfig.previewUrlTemplate === null ? [] : [sharedConfig.previewUrlTemplate],
-		);
-		writeIfDifferent(
-			contents,
-			"spotlight_testing",
-			config.spotlightTesting,
-			sharedConfig.spotlightTesting,
-		);
-		writeIfDifferent(
-			contents,
-			"auto_run_after_setup",
-			config.autoRunAfterSetup,
-			sharedConfig.autoRunAfterSetup,
-		);
-		writeText(contents, "remote_name", config.remoteName, sharedConfig.remoteName);
-		writeText(
-			contents,
-			"custom_prompt_general",
-			config.prompts.general,
-			sharedConfig.prompts.general,
-		);
-		writeText(
-			contents,
-			"custom_prompt_code_review",
-			config.prompts.codeReview,
-			sharedConfig.prompts.codeReview,
-		);
-		writeText(
-			contents,
-			"custom_prompt_create_pr",
-			config.prompts.createPr,
-			sharedConfig.prompts.createPr,
-		);
-		writeText(
-			contents,
-			"custom_prompt_fix_errors",
-			config.prompts.fixErrors,
-			sharedConfig.prompts.fixErrors,
-		);
-		writeText(
-			contents,
-			"custom_prompt_resolve_merge_conflicts",
-			config.prompts.resolveConflicts,
-			sharedConfig.prompts.resolveConflicts,
-		);
-		writeText(
-			contents,
-			"custom_prompt_rename_branch",
-			config.prompts.renameBranch,
-			sharedConfig.prompts.renameBranch,
-		);
-		delete contents.values.run_script;
-		contents.actions = localActionsFrom(config.runScripts, sharedConfig.runScripts);
-		contents.preserved = withoutRepoConfigPreserved(contents.preserved);
-
-		const document = buildSettingsDocument(contents, "repo");
-		const written = await this.#deps.platform.fs.writeTextAtomic(
-			file,
-			tomlCodec.stringify(document),
-		);
-		if (!written.ok) {
-			return err(appError("settings_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
-		}
+		const written = await this.#deps.settings.updateSettingsFile(file, "repo", (contents) => {
+			writeText(contents, "setup_script", config.setupScript, sharedConfig.setupScript);
+			writeText(contents, "archive_script", config.archiveScript, sharedConfig.archiveScript);
+			writeIfDifferent(contents, "run_script_mode", config.runMode, sharedConfig.runMode);
+			writeList(contents, "file_include_globs", config.copyFiles, sharedConfig.copyFiles);
+			writeList(
+				contents,
+				"open_url_template",
+				config.previewUrlTemplate === null ? [] : [config.previewUrlTemplate],
+				sharedConfig.previewUrlTemplate === null ? [] : [sharedConfig.previewUrlTemplate],
+			);
+			writeIfDifferent(
+				contents,
+				"spotlight_testing",
+				config.spotlightTesting,
+				sharedConfig.spotlightTesting,
+			);
+			writeIfDifferent(
+				contents,
+				"auto_run_after_setup",
+				config.autoRunAfterSetup,
+				sharedConfig.autoRunAfterSetup,
+			);
+			writeText(contents, "remote_name", config.remoteName, sharedConfig.remoteName);
+			writeText(
+				contents,
+				"custom_prompt_general",
+				config.prompts.general,
+				sharedConfig.prompts.general,
+			);
+			writeText(
+				contents,
+				"custom_prompt_code_review",
+				config.prompts.codeReview,
+				sharedConfig.prompts.codeReview,
+			);
+			writeText(
+				contents,
+				"custom_prompt_create_pr",
+				config.prompts.createPr,
+				sharedConfig.prompts.createPr,
+			);
+			writeText(
+				contents,
+				"custom_prompt_fix_errors",
+				config.prompts.fixErrors,
+				sharedConfig.prompts.fixErrors,
+			);
+			writeText(
+				contents,
+				"custom_prompt_resolve_merge_conflicts",
+				config.prompts.resolveConflicts,
+				sharedConfig.prompts.resolveConflicts,
+			);
+			writeText(
+				contents,
+				"custom_prompt_rename_branch",
+				config.prompts.renameBranch,
+				sharedConfig.prompts.renameBranch,
+			);
+			delete contents.values.run_script;
+			contents.actions = localActionsFrom(config.runScripts, sharedConfig.runScripts);
+			contents.preserved = withoutRepoConfigPreserved(contents.preserved);
+		});
+		if (!written.ok) return written;
 
 		// A read that began during the write may not overwrite the config that just reached disk.
 		this.#nextConfigLoad(repoId);

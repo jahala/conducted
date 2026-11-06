@@ -18,8 +18,8 @@
  * Must handle: a program path that does not exist or is not executable (an error value that names
  * the path, never a quiet switch to another copy); a `.js` program path (`viaRuntime`: Claude
  * starts it through node, the SDK's `executable`; Codex and ACP programs start the file itself,
- * which runs through its own `#!` line); no path given (the managed copy, then the copy on the
- * login-shell PATH, D021; PLAT-28 installs managed copies, so today there is none to find); a key
+ * which runs through its own `#!` line); no path given (the managed copy, which `managed-programs.ts`
+ * finds through the program manager's bin link, then the copy on the login-shell PATH, D021); a key
  * meant for another agent (never passed unless the provider is custom); a user variable that has
  * the name of a stripped key (the
  * user wins, as `shell-env/env.ts` already does for overrides); Claude provider routing for
@@ -49,6 +49,7 @@ import { AGENT_NOT_INSTALLED } from "../models/catalog.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import { buildAgentEnv } from "../shell-env/env.ts";
 import type { FindExecutable } from "./deps.ts";
+import type { FindManagedProgram } from "./managed-programs.ts";
 import type { ListingContext } from "./runner.ts";
 
 export interface AgentProgram {
@@ -122,12 +123,14 @@ export async function findAgentProgram(input: {
 	executablePath: string | undefined;
 	env: Readonly<Record<string, string>>;
 	findExecutable: FindExecutable;
+	/** The app's managed copy (PLAT-28). Absent: there is none to find. */
+	findManagedProgram?: FindManagedProgram | undefined;
 }): Promise<Result<AgentProgram>> {
+	const managed = (await input.findManagedProgram?.(input.name)) ?? null;
 	return resolveAgentProgram({
 		agent: input.agent,
 		launch: { executablePath: input.executablePath },
-		// PLAT-28 installs the app's managed copies (D021). Until it does, there is none.
-		managedPath: null,
+		managedPath: managed === null ? null : managed.path,
 		pathCopy: await input.findExecutable(input.name, input.env),
 		isExecutable: async (candidate) => (await input.findExecutable(candidate, input.env)) !== null,
 	});

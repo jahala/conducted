@@ -10,7 +10,7 @@ import { type CommentId, ok, type Result, type TerminalId } from "@conducted/sha
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ShellCommand, ShellOutput } from "../platform/platform.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../test/container.ts";
-import { binDir } from "./app-paths.ts";
+import { programsBinDir } from "./app-paths.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { sessionConfig } from "./db/test-fixtures.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
@@ -469,7 +469,7 @@ describe("s1-core-2 join: REV-04, RUN-02, SET-13, WS-07 and WS-11", () => {
 
 			expect(created.ok).toBe(true);
 			expect(spawn.mock.calls[0]?.[0].env?.CONDUCTED_PATH_PREFIX).toBe(
-				`/data/bin-overrides/abc:${binDir(test.container.platform.fs.paths)}`,
+				`/data/bin-overrides/abc:${programsBinDir(test.container.platform.fs.paths)}`,
 			);
 		} finally {
 			await test.container.stop();

@@ -13,6 +13,7 @@ import type { RunState } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { RepoConfig, RunAction, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
+import { WithSurfaces } from "../../test/surfaces.tsx";
 import { ScriptsPanel } from "./ScriptsPanel.tsx";
 
 const dev: RunAction = {
@@ -106,7 +107,9 @@ describe("RUN-01 scripts panel", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<ScriptsPanel workspaceId={workspace.id} />
+				<WithSurfaces>
+					<ScriptsPanel workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -129,7 +132,9 @@ describe("RUN-01 scripts panel", () => {
 		}));
 		render(
 			<ServicesProvider container={test.container}>
-				<ScriptsPanel workspaceId={workspace.id} />
+				<WithSurfaces>
+					<ScriptsPanel workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -144,7 +149,9 @@ describe("RUN-01 scripts panel", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<ScriptsPanel workspaceId={workspace.id} />
+				<WithSurfaces>
+					<ScriptsPanel workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -157,7 +164,9 @@ describe("RUN-01 scripts panel", () => {
 		const { test, workspace } = await setup();
 		render(
 			<ServicesProvider container={test.container}>
-				<ScriptsPanel workspaceId={workspace.id} />
+				<WithSurfaces>
+					<ScriptsPanel workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 		await screen.findByRole("button", { name: "Run Dev server" });
@@ -177,7 +186,9 @@ describe("RUN-01 scripts panel", () => {
 		const { test, workspace } = await setup();
 		render(
 			<ServicesProvider container={test.container}>
-				<ScriptsPanel workspaceId={workspace.id} />
+				<WithSurfaces>
+					<ScriptsPanel workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 		await screen.findByRole("button", { name: "Run Dev server" });

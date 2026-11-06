@@ -6,7 +6,9 @@
  * exclusive run mode). The button's words come from run-button-label.ts.
  * Data: useRunState (actions, running, detectedPorts), useWorkspace (archived check, port and repo
  * id), useRepoConfig (the Preview URLs template), useActions().run, useUrlOpeners.
- * Children: RunToolbar with PreviewUrlMenu, RunEmptyState, terminal/TerminalView for the output.
+ * Children: RunToolbar with PreviewUrlMenu, RunEmptyState, and the output's RunTerminalSlot: the app
+ * shell's surface layer draws the terminal over it, so it stays mounted across workspace switches and
+ * the workspace's last output shows again (NAV-15, app/surface-registry.tsx).
  * RUN-03: the Open menu lists the Run tab URL, the detected ports and the repository template, and
  * the "Open localhost URL" shortcut (Cmd+Shift+B) opens the first one. Open uses the in-app browser
  * tab when "In-app browser preview" is on, else the system browser. A template entry that is not a
@@ -23,11 +25,12 @@
  * is named in a line above the toolbar.
  * Test first: with one action and no running process the toolbar shows "Run <label>".
  */
-import type { RepoId, TerminalId, WorkspaceId } from "@conducted/shared";
+import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
+import { RunTerminalSlot, useRunSurfaceTerminal } from "../../../app/surface-registry.tsx";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/services/run-scripts.ts";
@@ -35,7 +38,6 @@ import { SPOTLIGHT_ACTION_ID, SPOTLIGHT_BRANCH_NOTICE } from "../../../core/serv
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
-import { TerminalView } from "../../terminal/TerminalView.tsx";
 import { useUrlOpeners } from "../open-url.ts";
 import { buildPreviewUrls } from "./preview-urls.ts";
 import { RunEmptyState } from "./RunEmptyState.tsx";
@@ -135,8 +137,8 @@ export function RunTab({ workspaceId }: RunTabProps) {
 		(state) => state.problems[workspaceId],
 	);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
-	const [lastTerminal, setLastTerminal] = useState<TerminalId | null>(null);
 	const [spotlightBusy, setSpotlightBusy] = useState(false);
+	const lastRunTerminal = useRunSurfaceTerminal(workspaceId);
 
 	const available = run.state === "ready" ? run.data.actions.filter((entry) => !entry.hidden) : [];
 	// With "Use spotlight testing" on, Spotlight replaces Run, so its entry is picked first.
@@ -170,16 +172,13 @@ export function RunTab({ workspaceId }: RunTabProps) {
 		selected === null ? false : history.includes(selected.id),
 	);
 	const outputTerminal = isSpotlight ? spotlight.terminalId : (active?.terminalId ?? null);
+	// The output stays after the process ends, and after a workspace switch: the shell's surface
+	// registry keeps the workspace's last run terminal (NAV-15).
+	const shownTerminal = outputTerminal ?? lastRunTerminal;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new workspace starts on its default action.
 	useEffect(() => {
 		setSelectedId(null);
-		setLastTerminal(null);
 	}, [workspaceId]);
-
-	useEffect(() => {
-		if (outputTerminal === null) return;
-		setLastTerminal(outputTerminal);
-	}, [outputTerminal]);
 
 	const openSettings = (page: "actions" | "scripts"): void => {
 		if (workspace.state !== "ready") return;
@@ -303,7 +302,7 @@ export function RunTab({ workspaceId }: RunTabProps) {
 				onButtonClick={click}
 			/>
 			<div className="min-h-0 flex-1">
-				{lastTerminal === null ? (
+				{shownTerminal === null ? (
 					<div className="flex h-full items-center justify-center px-6 text-center">
 						<p className="text-sm text-fg-muted">
 							{phase === "waiting_for_setup"
@@ -312,7 +311,7 @@ export function RunTab({ workspaceId }: RunTabProps) {
 						</p>
 					</div>
 				) : (
-					<TerminalView terminalId={lastTerminal} workspaceId={workspaceId} visible />
+					<RunTerminalSlot workspaceId={workspaceId} terminalId={shownTerminal} />
 				)}
 			</div>
 		</div>

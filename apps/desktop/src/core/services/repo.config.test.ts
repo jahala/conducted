@@ -9,7 +9,8 @@ import { RepoService, type RepoServiceDeps, repoConfigFrom } from "./repo.ts";
 import {
 	parseSettingsDocument,
 	type SettingsFileContents,
-	type SettingsService,
+	SettingsService,
+	type SettingsServiceDeps,
 } from "./settings.ts";
 import { tomlCodec } from "./toml-codec.ts";
 
@@ -121,7 +122,18 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		return ok(parseSettingsDocument(parsed.value, path));
 	};
 
+	// Writes go through the real settings service, over the same files.
+	const writer = new SettingsService({
+		platform: { fs, app: { writeLog() {} } } as unknown as SettingsServiceDeps["platform"],
+		repos: {
+			settings: {} as SettingsServiceDeps["repos"]["settings"],
+			envVars: {} as SettingsServiceDeps["repos"]["envVars"],
+		},
+		toml: tomlCodec,
+	});
+
 	const settings = {
+		updateSettingsFile: writer.updateSettingsFile.bind(writer),
 		async readSettingsFile(path: string): Promise<Result<SettingsFileContents>> {
 			// Read the text now, so a held read answers with the contents it saw when it started.
 			const result = read(path);
@@ -137,7 +149,7 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 			}
 			return result;
 		},
-	} as unknown as Pick<SettingsService, "readSettingsFile">;
+	} as unknown as RepoServiceDeps["settings"];
 
 	const repos = {
 		async get(id: RepoId) {

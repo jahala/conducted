@@ -1,0 +1,62 @@
+{
+	"claude": {
+		"version": "2.1.308",
+		"darwinArm64": {
+			"url": "https://downloads.claude.ai/claude-code-releases/2.1.308/darwin-arm64/claude",
+			"size": 274675680,
+			"sha256": "ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37",
+			"format": "raw"
+		},
+		"darwinX64": {
+			"url": "https://downloads.claude.ai/claude-code-releases/2.1.308/darwin-x64/claude",
+			"size": 285902384,
+			"sha256": "9a0bc140f5fb06e6366624d770371ef290e6731d1e84c4def5daf4df946d1b59",
+			"format": "raw"
+		}
+	},
+	"codex": {
+		"version": "0.164.0",
+		"darwinArm64": {
+			"url": "https://github.com/openai/codex/releases/download/rust-v0.164.0/codex-aarch64-apple-darwin.zst",
+			"size": 72906900,
+			"sha256": "02baa79227590dc0e1461a5e8e5b5756d9307198b322c77e61a8f5d385203468",
+			"format": "zstd"
+		},
+		"darwinX64": {
+			"url": "https://github.com/openai/codex/releases/download/rust-v0.164.0/codex-x86_64-apple-darwin.zst",
+			"size": 80060525,
+			"sha256": "2d27a7deff5b9c2799d1399ae7bfb2d4f20977e80f05a221d95d3f391c02e976",
+			"format": "zstd"
+		}
+	},
+	"gh": {
+		"version": "2.100.0",
+		"darwinArm64": {
+			"url": "https://github.com/cli/cli/releases/download/v2.100.0/gh_2.100.0_macOS_arm64.zip",
+			"size": 14212224,
+			"sha256": "45f9a62da2f6e641a7fad57e2ce39656dfd7ef331372d80a2a2aed65abb01642",
+			"format": "zip"
+		},
+		"darwinX64": {
+			"url": "https://github.com/cli/cli/releases/download/v2.100.0/gh_2.100.0_macOS_amd64.zip",
+			"size": 15818005,
+			"sha256": "fcd7799e85eb575f3c7d2b1679bfbfedaefa1269d4bc7d096b51e10939b4812b",
+			"format": "zip"
+		}
+	},
+	"watchexec": {
+		"version": "2.3.2",
+		"darwinArm64": {
+			"url": "https://github.com/watchexec/watchexec/releases/download/v2.3.2/watchexec-2.3.2-aarch64-apple-darwin.tar.xz",
+			"size": 2009068,
+			"sha256": "f19c399c20bc7bfa5569b57c0244da3b926bc942e98c2a4c7f548cf1f0d65d76",
+			"format": "tar-xz"
+		},
+		"darwinX64": {
+			"url": "https://github.com/watchexec/watchexec/releases/download/v2.3.2/watchexec-2.3.2-x86_64-apple-darwin.tar.xz",
+			"size": 2347992,
+			"sha256": "2f2f3b084937256683adf86495f4e6ebb1b18cabd24892e171fcb1ec85f910c7",
+			"format": "tar-xz"
+		}
+	}
+}

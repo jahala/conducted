@@ -104,7 +104,7 @@ function harness(
 		},
 	);
 	const outputFor = vi.fn(async () => ok({ output: "installed", source: "setup", running: false }));
-	const close = vi.fn(async (_id: TerminalId) => ok(undefined) as Result<void>);
+	const end = vi.fn(async (_id: TerminalId) => ok(undefined) as Result<void>);
 	const transcripts: { path: string; text: string }[] = [];
 	const fs = {
 		async writeTextAtomic(path: string, text: string) {
@@ -123,14 +123,14 @@ function harness(
 	};
 
 	const service = new RunScriptsService({
-		terminals: { runScript, outputFor, close, stop: vi.fn(async () => ok(undefined)) },
+		terminals: { runScript, outputFor, end, stop: vi.fn(async () => ok(undefined)) },
 		configFor: async () => ok(config({ setupScript: options.setupScript ?? "npm install" })),
 		workspaceFor: async () => ok(workspace),
 		repoFor: async () => ok(repo),
 		fs,
 		...(options.environmentFor === undefined ? {} : { environmentFor: options.environmentFor }),
 	});
-	return { service, runScript, close, transcripts };
+	return { service, runScript, end, transcripts };
 }
 
 describe("SET-04 environment variables reach scripts", () => {
@@ -255,7 +255,7 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 			terminals: {
 				runScript,
 				outputFor: async () => ok({ output: "", source: "setup", running: false }),
-				close: async () => ok(undefined),
+				end: async () => ok(undefined),
 				stop: async () => ok(undefined),
 			},
 			configFor: async () => ok(config()),
@@ -279,32 +279,32 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 });
 
 describe("WS-03 RunScriptsService terminals", () => {
-	it("closes the earlier setup terminal when setup runs again", async () => {
-		const { service, close } = harness();
+	it("ends the earlier setup terminal when setup runs again", async () => {
+		const { service, end } = harness();
 		await service.runSetup(workspace.id);
-		expect(close).not.toHaveBeenCalled();
+		expect(end).not.toHaveBeenCalled();
 		await service.runSetup(workspace.id);
-		expect(close).toHaveBeenCalledTimes(1);
-		expect(close).toHaveBeenCalledWith("t1");
+		expect(end).toHaveBeenCalledTimes(1);
+		expect(end).toHaveBeenCalledWith("t1");
 	});
 
-	it("closes the setup terminal when everything stops, once", async () => {
-		const { service, close } = harness();
+	it("ends the setup terminal when everything stops, once", async () => {
+		const { service, end } = harness();
 		await service.runSetup(workspace.id);
 		await service.runSetup(workspace.id);
-		close.mockClear();
+		end.mockClear();
 
 		expect((await service.stopAll()).ok).toBe(true);
-		expect(close).toHaveBeenCalledTimes(1);
-		expect(close).toHaveBeenCalledWith("t2");
+		expect(end).toHaveBeenCalledTimes(1);
+		expect(end).toHaveBeenCalledWith("t2");
 		expect((await service.stopAll()).ok).toBe(true);
-		expect(close).toHaveBeenCalledTimes(1);
+		expect(end).toHaveBeenCalledTimes(1);
 	});
 
-	it("returns the failure when a terminal will not close", async () => {
-		const { service, close } = harness();
+	it("returns the failure when a terminal will not end", async () => {
+		const { service, end } = harness();
 		await service.runSetup(workspace.id);
-		close.mockResolvedValueOnce(err(appError("terminal_close_failed", "Couldn't close it.")));
+		end.mockResolvedValueOnce(err(appError("terminal_close_failed", "Couldn't close it.")));
 
 		const result = await service.stopAll();
 

@@ -998,7 +998,7 @@ describe("DATA-05 hardening", () => {
 		const test = customService(
 			{},
 			{
-				parse: tomlCodec.parse,
+				...tomlCodec,
 				stringify() {
 					throw new Error("cannot encode");
 				},
@@ -1132,6 +1132,155 @@ describe("DATA-05 hardening", () => {
 			);
 		});
 		expect(test.logs.some((entry) => entry.level === "warn")).toBe(true);
+		test.service.stop();
+	});
+});
+
+describe("SET-14 rewriting a settings file keeps the user's comments", () => {
+	const handWritten = [
+		'"$schema" = "https://conducted.app/schemas/settings.schema.json"',
+		"",
+		"# Models I use",
+		"[models]",
+		'default = "model-a" # for everyday work',
+		'review = "model-b"',
+		"",
+		"# Branch hygiene, see the team wiki",
+		"[git]",
+		"delete_branch_on_archive = true",
+		"",
+	].join("\n");
+
+	it("changes only the saved value and keeps every comment, blank line and key order", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), handWritten);
+		await test.service.start();
+		expect(await test.service.set("default_model", "model-c")).toEqual(ok(undefined));
+		expect(test.fs.files.get(userFile())).toBe(
+			handWritten.replace('default = "model-a"', 'default = "model-c"'),
+		);
+		test.service.stop();
+	});
+
+	it("keeps comments when it adds a key the file did not have", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), handWritten);
+		await test.service.start();
+		expect(await test.service.set("archive_on_merge", true)).toEqual(ok(undefined));
+		const text = test.fs.files.get(userFile()) ?? "";
+		expect(tomlCodec.comments(text)).toEqual(tomlCodec.comments(handWritten));
+		expect(text).toContain("archive_on_merge = true");
+		test.service.stop();
+	});
+
+	it("removes a reset key with its own comment and keeps the others", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), handWritten);
+		await test.service.start();
+		expect(await test.service.delete("default_model")).toEqual(ok(undefined));
+		expect(test.fs.files.get(userFile())).toBe(
+			handWritten.replace('default = "model-a" # for everyday work\n', ""),
+		);
+		test.service.stop();
+	});
+
+	it("keeps the comments of a repository's local file", async () => {
+		const test = harness();
+		const local = "/repo/.conducted/settings.local.toml";
+		const text = [
+			'"$schema" = "https://conducted.app/schemas/settings.repo.schema.json"',
+			"",
+			"[git]",
+			"# Keep merged branches for a week",
+			"delete_branch_on_archive = false",
+			"",
+		].join("\n");
+		test.fs.files.set(local, text);
+		expect(await test.service.setForRepo("/repo", "delete_branch_on_archive", true)).toEqual(
+			ok(undefined),
+		);
+		expect(test.fs.files.get(local)).toBe(
+			text.replace("delete_branch_on_archive = false", "delete_branch_on_archive = true"),
+		);
+	});
+
+	const legacy = [
+		"[git]",
+		"delete_branch_on_archive = false",
+		"",
+		"[tasks.dev]",
+		"# Starts the dev server",
+		'command = "pnpm dev"',
+		"",
+	].join("\n");
+
+	it("warns before the first save that would drop comments, and saves on the next try", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), legacy);
+		await test.service.start();
+
+		const warned = await test.service.set("delete_branch_on_archive", true);
+		expect(warned.ok).toBe(false);
+		expect(!warned.ok && warned.error.code).toBe("settings_comments_dropped");
+		expect(!warned.ok && warned.error.message).toBe(
+			`Saving would remove a comment from ${userFile()}: "# Starts the dev server". Save again to go ahead.`,
+		);
+		expect(test.fs.files.get(userFile())).toBe(legacy);
+		expect(test.service.get("delete_branch_on_archive")).toBe(false);
+
+		expect(await test.service.set("delete_branch_on_archive", true)).toEqual(ok(undefined));
+		const parsed = tomlCodec.parse(test.fs.files.get(userFile()) ?? "");
+		expect(parsed.ok && parsed.value).toMatchObject({
+			git: { delete_branch_on_archive: true },
+			scripts: { run: { dev: { command: "pnpm dev" } } },
+		});
+		expect(parsed.ok && parsed.value["tasks"]).toBeUndefined();
+		test.service.stop();
+	});
+
+	it("warns before writing a file it cannot edit in place, then writes it whole", async () => {
+		const test = customService(
+			{},
+			{
+				...tomlCodec,
+				// The file's own shape patches cleanly; the saved value is the edit the patch refuses.
+				patch: (text, value) =>
+					JSON.stringify(value).includes("model-c")
+						? err(appError("toml_invalid", "cannot edit in place"))
+						: tomlCodec.patch(text, value),
+			},
+		);
+		test.fs.files.set(userFile(), handWritten);
+		const warned = await test.service.set("default_model", "model-c");
+		expect(!warned.ok && warned.error.message).toBe(
+			`Saving would remove 3 comments from ${userFile()}: "# Models I use", "# for everyday work", "# Branch hygiene, see the team wiki". Save again to go ahead.`,
+		);
+		expect(test.fs.files.get(userFile())).toBe(handWritten);
+
+		expect(await test.service.set("default_model", "model-c")).toEqual(ok(undefined));
+		const text = test.fs.files.get(userFile()) ?? "";
+		expect(tomlCodec.comments(text)).toEqual([]);
+		expect(tomlCodec.parse(text)).toEqual(
+			ok(
+				expect.objectContaining({
+					git: { delete_branch_on_archive: true },
+					models: { default: "model-c", review: "model-b" },
+				}),
+			),
+		);
+	});
+
+	it("warns again when a later save would drop comments it has not warned about", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), legacy);
+		await test.service.start();
+		const first = await test.service.set("delete_branch_on_archive", true);
+		expect(!first.ok && first.error.code).toBe("settings_comments_dropped");
+
+		test.fs.files.set(userFile(), legacy.replace("# Starts the dev server", "# Runs on 3000"));
+		const second = await test.service.set("delete_branch_on_archive", true);
+		expect(!second.ok && second.error.code).toBe("settings_comments_dropped");
+		expect(!second.ok && second.error.message).toContain('"# Runs on 3000"');
 		test.service.stop();
 	});
 });

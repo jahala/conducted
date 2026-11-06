@@ -18,7 +18,8 @@
  * released only when the chat is idle with no background tasks and no open interaction; after a
  * failed turn the queue is paused so nothing fires into a broken chat; cancel pauses the queue
  * instead of dropping what the user typed, and moves a row that was already `sending` to the end
- * as waiting again (CHAT-05).
+ * as waiting again (CHAT-05); a chat whose agent program is still being made ready (`isHeld`,
+ * PLAT-28) keeps its rows until the composition root releases them again.
  * Our design choice: cancelling pauses the queue instead of deleting it, so typed follow-ups are
  * never lost. The pause flag is written to `sessions.queue_paused_at` by `setPaused`.
  * Test first: nextToSend returns the steer row before an earlier queue row; loading twice keeps
@@ -101,6 +102,11 @@ export interface FollowUpQueueDeps {
 	now: () => number;
 	/** Reports a send or pause that failed while nobody waits for it. */
 	log?: (level: "warn" | "info", message: string) => void;
+	/**
+	 * True while the chat's agent program is still being made ready (PLAT-28): its rows wait. The
+	 * composition root calls `release` again when the program's state changes.
+	 */
+	isHeld?: (sessionId: SessionId) => boolean;
 }
 
 const unknownMessage = (): AppError =>
@@ -426,6 +432,7 @@ export class FollowUpQueue {
 	async release(sessionId: SessionId): Promise<Result<void>> {
 		const live = this.#deps.liveStateOf(sessionId);
 		if (live === undefined || !canReleaseQueue(live)) return ok(undefined);
+		if (this.#deps.isHeld?.(sessionId) === true) return ok(undefined);
 
 		if (this.store.getState().bySession[sessionId] === undefined) {
 			const loaded = await this.load(sessionId);

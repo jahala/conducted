@@ -51,6 +51,8 @@ const runnerOver = (shell: Shell): ShellGitRunner =>
 	new ShellGitRunner({
 		shell,
 		locks: new KeyedMutex(),
+		// No app bin folder: these tests run git and gh from the PATH alone.
+		programsBin: "",
 		sleep: async () => undefined,
 		log: () => undefined,
 	});

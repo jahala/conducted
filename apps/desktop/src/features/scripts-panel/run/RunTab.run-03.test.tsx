@@ -22,6 +22,7 @@ import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { renderWithRouter } from "../../../test/render-with-router.tsx";
+import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
 
 const dev: RunAction = {
@@ -105,7 +106,9 @@ function renderTab(test: ReturnType<typeof createTestContainer>, workspace: Work
 	renderWithRouter(
 		<ServicesProvider container={test.container}>
 			<CommandDispatcher registry={createCommandRegistry()}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</CommandDispatcher>
 		</ServicesProvider>,
 	);
@@ -184,7 +187,9 @@ describe("RUN-03 run tab preview URLs", () => {
 			component: () => (
 				<ServicesProvider container={test.container}>
 					<CommandDispatcher registry={createCommandRegistry()}>
-						<RunTab workspaceId={workspace.id} />
+						<WithSurfaces>
+							<RunTab workspaceId={workspace.id} />
+						</WithSurfaces>
 					</CommandDispatcher>
 				</ServicesProvider>
 			),

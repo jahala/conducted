@@ -122,7 +122,7 @@ function harness(options: { pathPrefixFor?: () => Promise<Result<string>> } = {}
 		terminals: {
 			runScript,
 			stop: async () => ok(undefined),
-			close: async () => ok(undefined),
+			end: async () => ok(undefined),
 			outputFor: async () => ok({ output: "", source: "setup", running: false }),
 		},
 		configFor: async () => ok(baseConfig),
@@ -172,6 +172,6 @@ describe("SET-13 scripts receive the chosen program path prefix", () => {
 
 		await service.start(workspace.id, action.id);
 
-		expect(runs[0]?.env.CONDUCTED_PATH_PREFIX).toBe("/res/bin");
+		expect(runs[0]?.env.CONDUCTED_PATH_PREFIX).toBe("/app/bin");
 	});
 });

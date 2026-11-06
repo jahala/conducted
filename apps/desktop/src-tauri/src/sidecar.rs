@@ -63,9 +63,9 @@
 //! Our design choice: environment variables are fixed here and must match packages/sidecar and
 //! docs/plans/tauri-commands.md ("Sidecar launch"). We set the variables the sidecar reads today
 //! (the parent pid, the outbox root, the slash-command cache folder, the Cursor run store folder,
-//! the log folder and the bin folder) plus the app version and log level its logger reads
-//! (SIDE-18). Agent binary folders and the ACP provider folder arrive with the features that read
-//! them (PLAT-28, SIDE-15). AGENT-09 sets `CONDUCTED_CURSOR_STORE_DIR` to
+//! the log folder, the bin folder and the managed programs folder `agent-binaries`, PLAT-28) plus
+//! the app version and log level its logger reads (SIDE-18). The ACP provider folder arrives with
+//! the feature that reads it (SIDE-15). AGENT-09 sets `CONDUCTED_CURSOR_STORE_DIR` to
 //! `<app data>/cursor-sdk-store`, which the launcher creates at mode 0700 like the other folders;
 //! the sidecar keeps one folder per workspace inside it (other-runners.md 2.3). AGENT-18 sets
 //! `CONDUCTED_SKILL_PLUGIN_DIR` to the bundled skill folder when the build ships one. There is
@@ -132,6 +132,9 @@ pub const SKILL_PLUGIN_FOLDER: &str = "conducted-skill";
 pub const CURSOR_STORE_FOLDER: &str = "cursor-sdk-store";
 /// Environment variable that tells the sidecar where the Cursor run stores live.
 pub const ENV_CURSOR_STORE_DIR: &str = "CONDUCTED_CURSOR_STORE_DIR";
+/// Environment variable that tells the sidecar where the program manager keeps the downloaded
+/// programs (PLAT-28). The sidecar trusts a `bin/` link only when it points in here.
+pub const ENV_AGENT_BINARIES_DIR: &str = "CONDUCTED_AGENT_BINARIES_DIR";
 
 /// Why a sidecar process ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -549,11 +552,11 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
 }
 
 /// The folders the sidecar reads at start: the parent pid, the outbox root, the slash-command
-/// cache folder, the Cursor run store folder (AGENT-09), the log folder, the bin folder and, when
-/// the build has one, the bundled skill plugin folder (AGENT-18). The launcher creates the folders
-/// it owns before the spawn, and `launch_environment` adds the app version and log level. Agent
-/// binaries and ACP providers wait for the features that read them. There is no database path and
-/// no logger token or folder (D026, D028).
+/// cache folder, the Cursor run store folder (AGENT-09), the log folder, the bin folder, the
+/// managed programs folder (PLAT-28) and, when the build has one, the bundled skill plugin folder
+/// (AGENT-18). The launcher creates the folders it owns before the spawn, and `launch_environment`
+/// adds the app version and log level. ACP providers wait for the feature that reads them. There
+/// is no database path and no logger token or folder (D026, D028).
 pub fn sidecar_environment(
     pid: u32,
     data_dir: &Path,
@@ -564,6 +567,7 @@ pub fn sidecar_environment(
     let outbox_root = data_dir.join("sidecar-v2-session-event-outbox");
     let completions_dir = completions_folder_under(data_dir);
     let cursor_store_dir = data_dir.join(CURSOR_STORE_FOLDER);
+    let agent_binaries_dir = crate::binaries::ProgramDirs::in_app_data(data_dir).binaries;
     let text = |path: &Path| path.to_string_lossy().into_owned();
     let mut environment = vec![
         ("CONDUCTED_PARENT_PID".to_string(), pid.to_string()),
@@ -572,6 +576,10 @@ pub fn sidecar_environment(
         (ENV_CURSOR_STORE_DIR.to_string(), text(&cursor_store_dir)),
         ("CONDUCTED_LOG_DIR".to_string(), text(&log_dir)),
         ("CONDUCTED_BIN_DIR".to_string(), text(&bin_dir)),
+        (
+            ENV_AGENT_BINARIES_DIR.to_string(),
+            text(&agent_binaries_dir),
+        ),
     ];
     if let Some(folder) = skill_plugin_dir {
         environment.push((ENV_SKILL_PLUGIN_DIR.to_string(), text(folder)));
@@ -1658,6 +1666,24 @@ mod tests {
         assert!(!map.contains_key("CONDUCTED_DB_PATH"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_TOKEN"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_DIR"));
+    }
+
+    #[test]
+    fn plat_28_the_sidecar_learns_where_the_managed_programs_are() {
+        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"), None);
+        let map: HashMap<&str, &str> = environment
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+
+        assert_eq!(
+            map.get("CONDUCTED_AGENT_BINARIES_DIR"),
+            Some(&"/tmp/conducted-data/agent-binaries")
+        );
+        assert!(
+            sidecar_env_names().contains("\"CONDUCTED_AGENT_BINARIES_DIR\""),
+            "packages/sidecar reads the variable"
+        );
     }
 
     #[test]

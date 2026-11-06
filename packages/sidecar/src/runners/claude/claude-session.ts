@@ -45,7 +45,8 @@
  *    turn tracker does not hold back goes to a SelfStartedTurnTracker over the same translator, which
  *    reports it through StartOptions.selfStartedTurns; a stream that ends or throws ends that work,
  *    and dispose stops the reports. A late result of a cancelled turn is held back, so it never
- *    looks like new work
+ *    looks like new work. cancel() with no turn of ours open stops such work as it stops a turn:
+ *    interrupt, wait INTERRUPT_GRACE_MS for the work to end, then stop the process
  *  - Remote Control (RC-02, D019, path A of D074): `config.remoteControl` turns it on for each
  *    process this chat starts, and off again, through remote-control.ts; one change at a time, in
  *    order. A chat that cannot use it (an API key, a base URL away from Anthropic) reports
@@ -361,7 +362,10 @@ export class ClaudeSession implements AgentSession {
 	}
 
 	async cancel(): Promise<void> {
-		if (!this.turnOpen) return;
+		if (!this.turnOpen) {
+			await this.cancelSelfStarted();
+			return;
+		}
 		this.generation += 1;
 		this.cancelling = true;
 		const query = this.query;
@@ -382,6 +386,30 @@ export class ClaudeSession implements AgentSession {
 		// The agent did not stop on the interrupt, so stop the process. The next turn resumes.
 		this.settleCancelled();
 		this.stopProcess();
+	}
+
+	/**
+	 * Stops work the CLI started by itself the way a cancelled turn of ours stops: an in-band
+	 * interrupt, then the process is stopped if the work goes on past the grace period.
+	 */
+	private async cancelSelfStarted(): Promise<void> {
+		const work = this.selfStarted;
+		if (work === null || !work.working) return;
+		const query = this.query;
+		if (query !== null) {
+			try {
+				await query.interrupt();
+			} catch (cause) {
+				this.deps.logger.debug("The Claude interrupt request failed", {
+					sessionId: this.sessionId,
+					message: messageOf(cause),
+				});
+			}
+			if (await this.endsWithin(work.whenEnded(), INTERRUPT_GRACE_MS)) return;
+		}
+		this.stopProcess();
+		// The stopped stream reports nothing more, so its work ends with the stop.
+		work.onStreamEnded();
 	}
 
 	async applyConfig(config: SessionConfig): Promise<"applied" | "restart"> {
@@ -751,6 +779,11 @@ export class ClaudeSession implements AgentSession {
 	private waitForTurn(ms: number): Promise<boolean> {
 		const turn = this.turnDeferred;
 		if (turn === null) return Promise.resolve(true);
+		return this.endsWithin(turn.promise, ms);
+	}
+
+	/** True when `ended` settles within `ms`. */
+	private endsWithin(ended: Promise<unknown>, ms: number): Promise<boolean> {
 		return new Promise<boolean>((resolve) => {
 			let done = false;
 			let cancelTimer: () => void = () => {};
@@ -761,7 +794,7 @@ export class ClaudeSession implements AgentSession {
 				resolve(ended);
 			};
 			cancelTimer = this.deps.scheduler.after(ms, () => finish(false));
-			void turn.promise.then(() => finish(true));
+			void ended.then(() => finish(true));
 		});
 	}
 

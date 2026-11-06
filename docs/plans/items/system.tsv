@@ -27,7 +27,7 @@ GIT-11	script	The bundled git-busy-check script reports whether git is mid-opera
 DATA-01	store	The main database holds the repos, workspaces, chats and events; ours has 13 tables and 3 migrations, with one event log per chat (D006).	overview 5	covered
 DATA-01	store	Conductor's separate client-side message cache database; ours has none and the UI reads the one database.	overview 5	covered
 SIDE-06	store	Session event outbox, one JSON file per chat.	overview 5	covered
-PLAT-28	capability	The app downloads, verifies and updates its own copies of claude and codex in an agent-binaries folder and a bin folder, and removes old versions.	overview 5	partly
+PLAT-28	capability	The app downloads, verifies and updates its own copies of claude and codex in an agent-binaries folder and a bin folder, and removes old versions.	overview 5	covered
 PR-01	capability	The gh program is bundled in Conductor's bin folder; ours uses the user's own gh.	overview 5	covered
 RUN-08	capability	The watchexec program is bundled in Conductor's bin folder for the spotlighter script; ours expects watchexec on the PATH.	overview 5	covered
 DATA-05	store	Global settings file in the user's home folder; the settings registry reads it but the data model has no row for it.	overview 5	partly
@@ -675,8 +675,8 @@ PLAT-28	command	Binary manager command that requests an install of an agent prog
 PLAT-28	command	Binary manager command that downloads an agent program again.	native-and-sidecar-map A2	covered
 PLAT-28	command	Binary manager command that removes an installed agent program.	native-and-sidecar-map A2	covered
 PLAT-28	command	Binary manager command that prefetches agent programs in the background.	native-and-sidecar-map A2	covered
-PLAT-28	command	Binary manager command that records a user-chosen agent program path override.	native-and-sidecar-map A2	missing
-PLAT-28	command	sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.	native-and-sidecar-map A2	partly
+PLAT-28	command	Binary manager command that records a user-chosen agent program path override.	native-and-sidecar-map A2	covered
+PLAT-28	command	sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.	native-and-sidecar-map A2	covered
 PLAT-13	command	check_for_updates checks for a new app version.	native-and-sidecar-map A2	covered
 PLAT-13	command	get_installed_manual_update returns the update that was just installed so its release notes can be shown.	native-and-sidecar-map A2	partly
 PLAT-11	command	send_native_notification shows a macOS notification.	native-and-sidecar-map A2	covered
@@ -758,7 +758,7 @@ PLAT-09	startup	The sidecar prints its socket path on stdout as a handshake line
 PLAT-09	startup	Rust sends a bearer token to the sidecar on stdin for an HTTP health route; ours has no HTTP bootstrap.	native-and-sidecar-map A6 4	covered
 SIDE-02	rpc	The main channel is a Unix socket in the temp folder carrying NDJSON JSON-RPC.	native-and-sidecar-map A6 5	covered
 PLAT-09	startup	Rust sets the sidecar environment: parent pid, outbox root, log dir, bin dir, app version, logger token and dir.	native-and-sidecar-map A6 6	covered
-PLAT-28	startup	Rust sets an agent binaries folder variable for the sidecar.	native-and-sidecar-map A6 6	missing
+PLAT-28	startup	Rust sets an agent binaries folder variable for the sidecar.	native-and-sidecar-map A6 6	covered
 PLAT-28	startup	Rust sets an ACP providers folder variable for the sidecar.	native-and-sidecar-map A6 6	missing
 AGENT-18	startup	Rust sets the bundled skill plugin folder variable for the sidecar.	native-and-sidecar-map A6 6	missing
 SIDE-22	startup	Rust sets the slash-command completions folder variable for the sidecar.	native-and-sidecar-map A6 6	missing
@@ -772,7 +772,7 @@ SIDE-07	timeout	Two warm agent processes are kept.	native-and-sidecar-map A6 9	c
 PLAT-09	rule	Rust has no restart loop; the app restarts the sidecar on demand (D013).	native-and-sidecar-map A6 9	covered
 PLAT-28	timeout	The sidecar start timeout waits for agent program preparation to finish.	native-and-sidecar-map A6 9	missing
 PLAT-09	store	The sidecar log is a file with mode 0600, per process id; ours keeps five in the app log folder.	native-and-sidecar-map A6 10	covered
-PLAT-35	integration	The app bin folder is appended to PATH so claude, codex and gh resolve in terminals.	native-and-sidecar-map A6 11	missing
+PLAT-35	integration	The app bin folder is appended to PATH so claude, codex and gh resolve in terminals.	native-and-sidecar-map A6 11	covered
 PLAT-04	integration	The login-shell PATH is repaired at startup.	native-and-sidecar-map A6 11	covered
 PLAT-16	integration	Deep link scheme list has several variant schemes; ours has one (conducted).	native-and-sidecar-map A8	covered
 PLAT-16	rule	The host picks the route and the UI parses the link.	native-and-sidecar-map A8	covered
@@ -793,7 +793,7 @@ PLAT-13	integration	The manual update path retries with backoff and keeps its st
 PLAT-13	integration	Release notes of the installed version are shown after relaunch.	native-and-sidecar-map A9	partly
 PLAT-28	integration	The update manifest also carries new agent programs.	native-and-sidecar-map A9	missing
 PLAT-28	rule	Agent program versions are pinned per app version.	native-and-sidecar-map A9	covered
-PLAT-28	rule	The release feed (agent-binaries/manifest.json, or data compiled into the app) gives the official download URL, size and SHA-256 of each pinned program for darwin-arm64; nothing produces it yet, so every install fails with program_release_missing (found by the slice 2 step 3 rust audit).	native-and-sidecar-map A9	missing
+PLAT-28	rule	The release feed ships inside the app (programs/release-feed.json) with the official download URL, size and SHA-256 of each pinned program per CPU, from the vendors' own release hosts (found missing by the slice 2 step 3 rust audit).	native-and-sidecar-map A9	covered
 PLAT-28	store	Each agent install keeps metadata with size and mtime checks.	native-and-sidecar-map A9	covered
 PLAT-28	state	Each agent program keeps retry state after a failed download.	native-and-sidecar-map A9	covered
 PLAT-28	rule	Old agent program versions are pruned.	native-and-sidecar-map A9	covered
@@ -915,7 +915,7 @@ PLAT-28	store	The agent-binaries folder holds downloaded agent programs.	native-
 PLAT-28	store	The .meta folder holds per-install metadata for agent programs.	native-and-sidecar-map D1	covered
 PLAT-28	store	The acp-providers folder holds downloaded ACP adapters.	native-and-sidecar-map D1	missing
 PLAT-28	store	The bin folder holds PATH shims for agent programs.	native-and-sidecar-map D1	covered
-PLAT-28	store	The bin-overrides folder holds user-chosen agent programs.	native-and-sidecar-map D1	missing
+PLAT-28	store	The bin-overrides folder holds user-chosen agent programs.	native-and-sidecar-map D1	covered
 PLAT-28	store	The .bin-source-markers.json file records where each bin entry came from.	native-and-sidecar-map D1	missing
 RUN-09	store	The terminal-shell-integration/zsh folder holds the shim files.	native-and-sidecar-map D1	missing
 PLAT-20	store	The draft-attachments folder holds attachments of unsent drafts.	native-and-sidecar-map D1	covered
@@ -1661,11 +1661,11 @@ PR-03	rule	GitHub comment sync runs when a PR poll shows a new updatedAt for an 
 REV-04	operation	Resolving a thread on GitHub marks the local rows resolved.	services-map 5A.7.3	covered
 CLOUD-03	rule	Cloud-stored comments are mapped to the same shape.	services-map 5A.7.3	covered
 REV-03	rule	Add to chat refuses inactive comments, writes the file, attaches it and marks the comment reviewed on send.	services-map 5A.7.4	covered
-PLAT-28	rule	Sending to an agent is held with a visible state while its program is not yet ready.	services-map 5A.8.1	missing
+PLAT-28	rule	Sending to an agent is held with a visible state while its program is not yet ready.	services-map 5A.8.1	covered
 GIT-16	message	The Xcode licence prompt is detected and explained.	services-map 5A.8.1	missing
 SIDE-15	rule	Codex sign-in status is checked and a login can be started.	services-map 5A.8.1	covered
 SIDE-15	rule	Settings claude_executable_path and codex_executable_path override the program path used by the sidecar.	services-map 5A.8.2	covered
-PLAT-28	rule	A shim folder makes claude and codex typed in a terminal resolve to the chosen program or override.	services-map 5A.8.2	missing
+PLAT-28	rule	A shim folder makes claude and codex typed in a terminal resolve to the chosen program or override.	services-map 5A.8.2	covered
 PLAT-04	rule	Shell environment capture uses per-shell flags and a delimiter, 5 s and 3 s timeouts, and strips provider keys.	services-map 5A.8.3	covered
 SIDE-10	rule	The sidecar caches the captured environment by folder and stripped keys, and a failure drops the entry.	services-map 5A.8.3	covered
 WS-01	rule	The shell environment capture is warmed when a workspace is created.	services-map 5A.8.3	partly
@@ -2542,7 +2542,7 @@ DATA-05	store	Each resolved setting reports its source layer and whether it is l
 DATA-05	message	Saving into an invalid settings file says it cannot save and offers Overwrite file; no component owns the prompt.	services-map 4.2.1	partly
 DATA-05	message	Entries dropped while reading settings (unparseable, unknown key, wrong type, unsupported value) are reported but no screen shows them.	services-map 4.2.1	partly
 DATA-05	rule	Writing settings adds git exclude lines for the .conducted files.	services-map 4.2.1	covered
-DATA-05	rule	The settings file keeps a schema line and sorted keys.	services-map 4.2.1	covered
+DATA-05	rule	The settings file keeps a schema line; a new file is written with sorted keys, and an existing one keeps its own order (SET-14).	services-map 4.2.1	covered
 DATA-05	store	Environment variable tables can hold a none marker or a Keychain marker; the file should hold names and the Keychain the values.	services-map 4.2.4	partly
 SET-07	store	Hidden run actions are kept in local storage and not in the settings file.	services-map 4.2.4	covered
 PLAT-10	store	Keychain key names cover gh tokens, the Codex key and per-scope environment variables; no document lists our names.	services-map 4.2.8	partly
@@ -2587,10 +2587,10 @@ PLAT-23	startup	The sidebar transparency setting reaches the window at startup t
 PLAT-24	rule	The opener may open the x-apple.systempreferences link to Privacy and Security.	native-and-sidecar-map A3	missing
 PLAT-22	rule	tauri.conf.json sets a content security policy instead of null.	native-and-sidecar-map A2	missing
 PLAT-31	rpc	tauri://focus and tauri://blur reach the UI through Platform.app, for polling only while focused.	native-and-sidecar-map A4	missing
-PLAT-35	integration	The app downloads, verifies, updates and prunes gh like the agent programs, so a first run has GitHub access without installing anything (D024).	overview 5; native-and-sidecar-map A9	missing
-PLAT-35	integration	The app downloads, verifies and updates watchexec, which Spotlight runs (D024).	services-map 3.12	missing
+PLAT-35	integration	The app downloads, verifies, updates and prunes gh like the agent programs, so a first run has GitHub access without installing anything (D024).	overview 5; native-and-sidecar-map A9	covered
+PLAT-35	integration	The app downloads, verifies and updates watchexec, which Spotlight runs (D024).	services-map 3.12	covered
 PLAT-35	integration	The gh stack extension that Sync stack runs is installed with gh (D024).	services-map 3.8	missing
-PLAT-35	rule	gh and watchexec in the app's bin folder are on PATH for terminals, scripts and agents; a copy on the user's PATH is used when chosen in Settings or when a download fails.	native-and-sidecar-map A6 11	missing
+PLAT-35	rule	gh and watchexec in the app's bin folder are on PATH for terminals, scripts and agents; a copy on the user's PATH is used when chosen in Settings or when a download fails.	native-and-sidecar-map A6 11	partly
 PLAT-35	rule	Conductor also ships ripgrep 15.1.0 in its bin folder; what runs it is not traced. Find the caller in the research before adding it.	native-and-sidecar-map A9	missing
 PLAT-30	rule	HTTP from Rust has a URL allow-list and proxy support; Linear moves from curl to it, GitHub stays on gh.	native-and-sidecar-map A2; services-map 1.1	missing
 PLAT-25	integration	Releases are signed with a team identity, use the hardened runtime and are notarised; the sidecar is signed on its own with the JIT entitlements.	native-and-sidecar-map A1	missing
@@ -2689,16 +2689,16 @@ PLAT-02	rule	The Platform contract test also runs against the Tauri implementati
 REV-01	operation	The diff service uses the catalogue's branch and all-changes diff commands, and the discard action uses its discard command.	services-map 3.4	missing
 SIDE-10	rule	One list of stripped environment names is shared by the Rust shell and the sidecar, with a test that compares them.	native-and-sidecar-map B4	missing
 PLAT-27	rule	The login-shell PATH is set before the Tauri runtime starts, so no thread reads the environment while it changes.	native-and-sidecar-map A6	missing
-PLAT-35	rule	The app's bin folder is added to PATH after the login-shell repair.	native-and-sidecar-map A6	missing
+PLAT-35	rule	The app's bin folder is added to PATH after the login-shell repair.	native-and-sidecar-map A6	covered
 AGENT-03	rule	One smoke test runs a Claude turn end to end through the real translator.	claude-runner 1	missing
 SIDE-21	rule	Runners start the agent program the detector found (Settings path, managed copy, then PATH), never a second PATH lookup.	other-runners 5	missing
 PLAT-36	rule	Rust command tests run through a mock Tauri app: shell start, cancel and timeout events, the file paths command, and a terminal from spawn to exit.	native-and-sidecar-map A2	missing
-SET-14	rule	Rewriting a settings file keeps the user's comments, or warns before the first rewrite that would drop them.	services-map 4.2	missing
+SET-14	rule	Rewriting a settings file keeps the user's comments, or warns before the first rewrite that would drop them.	services-map 4.2	covered
 SIDE-02	rule	A smoke test starts the real sidecar host on a temporary socket path and sees the handshake line.	sessions 10	missing
 AGENT-06	operation	The agent detector reads Codex sign-in through the Codex runner's account call.	other-runners 5	missing
 AGENT-09	operation	The agent detector reads Cursor sign-in through the Cursor runner.	other-runners 5	missing
 SIDE-21	operation	The agent detector gets the Settings program paths and the Cursor API key.	other-runners 5	missing
-PLAT-28	operation	The agent detector prefers the managed copy of an agent program (D021).	other-runners 5	missing
+PLAT-28	operation	The agent detector prefers the managed copy of an agent program (D021).	other-runners 5	covered
 SIDE-25	rule	The sidecar's process and file adapters live in their own edge modules, each with a test, and the composition root only composes.	native-and-sidecar-map B1	missing
 PLAT-27	rule	Closing the app kills every terminal it started.	native-and-sidecar-map A4	missing
 PLAT-08	rule	A terminal snapshot keeps colours, attributes and the cursor, and does not replay scrollback as visible lines.	native-and-sidecar-map A4	missing
@@ -2787,7 +2787,7 @@ CHAT-02	rule	The protocol sendMessage config already carries them; the UI send p
 REV-01	rule	Switch GitHeader from defaultShortcuts[0] to useLiveShortcut so its button hint follows rebinds (moved from NAV-07 by the step-4 audit).	docs/reports/audits/step-4	missing
 SET-02	rule	Render useShortcutOverrides().error where the user sees their shortcuts (moved from NAV-07 by the step-4 audit).	docs/reports/audits/step-4	missing
 PLAT-18	rule	Set CONDUCTED_APP_VERSION again when the sidecar reads it for logs (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
-PLAT-28	rule	Set CONDUCTED_AGENT_BINARIES_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+PLAT-28	rule	Set CONDUCTED_AGENT_BINARIES_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	covered
 SIDE-15	rule	Set CONDUCTED_ACP_PROVIDERS_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
 AGENT-09	rule	Set CONDUCTED_CURSOR_STORE_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
 SIDE-01	rule	Config.ts still says the Rust launcher stores stderr in the app log files (D026); the code writes sidecar-<pid>.log (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
@@ -3041,9 +3041,9 @@ APP-03	rule	Help > Diagnostics menu item: needs `app.openDiagnostics` in the com
 APP-03	rule	Debug menu item handler: `app.openDebugTools` has no command-runner handler; it should call `platform.window.toggleInspector()`	docs/reports/audits/s2-step-1	missing
 PLAT-33	rule	Menu accelerators and menu clicks in the live app: `createTauriMenu.setShortcuts` and `onCommand` still call `notImplemented("PLAT-33")`	docs/reports/audits/s2-step-1	missing
 SET-04	integration	The Environment page's variables reach a running agent: SET-04 adds them to the agent launch that SIDE-21 builds (global variables, then the repository's of the same name), and an idle agent restarts with resume when they change.	native-and-sidecar-map B4	missing
-SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) when PLAT-28 installs it; until then the order is Settings path, then PATH.	other-runners 5	missing
+SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) in a chat's start, the model, slash command and MCP lists, and detection.	other-runners 5	covered
 SIDE-21	integration	The desktop composition root (core/container.ts) passes launchFor to SessionsService and ChatTitlesService, built from the saved settings: program paths, provider and base URL, and provider keys from the Keychain. Accepted by a test over createTestContainer that sends one message and sees the launch in the sidecar request, with no chat_launch_missing (D054).	claude-runner 1.2	missing
 CHAT-15	rule	After a revert the agent forgets the reverted turns: revertTo asks the sidecar to resetAgent, and the chat's next send resumes the agent at the chosen turn with resume.atNativeMessageId. Until then the agent keeps them in memory although the chat hides them (moved by the s2-2 core-1 audit).	sessions 2	missing
 PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	covered
-PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	missing
+PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	covered
 SET-05	rpc	McpService.refresh sends the chat's launch with listMcpServers (the container's launchFor), so MCP status runs the program and keys the user chose; the sidecar already lists with it (moved from the SIDE-21 contract change).	docs/reports/slice-2	missing

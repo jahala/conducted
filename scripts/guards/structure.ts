@@ -16,7 +16,9 @@
  *
  * Usage: bun scripts/guards/structure.ts [--list] [--write-baseline]
  */
+
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { builtinModules } from "node:module";
 import { basename, join } from "node:path";
 import type { Node, SourceFile } from "typescript/unstable/ast";
 import { SyntaxKind } from "typescript/unstable/ast";
@@ -223,6 +225,37 @@ export function checkShellPrograms(root: string): Problem[] {
 				problems.push({
 					guard,
 					message: `${rel(root, path)} starts "${program}", which is not in ALLOWED_PROGRAMS in ${SHELL_RS}`,
+				});
+			}
+		}
+	}
+	return problems;
+}
+
+// ------------------------------------------------------------------- browser imports
+
+/** Node's built-in module names, with and without the `node:` prefix. */
+const NODE_BUILTINS: ReadonlySet<string> = new Set(
+	builtinModules.flatMap((name) => [name, `node:${name}`]),
+);
+
+/**
+ * The app's code runs in the web view, which has no Node built-ins: an import of one leaves the
+ * screen blank at start-up, and the tests (which run in Node) never notice. Type-only imports are
+ * erased by the compiler and allowed; tests and test helpers run in Node and are left out.
+ */
+export function checkBrowserImports(root: string): Problem[] {
+	const guard = "browser-imports";
+	const problems: Problem[] = [];
+	const importFrom = /^\s*import\s+(?!type\b)[^;]*?\bfrom\s+["']([^"']+)["']/gm;
+	for (const path of walk(root, join(root, "apps/desktop/src"), /\.tsx?$/)) {
+		if (isTestPath(rel(root, path))) continue;
+		for (const match of read(path).matchAll(importFrom)) {
+			const specifier = match[1] ?? "";
+			if (NODE_BUILTINS.has(specifier) || NODE_BUILTINS.has(specifier.split("/")[0] ?? "")) {
+				problems.push({
+					guard,
+					message: `${rel(root, path)} imports "${specifier}", which the app's web view cannot load`,
 				});
 			}
 		}

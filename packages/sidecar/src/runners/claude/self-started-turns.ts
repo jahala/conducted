@@ -11,7 +11,8 @@
  * report: `ClaudeTurnTracker` decides); a result for a message we did not push (the work ended
  * successfully); a mini result (`num_turns` 0, a background-task notification) is not an end; the
  * stream ending cleanly while in progress (interrupted); the stream throwing (error with its
- * message); no repeated reports of the same state; `dispose` (no report after it).
+ * message); no repeated reports of the same state; `dispose` (no report after it). `working` and
+ * `whenEnded` let the session's cancel interrupt the work and wait for it to stop.
  * Messages of such work are translated and handed to `onMessage`, so the host stores them. Work
  * that starts before its first state report starts on its first translated message instead. An
  * approval such work asks for goes to `requestInteraction` (RC-03: a turn started on claude.ai can
@@ -44,6 +45,8 @@ export interface SelfStartedTurnCallbacks {
 export class SelfStartedTurnTracker {
 	private inProgress = false;
 	private disposed = false;
+	/** Waiting for the current work to end (`whenEnded`). */
+	private readonly endWaiters: (() => void)[] = [];
 
 	constructor(
 		protected readonly deps: {
@@ -94,6 +97,20 @@ export class SelfStartedTurnTracker {
 
 	dispose(): void {
 		this.disposed = true;
+		this.wakeEndWaiters();
+	}
+
+	/** True while the CLI works on something it started by itself. */
+	get working(): boolean {
+		return this.inProgress && !this.disposed;
+	}
+
+	/** Resolves when the current work ends, or at once when none runs. */
+	whenEnded(): Promise<void> {
+		if (!this.working) return Promise.resolve();
+		return new Promise<void>((resolve) => {
+			this.endWaiters.push(resolve);
+		});
 	}
 
 	/** Translates one message and gives it to the host. Returns how many it produced. */
@@ -116,5 +133,10 @@ export class SelfStartedTurnTracker {
 		if (this.disposed || !this.inProgress) return;
 		this.inProgress = false;
 		this.deps.callbacks.onInProgressChanged(false, end);
+		this.wakeEndWaiters();
+	}
+
+	private wakeEndWaiters(): void {
+		for (const wake of this.endWaiters.splice(0)) wake();
 	}
 }

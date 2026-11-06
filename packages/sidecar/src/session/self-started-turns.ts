@@ -8,8 +8,11 @@
  * Must handle: work that starts while a turn of ours runs (ignored: the turn owns the state); work
  * that starts on an idle chat (working, with no user message); the end (events flushed, then idle,
  * with the outcome the runner reports); a chat that was reset (a late report is dropped, by the run
- * guard); the process manager (`markBusy` and `markIdle` follow the live state); a message typed on
- * claude.ai that names this work after it ended (`turnIdOf` keeps the newest turn, RC-03).
+ * guard); the process manager (`markBusy` and `markIdle` follow the live state); a cancel during
+ * such work (the agent is stopped first, as a cancelled turn's agent is, then the turn ends as
+ * `cancelled` with "aborted by user", and what the stopping agent still reports is dropped); a
+ * message typed on claude.ai that names this work after it ended (`turnIdOf` keeps the newest
+ * turn, RC-03).
  * A user message that arrives during such work belongs to the manager's queue (SIDE-03); this class
  * does not receive it or start anything from it. The session manager makes one per agent start and
  * hands its callbacks to the runner (`StartOptions.selfStartedTurns`); `onSettled` is the manager's
@@ -27,7 +30,7 @@ import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { ProcessManager } from "../process/process-manager.ts";
 import type { EventPublisher } from "./event-batcher.ts";
-import { beginTurn, endTurn, type LiveStateStore } from "./live-state.ts";
+import { beginTurn, CANCELLED_BY_USER, endTurn, type LiveStateStore } from "./live-state.ts";
 import type { RunGuard, RunNumber } from "./run-guard.ts";
 
 interface ActiveTurn {
@@ -41,6 +44,9 @@ export type SelfStartedTurnEnd =
 	| { readonly outcome: "success" }
 	| { readonly outcome: "interrupted" }
 	| { readonly outcome: "error"; readonly error: string };
+
+/** How such a turn is stored: the runner's report, or the user's cancel. */
+type TurnEnd = SelfStartedTurnEnd | { readonly outcome: "cancelled" };
 
 export class SelfStartedTurns {
 	private readonly active = new Map<SessionId, ActiveTurn>();
@@ -94,6 +100,30 @@ export class SelfStartedTurns {
 		return this.active.get(sessionId)?.turnId ?? this.latest.get(sessionId);
 	}
 
+	/**
+	 * The user cancelled while the agent worked by itself. The turn is taken first, so whatever the
+	 * stopping agent still reports is dropped; then `stopAgent` stops the agent the way a cancelled
+	 * turn is stopped, and the turn ends as cancelled. False when no such work runs.
+	 */
+	async cancel(sessionId: SessionId, stopAgent: () => Promise<void>): Promise<boolean> {
+		const turn = this.active.get(sessionId);
+		if (turn === undefined) return false;
+		this.active.delete(sessionId);
+		// As with a cancelled turn of ours, the run is stale from here, so its end drains no queue.
+		this.deps.runGuard.invalidate();
+		try {
+			await stopAgent();
+		} catch (cause) {
+			this.deps.logger.warn("The agent could not be stopped cleanly", {
+				sessionId,
+				turnId: turn.turnId,
+				reason: messageOf(cause),
+			});
+		}
+		await this.finish(turn, { outcome: "cancelled" });
+		return true;
+	}
+
 	/** One message of such a turn. */
 	onMessage(sessionId: SessionId, message: AgentMessage): void {
 		let turn = this.active.get(sessionId);
@@ -143,7 +173,7 @@ export class SelfStartedTurns {
 		this.mark("markBusy", sessionId);
 	}
 
-	private async finish(turn: ActiveTurn, end: SelfStartedTurnEnd): Promise<void> {
+	private async finish(turn: ActiveTurn, end: TurnEnd): Promise<void> {
 		const event: SessionEvent = {
 			type: "turn_ended",
 			eventId: this.deps.ids.uuid() as EventId,
@@ -165,9 +195,7 @@ export class SelfStartedTurns {
 		}
 
 		try {
-			await this.deps.liveState.update(turn.sessionId, (live) =>
-				endTurn(live, end.outcome === "error" ? end.error : undefined),
-			);
+			await this.deps.liveState.update(turn.sessionId, (live) => endTurn(live, liveError(end)));
 		} catch (cause) {
 			this.deps.logger.warn("Could not report the chat idle", {
 				sessionId: turn.sessionId,
@@ -196,5 +224,16 @@ export class SelfStartedTurns {
 				reason: messageOf(cause),
 			});
 		}
+	}
+}
+
+function liveError(end: TurnEnd): string | undefined {
+	switch (end.outcome) {
+		case "error":
+			return end.error;
+		case "cancelled":
+			return CANCELLED_BY_USER;
+		default:
+			return undefined;
 	}
 }

@@ -16,6 +16,7 @@
 		"@codemirror/view": "^6.43.15",
 		"@conducted/protocol": "workspace:^",
 		"@conducted/shared": "workspace:^",
+		"@decimalturn/toml-patch": "^3.3.2",
 		"@pierre/diffs": "^1.6.4",
 		"@tanstack/react-query": "^5.106.0",
 		"@tanstack/react-router": "^1.170.46",

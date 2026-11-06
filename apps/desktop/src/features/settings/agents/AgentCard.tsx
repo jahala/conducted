@@ -32,7 +32,10 @@ export interface AgentCardProps {
 	onProviders?: () => void;
 	/** Copies the program path. Left out when the page has no clipboard action. */
 	onCopyPath?: (path: string) => void;
-	/** Offered beside a warning. Left out until the program manager can download (D021). */
+	/**
+	 * Offered beside a warning when the page passes it. The Agents page passes none: the research
+	 * shows no update action on an agent card (an open PLAT-28 item).
+	 */
 	onUpdate?: () => void;
 }
 

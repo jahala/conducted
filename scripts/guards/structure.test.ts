@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
 	BASELINE,
+	checkBrowserImports,
 	checkMigrationList,
 	checkPlaceholderTests,
 	checkShellPrograms,
@@ -143,6 +144,26 @@ describe("programs", () => {
 		put("apps/desktop/src/core/b.test.ts", 'run({ program: "curl" });\n');
 		expect(messages(checkShellPrograms(root))).toEqual([
 			'apps/desktop/src/core/b.ts starts "xcodebuild", which is not in ALLOWED_PROGRAMS in apps/desktop/src-tauri/src/shell.rs',
+		]);
+	});
+});
+
+describe("browser-imports", () => {
+	test("flags a Node built-in imported by app code, and leaves tests and type-only imports alone", () => {
+		put(
+			"apps/desktop/src/core/services/a.ts",
+			'import { join } from "node:path";\nexport const x = join("a", "b");\n',
+		);
+		put(
+			"apps/desktop/src/features/b.tsx",
+			'import fs from "fs";\nimport { foo } from "./foo.ts";\n',
+		);
+		put("apps/desktop/src/core/c.ts", 'import type { Readable } from "node:stream";\nexport {};\n');
+		put("apps/desktop/src/core/c.test.ts", 'import { join } from "node:path";\n');
+		put("apps/desktop/src/test/sqlite.ts", 'import { DatabaseSync } from "node:sqlite";\n');
+		expect(messages(checkBrowserImports(root))).toEqual([
+			'apps/desktop/src/core/services/a.ts imports "node:path", which the app\'s web view cannot load',
+			'apps/desktop/src/features/b.tsx imports "fs", which the app\'s web view cannot load',
 		]);
 	});
 });
