@@ -18,7 +18,14 @@
  * dismiss control; dismissing hides it until fastModeAvailable turns true and false again.
  */
 import type { SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { useEffect, useState } from "react";
+import { useActions } from "../../core/hooks.ts";
+import { Button } from "../../ui/Button.tsx";
+import { CloseIcon } from "../../ui/icons.tsx";
+
+/** The Claude page where extra usage credits are checked and bought. */
+const CLAUDE_USAGE_URL = "https://claude.ai/settings/usage";
+const MESSAGE = "Fast mode is disabled because extra usage is out of credits.";
 
 export interface FastModeUnavailableBannerProps {
 	sessionId: SessionId;
@@ -28,6 +35,57 @@ export interface FastModeUnavailableBannerProps {
 	fastModeAvailable: boolean;
 }
 
-export function FastModeUnavailableBanner(_props: FastModeUnavailableBannerProps): never {
-	return notImplemented("CHAT-30");
+export function FastModeUnavailableBanner({
+	sessionId,
+	fastModeRequested,
+	fastModeAvailable,
+}: FastModeUnavailableBannerProps) {
+	const actions = useActions();
+	const [dismissedSession, setDismissedSession] = useState<SessionId | null>(null);
+	const [openError, setOpenError] = useState<string | null>(null);
+
+	// A fresh failure shows the warning again: it was dismissed only for the failure before it.
+	useEffect(() => {
+		if (fastModeAvailable) {
+			setDismissedSession((current) => (current === sessionId ? null : current));
+		}
+		setOpenError(null);
+	}, [fastModeAvailable, sessionId]);
+
+	if (!fastModeRequested || fastModeAvailable || dismissedSession === sessionId) return null;
+
+	const addCredit = async () => {
+		setOpenError(null);
+		const opened = await actions.app.openUrl(CLAUDE_USAGE_URL);
+		if (!opened.ok) setOpenError(opened.error.message);
+	};
+
+	return (
+		<div
+			data-tone="warning"
+			className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-surface px-2 py-1.5 text-warning-fg"
+		>
+			<div className="min-w-0 flex-1">
+				<p className="text-xs font-medium">{MESSAGE}</p>
+				{openError === null ? null : (
+					<p role="alert" className="mt-1 text-xs text-danger">
+						{openError}
+					</p>
+				)}
+			</div>
+			<div className="flex shrink-0 items-center gap-1">
+				<Button variant="outline" size="xs" onClick={() => void addCredit()}>
+					Add credit
+				</Button>
+				<button
+					type="button"
+					aria-label="Dismiss fast mode warning"
+					onClick={() => setDismissedSession(sessionId)}
+					className="-mr-1 flex size-6 shrink-0 items-center justify-center rounded-sm text-warning-fg hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+				>
+					<CloseIcon className="size-3.5" />
+				</button>
+			</div>
+		</div>
+	);
 }
