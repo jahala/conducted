@@ -4,9 +4,11 @@
  * list.
  * Behaviour: research/conductor/other-runners.md sections 2.3, 5 and 6: Cursor has no list call, so
  * the model catalog is static; no slash commands, no MCP listing, no context usage; the API key
- * comes from the CURSOR_API_KEY variable or the user's settings (the shell-env capture strips it
- * from the inherited environment, so only an explicit setting counts); a user's own MCP servers in
- * ~/.cursor/mcp.json and <workspace>/.cursor/mcp.json are read and forwarded.
+ * is the CURSOR_API_KEY variable of the chat's start environment (`StartOptions.env`), where the
+ * launch puts the key the user entered or chose from this Mac (SIDE-21, D033). The shell-env
+ * capture strips it from the login shell, and the sidecar's own environment is never read for it.
+ * A user's own MCP servers in ~/.cursor/mcp.json and <workspace>/.cursor/mcp.json are read and
+ * forwarded.
  * Must handle:
  *  - detect(): the `cursor-agent` program on PATH is optional; the runner works through the SDK,
  *    so detect() reports the SDK's presence and version when it can load, else null
@@ -26,8 +28,6 @@ import type { EnvLock } from "./env-lock.ts";
 export type CursorRunnerDeps = RunnerCommonDeps & {
 	loadSdk: LoadCursorSdk;
 	envLock: EnvLock;
-	/** Reads the API key from the user's settings. Undefined when none is set. */
-	apiKey(): string | undefined;
 };
 
 export class CursorRunner implements Runner {

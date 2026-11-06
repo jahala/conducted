@@ -1073,7 +1073,6 @@ function createRunnerRegistry(input: {
 				...common,
 				loadSdk: ports.loadCursorSdk,
 				envLock: new EnvLock({ queue: queueForCursor, target: process.env }),
-				apiKey: () => process.env.CURSOR_API_KEY,
 			}),
 		},
 	];

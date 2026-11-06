@@ -40,7 +40,7 @@ export interface CursorSessionDeps {
 	loadSdk: LoadCursorSdk;
 	envLock: EnvLock;
 	translator: CursorTranslator;
-	/** The API key for this chat, from the user's Settings or environment. Undefined if unset. */
+	/** The API key for this chat: CURSOR_API_KEY of its start environment. Undefined if unset. */
 	apiKey: string | undefined;
 	logger: Logger;
 }
