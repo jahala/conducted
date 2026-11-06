@@ -1,6 +1,6 @@
 # Overnight build, 5 to 6 November 2026
 
-The night finished slice 2 and started slice 3. Slice 2's last three steps merged (#307, #308, #311), the five-area hardening merged (#309, #310, #312, #313, #314), main is green, and the slice report is merged ([slice-2.md](slice-2.md)). Slice 3 started at 03:25 UTC. Part 1a (the rust and sidecar batches) merged as #316 with 14 issues closed. Part 1b (the core batches) merged as #317 at 07:41 with 11 issues closed, after two CI rounds. AGENT-09, PR-08 and PR-09 are built in part but planned (D066, D067). The ui batches and step 2 were not started: a part begun after 07:00 could not merge before morning.
+The night finished slice 2 and started slice 3. Slice 2's last three steps merged (#307, #308, #311), the five-area hardening merged (#309, #310, #312, #313, #314), main is green, and the slice report is merged ([slice-2.md](slice-2.md)). Slice 3 started at 03:25 UTC. Part 1a (the rust and sidecar batches) merged as #316 with 14 issues closed. Part 1b (the core batches) merged as #317 at 07:41 with 11 issues closed, after two CI rounds. AGENT-09, PR-08 and PR-09 are built in part but planned (D066, D067). The ui batches and step 2 were not started: a part begun after 07:00 could not merge before morning (D068).
 
 Slice 2's detail (steps, issues, audits, hardening by area, and what needs you for slice 2) is in [slice-2.md](slice-2.md). This page covers slice 3 and the night's own decisions.
 
@@ -62,6 +62,8 @@ DeepSeek: 33.68 USD when the night's goal began (slice 2 step 2), 20.66 USD at t
 - D065: slice 3's first step lands in parts.
 - D066: AGENT-09 is planned until Cursor's SDK can ship.
 - D067: a feature whose title's behaviour is not built stays open.
+- D068: no slice 3 part starts after 07:00 UTC. The remaining batches (`s1-core` and four `s1-ui`) and step 2 wait for the next run.
+- D068: no slice 3 part starts after 07:00 UTC; the remaining batches (`s1-core`, four `s1-ui`) and step 2 wait for the next run.
 
 ## What went wrong, and what changed because of it
 

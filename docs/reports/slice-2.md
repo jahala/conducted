@@ -49,7 +49,7 @@ Agents may not edit shared contracts, so these wait for you. Each names the feat
 - **Done, but nothing reaches it (D054):** NAV-15's SurfaceLayer is not mounted, and no live code calls AGENT-15. Reopen both, or wire them in slice 3.
 - **Dials we set:** a quit waits at most 5 seconds for the app to stop (D064); downloads time out after 30 seconds without data; 64 early download cancels are kept.
 - **Process:** `pnpm release` runs the full test suite on this Mac, against "tests run on GitHub, not on my machine". `one-home.test.ts` repeats guard 9; retiring it removes test cases.
-- **Out of scope for the night:** the planned rows with no issue yet (cloud workspaces, Remote Control and the follow-up rows) wait for your product decisions.
+- **Out of scope for the night:** 16 planned slice 2 rows wait for your product decisions, with their issues open. They are cloud workspaces (CLOUD-03 to 08, 13 and 17), Remote Control (RC-01 to 04) and the follow-up rows (PLAT-36 #281, SIDE-25 #282, SET-14 #283, APP-16 #297). With PLAT-28 and PLAT-35, they are the only slice 2 rows not done, so no slice 2 step is left to build.
 
 ### Stale branches and refs
 
