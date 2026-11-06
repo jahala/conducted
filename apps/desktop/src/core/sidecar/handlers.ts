@@ -16,7 +16,8 @@
  * same single writer, and one that still fails is thrown so the tunnel logs it;
  * `interactionClosed` marks a timed-out card and settles the pending request;
  * `shellEnvFailed` logs the folder, kind and message; `remoteControlState` shows a Claude chat's
- * Remote Control link (RC-02); a failed workspace diff is answered as an
+ * Remote Control link (RC-02); `goalChanged` shows a Codex chat's goal in its goal bar (COMP-10);
+ * a failed workspace diff is answered as an
  * RPC error whose data carries the app's own error code, so the sidecar tool shows an error
  * result instead of a fake diff; a failed terminal output read throws, so the agent gets an RPC
  * error instead of an error message dressed as terminal output.
@@ -33,7 +34,7 @@ import {
 	RPC_ERRORS,
 	type SessionEventEnvelope,
 } from "@conducted/protocol";
-import { notImplemented, type Result, type SessionId } from "@conducted/shared";
+import type { Result, SessionId } from "@conducted/shared";
 import { JSONRPCErrorException } from "json-rpc-2.0";
 import type { IngestOutcome } from "./ingest.ts";
 import type {
@@ -116,6 +117,11 @@ export interface RemoteControlPort {
 	setStatus(params: SidecarToAppNotificationParams<"remoteControlState">): void;
 }
 
+export interface GoalPort {
+	/** Shows a Codex chat's goal, or none (null), as the sidecar reports it (COMP-10). */
+	setGoal(params: SidecarToAppNotificationParams<"goalChanged">): void;
+}
+
 export interface ShellEnvPort {
 	/** Logs that a folder's login-shell environment could not be captured. */
 	captureFailed(params: SidecarToAppNotificationParams<"shellEnvFailed">): void;
@@ -133,6 +139,7 @@ export interface SidecarHandlerPorts {
 	targetBranch: TargetBranchPort;
 	shellEnv: ShellEnvPort;
 	remoteControl: RemoteControlPort;
+	goal: GoalPort;
 }
 
 // ---------------------------------------------------------------- requests (sidecar asks the UI)
@@ -231,7 +238,9 @@ export function createSidecarNotificationHandlers(
 		remoteControlState: async (params) => {
 			ports.remoteControl.setStatus(params);
 		},
-		goalChanged: () => notImplemented("COMP-10"),
+		goalChanged: async (params) => {
+			ports.goal.setGoal(params);
+		},
 		shellEnvFailed: async (params) => {
 			ports.shellEnv.captureFailed(params);
 		},

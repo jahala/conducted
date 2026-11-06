@@ -84,10 +84,19 @@
  * answers it (`refreshRemoteControl`, through getSessionStatus; a chat the sidecar does not know is
  * off, and an answer a newer notification overtook is dropped). Turning a Claude chat's switch on
  * through `updateConfig` also warms its agent, so the link comes up without a message.
+ * COMP-10 owns the `goals` part of the store and `setGoal`, `changeGoal`, `loadGoal` and
+ * `applyGoalChanged`: a Codex chat's goal for the goal bar. Setting, pausing, resuming and
+ * clearing send `/goal ...` as a steer, as Conductor does (ui-map.md 3.5), so the chat shows the
+ * line and the sidecar turns it into the goal call (AGENT-13). A chat that is not Codex is refused
+ * with "Codex goals are not available in this chat." and an empty goal with "Enter a goal first.",
+ * both before anything is sent. `loadGoal` reads the goal of a chat whose Codex thread exists,
+ * warming its agent first; a chat with no thread has no goal and is not started. A `goalChanged`
+ * notification wins over a read still on its way.
  */
 import {
 	type AcpConfigOption,
 	type AgentLaunch,
+	type CodexGoal,
 	type Interaction,
 	type InteractionAnswer,
 	type InteractionRequest,
@@ -110,7 +119,6 @@ import {
 	type InteractionId,
 	type KeyedQueue,
 	type MessageId,
-	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
@@ -197,6 +205,8 @@ export interface SessionsState {
 	acpConfigOptions?: Readonly<Record<string, Loadable<AcpConfigOption[]>>>;
 	/** A Claude chat's Remote Control link, as the sidecar last reported it (RC-02). */
 	remoteControl?: Readonly<Record<string, RemoteControlStatus>>;
+	/** A Codex chat's goal, as the sidecar last reported it; null when it has none (COMP-10). */
+	goals?: Readonly<Record<string, CodexGoal | null>>;
 	openInteractions: Readonly<
 		Record<
 			string,
@@ -232,6 +242,10 @@ function canonicalJson(value: unknown): string {
 function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 	return canonicalJson(a) === canonicalJson(b);
 }
+
+/** Conductor's messages for a goal it cannot set (ui-map.md 3.5, the toast inventory). */
+const GOAL_UNAVAILABLE = "Codex goals are not available in this chat.";
+const GOAL_EMPTY = "Enter a goal first.";
 
 /** A config write is tried this many times before its failure is reported. */
 const CONFIG_WRITE_ATTEMPTS = 3;
@@ -395,6 +409,7 @@ export class SessionsService implements AgentMessenger {
 	/** The newest option-list request per chat. An older answer never changes the store. */
 	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
 	readonly #remoteControlRequests: LatestWins<string> = createLatestWins<string>();
+	readonly #goalRequests: LatestWins<string> = createLatestWins<string>();
 	/** The stored-history search over the event log. */
 	readonly #historySearch: (query: string, limit: number) => Promise<Result<HistoryHit[]>>;
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
@@ -1817,7 +1832,7 @@ export class SessionsService implements AgentMessenger {
 							timedOut: open.timedOut,
 						},
 			progress: state.progress[sessionId] ?? null,
-			goal: null,
+			goal: state.goals?.[sessionId] ?? null,
 		};
 	}
 
@@ -2331,12 +2346,67 @@ export class SessionsService implements AgentMessenger {
 				};
 	}
 
-	/** The goal bar's Save. An empty objective is refused with "Enter a goal first." */
-	setGoal(_id: SessionId, _objective: string): Promise<Result<void>> {
-		return notImplemented("COMP-10");
+	/**
+	 * The goal bar's Save and the composer's goal mode: sends `/goal <objective>` as a steer. A
+	 * chat that is not Codex, or an objective with no text, is refused before anything is sent.
+	 */
+	async setGoal(id: SessionId, objective: string): Promise<Result<void>> {
+		const chat = await this.#goalChat(id);
+		if (!chat.ok) return chat;
+		const text = objective.trim();
+		if (text.length === 0) return err(appError("goal_empty", GOAL_EMPTY));
+		return this.send(id, `/goal ${text}`, [], "steer");
 	}
 
-	changeGoal(_id: SessionId, _action: "pause" | "resume" | "clear"): Promise<Result<void>> {
-		return notImplemented("COMP-10");
+	/** The goal bar's Pause goal, Resume goal and Clear goal: sends `/goal <action>` as a steer. */
+	async changeGoal(id: SessionId, action: "pause" | "resume" | "clear"): Promise<Result<void>> {
+		const chat = await this.#goalChat(id);
+		if (!chat.ok) return chat;
+		return this.send(id, `/goal ${action}`, [], "steer");
+	}
+
+	/**
+	 * Reads a Codex chat's goal for the goal bar. Only a chat whose Codex thread exists can have
+	 * one, so a chat with no thread is left alone and its agent is not started. Only the newest
+	 * read, and no read a `goalChanged` notification overtook, changes the store.
+	 */
+	async loadGoal(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const session = found.value;
+		if (session.config.agent !== "codex" || session.agentSessionId === null) return ok(undefined);
+		const ticket = this.#goalRequests.begin(id);
+		const warmed = await this.#warm(session);
+		if (!this.#goalRequests.isLatest(ticket)) return warmed;
+		if (!warmed.ok) {
+			this.#goalRequests.settle(ticket);
+			return warmed;
+		}
+		const read = await this.#deps.sidecar.request("getGoal", { sessionId: id });
+		if (!this.#goalRequests.isLatest(ticket)) return read.ok ? ok(undefined) : read;
+		this.#goalRequests.settle(ticket);
+		if (!read.ok) return read;
+		this.#setGoalState(id, read.value.goal);
+		return ok(undefined);
+	}
+
+	/** Shows the goal the sidecar reports (the goalChanged notification). */
+	applyGoalChanged(id: SessionId, goal: CodexGoal | null): void {
+		// A notification is newer than any read still on its way.
+		this.#goalRequests.invalidate(id);
+		this.#setGoalState(id, goal);
+	}
+
+	async #goalChat(id: SessionId): Promise<Result<Session>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		if (found.value.config.agent !== "codex") {
+			return err(appError("goal_unavailable", GOAL_UNAVAILABLE));
+		}
+		return found;
+	}
+
+	#setGoalState(id: SessionId, goal: CodexGoal | null): void {
+		this.store.setState((state) => ({ goals: { ...(state.goals ?? {}), [id]: goal } }));
 	}
 }
