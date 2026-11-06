@@ -17,11 +17,13 @@
  * focus returns to the editor after sending; Cmd+L focuses the editor; the file list fails to load
  * (error shown) or an older list arrives after a newer one (dropped); a terminal for a slash
  * command that cannot be created (shown on the bar, with Reopen terminal).
- * The editor loads the `@` trigger (COMP-04) and the `/` trigger (COMP-06) from this composer, so
- * both read the chat's service. The `@` menu lists the workspace's files and its linked folders,
- * read again each time the menu opens, and offers "Attach current terminal output" and "Select
- * working directories" (WS-07). The `#` trigger is left out until COMP-05 builds pull request
- * search. A slash command the user picks does what `slashCommandAction` says: /clear opens a new
+ * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05) and the `/` trigger
+ * (COMP-06) from this composer, so all read the chat's service. The `@` menu lists the workspace's
+ * files and its linked folders, read again each time the menu opens, and offers "Attach current
+ * terminal output" and "Select working directories" (WS-07). The `#` menu lists the project's pull
+ * requests and issues, writes the chosen item's context file and inserts a chip; a failed write
+ * shows "Failed to save PR context". A slash command the user picks does what
+ * `slashCommandAction` says: /clear opens a new
  * chat tab (the tab strip's own Cmd+T handler) and closes this one, /restart restarts the agent,
  * /compact asks a Codex chat to summarise its history, /add-dir opens the Link workspaces and
  * directories dialog (WS-07), /plan and /fast run the plan and fast mode toggles of the toolbar,
@@ -41,13 +43,21 @@
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
  * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
- * Dictation (COMP-08) is not mounted in this toolbar yet.
+ * The toolbar also holds the dictation button (COMP-08), which inserts its transcript at the caret.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
 
 import type { SlashCommand } from "@conducted/protocol";
-import type { SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	ok,
+	type SessionId,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -66,6 +76,8 @@ import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
+import { DictationButton } from "./DictationButton.tsx";
+import { FastModeUnavailableBanner } from "./FastModeUnavailableBanner.tsx";
 import { toastGoalError } from "./GoalBar.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
@@ -73,15 +85,23 @@ import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import type { FileMentionItem } from "./mentions/FileMention.ts";
 import {
+	PR_MENTION_LIMIT,
+	type PrMentionItem,
+	type PrMentionSearchResult,
+} from "./mentions/PrMention.ts";
+import {
 	COMMAND_UNAVAILABLE,
 	PLAN_MODE_UNAVAILABLE,
 	type SlashListState,
 	slashCommandAction,
 	terminalCommandLine,
 } from "./mentions/SlashCommandExtension.ts";
+import { createSnippetMention } from "./mentions/SnippetMention.ts";
 import { PlusMenu } from "./PlusMenu.tsx";
 import { SendButton, type SendButtonState } from "./SendButton.tsx";
+import { openSnippetPicker } from "./SnippetOverlays.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
+import { useSnippetDialogsStore } from "./snippet-dialogs-store.ts";
 import { TerminalCommandBar } from "./TerminalCommandBar.tsx";
 import { useAttachments } from "./use-attachments.ts";
 import { useDraftSync } from "./use-draft-sync.ts";
@@ -201,6 +221,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	});
 	const live = useStore(services.sessions.store, (state) => state.liveStates[sessionId]);
 	const draftError = useStore(services.composer.store, (state) => state.errors[sessionId]);
+	const snippets = useStore(services.composer.store, (state) => state.snippets);
+	const snippetError = useStore(services.composer.store, (state) => state.snippetError);
 	const sendKey = useStore(
 		services.settings.store,
 		(state) => state.values.message_send_key as string | undefined,
@@ -265,6 +287,120 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		const view = editorRef.current?.isDestroyed === false ? editorRef.current.view : null;
 		view?.dispatch(view.state.tr);
 	}, [services, workspaceId]);
+
+	const searchPrMentions = useCallback(
+		async (query: string) => {
+			const row = services.workspace.store.getState().workspacesById[workspaceId];
+			const repo =
+				row === undefined ? undefined : services.repo.store.getState().reposById[row.repoId];
+			const remoteUrl = repo?.remoteUrl ?? null;
+			const access = services.github.store.getState().access;
+			const items: PrMentionItem[] = [];
+			const notices: string[] = [];
+			const errors: AppError[] = [];
+			if (remoteUrl === null) {
+				notices.push("This project has no GitHub remote.");
+			} else if (access.status === "gh_missing") {
+				notices.push("Install GitHub CLI (gh) to list pull requests and issues.");
+			} else if (access.status === "signed_out" || access.status === "unauthorized") {
+				notices.push('Run "gh auth login" to connect GitHub.');
+			} else if (access.status === "offline") {
+				notices.push("You're offline. Pull requests and issues can't be listed.");
+			} else {
+				const [pulls, issues] = await Promise.all([
+					services.github.listPullRequests(remoteUrl, query),
+					services.github.listIssues(remoteUrl, query),
+				]);
+				if (pulls.ok) {
+					items.push(
+						...pulls.value.map((pull) => ({
+							kind: "pull_request" as const,
+							provider: "github" as const,
+							number: pull.number,
+							identifier: `#${pull.number}`,
+							title: pull.title,
+							id: String(pull.number),
+						})),
+					);
+				} else {
+					errors.push(pulls.error);
+				}
+				if (issues.ok) {
+					items.push(
+						...issues.value.map((issue) => ({
+							kind: "issue" as const,
+							provider: "github" as const,
+							number: Number(issue.id),
+							identifier: issue.identifier,
+							title: issue.title,
+							url: issue.url,
+							id: issue.id,
+						})),
+					);
+				} else {
+					errors.push(issues.error);
+				}
+			}
+			if (services.linear.store.getState().connection === "connected") {
+				const found =
+					query.trim() === ""
+						? await services.linear.loadMyIssues()
+						: await services.linear.search(query);
+				if (found.ok) {
+					items.push(
+						...found.value.map((issue) => ({
+							kind: "issue" as const,
+							provider: "linear" as const,
+							number: null,
+							identifier: issue.identifier,
+							title: issue.title,
+							url: issue.url,
+							id: issue.id,
+						})),
+					);
+				} else {
+					errors.push(found.error);
+				}
+			}
+			if (items.length === 0 && errors.length > 0) {
+				const first = errors[0];
+				if (first !== undefined) return err(first);
+			}
+			if (errors.length > 0 && items.length > 0) {
+				const first = errors[0];
+				if (first !== undefined) notices.push(first.message);
+			}
+			const value: PrMentionSearchResult = {
+				items: items.slice(0, PR_MENTION_LIMIT),
+				notice: notices.length > 0 ? notices.join(" ") : undefined,
+			};
+			return ok(value);
+		},
+		[services, workspaceId],
+	);
+
+	const attachPrMention = useCallback(
+		async (item: PrMentionItem) => {
+			if (item.kind === "pull_request") {
+				if (item.number === null) {
+					return err(appError("pr_mention_unknown", "That pull request has no number to write."));
+				}
+				return services.github.attachPullRequestToWorkspace(workspaceId, item.number);
+			}
+			if (item.provider === "linear") {
+				return services.linear.attachToWorkspace(workspaceId, item.id);
+			}
+			return services.github.attachIssueToWorkspace(workspaceId, {
+				provider: "github",
+				id: item.id,
+			});
+		},
+		[services, workspaceId],
+	);
+
+	const reportPrMentionError = useCallback((error: AppError) => {
+		toastError("Failed to save PR context", error);
+	}, []);
 
 	const attachTerminalOutput = useCallback(async () => {
 		const added = await actions.attachments.addTerminalOutput(sessionId);
@@ -359,8 +495,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	}, [actions, sessionId]);
 
 	const extensions = useMemo(
-		() =>
-			buildComposerExtensions({
+		() => [
+			...buildComposerExtensions({
 				files: {
 					search: () => [
 						...linkedPaths.current.map((path) => ({ path, isDirectory: true })),
@@ -380,6 +516,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 						},
 					],
 				},
+				pullRequests: {
+					search: searchPrMentions,
+					attach: attachPrMention,
+					onError: reportPrMentionError,
+				},
 				slash: {
 					get commands() {
 						return [...slashCommands.current];
@@ -396,7 +537,21 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					onRun: runSlashCommand,
 				},
 			}),
-		[attachTerminalOutput, loadFiles, runSlashCommand],
+			createSnippetMention({
+				snippets: () => services.composer.store.getState().snippets,
+				error: () => services.composer.store.getState().snippetError?.message ?? null,
+				onOpen: () => void services.composer.loadSnippets(),
+			}),
+		],
+		[
+			attachPrMention,
+			attachTerminalOutput,
+			loadFiles,
+			reportPrMentionError,
+			runSlashCommand,
+			searchPrMentions,
+			services,
+		],
 	);
 
 	const restore = useCallback((draft: Draft) => {
@@ -404,7 +559,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		setText(draft.text);
 	}, []);
 
-	useDraftSync({ sessionId, editor, attachmentPaths: attachments, onRestore: restore });
+	useDraftSync({
+		sessionId,
+		editor,
+		attachmentPaths: attachments,
+		onRestore: restore,
+		onStoredAttachments: setAttachments,
+	});
 
 	// Goal mode belongs to the chat it was chosen in.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: the reset runs when the chat changes
@@ -424,6 +585,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			editor.off("update", update);
 		};
 	}, [editor]);
+
+	// A snippet list that arrives after the trigger opened redraws that menu.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the list change must redraw the open trigger
+	useEffect(() => {
+		if (editor === null) return;
+		editor.view.dispatch(editor.state.tr);
+	}, [editor, snippetError, snippets]);
 
 	const stop = useCallback(async () => {
 		const result = await actions.sessions.cancel(sessionId);
@@ -456,6 +624,16 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const focusEditorAtEnd = useCallback(() => {
 		editorRef.current?.commands.focus("end");
 	}, []);
+
+	// Dictation (COMP-08) and snippets (COMP-09) both put text at the cursor.
+	const insertText = useCallback((text: string) => {
+		editorRef.current?.chain().focus().insertContent(text).run();
+	}, []);
+	useCommandHandler("chat.insertSnippet", "area", () => {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
+		openSnippetPicker(insertText);
+		return true;
+	});
 
 	useCommandHandler("chat.cancelAgent", "area", () => {
 		if (!working) return false;
@@ -517,92 +695,102 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	};
 
 	return (
-		<div
-			ref={containerRef}
-			className="rounded-xl border border-border bg-surface shadow-xs"
-			data-narrow={narrow ? "true" : "false"}
-		>
-			{terminalRun === null ? null : (
-				<div className="px-2 pt-2">
-					<TerminalCommandStatus
-						workspaceId={workspaceId}
-						run={terminalRun}
-						onReopen={() => void startTerminalCommand(terminalRun.command)}
-						onDone={finishTerminalCommand}
-					/>
-				</div>
-			)}
-			<div className="flex items-center gap-1 px-2 pt-2">
-				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-					<PlusMenu
-						sessionId={sessionId}
-						onAddAttachment={() => void attachmentsController.pick()}
-						onLinkIssue={() => setIssueDialogOpen(true)}
-						onLinkWorkspaces={() => setLinkDialogOpen(true)}
-					/>
-					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
-						<ModelPicker sessionId={sessionId} />
-					</NotBuiltYet>
-					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
-						<ModeChips sessionId={sessionId} />
-					</NotBuiltYet>
-					<AcpOptions sessionId={sessionId} />
-				</div>
-				<div className="flex shrink-0 items-center gap-1">
-					<RemoteControlButton sessionId={sessionId} />
-					<ContextWheel sessionId={sessionId} />
-					{narrow ? (
-						<Menu>
-							<MenuTrigger asChild>
-								<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
-							</MenuTrigger>
-							<MenuContent align="end">
-								<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
-							</MenuContent>
-						</Menu>
-					) : (
-						<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
-					)}
-				</div>
-			</div>
-			<AttachmentBar
+		<div className="flex flex-col gap-2">
+			<FastModeUnavailableBanner
 				sessionId={sessionId}
-				attachmentPaths={attachments}
-				busy={attachmentsController.busy}
-				onRemove={(path) => void attachmentsController.remove(path)}
+				fastModeRequested={session?.config.fastMode === true}
+				fastModeAvailable={live?.fastModeAvailable ?? true}
 			/>
-			<ComposerEditor
-				sessionId={sessionId}
-				disabled={busy}
-				onSubmit={(intent) => void send(intent)}
-				sendWith={sendWith}
-				onEditorReady={setEditor}
-				extensions={extensions}
-				{...(goalMode ? { placeholder: "Set a goal" } : {})}
-			/>
-			<LinkDirectoriesDialog
-				open={linkDialogOpen}
-				onOpenChange={setLinkDialogOpen}
-				workspaceId={workspaceId}
-			/>
-			<LinkIssueDialog
-				open={issueDialogOpen}
-				onOpenChange={setIssueDialogOpen}
-				workspaceId={workspaceId}
-				sessionId={sessionId}
-				onAttached={addLinkedIssue}
-				onFocusEditor={focusEditorAtEnd}
-			/>
-			<div className="flex items-center justify-end gap-1 px-2 pb-2">
-				<SendButton
-					state={buttonState}
-					disabled={disabled}
-					busy={busy}
-					working={working}
-					sendWith={sendWith}
-					onSend={() => void send("submit")}
-					onStop={() => void stop()}
+			<div
+				ref={containerRef}
+				className="rounded-xl border border-border bg-surface shadow-xs"
+				data-narrow={narrow ? "true" : "false"}
+			>
+				{terminalRun === null ? null : (
+					<div className="px-2 pt-2">
+						<TerminalCommandStatus
+							workspaceId={workspaceId}
+							run={terminalRun}
+							onReopen={() => void startTerminalCommand(terminalRun.command)}
+							onDone={finishTerminalCommand}
+						/>
+					</div>
+				)}
+				<div className="flex items-center gap-1 px-2 pt-2">
+					<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+						<PlusMenu
+							sessionId={sessionId}
+							onAddAttachment={() => void attachmentsController.pick()}
+							onLinkIssue={() => setIssueDialogOpen(true)}
+							onLinkWorkspaces={() => setLinkDialogOpen(true)}
+							onAddSnippet={() => useSnippetDialogsStore.getState().openCreate()}
+							onInsertSnippet={() => openSnippetPicker(insertText)}
+						/>
+						<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
+							<ModelPicker sessionId={sessionId} />
+						</NotBuiltYet>
+						<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
+							<ModeChips sessionId={sessionId} />
+						</NotBuiltYet>
+						<AcpOptions sessionId={sessionId} />
+					</div>
+					<div className="flex shrink-0 items-center gap-1">
+						<DictationButton onTranscript={insertText} />
+						<RemoteControlButton sessionId={sessionId} />
+						<ContextWheel sessionId={sessionId} />
+						{narrow ? (
+							<Menu>
+								<MenuTrigger asChild>
+									<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
+								</MenuTrigger>
+								<MenuContent align="end">
+									<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
+								</MenuContent>
+							</Menu>
+						) : (
+							<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
+						)}
+					</div>
+				</div>
+				<AttachmentBar
+					sessionId={sessionId}
+					attachmentPaths={attachments}
+					busy={attachmentsController.busy}
+					onRemove={(path) => void attachmentsController.remove(path)}
 				/>
+				<ComposerEditor
+					sessionId={sessionId}
+					disabled={busy}
+					onSubmit={(intent) => void send(intent)}
+					sendWith={sendWith}
+					onEditorReady={setEditor}
+					extensions={extensions}
+					{...(goalMode ? { placeholder: "Set a goal" } : {})}
+				/>
+				<LinkDirectoriesDialog
+					open={linkDialogOpen}
+					onOpenChange={setLinkDialogOpen}
+					workspaceId={workspaceId}
+				/>
+				<LinkIssueDialog
+					open={issueDialogOpen}
+					onOpenChange={setIssueDialogOpen}
+					workspaceId={workspaceId}
+					sessionId={sessionId}
+					onAttached={addLinkedIssue}
+					onFocusEditor={focusEditorAtEnd}
+				/>
+				<div className="flex items-center justify-end gap-1 px-2 pb-2">
+					<SendButton
+						state={buttonState}
+						disabled={disabled}
+						busy={busy}
+						working={working}
+						sendWith={sendWith}
+						onSend={() => void send("submit")}
+						onStop={() => void stop()}
+					/>
+				</div>
 			</div>
 		</div>
 	);

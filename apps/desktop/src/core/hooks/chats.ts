@@ -1,24 +1,19 @@
 /**
  * @feature DATA-01 Query hook contract for screens
  * @feature CHAT-15 Revert to a turn: the count of files a reset puts back
+ * @feature CHAT-26 Start a chat with earlier chats and plans: the workspace's plans
  * Owns: the chat hooks and the session-store helpers they share.
  * Behaviour: services-map.md 1.3; core/hooks.ts states the contract.
  * Must handle: a chat that no longer exists, a session whose events have not arrived.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import {
-	type AppError,
-	appError,
-	notImplemented,
-	type SessionId,
-	type TurnId,
-} from "@conducted/shared";
+import { type AppError, appError, type SessionId, type TurnId } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { ChatView, Session } from "../model.ts";
+import type { ChatView, PlanEntry, Session } from "../model.ts";
 import type { SessionsState } from "../services/sessions.ts";
 
 /** Reads one slice of a service's store and re-renders when it changes. */
@@ -92,7 +87,35 @@ export const useChat: Queries["useChat"] = (sessionId) => {
 };
 export const useClosedSessions: Queries["useClosedSessions"] = (workspaceId) =>
 	useSessionList(workspaceId, true);
-export const usePlans: Queries["usePlans"] = () => notImplemented("CHAT-26");
+
+/**
+ * The plans agents proposed in a workspace's chats, newest first (CHAT-26). Read when a screen
+ * mounts or the workspace changes, so an empty chat opened after a new plan lists it. An answer
+ * for a workspace the screen has left is dropped.
+ */
+export const usePlans: Queries["usePlans"] = (workspaceId) => {
+	const sessions = useServices().services.sessions;
+	const [plans, setPlans] = useState<{ workspaceId: string; value: Loadable<PlanEntry[]> }>({
+		workspaceId,
+		value: { state: "loading" },
+	});
+	useEffect(() => {
+		let current = true;
+		void sessions.listPlans(workspaceId).then((result) => {
+			if (!current) return;
+			setPlans({
+				workspaceId,
+				value: result.ok
+					? { state: "ready", data: result.value }
+					: { state: "error", error: result.error },
+			});
+		});
+		return () => {
+			current = false;
+		};
+	}, [sessions, workspaceId]);
+	return plans.workspaceId === workspaceId ? plans.value : { state: "loading" };
+};
 
 const changedSinceTurnKey = (sessionId: SessionId, turnId: TurnId) =>
 	["checkpoint", sessionId, turnId, "changed-since"] as const;

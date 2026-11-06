@@ -1,10 +1,15 @@
+import { ok } from "@conducted/shared";
 import { Extension } from "@tiptap/react";
 import { describe, expect, it } from "vitest";
 import { buildComposerExtensions } from "./composer-extensions.ts";
 
 const deps = {
 	files: { search: () => [] },
-	pullRequests: { search: async () => [] },
+	pullRequests: {
+		search: async () => ok({ items: [] }),
+		attach: async () => ok(""),
+		onError: () => {},
+	},
 	slash: { commands: [], onRun: () => {} },
 	builders: {
 		pullRequests: () => Extension.create({ name: "prMention" }),

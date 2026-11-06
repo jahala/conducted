@@ -1,9 +1,10 @@
 /**
  * @feature CHAT-17 Copy transcript and search chat history
- * Owns: turning a chat's turns into text for the clipboard, and the query that searches stored
- * chats.
+ * @feature CHAT-26 Start a chat with earlier chats and plans
+ * Owns: turning a chat's turns into text for the clipboard, the query that searches stored chats,
+ * and reading the plans an agent proposed in a stored event.
  * Behaviour: ui-map.md 3.2 and 5.1 (copy concise transcript, chat history search), services-map.md
- * 2.3.3 (search is a LIKE over stored message text).
+ * 2.3.3 (search is a LIKE over stored message text), inventory label #340-341 (plan shelf).
  * Must handle: "concise" keeps the user messages and the agent's text, and one line per tool
  * call; "full" adds thinking, tool inputs and outputs; reverted turns are left out; very large
  * tool outputs are cut at 2000 characters with a note; a search query under two characters
@@ -21,7 +22,7 @@ import { type SessionEvent, zSessionEvent } from "@conducted/protocol";
 import { ok, type Result, type SessionId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import { collectResults, parseJsonColumn, selectRows } from "../db/row-codec.ts";
-import type { ChatBlock, ChatTurn } from "../model.ts";
+import type { ChatBlock, ChatTurn, PlanEntry } from "../model.ts";
 
 /** Matches `%`, `_` and the escape character itself so the query is searched literally. */
 export const escapeLike = (query: string): string => query.replace(/[\\%_]/g, (ch) => `\\${ch}`);
@@ -194,4 +195,57 @@ export function createHistorySearch(
 		}
 		return ok(hits);
 	};
+}
+
+/** The first heading or non-empty line of a plan, without its heading marks. */
+export function planTitleOf(text: string): string {
+	const first = text
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.find((line) => line.length > 0);
+	if (first === undefined) return "Plan";
+	return first.replace(/^#{1,6}\s*/, "").trim() || "Plan";
+}
+
+/** The plan text of one `exit_plan_mode` call, or null when the input holds no text. */
+export function planTextOf(input: unknown): string | null {
+	if (typeof input !== "object" || input === null) return null;
+	const plan = (input as { plan?: unknown }).plan;
+	return typeof plan === "string" ? plan : null;
+}
+
+/** The first plan text in a stored agent event for a turn, or null. */
+export function planTextInEvent(event: SessionEvent, turnId: string): string | null {
+	if (event.type !== "agent" || event.turnId !== turnId) return null;
+	for (const item of event.message.items) {
+		if (item.kind !== "tool_call" || item.tool !== "exit_plan_mode") continue;
+		const text = planTextOf(item.input);
+		if (text !== null) return text;
+	}
+	return null;
+}
+
+/** The plans a stored agent event proposed, oldest call first. Reverted events are left out. */
+export function plansInEvent(
+	event: SessionEvent,
+	sessionId: SessionId,
+	sessionTitle: string | null,
+	at: number,
+	reverted: boolean,
+): PlanEntry[] {
+	if (reverted || event.type !== "agent") return [];
+	const plans: PlanEntry[] = [];
+	for (const item of event.message.items) {
+		if (item.kind !== "tool_call" || item.tool !== "exit_plan_mode") continue;
+		const text = planTextOf(item.input);
+		if (text === null) continue;
+		plans.push({
+			sessionId,
+			sessionTitle,
+			turnId: event.turnId,
+			title: planTitleOf(text),
+			at,
+		});
+	}
+	return plans;
 }

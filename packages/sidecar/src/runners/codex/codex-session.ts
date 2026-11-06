@@ -22,6 +22,8 @@
  *  - the thread id is reported through onAgentSessionId as soon as thread/started arrives
  *  - a message that is `/compact` (AGENT-14) runs `thread/compact/start` instead of `turn/start`;
  *    its notice is emitted when `thread/compacted` arrives, which also ends the compact run
+ *  - account() and planUsage() read `account/read` and `account/rateLimits/read` on the chat's
+ *    app server for the usage popover (CHAT-28); before the server runs there is nothing to read
  *  - applyConfig: model, effort, approval policy and personality are per-turn overrides (live);
  *    an approval policy, sandbox or personality change re-opens the thread with the new settings;
  *    additional directories or app-tool changes need a new thread config, so they return
@@ -39,7 +41,7 @@
  * Test first: with a fake client, runTurn sends thread/start then turn/start and resolves success
  * when turn/completed with status completed arrives.
  */
-import type { SessionConfig } from "@conducted/protocol";
+import type { RateLimit, SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -50,6 +52,11 @@ import {
 	type SessionId,
 } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import {
+	accountFromCodex,
+	rateLimitsFromCodex,
+	type UsageAccountView,
+} from "../../models/usage.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
 import { asRecord, readString } from "../../util/records.ts";
 import { sameStrings } from "../../util/string-set.ts";
@@ -365,6 +372,29 @@ export class CodexSession implements AgentSession {
 		// The next turn re-opens the thread with the new options, keeping its history.
 		if (settingsChanged) this.threadClient = null;
 		return "applied";
+	}
+
+	/** Who the chat's app server is signed in as, from `account/read` (CHAT-28). */
+	async account(): Promise<UsageAccountView | undefined> {
+		const client = this.client;
+		if (client === null) return undefined;
+		const read = await client.request<unknown>(CODEX_CLIENT_METHODS.accountRead, {});
+		if (!read.ok) throw read.error;
+		return accountFromCodex(read.value);
+	}
+
+	/**
+	 * The account's primary and secondary limits, from `account/rateLimits/read` (CHAT-28). A
+	 * refused read throws; the usage reader logs it and leaves the rows out.
+	 */
+	async planUsage(): Promise<RateLimit[]> {
+		const client = this.client;
+		if (client === null) return [];
+		const read = await client.request<unknown>(CODEX_CLIENT_METHODS.accountRateLimitsRead, {
+			excludeResetCreditDetails: true,
+		});
+		if (!read.ok) throw read.error;
+		return rateLimitsFromCodex(read.value);
 	}
 
 	async contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null> {

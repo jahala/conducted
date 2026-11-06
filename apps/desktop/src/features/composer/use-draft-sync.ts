@@ -14,6 +14,8 @@
  * clears the draft; an empty editor removes the draft; typing before the restore arrives (keep it,
  * and do not overwrite it with the saved text); a draft for a closed chat is cleaned up by the
  * data-lifetime job.
+ * Attachments put in the stored draft from outside the composer (CHAT-26's shelves, the Files tab)
+ * are handed to the composer, and become the last saved list so they are not saved back.
  * Test first: Typing then switching chats saves the first chat's text once and restores the second
  * chat's draft.
  */
@@ -31,6 +33,11 @@ export interface DraftSyncProps {
 	editor: Editor | null;
 	attachmentPaths?: readonly string[];
 	onRestore?: (draft: Draft) => void;
+	/**
+	 * The stored draft's attachments changed from outside the composer: the empty chat's shelves
+	 * (CHAT-26), the Files tab, or the composer service adding a file. The composer shows them.
+	 */
+	onStoredAttachments?: (paths: string[]) => void;
 }
 
 interface TextNode {
@@ -70,6 +77,7 @@ export function useDraftSync({
 	editor,
 	attachmentPaths = [],
 	onRestore,
+	onStoredAttachments,
 }: DraftSyncProps): void {
 	const composer = useServices().services.composer;
 	const { sessions } = useActions();
@@ -79,6 +87,8 @@ export function useDraftSync({
 	const typedSinceRestore = useRef(false);
 	const restore = useRef(onRestore);
 	restore.current = onRestore;
+	const storedAttachments = useRef(onStoredAttachments);
+	storedAttachments.current = onStoredAttachments;
 
 	useEffect(() => {
 		if (editor === null) return;
@@ -126,6 +136,21 @@ export function useDraftSync({
 			cancelled = true;
 		};
 	}, [composer, editor, sessionId]);
+
+	// A change to the stored attachments that this hook did not save came from elsewhere. It
+	// becomes the last saved list, so showing it does not save it back over a newer change.
+	useEffect(() => {
+		return composer.store.subscribe((state) => {
+			if (restoredSession.current !== sessionId) return;
+			const paths = state.drafts[sessionId]?.attachmentPaths;
+			if (paths === undefined) return;
+			const key = keyOf(paths);
+			if (lastSavedAttachments.current.get(sessionId) === key) return;
+			lastSavedAttachments.current.set(sessionId, key);
+			attachmentsBySession.current.set(sessionId, paths);
+			storedAttachments.current?.([...paths]);
+		});
+	}, [composer, sessionId]);
 
 	const attachmentKey = keyOf(attachmentPaths);
 	useEffect(() => {

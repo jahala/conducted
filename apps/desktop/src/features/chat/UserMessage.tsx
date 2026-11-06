@@ -1,12 +1,16 @@
 /**
  * @feature CHAT-06 User message
+ * @feature CHAT-29 Attachment and image viewer: copy, save, open
  * Owns: The user's message in a turn: text, mention chips, attachments and the hover actions.
  * Behaviour: ui-map.md 3.3 (user message: attachments, mention chips, 'Sent via' or 'Sent from
  * another session'; hover actions include revert; 'Message not sent' with Retry and Discard).
+ * A chat image has a menu with Save image and Copy image (inventory toast rows 535 to 537), and a
+ * click opens the attachment viewer (inventory label rows 343 and 462).
  * Must handle: Not sent (the `failed` prop draws the error state with Retry and Discard, and offers no Revert,
  * because a message that was never sent has nothing to revert to; FailedSends passes it); a very long
  * message collapses with 'Show more'; an image attachment loads its thumbnail through `Platform.fs.assetUrl`, and a
- * file that does not load (gone, or outside the folders the shell serves) shows its name; mention chips for
+ * file that does not load (gone, or outside the folders the shell serves) shows its name; a video
+ * attachment opens the same viewer; mention chips for
  * files and PRs open the file or PR tab; text is selectable and copyable; Revert opens the confirmation
  * dialog instead of changing anything at once.
  * Test first: A message with two attachment paths renders two attachment items; a failed send shows
@@ -21,6 +25,8 @@ import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { FileIcon, PullRequestIcon } from "../../ui/icons.tsx";
+import { AttachmentViewer } from "../file-viewer/AttachmentViewer.tsx";
+import { useAttachmentActions } from "../file-viewer/use-attachment-actions.ts";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
 import { fileNameOf } from "./tools/ToolCardFrame.tsx";
@@ -28,6 +34,7 @@ import { useWorkspaceLinks } from "./workspace-links.ts";
 
 const LONG_MESSAGE = 800;
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
+const VIDEO = /\.(mp4|m4v|mov|webm|ogv|avi|mkv)$/i;
 
 export interface UserMessageProps {
 	turn: ChatTurn;
@@ -40,21 +47,42 @@ export interface UserMessageProps {
 
 function AttachmentItem({ path }: { path: string }) {
 	const { platform } = useServices();
+	const attachmentActions = useAttachmentActions();
 	const [failed, setFailed] = useState(false);
+	const [viewerOpen, setViewerOpen] = useState(false);
 	const name = fileNameOf(path);
 	const image = IMAGE.test(path);
-	return (
+	const video = !image && VIDEO.test(path);
+	const kind = image ? "image" : video ? "video" : null;
+
+	const figure = (
 		<figure
 			data-testid="attachment"
 			className="flex max-w-56 items-center gap-2 rounded-md border border-border bg-surface px-2 py-1"
 		>
 			{image && !failed ? (
-				<img
-					src={platform.fs.assetUrl(path)}
-					alt={name}
-					onError={() => setFailed(true)}
-					className="size-8 rounded-sm object-cover"
-				/>
+				<button
+					type="button"
+					onClick={() => setViewerOpen(true)}
+					aria-label={`Open ${name}`}
+					className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+				>
+					<img
+						src={platform.fs.assetUrl(path)}
+						alt={name}
+						onError={() => setFailed(true)}
+						className="size-8 rounded-sm object-cover"
+					/>
+				</button>
+			) : video ? (
+				<button
+					type="button"
+					onClick={() => setViewerOpen(true)}
+					aria-label={`Open ${name}`}
+					className="shrink-0 rounded-sm text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+				>
+					<FileIcon />
+				</button>
 			) : (
 				<FileIcon className="text-fg-muted" />
 			)}
@@ -62,6 +90,37 @@ function AttachmentItem({ path }: { path: string }) {
 				{name}
 			</figcaption>
 		</figure>
+	);
+
+	return (
+		<>
+			{image ? (
+				<ContextMenu
+					items={
+						<>
+							<ContextMenuItem onSelect={() => attachmentActions.saveFile(path, "image")}>
+								Save image
+							</ContextMenuItem>
+							<ContextMenuItem onSelect={() => attachmentActions.copyImage(path)}>
+								Copy image
+							</ContextMenuItem>
+						</>
+					}
+				>
+					{figure}
+				</ContextMenu>
+			) : (
+				figure
+			)}
+			{viewerOpen && kind !== null ? (
+				<AttachmentViewer
+					path={path}
+					fileName={name}
+					kind={kind}
+					onClose={() => setViewerOpen(false)}
+				/>
+			) : null}
+		</>
 	);
 }
 

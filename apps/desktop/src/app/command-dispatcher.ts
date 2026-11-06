@@ -73,7 +73,7 @@ import { resolveSendKey, type SendIntent, type SendWith } from "../features/comp
 import type { MenuShortcut } from "../platform/platform.ts";
 import { Kbd } from "../ui/Kbd.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
-import { useOverlayStore } from "./overlay-store.ts";
+import { type OverlayId, useOverlayStore } from "./overlay-store.ts";
 
 export type HandlerPriority = "base" | "area" | "modal";
 
@@ -452,7 +452,7 @@ const ACCELERATOR_KEYS: Readonly<Record<string, string>> = {
 /** The active scopes for a focused element, most specific first. Always ends with `global`. */
 export function scopesForTarget(
 	target: EventTarget | null,
-	openOverlay: "palette" | "shortcuts" | "passport" | "quick-open" | "search-files" | null = null,
+	openOverlay: OverlayId | null = null,
 ): CommandScope[] {
 	const scopes: CommandScope[] = [];
 	const element = target instanceof Element ? target : null;
