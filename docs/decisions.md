@@ -501,11 +501,29 @@ Context: the contract PR's CI failed in `composer-shell.test.tsx`: the context w
 Chosen: the failing test's container gets the service now, so the contract PR can land. Moving every hand-built container to `createTestContainer` is the tests-and-scripts hardening's job today (APP-16), where the whole set is changed and checked at once.
 Why: the cause is the hand-built container, and fixing the set belongs in one change with a guard, not in a contract PR.
 
+## D072. Rewriting a settings file keeps the user's comments (2026-11-06)
+
+Context: Conductor rewrites a whole settings file on every save. It sorts the keys and drops every comment (services-map 4.2.1, main @290816). SET-14 asks that a rewrite keep the user's comments, or warn before the first rewrite that would drop them.
+Chosen: an existing settings file is patched in place with `@decimalturn/toml-patch` (MIT, no dependencies, released monthly). Only entries whose values change are rewritten; comments, blank lines and key order stay. A new file is written whole and sorted, as before. A comment beside or directly above an entry that the save removes goes with that entry. When a save would drop any other comment (a legacy `[tasks]` table moved to `scripts.run`, or a file the patch cannot edit), the first such save is refused with a warning that quotes the comments, and the next save that would drop the same ones goes ahead. The warning's wording is ours: the research has none, because Conductor drops comments without a word.
+Why: a hand-written file belongs to the user, and a save that deletes their notes removes information. Keeping the user's key order differs from Conductor's sorted output; sorting an existing file would move the user's own lines. A hand-rolled format-preserving TOML editor would be a second TOML parser to maintain, with TOML's four string kinds, dotted keys and inline tables to get right.
+
 ## D073. PR-08's stack readiness and range diffs change two contracts (2026-11-06)
 
 Context: PR-08's audit (slice 3 part 1d) found stack readiness and the PR and stack range diffs unbuilt. Readiness needs each stack entry's merge state and commit ids, which `StackEntryView` did not carry; the range view needs a range kind of diff scope, which `DiffScope` did not have. The approved contract list (D069) named neither.
 Chosen: the lead approved both, and only what they need: `mergeStateStatus`, `headSha` and `baseSha` on `StackEntryView` (with a `MergeStateStatus` type), and `{ kind: "range"; prNumbers }` on `DiffScope`. The readiness rules follow Conductor's own code (D002: behaviour, not code).
 Why: one feature needed them, so the kill rule (a contract change blocking more than one feature) did not apply, and the owner's ruling for today makes these the lead's calls.
+
+## D074. Remote Control goes ahead on path A (2026-11-06)
+
+Context: the Remote Control spike (RC-01, docs/plans/cloud-and-remote.md Part 2) passed all three checks with the owner on claude.ai: the chat appears, a message typed there starts a turn in our stream, and an approval answered there settles our own. It works through the query object's `enableRemoteControl`, which the SDK ships but does not put in its public types; the documented `remoteControlAtStartup` setting does nothing for an SDK chat.
+Chosen: RC-02 to RC-04 are built on path A. The Agent SDK stays pinned to an exact version, and a contract test fails when `enableRemoteControl` or the shape of its answer changes. A message typed on claude.ai is shown from the agent's transcript (the stream carries only its id). An approval aborted by an answer on claude.ai closes the app's card as answered elsewhere.
+Why: the kill criterion drops the feature only when it needs a reverse-engineered protocol; one SDK method outside the types, pinned and tested, is the alpha-API case the criterion allows.
+
+## D075. Cloud workspaces go ahead (2026-11-06)
+
+Context: the cloud spike (CLOUD-02, docs/plans/cloud-and-remote.md Part 1) passed all four kill criteria on the owner's Cloudflare account: warm start 2.3 to 8.8 s, cold start 14.5 s, about 0.02 US dollars per active hour (0.11 at worst on `standard-1`), and work kept across a restart through an R2 backup. Every `conducted-spike-*` resource was deleted and the lead confirmed none is left.
+Chosen: the cloud rows are scaffolded and built through the loop, starting with the host seam (CLOUD-01). The build takes from the spike: the sidecar runs unchanged behind a WebSocket bridge, the Rust shell owns the cloud connection, the backup runs at each turn end, and an uninstall deletes the container application with the Worker.
+Why: the spike's own criteria decide (D018); all four passed with margin.
 
 ## D076. A short message the app sends as the user's own chat line is on-screen wording (2026-11-06)
 

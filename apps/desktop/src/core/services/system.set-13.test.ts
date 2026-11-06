@@ -6,7 +6,7 @@
 import { appError, err, ok } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createTestContainer } from "../../test/container.ts";
-import { binDir } from "../app-paths.ts";
+import { programsBinDir } from "../app-paths.ts";
 import { SystemService } from "./system.ts";
 
 function serviceWith(
@@ -36,7 +36,7 @@ describe("SET-13 SystemService path prefix", () => {
 
 			expect(result).toEqual({
 				ok: true,
-				value: `/data/bin-overrides/abc:${binDir(test.container.platform.fs.paths)}`,
+				value: `/data/bin-overrides/abc:${programsBinDir(test.container.platform.fs.paths)}`,
 			});
 			expect(synced).toHaveBeenCalledWith({
 				claude: "/opt/claude",
@@ -60,7 +60,7 @@ describe("SET-13 SystemService path prefix", () => {
 
 			expect(result).toEqual({
 				ok: true,
-				value: binDir(test.container.platform.fs.paths),
+				value: programsBinDir(test.container.platform.fs.paths),
 			});
 			expect(synced).not.toHaveBeenCalled();
 		} finally {
@@ -82,7 +82,7 @@ describe("SET-13 SystemService path prefix", () => {
 
 			expect(result).toEqual({
 				ok: true,
-				value: binDir(test.container.platform.fs.paths),
+				value: programsBinDir(test.container.platform.fs.paths),
 			});
 			expect(test.memory.controls.logs).toContainEqual(
 				expect.objectContaining({

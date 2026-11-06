@@ -135,7 +135,7 @@ function harness(listed: ListeningPort[] = [], options: { exitCode?: number } = 
 		terminals: {
 			runScript: async (_input: RunInput) => ok({ terminalId: "t1" as TerminalId, exit: never }),
 			stop: async () => ok(undefined),
-			close: async () => ok(undefined),
+			end: async () => ok(undefined),
 			outputFor: async () => ok({ output: "", source: "run", running: false }),
 		},
 		configFor: async () => ok(config),

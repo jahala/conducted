@@ -6,6 +6,7 @@ import type { SessionId } from "@conducted/shared";
 import {
 	claudeConfigDir,
 	createTranscriptCheck,
+	createUserMessageReader,
 	hasResumableTranscript,
 	projectFolderName,
 	transcriptPath,
@@ -126,5 +127,51 @@ describe("SIDE-01 resumable Claude transcripts", () => {
 		const cwd = path.join(base, "workspace");
 		await writeTranscript(transcriptPath("s5", cwd, first), [{ type: "user", message: "hi" }]);
 		expect(await check("s5" as SessionId, cwd)).toBe(true);
+	});
+});
+
+describe("RC-03 the text of a user message sent from claude.ai", () => {
+	test("RC-03 the reader finds a user line by its uuid, with string or block content", async () => {
+		const config = await tempDir("rc03");
+		const cwd = "/work/app";
+		await writeTranscript(transcriptPath("agent-1", cwd, config), [
+			{ type: "user", uuid: "u1", message: { role: "user", content: "From the phone" } },
+			{ type: "assistant", uuid: "a1", message: { role: "assistant", content: [] } },
+			{
+				type: "user",
+				uuid: "u2",
+				message: {
+					role: "user",
+					content: [
+						{ type: "text", text: "First line" },
+						{ type: "image", source: {} },
+						{ type: "text", text: "Second line" },
+					],
+				},
+			},
+		]);
+		const read = createUserMessageReader(config);
+		expect(await read("agent-1", cwd, "u1")).toBe("From the phone");
+		expect(await read("agent-1", cwd, "u2")).toBe("First line\nSecond line");
+	});
+
+	test("RC-03 a missing line, a non-user line, a sidechain line and a missing file read as null", async () => {
+		const config = await tempDir("rc03-missing");
+		const cwd = "/work/app";
+		await writeTranscript(transcriptPath("agent-1", cwd, config), [
+			"not json",
+			{ type: "assistant", uuid: "a1", message: { role: "assistant", content: "hi" } },
+			{
+				type: "user",
+				uuid: "side",
+				isSidechain: true,
+				message: { role: "user", content: "inside a sub-agent" },
+			},
+		]);
+		const read = createUserMessageReader(config);
+		expect(await read("agent-1", cwd, "u9")).toBeNull();
+		expect(await read("agent-1", cwd, "a1")).toBeNull();
+		expect(await read("agent-1", cwd, "side")).toBeNull();
+		expect(await read("agent-2", cwd, "u1")).toBeNull();
 	});
 });

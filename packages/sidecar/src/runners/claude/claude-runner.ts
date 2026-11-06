@@ -10,8 +10,8 @@
  *    after 5 s, reported as installed without a version by the detector
  *  - start() with a missing workspace folder: an error that names the folder
  *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
- *    path, else the copy on the login-shell PATH; a user path that cannot run is an error that
- *    names it; a `.js` path starts through node
+ *    path, else the managed copy (PLAT-28), else the copy on the login-shell PATH; a user path
+ *    that cannot run is an error that names it; a `.js` path starts through node
  *  - the listing calls run the program and environment of their `ListingContext` (the app's
  *    launch), by the same rule as start()
  *  - listModels(): from supportedModels() of a throwaway metadata query; efforts from
@@ -64,6 +64,7 @@ export type ClaudeRunnerDeps = RunnerCommonDeps &
 			| "translator"
 			| "appTools"
 			| "hasTranscript"
+			| "readUserMessageText"
 			| "skillPluginDir"
 			| "realPath"
 			| "newUuid"
@@ -137,6 +138,7 @@ export class ClaudeRunner implements Runner {
 			executablePath: options.executablePath,
 			env: options.env,
 			findExecutable: this.deps.findExecutable,
+			findManagedProgram: this.deps.findManagedProgram,
 		});
 		if (!program.ok) throw program.error;
 		const start =
@@ -206,6 +208,7 @@ export class ClaudeRunner implements Runner {
 			executablePath: context.executablePath,
 			env: context.env,
 			findExecutable: this.deps.findExecutable,
+			findManagedProgram: this.deps.findManagedProgram,
 		});
 		if (!program.ok) throw program.error;
 		return program.value;

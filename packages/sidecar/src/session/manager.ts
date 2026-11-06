@@ -57,7 +57,17 @@
  *  - work the agent starts by itself (AGENT-15): every agent start gets the callbacks of its own
  *    SelfStartedTurns, which shows the chat working, stores the work's messages under a turn of
  *    its own and returns to idle; when it ends, the queued messages start (the same drain as after
- *    a turn). A report while a turn of ours is open is dropped: that turn owns the chat
+ *    a turn). A report while a turn of ours is open is dropped: that turn owns the chat. A cancel
+ *    during such work stops the agent as a turn's cancel does and stores the work as cancelled. An
+ *    approval the agent asks during such work opens in the app like any other (RC-03)
+ *  - Remote Control (RC-02): every agent start gets callbacks for its link. Each status is kept on
+ *    the chat for getSessionStatus, sent to the app as remoteControlState, and keeps the process
+ *    from the idle stop while the link is up. A switch changed during a turn reaches the live agent
+ *    at once (setRemoteControl); the rest of that config still waits for the next turn
+ *  - a message typed on claude.ai (RC-03) is stored as a user_message with the sender claude_ai:
+ *    in the app's running turn as a steer, else as the first message of the work it started. Its
+ *    turn is the one open when the agent first named it. A message whose text never reached the
+ *    transcript leaves a notice in that turn instead of an invented text
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
@@ -69,6 +79,7 @@
  */
 import type {
 	AgentLaunch,
+	RemoteControlStatus,
 	SessionConfig,
 	SessionEvent,
 	SessionStatus,
@@ -126,7 +137,7 @@ import { DuplicateGuard as Guard } from "./duplicate-guard.ts";
 import type { EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
 import type { LiveStateStore } from "./live-state.ts";
-import { addPendingSteer, endTurn, removePendingSteer } from "./live-state.ts";
+import { addPendingSteer, CANCELLED_BY_USER, endTurn, removePendingSteer } from "./live-state.ts";
 import type { QueuedMessages } from "./queued-messages.ts";
 import { QueuedMessages as Queue } from "./queued-messages.ts";
 import type { RunNumber } from "./run-guard.ts";
@@ -134,6 +145,17 @@ import { RunGuard } from "./run-guard.ts";
 import { SelfStartedTurns } from "./self-started-turns.ts";
 import { chooseDelivery, resolveSteerFailure, type SteerFailure } from "./steering.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
+
+/** The link states that keep a chat's process from the idle stop and the warm cap (RC-02). */
+const REMOTE_CONTROL_LINKED: ReadonlySet<RemoteControlStatus["state"]> = new Set([
+	"connecting",
+	"ready",
+	"connected",
+	"reconnecting",
+]);
+
+/** The notice a message from claude.ai leaves when Claude's transcript never showed its text. */
+const REMOTE_TEXT_MISSING = "A message sent via Claude could not be read from Claude's transcript.";
 
 /** How long shutdown waits for running turns, from the research (10 s). */
 export const SHUTDOWN_TURN_WAIT_MS = 10_000;
@@ -257,6 +279,10 @@ interface SessionState {
 	cancelEpoch: number;
 	/** The key of the chat's agent process in the process manager, once a lease was taken. */
 	processKey: string | null;
+	/** The chat's Remote Control link as its agent last reported it (RC-02). */
+	remoteControl: RemoteControlStatus;
+	/** The host side of work the newest agent start begins by itself (AGENT-15), for cancel. */
+	selfStarted: SelfStartedTurns | null;
 }
 
 interface StartParams {
@@ -430,7 +456,18 @@ export class DefaultSessionManager implements SessionManager {
 			// The cancelled run is stale, so turnSettled ignores it. The process is idle now.
 			this.markProcessIdleWhenNoTurn(state);
 		} else {
-			await this.deps.liveState.update(state.sessionId, (live) => endTurn(live, "aborted by user"));
+			// Work the agent started by itself is stopped the way a turn of ours is.
+			const agent = this.liveAgent(state);
+			const stoppedOwnWork =
+				state.selfStarted !== null &&
+				(await state.selfStarted.cancel(state.sessionId, async () => {
+					if (agent !== null) await agent.cancel();
+				}));
+			if (!stoppedOwnWork) {
+				await this.deps.liveState.update(state.sessionId, (live) =>
+					endTurn(live, CANCELLED_BY_USER),
+				);
+			}
 		}
 		return ok({ wasWorking, droppedMessageIds });
 	}
@@ -546,6 +583,12 @@ export class DefaultSessionManager implements SessionManager {
 
 			const working = state.activeTurn !== null || this.liveStatus(state.sessionId) === "working";
 			if (working) {
+				// The Remote Control switch is the one change a running turn takes at once (RC-02).
+				const remoteControl = params.config.remoteControl === true;
+				if (remoteControl !== (state.config.remoteControl === true)) {
+					state.config = { ...state.config, remoteControl };
+					this.liveAgent(state)?.setRemoteControl?.(remoteControl);
+				}
 				return ok({ applied: "on_next_turn" });
 			}
 
@@ -588,7 +631,11 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<AppToSidecarHandlerValue<"getSessionStatus">> {
 		const state = this.sessions.get(params.sessionId);
 		if (state === undefined) return ok({ known: false });
-		return ok({ known: true, liveState: this.deps.liveState.get(state.sessionId) });
+		return ok({
+			known: true,
+			liveState: this.deps.liveState.get(state.sessionId),
+			remoteControl: state.remoteControl,
+		});
 	}
 
 	async answerInteraction(
@@ -841,6 +888,8 @@ export class DefaultSessionManager implements SessionManager {
 				autoApproveEdits: false,
 				cancelEpoch: 0,
 				processKey: null,
+				remoteControl: { state: "off" },
+				selfStarted: null,
 			};
 			this.sessions.set(params.sessionId, state);
 		} else {
@@ -1247,6 +1296,7 @@ export class DefaultSessionManager implements SessionManager {
 		env: Readonly<Record<string, string>>,
 	): Promise<AgentSession> {
 		const resume = this.resumeFor(state);
+		const turns = this.selfStartedTurnsFor(state, config);
 		const agent = await runner.start({
 			sessionId: state.sessionId,
 			config,
@@ -1258,7 +1308,8 @@ export class DefaultSessionManager implements SessionManager {
 			...(resume === undefined ? {} : { resume }),
 			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
 			onGoalEvent: (event) => this.goals.onServerGoalEvent(state.sessionId, event),
-			selfStartedTurns: this.selfStartedTurns(state, config),
+			selfStartedTurns: this.selfStartedTurns(state, turns),
+			remoteControl: this.remoteControlCallbacks(state, config, turns),
 		});
 		state.agent = agent;
 		state.agentConfig = config;
@@ -1273,11 +1324,8 @@ export class DefaultSessionManager implements SessionManager {
 	 * the same way a turn's end does. A turn of ours that is open or starting owns the chat, so a report
 	 * that arrives meanwhile is dropped instead of starting a second run over it.
 	 */
-	private selfStartedTurns(
-		state: SessionState,
-		config: SessionConfig,
-	): NonNullable<StartOptions["selfStartedTurns"]> {
-		const turns = new SelfStartedTurns({
+	private selfStartedTurnsFor(state: SessionState, config: SessionConfig): SelfStartedTurns {
+		return new SelfStartedTurns({
 			liveState: this.deps.liveState,
 			publisher: this.deps.publisher,
 			processes: this.deps.processes,
@@ -1288,6 +1336,13 @@ export class DefaultSessionManager implements SessionManager {
 			processKey: processKey(config.agent, config.acpAgent, state.sessionId),
 			onSettled: (run) => this.turnSettled(state, run),
 		});
+	}
+
+	private selfStartedTurns(
+		state: SessionState,
+		turns: SelfStartedTurns,
+	): NonNullable<StartOptions["selfStartedTurns"]> {
+		state.selfStarted = turns;
 		return {
 			onInProgressChanged: (inProgress, end) => {
 				if (inProgress && state.activeTurn !== null) return;
@@ -1302,7 +1357,106 @@ export class DefaultSessionManager implements SessionManager {
 				}
 				turns.onMessage(state.sessionId, message);
 			},
+			requestInteraction: (interaction, signal) =>
+				this.deps.interactions.open(state.sessionId, interaction, signal),
 		};
+	}
+
+	/**
+	 * The host side of a Claude chat's Remote Control (RC-02, RC-03): its link and the messages
+	 * typed on claude.ai.
+	 */
+	private remoteControlCallbacks(
+		state: SessionState,
+		config: SessionConfig,
+		turns: SelfStartedTurns,
+	): NonNullable<StartOptions["remoteControl"]> {
+		const key = processKey(config.agent, config.acpAgent, state.sessionId);
+		return {
+			onStatus: (status) => {
+				state.remoteControl = status;
+				this.deps.processes.setRemoteControl(key, REMOTE_CONTROL_LINKED.has(status.state));
+				const sent = this.deps.app.notify("remoteControlState", {
+					sessionId: state.sessionId,
+					status,
+				});
+				if (!sent) {
+					this.deps.logger.debug("Could not tell the app the Remote Control state", {
+						sessionId: state.sessionId,
+						state: status.state,
+					});
+				}
+			},
+			onUserMessage: ({ uuid, text }) => {
+				// The turn open now is the one the message started or joined; the text comes later.
+				const active = state.activeTurn;
+				const turnId = active?.turnId ?? turns.turnIdOf(state.sessionId);
+				if (turnId === undefined) {
+					this.deps.logger.warn("A message sent from claude.ai arrived with no turn to hold it", {
+						sessionId: state.sessionId,
+						uuid,
+					});
+					return;
+				}
+				const delivery = active === null ? "new_turn" : "steer";
+				const config = state.config;
+				void text
+					.then((value) =>
+						this.publishRemoteMessage(state.sessionId, {
+							turnId,
+							delivery,
+							uuid,
+							text: value,
+							config,
+						}),
+					)
+					.catch((cause: unknown) => {
+						this.deps.logger.warn("A message sent from claude.ai could not be stored", {
+							sessionId: state.sessionId,
+							uuid,
+							reason: messageOf(cause),
+						});
+					});
+			},
+		};
+	}
+
+	/** Stores a message typed on claude.ai, or a notice in its turn when its text was never found. */
+	private publishRemoteMessage(
+		sessionId: SessionId,
+		message: {
+			turnId: TurnId;
+			delivery: "new_turn" | "steer";
+			uuid: string;
+			text: string | null;
+			config: SessionConfig;
+		},
+	): void {
+		if (message.text === null) {
+			this.deps.publisher.publish(sessionId, {
+				type: "agent",
+				eventId: this.deps.ids.uuid() as EventId,
+				at: this.deps.clock.now(),
+				turnId: message.turnId,
+				message: {
+					agent: "claude",
+					items: [{ kind: "notice", notice: "info", text: REMOTE_TEXT_MISSING }],
+				},
+			});
+			return;
+		}
+		this.deps.publisher.publish(sessionId, {
+			type: "user_message",
+			eventId: this.deps.ids.uuid() as EventId,
+			at: this.deps.clock.now(),
+			messageId: message.uuid as MessageId,
+			turnId: message.turnId,
+			text: message.text,
+			attachmentPaths: [],
+			delivery: message.delivery,
+			config: message.config,
+			sender: { kind: "claude_ai" },
+		});
 	}
 
 	/** Stores a config the agent changed by itself and tells the app, so its stored config agrees. */

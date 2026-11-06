@@ -373,6 +373,21 @@ describe("SIDE-07 process manager idle stop", () => {
 		expect(agent.disposed).toBe(1);
 	});
 
+	test("RC-02 a process with Remote Control on survives the idle sweep until it is turned off", async () => {
+		const { manager, clock } = makeManager();
+		const agent = new FakeAgent();
+		await manager.ensureWarm("claude:s1", async () => agent);
+		manager.setRemoteControl("claude:s1", true);
+
+		clock.advance(IDLE_STOP_AFTER_MS);
+		await manager.sweep();
+		expect(agent.disposed).toBe(0);
+
+		manager.setRemoteControl("claude:s1", false);
+		await manager.sweep();
+		expect(agent.disposed).toBe(1);
+	});
+
 	test("SIDE-07 busy and idle marks follow the live state", async () => {
 		const { manager, clock } = makeManager();
 		const agent = new FakeAgent();

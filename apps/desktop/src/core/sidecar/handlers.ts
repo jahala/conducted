@@ -15,7 +15,8 @@
  * config the agent chose; a failed write is retried through the
  * same single writer, and one that still fails is thrown so the tunnel logs it;
  * `interactionClosed` marks a timed-out card and settles the pending request;
- * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff is answered as an
+ * `shellEnvFailed` logs the folder, kind and message; `remoteControlState` shows a Claude chat's
+ * Remote Control link (RC-02); a failed workspace diff is answered as an
  * RPC error whose data carries the app's own error code, so the sidecar tool shows an error
  * result instead of a fake diff; a failed terminal output read throws, so the agent gets an RPC
  * error instead of an error message dressed as terminal output.
@@ -110,6 +111,11 @@ export interface TargetBranchPort {
 	setForSession(sessionId: SessionId, branch: string): Promise<Result<void>>;
 }
 
+export interface RemoteControlPort {
+	/** Shows a Claude chat's Remote Control link (RC-02). */
+	setStatus(params: SidecarToAppNotificationParams<"remoteControlState">): void;
+}
+
 export interface ShellEnvPort {
 	/** Logs that a folder's login-shell environment could not be captured. */
 	captureFailed(params: SidecarToAppNotificationParams<"shellEnvFailed">): void;
@@ -126,6 +132,7 @@ export interface SidecarHandlerPorts {
 	terminalOutput: TerminalOutputPort;
 	targetBranch: TargetBranchPort;
 	shellEnv: ShellEnvPort;
+	remoteControl: RemoteControlPort;
 }
 
 // ---------------------------------------------------------------- requests (sidecar asks the UI)
@@ -220,6 +227,9 @@ export function createSidecarNotificationHandlers(
 		},
 		interactionClosed: async (params) => {
 			ports.interactions.closed(params);
+		},
+		remoteControlState: async (params) => {
+			ports.remoteControl.setStatus(params);
 		},
 		goalChanged: () => notImplemented("COMP-10"),
 		shellEnvFailed: async (params) => {

@@ -27,6 +27,8 @@ const batteryAt = (percent: number): string =>
 const input = (overrides: Partial<KeepAwakeInput> = {}): KeepAwakeInput => ({
 	enabled: true,
 	chatWorking: true,
+	remoteKeepAwake: false,
+	remoteConnected: false,
 	battery: { percent: 84, onBattery: true },
 	...overrides,
 });
@@ -65,6 +67,29 @@ describe("PLAT-21 shouldKeepAwake", () => {
 	});
 });
 
+describe("RC-04 shouldKeepAwake while a Remote Control session is connected", () => {
+	const remote = (overrides: Partial<KeepAwakeInput> = {}): KeepAwakeInput =>
+		input({
+			enabled: false,
+			chatWorking: false,
+			remoteKeepAwake: true,
+			remoteConnected: true,
+			battery: { percent: 84, onBattery: false },
+			...overrides,
+		});
+
+	it("stays awake with the setting on, a session connected and the Mac plugged in", () => {
+		expect(shouldKeepAwake(remote())).toBe(true);
+		expect(shouldKeepAwake(remote({ battery: null }))).toBe(true);
+	});
+
+	it("lets the Mac sleep on battery, with the setting off, or with no session connected", () => {
+		expect(shouldKeepAwake(remote({ battery: { percent: 90, onBattery: true } }))).toBe(false);
+		expect(shouldKeepAwake(remote({ remoteKeepAwake: false }))).toBe(false);
+		expect(shouldKeepAwake(remote({ remoteConnected: false }))).toBe(false);
+	});
+});
+
 describe("PLAT-21 parseBattery", () => {
 	it("reads the percentage and the power source", () => {
 		expect(parseBattery(BATTERY_OUTPUT)).toEqual({
@@ -95,6 +120,7 @@ interface Harness {
 	memory: TestContainer["memory"];
 	setting: { enabled: boolean };
 	activity: { working: boolean };
+	remote: { keepAwake: boolean; connected: boolean };
 	battery: { output: string };
 	starts: ShellCommand[];
 	runFailure: { message: string | null };
@@ -114,6 +140,7 @@ function createHarness(): Harness {
 	const starts: ShellCommand[] = [];
 	const setting = { enabled: true };
 	const activity = { working: true };
+	const remote = { keepAwake: true, connected: false };
 	const battery = { output: AC_OUTPUT };
 	const runFailure = { message: null as string | null };
 	const settingKeys: string[] = [];
@@ -152,9 +179,11 @@ function createHarness(): Harness {
 		platform: { ...memory.platform, shell },
 		setting: <T>(key: string): T => {
 			settingKeys.push(key);
+			if (key === "remote_control_keep_awake") return remote.keepAwake as unknown as T;
 			return setting.enabled as unknown as T;
 		},
 		anyChatWorking: () => activity.working,
+		anyRemoteControlConnected: () => remote.connected,
 	});
 
 	cleanups.push(async () => {
@@ -167,6 +196,7 @@ function createHarness(): Harness {
 		memory,
 		setting,
 		activity,
+		remote,
 		battery,
 		starts,
 		runFailure,
@@ -179,6 +209,39 @@ function createHarness(): Harness {
 
 const caffeinateStarts = (harness: Harness): ShellCommand[] =>
 	harness.starts.filter((command) => command.program === "caffeinate");
+
+describe("RC-04 KeepAwakeService and Remote Control", () => {
+	it("starts caffeinate while a Remote Control session is connected and the Mac is plugged in", async () => {
+		const harness = createHarness();
+		harness.memory.controls.holdNextStart();
+		harness.setting.enabled = false;
+		harness.activity.working = false;
+		harness.remote.connected = true;
+
+		expect(await harness.service.scan()).toEqual({ ok: true, value: undefined });
+		expect(harness.settingKeys).toContain("remote_control_keep_awake");
+		expect(caffeinateStarts(harness)).toHaveLength(1);
+
+		harness.remote.connected = false;
+		await harness.service.scan();
+		expect(harness.cancels).toBe(1);
+	});
+
+	it("starts no caffeinate for a connected session on battery or with its setting off", async () => {
+		const harness = createHarness();
+		harness.setting.enabled = false;
+		harness.activity.working = false;
+		harness.remote.connected = true;
+		harness.battery.output = batteryAt(80);
+		await harness.service.scan();
+		expect(caffeinateStarts(harness)).toHaveLength(0);
+
+		harness.battery.output = AC_OUTPUT;
+		harness.remote.keepAwake = false;
+		await harness.service.scan();
+		expect(caffeinateStarts(harness)).toHaveLength(0);
+	});
+});
 
 describe("PLAT-21 KeepAwakeService", () => {
 	it("starts exactly one caffeinate when the setting is on and a chat works", async () => {

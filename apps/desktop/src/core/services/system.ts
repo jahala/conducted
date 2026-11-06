@@ -9,7 +9,10 @@
  * 5.4 (diagnostics, sidecar and app logs), 5.1 and 5.2 (Send feedback), 7.4 (Xcode licence).
  * Must handle: a program that is already downloading (a second install joins it); a failed
  * download keeps its retry state and the Retry button calls install again; a program the user
- * points at a path of their own is shown as theirs and never downloaded over; copying an image
+ * points at a path of their own is shown as theirs and never downloaded over; a message to Claude
+ * or Codex while its managed copy is still being made ready waits, unless the user chose a
+ * program of their own (`holdsSend`; the container holds the follow-up queue with it); gh and
+ * watchexec are managed too but stay off the agent programs list (PLAT-35); copying an image
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
  * the project's issue page with the text filled in and never sends logs anywhere by itself; the
@@ -18,19 +21,22 @@
  * sidecar and app logs open in their default app, and a missing log path is an error value.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
- * Built now: the program store, the install, re-download and remove actions, opening the
- * Privacy & Security pane for Full Disk Access, the diagnostics capture, and opening the sidecar
- * and app logs. Copying and saving attachments and the feedback form are placeholders owned by
- * CHAT-29 and APP-09.
+ * Built now: the program store, the install, re-download and remove actions, the send gate,
+ * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, and opening the
+ * sidecar and app logs.
+ * Our design choice: a copy that failed or is missing does not hold a message, so a copy on the
+ * user's PATH runs instead (D021). Conductor holds until the copy is ready. Copying and saving
+ * attachments and the feedback form are placeholders owned by CHAT-29 and APP-09.
  * Test first: install while a download of the same program runs starts no second download.
  *
  * @feature SET-13 Chosen program paths reach terminals and scripts
  * Owns: the folder to put first on PATH, built from the executable paths chosen in Advanced
- * settings through the `programs_sync_path_overrides` command.
- * Behaviour: services-map.md 5A.8.2 (the shim folder and the plain bundled prefix it falls back
- * to when staging fails).
- * Must handle: no chosen path (the plain bundled folder, without asking the command); a staging
- * failure (the plain bundled folder, so a terminal still opens, and `pathOverrideProblem`, which
+ * settings through the `programs_sync_path_overrides` command, then the app's bin folder in the
+ * data folder, where the program manager links the managed programs (PLAT-35).
+ * Behaviour: services-map.md 5A.8.2 (the shim folder and the plain prefix it falls back to when
+ * staging fails) and 5A.1.2 (the prefix is `AppData/bin`).
+ * Must handle: no chosen path (the app's bin folder alone, without asking the command); a staging
+ * failure (the app's bin folder alone, so a terminal still opens, and `pathOverrideProblem`, which
  * app/path-override-notice.ts shows, so the user knows the chosen program is not the one running).
  * Our design choice: Conductor only logs the failure; we also tell the user, because a silent
  * switch to another program breaks the rule against silent failures.
@@ -38,6 +44,7 @@
  */
 import type { AgentInstall } from "@conducted/protocol";
 import {
+	type AgentKind,
 	appError,
 	err,
 	type ManagedProgram,
@@ -47,9 +54,9 @@ import {
 	type Result,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Platform } from "../../platform/platform.ts";
+import type { Platform, ProgramState } from "../../platform/platform.ts";
 import type { FeedbackInput, Loadable } from "../api.ts";
-import { binDir } from "../app-paths.ts";
+import { programsBinDir } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
 import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
@@ -74,6 +81,20 @@ export interface SystemServiceDeps {
 	/** The agent programs the sidecar reports, for the diagnostics capture (APP-03). */
 	agentInstalls?: () => readonly AgentInstall[];
 }
+
+/**
+ * The programs the Advanced page lists. gh and watchexec are managed too (PLAT-35) but stay off
+ * it, as Conductor lists only its agent programs there (ui-map 7.4).
+ */
+const AGENT_PROGRAMS: readonly ManagedProgram[] = ["claude", "codex"];
+
+/** The states in which the program manager is still getting a program ready. */
+const PREPARING: ReadonlySet<ProgramState> = new Set([
+	"queued",
+	"downloading",
+	"verifying",
+	"retrying",
+]);
 
 /** The setting that names the program the user chose, per managed agent program. */
 const PROGRAM_PATH_SETTING: Readonly<Record<string, string>> = {
@@ -131,6 +152,19 @@ export class SystemService {
 		return ok(undefined);
 	}
 
+	/**
+	 * True while a message to `agent` must wait (services-map 5A.8.1): the program manager is still
+	 * getting the agent's managed copy ready and the user chose no program of their own. A copy
+	 * that failed or is missing does not hold a message, so a copy on the user's PATH can run
+	 * instead (D021).
+	 */
+	holdsSend(agent: AgentKind): boolean {
+		if (agent !== "claude" && agent !== "codex") return false;
+		if (this.#userPath(agent) !== null) return false;
+		const status = this.#statuses.get(agent);
+		return status !== undefined && PREPARING.has(status.state);
+	}
+
 	/** Backs `Actions.programs.install`, also the Retry after a failure. */
 	installProgram(program: ManagedProgram): Promise<Result<void>> {
 		return this.#run(program, () => this.#deps.platform.programs.install(program));
@@ -148,12 +182,13 @@ export class SystemService {
 
 	/**
 	 * Stages the executable paths chosen in Advanced settings and returns the folder to put first
-	 * on PATH for terminals and scripts. A staging failure goes into `pathOverrideProblem`, which
-	 * the app shows as a notice, and the plain bundled folder is used, so the terminal still opens
-	 * and the user knows it runs the bundled program instead of the chosen one.
+	 * on PATH for terminals and scripts, followed by the app's bin folder. A staging failure goes
+	 * into `pathOverrideProblem`, which the app shows as a notice, and the app's bin folder alone is
+	 * used, so the terminal still opens and the user knows it runs the managed program instead of
+	 * the chosen one.
 	 */
 	async pathPrefix(): Promise<Result<string>> {
-		const bundled = binDir(this.#deps.platform.fs.paths);
+		const bundled = programsBinDir(this.#deps.platform.fs.paths);
 		const overrides: Partial<Record<ManagedProgram, string>> = {};
 		for (const program of ["claude", "codex"] as const) {
 			const key = PROGRAM_PATH_SETTING[program];
@@ -208,6 +243,7 @@ export class SystemService {
 
 	#publish(): void {
 		const views: AgentProgramView[] = [...this.#statuses.values()]
+			.filter((status) => AGENT_PROGRAMS.includes(status.program))
 			.map((status) => ({
 				status,
 				userPath: this.#userPath(status.program),

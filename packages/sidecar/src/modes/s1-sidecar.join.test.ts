@@ -11,17 +11,20 @@
  * @feature AGENT-16 Claude chat options
  * @feature AGENT-17 ACP chat options
  * @feature AGENT-15 Turns the Claude program starts by itself
+ * @feature RC-02 Per-chat Remote Control switch and connection status
+ * @feature RC-03 Accept input from claude.ai: messages, approvals, interrupts, with who sent each
  * Owns: the integration tests of the joined sidecar batches, driven through `composeSidecar`, the
  * function the sidecar's composition root (`startSidecarHost`) builds the host with, and through
  * `runSidecarMode`. They prove that the Cursor SDK and its translation, the Codex goals and compact
  * turn, the bundled skill plugin, the slash-command cache, the log settings, the chat options, the
- * launch settings, the app tools bridge and the turns Claude starts by itself all reach the live path.
+ * launch settings, the app tools bridge, the turns Claude starts by itself and Remote Control (its
+ * link, and messages typed on claude.ai) all reach the live path.
  * Behaviour: modes/sidecar-mode.ts (composeSidecar and the runner registry it builds),
  * runners/cursor/cursor-session.ts and translate.ts, runners/codex/goals.ts and codex-session.ts,
  * runners/claude/options.ts, runners/claude/skill-plugin.ts, models/completions-cache.ts,
  * runners/acp/acp-session.ts, runners/launch-env.ts, process/launch-fingerprint.ts,
- * tools/socket-bridge.ts, tools/mcp-launch.ts, runners/claude/self-started-turns.ts and
- * session/self-started-turns.ts.
+ * tools/socket-bridge.ts, tools/mcp-launch.ts, runners/claude/self-started-turns.ts,
+ * session/self-started-turns.ts, runners/claude/remote-control.ts and runners/claude/transcript.ts.
  * Test first: this file.
  * Our design choice: everything the composition root builds is real; only the outside world is
  * scripted through `SidecarPorts`: the Claude SDK's query, the Cursor SDK, the Codex and ACP child
@@ -32,7 +35,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -202,8 +205,12 @@ async function harness(
 		files?: Map<string, string>;
 		skillPluginDir?: string;
 		cursorSdk?: CursorSdk;
+		/** The app's bin and managed programs folders, when a test lays out managed copies. */
+		programs?: { binDir: string; agentBinariesDir: string };
 		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
 		claude?: TalkingClaude;
+		/** User message texts in Claude's transcript, by uuid (RC-03). */
+		transcript?: Map<string, string>;
 	} = {},
 ): Promise<Harness> {
 	const app = new FakeApp();
@@ -225,10 +232,11 @@ async function harness(
 	};
 	const host = composeSidecar(
 		{
-			binDir: BIN_DIR,
+			binDir: options.programs?.binDir ?? BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
+			agentBinariesDir: options.programs?.agentBinariesDir ?? path.join(folder, "agent-binaries"),
 			logDir: path.join(folder, "log"),
 			skillPluginDir: options.skillPluginDir,
 			appVersion: "0.0.0",
@@ -260,6 +268,8 @@ async function harness(
 			readText: async (file) => ok(options.files?.get(file) ?? null),
 			sidecarExecutable: "/Applications/Conducted.app/Contents/MacOS/sidecar",
 			hasTranscript: async () => false,
+			readUserMessageText: async (_agentSessionId, _cwd, uuid) =>
+				options.transcript?.get(uuid) ?? null,
 			newToken: () => randomBytes(32).toString("base64url"),
 			clock: systemClock,
 			ids: cryptoIds,
@@ -318,11 +328,15 @@ interface TalkingClaude {
 		captured: { options: Options }[],
 	): (params: { prompt: AsyncIterable<SDKUserMessage>; options?: Options }) => Query;
 	say(message: SDKMessage): void;
+	/** How many interrupts the session sent. Each one makes the CLI stop its work and go idle. */
+	interrupts(): number;
 }
 
 function talkingClaude(): TalkingClaude {
 	let current: AsyncQueue<SDKMessage> | null = null;
+	let interrupts = 0;
 	return {
+		interrupts: () => interrupts,
 		query: (captured) => (params) => {
 			const options = params.options ?? {};
 			captured.push({ options });
@@ -340,7 +354,10 @@ function talkingClaude(): TalkingClaude {
 			})();
 			return {
 				[Symbol.asyncIterator]: () => out[Symbol.asyncIterator](),
-				interrupt: async () => {},
+				interrupt: async () => {
+					interrupts += 1;
+					out.push(claudeState("idle"));
+				},
 				setModel: async () => {},
 				setPermissionMode: async () => {},
 				applyFlagSettings: async () => {},
@@ -349,6 +366,15 @@ function talkingClaude(): TalkingClaude {
 				mcpServerStatus: async () => [],
 				getContextUsage: async () => ({ totalTokens: 0, maxTokens: 0 }),
 				usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({}),
+				// The pinned SDK's Remote Control method, answering as Claude did in the spike (D074).
+				enableRemoteControl: async (enabled: boolean) =>
+					enabled
+						? {
+								session_url: REMOTE_SESSION_URL,
+								bridge_session_id: "session_remote_1",
+								bridge_epoch: 1,
+							}
+						: undefined,
 			} as unknown as Query;
 		},
 		say: (message) => {
@@ -356,6 +382,19 @@ function talkingClaude(): TalkingClaude {
 			current.push(message);
 		},
 	};
+}
+
+const REMOTE_SESSION_URL = "https://claude.ai/code/session_remote_1";
+
+function bridgeState(state: string): SDKMessage {
+	return {
+		type: "system",
+		subtype: "bridge_state",
+		state,
+		bridge_epoch: 1,
+		uuid: randomBytes(8).toString("hex"),
+		session_id: "claude-session-1",
+	} as unknown as SDKMessage;
 }
 
 function claudeText(text: string): SDKMessage {
@@ -845,6 +884,36 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		});
 	});
 
+	test("PLAT-28 PLAT-35 a Codex chat with no chosen program starts the managed copy, with the bin folder first on PATH", async () => {
+		const folder = await workspaceFolder();
+		const binDir = path.join(folder, "app-bin");
+		const agentBinariesDir = path.join(folder, "agent-binaries");
+		const version = path.join(agentBinariesDir, "codex", "0.164.0");
+		await mkdir(binDir, { recursive: true });
+		await mkdir(version, { recursive: true });
+		const managed = path.join(version, "codex");
+		await writeFile(managed, "#!/bin/sh\nexit 0\n");
+		await chmod(managed, 0o755);
+		await symlink(managed, path.join(binDir, "codex"));
+		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
+		const spawned = h.seen.nextCodexSpawn();
+
+		await h.handlers.sendMessage(
+			sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" })),
+		);
+		await spawned;
+
+		const spawn = h.seen.codexSpawns[0];
+		expect(spawn?.command).toBe(await realpath(managed));
+		expect(spawn?.env.PATH).toBe(`${binDir}:/usr/bin`);
+		const installs = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
+		expect(installs.agents.find((install) => install.agent === "codex")).toMatchObject({
+			installed: true,
+			source: "managed",
+			version: "0.164.0",
+		});
+	});
+
 	test("SIDE-13 an ACP chat's session/new carries the app tools server and its token from the root", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder, {
@@ -1013,6 +1082,121 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				.notified("sessionEvent")
 				.flatMap((entry) => (entry.event.type === "user_message" ? [entry.event.text] : []));
 			expect(userMessages).toEqual(["hello", "and then?"]);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("AGENT-15 cancel while Claude works by itself stops that work and stores it as cancelled", async () => {
+		const folder = await workspaceFolder();
+		const claude = talkingClaude();
+		const h = await harness(folder, { claude });
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(sendParams(folder, baseConfig()));
+			await waitForIdle(h, sessionId);
+			const eventsBefore = h.app.notified("sessionEvent").length;
+
+			claude.say(claudeState("running"));
+			claude.say(claudeText("Rebuilding after the background task."));
+			await waitFor(
+				() => h.app.notified("liveState").at(-1)?.liveState.status === "working",
+				"the chat to show working",
+			);
+			const cancelled = await h.handlers.cancel({ sessionId });
+
+			expect(unwrap<{ wasWorking: boolean }>(cancelled)).toMatchObject({ wasWorking: true });
+			expect(claude.interrupts()).toBe(1);
+			await waitFor(
+				() =>
+					h.app
+						.notified("sessionEvent")
+						.slice(eventsBefore)
+						.some((entry) => entry.event.type === "turn_ended"),
+				"the cancelled work to be stored",
+			);
+			const ended = h.app
+				.notified("sessionEvent")
+				.slice(eventsBefore)
+				.flatMap((entry) => (entry.event.type === "turn_ended" ? [entry.event] : []));
+			expect(ended).toHaveLength(1);
+			expect(ended[0]).toMatchObject({ outcome: "cancelled" });
+			expect(h.app.notified("liveState").at(-1)?.liveState).toMatchObject({
+				status: "idle",
+				error: "aborted by user",
+			});
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("RC-02 RC-03 a chat shared through Remote Control reports its link and stores a message typed on claude.ai", async () => {
+		const folder = await workspaceFolder();
+		const claude = talkingClaude();
+		const h = await harness(folder, {
+			claude,
+			transcript: new Map([["remote-1", "Add a test for the parser"]]),
+		});
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(sendParams(folder, baseConfig({ remoteControl: true })));
+			await waitForIdle(h, sessionId);
+			await waitFor(
+				() =>
+					h.app
+						.notified("remoteControlState")
+						.some((entry) => entry.status.sessionUrl === REMOTE_SESSION_URL),
+				"the Remote Control link",
+			);
+			claude.say(bridgeState("ready"));
+			claude.say(bridgeState("connected"));
+			await waitFor(
+				() => h.app.notified("remoteControlState").at(-1)?.status.state === "connected",
+				"the link to connect",
+			);
+			const status = unwrap<{ remoteControl?: unknown }>(
+				await h.handlers.getSessionStatus({ sessionId }),
+			);
+			expect(status.remoteControl).toEqual({ state: "connected", sessionUrl: REMOTE_SESSION_URL });
+
+			// The owner types on claude.ai: the CLI runs the turn, and its frames name the message.
+			claude.say(claudeState("running"));
+			claude.say({
+				...(claudeText("Adding the test.") as object),
+				user_message_uuid: "remote-1",
+			} as unknown as SDKMessage);
+			claude.say(claudeResult("remote-1"));
+			claude.say(claudeState("idle"));
+			await waitFor(
+				() =>
+					h.app
+						.notified("sessionEvent")
+						.some(
+							(entry) =>
+								entry.event.type === "user_message" && entry.event.sender?.kind === "claude_ai",
+						),
+				"the message from claude.ai to be stored",
+			);
+			const events = h.app
+				.notified("sessionEvent")
+				.filter((entry) => entry.sessionId === sessionId)
+				.map((entry) => entry.event);
+			const remote = events.find(
+				(event) => event.type === "user_message" && event.sender?.kind === "claude_ai",
+			);
+			expect(remote).toMatchObject({
+				text: "Add a test for the parser",
+				delivery: "new_turn",
+				messageId: "remote-1",
+			});
+			const reply = events.find(
+				(event) =>
+					event.type === "agent" &&
+					event.message.items.some(
+						(item) => item.kind === "text" && item.text === "Adding the test.",
+					),
+			);
+			expect(reply?.turnId).toBe(remote?.turnId as TurnId);
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}
@@ -1200,6 +1384,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
+			agentBinariesDir: path.join(folder, "agent-binaries"),
 			logDir: path.join(folder, "log"),
 			appVersion: "9.9.9",
 			logLevel: "debug",
@@ -1212,6 +1397,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
 				CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
 				CONDUCTED_CURSOR_STORE_DIR: config.cursorStoreDir,
+				CONDUCTED_AGENT_BINARIES_DIR: config.agentBinariesDir,
 				CONDUCTED_LOG_DIR: config.logDir,
 				CONDUCTED_APP_VERSION: config.appVersion,
 				CONDUCTED_LOG_LEVEL: config.logLevel,
@@ -1285,6 +1471,40 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		}
 	});
 
+	test("PLAT-28 SIDE-21 model, slash command and MCP lists with no chosen program run the managed copy, as a chat's start does", async () => {
+		const folder = await workspaceFolder();
+		const binDir = path.join(folder, "app-bin");
+		const agentBinariesDir = path.join(folder, "agent-binaries");
+		const version = path.join(agentBinariesDir, "claude", "2.1.0");
+		await mkdir(binDir, { recursive: true });
+		await mkdir(version, { recursive: true });
+		const managed = path.join(version, "claude");
+		await writeFile(managed, "#!/bin/sh\nexit 0\n");
+		await chmod(managed, 0o755);
+		await symlink(managed, path.join(binDir, "claude"));
+		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
+		const launch: AgentLaunch = { env: {}, providerKeys: {} };
+		try {
+			unwrap(await h.handlers.listModels({ agent: "claude" }));
+			unwrap(
+				await h.handlers.listSlashCommands({
+					agent: "claude",
+					workspacePath: folder,
+					repoRootPath: folder,
+					launch,
+				}),
+			);
+			unwrap(await h.handlers.listMcpServers({ agent: "claude", workspacePath: folder, launch }));
+
+			expect(h.seen.claudeOptions).toHaveLength(3);
+			for (const { options } of h.seen.claudeOptions) {
+				expect(options.pathToClaudeCodeExecutable).toBe(await realpath(managed));
+			}
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("SIDE-21 the agent list reports the program paths the app sends with setAgentPrograms", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder);
@@ -1352,6 +1572,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_OUTBOX_ROOT: path.join(folder, "outbox"),
 				CONDUCTED_COMPLETIONS_DIR: path.join(folder, "completions"),
 				CONDUCTED_CURSOR_STORE_DIR: path.join(folder, "cursor-sdk-store"),
+				CONDUCTED_AGENT_BINARIES_DIR: path.join(folder, "agent-binaries"),
 				CONDUCTED_LOG_DIR: path.join(folder, "log"),
 				CONDUCTED_APP_VERSION: "0.0.0",
 				CONDUCTED_LOG_LEVEL: "info",

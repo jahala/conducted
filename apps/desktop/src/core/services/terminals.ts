@@ -33,6 +33,9 @@
  * `<login shell> -l -c <script>` with the captured login environment, not from a temp file, and
  * with the PATH the login shell sees in the script's folder (PLAT-07, services-map.md 5A.8.3), so
  * direnv and mise settings of a workspace apply; a PATH the script's own variables set wins.
+ * Closing a tab (`close`) kills its process and removes the row with its saved screen, as
+ * Conductor's tab close destroys the terminal; `end` kills and marks the row ended but keeps it,
+ * which is how script terminals end and how a tab's shell can be started again.
  * Built now (RUN-06, RUN-07, RUN-01, CHAT-23): tabs, the live connection, restart, repo terminal,
  * limit, folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript`, `stop` and
  * `runCommand`. `runCommand` starts a chat code block's command as a `run` terminal in the
@@ -604,6 +607,33 @@ export class TerminalsService {
 		if (!saved.ok) this.#setError(`t:${id}`, saved.error);
 	}
 
+	/** Drops everything held for a removed terminal, so no list or view shows it again. */
+	#forget(id: TerminalId): void {
+		const known = this.#records.get(id)?.terminal;
+		this.#records.delete(id);
+		// A list read that began before the removal must not bring the terminal back.
+		const keys: string[] = [];
+		if (known?.workspaceId) keys.push(`w:${known.workspaceId}`);
+		if (known?.repoId) keys.push(`r:${known.repoId}`);
+		const state = this.store.getState();
+		for (const [workspaceId, list] of Object.entries(state.byWorkspace)) {
+			if (list.some((terminal) => terminal.id === id)) keys.push(`w:${workspaceId}`);
+		}
+		for (const [repoId, list] of Object.entries(state.byRepo)) {
+			if (list.some((terminal) => terminal.id === id)) keys.push(`r:${repoId}`);
+		}
+		for (const key of keys) this.#loads.invalidate(key);
+		const without = (list: readonly Terminal[]): readonly Terminal[] =>
+			list.filter((terminal) => terminal.id !== id);
+		this.store.setState((current) => ({
+			byWorkspace: mapValues(current.byWorkspace, without),
+			byRepo: mapValues(current.byRepo, without),
+			connections: withoutKey(current.connections, id),
+			errors: withoutKey(current.errors, `t:${id}`),
+			runningProgram: withoutKey(current.runningProgram, id),
+		}));
+	}
+
 	/** A terminal needs its folder. Without this check the shell would fail to start with no reason. */
 	async #requireFolder(path: string): Promise<Result<void>> {
 		if (await this.#deps.platform.fs.exists(path)) return ok(undefined);
@@ -722,8 +752,26 @@ export class TerminalsService {
 		return ok(started.value);
 	}
 
-	/** Backs `Actions.terminals.close`. Kills the process, keeps the saved history until pruned. */
+	/**
+	 * Backs `Actions.terminals.close`: closing a terminal tab. The process is killed and the terminal
+	 * is removed with its saved screen, so its tab leaves the strip and its view unmounts. Conductor's
+	 * tab close destroys the terminal and clears its saved history (services-map.md 5A.4.7 `clear`;
+	 * the call on close is in Conductor's bundle, not the research).
+	 */
 	async close(id: TerminalId): Promise<Result<void>> {
+		const ended = await this.end(id);
+		if (!ended.ok) return ended;
+		const removed = await this.#deps.repos.terminals.delete(id);
+		if (!removed.ok) return removed;
+		this.#forget(id);
+		return ok(undefined);
+	}
+
+	/**
+	 * Kills the process and marks the row ended, keeping the row and its saved screen. A script
+	 * terminal ends this way, so an agent can still read its output; a tab's terminal stays a tab.
+	 */
+	async end(id: TerminalId): Promise<Result<void>> {
 		const record = this.#records.get(id);
 		if (record?.handle) {
 			try {

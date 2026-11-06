@@ -32,7 +32,12 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import { AGENT_PROVIDER_TABLE, type AgentLaunch, signInEnvVars } from "@conducted/protocol";
+import {
+	AGENT_PROVIDER_TABLE,
+	type AgentLaunch,
+	idleLiveState,
+	signInEnvVars,
+} from "@conducted/protocol";
 import {
 	type AcpAgent,
 	type AgentKind,
@@ -50,7 +55,12 @@ import {
 import type { Platform } from "../platform/platform.ts";
 import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
-import { checkpointerScript, gitBusyCheckScript, spotlighterScript } from "./app-paths.ts";
+import {
+	checkpointerScript,
+	gitBusyCheckScript,
+	programsBinDir,
+	spotlighterScript,
+} from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
@@ -76,6 +86,7 @@ import {
 	KEEP_AWAKE_SCAN_MS,
 	KEEP_AWAKE_SETTING_KEY,
 	KeepAwakeService,
+	REMOTE_KEEP_AWAKE_SETTING_KEY,
 } from "./services/keep-awake.ts";
 import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
@@ -285,6 +296,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const gitRunner = new ShellGitRunner({
 		shell: platform.shell,
 		locks: new KeyedMutex(),
+		programsBin: programsBinDir(platform.fs.paths),
 		sleep,
 		log,
 	});
@@ -329,6 +341,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agentCatalog: { setAgentInstalls: (p) => agentCatalog.setInstalls(p.agents) },
 		agentConfig: {
 			setAgentConfig: (p) => sessions.applyAgentConfig(p.sessionId, p.config),
+		},
+		remoteControl: {
+			setStatus: (p) => sessions.applyRemoteControlState(p.sessionId, p.status),
 		},
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
@@ -635,10 +650,21 @@ export function createContainer(inputs: ContainerInputs): Container {
 		// already delivered, and the sidecar's duplicate guard drops a second send of it.
 		deliver: (row) =>
 			sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery, row.id),
-		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
+		// A loaded chat with no live state yet is idle, as `sessions.send` takes it. Its rows can
+		// wait there for the agent's program (PLAT-28) before the chat ever ran.
+		liveStateOf: (sessionId) => {
+			const state = sessions.store.getState();
+			const live = state.liveStates[sessionId];
+			if (live !== undefined) return live;
+			return state.sessions[sessionId] === undefined ? undefined : idleLiveState;
+		},
 		newId: () => ids.uuid(),
 		now: () => clock.now(),
 		log,
+		isHeld: (sessionId) => {
+			const session = sessions.store.getState().sessions[sessionId];
+			return session !== undefined && system.holdsSend(session.config.agent);
+		},
 	});
 	/**
 	 * The repository that holds a workspace's checkpoint refs, or null when its folder is gone (git
@@ -665,6 +691,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		composer,
 		queue: followUpQueue,
 		notifications,
+		programHeld: (agent) => system.holdsSend(agent),
 		pruneCheckpoints: async (sessionId, workspaceId) => {
 			const root = await checkpointRepoRoot(workspaceId);
 			if (!root.ok) return root;
@@ -701,10 +728,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const anyChatWorking = (): boolean =>
 		Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working");
+	const anyRemoteControlConnected = (): boolean =>
+		Object.values(sessions.store.getState().remoteControl ?? {}).some(
+			(status) => status.state === "connected",
+		);
 	const keepAwake = new KeepAwakeService({
 		platform,
 		setting,
 		anyChatWorking,
+		anyRemoteControlConnected,
 	});
 	const runScripts = new RunScriptsService({
 		terminals,
@@ -1038,6 +1070,19 @@ export function createContainer(inputs: ContainerInputs): Container {
 			}
 		}),
 	);
+	// A message waiting for its agent's program goes out once the program is ready (PLAT-28).
+	cleanups.push(
+		system.store.subscribe((state, previous) => {
+			if (state.programs === previous.programs) return;
+			for (const sessionId of Object.keys(followUpQueue.store.getState().bySession)) {
+				void followUpQueue.release(sessionId as SessionId).then((result) => {
+					if (!result.ok) {
+						log("warn", `Failed to send a queued message: ${result.error.message}`);
+					}
+				});
+			}
+		}),
+	);
 	// An editor draft lives until it is saved or discarded, or its workspace is removed. An archived
 	// workspace keeps its drafts, because Restore brings the same folder back.
 	cleanups.push(
@@ -1136,18 +1181,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 		// The stores fire on every change, and a working chat updates its store many times a
 		// second, so a scan waits for the setting or whether a chat works to change.
-		let keepAwakeInputs: { enabled: boolean; working: boolean } | null = null;
+		let keepAwakeInputs: string | null = null;
 		const followKeepAwake = (): void => {
-			const enabled = setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true;
-			const working = anyChatWorking();
-			if (
-				keepAwakeInputs !== null &&
-				keepAwakeInputs.enabled === enabled &&
-				keepAwakeInputs.working === working
-			) {
-				return;
-			}
-			keepAwakeInputs = { enabled, working };
+			const inputs = JSON.stringify([
+				setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true,
+				anyChatWorking(),
+				setting<boolean>(REMOTE_KEEP_AWAKE_SETTING_KEY) === true,
+				anyRemoteControlConnected(),
+			]);
+			if (keepAwakeInputs === inputs) return;
+			keepAwakeInputs = inputs;
 			runKeepAwakeScan();
 		};
 		cleanups.push(settings.store.subscribe(followKeepAwake));

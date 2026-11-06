@@ -4,6 +4,7 @@
  * Owns: the composition root's keep-awake wiring: the initial scan, following the setting and the
  * chats' work, the 10-second scan timer, the warning a failed scan logs, and cancelling
  * `caffeinate` on stop.
+ * RC-04 adds the second rule: a chat's Remote Control session that connects keeps the Mac awake.
  * Test first: turning the setting on while a chat works starts one `caffeinate`.
  */
 import { idleLiveState } from "@conducted/protocol";
@@ -112,6 +113,28 @@ function setWorking(test: TestContainer, working: boolean): void {
 		liveStates: working ? { "chat-1": WORKING } : {},
 	});
 }
+
+describe("RC-04 keep-awake wiring for Remote Control", () => {
+	it("starts caffeinate when a chat's Remote Control session connects, and stops it when it ends", async () => {
+		const { test, starts } = build();
+		await startContainer(test);
+		const sessions = test.container.services.sessions;
+
+		sessions.applyRemoteControlState("chat-1" as never, { state: "ready" });
+		expect(caffeinateStarts(starts)).toHaveLength(0);
+
+		// caffeinate keeps running until it is cancelled, as the real one does.
+		test.memory.controls.holdNextStart();
+		sessions.applyRemoteControlState("chat-1" as never, {
+			state: "connected",
+			sessionUrl: "https://claude.ai/code/session_1",
+		});
+		await vi.waitFor(() => expect(caffeinateStarts(starts)).toHaveLength(1));
+
+		sessions.applyRemoteControlState("chat-1" as never, { state: "off" });
+		await vi.waitFor(() => expect(cancels).toEqual(["caffeinate"]));
+	});
+});
 
 describe("PLAT-21 keep-awake wiring", () => {
 	it("starts caffeinate when a chat starts working while the setting is on", async () => {

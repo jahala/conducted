@@ -1159,8 +1159,9 @@ pub fn program_roots(app: &AppHandle) -> Vec<PathBuf> {
         roots.push(dir.join("bin"));
     }
     if let Ok(dir) = resolver.app_data_dir() {
-        roots.push(dir.join("bin"));
-        roots.push(dir.join("agent-binaries"));
+        let programs = crate::binaries::ProgramDirs::in_app_data(&dir);
+        roots.push(programs.bin);
+        roots.push(programs.binaries);
     }
     roots
 }

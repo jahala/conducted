@@ -83,6 +83,7 @@ const makeRunner = (shell: Shell) => {
 	const runner = new ShellGitRunner({
 		shell,
 		locks,
+		programsBin: "/data/bin",
 		sleep: (ms) => {
 			if (ms === LOCK_WARM_TIMEOUT_MS) {
 				return new Promise<void>((resolve) => {
@@ -214,7 +215,7 @@ describe("GIT-01 ShellGitRunner", () => {
 			message: "Could not read the login-shell PATH: login shell timed out",
 		});
 		expect(shell.calls[0]?.env).toBeUndefined();
-		expect(shell.calls[1]?.env?.PATH).toBe("/Users/me/bin");
+		expect(shell.calls[1]?.env?.PATH).toBe("/data/bin:/Users/me/bin");
 		expect(attempts).toBe(2);
 	});
 
@@ -226,8 +227,18 @@ describe("GIT-01 ShellGitRunner", () => {
 
 		expect(shell.calls[0]?.env).toEqual({
 			FOO: "bar",
-			PATH: "/Users/me/.local/bin:/usr/bin:/bin",
+			PATH: "/data/bin:/Users/me/.local/bin:/usr/bin:/bin",
 		});
+	});
+
+	it("PLAT-35 runs gh from the app's bin folder first, so the managed copy wins over the login-shell copy", async () => {
+		const shell = makeShell(async () => ok(out(0)));
+		const { runner } = makeRunner(shell.shell);
+
+		await runner.run({ program: "gh", args: ["auth", "status"] }, { cwd: "/w" });
+
+		expect(shell.calls[0]?.program).toBe("gh");
+		expect(shell.calls[0]?.env?.PATH).toBe("/data/bin:/Users/me/.local/bin:/usr/bin:/bin");
 	});
 
 	it("retries an index.lock failure after 50, 100 and 200 ms", async () => {

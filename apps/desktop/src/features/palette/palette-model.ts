@@ -110,6 +110,7 @@ const SETTING_PAGE_LABELS: Readonly<Record<Exclude<SettingPage, "state">, string
 	misc: "Misc",
 	experimental: "Experimental",
 	advanced: "Advanced",
+	"remote-control": "Remote control",
 };
 
 const PROVIDERS: readonly { id: string; label: string }[] = [

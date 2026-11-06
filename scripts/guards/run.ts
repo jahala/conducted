@@ -10,6 +10,7 @@ import type { Problem } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
 import {
+	checkBrowserImports,
 	checkMigrationList,
 	checkPlaceholderTests,
 	checkShellPrograms,
@@ -40,6 +41,7 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["workflows", checkWorkflows],
 	["commands", checkTauriCommands],
 	["programs", checkShellPrograms],
+	["browser-imports", checkBrowserImports],
 	["migration-list", checkMigrationList],
 	["placeholder-tests", checkPlaceholderTests],
 	["test-only-exports", checkTestOnlyExports],

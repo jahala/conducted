@@ -44,3 +44,9 @@ test("a config without the SetTargetBranch switch is rejected", () => {
 	const { setTargetBranch: _dropped, ...appTools } = base.appTools;
 	expect(zSessionConfig.safeParse({ ...base, appTools }).success).toBe(false);
 });
+
+test("a Claude chat can carry its Remote Control switch", () => {
+	const config = { ...base, agent: "claude", effort: "high", remoteControl: true };
+	expect(zSessionConfig.parse(config).remoteControl).toBe(true);
+	expect(zSessionConfig.safeParse({ ...config, remoteControl: "yes" }).success).toBe(false);
+});

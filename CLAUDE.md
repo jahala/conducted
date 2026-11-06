@@ -1,6 +1,6 @@
 # Conducted
 
-A local-first macOS app for running coding agents in parallel. Each task gets a git worktree ("workspace"), one or more chats ("sessions") with an agent, and a review flow from diff to merged pull request. It matches the local features of Conductor 0.92.1, without its team features. An optional cloud host on the user's own Cloudflare account and Claude Remote Control are planned (D018, D019, `docs/plans/cloud-and-remote.md`).
+A local-first macOS app for running coding agents in parallel. Each task gets a git worktree ("workspace"), one or more chats ("sessions") with an agent, and a review flow from diff to merged pull request. It matches the local features of Conductor 0.92.1, without its team features. An optional cloud host on the user's own Cloudflare account is planned (D018, `docs/plans/cloud-and-remote.md`). Claude Remote Control is built: any Claude chat can be opened in claude.ai/code or the Claude app (D019).
 
 Status: scaffold. Most bodies are placeholders that throw a named error. The plan is `docs/plans/scaffold.md`; the feature list is `docs/plans/backlog.md`.
 
@@ -60,7 +60,7 @@ Each one fails a check when it is broken.
 | `pnpm stubs`                                                                   | Placeholders against the backlog                                                 | Every change                       |
 | `pnpm check`                                                                   | All of the above, stopping at the first failure                                  | Before a PR                        |
 | `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | Rust, in `apps/desktop/src-tauri`                                                | Every Rust change                  |
-| `pnpm dev`                                                                     | Run the app (`tauri dev`, port 1420)                                             | Manual checks                      |
+| `pnpm dev`                                                                     | Build the sidecar, then run the app (`tauri dev`, port 1420)                     | Manual checks                      |
 | `pnpm release <x.y.z> [--go]`                                                  | Dry run, or check main's CI, bump, build, sign, commit and tag                   | Releases                           |
 
 ## When tests run

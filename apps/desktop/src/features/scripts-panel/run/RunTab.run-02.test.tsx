@@ -13,6 +13,7 @@ import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
 import { SPOTLIGHT_BRANCH_NOTICE } from "../../../core/services/spotlight.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
+import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
 
 const dev: RunAction = {
@@ -70,7 +71,9 @@ async function mount(
 	if (!updated.ok) throw new Error(updated.error.message);
 	render(
 		<ServicesProvider container={test.container}>
-			<RunTab workspaceId={workspace.id} />
+			<WithSurfaces>
+				<RunTab workspaceId={workspace.id} />
+			</WithSurfaces>
 		</ServicesProvider>,
 	);
 	return { test, workspace };

@@ -4,8 +4,9 @@
  * installed, its version, and whether it is signed in; it also starts an agent's sign-in flow.
  * Behaviour: ui-map.md 6 (install status, versions, sign-in), 7.1 (the agents step), other-runners.md 5
  * (agent detection and sign-in flows).
- * Our design choice: the list comes from the agent catalogue's install check. Installing and updating
- * programs belongs to PLAT-28 and is not built, so a missing program shows how to install it instead.
+ * Our design choice: the list comes from the agent catalogue's install check. The program manager
+ * downloads Claude Code and Codex by itself at launch (PLAT-28); install and update actions on this
+ * step are not built, so a missing program shows how to install it instead.
  * The sign-in state machine lives in `core/use-agent-login.ts` and is shared with Agents settings.
  * Must handle: detection still running (a spinner per row); an agent installed but not signed in
  * (Sign in, then its instructions, code or link); none installed (instructions and Refresh); detection

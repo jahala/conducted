@@ -129,7 +129,10 @@ export interface TerminalRepository {
 	setScreenState(id: TerminalId, json: string | null): Promise<Result<void>>;
 	/** TERMINALS_SQL.markEnded. `ok(false)` when it had already ended. */
 	markEnded(id: TerminalId, endedAt: number, exitCode: number | null): Promise<Result<boolean>>;
-	/** TERMINALS_SQL.delete. The caller trashes the scrollback file. */
+	/**
+	 * TERMINALS_SQL.delete, with the saved screen in the row. The Rust shell's scrollback file is not
+	 * touched here.
+	 */
 	delete(id: TerminalId): Promise<Result<void>>;
 }
 

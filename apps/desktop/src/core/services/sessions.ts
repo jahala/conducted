@@ -24,7 +24,8 @@
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a queued row is sent under its own id,
  * so a crash before the row is removed cannot send it twice; an explicit steer for an agent that
- * cannot steer is refused (CHAT-03); a send that fails keeps its text for
+ * cannot steer is refused (CHAT-03); a message to an idle chat whose agent program is still being
+ * made ready waits in the follow-up queue (`programHeld`, PLAT-28, services-map 5A.8.1); a send that fails keeps its text for
  * Retry and Discard; a chat whose first message cannot be sent is removed, so a retry does not
  * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
@@ -78,6 +79,11 @@
  * AGENT-14 owns `compact`: warm the Codex agent, then ask the sidecar to compact its thread.
  * WS-07 owns `applyLinkedPaths`: a workspace's new linked folders reach every open chat's config,
  * ready for its next message.
+ * RC-02 owns the `remoteControl` part of the store: each Claude chat's Remote Control link as the
+ * sidecar reports it (`applyRemoteControlState`, from the remoteControlState notification) or
+ * answers it (`refreshRemoteControl`, through getSessionStatus; a chat the sidecar does not know is
+ * off, and an answer a newer notification overtook is dropped). Turning a Claude chat's switch on
+ * through `updateConfig` also warms its agent, so the link comes up without a message.
  */
 import {
 	type AcpConfigOption,
@@ -88,11 +94,13 @@ import {
 	idleLiveState,
 	type LiveState,
 	type Progress,
+	type RemoteControlStatus,
 	type SessionConfig,
 	type SessionEvent,
 	type WorkspaceContext,
 } from "@conducted/protocol";
 import {
+	type AgentKind,
 	type AppError,
 	appError,
 	type CheckpointId,
@@ -187,6 +195,8 @@ export interface SessionsState {
 	failedSends?: Readonly<Record<string, readonly FailedSend[]>>;
 	/** An ACP chat's own options beyond the model, as the agent last reported them. */
 	acpConfigOptions?: Readonly<Record<string, Loadable<AcpConfigOption[]>>>;
+	/** A Claude chat's Remote Control link, as the sidecar last reported it (RC-02). */
+	remoteControl?: Readonly<Record<string, RemoteControlStatus>>;
 	openInteractions: Readonly<
 		Record<
 			string,
@@ -296,6 +306,12 @@ export interface SessionsServiceDeps {
 	queue: Pick<FollowUpQueue, "enqueue" | "release" | "pauseOnCancel" | "store">;
 	notifications: Pick<NotificationService, "onLiveStateChanged">;
 	/**
+	 * True while the agent's managed program is still being made ready and the user chose no
+	 * program of their own (PLAT-28, services-map 5A.8.1). A message to an idle chat then waits in
+	 * the follow-up queue instead of going to the sidecar.
+	 */
+	programHeld?: (agent: AgentKind) => boolean;
+	/**
 	 * How to start the chat's agent, from the composition root. A send fails with a clear error
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
 	 * It reads the saved environment and keys from the database and the Keychain, and a read that
@@ -378,6 +394,7 @@ export class SessionsService implements AgentMessenger {
 	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** The newest option-list request per chat. An older answer never changes the store. */
 	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
+	readonly #remoteControlRequests: LatestWins<string> = createLatestWins<string>();
 	/** The stored-history search over the event log. */
 	readonly #historySearch: (query: string, limit: number) => Promise<Result<HistoryHit[]>>;
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
@@ -930,7 +947,12 @@ export class SessionsService implements AgentMessenger {
 				),
 			);
 		}
-		if (decision === "queue") {
+		// A row the follow-up queue delivers (it carries `messageId`) passed the queue's own hold.
+		const held =
+			decision === "send_now" &&
+			messageId === undefined &&
+			this.#deps.programHeld?.(session.config.agent) === true;
+		if (decision === "queue" || held) {
 			const queued = await this.#deps.queue.enqueue({
 				sessionId: id,
 				text,
@@ -1182,7 +1204,40 @@ export class SessionsService implements AgentMessenger {
 	 * first cannot land after the user's newer choice.
 	 */
 	async updateConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
-		return this.#configWrites.run(id, () => this.#persistConfig(id, config, true));
+		const before = this.store.getState().sessions[id]?.config;
+		const written = await this.#configWrites.run(id, () => this.#persistConfig(id, config, true));
+		if (!written.ok) return written;
+		// RC-02: Remote Control needs the agent running, so the switch starts it at once.
+		const turnedOn =
+			config.agent === "claude" && config.remoteControl === true && before?.remoteControl !== true;
+		return turnedOn ? this.warm(id) : written;
+	}
+
+	/** Shows a chat's Remote Control link as the sidecar reports it (RC-02). */
+	applyRemoteControlState(sessionId: SessionId, status: RemoteControlStatus): void {
+		// A notification is newer than any status answer still on its way.
+		this.#remoteControlRequests.invalidate(sessionId);
+		this.#setRemoteControl(sessionId, status);
+	}
+
+	/**
+	 * Asks the sidecar for a chat's Remote Control link, for a chat shown after the app reloaded. A
+	 * chat the sidecar does not know has none running.
+	 */
+	async refreshRemoteControl(sessionId: SessionId): Promise<Result<void>> {
+		const ticket = this.#remoteControlRequests.begin(sessionId);
+		const status = await this.#deps.sidecar.request("getSessionStatus", { sessionId });
+		if (!this.#remoteControlRequests.isLatest(ticket)) return status.ok ? ok(undefined) : status;
+		this.#remoteControlRequests.settle(ticket);
+		if (!status.ok) return status;
+		this.#setRemoteControl(sessionId, status.value.remoteControl ?? { state: "off" });
+		return ok(undefined);
+	}
+
+	#setRemoteControl(sessionId: SessionId, status: RemoteControlStatus): void {
+		this.store.setState((state) => ({
+			remoteControl: { ...(state.remoteControl ?? {}), [sessionId]: status },
+		}));
 	}
 
 	/**

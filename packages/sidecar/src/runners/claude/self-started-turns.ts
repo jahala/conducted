@@ -11,9 +11,12 @@
  * report: `ClaudeTurnTracker` decides); a result for a message we did not push (the work ended
  * successfully); a mini result (`num_turns` 0, a background-task notification) is not an end; the
  * stream ending cleanly while in progress (interrupted); the stream throwing (error with its
- * message); no repeated reports of the same state; `dispose` (no report after it).
+ * message); no repeated reports of the same state; `dispose` (no report after it). `working` and
+ * `whenEnded` let the session's cancel interrupt the work and wait for it to stop.
  * Messages of such work are translated and handed to `onMessage`, so the host stores them. Work
- * that starts before its first state report starts on its first translated message instead.
+ * that starts before its first state report starts on its first translated message instead. An
+ * approval such work asks for goes to `requestInteraction` (RC-03: a turn started on claude.ai can
+ * ask the app); `ClaudeSession` routes it there when no turn of ours is open.
  * Our design choice: `onInProgressChanged` is a separate callback object, not a new field of
  * `TurnCallbacks`, because it is called outside `runTurn`, when no turn callbacks exist. The host
  * passes it as `StartOptions.selfStartedTurns`, and `ClaudeSession` feeds this tracker every SDK
@@ -22,7 +25,7 @@
  * `onInProgressChanged(true)` then `onInProgressChanged(false, {outcome:"success"})`.
  */
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentMessage } from "@conducted/protocol";
+import type { AgentMessage, Interaction, InteractionAnswer } from "@conducted/protocol";
 import type { SelfStartedTurnEnd } from "../../session/self-started-turns.ts";
 
 /** What the host gives the runner for work the agent starts by itself. */
@@ -31,11 +34,19 @@ export interface SelfStartedTurnCallbacks {
 	onInProgressChanged(inProgress: boolean, end?: SelfStartedTurnEnd): void;
 	/** One translated message of such a turn. */
 	onMessage(message: AgentMessage): void;
+	/**
+	 * The agent asks the user during such work, for example a tool approval in a turn started on
+	 * claude.ai (RC-03). Resolves like `TurnCallbacks.requestInteraction`; an abort of `signal`
+	 * withdraws it.
+	 */
+	requestInteraction(interaction: Interaction, signal?: AbortSignal): Promise<InteractionAnswer>;
 }
 
 export class SelfStartedTurnTracker {
 	private inProgress = false;
 	private disposed = false;
+	/** Waiting for the current work to end (`whenEnded`). */
+	private readonly endWaiters: (() => void)[] = [];
 
 	constructor(
 		protected readonly deps: {
@@ -86,6 +97,20 @@ export class SelfStartedTurnTracker {
 
 	dispose(): void {
 		this.disposed = true;
+		this.wakeEndWaiters();
+	}
+
+	/** True while the CLI works on something it started by itself. */
+	get working(): boolean {
+		return this.inProgress && !this.disposed;
+	}
+
+	/** Resolves when the current work ends, or at once when none runs. */
+	whenEnded(): Promise<void> {
+		if (!this.working) return Promise.resolve();
+		return new Promise<void>((resolve) => {
+			this.endWaiters.push(resolve);
+		});
 	}
 
 	/** Translates one message and gives it to the host. Returns how many it produced. */
@@ -108,5 +133,10 @@ export class SelfStartedTurnTracker {
 		if (this.disposed || !this.inProgress) return;
 		this.inProgress = false;
 		this.deps.callbacks.onInProgressChanged(false, end);
+		this.wakeEndWaiters();
+	}
+
+	private wakeEndWaiters(): void {
+		for (const wake of this.endWaiters.splice(0)) wake();
 	}
 }

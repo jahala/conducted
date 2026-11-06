@@ -66,6 +66,14 @@ export const setupLogFile = (paths: AppPaths, workspaceId: string): string =>
 /** Folder with the helper scripts shipped inside the app (checkpointer.sh and friends). */
 export const binDir = (paths: AppPaths): string => join(paths.resources, "bin");
 
+/**
+ * The app's bin folder in the data folder: a copy of the bundled scripts (PLAT-34) and the links
+ * the program manager points at the managed claude, codex, gh and watchexec (PLAT-28, PLAT-35). It
+ * comes first on PATH for terminals, scripts and git commands. Rust's `ProgramDirs::bin` names the
+ * same folder.
+ */
+export const programsBinDir = (paths: AppPaths): string => join(paths.appData, "bin");
+
 export const checkpointerScript = (paths: AppPaths): string =>
 	join(binDir(paths), "checkpointer.sh");
 export const spotlighterScript = (paths: AppPaths): string => join(binDir(paths), "spotlighter.sh");

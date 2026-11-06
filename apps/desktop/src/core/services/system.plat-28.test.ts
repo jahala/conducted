@@ -184,3 +184,79 @@ describe("PLAT-28 SystemService programs", () => {
 		}
 	});
 });
+
+describe("PLAT-28 send gate", () => {
+	const status = (
+		program: ProgramStatus["program"],
+		state: ProgramStatus["state"],
+	): ProgramStatus => ({
+		program,
+		state,
+		version: "1.0.0",
+		bytesDownloaded: 0,
+		bytesTotal: null,
+		attempt: 0,
+		nextAttemptAt: null,
+		error: null,
+		path: null,
+	});
+
+	const serviceWith = async (
+		statuses: ProgramStatus[],
+		settings: Readonly<Record<string, string>> = {},
+	) => {
+		const test = createTestContainer();
+		vi.spyOn(test.container.platform.programs, "statuses").mockResolvedValue(ok(statuses));
+		const service = new SystemService({
+			platform: test.container.platform,
+			setting: <T>(key: string) => (settings[key] ?? "") as T,
+		});
+		expect((await service.start()).ok).toBe(true);
+		return { test, service };
+	};
+
+	it("holds a send while the agent's managed copy is being made ready", async () => {
+		for (const state of ["queued", "downloading", "verifying", "retrying"] as const) {
+			const { test, service } = await serviceWith([status("claude", state)]);
+			try {
+				expect(service.holdsSend("claude"), state).toBe(true);
+				expect(service.holdsSend("codex"), state).toBe(false);
+			} finally {
+				service.dispose();
+				test.close();
+			}
+		}
+	});
+
+	it("does not hold a send once the copy is ready, failed or missing, or for an agent it does not manage", async () => {
+		for (const state of ["ready", "failed", "missing"] as const) {
+			const { test, service } = await serviceWith([status("codex", state)]);
+			try {
+				expect(service.holdsSend("codex"), state).toBe(false);
+			} finally {
+				service.dispose();
+				test.close();
+			}
+		}
+		const { test, service } = await serviceWith([status("claude", "downloading")]);
+		try {
+			expect(service.holdsSend("acp")).toBe(false);
+			expect(service.holdsSend("cursor")).toBe(false);
+		} finally {
+			service.dispose();
+			test.close();
+		}
+	});
+
+	it("does not hold a send when the user chose a program path of their own", async () => {
+		const { test, service } = await serviceWith([status("claude", "downloading")], {
+			claude_executable_path: "/opt/claude",
+		});
+		try {
+			expect(service.holdsSend("claude")).toBe(false);
+		} finally {
+			service.dispose();
+			test.close();
+		}
+	});
+});

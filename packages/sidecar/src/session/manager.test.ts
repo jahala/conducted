@@ -144,6 +144,7 @@ class FakeAgentSession implements AgentSession {
 	disposeCalls = 0;
 	readonly appliedConfigs: SessionConfig[] = [];
 	readonly autoApprove: boolean[] = [];
+	readonly remoteControl: boolean[] = [];
 	listedOptions: AcpConfigOption[] = [];
 	readonly setOptionCalls: {
 		optionId: string;
@@ -183,6 +184,10 @@ class FakeAgentSession implements AgentSession {
 
 	setAutoApproveEdits(enabled: boolean): void {
 		this.autoApprove.push(enabled);
+	}
+
+	setRemoteControl(enabled: boolean): void {
+		this.remoteControl.push(enabled);
 	}
 
 	async listAcpConfigOptions(
@@ -862,7 +867,13 @@ describe("SIDE-03 cancel, reset and status", () => {
 
 		await h.manager.sendMessage(sendParams());
 		const status = await h.manager.getSessionStatus({ sessionId: sid("session-1") });
-		expect(status).toEqual(ok({ known: true, liveState: h.liveState.get(sid("session-1")) }));
+		expect(status).toEqual(
+			ok({
+				known: true,
+				liveState: h.liveState.get(sid("session-1")),
+				remoteControl: { state: "off" },
+			}),
+		);
 		expect(h.liveState.get(sid("session-1")).status).toBe("working");
 	});
 
@@ -914,6 +925,164 @@ describe("AGENT-15 work the agent starts by itself", () => {
 		// Both calls act at once: a run taken over the turn, or a stored message, would show here.
 		expect(turn.deps.runGuard.isCurrent(run)).toBe(true);
 		expect(h.publisher.events.filter((entry) => entry.event.type === "agent")).toEqual([]);
+	});
+});
+
+describe("RC-02 a Claude chat's Remote Control link", () => {
+	const sessionUrl = "https://claude.ai/code/session_1";
+
+	test("RC-02 the link the agent reports reaches the app, the chat's status and the process manager", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ remoteControl: true }) }));
+		const callbacks = h.runners.get("claude")?.started[0]?.remoteControl;
+		if (callbacks === undefined) throw new Error("The agent got no Remote Control callbacks");
+
+		callbacks.onStatus({ state: "connected", sessionUrl });
+		expect(h.app.notifications).toContainEqual({
+			method: "remoteControlState",
+			params: { sessionId: sid("session-1"), status: { state: "connected", sessionUrl } },
+		});
+		expect(await h.manager.getSessionStatus({ sessionId: sid("session-1") })).toMatchObject(
+			ok({ known: true, remoteControl: { state: "connected", sessionUrl } }),
+		);
+		expect(h.processes.remoteControlCalls.at(-1)).toEqual({ key: "claude:session-1", on: true });
+
+		callbacks.onStatus({ state: "off" });
+		expect(h.processes.remoteControlCalls.at(-1)).toEqual({ key: "claude:session-1", on: false });
+		expect(await h.manager.getSessionStatus({ sessionId: sid("session-1") })).toMatchObject(
+			ok({ known: true, remoteControl: { state: "off" } }),
+		);
+	});
+
+	test("RC-02 a chat the sidecar never started reports Remote Control off", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		expect(await h.manager.getSessionStatus({ sessionId: sid("session-1") })).toMatchObject(
+			ok({ known: true, remoteControl: { state: "off" } }),
+		);
+	});
+
+	test("RC-02 the switch changed during a turn reaches the live agent at once", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const agent = h.processes.agents.get("claude:session-1") as FakeAgentSession | undefined;
+		if (agent === undefined) throw new Error("No agent started");
+
+		const answer = await h.manager.updateConfig({
+			sessionId: sid("session-1"),
+			config: baseConfig({ remoteControl: true, model: "opus" }),
+		});
+		expect(answer).toEqual(ok({ applied: "on_next_turn" }));
+		expect(agent.remoteControl).toEqual([true]);
+		// Only the switch applied now; the model waits for the next turn.
+		expect(agent.appliedConfigs.some((config) => config.model === "opus")).toBe(false);
+
+		await h.manager.updateConfig({
+			sessionId: sid("session-1"),
+			config: baseConfig({ remoteControl: true, model: "opus" }),
+		});
+		expect(agent.remoteControl).toEqual([true]);
+	});
+});
+
+describe("RC-03 input from claude.ai reaches the session manager", () => {
+	async function idleChat(h: Harness): Promise<NonNullable<StartOptions["remoteControl"]>> {
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ remoteControl: true }) }));
+		await h.turns.last().succeed();
+		await until(() => h.liveState.get(sid("session-1")).status === "idle", "the turn to end");
+		const callbacks = h.runners.get("claude")?.started[0]?.remoteControl;
+		if (callbacks === undefined) throw new Error("The agent got no Remote Control callbacks");
+		return callbacks;
+	}
+
+	const userMessages = (h: Harness) =>
+		h.publisher.events.filter((entry) => entry.event.type === "user_message");
+
+	test("RC-03 a message typed on claude.ai is stored in the work it started, with its sender", async () => {
+		const h = harness();
+		const remote = await idleChat(h);
+		const self = h.runners.get("claude")?.started[0]?.selfStartedTurns;
+		if (self === undefined) throw new Error("The agent got no callbacks for its own work");
+
+		self.onInProgressChanged(true);
+		self.onMessage({ agent: "claude", items: [{ kind: "text", text: "On it" }] });
+		remote.onUserMessage({ uuid: "remote-1", text: Promise.resolve("From the phone") });
+		// The fake turn of the first message stores no events, so this is the only user message.
+		await until(() => userMessages(h).length === 1, "the message from claude.ai to be stored");
+
+		const agentEvent = h.publisher.events.find((entry) => entry.event.type === "agent");
+		const stored = userMessages(h)[0]?.event;
+		expect(stored).toMatchObject({
+			type: "user_message",
+			messageId: mid("remote-1"),
+			text: "From the phone",
+			attachmentPaths: [],
+			delivery: "new_turn",
+			sender: { kind: "claude_ai" },
+		});
+		expect(stored?.turnId).toBe(agentEvent?.event.turnId as TurnId);
+	});
+
+	test("RC-03 a message from claude.ai during the app's turn is stored as a steer of that turn", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ remoteControl: true }) }));
+		const remote = h.runners.get("claude")?.started[0]?.remoteControl;
+		if (remote === undefined) throw new Error("The agent got no Remote Control callbacks");
+
+		remote.onUserMessage({ uuid: "remote-2", text: Promise.resolve("Also add tests") });
+		await until(() => userMessages(h).length === 1, "the steer from claude.ai to be stored");
+
+		expect(userMessages(h)[0]?.event).toMatchObject({
+			type: "user_message",
+			messageId: mid("remote-2"),
+			turnId: tid("turn-1"),
+			text: "Also add tests",
+			delivery: "steer",
+			sender: { kind: "claude_ai" },
+		});
+	});
+
+	test("RC-03 a message whose text never reached the transcript leaves a notice instead", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ remoteControl: true }) }));
+		const remote = h.runners.get("claude")?.started[0]?.remoteControl;
+		if (remote === undefined) throw new Error("The agent got no Remote Control callbacks");
+
+		remote.onUserMessage({ uuid: "remote-3", text: Promise.resolve(null) });
+		await until(
+			() => h.publisher.events.some((entry) => entry.event.type === "agent"),
+			"the notice to be stored",
+		);
+		expect(userMessages(h)).toEqual([]);
+		expect(h.publisher.events.at(-1)?.event).toMatchObject({
+			type: "agent",
+			turnId: tid("turn-1"),
+			message: {
+				agent: "claude",
+				items: [
+					{
+						kind: "notice",
+						notice: "info",
+						text: "A message sent via Claude could not be read from Claude's transcript.",
+					},
+				],
+			},
+		});
+	});
+
+	test("RC-03 an approval asked during work the agent started opens in the app", async () => {
+		const h = harness();
+		await idleChat(h);
+		const self = h.runners.get("claude")?.started[0]?.selfStartedTurns;
+		if (self === undefined) throw new Error("The agent got no callbacks for its own work");
+
+		void self.requestInteraction({
+			kind: "tool_approval",
+			toolUseId: "tool-1" as never,
+			toolName: "Write",
+			input: {},
+		});
+		expect(h.interactions.opened.map((entry) => entry.interaction.kind)).toEqual(["tool_approval"]);
 	});
 });
 

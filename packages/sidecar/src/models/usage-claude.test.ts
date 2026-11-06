@@ -77,6 +77,7 @@ function makeDeps(overrides: Partial<ClaudeSessionDeps> = {}): ClaudeSessionDeps
 		logger: fakeLogger(),
 		translator: { translate: () => [] } as unknown as ClaudeTranslator,
 		hasTranscript: async () => false,
+		readUserMessageText: async () => null,
 		realPath: async (path) => path,
 		newUuid: countingIds("turn").uuid,
 		scheduler: { after: () => () => {} } as Scheduler,

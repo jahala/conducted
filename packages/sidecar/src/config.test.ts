@@ -24,6 +24,7 @@ const good = {
 	CONDUCTED_OUTBOX_ROOT: "/data/outbox",
 	CONDUCTED_COMPLETIONS_DIR: "/data/completions",
 	CONDUCTED_CURSOR_STORE_DIR: "/data/cursor-sdk-store",
+	CONDUCTED_AGENT_BINARIES_DIR: "/data/agent-binaries",
 	CONDUCTED_LOG_DIR: "/data/logs",
 	CONDUCTED_APP_VERSION: "1.2.3",
 	CONDUCTED_LOG_LEVEL: "info",
@@ -39,6 +40,7 @@ describe("SIDE-01 sidecar settings", () => {
 				outboxRoot: "/data/outbox",
 				completionsDir: "/data/completions",
 				cursorStoreDir: "/data/cursor-sdk-store",
+				agentBinariesDir: "/data/agent-binaries",
 				logDir: "/data/logs",
 				appVersion: "1.2.3",
 				logLevel: "info",
@@ -90,6 +92,7 @@ describe("SIDE-18 sidecar log settings", () => {
 				outboxRoot: "/data/outbox",
 				completionsDir: "/data/completions",
 				cursorStoreDir: "/data/cursor-sdk-store",
+				agentBinariesDir: "/data/agent-binaries",
 				logDir: "/data/logs",
 				appVersion: "0.4.0",
 				logLevel: "debug",
@@ -155,5 +158,22 @@ describe("AGENT-18 SIDE-22 one home for the launcher's variable names", () => {
 				),
 			);
 		expect(copies).toEqual([]);
+	});
+});
+
+describe("PLAT-28 managed programs folder setting", () => {
+	test("PLAT-28 reads the managed programs folder from its own variable", () => {
+		const result = parseSidecarConfig(good);
+		expect(result.ok && result.value.agentBinariesDir).toBe("/data/agent-binaries");
+	});
+
+	test("PLAT-28 a missing or relative managed programs folder is refused by its name", () => {
+		const { CONDUCTED_AGENT_BINARIES_DIR: _omit, ...rest } = good;
+		const missing = parseSidecarConfig(rest);
+		expect(missing.ok).toBe(false);
+		if (!missing.ok) expect(missing.error.message).toContain("CONDUCTED_AGENT_BINARIES_DIR");
+		const relative = parseSidecarConfig({ ...good, CONDUCTED_AGENT_BINARIES_DIR: "programs" });
+		expect(relative.ok).toBe(false);
+		if (!relative.ok) expect(relative.error.message).toContain("CONDUCTED_AGENT_BINARIES_DIR");
 	});
 });

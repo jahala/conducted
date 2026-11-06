@@ -32,6 +32,7 @@ export type SettingPage =
 	| "misc"
 	| "experimental"
 	| "advanced"
+	| "remote-control"
 	| "state";
 
 /** "state" is a hidden page for saved screen state that has no settings screen. */
@@ -48,6 +49,7 @@ export const SETTING_PAGES: readonly SettingPage[] = [
 	"misc",
 	"experimental",
 	"advanced",
+	"remote-control",
 	"state",
 ];
 
@@ -881,6 +883,34 @@ const SETTINGS_TABLE = [
 			{ value: "default", label: "Default" },
 			{ value: "always_approve", label: "Always approve" },
 		],
+	},
+	// Our design choice: Conductor has no Remote Control for claude.ai (D019), so the key, words and
+	// default are ours. Off by default, so no chat is shared until the user asks.
+	{
+		key: "remote_control_new_chats",
+		page: "remote-control",
+		scopes: ["user"],
+		title: "Remote Control for new chats",
+		description:
+			"Start every new Claude chat with Remote Control on, so you can open it in claude.ai/code or the Claude app.",
+		searchTerms: ["remote", "claude.ai", "phone", "mobile", "app"],
+		feature: "RC-04",
+		type: "bool",
+		default: false,
+	},
+	// Conductor's key, title and default (services-map.md 5B.2.1, ui-map.md 6); the description names
+	// our Remote Control session where Conductor's names a paired device.
+	{
+		key: "remote_control_keep_awake",
+		page: "remote-control",
+		scopes: ["user"],
+		title: "Keep this Mac awake",
+		description:
+			"Prevent sleep while a Remote Control session is connected and this Mac is plugged in.",
+		searchTerms: ["remote", "sleep", "caffeinate", "awake", "power"],
+		feature: "RC-04",
+		type: "bool",
+		default: true,
 	},
 	// Our design choice: off by default, as the research gives none. No settings file key, as in the research.
 	{
