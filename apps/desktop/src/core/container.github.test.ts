@@ -92,6 +92,21 @@ describe("PR-01 container wiring", () => {
 		expect(container.services.github.store.getState().health.authMethod).toBe("cli");
 	});
 
+	it("PLAT-35 runs gh with the app's bin folder first on PATH, so the managed gh answers", async () => {
+		const { container, memory } = buildContainer();
+		const seen: ShellCommand[] = [];
+		scriptGh(memory, seen);
+
+		await container.services.github.checkAccess();
+
+		expect(seen.length).toBeGreaterThan(0);
+		for (const command of seen) {
+			expect(command.env?.PATH).toBe(
+				`${memory.platform.fs.paths.appData}/bin:/opt/homebrew/bin:/usr/bin:/bin`,
+			);
+		}
+	});
+
 	it("stores the personal access token in the platform Keychain", async () => {
 		const { container, memory } = buildContainer();
 

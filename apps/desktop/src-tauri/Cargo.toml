@@ -56,6 +56,12 @@ tokio-util = { version = "0.7", features = ["rt"] }
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 # The same app data folder rule Tauri uses, read before Tauri starts (PLAT-27, `lib.rs`).
 dirs = "7"
+# Unpack the program downloads (PLAT-28, PLAT-35): Codex ships zstd, gh a zip, watchexec tar.xz.
+# Licences checked (D010): ruzstd MIT, zip MIT, tar MIT or Apache-2.0, lzma-rust2 Apache-2.0.
+ruzstd = "0.9"
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+tar = { version = "0.4", default-features = false }
+lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "xz"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
@@ -65,6 +71,8 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 [dev-dependencies]
 # The mock app that lets a test hear the events a command emits (PLAT-36 builds on it).
 tauri = { version = "2", features = ["test"] }
+# Tests build xz archives of their own to serve from a local server (PLAT-35).
+lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "xz", "encoder"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

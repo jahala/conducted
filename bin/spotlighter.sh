@@ -26,7 +26,9 @@
 #
 # Environment (all required):
 #   CONDUCTED_CHECKPOINTER_PATH   absolute path of checkpointer.sh
-#   CONDUCTED_WATCHEXEC_PATH      absolute path of the watchexec program (a file watcher)
+#   CONDUCTED_WATCHEXEC_PATH      the watchexec program (a file watcher): a path, or a name the
+#                                 PATH finds; the app passes `watchexec`, which its bin folder
+#                                 first on PATH resolves to the managed copy (PLAT-35)
 #   CONDUCTED_ROOT_PATH           the main clone that receives the changes
 #
 # Exit codes:

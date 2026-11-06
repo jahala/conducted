@@ -1,51 +1,54 @@
 //! @feature PLAT-35 Install and update gh and watchexec (D024)
 //!
-//! Owns: the helper programs `gh` and `watchexec`: downloading the official releases, checking
-//! them, keeping them up to date, removing old versions, installing the `gh stack` extension, and
-//! putting the app's bin folder on PATH. The agent programs (PLAT-28) and the launch check
-//! (PLAT-34) use the same folder and the same download code and add their own functions here.
+//! Owns: the helper programs `gh` and `watchexec` as managed programs: they go through the same
+//! program manager as the agent programs below (feed, download, checksum, unpack, metadata, bin
+//! link, pruning, retry), and `prepare_on_launch` installs them with the agents.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A9 (binary manager: download to a
 //! partial file, hash, rename into `<program>/<version>/`, a record per install, old versions
-//! pruned), A6 step 11 (the bin folder is appended to PATH for terminals, scripts and agents) and C
-//! (`gh` and `watchexec` sit in the bin folder; `spotlighter.sh` runs `watchexec`), services-map.md
-//! 3.8 (`gh stack`) and 3.12 (Spotlight), overview.md 5. The decision is D024 in docs/decisions.md.
+//! pruned), A6 step 11 (the bin folder is on PATH for terminals, scripts and agents) and C (`gh`
+//! and `watchexec` sit in the bin folder; `spotlighter.sh` runs `watchexec`), services-map.md
+//! 3.12 (Spotlight), overview.md 5. The decision is D024 in docs/decisions.md.
 //!
 //! Must handle:
-//! - A download that fails or is cut off (the partial file is removed and the error is reported
-//!   with a retry state; nothing half-written is ever run).
-//! - A checksum that does not match (the file is refused, never installed).
-//! - A copy chosen by the user in settings, or a failed download: the copy on PATH is used, and
-//!   `source` says so. A managed copy is never installed over a user's choice.
-//! - Old versions: removed after the new one verifies, moved to the Trash like other files.
-//! - The `gh stack` extension is installed with `gh`, not on the first use of "Sync stack".
-//! - The bin folder comes first on PATH for terminals, run scripts and agents, so both programs
-//!   resolve without any install by the user.
-//! - ripgrep: Conductor ships one, but the research does not show what runs it. Find the caller in
-//!   the research before adding it.
+//! - A download that fails, is cut off or has a wrong checksum: nothing is installed and nothing
+//!   lands in the bin folder (the PLAT-28 rules below).
+//! - The bin folder comes first on PATH for terminals and scripts (`core/services/system.ts`),
+//!   git and gh commands (`core/git/runner.ts`) and agents (the sidecar's
+//!   `runners/managed-programs.ts`), so `gh` and `watchexec` resolve without any install by the
+//!   user. Without a managed copy, the copy on the user's PATH runs.
 //!
-//! Our design choice: one version of each helper is pinned in this file when the download code is
-//! built, with its checksum per CPU. No version number is written here before that.
+//! The `gh stack` extension is not installed by the app: Conductor ships no copy of it (its bin
+//! folder holds gh and watchexec) and tells the user to run `gh extension install github/gh-stack`
+//! when a stack command needs it (renderApp's stack error); PR-08 shows that message. No setting chooses a gh or watchexec of the user's own: Conductor has none, so a copy on
+//! PATH is used only when there is no managed copy. ripgrep: Conductor ships one, but the research
+//! does not show what runs it, so it is not managed.
 //!
-//! Test first: with a download source that serves a file with a wrong checksum,
-//! `install_helper(Gh)` fails and leaves no file in the bin folder.
+//! Test first: with a download source that serves a file with a wrong checksum, installing gh
+//! fails and leaves no file in the bin folder.
 //!
 //! @feature PLAT-28 Agent program manager: download, verify, update, prune
-//! Owns: the agent programs `claude` and `codex`: reading the pinned release feed, downloading a
-//! program with a SHA-256 and progress, clearing its quarantine flag, writing its install
-//! metadata, writing its shim in the app's bin folder, moving old versions to the Trash, and
-//! retrying a failed download. Commands: `programs_state`, `program_install`,
-//! `program_redownload`, `program_remove` and `programs_prefetch`. `setup` in lib.rs runs the same
-//! prefetch at launch through `prepare_on_launch`.
+//! Owns: the managed programs `claude`, `codex`, `gh` and `watchexec`: reading the pinned release
+//! feed, downloading a program with a SHA-256 and progress, unpacking it from the vendor's
+//! compressed file, clearing its quarantine flag, writing its install metadata, pointing its link
+//! in the app's bin folder at it, moving old versions to the Trash, and retrying a failed
+//! download. Commands: `programs_state`, `program_install`, `program_redownload`,
+//! `program_remove` and `programs_prefetch`. `setup` in lib.rs runs the same prefetch at launch
+//! through `prepare_on_launch`.
 //! Behaviour: native-and-sidecar-map.md A2 (`lib.rs` prepares the agent programs at startup), A6
-//! and A9 (pinned versions, metadata, shims, retry state, pruning); services-map.md 5A.8.1
-//! (states, Retry).
+//! and A9 (pinned versions, metadata, shims, retry state, pruning, per-asset compressed files);
+//! services-map.md 5A.8.1 (states, Retry).
 //! Must handle:
 //! - A failed download. A failure a retry can fix (network, timeout, server error, wrong checksum)
 //!   shows Retrying with the attempt and the time of the next one, and runs again after that
 //!   wait. After the last attempt, or at once for a failure that repeats the same way (no feed, a
-//!   version this app does not pin), it shows Failed with the error.
-//! - A checksum that does not match: refused, never installed.
+//!   version this app does not pin, a file that cannot be unpacked), it shows Failed with the
+//!   error.
+//! - A checksum that does not match: refused, never installed. The feed's SHA-256 is that of the
+//!   file as the vendor publishes it, so it is checked before anything is unpacked.
+//! - A compressed release file (Codex's zstd, gh's zip, watchexec's tar.xz): the program is the
+//!   one regular file of its name inside, wherever the vendor put it; none or two is an error. The
+//!   downloaded file is removed after unpacking, and a failed unpack leaves no program behind.
 //! - A second install of a program already installing: joined, no second download.
 //! - Install of a program whose pinned version is installed and still matches its metadata: Ready
 //!   at once, no download. Re-download always downloads.
@@ -59,15 +62,18 @@
 //! - A missing release feed: a named error, never an invented URL.
 //! - The app exits: running installs are cancelled, also while they wait to retry.
 //!
-//! Not built yet: nothing writes the release feed. The official download URL and SHA-256 of each
-//! pinned version are not in the repo, so every install fails with `program_release_missing`
-//! until a producer supplies them (an open PLAT-28 item). The shim is written, but putting the bin
-//! folder on PATH is PLAT-35 (`path_with_helpers`). The sidecar does not look for the managed copy
-//! yet, so `sidecar.rs` sets no agent binaries folder for it (open PLAT-28 items).
+//! The sidecar learns the folder through `CONDUCTED_AGENT_BINARIES_DIR` (`sidecar.rs`) and takes a
+//! bin link as the managed copy only when it points in there.
+//! Not built: an update feed that announces the next versions before an app update (A9's
+//! `UpcomingAgentBinaries`): the app's own update feed carries no programs yet, so each app version
+//! uses the versions its release feed pins. ACP provider downloads (OpenCode) are not in the feed.
 //! Our design choice: five attempts, one second after the first failure and doubling after each
 //! further one (`RetryPolicy::APP`). The research shows the retry state, not its numbers.
-//! Our design choice: the release feed is a JSON file at `agent-binaries/manifest.json` in the
-//! app data folder.
+//! Our design choice: the release feed is `programs/release-feed.json`, shipped in the app's
+//! resources (`tauri.conf.json`). It holds each program's URL, size and SHA-256 per CPU from the
+//! vendor's official release host, as the owner ruled for PLAT-28. Conductor downloads its own
+//! recompressed copies from its own host; we use the vendors' files and unpack them with Rust
+//! decoders (ruzstd, zip, tar, lzma-rust2) instead of the system's `zstd` and `gzip`.
 //! Test first: installing a program writes its metadata, points the bin shim at it and prunes the
 //! old version.
 //!
@@ -134,7 +140,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::{CommandError, CommandResult};
 use crate::files;
-use crate::not_implemented;
 use crate::process_group;
 
 /// Event that carries the programs which failed the launch check.
@@ -162,7 +167,8 @@ impl ManagedProgram {
         ManagedProgram::Watchexec,
     ];
 
-    /// The agent programs the program manager downloads (D021). The helpers are PLAT-35.
+    /// The agent programs, whose path the user may choose in settings instead (SET-13). The program
+    /// manager downloads all of `ALL` (D021, D024).
     pub const AGENTS: [ManagedProgram; 2] = [ManagedProgram::Claude, ManagedProgram::Codex];
 
     /// The name the program has on disk and in the Platform.
@@ -498,66 +504,6 @@ fn run_program_with_timeout(path: &Path, timeout: Duration) -> Result<(), String
     }
 }
 
-/// The helper programs the app installs besides the agents.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum HelperProgram {
-    Gh,
-    Watchexec,
-}
-
-/// Where the program in use came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum HelperSource {
-    /// The copy the app downloaded.
-    Managed,
-    /// A copy on the user's PATH, chosen in settings or used after a failed download.
-    UserPath,
-}
-
-/// A helper program that can run.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResolvedHelper {
-    pub program: HelperProgram,
-    pub path: PathBuf,
-    pub version: String,
-    pub source: HelperSource,
-}
-
-/// The folder that holds the helper programs and the scripts (`CONDUCTED_BIN_DIR`).
-pub fn helper_bin_dir(_app: &AppHandle) -> CommandResult<PathBuf> {
-    not_implemented!("PLAT-35")
-}
-
-/// Downloads, checks and installs the pinned version of a helper, then removes older versions.
-pub async fn install_helper(
-    _app: &AppHandle,
-    _program: HelperProgram,
-) -> CommandResult<ResolvedHelper> {
-    not_implemented!("PLAT-35")
-}
-
-/// Installs the `gh stack` extension with the given `gh`.
-pub async fn install_gh_stack_extension(_gh_path: &Path) -> CommandResult<()> {
-    not_implemented!("PLAT-35")
-}
-
-/// Picks the copy to run: the user's choice, else the managed copy, else the copy on PATH.
-pub fn resolve_helper(
-    _app: &AppHandle,
-    _program: HelperProgram,
-    _user_choice: Option<&Path>,
-) -> CommandResult<ResolvedHelper> {
-    not_implemented!("PLAT-35")
-}
-
-/// Returns `path` with the helper bin folder in front, for terminals, scripts and agents.
-pub fn path_with_helpers(_bin_dir: &Path, _path: &str) -> CommandResult<String> {
-    not_implemented!("PLAT-35")
-}
-
 // ------------------------------------------------------------------ SET-13 path overrides
 
 /// Writes the shim folder for the user's chosen program paths and returns the folder to put first
@@ -719,15 +665,20 @@ pub fn programs_sync_path_overrides(
 /// Event carrying one program's status, including download progress.
 pub const EVENT_PROGRAM_STATUS: &str = "programs://status";
 
-/// The version this app pins for each agent program. These are the versions Conductor 0.92.1 pins
-/// (native-and-sidecar-map.md A9, "Pinned versions in this build"). A release feed must serve them.
-pub fn pinned_version(program: ManagedProgram) -> Option<&'static str> {
+/// The version this app pins for each managed program. These are the versions Conductor 0.92.1
+/// pins (native-and-sidecar-map.md A9, "Pinned versions in this build", and section C for
+/// watchexec). The release feed shipped with the app must serve them.
+pub fn pinned_version(program: ManagedProgram) -> &'static str {
     match program {
-        ManagedProgram::Claude => Some("2.1.308"),
-        ManagedProgram::Codex => Some("0.164.0"),
-        _ => None,
+        ManagedProgram::Claude => "2.1.308",
+        ManagedProgram::Codex => "0.164.0",
+        ManagedProgram::Gh => "2.100.0",
+        ManagedProgram::Watchexec => "2.3.2",
     }
 }
+
+/// Where the release feed sits inside the app's resources. `tauri.conf.json` bundles it there.
+pub const RELEASE_FEED_RESOURCE: &str = "programs/release-feed.json";
 
 /// One state of an agent program download, as the UI shows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -783,17 +734,32 @@ impl ProgramStatus {
     }
 }
 
-/// One downloadable file of a release, named by CPU. Nothing produces the feed yet (see the
-/// PLAT-28 header); it is read from `agent-binaries/manifest.json` in the app data folder.
+/// How a release file holds its program. The SHA-256 and size in the feed are those of the file
+/// as the vendor publishes it; the program is unpacked after that file has been checked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AssetFormat {
+    /// The file is the program itself (Claude Code).
+    Raw,
+    /// One zstd-compressed program (Codex's `.zst`).
+    Zstd,
+    /// A zip archive with the program somewhere inside (gh).
+    Zip,
+    /// An xz-compressed tar archive with the program somewhere inside (watchexec).
+    TarXz,
+}
+
+/// One downloadable file of a release, named by CPU, from the vendor's official release host.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReleaseAsset {
     pub url: String,
     pub sha256: String,
     pub size: u64,
+    pub format: AssetFormat,
 }
 
-/// One pinned agent program and its per-CPU files.
+/// One pinned program and its per-CPU files.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgramRelease {
@@ -802,12 +768,15 @@ pub struct ProgramRelease {
     pub darwin_x64: ReleaseAsset,
 }
 
-/// The release feed the program manager reads: one pinned release per agent program.
+/// The release feed the program manager reads: one pinned release per managed program. The app
+/// ships it as a resource (`RELEASE_FEED_RESOURCE`), so each app version pins its own programs.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub struct ReleaseManifest {
     pub claude: Option<ProgramRelease>,
     pub codex: Option<ProgramRelease>,
+    pub gh: Option<ProgramRelease>,
+    pub watchexec: Option<ProgramRelease>,
 }
 
 impl ReleaseManifest {
@@ -815,8 +784,18 @@ impl ReleaseManifest {
         match program {
             ManagedProgram::Claude => self.claude.as_ref(),
             ManagedProgram::Codex => self.codex.as_ref(),
-            _ => None,
+            ManagedProgram::Gh => self.gh.as_ref(),
+            ManagedProgram::Watchexec => self.watchexec.as_ref(),
         }
+    }
+
+    fn releases_mut(&mut self) -> [Option<&mut ProgramRelease>; 4] {
+        [
+            self.claude.as_mut(),
+            self.codex.as_mut(),
+            self.gh.as_mut(),
+            self.watchexec.as_mut(),
+        ]
     }
 }
 
@@ -828,7 +807,8 @@ fn asset_for(release: &ProgramRelease) -> &ReleaseAsset {
     }
 }
 
-/// The folder layout the manager owns: `agent-binaries/<program>/<version>/` and the PATH shims.
+/// The folder layout the manager owns: `agent-binaries/<program>/<version>/` and the PATH shims in
+/// `bin/`. gh and watchexec live beside the agent programs (D024).
 #[derive(Debug, Clone, Default)]
 pub struct ProgramDirs {
     pub binaries: PathBuf,
@@ -843,16 +823,19 @@ impl ProgramDirs {
         }
     }
 
-    fn manifest(&self) -> PathBuf {
-        self.binaries.join("manifest.json")
-    }
-
     fn program(&self, program: ManagedProgram) -> PathBuf {
         self.binaries.join(program.as_str())
     }
 
     fn binary(&self, program: ManagedProgram, version: &str) -> PathBuf {
         self.program(program).join(version).join(program.as_str())
+    }
+
+    /// Where a compressed release file is downloaded before its program is unpacked beside it.
+    fn download(&self, program: ManagedProgram, version: &str) -> PathBuf {
+        self.program(program)
+            .join(version)
+            .join(format!("{}.download", program.as_str()))
     }
 
     fn metadata(&self, program: ManagedProgram, version: &str) -> PathBuf {
@@ -932,11 +915,13 @@ impl<R: Runtime> StatusSink for AppHandle<R> {
 /// Moves a path to the Trash. The app passes `files::trash_path`.
 pub type Trash = Arc<dyn Fn(&Path) -> CommandResult<()> + Send + Sync>;
 
-/// What an install needs from outside: the folders, the download's hosts and stall timeout, the
-/// retry policy and the Trash. The app builds it from its data folder; a test passes its own.
+/// What an install needs from outside: the folders, the release feed, the download's hosts and
+/// stall timeout, the retry policy and the Trash. The app builds it from its data and resource
+/// folders; a test passes its own.
 #[derive(Clone)]
 pub struct InstallContext {
     pub dirs: ProgramDirs,
+    pub feed: PathBuf,
     pub allowed_hosts: &'static [&'static str],
     pub stall_timeout: Duration,
     pub retry: RetryPolicy,
@@ -952,8 +937,16 @@ impl InstallContext {
                 code: "program_data_dir_failed",
                 message: format!("Could not find the app data folder: {error}"),
             })?;
+        let resources = app
+            .path()
+            .resource_dir()
+            .map_err(|error| CommandError::Failed {
+                code: "program_resources_dir_failed",
+                message: format!("Could not find the app resources folder: {error}"),
+            })?;
         Ok(Self {
             dirs: ProgramDirs::in_app_data(&data),
+            feed: resources.join(RELEASE_FEED_RESOURCE),
             allowed_hosts: crate::http::ALLOWED_HOSTS,
             stall_timeout: Duration::from_millis(crate::http::DOWNLOAD_STALL_TIMEOUT_MS),
             retry: RetryPolicy::APP,
@@ -985,9 +978,10 @@ pub struct ProgramsState {
 }
 
 impl ProgramsState {
-    /// Every managed agent's status, Claude first. A program with no record is missing.
+    /// Every managed program's status: Claude, Codex, gh, watchexec. A program with no record is
+    /// missing.
     pub fn snapshot(&self) -> Vec<ProgramStatus> {
-        ManagedProgram::AGENTS
+        ManagedProgram::ALL
             .iter()
             .map(|program| self.status(*program))
             .collect()
@@ -1123,24 +1117,21 @@ pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
     let text = fs::read_to_string(path).map_err(|error| CommandError::Failed {
         code: "program_release_missing",
         message: format!(
-            "The agent program release feed {} could not be read: {error}",
+            "The program release feed {} could not be read: {error}",
             path.display()
         ),
     })?;
     let mut manifest: ReleaseManifest =
         serde_json::from_str(&text).map_err(|error| CommandError::Failed {
             code: "program_release_invalid",
-            message: format!("The agent program release feed could not be understood: {error}"),
+            message: format!("The program release feed could not be understood: {error}"),
         })?;
-    for release in [manifest.claude.as_mut(), manifest.codex.as_mut()]
-        .into_iter()
-        .flatten()
-    {
+    for release in manifest.releases_mut().into_iter().flatten() {
         for asset in [&mut release.darwin_arm64, &mut release.darwin_x64] {
             asset.sha256 =
                 crate::http::parse_sha256(&asset.sha256).map_err(|error| CommandError::Failed {
                     code: "program_release_invalid",
-                    message: format!("The agent program release feed has a bad hash: {error}"),
+                    message: format!("The program release feed has a bad hash: {error}"),
                 })?;
         }
     }
@@ -1357,7 +1348,7 @@ fn metadata_matches(binary: &Path, metadata_path: &Path) -> bool {
 
 /// The installed copy of the pinned version, when its metadata still matches the file on disk.
 fn installed_copy(dirs: &ProgramDirs, program: ManagedProgram) -> Option<(&'static str, PathBuf)> {
-    let version = pinned_version(program)?;
+    let version = pinned_version(program);
     let binary = dirs.binary(program, version);
     metadata_matches(&binary, &dirs.metadata(program, version)).then_some((version, binary))
 }
@@ -1369,7 +1360,7 @@ fn hydrate_from_disk(
     state: &ProgramsState,
     sink: &dyn StatusSink,
 ) -> CommandResult<()> {
-    for program in ManagedProgram::AGENTS {
+    for program in ManagedProgram::ALL {
         if state.status(program).state != ProgramState::Missing || state.is_installing(program) {
             continue;
         }
@@ -1442,8 +1433,250 @@ pub fn finish_install(
     })
 }
 
-/// One attempt: reads the feed, downloads the pinned version with progress and installs it.
-/// Returns the Ready status. `status` carries the attempt count into each status it sends.
+/// Unpacks the program from a downloaded release file whose SHA-256 already matched, then removes
+/// that file. Returns the SHA-256 of the program it wrote, for `finish_install` to check against
+/// the file on disk. A file that cannot be unpacked leaves neither the program nor the download.
+fn unpack_downloaded(
+    format: AssetFormat,
+    downloaded: &Path,
+    program: ManagedProgram,
+    binary: &Path,
+) -> CommandResult<String> {
+    let unpacked = unpack(format, downloaded, program.as_str(), binary);
+    let removed = fs::remove_file(downloaded).map_err(|error| CommandError::Failed {
+        code: "program_unpack_failed",
+        message: format!(
+            "Could not remove the downloaded file {}: {error}",
+            downloaded.display()
+        ),
+    });
+    let sha256 = unpacked?;
+    removed?;
+    Ok(sha256)
+}
+
+/// Writes the program named `name` from the release file at `source` to `binary`, through a
+/// temporary file beside it that is renamed into place only when the whole program was written.
+/// In an archive the program is the one regular file whose name is `name`, in whichever folder
+/// the vendor put it; none, or more than one, is an error.
+pub fn unpack(
+    format: AssetFormat,
+    source: &Path,
+    name: &str,
+    binary: &Path,
+) -> CommandResult<String> {
+    let file = fs::File::open(source).map_err(|error| unpack_failed(source, &error))?;
+    let temporary = temporary_copy_path(binary);
+    let written = match format {
+        AssetFormat::Raw => Err(CommandError::Failed {
+            code: "program_unpack_failed",
+            message: format!(
+                "{} is the program itself and has nothing to unpack.",
+                source.display()
+            ),
+        }),
+        AssetFormat::Zstd => write_zstd(file, source, &temporary),
+        AssetFormat::Zip => write_from_zip(file, source, name, &temporary),
+        AssetFormat::TarXz => write_from_tar_xz(file, source, name, &temporary),
+    };
+    let sha256 = match written {
+        Ok(sha256) => sha256,
+        Err(error) => {
+            remove_temporary(&temporary);
+            return Err(error);
+        }
+    };
+    if let Err(error) = fs::rename(&temporary, binary) {
+        remove_temporary(&temporary);
+        return Err(CommandError::Failed {
+            code: "program_unpack_failed",
+            message: format!(
+                "Could not move the unpacked program to {}: {error}",
+                binary.display()
+            ),
+        });
+    }
+    Ok(sha256)
+}
+
+fn unpack_failed(source: &Path, error: &dyn fmt::Display) -> CommandError {
+    CommandError::Failed {
+        code: "program_unpack_failed",
+        message: format!("Could not unpack {}: {error}", source.display()),
+    }
+}
+
+/// Removes a half-written temporary program. Nothing there is fine; a file that stays is
+/// reported on stderr, because the caller is already returning the error that matters.
+fn remove_temporary(temporary: &Path) {
+    if let Err(error) = fs::remove_file(temporary)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        eprintln!(
+            "could not remove the temporary program {}: {error}",
+            temporary.display()
+        );
+    }
+}
+
+/// A new program file that hashes what is written to it.
+struct HashedFile<'a> {
+    file: fs::File,
+    hasher: Sha256,
+    source: &'a Path,
+}
+
+impl<'a> HashedFile<'a> {
+    fn create(temporary: &Path, source: &'a Path) -> CommandResult<Self> {
+        let file = fs::File::create(temporary).map_err(|error| unpack_failed(source, &error))?;
+        Ok(Self {
+            file,
+            hasher: Sha256::new(),
+            source,
+        })
+    }
+
+    /// Copies everything `reader` gives into the file.
+    fn copy_from(&mut self, reader: &mut dyn Read) -> CommandResult<()> {
+        use std::io::Write;
+        let mut buffer = vec![0u8; 1024 * 1024];
+        loop {
+            let read = reader
+                .read(&mut buffer)
+                .map_err(|error| unpack_failed(self.source, &error))?;
+            if read == 0 {
+                return Ok(());
+            }
+            self.hasher.update(&buffer[..read]);
+            self.file
+                .write_all(&buffer[..read])
+                .map_err(|error| unpack_failed(self.source, &error))?;
+        }
+    }
+
+    /// Flushes the file to disk and returns the SHA-256 of what was written.
+    fn finish(self) -> CommandResult<String> {
+        self.file
+            .sync_all()
+            .map_err(|error| unpack_failed(self.source, &error))?;
+        Ok(format!("{:x}", self.hasher.finalize()))
+    }
+}
+
+/// Copies `reader` into a new file at `temporary` and returns the SHA-256 of what it wrote.
+fn write_hashed(reader: &mut dyn Read, source: &Path, temporary: &Path) -> CommandResult<String> {
+    let mut file = HashedFile::create(temporary, source)?;
+    file.copy_from(reader)?;
+    file.finish()
+}
+
+/// Decodes every zstd frame of the file in turn, so a file of several frames unpacks whole.
+fn write_zstd(file: fs::File, source: &Path, temporary: &Path) -> CommandResult<String> {
+    use std::io::BufRead;
+    let mut input = std::io::BufReader::new(file);
+    let mut output = HashedFile::create(temporary, source)?;
+    loop {
+        let rest = input
+            .fill_buf()
+            .map_err(|error| unpack_failed(source, &error))?;
+        if rest.is_empty() {
+            return output.finish();
+        }
+        let mut frame = ruzstd::decoding::StreamingDecoder::new(&mut input)
+            .map_err(|error| unpack_failed(source, &error))?;
+        output.copy_from(&mut frame)?;
+    }
+}
+
+/// Finds the one regular file named `name` in a zip archive and writes it out.
+fn write_from_zip(
+    file: fs::File,
+    source: &Path,
+    name: &str,
+    temporary: &Path,
+) -> CommandResult<String> {
+    let mut archive = zip::ZipArchive::new(std::io::BufReader::new(file))
+        .map_err(|error| unpack_failed(source, &error))?;
+    let mut found: Option<usize> = None;
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index_raw(index)
+            .map_err(|error| unpack_failed(source, &error))?;
+        let entry_name = entry
+            .name()
+            .map_err(|error| unpack_failed(source, &error))?;
+        if entry.is_file() && entry_file_name(&entry_name) == Some(name) {
+            if found.is_some() {
+                return Err(more_than_one(source, name));
+            }
+            found = Some(index);
+        }
+    }
+    let index = found.ok_or_else(|| not_in_archive(source, name))?;
+    let mut entry = archive
+        .by_index(index)
+        .map_err(|error| unpack_failed(source, &error))?;
+    write_hashed(&mut entry, source, temporary)
+}
+
+/// Finds the one regular file named `name` in an xz-compressed tar archive and writes it out. The
+/// whole archive is read, so a second file of the same name is caught.
+fn write_from_tar_xz(
+    file: fs::File,
+    source: &Path,
+    name: &str,
+    temporary: &Path,
+) -> CommandResult<String> {
+    let reader = lzma_rust2::XzReader::new(std::io::BufReader::new(file), true);
+    let mut archive = tar::Archive::new(reader);
+    let mut written: Option<String> = None;
+    for entry in archive
+        .entries()
+        .map_err(|error| unpack_failed(source, &error))?
+    {
+        let mut entry = entry.map_err(|error| unpack_failed(source, &error))?;
+        let path = entry
+            .path()
+            .map_err(|error| unpack_failed(source, &error))?
+            .into_owned();
+        let named = path.file_name().and_then(|file_name| file_name.to_str()) == Some(name);
+        if !named || !entry.header().entry_type().is_file() {
+            continue;
+        }
+        if written.is_some() {
+            remove_temporary(temporary);
+            return Err(more_than_one(source, name));
+        }
+        written = Some(write_hashed(&mut entry, source, temporary)?);
+    }
+    written.ok_or_else(|| not_in_archive(source, name))
+}
+
+/// The last part of an archive entry's name: `gh_2.100.0_macOS_arm64/bin/gh` gives `gh`.
+fn entry_file_name(entry: &str) -> Option<&str> {
+    entry.rsplit('/').next().filter(|part| !part.is_empty())
+}
+
+fn not_in_archive(source: &Path, name: &str) -> CommandError {
+    CommandError::Failed {
+        code: "program_unpack_failed",
+        message: format!("{} holds no program named {name}.", source.display()),
+    }
+}
+
+fn more_than_one(source: &Path, name: &str) -> CommandError {
+    CommandError::Failed {
+        code: "program_unpack_failed",
+        message: format!(
+            "{} holds more than one file named {name}, so the program is not clear.",
+            source.display()
+        ),
+    }
+}
+
+/// One attempt: reads the feed, downloads the pinned version with progress, unpacks the program
+/// when the release file is compressed, and installs it. Returns the Ready status. `status`
+/// carries the attempt count into each status it sends.
 async fn download_and_finish(
     ctx: &InstallContext,
     state: &ProgramsState,
@@ -1452,17 +1685,14 @@ async fn download_and_finish(
     status: &ProgramStatus,
     cancel: &CancellationToken,
 ) -> CommandResult<ProgramStatus> {
-    let manifest = read_release_manifest(&ctx.dirs.manifest())?;
+    let manifest = read_release_manifest(&ctx.feed)?;
     let release = manifest
         .release(program)
         .ok_or_else(|| CommandError::Failed {
             code: "program_release_missing",
             message: format!("The release feed has no {program} program."),
         })?;
-    let pinned = pinned_version(program).ok_or_else(|| CommandError::Failed {
-        code: "program_not_managed",
-        message: format!("{program} is not an agent program this app manages."),
-    })?;
+    let pinned = pinned_version(program);
     if release.version != pinned {
         return Err(CommandError::Failed {
             code: "program_version_not_pinned",
@@ -1474,6 +1704,12 @@ async fn download_and_finish(
     }
     let asset = asset_for(release);
     let target = ctx.dirs.binary(program, pinned);
+    // A raw release file is the program, so it downloads straight to its place. A compressed one
+    // downloads beside it and is unpacked after its SHA-256 matched.
+    let downloaded = match asset.format {
+        AssetFormat::Raw => target.clone(),
+        _ => ctx.dirs.download(program, pinned),
+    };
     if let Some(target_dir) = target.parent() {
         fs::create_dir_all(target_dir).map_err(|error| CommandError::Failed {
             code: "program_install_failed",
@@ -1494,7 +1730,7 @@ async fn download_and_finish(
     let outcome = crate::http::download_request(
         ctx.allowed_hosts,
         &asset.url,
-        &target,
+        &downloaded,
         Some(asset.sha256.as_str()),
         ctx.stall_timeout,
         cancel.clone(),
@@ -1515,10 +1751,15 @@ async fn download_and_finish(
 
     let dirs = ctx.dirs.clone();
     let trash = Arc::clone(&ctx.trash);
-    let expected = asset.sha256.clone();
+    let format = asset.format;
+    let checked = asset.sha256.clone();
     let binary = target.clone();
-    // Hashing a program of a few hundred MB blocks, so it runs off the async workers.
+    // Unpacking and hashing a program of a few hundred MB blocks, so it runs off the async workers.
     let installed = crate::error::blocking("program_install_failed", move || {
+        let expected = match format {
+            AssetFormat::Raw => checked,
+            _ => unpack_downloaded(format, &downloaded, program, &binary)?,
+        };
         finish_install(program, pinned, &binary, &expected, &dirs, &*trash)
     })
     .await?;
@@ -1640,7 +1881,7 @@ pub async fn remove_program(
     state.publish(sink, ProgramStatus::missing(program))
 }
 
-/// Shows the installed copies, then starts an install of every agent program that is not ready.
+/// Shows the installed copies, then starts an install of every managed program that is not ready.
 /// Returns the tasks it started.
 fn prefetch(
     ctx: &InstallContext,
@@ -1649,7 +1890,7 @@ fn prefetch(
 ) -> CommandResult<Vec<tauri::async_runtime::JoinHandle<()>>> {
     hydrate_from_disk(&ctx.dirs, state, sink.as_ref())?;
     let mut started = Vec::new();
-    for program in ManagedProgram::AGENTS {
+    for program in ManagedProgram::ALL {
         if state.status(program).state == ProgramState::Ready {
             continue;
         }
@@ -1676,26 +1917,17 @@ pub fn prepare_on_launch<R: Runtime>(app: &AppHandle<R>) {
     keep_launch_error(prepared, state.inner());
 }
 
-/// Keeps a failed launch preparation on every agent's status, so the window can read why.
+/// Keeps a failed launch preparation on every program's status, so the window can read why.
 fn keep_launch_error(prepared: CommandResult<()>, state: &ProgramsState) {
     if let Err(error) = prepared {
-        for program in ManagedProgram::AGENTS {
+        for program in ManagedProgram::ALL {
             state.keep_error(program, &error);
         }
     }
 }
 
-fn require_agent(program: ManagedProgram) -> CommandResult<()> {
-    if ManagedProgram::AGENTS.contains(&program) {
-        return Ok(());
-    }
-    Err(CommandError::Failed {
-        code: "program_not_managed",
-        message: format!("{program} is not an agent program this app manages."),
-    })
-}
-
-/// Returns the install state of Claude Code and Codex, including a copy already on disk.
+/// Returns the install state of Claude Code, Codex, gh and watchexec, including a copy already on
+/// disk.
 #[tauri::command]
 pub fn programs_state(
     app: AppHandle,
@@ -1706,7 +1938,7 @@ pub fn programs_state(
     Ok(state.snapshot())
 }
 
-/// Installs an agent program, or shows the matching copy already installed. A program already
+/// Installs a managed program, or shows the matching copy already installed. A program already
 /// installing joins that install.
 #[tauri::command]
 pub fn program_install(
@@ -1714,7 +1946,6 @@ pub fn program_install(
     state: State<'_, ProgramsState>,
     program: ManagedProgram,
 ) -> CommandResult<()> {
-    require_agent(program)?;
     let ctx = InstallContext::for_app(&app)?;
     start_install(
         ctx,
@@ -1733,7 +1964,6 @@ pub fn program_redownload(
     state: State<'_, ProgramsState>,
     program: ManagedProgram,
 ) -> CommandResult<()> {
-    require_agent(program)?;
     let ctx = InstallContext::for_app(&app)?;
     start_install(
         ctx,
@@ -1745,7 +1975,7 @@ pub fn program_redownload(
     Ok(())
 }
 
-/// Moves an installed agent program to the Trash and reports it missing. Cancels and waits for a
+/// Moves an installed managed program to the Trash and reports it missing. Cancels and waits for a
 /// running install of it first.
 #[tauri::command]
 pub async fn program_remove(
@@ -1753,12 +1983,11 @@ pub async fn program_remove(
     state: State<'_, ProgramsState>,
     program: ManagedProgram,
 ) -> CommandResult<()> {
-    require_agent(program)?;
     let ctx = InstallContext::for_app(&app)?;
     remove_program(&ctx, state.inner(), &app, program).await
 }
 
-/// Downloads, in the background, the agent programs that are not ready. Until an update feed
+/// Downloads, in the background, the managed programs that are not ready. Until an update feed
 /// carries the next versions (PLAT-28's update manifest item), these are the versions this app
 /// pins.
 #[tauri::command]
@@ -2287,6 +2516,7 @@ mod tests {
             url: "https://example.invalid/claude".to_string(),
             sha256: "a".repeat(64),
             size: 3,
+            format: AssetFormat::Raw,
         }
     }
 
@@ -2310,6 +2540,8 @@ mod tests {
             vec![
                 (ManagedProgram::Claude, ProgramState::Missing),
                 (ManagedProgram::Codex, ProgramState::Missing),
+                (ManagedProgram::Gh, ProgramState::Missing),
+                (ManagedProgram::Watchexec, ProgramState::Missing),
             ]
         );
     }
@@ -2321,6 +2553,7 @@ mod tests {
         let manifest = ReleaseManifest {
             claude: Some(release("2.1.308")),
             codex: Some(release("0.164.0")),
+            ..ReleaseManifest::default()
         };
         fs::write(&path, serde_json::to_string(&manifest).expect("serialise")).expect("write feed");
 
@@ -2331,8 +2564,8 @@ mod tests {
                 .map(|release| release.version.as_str()),
             Some("2.1.308")
         );
-        assert_eq!(pinned_version(ManagedProgram::Claude), Some("2.1.308"));
-        assert_eq!(pinned_version(ManagedProgram::Gh), None);
+        assert_eq!(pinned_version(ManagedProgram::Claude), "2.1.308");
+        assert_eq!(pinned_version(ManagedProgram::Gh), "2.100.0");
     }
 
     #[test]
@@ -2348,7 +2581,7 @@ mod tests {
         };
         let manifest = ReleaseManifest {
             claude: Some(upper),
-            codex: None,
+            ..ReleaseManifest::default()
         };
         fs::write(&path, serde_json::to_string(&manifest).expect("serialise")).expect("write feed");
 
@@ -2360,7 +2593,6 @@ mod tests {
         assert_eq!(claude.darwin_arm64.sha256, "ab".repeat(32));
 
         let short = ReleaseManifest {
-            claude: None,
             codex: Some(ProgramRelease {
                 darwin_x64: ReleaseAsset {
                     sha256: "abc".to_string(),
@@ -2368,6 +2600,7 @@ mod tests {
                 },
                 ..release("0.164.0")
             }),
+            ..ReleaseManifest::default()
         };
         fs::write(&path, serde_json::to_string(&short).expect("serialise")).expect("write feed");
         let error = read_release_manifest(&path).expect_err("a short hash is refused");
@@ -2736,7 +2969,7 @@ mod tests {
     }
 
     fn claude_version() -> &'static str {
-        pinned_version(ManagedProgram::Claude).expect("Claude is pinned")
+        pinned_version(ManagedProgram::Claude)
     }
 
     fn trash_into(folder: PathBuf) -> Trash {
@@ -2749,6 +2982,7 @@ mod tests {
     fn install_context(folder: &TempDir, retry: RetryPolicy) -> InstallContext {
         InstallContext {
             dirs: ProgramDirs::in_app_data(&folder.folder("data")),
+            feed: folder.folder("resources").join(RELEASE_FEED_RESOURCE),
             allowed_hosts: &["127.0.0.1"],
             stall_timeout: Duration::from_secs(10),
             retry,
@@ -2762,23 +2996,49 @@ mod tests {
     };
 
     /// A feed that offers `version` of Claude at `url`, with the size and hash of `body`.
-    fn write_feed(dirs: &ProgramDirs, version: &str, url: &str, body: &[u8]) {
+    fn write_feed(ctx: &InstallContext, version: &str, url: &str, body: &[u8]) {
+        write_program_feed(
+            ctx,
+            ManagedProgram::Claude,
+            version,
+            url,
+            body,
+            AssetFormat::Raw,
+        );
+    }
+
+    /// A feed that offers `version` of `program` at `url` as one `format` file, with the size and
+    /// hash of `body`, the file as served.
+    fn write_program_feed(
+        ctx: &InstallContext,
+        program: ManagedProgram,
+        version: &str,
+        url: &str,
+        body: &[u8],
+        format: AssetFormat,
+    ) {
         let asset = ReleaseAsset {
             url: url.to_string(),
             sha256: sha_hex(body),
             size: body.len() as u64,
+            format,
         };
-        let manifest = ReleaseManifest {
-            claude: Some(ProgramRelease {
-                version: version.to_string(),
-                darwin_arm64: asset.clone(),
-                darwin_x64: asset,
-            }),
-            codex: None,
-        };
-        fs::create_dir_all(&dirs.binaries).expect("make the binaries folder");
+        let release = Some(ProgramRelease {
+            version: version.to_string(),
+            darwin_arm64: asset.clone(),
+            darwin_x64: asset,
+        });
+        let mut manifest = ReleaseManifest::default();
+        match program {
+            ManagedProgram::Claude => manifest.claude = release,
+            ManagedProgram::Codex => manifest.codex = release,
+            ManagedProgram::Gh => manifest.gh = release,
+            ManagedProgram::Watchexec => manifest.watchexec = release,
+        }
+        fs::create_dir_all(ctx.feed.parent().expect("a feed folder"))
+            .expect("make the feed folder");
         fs::write(
-            dirs.manifest(),
+            &ctx.feed,
             serde_json::to_string(&manifest).expect("serialise the feed"),
         )
         .expect("write the feed");
@@ -2824,7 +3084,7 @@ mod tests {
         let folder = TempDir::new();
         let ctx = install_context(&folder, NO_WAIT);
         let (url, server) = serve(vec![Answer::Body(500, b""), Answer::Body(200, b"abc")]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -2872,7 +3132,7 @@ mod tests {
             Answer::Body(503, b""),
             Answer::Body(503, b""),
         ]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -2930,7 +3190,7 @@ mod tests {
         let folder = TempDir::new();
         let ctx = install_context(&folder, NO_WAIT);
         // Nothing listens on port 1, so a download would fail with a network error instead.
-        write_feed(&ctx.dirs, "2.1.307", "http://127.0.0.1:1/program", b"abc");
+        write_feed(&ctx, "2.1.307", "http://127.0.0.1:1/program", b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -2960,7 +3220,7 @@ mod tests {
             Answer::Body(200, b"xyz"),
             Answer::Body(200, b"xyz"),
         ]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -2994,12 +3254,7 @@ mod tests {
         let folder = TempDir::new();
         let ctx = install_context(&folder, NO_WAIT);
         let binary = install_on_disk(&ctx, b"abc");
-        write_feed(
-            &ctx.dirs,
-            claude_version(),
-            "http://127.0.0.1:1/program",
-            b"abc",
-        );
+        write_feed(&ctx, claude_version(), "http://127.0.0.1:1/program", b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -3020,7 +3275,7 @@ mod tests {
         let ctx = install_context(&folder, NO_WAIT);
         let binary = install_on_disk(&ctx, b"old");
         let (url, server) = serve(vec![Answer::Body(200, b"new")]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"new");
+        write_feed(&ctx, claude_version(), &url, b"new");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -3052,7 +3307,7 @@ mod tests {
         let old = ctx.dirs.program(ManagedProgram::Claude).join("2.1.307");
         fs::create_dir_all(&old).expect("make the old version");
         let (url, server) = serve(vec![Answer::Body(200, b"abc")]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -3083,7 +3338,7 @@ mod tests {
             arrived,
             release: hold,
         }]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -3167,7 +3422,7 @@ mod tests {
         let folder = TempDir::new();
         let ctx = install_context(&folder, NO_WAIT);
         let (url, server) = serve(vec![Answer::Body(200, b"abc")]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
@@ -3382,7 +3637,11 @@ mod tests {
         let state = ProgramsState::default();
 
         let started = prefetch(&ctx, &state, recorder.clone()).expect("prefetch starts");
-        assert_eq!(started.len(), 1, "only Codex needs an install");
+        assert_eq!(
+            started.len(),
+            3,
+            "only Codex, gh and watchexec need an install"
+        );
         for task in started {
             tauri::async_runtime::block_on(task).expect("the install task ends");
         }
@@ -3412,7 +3671,7 @@ mod tests {
             },
         );
         let (url, server) = serve(vec![Answer::Body(500, b"")]);
-        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        write_feed(&ctx, claude_version(), &url, b"abc");
         let (recorder, arrivals) = Recorder::new();
         let state = ProgramsState::default();
         let task = start_install(
@@ -3439,6 +3698,417 @@ mod tests {
             Some(&ProgramState::Retrying)
         );
         assert!(!state.is_installing(ManagedProgram::Claude));
+    }
+
+    // ------------------------------------------------------- PLAT-28 and PLAT-35 release files
+
+    /// The feed the app ships, read the way the program manager reads it.
+    fn shipped_feed() -> ReleaseManifest {
+        read_release_manifest(&Path::new(env!("CARGO_MANIFEST_DIR")).join(RELEASE_FEED_RESOURCE))
+            .expect("the shipped release feed reads")
+    }
+
+    #[test]
+    fn plat_28_the_shipped_release_feed_pins_every_program_from_an_allowed_host() {
+        let feed = shipped_feed();
+
+        assert_eq!(
+            ManagedProgram::ALL.len(),
+            4,
+            "claude, codex, gh and watchexec"
+        );
+        for program in ManagedProgram::ALL {
+            let release = feed
+                .release(program)
+                .unwrap_or_else(|| panic!("the feed offers {program}"));
+            assert_eq!(release.version, pinned_version(program), "{program}");
+            for asset in [&release.darwin_arm64, &release.darwin_x64] {
+                crate::http::check_url(&asset.url, crate::http::ALLOWED_HOSTS)
+                    .unwrap_or_else(|error| panic!("{program}: {} is refused: {error}", asset.url));
+                assert!(asset.size > 0, "{program}: {} has a size", asset.url);
+            }
+        }
+        assert_eq!(
+            feed.release(ManagedProgram::Codex)
+                .map(|release| release.darwin_arm64.format),
+            Some(AssetFormat::Zstd)
+        );
+    }
+
+    #[test]
+    fn plat_28_the_app_bundles_the_release_feed_where_the_manager_reads_it() {
+        let config =
+            fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json"))
+                .expect("read tauri.conf.json");
+        let config: serde_json::Value =
+            serde_json::from_str(&config).expect("parse tauri.conf.json");
+
+        assert_eq!(
+            config["bundle"]["resources"][RELEASE_FEED_RESOURCE], RELEASE_FEED_RESOURCE,
+            "the feed is copied to the resource path the program manager reads"
+        );
+    }
+
+    #[test]
+    fn plat_35_the_bin_folder_is_the_one_the_window_puts_on_path() {
+        let data = Path::new("/data");
+        assert_eq!(ProgramDirs::in_app_data(data).bin, data.join("bin"));
+        let paths = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/core/app-paths.ts"),
+        )
+        .expect("read app-paths.ts");
+        assert!(
+            paths.contains(
+                "export const programsBinDir = (paths: AppPaths): string => join(paths.appData, \"bin\");"
+            ),
+            "the window's programsBinDir is <app data>/bin, where the links are"
+        );
+    }
+
+    /// Leaks `bytes`, so the local test server can serve a body made at run time.
+    fn served(bytes: Vec<u8>) -> &'static [u8] {
+        Box::leak(bytes.into_boxed_slice())
+    }
+
+    fn zip_of(files: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::Write;
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        for (name, body) in files {
+            writer
+                .start_file(*name, options)
+                .expect("start a zip entry");
+            writer.write_all(body).expect("write a zip entry");
+        }
+        writer.finish().expect("finish the zip").into_inner()
+    }
+
+    fn tar_xz_of(files: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::Write;
+        let mut builder = tar::Builder::new(Vec::new());
+        for (name, body) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(body.len() as u64);
+            header.set_mode(0o755);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, name, *body)
+                .expect("add a tar entry");
+        }
+        let tar = builder.into_inner().expect("finish the tar");
+        let mut writer = lzma_rust2::XzWriter::new(Vec::new(), lzma_rust2::XzOptions::default())
+            .expect("start the xz stream");
+        writer.write_all(&tar).expect("compress the tar");
+        writer.finish().expect("finish the xz stream")
+    }
+
+    fn zstd_of(body: &[u8]) -> Vec<u8> {
+        ruzstd::encoding::compress_to_vec(body, ruzstd::encoding::CompressionLevel::Fastest)
+    }
+
+    fn install_program(
+        ctx: &InstallContext,
+        state: &ProgramsState,
+        sink: &dyn StatusSink,
+        program: ManagedProgram,
+    ) {
+        tauri::async_runtime::block_on(run_install(
+            ctx,
+            state,
+            sink,
+            program,
+            InstallMode::Install,
+            &CancellationToken::new(),
+        ))
+        .expect("every status was sent");
+    }
+
+    /// Installs `program` from one release file served by the local test server, and returns the
+    /// program's final status.
+    fn install_served(
+        folder: &TempDir,
+        program: ManagedProgram,
+        file: Vec<u8>,
+        format: AssetFormat,
+    ) -> (InstallContext, ProgramStatus) {
+        let ctx = install_context(folder, NO_WAIT);
+        let file = served(file);
+        let (url, server) = serve(vec![Answer::Body(200, file)]);
+        write_program_feed(&ctx, program, pinned_version(program), &url, file, format);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_program(&ctx, &state, recorder.as_ref(), program);
+
+        assert_eq!(server.join().expect("the server ends"), 1);
+        (ctx.clone(), state.status(program))
+    }
+
+    /// The files in a program's version folder, by name.
+    fn version_folder_names(ctx: &InstallContext, program: ManagedProgram) -> Vec<String> {
+        let folder = ctx.dirs.program(program).join(pinned_version(program));
+        let Ok(entries) = fs::read_dir(&folder) else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = entries
+            .map(|entry| {
+                entry
+                    .expect("read an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// Runs the installed program with `--version` and returns what it printed. A run that has not
+    /// ended after 30 s is stopped and fails the test: on a loaded Mac a program written a moment
+    /// ago has been seen to wait in its start-up, and a test must not hang on that.
+    fn program_answer(shim: &Path) -> String {
+        let mut child = Command::new(shim)
+            .arg("--version")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("the installed program starts");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let status = loop {
+            if let Some(status) = child.try_wait().expect("read the program's state") {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                child.kill().expect("stop the program");
+                child.wait().expect("collect the program");
+                panic!("{} did not answer --version within 30 s", shim.display());
+            }
+            thread::sleep(Duration::from_millis(10));
+        };
+        assert!(status.success(), "the program exited with {status}");
+        let mut printed = String::new();
+        child
+            .stdout
+            .take()
+            .expect("the program's output")
+            .read_to_string(&mut printed)
+            .expect("read the program's output");
+        printed.trim().to_string()
+    }
+
+    #[test]
+    fn plat_28_codex_is_unpacked_from_its_zstd_release_file() {
+        let folder = TempDir::new();
+        let program = b"#!/bin/sh\necho codex-cli 0.164.0\n";
+
+        let (ctx, status) = install_served(
+            &folder,
+            ManagedProgram::Codex,
+            zstd_of(program),
+            AssetFormat::Zstd,
+        );
+
+        assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
+        let binary = ctx.dirs.binary(ManagedProgram::Codex, "0.164.0");
+        assert_eq!(fs::read(&binary).expect("the program"), program);
+        assert_eq!(
+            version_folder_names(&ctx, ManagedProgram::Codex),
+            vec!["codex".to_string()],
+            "the downloaded file is gone"
+        );
+        let metadata = fs::read_to_string(ctx.dirs.metadata(ManagedProgram::Codex, "0.164.0"))
+            .expect("metadata");
+        let metadata: serde_json::Value = serde_json::from_str(&metadata).expect("metadata json");
+        assert_eq!(
+            metadata["sha256"],
+            sha_hex(program),
+            "the program's own hash"
+        );
+        assert_eq!(
+            program_answer(&ctx.dirs.shim(ManagedProgram::Codex)),
+            "codex-cli 0.164.0"
+        );
+    }
+
+    #[test]
+    fn plat_28_a_zstd_file_of_two_frames_unpacks_whole() {
+        let folder = TempDir::new();
+        let mut file = zstd_of(b"#!/bin/sh\n");
+        file.extend(zstd_of(b"echo codex-cli 0.164.0\n"));
+
+        let (ctx, status) = install_served(&folder, ManagedProgram::Codex, file, AssetFormat::Zstd);
+
+        assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
+        assert_eq!(
+            fs::read(ctx.dirs.binary(ManagedProgram::Codex, "0.164.0")).expect("the program"),
+            b"#!/bin/sh\necho codex-cli 0.164.0\n"
+        );
+    }
+
+    #[test]
+    fn plat_35_gh_is_unpacked_from_its_zip_and_runs_through_the_bin_folder() {
+        let folder = TempDir::new();
+        let program = b"#!/bin/sh\necho gh version 2.100.0\n";
+        let archive = zip_of(&[
+            ("gh_2.100.0_macOS_arm64/LICENSE", b"MIT"),
+            ("gh_2.100.0_macOS_arm64/share/man/man1/gh.1", b"manual"),
+            ("gh_2.100.0_macOS_arm64/bin/gh", program),
+        ]);
+
+        let (ctx, status) = install_served(&folder, ManagedProgram::Gh, archive, AssetFormat::Zip);
+
+        assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
+        assert_eq!(status.version.as_deref(), Some("2.100.0"));
+        let binary = ctx.dirs.binary(ManagedProgram::Gh, "2.100.0");
+        assert_eq!(fs::read(&binary).expect("the program"), program);
+        assert_eq!(
+            fs::read_link(ctx.dirs.bin.join("gh")).expect("the bin shim"),
+            binary
+        );
+        assert_eq!(
+            program_answer(&ctx.dirs.bin.join("gh")),
+            "gh version 2.100.0"
+        );
+    }
+
+    #[test]
+    fn plat_35_watchexec_is_unpacked_from_its_tar_xz() {
+        let folder = TempDir::new();
+        let program = b"#!/bin/sh\necho watchexec 2.3.2\n";
+        let archive = tar_xz_of(&[
+            (
+                "watchexec-2.3.2-aarch64-apple-darwin/LICENSE",
+                b"Apache-2.0",
+            ),
+            (
+                "watchexec-2.3.2-aarch64-apple-darwin/completions/zsh",
+                b"#compdef watchexec",
+            ),
+            ("watchexec-2.3.2-aarch64-apple-darwin/watchexec", program),
+        ]);
+
+        let (ctx, status) = install_served(
+            &folder,
+            ManagedProgram::Watchexec,
+            archive,
+            AssetFormat::TarXz,
+        );
+
+        assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
+        assert_eq!(
+            fs::read(ctx.dirs.binary(ManagedProgram::Watchexec, "2.3.2")).expect("the program"),
+            program
+        );
+        assert_eq!(
+            program_answer(&ctx.dirs.bin.join("watchexec")),
+            "watchexec 2.3.2"
+        );
+    }
+
+    #[test]
+    fn plat_35_a_gh_download_with_a_wrong_checksum_leaves_no_file_in_the_bin_folder() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let archive = served(zip_of(&[("gh_2.100.0_macOS_arm64/bin/gh", b"#!/bin/sh\n")]));
+        let (url, server) = serve(vec![
+            Answer::Body(200, archive),
+            Answer::Body(200, archive),
+            Answer::Body(200, archive),
+        ]);
+        write_program_feed(
+            &ctx,
+            ManagedProgram::Gh,
+            "2.100.0",
+            &url,
+            b"another file",
+            AssetFormat::Zip,
+        );
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_program(&ctx, &state, recorder.as_ref(), ManagedProgram::Gh);
+
+        assert_eq!(server.join().expect("the server ends"), 3);
+        let status = state.status(ManagedProgram::Gh);
+        assert_eq!(status.state, ProgramState::Failed);
+        assert!(!ctx.dirs.bin.join("gh").exists(), "no gh in the bin folder");
+        assert_eq!(
+            version_folder_names(&ctx, ManagedProgram::Gh),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn plat_28_an_archive_without_the_program_fails_and_leaves_nothing() {
+        let folder = TempDir::new();
+        let archive = zip_of(&[("gh_2.100.0_macOS_arm64/LICENSE", b"MIT")]);
+
+        let (ctx, status) = install_served(&folder, ManagedProgram::Gh, archive, AssetFormat::Zip);
+
+        assert_eq!(
+            status.state,
+            ProgramState::Failed,
+            "a feed problem is not retried"
+        );
+        assert!(
+            status
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("holds no program named gh")),
+            "{:?}",
+            status.error
+        );
+        assert_eq!(
+            version_folder_names(&ctx, ManagedProgram::Gh),
+            Vec::<String>::new(),
+            "neither the download nor a half-written program is left"
+        );
+        assert!(!ctx.dirs.bin.join("gh").exists());
+    }
+
+    #[test]
+    fn plat_28_an_archive_with_two_files_of_the_program_name_is_refused() {
+        let folder = TempDir::new();
+        let archive = tar_xz_of(&[
+            ("one/watchexec", b"#!/bin/sh\necho one\n"),
+            ("two/watchexec", b"#!/bin/sh\necho two\n"),
+        ]);
+
+        let (ctx, status) = install_served(
+            &folder,
+            ManagedProgram::Watchexec,
+            archive,
+            AssetFormat::TarXz,
+        );
+
+        assert_eq!(status.state, ProgramState::Failed);
+        assert!(
+            status
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("more than one file named watchexec")),
+            "{:?}",
+            status.error
+        );
+        assert_eq!(
+            version_folder_names(&ctx, ManagedProgram::Watchexec),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn plat_35_the_program_state_lists_gh_and_watchexec_beside_the_agents() {
+        let statuses = ProgramsState::default().snapshot();
+
+        assert_eq!(
+            statuses
+                .iter()
+                .map(|status| status.program)
+                .collect::<Vec<_>>(),
+            ManagedProgram::ALL.to_vec()
+        );
     }
 
     fn no_trash(_: &Path) -> CommandResult<()> {

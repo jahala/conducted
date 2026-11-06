@@ -27,9 +27,10 @@
  * (SET-04): the global values, with the repository's own values replacing them. The values come
  * from the Keychain through the composition root, never from a file.
  * All three also receive `CONDUCTED_PATH_PREFIX` (SET-13): the shim folder for the program paths
- * chosen in settings, or the bundled bin folder when none are chosen or staging fails. All three
- * start from the login environment of the workspace folder (PLAT-07, services-map.md 5A.8.3): the
- * archive script through `envFromCwd`, setup and run through the terminal service.
+ * chosen in settings, then the app's bin folder in the data folder, which holds the managed
+ * programs (PLAT-28, PLAT-35); the bin folder alone when none are chosen or staging fails. All
+ * three start from the login environment of the workspace folder (PLAT-07, services-map.md
+ * 5A.8.3): the archive script through `envFromCwd`, setup and run through the terminal service.
  * Built now: `runSetup` and `stopAll` (WS-03 and RUN-01), `runArchive` (WS-05), which runs the
  * repository's archive script once through the shell before the worktree is removed, the run
  * actions above (RUN-01), and the RUN-03 paths: polling the workspace's listening ports into
@@ -49,7 +50,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Platform } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
-import { binDir, setupLogFile } from "../app-paths.ts";
+import { programsBinDir, setupLogFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
@@ -169,7 +170,7 @@ export interface RunScriptsServiceDeps {
 	environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
 	/**
 	 * The folder to put first on PATH (SET-13). The composition root supplies it; a test of
-	 * another path may leave it out, and the bundled bin folder is then used.
+	 * another path may leave it out, and the app's bin folder is then used.
 	 */
 	pathPrefixFor?: () => Promise<Result<string>>;
 }
@@ -698,7 +699,7 @@ export class RunScriptsService {
 
 	/** The folder to put first on PATH, or the bundled bin folder when no source is wired. */
 	async #pathPrefix(): Promise<Result<string>> {
-		if (this.#deps.pathPrefixFor === undefined) return ok(binDir(this.#deps.fs.paths));
+		if (this.#deps.pathPrefixFor === undefined) return ok(programsBinDir(this.#deps.fs.paths));
 		return this.#deps.pathPrefixFor();
 	}
 

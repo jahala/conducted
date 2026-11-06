@@ -32,7 +32,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -202,6 +202,8 @@ async function harness(
 		files?: Map<string, string>;
 		skillPluginDir?: string;
 		cursorSdk?: CursorSdk;
+		/** The app's bin and managed programs folders, when a test lays out managed copies. */
+		programs?: { binDir: string; agentBinariesDir: string };
 		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
 		claude?: TalkingClaude;
 	} = {},
@@ -225,10 +227,11 @@ async function harness(
 	};
 	const host = composeSidecar(
 		{
-			binDir: BIN_DIR,
+			binDir: options.programs?.binDir ?? BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
+			agentBinariesDir: options.programs?.agentBinariesDir ?? path.join(folder, "agent-binaries"),
 			logDir: path.join(folder, "log"),
 			skillPluginDir: options.skillPluginDir,
 			appVersion: "0.0.0",
@@ -852,6 +855,36 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		});
 	});
 
+	test("PLAT-28 PLAT-35 a Codex chat with no chosen program starts the managed copy, with the bin folder first on PATH", async () => {
+		const folder = await workspaceFolder();
+		const binDir = path.join(folder, "app-bin");
+		const agentBinariesDir = path.join(folder, "agent-binaries");
+		const version = path.join(agentBinariesDir, "codex", "0.164.0");
+		await mkdir(binDir, { recursive: true });
+		await mkdir(version, { recursive: true });
+		const managed = path.join(version, "codex");
+		await writeFile(managed, "#!/bin/sh\nexit 0\n");
+		await chmod(managed, 0o755);
+		await symlink(managed, path.join(binDir, "codex"));
+		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
+		const spawned = h.seen.nextCodexSpawn();
+
+		await h.handlers.sendMessage(
+			sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" })),
+		);
+		await spawned;
+
+		const spawn = h.seen.codexSpawns[0];
+		expect(spawn?.command).toBe(await realpath(managed));
+		expect(spawn?.env.PATH).toBe(`${binDir}:/usr/bin`);
+		const installs = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
+		expect(installs.agents.find((install) => install.agent === "codex")).toMatchObject({
+			installed: true,
+			source: "managed",
+			version: "0.164.0",
+		});
+	});
+
 	test("SIDE-13 an ACP chat's session/new carries the app tools server and its token from the root", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder, {
@@ -1250,6 +1283,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
+			agentBinariesDir: path.join(folder, "agent-binaries"),
 			logDir: path.join(folder, "log"),
 			appVersion: "9.9.9",
 			logLevel: "debug",
@@ -1262,6 +1296,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
 				CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
 				CONDUCTED_CURSOR_STORE_DIR: config.cursorStoreDir,
+				CONDUCTED_AGENT_BINARIES_DIR: config.agentBinariesDir,
 				CONDUCTED_LOG_DIR: config.logDir,
 				CONDUCTED_APP_VERSION: config.appVersion,
 				CONDUCTED_LOG_LEVEL: config.logLevel,
@@ -1335,6 +1370,40 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		}
 	});
 
+	test("PLAT-28 SIDE-21 model, slash command and MCP lists with no chosen program run the managed copy, as a chat's start does", async () => {
+		const folder = await workspaceFolder();
+		const binDir = path.join(folder, "app-bin");
+		const agentBinariesDir = path.join(folder, "agent-binaries");
+		const version = path.join(agentBinariesDir, "claude", "2.1.0");
+		await mkdir(binDir, { recursive: true });
+		await mkdir(version, { recursive: true });
+		const managed = path.join(version, "claude");
+		await writeFile(managed, "#!/bin/sh\nexit 0\n");
+		await chmod(managed, 0o755);
+		await symlink(managed, path.join(binDir, "claude"));
+		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
+		const launch: AgentLaunch = { env: {}, providerKeys: {} };
+		try {
+			unwrap(await h.handlers.listModels({ agent: "claude" }));
+			unwrap(
+				await h.handlers.listSlashCommands({
+					agent: "claude",
+					workspacePath: folder,
+					repoRootPath: folder,
+					launch,
+				}),
+			);
+			unwrap(await h.handlers.listMcpServers({ agent: "claude", workspacePath: folder, launch }));
+
+			expect(h.seen.claudeOptions).toHaveLength(3);
+			for (const { options } of h.seen.claudeOptions) {
+				expect(options.pathToClaudeCodeExecutable).toBe(await realpath(managed));
+			}
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("SIDE-21 the agent list reports the program paths the app sends with setAgentPrograms", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder);
@@ -1402,6 +1471,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_OUTBOX_ROOT: path.join(folder, "outbox"),
 				CONDUCTED_COMPLETIONS_DIR: path.join(folder, "completions"),
 				CONDUCTED_CURSOR_STORE_DIR: path.join(folder, "cursor-sdk-store"),
+				CONDUCTED_AGENT_BINARIES_DIR: path.join(folder, "agent-binaries"),
 				CONDUCTED_LOG_DIR: path.join(folder, "log"),
 				CONDUCTED_APP_VERSION: "0.0.0",
 				CONDUCTED_LOG_LEVEL: "info",
