@@ -23,9 +23,9 @@
 //! - Terminal apps open a new window in the folder. For a file path they open its parent folder.
 //! - `reveal_in_finder` selects the item in a Finder window (`open -R`).
 //!
-//! Our design choice: the catalogue holds app labels only, taken from the research's list. Bundle
-//! names are checked against the real folders when this is built. Conductor's app icons are not
-//! reused; the UI shows our own icons or the system icon for the app.
+//! Our design choice: the catalogue holds app labels only, taken from the research's list. The
+//! bundle names are not checked against real installs; a wrong name shows that app as missing.
+//! Conductor's app icons are not reused; the UI shows our own icons or the system icon for the app.
 //!
 //! Test first: with a temp folder standing in for `/Applications` that holds `Cursor.app` and
 //! `Ghostty.app`, `installed_apps_in` returns "Finder", "Cursor" and "Ghostty" in catalogue order.

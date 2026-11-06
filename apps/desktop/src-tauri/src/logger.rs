@@ -39,7 +39,8 @@
 //!
 //! Our design choice: Rust writes the files directly. Conductor runs a separate logger process
 //! with an in-memory buffer and an HTTP port; a local-only app does not need either. The sidecar
-//! keeps its own log (sidecar.rs), and the export includes it.
+//! keeps its own log (sidecar.rs), which redacts each line with `redact_text` as it writes, and the
+//! export includes it.
 //! Not built here: routing the sidecar's stdout and stderr into these files belongs to the
 //! sidecar launcher (PLAT-09, D026). This file only caps those logs, cleans them at start and
 //! includes the newest one in an export.
@@ -66,7 +67,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use tauri::{AppHandle, Manager, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 
 /// Days of app log files kept.
 pub const KEEP_DAYS: u64 = 14;
@@ -241,14 +242,10 @@ pub async fn log_set_level(state: State<'_, LoggerState>, level: String) -> Comm
 #[tauri::command]
 pub async fn logs_export(app: AppHandle) -> CommandResult<String> {
     let data_dir = app_data_dir(&app)?;
-    tauri::async_runtime::spawn_blocking(move || export_logs_in(&data_dir, now_ms()))
-        .await
-        .map_err(|error| {
-            failed(
-                "log_export_task_failed",
-                format!("The log export task failed: {error}"),
-            )
-        })?
+    blocking("log_export_task_failed", move || {
+        export_logs_in(&data_dir, now_ms())
+    })
+    .await
 }
 
 fn now_ms() -> i64 {

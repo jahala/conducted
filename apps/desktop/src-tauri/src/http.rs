@@ -352,7 +352,9 @@ async fn fetch_request(
     })
 }
 
-fn parse_sha256(text: &str) -> CommandResult<String> {
+/// Reads a SHA-256 as 64 hexadecimal characters in lower case. The one rule for a hash the app is
+/// given; the program manager reads its release feed with it too.
+pub(crate) fn parse_sha256(text: &str) -> CommandResult<String> {
     let value = text.trim().to_ascii_lowercase();
     if value.len() != 64 || !value.chars().all(|character| character.is_ascii_hexdigit()) {
         return Err(CommandError::Failed {
