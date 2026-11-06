@@ -1,6 +1,7 @@
 /**
  * @feature WS-11 Backlog workspaces: save now, start later
- * Owns: the backlog screen's rows, their Unstarted label, Start and Remove, and Cmd+Enter.
+ * Owns: the backlog screen's rows, their Unstarted label, Start and Remove, Cmd+Enter, and the
+ * repository picker of a draft whose project was removed.
  * Behaviour: ui-map.md 3.1 (Workspace actions offers Start), 3.8 (Unstarted), 5.4 (Cmd+Enter).
  * Test first: pressing Cmd+Enter starts the selected backlog workspace.
  */
@@ -184,5 +185,31 @@ describe("WS-11 BacklogScreen", () => {
 			expect(container.services.workspace.store.getState().backlogById[entry.id]).toBeUndefined(),
 		);
 		expect(screen.getByText("No workspaces in the backlog")).toBeTruthy();
+	});
+
+	it("asks for a repository when the draft's project was removed, and saves the pick", async () => {
+		const { container, entry, repo } = await renderBacklog();
+		const other = await seedRepo(container, { name: "Other project", rootPath: "/other" });
+		expect((await container.actions.projects.remove(repo.id)).ok).toBe(true);
+
+		expect(
+			await screen.findByText("No ready repository. Pick one to start this workspace."),
+		).toBeTruthy();
+		const picker = screen.getByRole("combobox", { name: "Switch repo" });
+		fireEvent.keyDown(picker, { key: "Enter" });
+		fireEvent.keyDown(await screen.findByRole("option", { name: "Other project" }), {
+			key: "Enter",
+		});
+
+		await waitFor(() =>
+			expect(container.services.workspace.store.getState().backlogById[entry.id]?.repoId).toBe(
+				other.id,
+			),
+		);
+		await waitFor(() =>
+			expect(
+				screen.queryByText("No ready repository. Pick one to start this workspace."),
+			).toBeNull(),
+		);
 	});
 });

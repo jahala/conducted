@@ -56,6 +56,7 @@ import type {
 	FileStat,
 	FileSystem,
 	GrepMatch,
+	Opener,
 	Shell,
 	TreeEntry,
 } from "../../platform/platform.ts";
@@ -77,6 +78,8 @@ export interface WorkspaceFilesServiceDeps {
 	shell: Pick<Shell, "run">;
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
+	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
+	opener: Pick<Opener, "revealInFinder" | "openWith">;
 }
 
 /** One request from the Git panel or a shortcut to show a file in the centre. */
@@ -138,11 +141,15 @@ const workspaceOfDraftKey = (key: string): WorkspaceId =>
 	key.slice(0, key.indexOf("\u0000")) as WorkspaceId;
 
 /**
- * The URL the webview loads a file's preview from. The modified time changes the URL when the file
- * changes, so an image, PDF or video loads again.
+ * The URL the webview loads a file's preview from (`fs.assetUrl`). The modified time changes the
+ * URL when the file changes, so an image, PDF or video loads again.
  */
-export const previewUrlOf = (absolutePath: string, modifiedAt: number | null): string => {
-	const url = `asset://localhost/${encodeURIComponent(absolutePath)}`;
+export const previewUrlOf = (
+	fs: Pick<FileSystem, "assetUrl">,
+	absolutePath: string,
+	modifiedAt: number | null,
+): string => {
+	const url = fs.assetUrl(absolutePath);
 	return modifiedAt === null ? url : `${url}?v=${modifiedAt}`;
 };
 
@@ -310,7 +317,7 @@ export class WorkspaceFilesService {
 				kind: "binary",
 				sizeBytes,
 				modifiedAt,
-				previewUrl: previewUrlOf(absolute, modifiedAt),
+				previewUrl: previewUrlOf(this.#deps.fs, absolute, modifiedAt),
 			});
 		}
 		if (read.error.code === "fs_file_too_large") return ok({ kind: "too_large", sizeBytes });
@@ -455,6 +462,32 @@ export class WorkspaceFilesService {
 		};
 		for (const listener of this.#openListeners) listener(request);
 		return ok(undefined);
+	}
+
+	/** Backs `Actions.files.reveal`: shows the file selected in a Finder window. */
+	async reveal(workspaceId: WorkspaceId, relativePath: string): Promise<Result<void>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		try {
+			await this.#deps.opener.revealInFinder(resolved.value.absolute);
+			return ok(undefined);
+		} catch (cause) {
+			return err(appError("reveal_failed", "Finder could not show the file.", cause));
+		}
+	}
+
+	/**
+	 * Backs `Actions.files.openInApp`: opens the file in the named app. The "Open in" menu's rule
+	 * chooses the app (features/open-in), since only the screen knows which apps it lists.
+	 */
+	async openInApp(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		appName: string,
+	): Promise<Result<void>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		return this.#deps.opener.openWith(appName, resolved.value.absolute);
 	}
 
 	/** Backs `Actions.files.write`. Fails with code "changed_on_disk" when the file moved on. */

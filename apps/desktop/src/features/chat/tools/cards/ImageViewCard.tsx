@@ -6,11 +6,13 @@
  * Must handle: An image still loading; an image that cannot be shown, such as a file that is gone
  * (the name and a clear message stay, the preview does not); a result that names the path instead
  * of the input; a result that is not a path at all ("No image path was given").
- * Not built here: loading a local file into the preview. The webview cannot read a file path
- * directly, and the Platform has no door that turns a path into a URL the view may load.
+ * The preview loads the file through `Platform.fs.assetUrl`. The Rust shell serves files of the
+ * registered project and workspace folders and the attachment folder; any other file fails to load
+ * and the card says so.
  * Test first: An image_view call renders 'Preview image' with the file name.
  */
 import { useState } from "react";
+import { useServices } from "../../../../core/context.tsx";
 import { EyeIcon } from "../../../../ui/icons.tsx";
 import { asRecord, fileNameOf, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
@@ -39,6 +41,7 @@ export function ImageViewCard({ call, defaultExpanded }: ToolCardProps) {
 		imagePathOf(textField(input, "path", "file_path", "filePath")) ??
 		imagePathOf(call.result?.output ?? null);
 	const name = path === null ? null : fileNameOf(path);
+	const { platform } = useServices();
 	const [failedPath, setFailedPath] = useState<string | null>(null);
 	const failed = path !== null && failedPath === path;
 	return (
@@ -52,7 +55,7 @@ export function ImageViewCard({ call, defaultExpanded }: ToolCardProps) {
 				<div className="flex flex-col gap-2">
 					{path !== null && !failed ? (
 						<img
-							src={path}
+							src={platform.fs.assetUrl(path)}
 							alt={name ?? "Image"}
 							onError={() => setFailedPath(path)}
 							className="max-h-80 max-w-full rounded-sm object-contain"

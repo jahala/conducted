@@ -19,9 +19,8 @@
 import { chmod, mkdir, unlink } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { dirname } from "node:path";
-import { type AppError, appError, type Result } from "@conducted/shared";
+import { type AppError, appError, isMissingFile, messageOf, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { isMissingFile, messageOf } from "../util/errors.ts";
 import type { RpcPeer, RpcTransport } from "./peer.ts";
 
 export interface SocketServerDeps {

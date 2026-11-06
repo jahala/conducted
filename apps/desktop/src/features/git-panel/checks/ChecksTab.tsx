@@ -5,14 +5,15 @@
  * Behaviour: ui-map.md 3.6, "Checks" paragraph; services-map.md 3.7.2 (what the poll returns),
  * 3.7.4 (review comments) and 3.7.5 (re-run, failed job log).
  * Data: useGitState (pullRequest, pullRequestUnavailable), useDiffComments (GitHub-origin
- * comments), useActions().pullRequests (rerunFailedChecks, fixErrors) and comments. The check rows
+ * comments), useActions().pullRequests (rerunFailedChecks, fixErrors, openOnGithub) and comments. The check rows
  * load their own logs through useCheckLog. Reviewers and deployments are fields of PullRequest.
  * "Open on GitHub" opens the pull request's own page; with no pull request, "Create PR" opens
  * GitHub's new pull request page. Resolving a GitHub thread goes through
  * `actions.comments.setResolved`, which resolves it on GitHub (REV-04), and then shows "Comment
  * resolved on GitHub"; unresolving one is refused with the service's message. A failed GitHub
- * sync shows a line above the comments saying they may be out of date. The comments offer no
- * "Hide" until comment states are built (REV-12).
+ * sync shows a line above the comments saying they may be out of date. "Hide" sets the comment's
+ * state to hidden through `actions.comments.setHidden` (REV-12); hidden and superseded comments
+ * are left out of the list, and a sync keeps a hidden GitHub comment hidden.
  * Children: PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
  * Must handle: no PR yet (explain, offer Create PR), PR info loading, offline, no GitHub access
  * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
@@ -20,7 +21,9 @@
  * Test first: with a PR that has one failed check, the tab shows the failed check and a "Re-run
  * failed checks" button.
  */
+
 import type { CommentId, WorkspaceId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import { useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
@@ -70,7 +73,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 
 	/** With no pull request yet, GitHub's page for creating one. */
 	const createOnGithub = () => {
-		void services.github.openOnGithub(workspaceId).then((result) => {
+		void actions.pullRequests.openOnGithub(workspaceId).then((result) => {
 			if (!result.ok) toastError("Couldn't open GitHub", result.error);
 		});
 	};
@@ -98,7 +101,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 			}
 			return result.ok;
 		} catch (cause) {
-			toastError(title, { message: cause instanceof Error ? cause.message : String(cause) });
+			toastError(title, { message: messageOf(cause) });
 			return false;
 		}
 	};
@@ -129,7 +132,13 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 	};
 
 	const commentList = comments.state === "ready" ? comments.data : [];
-	const githubComments = commentList.filter((comment) => comment.author.kind === "github");
+	// A hidden comment leaves the list; a superseded one belongs to an older review.
+	const githubComments = commentList.filter(
+		(comment) =>
+			comment.author.kind === "github" &&
+			comment.state !== "hidden" &&
+			comment.state !== "superseded",
+	);
 
 	const addCommentsToChat = (ids: CommentId[]) => {
 		if (ids.length === 0) return;
@@ -146,6 +155,10 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 		).then((done) => {
 			if (done && resolved && onGithub) toast.success("Comment resolved on GitHub");
 		});
+	};
+
+	const hideComment = (id: CommentId) => {
+		void runAction("Couldn't hide the comment", () => actions.comments.setHidden(id, true));
 	};
 
 	const openComment = (id: CommentId) => {
@@ -230,6 +243,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 				comments={githubComments}
 				onAddToChat={addCommentsToChat}
 				onResolve={resolveComment}
+				onHide={hideComment}
 				onOpenComment={openComment}
 			/>
 			<ReviewersList

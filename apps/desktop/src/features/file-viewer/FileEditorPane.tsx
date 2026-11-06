@@ -12,8 +12,9 @@
  * Must handle: save failing (draft kept, error shown), disk change while clean (the new text
  * shows, the file stays clean), disk change while dirty (the "changed" banner), the file deleted
  * while dirty (the "deleted" banner), a kept change or deletion staying quiet while the user types,
- * very large files (read-only), the find bar's current match selected in the editor, and Replace
- * with no current match (it replaces the first).
+ * very large files (read-only), the find bar's current match selected in the editor, Replace
+ * with no current match (it replaces the first), and a binary or too-large file (it cannot be
+ * edited; "Open in another app" opens it in the default "Open in" app).
  * Test first: with a dirty draft and a newer modified time on disk, the banner shows and the draft
  * is unchanged.
  */
@@ -29,6 +30,7 @@ import { EditorSurface } from "./editor/EditorSurface.tsx";
 import { FindReplaceBar } from "./editor/FindReplaceBar.tsx";
 import { buildPattern, findMatches, replaceMatches } from "./editor/find-matches.ts";
 import { FileTabState } from "./FileTabState.tsx";
+import { useOpenElsewhere } from "./use-open-elsewhere.ts";
 
 export interface FileEditorPaneProps {
 	workspaceId: WorkspaceId;
@@ -48,6 +50,7 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 	const ligatures = useSetting<boolean>("file_ligatures_enabled");
 	const monoFont = useSetting<string>("mono_font");
 	const themeType = useThemeType();
+	const elsewhere = useOpenElsewhere(workspaceId, path);
 
 	const [findOpen, setFindOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -159,11 +162,12 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 			<FileTabState
 				kind="too_large"
 				detail={content.data.sizeBytes > MAX_EDIT_BYTES ? "This file is too large to edit." : null}
+				onAction={elsewhere.openInApp}
 			/>
 		);
 	}
 	if (content.data.kind === "binary") {
-		return <FileTabState kind="binary" detail={null} />;
+		return <FileTabState kind="binary" detail={null} onAction={elsewhere.openInApp} />;
 	}
 	if (content.data.kind === "missing" && draft === undefined) {
 		return <FileTabState kind="missing" detail={null} onAction={retry} />;

@@ -186,7 +186,6 @@
 		"apps/desktop/src-tauri/src/shell.rs": 4,
 		"apps/desktop/src/app/CreateWorkspacePage.test.tsx": 2,
 		"apps/desktop/src/core/async/fire-and-forget.test.ts": 1,
-		"apps/desktop/src/core/async/serial-queue.test.ts": 1,
 		"apps/desktop/src/core/git/locks.test.ts": 1,
 		"apps/desktop/src/core/git/runner.test.ts": 1,
 		"apps/desktop/src/core/services/composer.test.ts": 1,
@@ -219,7 +218,6 @@
 		"packages/sidecar/src/session/live-state.test.ts": 1,
 		"packages/sidecar/src/session/manager.process-lifetime.test.ts": 2,
 		"packages/sidecar/src/session/manager.test.ts": 1,
-		"packages/sidecar/src/session/serial-queue.test.ts": 1,
 		"packages/sidecar/src/session/turn.test.ts": 2,
 		"packages/sidecar/src/util/async-queue.test.ts": 1
 	},

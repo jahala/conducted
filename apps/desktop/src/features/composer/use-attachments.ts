@@ -11,25 +11,26 @@
  * the draft. The service owns the file rules (a folder, an image over 5 MB), and the hook shows the
  * message it returns. Long pasted text uses the composer's `addText`, which stages it as a text
  * file. Adds run one after the other, so two drops keep their order.
- * Not built yet: a pasted image or screenshot. WKWebView gives a pasted file no path, and the
- * Platform has no call that writes pasted bytes to the staging folder, so such a paste shows
- * "Attachments not available". 'Paste copied files as paths' inserts the clipboard's text; files
- * copied in Finder need a Platform call that reads the pasteboard's file list. Both wait on a
- * change to the Platform contract (platform/platform.ts), which the owner approves.
+ * A pasted image or screenshot has no path in WKWebView, so its bytes go to the composer's
+ * `addBytes`, which writes them into the staging folder (`Platform.attachments.writeBytes`).
+ * 'Paste copied files as paths' reads the files copied in Finder (`Platform.clipboard
+ * .readFilePaths`) and types their paths into the editor, one space between each. The research
+ * names the command but not how the paths are joined or what an empty clipboard shows; an empty
+ * one shows "Attachments not available", as before.
  * Must handle: a folder (refused with "Folders can't be uploaded"); a failed copy (the others
- * still succeed); a cancelled picker; a paste with no file path; the setting that turns long-text
+ * still succeed); a cancelled picker; a pasted file with no path or no name; the setting that turns long-text
  * conversion off; a drop from the window, taken only by the composer of the chat on screen (the
  * sessions store's viewing chat), so a second chat in a split pane does not get the same files.
  * Test first: dropping two files adds two paths to the draft in order.
  */
-import type { SessionId } from "@conducted/shared";
+import { ok, type Result, type SessionId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import { convertsToAttachment } from "../../core/services/composer.ts";
-import { toast } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 
 export interface UseAttachmentsProps {
 	sessionId: SessionId;
@@ -98,13 +99,27 @@ export function useAttachments({
 		return guarded;
 	}, []);
 
-	const addPaths = useCallback(
-		(paths: string[]): Promise<void> => {
-			if (paths.length === 0) return Promise.resolve();
+	/** A file with no path, such as a pasted screenshot: its bytes are staged under its name. */
+	const addPastedFile = useCallback(
+		async (file: File): Promise<Result<string[]>> => {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const added = await services.composer.addBytes(sessionId, file.name, bytes);
+			return added.ok ? ok([added.value.path]) : added;
+		},
+		[services.composer, sessionId],
+	);
+
+	/** Adds each file in order: a path through the attachment action, a pasted file by its bytes. */
+	const addEach = useCallback(
+		(items: readonly (string | File)[]): Promise<void> => {
+			if (items.length === 0) return Promise.resolve();
 			return enqueue(async () => {
 				const added: string[] = [];
-				for (const path of paths) {
-					const result = await actions.attachments.add(sessionId, [path]);
+				for (const item of items) {
+					const result =
+						typeof item === "string"
+							? await actions.attachments.add(sessionId, [item])
+							: await addPastedFile(item);
 					if (!result.ok) {
 						toast.error(result.error.message);
 						continue;
@@ -114,22 +129,14 @@ export function useAttachments({
 				if (added.length > 0) update([...pathsRef.current, ...added]);
 			});
 		},
-		[actions, enqueue, sessionId, update],
+		[actions, addPastedFile, enqueue, sessionId, update],
 	);
 
+	const addPaths = useCallback((paths: string[]): Promise<void> => addEach(paths), [addEach]);
+
 	const add = useCallback(
-		(files: File[]): Promise<void> => {
-			const paths: string[] = [];
-			let unavailable = false;
-			for (const file of files) {
-				const path = pathOf(file);
-				if (path === null) unavailable = true;
-				else paths.push(path);
-			}
-			if (unavailable) toast.error("Attachments not available");
-			return addPaths(paths);
-		},
-		[addPaths],
+		(files: File[]): Promise<void> => addEach(files.map((file) => pathOf(file) ?? file)),
+		[addEach],
 	);
 
 	const pick = useCallback(async (): Promise<void> => {
@@ -169,21 +176,17 @@ export function useAttachments({
 	);
 
 	const pasteFilePaths = useCallback(async (): Promise<void> => {
-		try {
-			const text = await navigator.clipboard.readText();
-			if (text.trim().length === 0) {
-				toast.error("Attachments not available");
-				return;
-			}
-			if (editor === null) {
-				toast.error("Attachments not available");
-				return;
-			}
-			editor.commands.insertContent(text);
-		} catch {
-			toast.error("Attachments not available");
+		const copied = await platform.clipboard.readFilePaths();
+		if (!copied.ok) {
+			toastError("Attachments not available", copied.error);
+			return;
 		}
-	}, [editor]);
+		if (copied.value.length === 0 || editor === null) {
+			toast.error("Attachments not available");
+			return;
+		}
+		editor.commands.insertContent(copied.value.join(" "));
+	}, [editor, platform.clipboard]);
 
 	useCommandHandler("chat.addAttachment", "area", () => {
 		void pick();

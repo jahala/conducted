@@ -23,10 +23,12 @@
  * Test first: a settled turn stays quiet while a follow-up is still queued
  * (notifications.chat-19.test.ts, through the service's live-state path).
  */
+
 import type { Interaction, LiveState } from "@conducted/protocol";
 import {
 	appError,
 	err,
+	messageOf,
 	ok,
 	type Result,
 	type SessionId,
@@ -394,7 +396,7 @@ export class NotificationService {
 				const result = await work();
 				if (!result.ok) report(result.error.message);
 			},
-			(error) => report(error instanceof Error ? error.message : String(error)),
+			(error) => report(messageOf(error)),
 		);
 	}
 }

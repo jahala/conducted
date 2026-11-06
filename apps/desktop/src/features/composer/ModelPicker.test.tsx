@@ -81,6 +81,7 @@ const harness = (options: HarnessOptions = {}) => {
 		title: null,
 		config: config(),
 		agentSessionId: null,
+		forkResumeNativeMessageId: null,
 		unreadCount: 0,
 		contextUsedTokens: null,
 		contextWindowTokens: null,
@@ -171,7 +172,7 @@ const harness = (options: HarnessOptions = {}) => {
 		sessions: { updateConfig, create },
 	} as unknown as Actions;
 	const platform = {
-		app: { writeLog: vi.fn(), onDeepLink: () => () => {} },
+		app: { writeLog: vi.fn(), onDeepLink: () => () => {}, onDeepLinkRejected: () => () => {} },
 		menu: {
 			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
 			onCommand: () => () => {},
@@ -305,6 +306,7 @@ describe("COMP-02 model picker", () => {
 				title: null,
 				config: config({ model: "ghost" }),
 				agentSessionId: null,
+				forkResumeNativeMessageId: null,
 				unreadCount: 0,
 				contextUsedTokens: null,
 				contextWindowTokens: null,

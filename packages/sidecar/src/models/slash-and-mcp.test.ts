@@ -18,6 +18,7 @@ import type {
 	RunnerSlashCommand,
 	StartOptions,
 } from "../runners/runner.ts";
+import { loginShellOver } from "../test-support/login-shell.ts";
 import {
 	MCP_LIST_FAILED,
 	MCP_LIST_UNSUPPORTED,
@@ -75,8 +76,16 @@ function listers(
 	const runners = new MapRunnerRegistry([{ selector, runner }]);
 	const logger = fakeLogger();
 	return {
-		slash: new RunnerSlashCommandLister({ runners, logger }),
-		mcp: new RunnerMcpServerLister({ runners, logger }),
+		slash: new RunnerSlashCommandLister({
+			runners,
+			shellEnv: loginShellOver({ PATH: "/usr/bin" }, logger),
+			logger,
+		}),
+		mcp: new RunnerMcpServerLister({
+			runners,
+			shellEnv: loginShellOver({ PATH: "/usr/bin" }, logger),
+			logger,
+		}),
 	};
 }
 
@@ -204,7 +213,11 @@ describe("SIDE-16 slash commands", () => {
 
 	test("passes an unknown agent's error through instead of inventing an empty list", async () => {
 		const runners = new MapRunnerRegistry([]);
-		const slash = new RunnerSlashCommandLister({ runners, logger: fakeLogger() });
+		const slash = new RunnerSlashCommandLister({
+			runners,
+			shellEnv: loginShellOver({ PATH: "/usr/bin" }, fakeLogger()),
+			logger: fakeLogger(),
+		});
 
 		const listed = await slash.list("claude", undefined, "/work/app");
 

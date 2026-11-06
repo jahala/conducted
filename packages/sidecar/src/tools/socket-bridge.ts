@@ -33,9 +33,16 @@ import { chmod, rm } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import path from "node:path";
 import type { SessionConfig } from "@conducted/protocol";
-import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	messageOf,
+	ok,
+	type Result,
+	type SessionId,
+} from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { messageOf } from "../util/errors.ts";
 import type { AppToolBackend } from "./backend.ts";
 import {
 	BRIDGE_IDLE_TIMEOUT_MS,

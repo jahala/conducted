@@ -30,21 +30,26 @@
  * the launch in any log line.
  * Our design choice: a launch's base URL wins over a user variable of the same name, because it is
  * the dedicated setting for it.
- * Our design choice: one table per agent (`AGENT_LAUNCH_FACTS`) holds its name, its base URL
- * variable and its providers with their key and routing variables; the provider list, the key
- * filter, the Claude routing and the error texts all read it. The desktop keeps its own copies of
- * the key variables until the protocol carries one shared table.
+ * Our design choice: the agent-provider table in packages/protocol (`AGENT_PROVIDER_TABLE`) holds
+ * each agent's name, its base URL variable and its providers with their key and routing variables;
+ * the key filter, the Claude routing and the error texts here read it, and so does the desktop.
  * Test first: for a Codex chat whose launch holds an `ANTHROPIC_API_KEY`, the built environment
  * has no `ANTHROPIC_API_KEY`.
  */
-import type { AgentLaunch, AgentProvider, WorkspaceContext } from "@conducted/protocol";
+import {
+	AGENT_PROVIDER_TABLE,
+	type AgentLaunch,
+	agentProviders,
+	claudeRoutes,
+	type WorkspaceContext,
+} from "@conducted/protocol";
 import type { AcpAgent, AgentKind, SessionId } from "@conducted/shared";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { AGENT_NOT_INSTALLED } from "../models/catalog.ts";
-import type { CapturedShellEnv } from "../shell-env/capture.ts";
+import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import { buildAgentEnv } from "../shell-env/env.ts";
-import { opencodeProviders } from "./acp/opencode-providers.ts";
 import type { FindExecutable } from "./deps.ts";
+import type { ListingContext } from "./runner.ts";
 
 export interface AgentProgram {
 	/** Absolute path of the program to run. */
@@ -142,37 +147,46 @@ export interface BuildEnvironmentInput {
 
 /**
  * The environment an agent starts with: base, then the user's variables, then the base URL, then
- * the agent's own keys (the variables of `agentProviders`).
+ * the agent's own keys (the variables of the protocol's `agentProviders`).
  */
 export function buildAgentEnvironment(
 	input: BuildEnvironmentInput,
 ): Result<Record<string, string>> {
+	const variables = launchVariables(input.agent, input.launch);
+	if (!variables.ok) return variables;
+	return ok(buildAgentEnv(input.base, input.sessionId, input.workspace, variables.value));
+}
+
+/**
+ * What a launch adds to the captured environment: the user's variables, then the base URL, then the
+ * agent's own keys, then Claude's provider routing.
+ */
+function launchVariables(agent: AgentKind, launch: AgentLaunch): Result<Record<string, string>> {
 	// A custom provider decides which variables it needs, so every entered key reaches the agent.
 	// The built-in providers get only the variables listed for their agent (D033).
 	const ownKeyNames =
-		input.launch.provider?.trim().toLowerCase() === "custom"
+		launch.provider?.trim().toLowerCase() === "custom"
 			? null
-			: AGENT_LAUNCH_FACTS[input.agent].providers.flatMap((provider) => provider.keyEnvVars);
+			: agentProviders(agent).flatMap((provider) => provider.keyEnvVars);
 	const ownKeys: Record<string, string> = {};
-	for (const [name, key] of Object.entries(input.launch.providerKeys)) {
+	for (const [name, key] of Object.entries(launch.providerKeys)) {
 		if (ownKeyNames !== null && !ownKeyNames.includes(name)) continue;
 		ownKeys[name] = key.value;
 	}
-	const baseUrl = baseUrlEnvironment(input.agent, input.launch.baseUrl);
+	const baseUrl = baseUrlEnvironment(agent, launch.baseUrl);
 	if (!baseUrl.ok) return baseUrl;
-	const userVariables: Record<string, string> = {
-		...input.launch.env,
+	const variables: Record<string, string> = {
+		...launch.env,
 		...baseUrl.value,
 		...ownKeys,
 	};
 
-	if (input.agent === "claude") {
-		const routing = claudeProviderEnvironment(input.launch.provider);
+	if (agent === "claude") {
+		const routing = claudeProviderEnvironment(launch.provider);
 		if (!routing.ok) return routing;
-		Object.assign(userVariables, routing.value);
+		Object.assign(variables, routing.value);
 	}
-
-	return ok(buildAgentEnv(input.base, input.sessionId, input.workspace, userVariables));
+	return ok(variables);
 }
 
 /**
@@ -219,6 +233,34 @@ export function agentEnvironmentFromCapture(
 	return buildAgentEnvironment({ ...rest, base: captured.env, launch: launch.value });
 }
 
+/**
+ * How a listing call (models, slash commands, MCP servers) starts the agent: the login shell
+ * captured for `folder`, with the launch's variables and keys added and its program chosen, so the
+ * list comes from the program and keys a chat would use (SIDE-21). Without a launch the listing
+ * runs the captured environment and the managed or PATH program. A launch's key chosen from this
+ * Mac that the shell does not set fails with its name, as a chat's start does.
+ */
+export async function listingContext(input: {
+	agent: AgentKind;
+	shellEnv: ShellEnvProvider;
+	/** The folder whose login-shell capture to use; missing: the sidecar's own folder. */
+	folder?: string;
+	launch?: AgentLaunch;
+}): Promise<Result<ListingContext>> {
+	const captured = await input.shellEnv.get(input.folder);
+	if (!captured.ok) return captured;
+	if (input.launch === undefined) return ok({ env: captured.value.env });
+	const launch = fillMacKeys(input.launch, captured.value);
+	if (!launch.ok) return launch;
+	const variables = launchVariables(input.agent, launch.value);
+	if (!variables.ok) return variables;
+	const executablePath = launch.value.executablePath;
+	return ok({
+		env: { ...captured.value.env, ...variables.value },
+		...(executablePath === undefined || executablePath === "" ? {} : { executablePath }),
+	});
+}
+
 /** The variable that replaces the provider's own address, for the agents that have one. */
 export function baseUrlEnvironment(
 	agent: AgentKind,
@@ -226,7 +268,7 @@ export function baseUrlEnvironment(
 ): Result<Record<string, string>> {
 	const value = baseUrl?.trim();
 	if (value === undefined || value === "") return ok({});
-	const variable = AGENT_LAUNCH_FACTS[agent].baseUrlEnvVar;
+	const variable = AGENT_PROVIDER_TABLE[agent].baseUrlEnvVar;
 	if (variable === undefined) {
 		return err(
 			appError(
@@ -244,8 +286,7 @@ export function claudeProviderEnvironment(
 ): Result<Record<string, string>> {
 	const name = provider?.trim().toLowerCase();
 	if (name === undefined || name === "") return ok({});
-	const claude = AGENT_LAUNCH_FACTS.claude;
-	const routes = [...claude.providers, ...(claude.routingOnly ?? [])];
+	const routes = claudeRoutes();
 	const known = routes.find((route) => route.id === name);
 	if (known === undefined) {
 		return err(
@@ -258,117 +299,10 @@ export function claudeProviderEnvironment(
 	return ok(known.routingEnvVar === undefined ? {} : { [known.routingEnvVar]: "1" });
 }
 
-/** The providers an agent can use and the variables their keys go to, as a fresh copy. */
-export function agentProviders(agent: AgentKind, _acpAgent?: AcpAgent): AgentProvider[] {
-	return AGENT_LAUNCH_FACTS[agent].providers.map((provider) => ({
-		id: provider.id,
-		label: provider.label,
-		keyEnvVars: [...provider.keyEnvVars],
-	}));
-}
-
-/** A provider an agent can use. */
-interface LaunchProvider extends AgentProvider {
-	/** Claude only: the variable set to "1" to route Claude through this provider. */
-	routingEnvVar?: string;
-}
-
-/**
- * Everything the launch needs to know about one agent, in one place: its name in messages, the
- * variable its base URL goes to, and its providers with their key and routing variables. The
- * provider list, the key filter (D033), the Claude routing and the error texts all read this.
- */
-interface AgentLaunchFacts {
-	name: string;
-	/** Missing when the agent has no base URL setting. */
-	baseUrlEnvVar?: string;
-	/** Listed by `listAgentProviders`; their key variables are the only keys the agent receives. */
-	providers: readonly LaunchProvider[];
-	/**
-	 * Claude only: providers Claude can be routed to that have no key form of their own (Foundry and
-	 * Mantle, native-and-sidecar-map B4). The research names no key variables for them, so none is
-	 * listed; their keys arrive through a custom provider.
-	 */
-	routingOnly?: readonly { id: string; routingEnvVar: string }[];
-}
-
-const AGENT_LAUNCH_FACTS: Readonly<Record<AgentKind, AgentLaunchFacts>> = {
-	claude: {
-		name: "Claude Code",
-		baseUrlEnvVar: "ANTHROPIC_BASE_URL",
-		providers: [
-			{
-				id: "anthropic",
-				label: "Anthropic API key",
-				// The subscription token signs a Claude Code subscription in through the same provider.
-				keyEnvVars: ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
-			},
-			{
-				id: "bedrock",
-				label: "Amazon Bedrock",
-				keyEnvVars: [
-					"AWS_ACCESS_KEY_ID",
-					"AWS_SECRET_ACCESS_KEY",
-					"AWS_SESSION_TOKEN",
-					"AWS_BEARER_TOKEN_BEDROCK",
-					"ANTHROPIC_MODEL",
-				],
-				routingEnvVar: "CLAUDE_CODE_USE_BEDROCK",
-			},
-			{
-				id: "vertex",
-				label: "Google Vertex AI",
-				keyEnvVars: ["GOOGLE_APPLICATION_CREDENTIALS"],
-				routingEnvVar: "CLAUDE_CODE_USE_VERTEX",
-			},
-			// The Providers dialog's "Custom provider" (SET-09): the key and the optional workspace ID
-			// go where the app's provider forms put them (keyEnvVarFor, workspaceIdEnvVarFor).
-			{
-				id: "custom",
-				label: "Custom provider",
-				keyEnvVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID"],
-			},
-		],
-		routingOnly: [
-			{ id: "foundry", routingEnvVar: "CLAUDE_CODE_USE_FOUNDRY" },
-			{ id: "mantle", routingEnvVar: "CLAUDE_CODE_USE_MANTLE" },
-		],
-	},
-	codex: {
-		name: "Codex",
-		baseUrlEnvVar: "OPENAI_BASE_URL",
-		providers: [
-			{ id: "openai", label: "OpenAI API key", keyEnvVars: ["OPENAI_API_KEY"] },
-			{ id: "custom", label: "Custom provider", keyEnvVars: ["OPENAI_API_KEY", "OPENAI_ORG_ID"] },
-		],
-	},
-	cursor: {
-		name: "Cursor",
-		providers: [{ id: "cursor", label: "Cursor API key", keyEnvVars: ["CURSOR_API_KEY"] }],
-	},
-	acp: {
-		name: "The OpenCode or Pi program",
-		// OpenCode and Pi both read the OpenCode catalogue (SET-10), plus a custom provider.
-		providers: [
-			...opencodeProviders(),
-			{
-				id: "custom",
-				label: "Custom provider",
-				keyEnvVars: [
-					"OPENAI_API_KEY",
-					"ANTHROPIC_API_KEY",
-					"OPENAI_ORG_ID",
-					"OPENCODE_WORKSPACE_ID",
-				],
-			},
-		],
-	},
-};
-
 function runsThroughRuntime(programPath: string): boolean {
 	return programPath.toLowerCase().endsWith(".js");
 }
 
 function agentName(agent: AgentKind): string {
-	return AGENT_LAUNCH_FACTS[agent].name;
+	return AGENT_PROVIDER_TABLE[agent].name;
 }

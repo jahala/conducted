@@ -13,7 +13,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Session } from "../../core/model.ts";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import {
+	createTestContainer,
+	seedFailedQueuedMessage,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { QueueBox } from "./QueueBox.tsx";
 
@@ -198,6 +203,42 @@ describe("CHAT-04 queue box", () => {
 		await waitFor(() =>
 			expect(toasted).toHaveBeenCalledWith("Failed to steer queued message", {
 				description: "This agent cannot be steered.",
+			}),
+		);
+	});
+
+	it("retries a failed message through the action", async () => {
+		const { test, session } = await setup();
+		const id = await seedFailedQueuedMessage(
+			test.container,
+			session.id,
+			"Send me again",
+			"offline",
+		);
+		const retry = vi.spyOn(test.container.actions.sessions.queue, "retry");
+		renderBox(test, session.id);
+
+		expect(await screen.findByText("offline")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(retry).toHaveBeenCalledWith(id));
+		await waitFor(() => expect(screen.queryByText("offline")).toBeNull());
+	});
+
+	it("shows 'Failed to retry message' when the retry fails", async () => {
+		const { test, session } = await setup();
+		await seedFailedQueuedMessage(test.container, session.id, "Still failing", "offline");
+		vi.spyOn(test.container.actions.sessions.queue, "retry").mockResolvedValue(
+			err(appError("db", "The database is locked.")),
+		);
+		const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+		renderBox(test, session.id);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+		await waitFor(() =>
+			expect(toasted).toHaveBeenCalledWith("Failed to retry message", {
+				description: "The database is locked.",
 			}),
 		);
 	});

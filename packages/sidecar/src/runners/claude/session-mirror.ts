@@ -13,8 +13,8 @@
  * Test first: append([{ type: "user", uuid: "u1" }]) calls the consumed callback with "u1".
  */
 import type { SessionStore } from "@anthropic-ai/claude-agent-sdk";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import { messageOf } from "../../util/errors.ts";
 import { consumedUuidFromMirrorEntry } from "./steer-receipts.ts";
 
 export function createMirrorStore(

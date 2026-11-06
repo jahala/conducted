@@ -64,12 +64,12 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Effort, RateLimit, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { rateLimitsFromSdk } from "../../models/usage.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
-import { messageOf } from "../../util/errors.ts";
 import { NoActiveTurnError } from "../errors.ts";
 import type {
 	AgentSession,

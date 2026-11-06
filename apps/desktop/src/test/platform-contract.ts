@@ -95,6 +95,18 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"register-root",
+		"a registered folder outside the default scope becomes reachable",
+		"A write outside the default roots is an Err with fs_out_of_scope; after registerRoot of its folder the same write and a read succeed. Registering a relative path is an Err with fs_relative_path.",
+	),
+	c(
+		"fs",
+		"asset-url",
+		"assetUrl names one file",
+		"Two paths give two URLs, the same path gives the same URL, and a space in a path is percent-encoded.",
+	),
+	c(
+		"fs",
 		"trash",
 		"trash removes from the folder without deleting for good",
 		"After trash the path no longer exists; on the Tauri side the item is in the macOS Trash.",
@@ -179,6 +191,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"login-env",
 		"loginEnv returns a PATH",
 		"loginEnv gives a non-empty shell and path, the same on every call.",
+	),
+	c(
+		"shell",
+		"login-env-folder",
+		"loginEnv in a folder",
+		"loginEnv with an absolute folder gives a non-empty shell and path; a relative folder is refused with shell_bad_cwd.",
 	),
 	c(
 		"fileSearch",
@@ -308,6 +326,27 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"writeText resolves, and the text reaches the layer below it unchanged.",
 		"controls",
 	),
+	c(
+		"clipboard",
+		"read-file-paths",
+		"readFilePaths lists the copied files",
+		"Files copied in Finder come back as their paths in order; with none copied the list is empty.",
+		"controls",
+	),
+	c(
+		"app",
+		"resource-usage",
+		"resourceUsage places each process in the longest workspace that holds its folder",
+		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, and the call is Ok.",
+		"controls",
+	),
+	c(
+		"app",
+		"deep-link-rejected",
+		"onDeepLinkRejected reports a refused link",
+		"A link the shell refused reaches a listener once, as an AppError with its code; a listener that unsubscribed hears nothing more.",
+		"controls",
+	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
 	c(
 		"app",
@@ -434,6 +473,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"attachments",
+		"write-bytes",
+		"writeBytes writes bytes the web view holds",
+		"The destination exists afterwards with the bytes, and the result names it with their size.",
+	),
+	c(
+		"attachments",
 		"resize-image",
 		"resizeImage copies and reports the result",
 		"The destination exists and the returned file names it.",
@@ -475,6 +520,19 @@ export interface ContractControls {
 	emitNotificationClick?(deepLink: string): void | Promise<void>;
 	emitWindowFocus?(focused: boolean): void | Promise<void>;
 	emitNetworkChanged?(online: boolean): void | Promise<void>;
+	emitDeepLinkRejected?(rejection: { code: string; message: string }): void | Promise<void>;
+	/** Puts files on the clipboard, as if copied in Finder. */
+	setClipboardFilePaths?(paths: readonly string[]): void;
+	/** The app's processes the process table lists, each with its working folder. */
+	setProcesses?(
+		processes: readonly {
+			pid: number;
+			name: string;
+			cpuPercent: number;
+			memoryBytes: number;
+			cwd: string;
+		}[],
+	): void;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -485,6 +543,8 @@ export interface ContractContext {
 	kind: "memory" | "tauri";
 	/** A scratch folder the case may write under. */
 	root: string;
+	/** A scratch folder outside the default file scope, for the case that registers it. */
+	outside: string;
 	controls?: ContractControls;
 	assert(condition: boolean, message: string): void;
 	/** An absolute path under `root`. */
@@ -501,8 +561,10 @@ export interface ContractHarness {
 
 export interface PlatformUnderTest {
 	platform: Platform;
-	/** A scratch folder the cases may use. */
+	/** A scratch folder the cases may use, inside the default file scope. */
 	root: string;
+	/** A scratch folder outside the default file scope. */
+	outside: string;
 	controls?: ContractControls;
 	/** Removes everything the run created. Called after every case, even a failed one. */
 	cleanup(): Promise<void>;
@@ -653,6 +715,36 @@ const STEPS: Record<string, ContractStep> = {
 			!(await ctx.platform.fs.exists(joinPath(folder, "inner/note.txt"))),
 			"the file landed inside inner",
 		);
+	},
+
+	"fs.register-root": async (ctx) => {
+		const file = joinPath(ctx.outside, "project/note.txt");
+		const refused = expectErr(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(file, "before"),
+			"a write outside the default scope",
+		);
+		ctx.assert(refused.code === "fs_out_of_scope", `the error code was ${refused.code}`);
+		const relative = expectErr(
+			ctx,
+			await ctx.platform.fs.registerRoot("relative/folder"),
+			"registering a relative path",
+		);
+		ctx.assert(relative.code === "fs_relative_path", `the error code was ${relative.code}`);
+		expectOk(ctx, await ctx.platform.fs.registerRoot(ctx.outside), "registerRoot");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(ctx.outside, "project")), "mkdirp");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, "after"), "writeTextAtomic");
+		const read = expectOk(ctx, await ctx.platform.fs.readText(file), "readText");
+		ctx.assert(read === "after", `readText returned ${JSON.stringify(read)}`);
+	},
+
+	"fs.asset-url": async (ctx) => {
+		const first = ctx.platform.fs.assetUrl(ctx.path("shots/one shot.png"));
+		const again = ctx.platform.fs.assetUrl(ctx.path("shots/one shot.png"));
+		const second = ctx.platform.fs.assetUrl(ctx.path("shots/two.png"));
+		ctx.assert(first === again, `the same path gave ${first} and ${again}`);
+		ctx.assert(first !== second, "two paths gave the same URL");
+		ctx.assert(!first.includes(" "), `the space was not encoded: ${first}`);
 	},
 
 	"fs.trash": async (ctx) => {
@@ -870,6 +962,19 @@ const STEPS: Record<string, ContractStep> = {
 			first.shell === second.shell && first.path === second.path,
 			"loginEnv changed between calls",
 		);
+	},
+
+	"shell.login-env-folder": async (ctx) => {
+		const inFolder = await ctx.platform.shell.loginEnv(ctx.root);
+		ctx.assert(inFolder.shell.length > 0, "the login shell is empty");
+		ctx.assert(inFolder.path.length > 0, "the login PATH is empty");
+		let code: string | null = null;
+		try {
+			await ctx.platform.shell.loginEnv("relative/folder");
+		} catch (error) {
+			code = (error as AppError).code;
+		}
+		ctx.assert(code === "shell_bad_cwd", `a relative folder gave ${String(code)}`);
 	},
 
 	"fileSearch.list-tree-ignores": async (ctx) => {
@@ -1114,7 +1219,7 @@ const STEPS: Record<string, ContractStep> = {
 			"pty data",
 		);
 		ctx.assert(text.includes("contract"), `pty output was ${JSON.stringify(text)}`);
-		handle.ack(new TextEncoder().encode(text).length);
+		expectOk(ctx, await handle.ack(new TextEncoder().encode(text).length), "ack");
 		await handle.kill();
 	},
 
@@ -1332,6 +1437,63 @@ const STEPS: Record<string, ContractStep> = {
 			ctx.controls?.clipboardText === "copied text",
 			`clipboard kept ${JSON.stringify(ctx.controls?.clipboardText)}`,
 		);
+	},
+
+	"clipboard.read-file-paths": async (ctx) => {
+		const none = expectOk(ctx, await ctx.platform.clipboard.readFilePaths(), "readFilePaths");
+		ctx.assert(none.length === 0, `an empty clipboard gave ${JSON.stringify(none)}`);
+		ctx.controls?.setClipboardFilePaths?.(["/tmp/b file.txt", "/tmp/a.png"]);
+		const copied = expectOk(ctx, await ctx.platform.clipboard.readFilePaths(), "readFilePaths");
+		ctx.assert(
+			copied.join("|") === "/tmp/b file.txt|/tmp/a.png",
+			`the copied files came back as ${JSON.stringify(copied)}`,
+		);
+	},
+
+	"app.resource-usage": async (ctx) => {
+		const outer = ctx.path("workspaces");
+		const inner = ctx.path("workspaces/oslo");
+		ctx.controls?.setProcesses?.([
+			{ pid: 11, name: "node", cpuPercent: 1.5, memoryBytes: 2048, cwd: `${inner}/web` },
+			{ pid: 12, name: "zsh", cpuPercent: 0, memoryBytes: 1024, cwd: ctx.path("elsewhere") },
+		]);
+		const rows = expectOk(
+			ctx,
+			await ctx.platform.app.resourceUsage([outer, inner]),
+			"resourceUsage",
+		);
+		const node = rows.find((row) => row.pid === 11);
+		const zsh = rows.find((row) => row.pid === 12);
+		ctx.assert(node?.workspacePath === inner, `node was placed in ${String(node?.workspacePath)}`);
+		ctx.assert(
+			zsh !== undefined && zsh.workspacePath === undefined,
+			`zsh was placed in ${String(zsh?.workspacePath)}`,
+		);
+	},
+
+	"app.deep-link-rejected": async (ctx) => {
+		const heard: string[] = [];
+		const first = await waitForEvent<string>(
+			ctx,
+			(listener) => {
+				const stop = ctx.platform.app.onDeepLinkRejected((rejection) => {
+					heard.push(rejection.code);
+					listener(rejection.code);
+				});
+				return stop;
+			},
+			async () => {
+				await ctx.controls?.emitDeepLinkRejected?.({
+					code: "deep_link_too_long",
+					message: "A deep link was too long.",
+				});
+			},
+			"a refused deep link",
+		);
+		ctx.assert(first === "deep_link_too_long", `the refusal had code ${first}`);
+		await ctx.controls?.emitDeepLinkRejected?.({ code: "late", message: "after unsubscribe" });
+		await oneMacrotask();
+		ctx.assert(heard.join(",") === "deep_link_too_long", `the listener heard ${heard.join(",")}`);
 	},
 
 	"app.health": async (ctx) => {
@@ -1554,6 +1716,24 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"attachments.write-bytes": async (ctx) => {
+		const destination = ctx.path("attachments/pasted.txt");
+		const bytes = new TextEncoder().encode("pasted bytes");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("attachments")), "mkdirp");
+		const file = expectOk(
+			ctx,
+			await ctx.platform.attachments.writeBytes(bytes, destination, { resizeImage: false }),
+			"writeBytes",
+		);
+		ctx.assert(file.path === destination, `writeBytes returned ${file.path}`);
+		ctx.assert(file.sizeBytes === bytes.length, `sizeBytes was ${file.sizeBytes}`);
+		ctx.assert(
+			expectOk(ctx, await ctx.platform.fs.readText(destination), "read destination") ===
+				"pasted bytes",
+			"the file holds different bytes",
+		);
+	},
+
 	"attachments.resize-image": async (ctx) => {
 		const source = ctx.path("attachments/image.png");
 		const destination = ctx.path("attachments/image-small.png");
@@ -1650,6 +1830,8 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
 	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
+	"fs.register-root": ["fs.writeTextAtomic", "fs.registerRoot", "fs.mkdirp", "fs.readText"],
+	"fs.asset-url": ["fs.assetUrl"],
 	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
 	"db.roundtrip": ["db.execute", "db.select"],
 	"db.rows-affected": ["db.execute"],
@@ -1664,6 +1846,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"shell.start-cancel": ["shell.start", "shell.running.cancel"],
 	"shell.no-shell-string": ["shell.run"],
 	"shell.login-env": ["shell.loginEnv"],
+	"shell.login-env-folder": ["shell.loginEnv"],
 	"fileSearch.list-tree-ignores": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.listTree"],
 	"fileSearch.fuzzy": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.fuzzyMatch"],
 	"fileSearch.grep-bad-regex": ["fileSearch.grep"],
@@ -1706,7 +1889,10 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"notifications.badge": ["notifications.setDockBadge"],
 	"notifications.click": ["notifications.onClicked"],
 	"clipboard.write-text": ["clipboard.writeText"],
+	"clipboard.read-file-paths": ["clipboard.readFilePaths"],
 	"app.health": ["app.health"],
+	"app.deep-link-rejected": ["app.onDeepLinkRejected"],
+	"app.resource-usage": ["app.resourceUsage"],
 	"app.write-log-never-throws": ["app.writeLog"],
 	"app.version": [],
 	"dialogs.pick-folder": ["dialogs.pickFolder"],
@@ -1736,6 +1922,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"attachments.materialize",
 		"fs.readText",
 	],
+	"attachments.write-bytes": ["fs.mkdirp", "attachments.writeBytes", "fs.readText"],
 	"attachments.resize-image": [
 		"fs.mkdirp",
 		"fs.writeTextAtomic",
@@ -1772,10 +1959,10 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"updater.install": "Downloads and installs an update; needs a signed release feed.",
 	"updater.relaunch": "Restarts the app; cannot run inside a test.",
 	"app.dbVersionWarning": "PLAT-17 builds it.",
-	"app.onDeepLink": "PLAT-16 builds it.",
+	"app.onDeepLink":
+		"The deep-link adapter test owns the event and the launch links; the plugin delivers them in Rust.",
 	"app.onQuitRequested": "Needs the Rust quit hook; the Rust job owns it.",
 	"app.quit": "Quits the app; cannot run inside a test.",
-	"app.resourceUsage": "PLAT-14 builds it.",
 	"app.setLogLevel": "Changes the Rust logger; the Rust logger tests own it.",
 	"app.exportLogs": "Zips the Rust log folder; the Rust logger tests own it.",
 	"app.setQuitHandlerReady": "Needs the Rust quit hook; the Rust job owns it.",
@@ -1887,6 +2074,7 @@ export function runPlatformContract(
 					platform: recordCalls(underTest.platform, called),
 					kind,
 					root: underTest.root,
+					outside: underTest.outside,
 					controls: underTest.controls,
 					assert: harness.assert,
 					path: (name) => joinPath(underTest.root, name),

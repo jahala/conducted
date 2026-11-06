@@ -14,11 +14,13 @@
 //! - The plugin hands links over already parsed, so the string the UI gets is the `url` crate's:
 //!   the scheme in lower case and characters a URL may not hold (a space) percent-encoded; the
 //!   host, the path and an existing encoding stay as given. Nothing is decoded here.
-//! - Links longer than `MAX_URL_BYTES` are dropped, and the drop is written to the app log. The
-//!   UI cannot show a message for them yet: that needs a rejection event in `platform.ts`.
+//! - Links longer than `MAX_URL_BYTES` are dropped. The drop is written to the app log and sent
+//!   to the UI on `app://deep-link-rejected` as `{ code, message }`, which the UI shows the way
+//!   it shows any refused link (`AppInfo.onDeepLinkRejected`).
 //! - A link that arrives while the app is already running brings the window to the front.
-//! - A launch link is not missed: the UI reads the plugin's current URL when it subscribes
-//!   (`platform/tauri.ts`), and this module forwards every later link on the plugin's event.
+//! - A launch link is not missed: the UI calls `deep_link_launch` when it subscribes, which reads
+//!   the plugin's current URLs through the same length rule, and this module forwards every
+//!   later link on the plugin's event.
 //! - Several links in a row are delivered in order, one event each.
 //!
 //! Our design choice: no `conducted-alpha`, `-beta` or similar scheme variants. Conductor needs
@@ -30,6 +32,7 @@
 //! another scheme reaches the UI unchanged, and a link over `MAX_URL_BYTES` fails with
 //! `deep_link_too_long`.
 
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime, Url};
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -37,6 +40,8 @@ use crate::error::{CommandError, CommandResult};
 
 /// Event carrying one URL as a string.
 pub const EVENT_DEEP_LINK: &str = "app://deep-link";
+/// Event carrying a link this module refused, as `{ code, message }` (PLAT-16).
+pub const EVENT_DEEP_LINK_REJECTED: &str = "app://deep-link-rejected";
 /// The one scheme this app registers with macOS.
 pub const SCHEME: &str = "conducted";
 /// Longest accepted URL.
@@ -56,6 +61,58 @@ pub fn normalise(url: &str) -> CommandResult<String> {
         return Err(too_long());
     }
     Ok(url.to_owned())
+}
+
+/// A link that was refused before it reached the UI's parser, as the UI shows it.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeepLinkRejection {
+    pub code: String,
+    pub message: String,
+}
+
+impl From<CommandError> for DeepLinkRejection {
+    fn from(error: CommandError) -> Self {
+        Self {
+            code: error.code().to_string(),
+            message: error.to_string(),
+        }
+    }
+}
+
+/// The links that launched the app: the ones for the UI's parser, and the ones refused here.
+#[derive(Debug, Clone, Serialize)]
+pub struct LaunchLinks {
+    pub urls: Vec<String>,
+    pub rejected: Vec<DeepLinkRejection>,
+}
+
+/// Sorts the launch links by the same rule as a link that arrives while the app runs.
+pub fn launch_links(urls: Vec<Url>) -> LaunchLinks {
+    let mut links = LaunchLinks {
+        urls: Vec::new(),
+        rejected: Vec::new(),
+    };
+    for url in urls {
+        match normalise(url.as_str()) {
+            Ok(link) => links.urls.push(link),
+            Err(error) => links.rejected.push(error.into()),
+        }
+    }
+    links
+}
+
+/// The links that launched the app, read when the UI subscribes, so a cold-start link is not
+/// missed and an oversized one is refused the same way as one that arrives later.
+#[tauri::command]
+pub fn deep_link_launch(app: AppHandle) -> CommandResult<LaunchLinks> {
+    let current = app
+        .deep_link()
+        .get_current()
+        .map_err(|error| CommandError::Failed {
+            code: "deep_link_unavailable",
+            message: format!("Could not read the link that opened the app: {error}"),
+        })?;
+    Ok(launch_links(current.unwrap_or_default()))
 }
 
 /// Brings the one window to the front, so a link opened from another app is noticed.
@@ -93,7 +150,16 @@ fn deliver<R: Runtime>(app: &AppHandle<R>, urls: Vec<Url>) {
                     );
                 }
             }
-            Err(error) => report(app, &format!("deep link: dropped a URL: {error}")),
+            Err(error) => {
+                report(app, &format!("deep link: dropped a URL: {error}"));
+                let refusal = DeepLinkRejection::from(error);
+                if let Err(error) = app.emit(EVENT_DEEP_LINK_REJECTED, refusal) {
+                    report(
+                        app,
+                        &format!("deep link: could not tell the UI a link was refused: {error}"),
+                    );
+                }
+            }
         }
     }
 }
@@ -268,6 +334,48 @@ mod tests {
             serde_json::from_str::<String>(&first).expect("the payload is a string"),
             "marker"
         );
+    }
+
+    #[test]
+    fn plat_16_a_running_link_over_the_limit_is_refused_on_its_own_event() {
+        let app = app_with_the_plugin();
+        let (sender, refusals) = std::sync::mpsc::channel::<String>();
+        app.handle().listen(EVENT_DEEP_LINK_REJECTED, move |event| {
+            let _ = sender.send(event.payload().to_string());
+        });
+        register(app.handle()).expect("the handler registers");
+
+        let long = format!("conducted://workspace?id={}", "x".repeat(MAX_URL_BYTES));
+        app.handle()
+            .emit(
+                "deep-link://new-url",
+                vec![Url::parse(&long).expect("a URL")],
+            )
+            .expect("emit the plugin event");
+
+        let payload = refusals
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the refusal arrives");
+        let refusal: serde_json::Value = serde_json::from_str(&payload).expect("JSON");
+        assert_eq!(refusal["code"], "deep_link_too_long");
+        assert!(
+            refusal["message"]
+                .as_str()
+                .is_some_and(|text| !text.is_empty())
+        );
+    }
+
+    #[test]
+    fn plat_16_launch_links_keep_the_accepted_and_name_the_refused() {
+        let long = format!("conducted://workspace?id={}", "x".repeat(MAX_URL_BYTES));
+        let links = launch_links(vec![
+            Url::parse("conducted://workspace?id=w1").expect("a URL"),
+            Url::parse(&long).expect("a URL"),
+        ]);
+
+        assert_eq!(links.urls, vec!["conducted://workspace?id=w1".to_string()]);
+        assert_eq!(links.rejected.len(), 1);
+        assert_eq!(links.rejected[0].code, "deep_link_too_long");
     }
 
     #[test]

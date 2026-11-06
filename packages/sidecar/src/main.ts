@@ -13,9 +13,10 @@
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process.
  */
+
+import { messageOf } from "@conducted/shared";
 import { EXIT_USAGE } from "./exit-codes.ts";
 import { printVersion, VERSION_FLAG } from "./packaging.ts";
-import { messageOf } from "./util/errors.ts";
 
 export const MODES = ["sidecar", "app-tools-mcp"] as const;
 export type Mode = (typeof MODES)[number];

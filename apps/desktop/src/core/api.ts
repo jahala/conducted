@@ -70,6 +70,7 @@ import type {
 	Session,
 	SetupView,
 	Snippet,
+	SparseCheckoutSettings,
 	StackEntryView,
 	SystemInfo,
 	Terminal,
@@ -187,6 +188,24 @@ export interface UnarchiveOutcome {
 	uncommittedChangesLost: boolean;
 }
 
+/** A suggested change: the replacement code and the original lines it replaces. */
+export interface CommentSuggestion {
+	code: string;
+	baseCode: string;
+}
+
+/** What a new review comment carries besides its file, lines and text. */
+export interface CommentDetails {
+	/** Which side of a split diff the line numbers belong to. Default: additions. */
+	side?: DiffComment["side"];
+	/** Default: none. */
+	suggestion?: CommentSuggestion | null;
+	/** The comment this one answers. It must belong to the same workspace. Default: none. */
+	replyToId?: CommentId | null;
+	/** The thread the comment joins, usually the id of the thread's first comment. Default: none. */
+	threadId?: string | null;
+}
+
 /** For each conflict in a file, top to bottom: keep the current side, the incoming side, or both. */
 export type ConflictChoice = "current" | "incoming" | "both";
 
@@ -289,6 +308,11 @@ export interface Queries {
 	): Loadable<ContentMatch[]>;
 	/** Chats of the workspace that were closed and can be reopened. */
 	useClosedSessions(workspaceId: WorkspaceId): Loadable<Session[]>;
+	/**
+	 * How many files differ between the start of a turn and the working tree now: what a reset to
+	 * that turn with "Also reset files" puts back.
+	 */
+	useChangedSinceTurn(sessionId: SessionId, turnId: TurnId): Loadable<number>;
 	/** Workspaces saved to the backlog, not started yet. */
 	useBacklogWorkspaces(): Loadable<BacklogWorkspace[]>;
 	/** Open issues of a repository's GitHub project or of the user's Linear workspace, filtered by the query. */
@@ -384,6 +408,8 @@ export interface Actions {
 		/** Starts a backlog workspace: worktree, setup, and the first message. */
 		startFromBacklog: Act<[id: WorkspaceId], Workspace>;
 		removeFromBacklog: Act<[id: WorkspaceId]>;
+		/** Chooses the repository a backlog workspace starts in, when its own was removed. */
+		setBacklogRepo: Act<[id: WorkspaceId, repoId: RepoId]>;
 	};
 	sections: {
 		create: Act<[name: string, emoji: string | null], Section>;
@@ -444,6 +470,8 @@ export interface Actions {
 			reorder: Act<[sessionId: SessionId, orderedIds: MessageId[]]>;
 			setPaused: Act<[sessionId: SessionId, paused: boolean]>;
 			sendNowAsSteer: Act<[messageId: MessageId]>;
+			/** Sends a queued message that failed to send again, once the chat can take it. */
+			retry: Act<[messageId: MessageId]>;
 		};
 	};
 	git: {
@@ -465,6 +493,10 @@ export interface Actions {
 		continueOnNewBranch: Act<[workspaceId: WorkspaceId, name: string | null]>;
 		/** Opens the file's diff in the external diff tool chosen in settings. */
 		openInDiffTool: Act<[workspaceId: WorkspaceId, path: string]>;
+		/** The workspace's sparse checkout and the top-level folders it can include. */
+		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
+		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
+		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
 	};
 	pullRequests: {
 		/** Asks the agent to open the PR, with written instructions. */
@@ -484,6 +516,12 @@ export interface Actions {
 		removeReviewRequest: Act<[workspaceId: WorkspaceId, login: string]>;
 		/** Links an existing pull request by its URL or number. */
 		link: Act<[workspaceId: WorkspaceId, urlOrNumber: string]>;
+		/** Opens GitHub's page for creating a pull request from the workspace branch. */
+		openOnGithub: Act<[workspaceId: WorkspaceId]>;
+		/** Brings every branch of the workspace's GitHub stack up to date (`gh stack sync`). */
+		syncStack: Act<[workspaceId: WorkspaceId]>;
+		/** Merges the workspace's GitHub stack ("Merge stack"). */
+		mergeStack: Act<[workspaceId: WorkspaceId]>;
 	};
 	issues: {
 		/** Writes the issue as a context file in the workspace and returns its path. */
@@ -501,10 +539,15 @@ export interface Actions {
 				line: number | null,
 				endLine: number | null,
 				body: string,
+				details?: CommentDetails,
 			],
 			DiffComment
 		>;
-		edit: Act<[id: CommentId, body: string]>;
+		/**
+		 * Changes a comment's text, and its suggested change when `suggestion` is given (null removes
+		 * it). An edit never moves a comment to another side or thread.
+		 */
+		edit: Act<[id: CommentId, body: string, details?: Pick<CommentDetails, "suggestion">]>;
 		remove: Act<[id: CommentId]>;
 		setResolved: Act<[id: CommentId, resolved: boolean]>;
 		/** Hides a comment, or brings it back. A hidden GitHub comment stays hidden after a sync. */
@@ -551,6 +594,10 @@ export interface Actions {
 		 * no conflict markers remain.
 		 */
 		resolveConflicts: Act<[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[]]>;
+		/** Shows a workspace file selected in a Finder window. */
+		reveal: Act<[workspaceId: WorkspaceId, path: string]>;
+		/** Opens a workspace file in the named app, the one the "Open in" menu opens by default. */
+		openInApp: Act<[workspaceId: WorkspaceId, path: string, appName: string]>;
 	};
 	artifacts: {
 		/** Loads the next page of the Artifacts tab. */
@@ -588,6 +635,11 @@ export interface Actions {
 		set: Act<[key: string, value: unknown]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
+		/**
+		 * Removes one repository's own value of a setting from its local settings file, so the
+		 * repository's shared settings.toml (or a layer above it) applies again.
+		 */
+		resetForRepo: Act<[repoId: RepoId, key: string]>;
 	};
 	agents: {
 		login: Act<[agent: AgentKind, acpAgent?: AcpAgent], AgentLogin>;

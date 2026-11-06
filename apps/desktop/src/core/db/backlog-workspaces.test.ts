@@ -156,17 +156,39 @@ describe("DATA-08 backlog workspaces repository", () => {
 		expect(must(await repositories.backlogWorkspaces.get(created.id))?.sectionId).toBeNull();
 	});
 
-	it("removes an entry with its repo and deletes one on its own", async () => {
+	it("keeps an entry with no repository when its repo is removed, and deletes one on its own", async () => {
 		seedRepo();
 		const created = await createEntry();
 		must(await repositories.repos.delete(sampleRepo.id));
-		expect(must(await repositories.backlogWorkspaces.list())).toHaveLength(0);
+		expect(must(await repositories.backlogWorkspaces.list())).toHaveLength(1);
+		expect(must(await repositories.backlogWorkspaces.get(created.id))).toMatchObject({
+			repoId: null,
+			prompt: "Add a retry to the uploader",
+		});
 
 		seedRepo();
 		const second = await createEntry();
 		must(await repositories.backlogWorkspaces.delete(second.id));
 		expect(must(await repositories.backlogWorkspaces.get(second.id))).toBeNull();
 		expect(created.id).not.toBe(second.id);
+	});
+
+	it("gives an entry with no repository a repository again", async () => {
+		seedRepo();
+		const created = await createEntry();
+		must(await repositories.repos.delete(sampleRepo.id));
+		seedRepo();
+		now = 2000;
+		must(await repositories.backlogWorkspaces.setRepo(created.id, sampleRepo.id));
+		expect(must(await repositories.backlogWorkspaces.get(created.id))).toMatchObject({
+			repoId: sampleRepo.id,
+			updatedAt: 2000,
+		});
+		const missing = await repositories.backlogWorkspaces.setRepo(
+			"missing" as WorkspaceId,
+			sampleRepo.id,
+		);
+		expect(missing.ok).toBe(false);
 	});
 
 	it("reports a missing entry from update and setSection", async () => {

@@ -51,6 +51,7 @@ const add = (body: string) =>
 		threadId: null,
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 	});
 
 describe("REV-12 review comment state in the repository", () => {
@@ -117,6 +118,7 @@ describe("REV-12 review comment state in the repository", () => {
 				threadId: null,
 				replyToId: null,
 				suggestion: null,
+				suggestionBaseCode: null,
 			}),
 		);
 

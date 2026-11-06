@@ -63,6 +63,7 @@ export function createActions(
 			addToBacklog: (input) => services.workspace.addToBacklog(input),
 			startFromBacklog: (id) => services.workspace.startFromBacklog(id),
 			removeFromBacklog: (id) => services.workspace.removeFromBacklog(id),
+			setBacklogRepo: (id, repoId) => services.workspace.setBacklogRepo(id, repoId),
 		},
 		sections: {
 			create: (name, emoji) => services.sections.create(name, emoji),
@@ -109,6 +110,7 @@ export function createActions(
 				reorder: (sessionId, orderedIds) => services.followUpQueue.reorder(sessionId, orderedIds),
 				setPaused: (sessionId, paused) => services.followUpQueue.setPaused(sessionId, paused),
 				sendNowAsSteer: (messageId) => services.followUpQueue.sendNowAsSteer(messageId),
+				retry: (messageId) => services.followUpQueue.retry(messageId),
 			},
 		},
 		git: {
@@ -128,6 +130,9 @@ export function createActions(
 			continueOnNewBranch: (workspaceId, name) =>
 				services.git.continueOnNewBranch(workspaceId, name),
 			openInDiffTool: (workspaceId, path) => services.git.openInDiffTool(workspaceId, path),
+			sparseCheckoutSettings: (workspaceId) => services.git.sparseCheckoutSettings(workspaceId),
+			setSparseCheckoutDirectories: (workspaceId, directories) =>
+				services.git.setSparseCheckoutDirectories(workspaceId, directories),
 		},
 		pullRequests: {
 			create: (workspaceId) => services.github.create(workspaceId),
@@ -144,6 +149,9 @@ export function createActions(
 			removeReviewRequest: (workspaceId, login) =>
 				services.github.removeReviewRequest(workspaceId, login),
 			link: (workspaceId, urlOrNumber) => services.github.linkPullRequest(workspaceId, urlOrNumber),
+			openOnGithub: (workspaceId) => services.github.openOnGithub(workspaceId),
+			syncStack: (workspaceId) => services.github.syncStack(workspaceId),
+			mergeStack: (workspaceId) => services.github.mergeStack(workspaceId),
 		},
 		issues: {
 			attachToWorkspace: (workspaceId, issue) =>
@@ -152,9 +160,9 @@ export function createActions(
 					: services.github.attachIssueToWorkspace(workspaceId, issue),
 		},
 		comments: {
-			add: (workspaceId, file, line, endLine, body) =>
-				services.review.add(workspaceId, file, line, endLine, body),
-			edit: (id, body) => services.review.edit(id, body),
+			add: (workspaceId, file, line, endLine, body, details) =>
+				services.review.add(workspaceId, file, line, endLine, body, details),
+			edit: (id, body, details) => services.review.edit(id, body, details),
 			remove: (id) => services.review.remove(id),
 			setResolved: (id, resolved) => services.review.setResolved(id, resolved),
 			setHidden: (id, hidden) => services.review.setHidden(id, hidden),
@@ -184,6 +192,9 @@ export function createActions(
 				services.workspaceFiles.open(workspaceId, path, mode, scope),
 			resolveConflicts: (workspaceId, path, choices) =>
 				services.workspaceFiles.resolveConflicts(workspaceId, path, choices),
+			reveal: (workspaceId, path) => services.workspaceFiles.reveal(workspaceId, path),
+			openInApp: (workspaceId, path, appName) =>
+				services.workspaceFiles.openInApp(workspaceId, path, appName),
 		},
 		artifacts: {
 			loadMore: (workspaceId) => services.workspaceFiles.loadMoreArtifacts(workspaceId),
@@ -212,6 +223,7 @@ export function createActions(
 			set: (key, value) => services.settings.set(key, value),
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
+			resetForRepo: (repoId, key) => services.settings.resetForRepo(repoId, key),
 		},
 		agents: {
 			login: (agent, acpAgent) => services.agentCatalog.login(agent, acpAgent),

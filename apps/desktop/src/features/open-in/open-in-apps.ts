@@ -101,6 +101,18 @@ export function visibleOpenInApps(
 }
 
 /** The toast title Conductor shows for an open that failed. */
+/**
+ * The app "Open in" uses: the stored default when it is in the list (installed on this Mac), else the
+ * first app of the list. Conductor's rule (renderApp `pe = B && fe.some(...) ? B : fe[0]?.id`); only an
+ * empty list has no app.
+ */
+export function defaultOpenInApp(
+	apps: readonly OpenInApp[],
+	storedDefault: string,
+): OpenInApp | null {
+	return apps.find((app) => app.appName === storedDefault) ?? apps[0] ?? null;
+}
+
 export function openInFailureTitle(error: AppError): string {
 	switch (error.code) {
 		case "open_with_missing_path":

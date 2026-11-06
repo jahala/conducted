@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
 import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
+import { turnCheckpointId } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	CheckpointService,
@@ -166,17 +167,24 @@ describe("REV-09 checkpoint service", () => {
 		expect(waits).toBeGreaterThan(0);
 	});
 
-	it("counts files changed since a checkpoint with NUL separators", async () => {
+	it("counts files changed since a turn's start checkpoint with NUL separators", async () => {
 		const { git, commands } = fakeGit((command) =>
 			command.program === SCRIPT ? output("src/a.ts\0dir/with\nnewline.ts\0") : output("", "", 0),
 		);
 
-		await expect(makeService(git).changedSince(session, "checkpoint-1")).resolves.toEqual({
+		await expect(makeService(git).changedSinceTurn(session, turn)).resolves.toEqual({
 			ok: true,
 			value: 2,
 		});
 		const diff = commands.find((command) => command.program === SCRIPT);
-		expect(diff?.args).toEqual(["diff", "checkpoint-1", "current", "--", "--name-only", "-z"]);
+		expect(diff?.args).toEqual([
+			"diff",
+			turnCheckpointId(session, turn, "start"),
+			"current",
+			"--",
+			"--name-only",
+			"-z",
+		]);
 	});
 
 	it("gives each caller its own copy so a change never reaches the cache", async () => {

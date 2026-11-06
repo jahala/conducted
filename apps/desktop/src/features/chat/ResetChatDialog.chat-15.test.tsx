@@ -1,11 +1,13 @@
 /**
  * @feature CHAT-15 Revert to a turn
- * Tests the reset dialog over the real container: the checkbox is remembered, Reset calls
+ * Tests the reset dialog over the real container: it counts the files changed since the turn
+ * started (useChangedSinceTurn), the checkbox is remembered, Reset calls
  * sessions.revertTo for the turn, Cmd+Enter confirms, a running agent is cancelled first, a
  * failed cancel or revert keeps the dialog open with the reason, and success closes it.
  * Test first: confirming with "Also reset files" ticked calls sessions.revertTo(id, turnId).
  */
 import { appError, err, ok } from "@conducted/shared";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -26,31 +28,38 @@ function makeTest() {
 	const created = createTestContainer();
 	test = created;
 	const onOpenChange = vi.fn();
+	// The checkpointer's diff needs a git repository; the count it reports is what the dialog shows.
+	const counted = vi
+		.spyOn(created.container.services.checkpoint, "changedSinceTurn")
+		.mockResolvedValue(ok(2));
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	const renderDialog = (options: { busy?: boolean } = {}) =>
 		render(
-			<ServicesProvider container={created.container}>
-				<ResetChatDialog
-					open
-					onOpenChange={onOpenChange}
-					sessionId={"s1" as never}
-					turnId={"t1" as never}
-					changedFileCount={2}
-					busy={options.busy}
-				/>
-			</ServicesProvider>,
+			<QueryClientProvider client={client}>
+				<ServicesProvider container={created.container}>
+					<ResetChatDialog
+						open
+						onOpenChange={onOpenChange}
+						sessionId={"s1" as never}
+						turnId={"t1" as never}
+						busy={options.busy}
+					/>
+				</ServicesProvider>
+			</QueryClientProvider>,
 		);
-	return { container: created.container, onOpenChange, renderDialog };
+	return { container: created.container, onOpenChange, renderDialog, counted };
 }
 
 describe("CHAT-15 reset chat dialog", () => {
-	it("asks for confirmation before reverting", () => {
-		const { renderDialog, container } = makeTest();
+	it("asks for confirmation before reverting, counting the files changed since the turn", async () => {
+		const { renderDialog, container, counted } = makeTest();
 		const revert = vi.spyOn(container.actions.sessions, "revertTo");
 		renderDialog();
 
 		expect(screen.getByRole("heading", { name: "Reset chat?" })).toBeTruthy();
 		expect(screen.getByText("Later messages will be deleted.")).toBeTruthy();
-		expect(screen.getByText("2 files changed")).toBeTruthy();
+		expect(await screen.findByText("2 files changed")).toBeTruthy();
+		expect(counted).toHaveBeenCalledWith("s1", "t1");
 		expect(revert).not.toHaveBeenCalled();
 	});
 

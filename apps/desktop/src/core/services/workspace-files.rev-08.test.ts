@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
+import { memoryPlatformForShape } from "../../test/memory-platform.ts";
 import { fileDraftKey, previewUrlOf } from "./workspace-files.ts";
 
 async function setup(path: string) {
@@ -159,9 +160,10 @@ describe("REV-08 WorkspaceFilesService modified time and preview URL", () => {
 	});
 
 	it("puts the modified time in the preview URL, so a changed file loads again", () => {
-		expect(previewUrlOf("/code/my shots/a.png", 5)).toBe(
+		const { fs } = memoryPlatformForShape();
+		expect(previewUrlOf(fs, "/code/my shots/a.png", 5)).toBe(
 			"asset://localhost/%2Fcode%2Fmy%20shots%2Fa.png?v=5",
 		);
-		expect(previewUrlOf("/code/a.png", 6)).not.toBe(previewUrlOf("/code/a.png", 5));
+		expect(previewUrlOf(fs, "/code/a.png", 6)).not.toBe(previewUrlOf(fs, "/code/a.png", 5));
 	});
 });

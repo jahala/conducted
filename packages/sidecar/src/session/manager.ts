@@ -79,12 +79,13 @@ import type {
 	Clock,
 	EventId,
 	IdSource,
+	KeyedQueue,
 	MessageId,
 	Result,
 	SessionId,
 	TurnId,
 } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, isAppError, messageOf, ok } from "@conducted/shared";
 import type { CheckpointService } from "../checkpoints/checkpoint-service.ts";
 import type { Logger } from "../logging/logger.ts";
 import type { ModelCatalog } from "../models/catalog.ts";
@@ -120,7 +121,6 @@ import type {
 	TurnOutcome,
 } from "../runners/runner.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
-import { isAppError, messageOf } from "../util/errors.ts";
 import type { DuplicateGuard } from "./duplicate-guard.ts";
 import { DuplicateGuard as Guard } from "./duplicate-guard.ts";
 import type { EventPublisher } from "./event-batcher.ts";
@@ -132,7 +132,6 @@ import { QueuedMessages as Queue } from "./queued-messages.ts";
 import type { RunNumber } from "./run-guard.ts";
 import { RunGuard } from "./run-guard.ts";
 import { SelfStartedTurns } from "./self-started-turns.ts";
-import type { KeyedSerialQueue } from "./serial-queue.ts";
 import { chooseDelivery, resolveSteerFailure, type SteerFailure } from "./steering.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
 
@@ -219,7 +218,7 @@ export interface SessionManagerDeps {
 	publisher: EventPublisher;
 	liveState: LiveStateStore;
 	interactions: InteractionBroker;
-	queue: KeyedSerialQueue;
+	queue: KeyedQueue;
 	/** The one home for each agent's model list, with its cache (SIDE-14). warmAgent reads it. */
 	models: Pick<ModelCatalog, "list">;
 	clock: Clock;
@@ -453,7 +452,7 @@ export class DefaultSessionManager implements SessionManager {
 				return ok({});
 			}
 
-			const config = await this.warmConfig(state.sessionId, params.config);
+			const config = await this.warmConfig(state.sessionId, params.config, params.launch);
 			state.config = config;
 			await this.replaceAgentIfKindChanged(state, config);
 
@@ -1499,10 +1498,15 @@ export class DefaultSessionManager implements SessionManager {
 
 	/**
 	 * The config to warm with: the chosen model when the agent offers it, else the agent's default
-	 * (sessions.md 3). The list comes from the model catalog, so warming twice lists once.
+	 * (sessions.md 3). The list comes from the model catalog, read with the chat's launch (the
+	 * program and keys the agent will run with), so warming twice lists once.
 	 */
-	private async warmConfig(sessionId: SessionId, config: SessionConfig): Promise<SessionConfig> {
-		const listed = await this.deps.models.list(config.agent, config.acpAgent);
+	private async warmConfig(
+		sessionId: SessionId,
+		config: SessionConfig,
+		launch: AgentLaunch,
+	): Promise<SessionConfig> {
+		const listed = await this.deps.models.list(config.agent, config.acpAgent, launch);
 		if (!listed.ok) {
 			this.deps.logger.warn("Could not check the model before warming the agent", {
 				sessionId,

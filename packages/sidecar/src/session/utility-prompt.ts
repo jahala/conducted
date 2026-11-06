@@ -31,14 +31,13 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import type { AppError, Clock, IdSource, Result, SessionId, WorkspaceId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, asAppError, err, messageOf, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AppToSidecarRequestParams, AppToSidecarRequestResult } from "../rpc/types.ts";
 import { agentEnvironmentFromCapture } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type { AgentSession, TurnCallbacks, TurnOutcome } from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
-import { asAppError, messageOf } from "../util/errors.ts";
 
 /** The longest a utility prompt may run before it is stopped. */
 export const UTILITY_PROMPT_TIMEOUT_MS = 60_000;

@@ -54,6 +54,7 @@ export interface DiffCommentRow {
 	thread_id: string | null;
 	reply_to_id: CommentId | null;
 	suggestion: string | null;
+	suggestion_base_code: string | null;
 	remote_url: string | null;
 	resolved: number;
 	outdated: number;
@@ -76,6 +77,7 @@ export const diffCommentFromRow = (row: DiffCommentRow): DiffComment => ({
 	threadId: row.thread_id,
 	replyToId: row.reply_to_id,
 	suggestion: row.suggestion,
+	suggestionBaseCode: row.suggestion_base_code,
 	remoteUrl: row.remote_url,
 	resolved: fromFlag(row.resolved),
 	outdated: fromFlag(row.outdated),
@@ -105,14 +107,15 @@ export const diffCommentToParams = (comment: DiffComment): readonly unknown[] =>
 	comment.filePath === null ? "pull_request" : "file",
 	comment.createdAt,
 	comment.updatedAt,
+	comment.suggestionBaseCode,
 ];
 
 const COLUMNS = `id, workspace_id, file_path, line, end_line, body, author_kind, author_name,
 	author_avatar_url, side, thread_id, reply_to_id, suggestion, remote_url, resolved, outdated,
-	state, location, created_at, updated_at`;
+	state, location, created_at, updated_at, suggestion_base_code`;
 
 const VALUES =
-	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20";
+	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21";
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const DIFF_COMMENTS_SQL = {
@@ -138,7 +141,8 @@ export const DIFF_COMMENTS_SQL = {
 				WHEN diff_comments.state IN ('hidden', 'reviewed') THEN 'pending'
 				ELSE diff_comments.state
 			END,
-			body = excluded.body, suggestion = excluded.suggestion, line = excluded.line,
+			body = excluded.body, suggestion = excluded.suggestion,
+			suggestion_base_code = excluded.suggestion_base_code, line = excluded.line,
 			end_line = excluded.end_line, outdated = excluded.outdated,
 			remote_url = excluded.remote_url, author_avatar_url = excluded.author_avatar_url,
 			updated_at = excluded.updated_at
@@ -147,7 +151,8 @@ export const DIFF_COMMENTS_SQL = {
 			diff_comments.state NOT IN ('hidden', 'reviewed', 'superseded')
 			OR (diff_comments.state IN ('hidden', 'reviewed') AND diff_comments.body <> excluded.body)
 		)`,
-	setBody: "UPDATE diff_comments SET body = $1, suggestion = $2, updated_at = $3 WHERE id = $4",
+	setBody: `UPDATE diff_comments SET body = $1, suggestion = $2, suggestion_base_code = $3,
+		updated_at = $4 WHERE id = $5`,
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
 	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
 	/** Hides a comment. A superseded comment stays frozen. */
@@ -192,6 +197,7 @@ export type NewDiffComment = Pick<
 	| "threadId"
 	| "replyToId"
 	| "suggestion"
+	| "suggestionBaseCode"
 >;
 
 export interface DiffCommentRepository {
@@ -213,8 +219,12 @@ export interface DiffCommentRepository {
 	 * changes nothing.
 	 */
 	syncRemote(workspaceId: WorkspaceId, comments: readonly DiffComment[]): Promise<Result<void>>;
-	/** DIFF_COMMENTS_SQL.setBody. */
-	setBody(id: CommentId, body: string, suggestion: string | null): Promise<Result<void>>;
+	/** DIFF_COMMENTS_SQL.setBody: the text, and the suggested change with the code it replaces. */
+	setBody(
+		id: CommentId,
+		body: string,
+		suggestion: Pick<DiffComment, "suggestion" | "suggestionBaseCode">,
+	): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setResolved. */
 	setResolved(id: CommentId, resolved: boolean): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setState: hide, mark ready, reviewed or superseded (REV-12). */
@@ -299,6 +309,7 @@ export function createDiffCommentRepository(
 					threadId: input.threadId,
 					replyToId: input.replyToId,
 					suggestion: input.suggestion,
+					suggestionBaseCode: input.suggestionBaseCode,
 					remoteUrl: null,
 					resolved: false,
 					outdated: false,
@@ -351,7 +362,7 @@ export function createDiffCommentRepository(
 			executeExisting(
 				db,
 				DIFF_COMMENTS_SQL.setBody,
-				[body, suggestion, now(), id],
+				[body, suggestion.suggestion, suggestion.suggestionBaseCode, now(), id],
 				"Editing a review comment",
 			),
 		setResolved: (id, resolved) =>

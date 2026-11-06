@@ -20,9 +20,9 @@
  */
 import { type Interaction, idleLiveState, type LiveState } from "@conducted/protocol";
 import type { InteractionId, MessageId, SessionId } from "@conducted/shared";
+import { createKeyedQueue } from "@conducted/shared";
 import type { SidecarToApp } from "../rpc/types.ts";
 import type { EventPublisher } from "./event-batcher.ts";
-import { KeyedSerialQueue } from "./serial-queue.ts";
 
 export type BackgroundTask = LiveState["backgroundTasks"][number];
 
@@ -122,7 +122,7 @@ export class LiveStateStore {
 	private readonly bySession = new Map<SessionId, LiveState>();
 	private readonly epochs = new Map<SessionId, number>();
 	/** Updates of one chat run in call order. */
-	private readonly chains = new KeyedSerialQueue();
+	private readonly chains = createKeyedQueue();
 
 	constructor(
 		protected readonly deps: {

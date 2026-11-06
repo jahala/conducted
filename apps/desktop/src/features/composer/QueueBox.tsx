@@ -141,7 +141,7 @@ export function QueueBox({ sessionId }: QueueBoxProps) {
 	};
 
 	const retry = (row: QueuedMessage): void => {
-		void services.followUpQueue.retry(row.id).then((result) => {
+		void actions.sessions.queue.retry(row.id).then((result) => {
 			if (!result.ok) toastError("Failed to retry message", result.error);
 		});
 	};

@@ -40,10 +40,17 @@
  * when turn/completed with status completed arrives.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	asAppError,
+	err,
+	ok,
+	type Result,
+	type SessionId,
+} from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
-import { asAppError } from "../../util/errors.ts";
 import { asRecord, readString } from "../../util/records.ts";
 import { sameStrings } from "../../util/string-set.ts";
 import { NoActiveTurnError } from "../errors.ts";

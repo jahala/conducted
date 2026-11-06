@@ -21,6 +21,8 @@ export interface CommentComposerProps {
 	initialBody: string;
 	/** The original lines, offered as a starting point for a suggested change. Null: none. */
 	suggestionBase: string | null;
+	/** An edit's current suggested change. Left out or null: the comment has none yet. */
+	initialSuggestion?: string | null;
 	onSubmit: (body: string, suggestion: string | null) => Promise<boolean>;
 	onCancel: () => void;
 }
@@ -35,19 +37,24 @@ export function CommentComposer({
 	mode,
 	initialBody,
 	suggestionBase,
+	initialSuggestion = null,
 	onSubmit,
 	onCancel,
 }: CommentComposerProps) {
 	const [body, setBody] = useState(initialBody);
-	const [suggesting, setSuggesting] = useState(false);
-	const [suggestion, setSuggestion] = useState(suggestionBase ?? "");
+	const [suggesting, setSuggesting] = useState(
+		initialSuggestion !== null && suggestionBase !== null,
+	);
+	const [suggestion, setSuggestion] = useState(initialSuggestion ?? suggestionBase ?? "");
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const field = useRef<HTMLTextAreaElement>(null);
 
 	const suggestionValue = suggesting ? suggestion : null;
-	const dirty = body !== initialBody || suggestionValue !== null;
+	const dirty =
+		body !== initialBody ||
+		suggestionValue !== (suggestionBase === null ? null : initialSuggestion);
 
 	const submit = async () => {
 		if (body.trim() === "" || busy) return;

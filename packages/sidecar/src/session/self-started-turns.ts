@@ -22,9 +22,9 @@
  */
 import type { AgentMessage, SessionEvent } from "@conducted/protocol";
 import type { Clock, EventId, IdSource, SessionId, TurnId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { ProcessManager } from "../process/process-manager.ts";
-import { messageOf } from "../util/errors.ts";
 import type { EventPublisher } from "./event-batcher.ts";
 import { beginTurn, endTurn, type LiveStateStore } from "./live-state.ts";
 import type { RunGuard, RunNumber } from "./run-guard.ts";

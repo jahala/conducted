@@ -25,9 +25,8 @@
 import type { SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
 import type { appToSidecarRequests, RateLimit, ResultOf } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { type AppError, appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { messageOf } from "../util/errors.ts";
 
 export const PLAN_USAGE_TIMEOUT_MS = 10_000;
 

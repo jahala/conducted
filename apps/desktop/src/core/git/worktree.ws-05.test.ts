@@ -78,6 +78,12 @@ function makeFs(overrides: Partial<FileSystem> = {}): {
 			trashed.push(path);
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 		...overrides,
 	} satisfies FileSystem;

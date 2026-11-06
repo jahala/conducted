@@ -9,7 +9,8 @@
  * @feature GIT-08 moving an open pull request's base when the target branch changes
  * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
  * re-running the failed workflow runs, one `gh run rerun --failed` per run
- * @feature PR-08 GitHub stacks: reading a pull request's stack and running the stack sync
+ * @feature PR-08 GitHub stacks: reading a pull request's stack and running the stack sync; the
+ * stack merge is not built yet
  * @feature REV-04 GitHub review comment sync: reading review threads and general comments, and
  * resolving a review thread
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
@@ -81,6 +82,7 @@ import {
 	type AppError,
 	appError,
 	err,
+	messageOf,
 	notImplemented,
 	ok,
 	type Result,
@@ -1435,7 +1437,7 @@ const NO_REQUIRED_CHECKS: ReadonlySet<string> = new Set();
 
 /** Turns a thrown poll error into a value, so the timer is re-armed and the user sees the failure. */
 function pollCrashError(cause: unknown): AppError {
-	return appError("github_poll_crashed", cause instanceof Error ? cause.message : String(cause));
+	return appError("github_poll_crashed", messageOf(cause));
 }
 
 /** The GraphQL budget out of `gh api rate_limit`. Null means the host does not rate limit. */
@@ -2392,7 +2394,7 @@ export class GithubService {
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
-	/** Opens GitHub's new-PR page in the browser. */
+	/** Backs `Actions.pullRequests.openOnGithub`: opens GitHub's new-PR page in the browser. */
 	async openOnGithub(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
@@ -2815,8 +2817,14 @@ export class GithubService {
 		return edited.ok ? ok(true) : err(edited.error);
 	}
 
+	/** Backs `Actions.pullRequests.mergeStack`: `gh stack merge` (services-map 3.8.2). */
+	mergeStack(_workspaceId: WorkspaceId): Promise<Result<void>> {
+		return notImplemented("PR-08");
+	}
+
 	/**
-	 * Runs `gh stack sync` for a stacked branch (services-map 3.8.2). A command that `gh` does not
+	 * Backs `Actions.pullRequests.syncStack`. Runs `gh stack sync` for a stacked branch
+	 * (services-map 3.8.2). A command that `gh` does not
 	 * know means the stack extension is missing; a cross mark or "Sync aborted" means the sync
 	 * stopped partway. Both are errors, so a partial sync is never reported as done.
 	 */
