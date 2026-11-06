@@ -12,6 +12,8 @@
  * open state and width are kept in the settings table (`left_panel_visible`, `left_panel_width`), in pixels, so
  * a restart restores both. Workspace panel groups keep their own layout through layout-persistence.ts, and the
  * shell removes a workspace's saved layout when the workspace is deleted or archived.
+ * The shell creates the surface layout registry and mounts its surface layer once, above the routes, so a
+ * terminal tab's terminal stays alive across tab and route switches (NAV-15, surface-registry.tsx).
  * Must handle: the saved sidebar state is applied only after the settings have loaded (the shell shows an empty
  * surface until then); collapsed sidebar (the `--shell-left-inset` variable tells headers to leave room for the
  * controls); sidebar and centre fail separately, each inside <NotBuiltYet>, and a route change clears the
@@ -48,6 +50,11 @@ import {
 } from "./layout-persistence.ts";
 import { PathOverrideNotice } from "./path-override-notice.ts";
 import { ShellControls } from "./ShellControls.tsx";
+import {
+	createSurfaceRegistry,
+	SurfaceHost,
+	SurfaceRegistryProvider,
+} from "./surface-registry.tsx";
 import { XcodeLicenseNotice } from "./xcode-license-notice.ts";
 
 /**
@@ -69,6 +76,7 @@ function LoadedShell() {
 	const savedVisible = useSetting<boolean>("left_panel_visible");
 	const [sidebarOpen, setSidebarOpen] = useState(savedVisible);
 	const [initialSidebarWidth] = useState(() => shellSidebarWidth(settings));
+	const [surfaces] = useState(createSurfaceRegistry);
 	const workspaceId = useRouterState({
 		select: (state) => {
 			for (let index = state.matches.length - 1; index >= 0; index -= 1) {
@@ -141,44 +149,47 @@ function LoadedShell() {
 			<XcodeLicenseNotice />
 			<PathOverrideNotice />
 			<ShellControls sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
-			<PanelLayoutProvider store={layoutStore}>
-				<ResizableGroup
-					id={appShellGroupId}
-					orientation="horizontal"
-					className="h-full w-full"
-					persist={false}
-					onLayoutChanged={persistSidebar}
-				>
-					<ResizablePanel
-						id="sidebar"
-						panelRef={sidebarRef}
-						defaultSize={sidebarOpen ? `${initialSidebarWidth}px` : sidebarSize.collapsed}
-						minSize={sidebarSize.min}
-						maxSize={sidebarSize.max}
-						collapsible
-						collapsedSize={sidebarSize.collapsed}
-						groupResizeBehavior="preserve-pixel-size"
-						onResize={(size) => setSidebarOpen(size.inPixels > 0)}
+			<SurfaceRegistryProvider registry={surfaces}>
+				<PanelLayoutProvider store={layoutStore}>
+					<ResizableGroup
+						id={appShellGroupId}
+						orientation="horizontal"
+						className="h-full w-full"
+						persist={false}
+						onLayoutChanged={persistSidebar}
 					>
-						<aside aria-label="Sidebar" className="flex h-full min-w-0 flex-col bg-surface">
-							<div data-tauri-drag-region className="h-(--titlebar-height) shrink-0" />
-							<div className="min-h-0 flex-1">
-								<NotBuiltYet area="Sidebar">
-									<Sidebar />
+						<ResizablePanel
+							id="sidebar"
+							panelRef={sidebarRef}
+							defaultSize={sidebarOpen ? `${initialSidebarWidth}px` : sidebarSize.collapsed}
+							minSize={sidebarSize.min}
+							maxSize={sidebarSize.max}
+							collapsible
+							collapsedSize={sidebarSize.collapsed}
+							groupResizeBehavior="preserve-pixel-size"
+							onResize={(size) => setSidebarOpen(size.inPixels > 0)}
+						>
+							<aside aria-label="Sidebar" className="flex h-full min-w-0 flex-col bg-surface">
+								<div data-tauri-drag-region className="h-(--titlebar-height) shrink-0" />
+								<div className="min-h-0 flex-1">
+									<NotBuiltYet area="Sidebar">
+										<Sidebar />
+									</NotBuiltYet>
+								</div>
+							</aside>
+						</ResizablePanel>
+						<ResizeHandle />
+						<ResizablePanel id="main-content" minSize={centreMinSize}>
+							<main className="flex h-full min-w-0 flex-col bg-canvas">
+								<NotBuiltYet area="Centre" resetKey={routeKey}>
+									<Outlet />
 								</NotBuiltYet>
-							</div>
-						</aside>
-					</ResizablePanel>
-					<ResizeHandle />
-					<ResizablePanel id="main-content" minSize={centreMinSize}>
-						<main className="flex h-full min-w-0 flex-col bg-canvas">
-							<NotBuiltYet area="Centre" resetKey={routeKey}>
-								<Outlet />
-							</NotBuiltYet>
-						</main>
-					</ResizablePanel>
-				</ResizableGroup>
-			</PanelLayoutProvider>
+							</main>
+						</ResizablePanel>
+					</ResizableGroup>
+				</PanelLayoutProvider>
+				<SurfaceHost registry={surfaces} />
+			</SurfaceRegistryProvider>
 		</div>
 	);
 }
