@@ -8,7 +8,10 @@
 import { appError, err } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import { FEEDBACK_ISSUE_URL, MAX_FEEDBACK_URL_CHARS } from "./system.ts";
+import { MAX_FEEDBACK_URL_CHARS } from "./system.ts";
+
+/** The project's new-issue page, where feedback goes (APP-09's row). */
+const ISSUE_PAGE = "https://github.com/jahala/conducted/issues/new";
 
 const opened: TestContainer[] = [];
 
@@ -32,7 +35,7 @@ async function setup(logs: string | null) {
 
 function openedIssue(openUrl: { mock: { calls: unknown[][] } }): { title: string; body: string } {
 	const url = new URL(String(openUrl.mock.calls[0]?.[0]));
-	expect(`${url.origin}${url.pathname}`).toBe(FEEDBACK_ISSUE_URL);
+	expect(`${url.origin}${url.pathname}`).toBe(ISSUE_PAGE);
 	return { title: url.searchParams.get("title") ?? "", body: url.searchParams.get("body") ?? "" };
 }
 
