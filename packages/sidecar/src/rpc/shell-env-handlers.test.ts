@@ -35,7 +35,6 @@ function deps(shellEnv: ShellEnvProvider): HandlerDeps {
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
 			listAcpConfigOptions: async () => ({ options: [] }),
 			setAcpConfigOption: async () => ({ options: [] }),
-			liveStateOf: () => undefined,
 			onAppAttached: () => {},
 			shutdown: async () => {},
 		},

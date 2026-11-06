@@ -26,7 +26,7 @@ import type {
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
-import type { ModelCatalog } from "../models/catalog.ts";
+import { type ModelCatalog, RunnerModelCatalog } from "../models/catalog.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
 import type { PromptAssembler, PromptInput } from "../prompt/assemble.ts";
@@ -195,6 +195,7 @@ function buildManager(agent: AgentSession, logger: Logger): DefaultSessionManage
 		liveState: new LiveStateStore({ app, flushed: async () => {} }),
 		interactions: new FakeInteractions(),
 		queue: new KeyedSerialQueue(),
+		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `id-${++nextId}` },
 		logger,

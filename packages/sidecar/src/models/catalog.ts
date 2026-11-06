@@ -1,7 +1,10 @@
 /**
  * @feature SIDE-14 Model catalog per agent
- * Owns: the list of models the picker shows for each agent, and the check that a chosen model is
- * valid for an agent before a turn starts.
+ * Owns: the list of models the picker shows for each agent (listModels) and that warmAgent checks
+ * a chat's model against (session/manager.ts), and validate(), the check of a chosen model against
+ * that list. sessions.md 2 step 4 runs that check before every send; nothing calls validate() on a
+ * live path yet, because a send would then wait for a list that can take a throwaway agent process
+ * or 15 s to read, and fail when the list cannot be read (a decision for SIDE-14).
  * Behaviour: research/conductor/other-runners.md section 5 "Model catalog" and "Dynamic discovery"
  * (Claude and Cursor use a static table with picker, gated and deprecated entries; Codex lists
  * models through `model/list`; ACP agents report them as a `category: model` config option and

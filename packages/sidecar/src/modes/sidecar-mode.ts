@@ -798,6 +798,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		liveState,
 		interactions,
 		queue,
+		models,
 		clock,
 		ids,
 		logger,
