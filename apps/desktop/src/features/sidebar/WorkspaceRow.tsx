@@ -3,8 +3,9 @@
  * Owns: One row of the sidebar list: status icon, name, repo avatar, line change counts, unread
  * dot, relative time, status text and badges.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
- * directory; badges Draft and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8
- * (status text).
+ * directory; the repo avatar's emoji, uploaded icon, favicon, owner avatar or letter; badges Draft
+ * and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8 (status text), 5.3
+ * (right-clicking the repo icon offers Change repository icon).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
  * list can refresh every row's "5m" with one timer. Status words come from
  * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
@@ -30,6 +31,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
+import { RepoIconAvatar } from "./RepoIcon.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
 export interface WorkspaceRowProps {
@@ -76,20 +78,6 @@ export function relativeTime(at: number, now: number): string {
 	const months = Math.floor(days / 30);
 	if (months < 12) return `${months}mo`;
 	return `${Math.floor(months / 12)}y`;
-}
-
-function RepoAvatar({ repo }: { repo: Repo }) {
-	const icon = repo.icon?.trim();
-	const text =
-		icon !== undefined && icon !== "" ? icon : repo.name.slice(0, 1).toUpperCase() || "?";
-	return (
-		<span
-			aria-hidden="true"
-			className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-hover text-3xs font-medium text-fg-muted"
-		>
-			{text}
-		</span>
-	);
 }
 
 export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: WorkspaceRowProps) {
@@ -155,7 +143,7 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
 				)}
 			</span>
-			<RepoAvatar repo={repo} />
+			<RepoIconAvatar repo={repo} />
 			<UnreadDot unread={unread} />
 			<time
 				dateTime={new Date(workspace.lastActivityAt).toISOString()}
