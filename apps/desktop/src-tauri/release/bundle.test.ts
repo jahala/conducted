@@ -42,6 +42,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = "/tmp/Conducted.app";
 const SIDECAR = `${APP}/Contents/MacOS/conducted-sidecar`;
 const DMG = "/tmp/Conducted.dmg";
+const EXPECTED_NOTARISED = { identifier: "build.conducted.app", version: "0.1.0", notarised: true };
 
 const INFO = {
 	CFBundleIdentifier: "build.conducted.app",
@@ -196,13 +197,37 @@ describe("PLAT-25 release bundle", () => {
 		expect(result.value.architectures).toEqual(["arm64", "x86_64"]);
 		expect(result.value.hasFrameworksFolder).toBe(true);
 		expect(result.value.notarised).toBe(false);
-		expect(bundleProblems(result.value)).toEqual(
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual(
 			expect.arrayContaining([
 				"The app and sidecar must be arm64 only; found arm64, x86_64.",
 				"The bundle has a Frameworks folder.",
 				"The app has no stapled notarisation ticket.",
 			]),
 		);
+	});
+
+	it("PLAT-25 bundleProblems compares the bundle with the version the release just set", async () => {
+		const { run } = bundleRun({});
+		const result = await verifyBundle(run, APP);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		expect(bundleProblems(result.value, { ...EXPECTED_NOTARISED, version: "0.1.0" })).toEqual([]);
+		expect(bundleProblems(result.value, { ...EXPECTED_NOTARISED, version: "0.2.0" })).toEqual([
+			"The bundle version is 0.1.0; expected 0.2.0.",
+		]);
+	});
+
+	it("PLAT-25 bundleProblems asks for a notarisation ticket only when the release notarises", async () => {
+		const { run } = bundleRun({ staplerExitCode: 1 });
+		const result = await verifyBundle(run, APP);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		expect(bundleProblems(result.value, { ...EXPECTED_NOTARISED, notarised: false })).toEqual([]);
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual([
+			"The app has no stapled notarisation ticket.",
+		]);
 	});
 
 	it("PLAT-25 signs the sidecar on its own with the JIT entitlements, then the app", async () => {
