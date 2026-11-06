@@ -2234,7 +2234,7 @@ PR-06	git	The PR tab merges the pull request with the chosen merge method.	ui-ma
 RC-03	message	User messages carry a source so the chat can say Sent via or Sent from another session; the turn model has no sender field yet.	ui-map 3.3	partly
 CHAT-04	operation	A failed first send shows Message not sent with Retry and Discard; the API has no retry or discard call.	ui-map 3.3	partly
 SIDE-17	message	The turn footer card shows start and end time, Fast mode and input, output, cache read and cache write tokens; the turn model lacks cache and fast fields.	ui-map 3.3	partly
-CHAT-21	operation	Fork to new workspace creates a workspace from a turn's checkpoint; the menu item is disabled today.	ui-map 3.3	missing
+CHAT-21	operation	Fork to new workspace creates a workspace from a turn's checkpoint.	ui-map 3.3	covered
 SIDE-08	operation	Reset chat deletes later messages and can also restore files to the checkpoint, showing the number of files.	ui-map 3.3	covered
 SIDE-04	message	A turn ended by Cancel is shown as Interrupted by user.	ui-map 3.3	covered
 AGENT-03	message	Chat history compacted and Compacting banners come from the agent's compaction events.	ui-map 3.3	covered

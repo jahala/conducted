@@ -25,9 +25,10 @@
  * a prefix. The archive prune runs from the startup checkpoint-pruning step; the chat prune runs
  * when the chat is deleted. A same-workspace fork (CHAT-16) copies the refs it keeps under its own
  * chat's ids in one transaction, leaving out refs that are already gone. A fork to a new workspace
- * (CHAT-21) reads the checkpoint's original HEAD, creates the workspace at that commit, restores
- * the checkpoint into the new worktree, copies the chat there, and removes the new workspace when
- * a later step fails.
+ * (CHAT-21) takes the turn's checkpoint from the sessions service (the same lookup and refusals as
+ * the same-tab fork), reads the checkpoint's original HEAD, creates the workspace at that commit,
+ * restores the checkpoint into the new worktree, copies the chat there, stores the copy as the
+ * workspace's active chat, and removes the new workspace when a later step fails.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
@@ -146,6 +147,13 @@ export interface CheckpointServiceDeps extends CheckpointBaseDeps {
 	) => Promise<Result<Session>>;
 	/** Removes a workspace a fork created before a later step failed. */
 	removeWorkspace?: (workspaceId: WorkspaceId) => Promise<Result<void>>;
+	/**
+	 * The checkpoint a fork of a turn starts from (CHAT-21). The sessions service owns the turn
+	 * lookup and its refusals, so both forks choose the checkpoint the same way.
+	 */
+	forkCheckpointOf?: (sessionId: SessionId, turnId: TurnId) => Promise<Result<string>>;
+	/** Makes the copied chat the new workspace's active chat, in its row and its store. */
+	setActiveSession?: (workspaceId: WorkspaceId, sessionId: SessionId) => Promise<Result<void>>;
 	/** The current time in milliseconds. The revert and the archive prune both count from it. */
 	now: () => number;
 }
@@ -503,9 +511,13 @@ export class CheckpointService {
 				appError("chat_fork_unwired", "Forking a chat to a new workspace needs the app database."),
 			);
 		}
-		const createWorkspaceFromCommit = deps.createWorkspaceFromCommit;
-		const forkSessionInto = deps.forkSessionInto;
-		if (createWorkspaceFromCommit === undefined || forkSessionInto === undefined) {
+		const { createWorkspaceFromCommit, forkSessionInto, forkCheckpointOf, setActiveSession } = deps;
+		if (
+			createWorkspaceFromCommit === undefined ||
+			forkSessionInto === undefined ||
+			forkCheckpointOf === undefined ||
+			setActiveSession === undefined
+		) {
 			return err(
 				appError(
 					"chat_fork_unwired",
@@ -528,32 +540,9 @@ export class CheckpointService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 
-		const last = await databases.sessionEvents.lastIdx(sessionId);
-		if (!last.ok) return last;
-		const stored = await databases.sessionEvents.listFrom(
-			sessionId,
-			0,
-			last.value === null ? 0 : last.value + 1,
-		);
-		if (!stored.ok) return stored;
-		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
-		if (turnEvents.length === 0) {
-			return err(
-				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
-			);
-		}
-		const checkpointRow = [...turnEvents]
-			.reverse()
-			.find((row) => row.event.type === "checkpoint" && row.event.checkpointId !== undefined);
-		const checkpointEvent = checkpointRow?.event;
-		if (
-			checkpointEvent === undefined ||
-			checkpointEvent.type !== "checkpoint" ||
-			checkpointEvent.checkpointId === undefined
-		) {
-			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
-		}
-		const checkpointId = checkpointEvent.checkpointId;
+		const checkpoint = await forkCheckpointOf(sessionId, turnId);
+		if (!checkpoint.ok) return checkpoint;
+		const checkpointId = checkpoint.value;
 
 		const present = await this.#refExists(source.path, checkpointId);
 		if (!present.ok) return present;
@@ -619,6 +608,11 @@ export class CheckpointService {
 
 		const forked = await forkSessionInto(sessionId, turnId, target.id);
 		if (!forked.ok) return discard(forked.error);
+
+		// The copy becomes the new workspace's active chat in its stored row and in the workspace
+		// store, so the returned value says what both hold.
+		const activated = await setActiveSession(target.id, forked.value.id);
+		if (!activated.ok) return discard(activated.error);
 
 		return ok({ ...target, activeSessionId: forked.value.id });
 	}
