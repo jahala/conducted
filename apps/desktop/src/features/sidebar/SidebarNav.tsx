@@ -18,8 +18,9 @@ import { cn } from "../../ui/cn.ts";
 import { HomeIcon, ListTodoIcon, PlusIcon, SearchIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 
+/** Conductor's nav row: 6px padding, 8px gap, 6px radius, the hover tint, a 16px icon box. */
 const rowClass =
-	"group flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm font-medium text-fg-muted transition-colors hover:bg-hover hover:text-fg";
+	"group flex h-8 w-full min-w-0 items-center gap-2 rounded-md p-1.5 text-left text-sm text-sidebar-fg transition-colors hover:bg-hover";
 
 function Row({
 	icon,
@@ -50,12 +51,12 @@ export function SidebarNav() {
 	const createShortcut = useLiveShortcut("workspace.create");
 	const searchShortcut = useLiveShortcut("app.commandPalette");
 	return (
-		<nav aria-label="Main" className="flex shrink-0 flex-col gap-0.5 p-2">
+		<nav aria-label="Main" className="flex shrink-0 flex-col gap-0.5 border-b border-border p-1.5">
 			{dashboardEnabled ? (
 				<Link
 					to="/dashboard"
 					className={rowClass}
-					activeProps={{ className: cn(rowClass, "bg-active text-fg") }}
+					activeProps={{ className: cn(rowClass, "bg-hover text-fg") }}
 				>
 					<Row icon={<ListTodoIcon />} shortcut={null}>
 						Dashboard
@@ -65,7 +66,7 @@ export function SidebarNav() {
 			<Link
 				to="/all-workspaces"
 				className={rowClass}
-				activeProps={{ className: cn(rowClass, "bg-active text-fg") }}
+				activeProps={{ className: cn(rowClass, "bg-hover text-fg") }}
 			>
 				<Row icon={<HomeIcon />} shortcut={homeShortcut}>
 					Home
@@ -74,7 +75,7 @@ export function SidebarNav() {
 			<Link
 				to="/create"
 				className={rowClass}
-				activeProps={{ className: cn(rowClass, "bg-active text-fg") }}
+				activeProps={{ className: cn(rowClass, "bg-hover text-fg") }}
 			>
 				<Row icon={<PlusIcon />} shortcut={createShortcut}>
 					Create

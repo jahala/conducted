@@ -161,6 +161,12 @@ export const BlocksIcon = (p: P) => (
 	<Icon d="M2.5 6.5h4v7h-4zM6.5 9.5h7v4h-7zM9.5 2.5h4v4h-4z" {...p} />
 );
 export const FolderIcon = (p: P) => <Icon d="M2 4.5h4l1.5 1.5H14v6.5H2z" {...p} />;
+export const GearIcon = (p: P) => (
+	<Icon
+		d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6.9 2.5h2.2l.4 1.6 1.2.7 1.6-.5 1.1 1.9-1.2 1.1v1.4l1.2 1.1-1.1 1.9-1.6-.5-1.2.7-.4 1.6H6.9l-.4-1.6-1.2-.7-1.6.5-1.1-1.9 1.2-1.1V7.3L2.6 6.2l1.1-1.9 1.6.5 1.2-.7z"
+		{...p}
+	/>
+);
 export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
 export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
 export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;

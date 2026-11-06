@@ -14,7 +14,7 @@
  * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
  */
 import { Link } from "@tanstack/react-router";
-import { WrenchIcon } from "../../ui/icons.tsx";
+import { GearIcon } from "../../ui/icons.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { MacosVersionWarningNotice } from "../updates/MacosVersionWarning.tsx";
 import { UpdateNotice } from "../updates/UpdateNotice.tsx";
@@ -32,16 +32,7 @@ export function Sidebar() {
 					<WorkspaceList />
 				</NotBuiltYet>
 			</div>
-			<div className="flex shrink-0 flex-col gap-1 border-t border-border p-2">
-				<Link
-					to="/settings"
-					className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm font-medium text-fg-muted transition-colors hover:bg-hover hover:text-fg"
-				>
-					<span className="flex size-4 items-center justify-center">
-						<WrenchIcon />
-					</span>
-					<span className="truncate">Settings</span>
-				</Link>
+			<div className="flex shrink-0 flex-col gap-1 border-t border-border px-2 py-2">
 				<MacosVersionWarningNotice />
 				<NotBuiltYet area="Update notice" variant="inline">
 					<UpdateNotice />
@@ -49,9 +40,24 @@ export function Sidebar() {
 				<NotBuiltYet area="Resource usage" variant="inline">
 					<ResourceUsageTable />
 				</NotBuiltYet>
-				<NotBuiltYet area="Add project" variant="inline">
-					<AddProjectButton variant="ghost" className="w-full justify-start" />
-				</NotBuiltYet>
+				<div className="flex items-center gap-1">
+					<NotBuiltYet area="Add project" variant="inline">
+						<AddProjectButton
+							variant="ghost"
+							size="sm"
+							className="min-w-0 justify-start text-sidebar-fg-muted"
+						/>
+					</NotBuiltYet>
+					<span className="flex-1" />
+					<Link
+						to="/settings"
+						aria-label="Settings"
+						title="Settings"
+						className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted transition-colors hover:bg-hover hover:text-fg"
+					>
+						<GearIcon />
+					</Link>
+				</div>
 			</div>
 		</div>
 	);

@@ -1,10 +1,18 @@
 /**
  * @feature NAV-03 Workspace row
- * Owns: One row of the sidebar list: status icon, name, repo avatar, line change counts, unread
- * dot, relative time, status text and badges.
+ * Owns: One row of the sidebar list: project avatar (outside project groups), status icon, name,
+ * unread dot, line change counts or the relative time, status text and badges.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
  * directory; badges Draft and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8
  * (status text).
+ * Measured from Conductor 0.92.1 (renderApp @10438500): a 6px-radius row, 8px top and bottom, 6px
+ * right, its left padding set by where it sits (20px in a project group, 12px in Pinned and sections);
+ * hover and selected use the 5% tint; the leading visuals are 16px boxes 6px apart (the project avatar,
+ * then the status icon); the name is a 20px line in weight 450 and the muted sidebar colour, 500 and the
+ * stronger colour when selected, 600 when unread; at the right the added and removed line counts in
+ * small monospace ("+4.1k -3"), compact past a thousand.
+ * Our design choice: a row with no line counts shows the relative time in that place, so the time stays on
+ * screen for clean workspaces (Conductor shows it only through a display option).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
  * list can refresh every row's "5m" with one timer. Status words come from
  * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
@@ -21,7 +29,13 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { scopesForTarget } from "../../app/command-dispatcher.ts";
-import { useActions, useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
+import {
+	useActions,
+	useGitState,
+	useLiveShortcut,
+	useSessions,
+	useWorkspaceStatus,
+} from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { formatShortcut } from "../../core/registries/commands.ts";
 import { cn } from "../../ui/cn.ts";
@@ -30,6 +44,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
+import { RepoAvatar } from "./RepoAvatar.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
 export interface WorkspaceRowProps {
@@ -40,6 +55,20 @@ export interface WorkspaceRowProps {
 	shortcutIndex: number | null;
 	/** The current time. The list reads it once a minute and hands it to every row. */
 	now: number;
+	/** The project's avatar leads the row; off inside a project's own group, whose header shows it. */
+	showRepo?: boolean;
+	/** Left padding by where the row sits: 20px in a project group, 12px in Pinned and sections. */
+	indent?: "group" | "section";
+}
+
+/** Line counts as Conductor writes them in a row: 552, 4.1k, 16k. */
+export function compactCount(value: number): string {
+	if (value < 1000) return String(value);
+	if (value < 10_000) {
+		const tenths = Math.floor(value / 100) / 10;
+		return `${Number.isInteger(tenths) ? tenths.toFixed(0) : tenths.toFixed(1)}k`;
+	}
+	return `${Math.round(value / 1000)}k`;
 }
 
 const toneClass: Record<StatusTone, string> = {
@@ -78,23 +107,23 @@ export function relativeTime(at: number, now: number): string {
 	return `${Math.floor(months / 12)}y`;
 }
 
-function RepoAvatar({ repo }: { repo: Repo }) {
-	const icon = repo.icon?.trim();
-	const text =
-		icon !== undefined && icon !== "" ? icon : repo.name.slice(0, 1).toUpperCase() || "?";
-	return (
-		<span
-			aria-hidden="true"
-			className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-hover text-3xs font-medium text-fg-muted"
-		>
-			{text}
-		</span>
-	);
-}
-
-export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: WorkspaceRowProps) {
+export function WorkspaceRow({
+	workspace,
+	repo,
+	selected,
+	shortcutIndex,
+	now,
+	showRepo = true,
+	indent = "section",
+}: WorkspaceRowProps) {
 	const actions = useActions();
 	const status = useWorkspaceStatus(workspace.id);
+	// Read only: the row shows the counts once the git state is known and never starts a git read.
+	const git = useGitState(workspace.id);
+	const counts =
+		git.state === "ready" && (git.data.linesAdded > 0 || git.data.linesRemoved > 0)
+			? { added: git.data.linesAdded, removed: git.data.linesRemoved }
+			: null;
 	const sessions = useSessions(workspace.id);
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
@@ -142,36 +171,64 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 			className={cn(
-				"group flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-				selected ? "bg-active text-fg" : "text-fg-muted hover:bg-hover hover:text-fg",
+				"group relative flex min-w-0 items-start gap-1.5 rounded-md py-2 pr-1.5 text-sm text-sidebar-fg transition-colors hover:bg-hover",
+				indent === "group" ? "pl-5" : "pl-3",
+				selected && "bg-hover",
 			)}
 		>
-			<span className="flex size-4 shrink-0 items-center justify-center">
+			{showRepo ? (
+				<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
+					<RepoAvatar repo={repo} />
+				</span>
+			) : null}
+			<span className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden">
 				<WorkspaceStatusIcon status={status} decorative />
 			</span>
 			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="truncate font-book">{workspaceName(workspace)}</span>
+				<span className="flex h-5 min-w-0 items-center gap-1.5">
+					<span
+						className={cn(
+							"min-w-0 truncate",
+							unread
+								? "font-semibold text-fg"
+								: selected
+									? "font-medium text-fg"
+									: "font-book text-sidebar-fg-muted",
+						)}
+					>
+						{workspaceName(workspace)}
+					</span>
+					<span className="flex-1" />
+					<UnreadDot unread={unread} />
+					{counts !== null ? (
+						<span className="flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-2xs font-medium group-hover:hidden">
+							<span className="text-git-added">+{compactCount(counts.added)}</span>
+							{counts.removed > 0 ? (
+								<span className="text-git-removed">-{compactCount(counts.removed)}</span>
+							) : null}
+						</span>
+					) : (
+						<time
+							dateTime={new Date(workspace.lastActivityAt).toISOString()}
+							title={new Date(workspace.lastActivityAt).toLocaleString()}
+							className="shrink-0 whitespace-nowrap px-1 py-0.5 text-3xs text-sidebar-fg-muted group-hover:hidden"
+						>
+							{relativeTime(workspace.lastActivityAt, now)}
+						</time>
+					)}
+					{shortcutIndex === null || liveShortcut === null ? null : (
+						<span
+							aria-hidden="true"
+							className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
+						>
+							<Kbd>{liveShortcut}</Kbd>
+						</span>
+					)}
+				</span>
 				{subtitle.text === "" ? null : (
 					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
 				)}
 			</span>
-			<RepoAvatar repo={repo} />
-			<UnreadDot unread={unread} />
-			<time
-				dateTime={new Date(workspace.lastActivityAt).toISOString()}
-				title={new Date(workspace.lastActivityAt).toLocaleString()}
-				className="shrink-0 text-2xs text-fg-subtle"
-			>
-				{relativeTime(workspace.lastActivityAt, now)}
-			</time>
-			{shortcutIndex === null || liveShortcut === null ? null : (
-				<span
-					aria-hidden="true"
-					className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
-				>
-					<Kbd>{liveShortcut}</Kbd>
-				</span>
-			)}
 		</Link>
 	);
 }

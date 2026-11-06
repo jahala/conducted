@@ -31,9 +31,10 @@ import type { Repo, Section, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
+import { ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { PinnedSection } from "./PinnedSection.tsx";
+import { RepoAvatar } from "./RepoAvatar.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 import { SectionList } from "./SectionList.tsx";
 import {
@@ -156,14 +157,17 @@ function GroupSection({
 		onError: toastError,
 	});
 	return (
-		<section aria-label={group.label} className="mb-1">
+		<section aria-label={group.label} className="px-1.5 pt-1.5 pb-3">
 			<Collapsible open={open} onOpenChange={onOpenChange}>
-				<div className="group/header flex items-center gap-1 px-2">
-					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-sidebar-fg-muted hover:bg-hover hover:text-fg">
-						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						<span className="truncate">{group.label}</span>
+				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
+					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-medium text-sidebar-fg-muted hover:bg-hover">
+						{repo === null ? null : <RepoAvatar repo={repo} />}
+						<span className="min-w-0 truncate">{group.label}</span>
 						{open ? null : (
-							<span className="ml-1 text-2xs text-fg-subtle">{group.workspaceIds.length}</span>
+							<span className="shrink-0 text-sidebar-fg-muted">{group.workspaceIds.length}</span>
+						)}
+						{open ? null : (
+							<ChevronRightIcon className="ml-auto size-3.5 shrink-0 text-sidebar-fg-muted" />
 						)}
 					</CollapsibleTrigger>
 					{repo === null ? null : (
@@ -172,14 +176,14 @@ function GroupSection({
 							search={{ repo: repo.id }}
 							aria-label={`Create workspace in ${repo.name}`}
 							title={`Create workspace in ${repo.name}`}
-							className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover/header:opacity-100"
 						>
-							<PlusIcon />
+							<PlusIcon className="size-3.5" />
 						</Link>
 					)}
 				</div>
 				<CollapsibleContent>
-					<div className="flex flex-col gap-0.5 py-0.5">
+					<div className="flex flex-col gap-1">
 						{group.workspaceIds.map((workspaceId) => {
 							const row = rows.get(workspaceId);
 							if (row === undefined) return null;
@@ -215,6 +219,8 @@ function GroupSection({
 										selected={selectedId === workspaceId}
 										shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
 										now={now}
+										showRepo={group.key.kind !== "project"}
+										indent={group.key.kind === "project" ? "group" : "section"}
 									/>
 								</div>
 							);

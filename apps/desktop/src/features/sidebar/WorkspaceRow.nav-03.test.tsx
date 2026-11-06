@@ -17,18 +17,20 @@ const hooks = vi.hoisted(() => ({
 	sessions: { state: "ready", data: [] } as Loadable<Session[]>,
 	markRead: vi.fn(),
 	markUnread: vi.fn(),
+	git: { state: "loading" } as Loadable<{ linesAdded: number; linesRemoved: number }>,
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useSessions: () => hooks.sessions,
+	useGitState: () => hooks.git,
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
 	useActions: () => ({
 		workspaces: { markRead: hooks.markRead, markUnread: hooks.markUnread },
 	}),
 }));
 
-const { WorkspaceRow, relativeTime } = await import("./WorkspaceRow.tsx");
+const { WorkspaceRow, relativeTime, compactCount } = await import("./WorkspaceRow.tsx");
 
 afterEach(cleanup);
 
@@ -200,5 +202,36 @@ describe("NAV-03 row helpers", () => {
 		expect(relativeTime(now - 5 * 60_000, now)).toBe("5m");
 		expect(relativeTime(now - 3 * 60 * 60_000, now)).toBe("3h");
 		expect(relativeTime(now - 3 * 24 * 60 * 60_000, now)).toBe("3d");
+	});
+});
+
+describe("NAV-03 row line counts", () => {
+	afterEach(() => {
+		hooks.git = { state: "loading" };
+	});
+
+	it("writes counts as Conductor does: 552, 4.1k, 16k", () => {
+		expect(compactCount(552)).toBe("552");
+		expect(compactCount(4_100)).toBe("4.1k");
+		expect(compactCount(1_000)).toBe("1k");
+		expect(compactCount(16_400)).toBe("16k");
+	});
+
+	it("shows the workspace's added and removed lines in place of the time", async () => {
+		hooks.status = null;
+		hooks.sessions = { state: "ready", data: [] };
+		hooks.git = { state: "ready", data: { linesAdded: 4_100, linesRemoved: 3 } };
+		renderRow(
+			<WorkspaceRow
+				workspace={workspace()}
+				repo={repo()}
+				selected={false}
+				shortcutIndex={null}
+				now={NOW}
+			/>,
+		);
+		expect(await screen.findByText("+4.1k")).toBeTruthy();
+		expect(screen.getByText("-3")).toBeTruthy();
+		expect(document.querySelector("time")).toBeNull();
 	});
 });
