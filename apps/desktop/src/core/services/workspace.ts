@@ -3,13 +3,15 @@
  * workspace
  * @feature WS-02 Create from a branch, PR or issue
  * @feature WS-04 Rename the placeholder branch after the first message
+ * @feature WS-07 Linked workspaces and extra folders
  * @feature WS-11 Backlog workspaces: save now, start later
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat from the default branch, an existing local branch, a pull request or an issue,
  * running the setup script, archiving a workspace, unarchiving one, deleting one or all of a
  * repository's workspaces, storing the intended target branch (GIT-08), saving a renamed branch
- * (GIT-09), renaming the placeholder branch from a suggested name after the first message, and
- * saving, starting and removing backlog workspaces.
+ * (GIT-09), renaming the placeholder branch from a suggested name after the first message, saving
+ * a workspace's linked folders (WS-07), and saving, starting and removing backlog workspaces
+ * (WS-11).
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.3.1 (workspace
  * delete), 2.4.1 (state machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive, unarchive
  * and delete), 3.11 (branch rename, the first-message rename and the stored target branch),
@@ -34,8 +36,8 @@
  * Built now (WS-10): delete a workspace by id and every workspace of a repository. It cancels the
  * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log,
  * viewed-files file and git cache files (DATA-07) to the Trash, deletes its chats with their
- * attachment files, then deletes
- * the row and forgets it in the store. A repository removal stops every workspace's processes first.
+ * attachment files, then deletes the row and forgets it in the store. A repository removal stops
+ * every workspace's processes first.
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
  * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
@@ -55,19 +57,14 @@
  * that cannot be restored is rolled back: the re-added folder and a branch the call created are
  * removed and the state goes back to archived. A rollback step that fails is named in the
  * returned error, and a workspace that cannot go back to archived stays initializing in the store.
-<<<<<<< HEAD
  * Built now (WS-07): linked paths. An absolute folder path is stored for each linked workspace or
  * extra folder, duplicates and empty entries are dropped, the loaded row keeps the new list, and
  * every existing chat stores the folders so its next message carries them.
- * Not built yet (placeholders): the kanban status (NAV-06) and the backlog workspace operations
- * (WS-11).
-=======
  * Built now (WS-11): a backlog workspace keeps its repository, first message, attachments, chat
  * config and section without a worktree or branch. Starting one runs the normal creation flow and
  * removes the saved entry; removing one deletes only the entry. Starting with no repository left
  * returns the message the create flow shows.
- * Not built yet (placeholders): linked paths (WS-07) and the kanban status (NAV-06).
->>>>>>> fc119343e7fb10df42a7e646e6cba5988f16d563
+ * Not built yet (placeholders): the kanban status (NAV-06).
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should

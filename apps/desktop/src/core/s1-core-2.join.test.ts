@@ -6,13 +6,15 @@
  * Test first: each test fails when its feature's container wiring is removed.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import { ok, type Result } from "@conducted/shared";
+import { type CommentId, ok, type Result, type TerminalId } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ShellCommand, ShellOutput } from "../platform/platform.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../test/container.ts";
+import { binDir } from "./app-paths.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { sessionConfig } from "./db/test-fixtures.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
+import type { GithubReviewThread } from "./services/github.ts";
 
 const LSOF_TIMEOUT_MS = 10_000;
 
@@ -310,6 +312,226 @@ describe("s1-core-2 join", () => {
 				test.container.services.workspace.store.getState().workspacesById[workspace.id],
 			).toBeUndefined();
 			expect(test.container.services.repo.store.getState().reposById[repo.id]).toBeUndefined();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
+describe("s1-core-2 join: REV-04, RUN-02, SET-13, WS-07 and WS-11", () => {
+	it("REV-04 syncs and resolves GitHub review comments through the container's review service", async () => {
+		const test = createTestContainer();
+		try {
+			const repo = await seedRepo(test.container);
+			const workspace = await seedWorkspace(test.container, { repoId: repo.id });
+			const thread: GithubReviewThread = {
+				id: "PRT_1",
+				isOutdated: false,
+				isResolved: false,
+				path: "src/a.ts",
+				line: 5,
+				startLine: null,
+				originalLine: 5,
+				originalStartLine: null,
+				startDiffSide: null,
+				diffSide: "RIGHT",
+				comments: [
+					{
+						id: "PRRC_1",
+						databaseId: 101,
+						body: "Please rename this.",
+						url: "https://github.com/o/r/pull/12#discussion_r101",
+						authorLogin: "octocat",
+						authorAvatarUrl: null,
+						createdAt: 1,
+						updatedAt: 2,
+						lastEditedAt: null,
+						diffHunk: "@@ -1,3 +1,3 @@",
+						replyToId: null,
+						replyToDatabaseId: null,
+					},
+				],
+				commentsHasNextPage: false,
+				commentsEndCursor: null,
+			};
+			vi.spyOn(test.container.services.github, "readReviewThreads").mockResolvedValue(ok([thread]));
+			vi.spyOn(test.container.services.github, "readGeneralComments").mockResolvedValue(ok([]));
+			const resolve = vi
+				.spyOn(test.container.services.github, "resolveReviewThread")
+				.mockResolvedValue(ok(undefined));
+
+			const synced = await test.container.services.review.syncFromGithub(workspace.id);
+			expect(synced).toEqual(ok(undefined));
+			expect(
+				test.container.services.review.store.getState().byWorkspace[workspace.id]?.[0],
+			).toMatchObject({
+				id: "github-PRT_1-101",
+				filePath: "src/a.ts",
+				body: "Please rename this.",
+				resolved: false,
+			});
+
+			const resolved = await test.container.services.review.resolveOnGithub(
+				"github-PRT_1-101" as CommentId,
+			);
+			expect(resolved).toEqual(ok(undefined));
+			expect(resolve).toHaveBeenCalledWith(workspace.id, "PRT_1");
+			expect(
+				test.container.services.review.store.getState().byWorkspace[workspace.id]?.[0]?.resolved,
+			).toBe(true);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("RUN-02 starts and stops Spotlight through the container's run actions", async () => {
+		const test = createTestContainer();
+		try {
+			const root = "/code/run-02/project";
+			const repo = await seedRepo(test.container, { rootPath: root });
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				path: `${root}/alpha`,
+			});
+			await test.container.platform.fs.mkdirp(workspace.path);
+			const config = must(await test.container.services.repo.loadConfig(repo.id));
+			must(
+				await test.container.services.repo.updateConfig(repo.id, {
+					...config,
+					spotlightTesting: true,
+				}),
+			);
+			// The sync loop is a process that stays up until Spotlight stops it. The memory PTY
+			// ends a spawned command at once, so this test holds the terminal open instead.
+			vi.spyOn(test.container.services.terminals, "runScript").mockResolvedValue(
+				ok({
+					terminalId: "spotlight-terminal" as TerminalId,
+					exit: new Promise<number | null>(() => {}),
+				}),
+			);
+			vi.spyOn(test.container.services.terminals, "stop").mockResolvedValue(ok(undefined));
+			let checkpointSaved = false;
+			test.memory.controls.scriptShell((command) => {
+				if (command.program.endsWith("git-busy-check.sh")) return output("clean\n");
+				if (command.program.endsWith("checkpointer.sh")) {
+					if (command.args[0] === "save") checkpointSaved = true;
+					return output();
+				}
+				if (command.program !== "git") return null;
+				const args = gitArgs(command);
+				if (args[0] === "show-ref") return output("", "", checkpointSaved ? 0 : 1);
+				if (args[0] === "branch" && args[1] === "--show-current") return output("main\n");
+				if (args[0] === "update-ref" && args[1] === "-d") {
+					checkpointSaved = false;
+					return output();
+				}
+				if (args[0] === "for-each-ref") return output("");
+				return null;
+			});
+
+			const started = await test.container.actions.run.startSpotlight(workspace.id);
+			expect(started).toEqual(ok(undefined));
+			expect(test.container.services.spotlight.store.getState().active[workspace.id]?.active).toBe(
+				true,
+			);
+			expect(checkpointSaved).toBe(true);
+
+			const stopped = await test.container.actions.run.stopSpotlight(workspace.id);
+			expect(stopped).toEqual(ok(undefined));
+			expect(
+				test.container.services.spotlight.store.getState().active[workspace.id],
+			).toBeUndefined();
+			expect(checkpointSaved).toBe(false);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("SET-13 puts the chosen program shim folder into a terminal through the container's actions", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			await test.container.platform.fs.mkdirp(workspace.path);
+			await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
+				workspace.id,
+			]);
+			must(await test.container.services.workspace.start());
+			must(await test.container.services.settings.set("claude_executable_path", "/opt/claude"));
+			vi.spyOn(test.container.platform.programs, "syncPathOverrides").mockResolvedValue(
+				ok("/data/bin-overrides/abc"),
+			);
+			const spawn = vi.spyOn(test.container.platform.pty, "spawn");
+
+			const created = await test.container.actions.terminals.create(workspace.id);
+
+			expect(created.ok).toBe(true);
+			expect(spawn.mock.calls[0]?.[0].env?.CONDUCTED_PATH_PREFIX).toBe(
+				`/data/bin-overrides/abc:${binDir(test.container.platform.fs.paths)}`,
+			);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("WS-07 saves linked folders through the container's workspace actions", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const session = must(
+				await test.container.services.sessions.create(workspace.id, { ...sessionConfig }),
+			);
+
+			const saved = await test.container.actions.workspaces.setLinkedPaths(workspace.id, [
+				"/code/shared",
+			]);
+
+			expect(saved).toEqual(ok(undefined));
+			expect(
+				test.container.services.workspace.store.getState().workspacesById[workspace.id]
+					?.linkedPaths,
+			).toEqual(["/code/shared"]);
+			expect(test.container.lookups.allowedRoots(workspace.id)).toEqual(
+				ok([workspace.path, "/code/shared"]),
+			);
+			expect(
+				test.container.services.sessions.store.getState().sessions[session.id]?.config
+					.additionalDirectories,
+			).toEqual(["/code/shared"]);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("WS-11 saves and removes a backlog workspace through the container's workspace actions", async () => {
+		const test = createTestContainer();
+		try {
+			const repo = await seedRepo(test.container);
+
+			const saved = await test.container.actions.workspaces.addToBacklog({
+				repoId: repo.id,
+				from: { kind: "default" },
+				prompt: "Finish the report",
+				attachmentPaths: [],
+				config: { ...sessionConfig },
+				sectionId: null,
+			});
+
+			expect(saved.ok).toBe(true);
+			if (!saved.ok) return;
+			expect(
+				test.container.services.workspace.store.getState().backlogById[saved.value.id],
+			).toEqual(saved.value);
+
+			const removed = await test.container.actions.workspaces.removeFromBacklog(saved.value.id);
+			expect(removed).toEqual(ok(undefined));
+			expect(
+				test.container.services.workspace.store.getState().backlogById[saved.value.id],
+			).toBeUndefined();
 		} finally {
 			await test.container.stop();
 			test.close();
