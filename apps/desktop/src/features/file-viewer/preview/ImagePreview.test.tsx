@@ -1,6 +1,6 @@
 /**
  * @feature REV-08 Image preview
- * Tests the zoom controls and the error card.
+ * Tests the zoom controls, the error card, Retry, and a new URL clearing an earlier failure.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -26,5 +26,28 @@ describe("REV-08 ImagePreview", () => {
 		expect(screen.getByText("150%")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
 		expect(screen.getByText("100%")).toBeTruthy();
+	});
+
+	it("loads again when the URL changes after a failure", () => {
+		const { container, rerender } = render(<ImagePreview url="a.png?v=1" fileName="a.png" />);
+		const image = container.querySelector("img");
+		if (image !== null) fireEvent.error(image);
+		expect(screen.getByText("Preview not available")).toBeTruthy();
+
+		rerender(<ImagePreview url="a.png?v=2" fileName="a.png" />);
+
+		expect(screen.queryByText("Preview not available")).toBeNull();
+		expect(container.querySelector("img")?.getAttribute("src")).toBe("a.png?v=2");
+	});
+
+	it("tries the same image again with Retry", () => {
+		const { container } = render(<ImagePreview url="a.png" fileName="a.png" />);
+		const image = container.querySelector("img");
+		if (image !== null) fireEvent.error(image);
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		expect(screen.queryByText("Preview not available")).toBeNull();
+		expect(container.querySelector("img")?.getAttribute("src")).toBe("a.png");
 	});
 });

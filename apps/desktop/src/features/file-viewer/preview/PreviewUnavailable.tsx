@@ -2,8 +2,10 @@
  * @feature REV-08 Preview unavailable
  * Owns: the notice for a file that has no preview, or whose preview failed.
  * Behaviour: ui-map.md 7.4 ("Preview unavailable", per-type failure texts).
- * Must handle: showing the file size and type, offering "Open in another app" and "Reveal in
- * Finder", and an optional retry when the cause was a failed load.
+ * Must handle: showing the file size and type, and each action only when the caller passes its
+ * handler: Retry (the image, PDF and video previews pass it after a failed load), "Open in another
+ * app" and "Reveal in Finder". The file viewer passes neither of the last two yet: the Actions
+ * table has no call that opens or reveals a file (CHAT-29 owns `attachments.openExternally`).
  * Test first: with a retry handler the Retry button shows, without one it does not.
  */
 import { Button } from "../../../ui/Button.tsx";

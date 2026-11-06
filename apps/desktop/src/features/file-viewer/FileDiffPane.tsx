@@ -17,8 +17,9 @@ import type { DiffScope, FileDiff } from "../../core/api.ts";
 import { useActions, useDiffComments, useFileDiff } from "../../core/hooks.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { useThemeType } from "../../ui/use-theme-type.ts";
 import { DiffView } from "../diff/DiffView.tsx";
-import type { CommentHandlers, DiffPreferences, DiffTheme } from "../diff/diff-types.ts";
+import type { CommentHandlers, DiffPreferences } from "../diff/diff-types.ts";
 import { FileTabState } from "./FileTabState.tsx";
 
 export interface FileDiffPaneProps {
@@ -28,17 +29,6 @@ export interface FileDiffPaneProps {
 	preferences: DiffPreferences;
 }
 
-function currentTheme(): DiffTheme {
-	const explicit = document.documentElement.dataset.theme;
-	const type =
-		explicit === "dark" || explicit === "light"
-			? explicit
-			: window.matchMedia?.("(prefers-color-scheme: dark)").matches === true
-				? "dark"
-				: "light";
-	return { name: "", type };
-}
-
 export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiffPaneProps) {
 	const diff = useFileDiff(workspaceId, path, scope);
 	const comments = useDiffComments(workspaceId);
@@ -46,6 +36,7 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 	const queryClient = useQueryClient();
 	const [previous, setPrevious] = useState<FileDiff | null>(null);
 	const [forceRender, setForceRender] = useState(false);
+	const themeType = useThemeType();
 
 	useEffect(() => {
 		if (diff.state === "ready") setPrevious(diff.data);
@@ -128,7 +119,7 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 				commentHandlers={handlers}
 				forceRender={forceRender}
 				onForceRender={() => setForceRender(true)}
-				theme={currentTheme()}
+				theme={{ name: "", type: themeType }}
 				updating={diff.state === "loading" && previous !== null}
 			/>
 		</div>

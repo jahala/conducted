@@ -3,9 +3,12 @@
  * Owns: the rendered view of a Markdown file in the File tab.
  * Behaviour: ui-map.md 3.2 (previews) and 6 (Appearance: "Markdown Style", Default or Tufte).
  * Our design choice: the renderer builds React elements instead of HTML, so scripts and raw HTML
- * in the file never run, and remote images are shown as links rather than loaded.
- * Must handle: relative links and images, fenced code blocks, headings, lists, task lists,
- * tables, blockquotes, inline emphasis and an empty file.
+ * in the file never run, and remote images (a scheme such as "https:" or a "//host" address) are
+ * shown as links rather than loaded. An inline "data:image/" image is shown, as in the chat.
+ * Must handle: relative links (resolved against the file's folder and opened as workspace files),
+ * relative images (loaded from the workspace through `imageUrlFor`), a target that climbs out of
+ * the workspace or is only an anchor (shown as plain text), fenced code blocks, headings, lists,
+ * task lists, tables, blockquotes, inline emphasis and an empty file.
  * Test first: a "<script>" tag in the text is not present in the rendered output.
  */
 import type { ReactNode } from "react";
@@ -13,27 +16,106 @@ import { cn } from "../../../ui/cn.ts";
 
 export interface MarkdownPreviewProps {
 	text: string;
-	/** Folder of the file, for resolving relative links. */
+	/** Folder of the file, relative to the workspace, for resolving relative links. */
 	baseDir: string;
 	style: "default" | "tufte";
-	onOpenLink: (target: string) => void;
+	/** Opens a web address outside the app. */
+	onOpenLink: (url: string) => void;
+	/** Opens a workspace file, by its path relative to the workspace. */
+	onOpenFile: (path: string) => void;
+	/** The URL to load a workspace image from, or null when none can be made. */
+	imageUrlFor: (path: string) => string | null;
 }
 
-const isRemote = (target: string): boolean => /^[a-z][a-z0-9+.-]*:/i.test(target);
+interface LinkHandlers {
+	baseDir: string;
+	onOpenLink: (url: string) => void;
+	onOpenFile: (path: string) => void;
+	imageUrlFor: (path: string) => string | null;
+}
 
-function joinRelative(baseDir: string, target: string): string {
-	if (isRemote(target) || target.startsWith("#") || target.startsWith("/")) return target;
-	const base = baseDir.replace(/\/+$/, "");
-	return base.length === 0 ? target : `${base}/${target}`;
+/** A web address or another scheme, including a protocol-relative "//host" address. */
+const isRemote = (target: string): boolean => /^(?:\/\/|[a-z][a-z0-9+.-]*:)/i.test(target);
+const isInlineImage = (target: string): boolean => /^data:image\//i.test(target);
+
+/**
+ * A link target as a path relative to the workspace. A leading "/" starts at the workspace root.
+ * Null for an anchor alone or a path that climbs out of the workspace.
+ */
+function resolveWorkspacePath(baseDir: string, target: string): string | null {
+	const bare = target.split(/[?#]/)[0] ?? "";
+	if (bare.length === 0) return null;
+	const segments = bare.startsWith("/") ? [] : baseDir.split("/").filter((part) => part.length > 0);
+	for (const part of bare.split("/")) {
+		if (part.length === 0 || part === ".") continue;
+		if (part === "..") {
+			if (segments.length === 0) return null;
+			segments.pop();
+			continue;
+		}
+		segments.push(part);
+	}
+	return segments.length === 0 ? null : segments.join("/");
+}
+
+function renderImage(at: string, alt: string, target: string, links: LinkHandlers): ReactNode {
+	if (isRemote(target) && !isInlineImage(target)) {
+		return (
+			<button
+				key={at}
+				type="button"
+				className="text-link underline underline-offset-4"
+				onClick={() => links.onOpenLink(target)}
+			>
+				Image: {alt || target}
+			</button>
+		);
+	}
+	const resolved = isInlineImage(target) ? null : resolveWorkspacePath(links.baseDir, target);
+	const src = isInlineImage(target)
+		? target
+		: resolved === null
+			? null
+			: links.imageUrlFor(resolved);
+	if (src === null) return <span key={at}>{alt || target}</span>;
+	return <img key={at} src={src} alt={alt} loading="lazy" className="max-w-full rounded" />;
+}
+
+function renderLink(at: string, label: string, target: string, links: LinkHandlers): ReactNode {
+	if (isRemote(target)) {
+		return (
+			<a
+				key={at}
+				href={target}
+				className="text-link underline underline-offset-4"
+				onClick={(event) => {
+					event.preventDefault();
+					links.onOpenLink(target);
+				}}
+			>
+				{label}
+			</a>
+		);
+	}
+	const resolved = resolveWorkspacePath(links.baseDir, target);
+	if (resolved === null) return <span key={at}>{label}</span>;
+	return (
+		<a
+			key={at}
+			href={resolved}
+			className="text-link underline underline-offset-4"
+			onClick={(event) => {
+				event.preventDefault();
+				links.onOpenFile(resolved);
+			}}
+		>
+			{label}
+		</a>
+	);
 }
 
 /** Inline Markdown as React nodes. Raw HTML is shown as text, never parsed into elements. */
-function renderInline(
-	text: string,
-	keyPrefix: string,
-	onOpenLink: (target: string) => void,
-	baseDir: string,
-): ReactNode[] {
+function renderInline(text: string, keyPrefix: string, links: LinkHandlers): ReactNode[] {
 	const nodes: ReactNode[] = [];
 	const pattern =
 		/!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|~~([^~]+)~~|\*([^*]+)\*|_([^_]+)_/g;
@@ -45,36 +127,9 @@ function renderInline(
 		const at = `${keyPrefix}-${key}`;
 		key += 1;
 		if (match[1] !== undefined && match[2] !== undefined) {
-			const target = joinRelative(baseDir, match[2] ?? "");
-			nodes.push(
-				isRemote(target) ? (
-					<button
-						key={at}
-						type="button"
-						className="text-link underline underline-offset-4"
-						onClick={() => onOpenLink(target)}
-					>
-						Image: {match[1] || target}
-					</button>
-				) : (
-					<img key={at} src={target} alt={match[1]} loading="lazy" className="max-w-full rounded" />
-				),
-			);
+			nodes.push(renderImage(at, match[1], match[2], links));
 		} else if (match[3] !== undefined && match[4] !== undefined) {
-			const target = joinRelative(baseDir, match[4]);
-			nodes.push(
-				<a
-					key={at}
-					href={target}
-					className="text-link underline underline-offset-4"
-					onClick={(event) => {
-						event.preventDefault();
-						onOpenLink(target);
-					}}
-				>
-					{match[3]}
-				</a>,
-			);
+			nodes.push(renderLink(at, match[3], match[4], links));
 		} else if (match[5] !== undefined) {
 			nodes.push(
 				<code key={at} className="rounded-sm bg-muted px-1 py-0.5 font-mono text-code">
@@ -111,9 +166,17 @@ function tableCells(line: string): string[] {
 	return trimmed.split("|").map((cell) => cell.trim());
 }
 
-export function MarkdownPreview({ text, baseDir, style, onOpenLink }: MarkdownPreviewProps) {
+export function MarkdownPreview({
+	text,
+	baseDir,
+	style,
+	onOpenLink,
+	onOpenFile,
+	imageUrlFor,
+}: MarkdownPreviewProps) {
+	const links: LinkHandlers = { baseDir, onOpenLink, onOpenFile, imageUrlFor };
 	const inline = (value: string, keyPrefix: string): ReactNode[] =>
-		renderInline(value, keyPrefix, onOpenLink, baseDir);
+		renderInline(value, keyPrefix, links);
 	const lines = text.split("\n");
 	const blocks: ReactNode[] = [];
 	let index = 0;

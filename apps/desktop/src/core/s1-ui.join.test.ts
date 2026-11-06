@@ -7,6 +7,7 @@
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or mount is removed.
  */
+import { EditorView } from "@codemirror/view";
 import type { AgentInstall, SessionConfig } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
@@ -204,6 +205,56 @@ describe("s1-ui join", () => {
 			fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
 
 			expect(await screen.findByRole("heading", { name: "Joined preview" })).toBeTruthy();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("REV-08 keeps unsaved edits when the user opens another file and comes back", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.services.settings.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/rev-08-draft" });
+			await test.container.platform.fs.writeTextAtomic(`${workspace.path}/notes.md`, "draft me");
+			await test.container.platform.fs.writeTextAtomic(`${workspace.path}/other.md`, "other");
+			vi.spyOn(test.container.services.fileDiff, "load").mockResolvedValue(
+				ok({
+					path: "other.md",
+					oldText: "",
+					newText: "other",
+					patch: "",
+					binary: false,
+					tooLarge: false,
+				}),
+			);
+			const router = await openApp(
+				test.container,
+				`/repository/${workspace.repoId}/workspace/${workspace.id}`,
+			);
+			const files = test.container.actions.files;
+			const branch = { kind: "branch" } as const;
+
+			must(await files.open(workspace.id, "notes.md", "edit", branch));
+			await waitFor(() => expect(document.querySelector(".cm-editor")).not.toBeNull());
+			const editor = document.querySelector<HTMLElement>(".cm-editor");
+			const view = editor === null ? null : EditorView.findFromDOM(editor);
+			if (view === null) throw new Error("No editor is mounted.");
+			act(() => {
+				view.dispatch({ changes: { from: view.state.doc.length, insert: " with edits" } });
+			});
+
+			must(await files.open(workspace.id, "other.md", "diff", branch));
+			await waitFor(() =>
+				expect(router.state.location.search).toMatchObject({ tab: "file", path: "other.md" }),
+			);
+			await waitFor(() => expect(document.querySelector(".cm-editor")).toBeNull());
+
+			must(await files.open(workspace.id, "notes.md", "edit", branch));
+			await waitFor(() =>
+				expect(document.querySelector(".cm-content")?.textContent).toBe("draft me with edits"),
+			);
+			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();

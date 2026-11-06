@@ -6,15 +6,26 @@
  * SVG", images, PDF, CSV, video; "Preview unavailable").
  * Children: preview/MarkdownPreview, ImagePreview, SvgPreview, PdfPreview, CsvPreview,
  * VideoPreview, PreviewUnavailable.
- * Must handle: a preview that fails to load (the preview's own error card), a file with no preview
- * (the unavailable notice), and a binary file with no URL the webview can load.
+ * Must handle: a preview that fails to load (the preview's own error card, with Retry), a file
+ * with no preview (the unavailable notice), a binary file with no URL the webview can load, and a
+ * Markdown file's links: a web link opens in the browser, a relative link opens that workspace
+ * file in the tab, and a relative image loads from the workspace folder.
+ * "Open in another app" and "Reveal in Finder" are not offered: the Actions table has no call that
+ * opens or reveals a file (CHAT-29 owns `attachments.openExternally`).
  * Test first: a path ending in ".md" renders the Markdown preview, and ".bin" renders the
  * unavailable notice.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useActions, useFileContent, useSetting } from "../../core/hooks.ts";
+import {
+	fileQueryKey,
+	previewUrlOf,
+	useActions,
+	useFileContent,
+	useSetting,
+	useWorkspace,
+} from "../../core/hooks.ts";
 import { toastError } from "../../ui/Toast.tsx";
 import { FileTabState } from "./FileTabState.tsx";
 import { CsvPreview } from "./preview/CsvPreview.tsx";
@@ -29,27 +40,35 @@ import { VideoPreview } from "./preview/VideoPreview.tsx";
 export interface FilePreviewPaneProps {
 	workspaceId: WorkspaceId;
 	path: string;
+	/** Opens another workspace file, by its path relative to the workspace. */
+	onOpenFile: (path: string) => void;
 }
 
 const fileNameOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 const folderOf = (path: string): string => path.slice(0, Math.max(path.lastIndexOf("/"), 0));
 
-export function FilePreviewPane({ workspaceId, path }: FilePreviewPaneProps) {
+export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPaneProps) {
 	const content = useFileContent(workspaceId, path);
+	const workspace = useWorkspace(workspaceId);
 	const queryClient = useQueryClient();
 	const markdownStyle = useSetting<"default" | "tufte">("markdown_style");
 	const actions = useActions();
 	const [svgView, setSvgView] = useState<"rendered" | "source">("rendered");
 
 	const retry = (): void => {
-		void queryClient.invalidateQueries({ queryKey: ["files", "content", workspaceId, path] });
+		void queryClient.invalidateQueries({ queryKey: fileQueryKey(workspaceId, path) });
 	};
 
 	const openUrl = (url: string): void => {
 		void actions.app.openUrl(url).then((result) => {
-			if (!result.ok) toastError("Couldn't open the file", result.error);
+			if (!result.ok) toastError("Couldn't open the link", result.error);
 		});
 	};
+
+	const workspaceRoot =
+		workspace.state === "ready" ? workspace.data.path.replace(/\/+$/, "") : null;
+	const imageUrlFor = (relativePath: string): string | null =>
+		workspaceRoot === null ? null : previewUrlOf(`${workspaceRoot}/${relativePath}`, null);
 
 	if (content.state === "loading") {
 		return <FileTabState kind="loading" detail={null} onAction={retry} />;
@@ -63,7 +82,7 @@ export function FilePreviewPane({ workspaceId, path }: FilePreviewPaneProps) {
 		return <FileTabState kind="missing" detail={null} onAction={retry} />;
 	}
 	if (data.kind === "too_large") {
-		return <FileTabState kind="too_large" detail={null} onAction={() => {}} />;
+		return <FileTabState kind="too_large" detail={null} />;
 	}
 
 	const isBinary = data.kind === "binary";
@@ -76,9 +95,6 @@ export function FilePreviewPane({ workspaceId, path }: FilePreviewPaneProps) {
 				fileName={fileName}
 				sizeBytes={isBinary ? data.sizeBytes : null}
 				reason="This file can't be shown here."
-				onOpenExternally={
-					isBinary && data.previewUrl !== null ? () => openUrl(data.previewUrl ?? "") : undefined
-				}
 			/>
 		);
 	}
@@ -92,20 +108,13 @@ export function FilePreviewPane({ workspaceId, path }: FilePreviewPaneProps) {
 			return <PdfPreview url={previewUrl} fileName={fileName} />;
 		}
 		if (kind === "video" && previewUrl !== null) {
-			return (
-				<VideoPreview
-					url={previewUrl}
-					fileName={fileName}
-					onOpenExternally={() => openUrl(previewUrl)}
-				/>
-			);
+			return <VideoPreview url={previewUrl} fileName={fileName} />;
 		}
 		return (
 			<PreviewUnavailable
 				fileName={fileName}
 				sizeBytes={data.sizeBytes}
 				reason="This file can't be shown here."
-				onOpenExternally={previewUrl === null ? undefined : () => openUrl(previewUrl)}
 			/>
 		);
 	}
@@ -117,6 +126,8 @@ export function FilePreviewPane({ workspaceId, path }: FilePreviewPaneProps) {
 				baseDir={folderOf(path)}
 				style={markdownStyle}
 				onOpenLink={openUrl}
+				onOpenFile={onOpenFile}
+				imageUrlFor={imageUrlFor}
 			/>
 		);
 	}

@@ -34,6 +34,7 @@ import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialo
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { useThemeType } from "../../ui/use-theme-type.ts";
 import { TerminalEndedBanner } from "./TerminalEndedBanner.tsx";
 import {
 	findPatternError,
@@ -124,37 +125,6 @@ function StartTerminalBuffer({ buffered }: { buffered: BufferedTerminalConnectio
 	return null;
 }
 
-function currentThemeType(): "light" | "dark" {
-	if (typeof document === "undefined") return "dark";
-	const forced = document.documentElement.dataset.theme;
-	if (forced === "light" || forced === "dark") return forced;
-	if (typeof window === "undefined") return "dark";
-	return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-/** The light or dark theme as it stands now, and again whenever the document theme changes. */
-function useDocumentThemeType(): "light" | "dark" {
-	const [themeType, setThemeType] = useState<"light" | "dark">(currentThemeType);
-
-	useEffect(() => {
-		const update = () => setThemeType(currentThemeType());
-		const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-		media?.addEventListener?.("change", update);
-		const observer =
-			typeof MutationObserver === "undefined" ? null : new MutationObserver(() => update());
-		observer?.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["data-theme"],
-		});
-		return () => {
-			media?.removeEventListener?.("change", update);
-			observer?.disconnect();
-		};
-	}, []);
-
-	return themeType;
-}
-
 /** Resolves one of our colour tokens through the browser, so `light-dark()` is applied. */
 export function readDocumentColorToken(name: string): string | null {
 	if (typeof document === "undefined") return null;
@@ -174,7 +144,7 @@ function useResolvedTerminalAppearance(
 	const fontFamily = useSetting<string>("terminal_font_family");
 	const fontSize = useSetting<number>("terminal_font_size");
 	const scrollbackLimitBytes = useSetting<number>("terminal_scrollback_limit_bytes");
-	const themeType = useDocumentThemeType();
+	const themeType = useThemeType();
 
 	return useMemo(() => {
 		if (explicit) return { appearance: explicit };
