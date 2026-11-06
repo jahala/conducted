@@ -381,6 +381,9 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 } as const;
 
+/** The deep-link plugin's command that returns the URLs which launched the app. */
+const DEEP_LINK_CURRENT = "plugin:deep-link|get_current";
+
 // ---------------------------------------------------------------- errors (real)
 
 /** Converts whatever Tauri rejected with into an `AppError`. */
@@ -465,7 +468,25 @@ export function createTauriAppInfo(
 			}
 			return ok(null);
 		},
-		onDeepLink: () => notImplemented("PLAT-16"),
+		onDeepLink: (listener) => {
+			let active = true;
+			const stop = onEvent<string>(bindings, EVENTS.deepLink, (url) => {
+				if (active) listener(url);
+			});
+			void bindings
+				.invoke<string[] | null>(DEEP_LINK_CURRENT)
+				.then((urls) => {
+					if (!active || urls === null) return;
+					for (const url of urls) listener(url);
+				})
+				.catch((error: unknown) => {
+					console.error("Could not read the launch deep link", error);
+				});
+			return () => {
+				active = false;
+				stop();
+			};
+		},
 		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
 		quit: async () => {
 			await invokeResult(bindings, COMMANDS.appQuit);
