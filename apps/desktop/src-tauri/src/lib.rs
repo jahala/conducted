@@ -309,6 +309,7 @@ pub fn run() {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
+            deep_link::register(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             binaries::start_verification(app.handle().clone());
             binaries::prepare_on_launch(app.handle());
