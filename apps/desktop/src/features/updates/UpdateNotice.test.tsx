@@ -310,9 +310,7 @@ describe("APP-06 UpdateNotice", () => {
 			error: "Could not reach the update feed",
 		});
 		vi.spyOn(test.container.actions.app, "checkForUpdates").mockResolvedValue(
-			err(
-				appError("update_check_in_progress", "An update check is already in progress."),
-			),
+			err(appError("update_check_in_progress", "An update check is already in progress.")),
 		);
 
 		renderNotice(test);

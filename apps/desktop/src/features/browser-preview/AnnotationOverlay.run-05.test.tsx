@@ -313,7 +313,9 @@ describe("RUN-05 annotation overlay", () => {
 		fireEvent.click(button);
 		fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
 		await screen.findByText("#buy");
-		const firstId = (first.mock.calls[0]?.[0] as PageAnnotation).id;
+		const firstCall = first.mock.calls[0];
+		if (firstCall === undefined) throw new Error("the first annotation was not added");
+		const firstId = (firstCall[0] as PageAnnotation).id;
 		mounted.unmount();
 
 		const second = vi.fn();
@@ -321,9 +323,7 @@ describe("RUN-05 annotation overlay", () => {
 			withFrame(
 				<Harness
 					onAdd={second}
-					initial={[
-						annotation({ id: firstId, selector: "#buy", url: "", note: "First" }),
-					]}
+					initial={[annotation({ id: firstId, selector: "#buy", url: "", note: "First" })]}
 				/>,
 			),
 		);
@@ -338,7 +338,9 @@ describe("RUN-05 annotation overlay", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
 		await screen.findByText("Second");
 
-		const secondId = (second.mock.calls[0]?.[0] as PageAnnotation).id;
+		const secondCall = second.mock.calls[0];
+		if (secondCall === undefined) throw new Error("the second annotation was not added");
+		const secondId = (secondCall[0] as PageAnnotation).id;
 		expect(secondId).not.toBe(firstId);
 	});
 

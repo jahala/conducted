@@ -25,11 +25,7 @@ import { Button } from "../../ui/Button.tsx";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { Label, Textarea } from "../../ui/Input.tsx";
 import { CloseIcon, TargetIcon } from "../../ui/icons.tsx";
-import {
-	formatAnnotations,
-	MAX_ELEMENT_TEXT,
-	type PageAnnotation,
-} from "./annotation-format.ts";
+import { formatAnnotations, MAX_ELEMENT_TEXT, type PageAnnotation } from "./annotation-format.ts";
 
 export interface AnnotationOverlayProps {
 	annotations: PageAnnotation[];
