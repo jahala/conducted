@@ -1,21 +1,31 @@
 /**
  * @feature REV-08 File tab header
- * Owns: the strip at the top of a file tab. The path, the Diff, Edit or Preview mode toggle, the
- * diff view options, and the save state.
+ * Owns: the strip at the top of a file tab: the path chip, the unsaved mark, Save, Copy file
+ * contents, the view toggles (Unified, Split, Edit, Preview) and the diff's View options.
  * Behaviour: ui-map.md 3.2, File tab ("Toggle file edit mode" is Cmd+E; "View options": "Hide
- * whitespace changes", "Wrap lines"; "Unified view", "Split view", "Entire file").
- * Children: DiffToolbar (diff/DiffToolbar.tsx) in diff mode.
+ * whitespace changes", "Wrap lines"; "Unified view", "Split view", "Entire file"). Measured from
+ * Conductor 0.92.1 (renderApp @9633986, @9642796): the header is 8px top and bottom, 12px left and
+ * 4px right on the canvas; the file chip at the left; at the right, 8px apart, "Copy file contents"
+ * as a 28px icon button, then one segmented group (32px tall, the muted fill, 2px inside) of 28px
+ * icon toggles with 12px icons: the diff layouts when the file has changes, the whole file and the
+ * preview; then the vertical-dots "View options" menu.
+ * Children: DiffLayoutToggles and DiffViewOptions (diff/DiffToolbar.tsx).
+ * Our design choice: the whole-file toggle opens our editor, so it is named "Edit" (Cmd+E still
+ * toggles it); Conductor names its read-only whole-file view "Entire file". The diff toggles show for
+ * a file with changes, or while the diff is on show; View options shows with the diff, since its
+ * choices only change the diff.
  * Must handle: long paths (middle truncation, full path in a tooltip), a renamed file (old path
  * shown), edit mode disabled for deleted, binary and too-large files, an unsaved dot, a save in
- * flight, and a save error shown inline.
+ * flight, a save error shown inline, and a file whose text is not loaded or is binary (copy disabled).
  * Test first: with mode "diff" and a deleted file, the Edit toggle is disabled with a reason.
  */
 
 import { Button } from "../../ui/Button.tsx";
-import { FileTextIcon } from "../../ui/icons.tsx";
+import { CopyButton } from "../../ui/CopyButton.tsx";
+import { EyeIcon, FileTextIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { TruncatedText } from "../../ui/TruncatedText.tsx";
-import { DiffToolbar } from "../diff/DiffToolbar.tsx";
+import { DiffLayoutToggles, DiffViewOptions, headerIconButtonClass } from "../diff/DiffToolbar.tsx";
 import type { DiffPreferences } from "../diff/diff-types.ts";
 
 export type FileTabMode = "diff" | "edit" | "preview";
@@ -27,12 +37,17 @@ export interface FileTabHeaderProps {
 	onModeChange: (mode: FileTabMode) => void;
 	editDisabledReason: string | null;
 	previewAvailable: boolean;
+	/** True when the file has changes, so the diff layouts are offered. */
+	diffAvailable: boolean;
 	preferences: DiffPreferences;
 	onPreferencesChange: (next: DiffPreferences) => void;
 	dirty: boolean;
 	saving: boolean;
 	saveError: string | null;
 	onSave: () => void;
+	/** The file's text for "Copy file contents"; null while it loads or when it is not text. */
+	copyText: string | null;
+	onCopy: (text: string) => unknown;
 	/** Width of the tab in pixels, so Split view can disable itself when too narrow. */
 	width?: number | null;
 }
@@ -44,19 +59,23 @@ export function FileTabHeader({
 	onModeChange,
 	editDisabledReason,
 	previewAvailable,
+	diffAvailable,
 	preferences,
 	onPreferencesChange,
 	dirty,
 	saving,
 	saveError,
 	onSave,
+	copyText,
+	onCopy,
 	width = null,
 }: FileTabHeaderProps) {
 	const editDisabled = editDisabledReason !== null;
+	const showDiffToggles = diffAvailable || mode === "diff";
 	return (
-		<div className="flex flex-col border-b border-border bg-surface">
-			<div className="flex h-10 min-w-0 items-center gap-2 px-3">
-				<div className="flex min-w-0 flex-1 items-center gap-2">
+		<div className="flex flex-col border-b border-border bg-canvas">
+			<div className="flex min-w-0 items-center gap-2 py-2 pr-1 pl-3">
+				<div className="flex min-w-32 flex-1 items-center gap-2">
 					<span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm border border-border px-1.5">
 						<FileTextIcon className="size-3.5 shrink-0 text-fg-muted" />
 						<TruncatedText text={path} maxLength={80} className="text-sm text-fg" />
@@ -68,55 +87,67 @@ export function FileTabHeader({
 						<span
 							role="status"
 							aria-label="Unsaved edits"
-							className="size-2 rounded-full bg-accent"
+							className="size-2 shrink-0 rounded-full bg-accent"
 						/>
 					) : null}
 				</div>
 
-				<div className="flex shrink-0 items-center gap-0.5">
-					<Button
-						variant={mode === "diff" ? "secondary" : "ghost"}
-						size="xs"
-						aria-pressed={mode === "diff"}
-						onClick={() => onModeChange("diff")}
-					>
-						Diff
-					</Button>
-					{previewAvailable ? (
-						<Button
-							variant={mode === "preview" ? "secondary" : "ghost"}
-							size="xs"
-							aria-pressed={mode === "preview"}
-							onClick={() => onModeChange("preview")}
-						>
-							Preview
-						</Button>
-					) : null}
-					<Button
-						variant={mode === "edit" ? "secondary" : "ghost"}
-						size="xs"
-						aria-pressed={mode === "edit"}
-						disabled={editDisabled}
-						title={editDisabled ? (editDisabledReason ?? undefined) : undefined}
-						onClick={() => onModeChange("edit")}
-					>
-						Edit
-					</Button>
-				</div>
-
-				<div className="flex shrink-0 items-center gap-2">
+				<div className="flex h-8 min-w-0 shrink-0 items-center justify-end gap-2">
 					{dirty && mode === "edit" ? (
 						<Button variant="secondary" size="xs" onClick={onSave} disabled={saving}>
 							{saving ? <Spinner size="sm" label="Saving file" /> : null}
 							Save
 						</Button>
 					) : null}
+					<CopyButton
+						text={copyText ?? ""}
+						onCopy={onCopy}
+						iconOnly
+						label="Copy file contents"
+						disabled={copyText === null}
+						size="sm"
+						className="w-7 px-0 text-sidebar-fg-muted [&_svg]:size-3"
+					/>
+					<fieldset aria-label="View" className="flex h-8 items-center rounded-md bg-muted p-0.5">
+						{showDiffToggles ? (
+							<DiffLayoutToggles
+								preferences={preferences}
+								onChange={onPreferencesChange}
+								disabled={false}
+								width={width}
+								active={mode === "diff"}
+								onShowDiff={() => onModeChange("diff")}
+							/>
+						) : null}
+						<button
+							type="button"
+							aria-label="Edit"
+							title={editDisabledReason ?? "Edit"}
+							aria-pressed={mode === "edit"}
+							disabled={editDisabled}
+							className={headerIconButtonClass}
+							onClick={() => onModeChange("edit")}
+						>
+							<FileTextIcon className="size-3" />
+						</button>
+						{previewAvailable ? (
+							<button
+								type="button"
+								aria-label="Preview"
+								title="Preview"
+								aria-pressed={mode === "preview"}
+								className={headerIconButtonClass}
+								onClick={() => onModeChange("preview")}
+							>
+								<EyeIcon className="size-3" />
+							</button>
+						) : null}
+					</fieldset>
 					{mode === "diff" ? (
-						<DiffToolbar
+						<DiffViewOptions
 							preferences={preferences}
 							onChange={onPreferencesChange}
 							disabled={false}
-							width={width}
 						/>
 					) : null}
 				</div>

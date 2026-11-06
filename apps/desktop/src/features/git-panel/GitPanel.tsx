@@ -104,6 +104,8 @@ export interface GitPanelProps {
 	onScopeChange?: (scope: DiffScope) => void;
 	/** Opens a file in a center tab, as a diff or in the editor. */
 	onOpenFile?: (path: string, mode: "diff" | "edit") => void;
+	/** The file open in the centre, so the All files tab selects its row. */
+	openFilePath?: string | null;
 }
 
 const DEFAULT_SCOPE: DiffScope = { kind: "branch" };
@@ -162,6 +164,7 @@ export function GitPanel({
 	scope: scopeProp,
 	onScopeChange,
 	onOpenFile,
+	openFilePath = null,
 }: GitPanelProps) {
 	const git = useGitState(workspaceId);
 	const status = useWorkspaceStatus(workspaceId);
@@ -553,7 +556,11 @@ export function GitPanel({
 					<ArtifactsTab workspaceId={workspaceId} />
 				) : view === "files" ? (
 					<NotBuiltYet area="All files" resetKey={`${workspaceId}:files`}>
-						<FilesTab workspaceId={workspaceId} onOpenFile={(path) => openFile(path, "edit")} />
+						<FilesTab
+							workspaceId={workspaceId}
+							onOpenFile={(path) => openFile(path, "edit")}
+							openPath={openFilePath}
+						/>
 					</NotBuiltYet>
 				) : tab === "changes" ? (
 					<ChangesTab

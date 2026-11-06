@@ -6,10 +6,13 @@
  * with 20px indent per level (ui-dimensions.md 4).
  * Our design choice: hand-drawn file-type icons instead of a third-party set, following APP-05's
  * approach and keeping every asset ours (D002).
+ * Measured from Conductor 0.92.1 (renderApp @2530991): one click on a row opens a file (in its
+ * whole-file view) or toggles a folder; the row of the file open in the centre is filled; names are
+ * 12px monospace.
  * Must handle: a long name (middle truncation keeps the extension visible), keyboard focus, a
- * double-click or Enter opening the file, a right-click opening the row menu, a folder toggling
- * from its chevron, and a changed file showing the marker (the parent also marks a folder that
- * holds one).
+ * click or Enter opening the file, a right-click opening the row menu, a folder toggling
+ * from its chevron (once, not again through the row), and a changed file showing the marker (the
+ * parent also marks a folder that holds one).
  * Test first: a changed file row renders the change marker, an unchanged one does not.
  */
 import type { ReactNode } from "react";
@@ -233,7 +236,7 @@ export function FileTreeRow({
 				selected ? "bg-active text-fg" : "text-fg hover:bg-hover"
 			}`}
 			style={{ paddingLeft: 4 + depth * 20 }}
-			onDoubleClick={() => {
+			onClick={() => {
 				if (isDirectory) onToggle();
 				else onOpen();
 			}}
@@ -270,7 +273,7 @@ export function FileTreeRow({
 			>
 				{isDirectory ? <FolderTypeIcon /> : <FileTypeIcon kind={kind} />}
 			</span>
-			<span className="min-w-0 flex-1 truncate">{displayName(name)}</span>
+			<span className="min-w-0 flex-1 truncate font-mono text-xs">{displayName(name)}</span>
 			{changed ? (
 				<span
 					role="img"

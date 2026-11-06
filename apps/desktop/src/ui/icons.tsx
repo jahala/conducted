@@ -257,6 +257,10 @@ export const CopyIcon = (p: P) => <Icon d="M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3" 
 export const MoreHorizontalIcon = (p: P) => (
 	<Icon d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.25" {...p} />
 );
+export const MoreVerticalIcon = (p: P) => (
+	<Icon d="M8 3.5v.01M8 8v.01M8 12.5v.01" strokeWidth="2.25" {...p} />
+);
+export const ColumnsIcon = (p: P) => <Icon d="M2.5 3h11v10h-11zM8 3v10" {...p} />;
 export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
 export const UndoIcon = (p: P) => (
 	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />

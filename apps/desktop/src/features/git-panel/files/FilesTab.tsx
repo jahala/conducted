@@ -37,6 +37,8 @@ export interface FilesTabProps {
 	workspaceId: WorkspaceId;
 	/** Opens the file in a file tab in edit or view mode. */
 	onOpenFile: (path: string) => void;
+	/** The file open in the centre, if any: its row is selected and its folders opened. */
+	openPath?: string | null;
 }
 
 /** One row is 28px tall, as the design's file tree row is. */
@@ -206,7 +208,7 @@ function FileTreeBody({
 
 const joinRoot = (root: string, path: string): string => `${root.replace(/\/+$/, "")}/${path}`;
 
-export function FilesTab({ workspaceId, onOpenFile }: FilesTabProps) {
+export function FilesTab({ workspaceId, onOpenFile, openPath = null }: FilesTabProps) {
 	const workspace = useWorkspace(workspaceId);
 	if (workspace.state === "ready" && workspace.data.state === "archived") {
 		return (
@@ -225,6 +227,7 @@ export function FilesTab({ workspaceId, onOpenFile }: FilesTabProps) {
 			workspacePath={workspacePath}
 			activeSessionId={activeSessionId}
 			onOpenFile={onOpenFile}
+			openPath={openPath}
 		/>
 	);
 }
@@ -235,6 +238,7 @@ function LiveFilesTab({
 	workspacePath,
 	activeSessionId,
 	onOpenFile,
+	openPath = null,
 }: FilesTabProps & { workspacePath: string | null; activeSessionId: string | null }) {
 	const tree = useFileTree(workspaceId);
 	const sessions = useSessions(workspaceId);
@@ -243,7 +247,23 @@ function LiveFilesTab({
 
 	const [filter, setFilter] = useState("");
 	const [expanded, setExpanded] = useState<ReadonlySet<string>>(NO_FOLDERS);
-	const [selectedPath, setSelectedPath] = useState<string | null>(null);
+	const [selectedPath, setSelectedPath] = useState<string | null>(openPath);
+
+	// The file open in the centre is the selected row, with its folders opened, as in Conductor.
+	useEffect(() => {
+		if (openPath === null) return;
+		setSelectedPath(openPath);
+		setExpanded((current) => {
+			const folders = openPath.split("/").slice(0, -1);
+			const next = new Set(current);
+			let prefix = "";
+			for (const folder of folders) {
+				prefix = prefix === "" ? folder : `${prefix}/${folder}`;
+				next.add(prefix);
+			}
+			return next.size === current.size ? current : next;
+		});
+	}, [openPath]);
 
 	const entries = tree.state === "ready" ? tree.data : [];
 	const changedList = changes.state === "ready" ? changes.data : [];

@@ -26,7 +26,7 @@ function must<T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 
 afterEach(cleanup);
 
-function renderTab(container: Container, workspaceId: WorkspaceId) {
+function renderTab(container: Container, workspaceId: WorkspaceId, openPath: string | null = null) {
 	const client = new QueryClient({
 		defaultOptions: {
 			queries: { retry: false, refetchOnMount: false, staleTime: Number.POSITIVE_INFINITY },
@@ -36,7 +36,7 @@ function renderTab(container: Container, workspaceId: WorkspaceId) {
 	const view = render(
 		<QueryClientProvider client={client}>
 			<ServicesProvider container={container}>
-				<FilesTab workspaceId={workspaceId} onOpenFile={() => {}} />
+				<FilesTab workspaceId={workspaceId} onOpenFile={() => {}} openPath={openPath} />
 			</ServicesProvider>
 		</QueryClientProvider>,
 	);
@@ -44,6 +44,26 @@ function renderTab(container: Container, workspaceId: WorkspaceId) {
 }
 
 describe("REV-06 all files tab", () => {
+	it("selects the row of the file open in the centre and opens its folders, as Conductor does", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container, { path: "/ws/open" });
+			test.memory.controls.files.set("/ws/open/src/auth/safe-next.ts", "");
+			test.memory.controls.files.set("/ws/open/README.md", "");
+			const { view, client } = renderTab(test.container, workspace.id, "src/auth/safe-next.ts");
+
+			const row = (await screen.findByText("safe-next.ts")).closest('[role="treeitem"]');
+			expect(row?.getAttribute("aria-selected")).toBe("true");
+			const readme = screen.getByText("README.md").closest('[role="treeitem"]');
+			expect(readme?.getAttribute("aria-selected")).toBe("false");
+
+			view.unmount();
+			client.clear();
+		} finally {
+			test.close();
+		}
+	});
+
 	it("filters the tree to the matching files", async () => {
 		const test = createTestContainer();
 		try {

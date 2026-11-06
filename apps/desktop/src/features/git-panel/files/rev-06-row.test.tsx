@@ -38,7 +38,8 @@ describe("REV-06 file tree row", () => {
 		);
 	});
 
-	it("toggles a folder from its chevron and opens a file on double click", () => {
+	// Conductor opens a file on one click (renderApp @2530991); this test asserted double click.
+	it("toggles a folder from its chevron once, toggles it from the row, and opens a file on one click", () => {
 		const onToggle = vi.fn();
 		const onOpen = vi.fn();
 		const view = render(
@@ -46,9 +47,12 @@ describe("REV-06 file tree row", () => {
 		);
 		fireEvent.click(screen.getByRole("button", { name: "Expand src" }));
 		expect(onToggle).toHaveBeenCalledTimes(1);
+		fireEvent.click(screen.getByRole("treeitem"));
+		expect(onToggle).toHaveBeenCalledTimes(2);
+		expect(onOpen).not.toHaveBeenCalled();
 
 		view.rerender(<FileTreeRow {...row({ onToggle, onOpen })} />);
-		fireEvent.doubleClick(screen.getByRole("treeitem"));
+		fireEvent.click(screen.getByRole("treeitem"));
 		expect(onOpen).toHaveBeenCalledTimes(1);
 	});
 });
