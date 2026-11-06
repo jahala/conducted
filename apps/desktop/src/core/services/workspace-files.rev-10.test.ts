@@ -48,7 +48,7 @@ describe("REV-10 workspace artifacts service", () => {
 			const loaded = await service.loadArtifacts(workspace.id);
 
 			expect(loaded.ok).toBe(true);
-			expect(entriesOf(service).sort()).toEqual(["notes.md", "plans/plan.md"]);
+			expect(entriesOf(service, workspace.id).sort()).toEqual(["notes.md", "plans/plan.md"]);
 		} finally {
 			test.close();
 		}
@@ -137,7 +137,7 @@ describe("REV-10 workspace artifacts service", () => {
 				"the agent's report",
 			);
 			expect(test.memory.controls.files.get(`${root}/.context/photo.png`)).toBe("image bytes");
-			expect(entriesOf(service).sort()).toEqual(["photo.png", "report.md"]);
+			expect(entriesOf(service, workspace.id).sort()).toEqual(["photo.png", "report.md"]);
 		} finally {
 			test.close();
 		}
@@ -201,7 +201,7 @@ describe("REV-10 workspace artifacts service", () => {
 
 			expect(uploaded.ok).toBe(true);
 			expect(test.memory.controls.files.get(`${root}/.context/photo.png`)).toBe("image bytes");
-			expect(entriesOf(service)).toEqual(["photo.png"]);
+			expect(entriesOf(service, workspace.id)).toEqual(["photo.png"]);
 		} finally {
 			test.close();
 		}
