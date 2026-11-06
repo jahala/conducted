@@ -699,6 +699,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 		keychain: platform.keychain,
 		setting,
+		fixErrorsPromptOf: async (id) => {
+			const found = lookups.repoOf(id);
+			if (!found.ok) return found;
+			const config = await repo.loadConfig(found.value.id);
+			return config.ok ? ok(config.value.prompts.fixErrors) : config;
+		},
 		probeCwd: platform.fs.paths.home,
 		fs: platform.fs,
 	});
