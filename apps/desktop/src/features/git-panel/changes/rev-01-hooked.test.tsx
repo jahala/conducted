@@ -100,9 +100,13 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// The Graphite stack list is PR-08's, tested over the real container in git-panel.pr-08.test.tsx.
+const graphiteStack = { isInStack: false, branches: [] };
+
 const renderChanges = (onOpenFile = vi.fn()) => {
 	render(
 		<ChangesTab
+			graphiteStack={graphiteStack}
 			workspaceId={workspaceId}
 			scope={{ kind: "branch" }}
 			onScopeChange={vi.fn()}
@@ -141,6 +145,7 @@ describe("REV-01 changes tab", () => {
 		state.git = { state: "ready", data: gitState({ untrackedFilesTruncated: true }) };
 		const { rerender } = render(
 			<ChangesTab
+				graphiteStack={graphiteStack}
 				workspaceId={workspaceId}
 				scope={{ kind: "branch" }}
 				onScopeChange={vi.fn()}
@@ -150,6 +155,7 @@ describe("REV-01 changes tab", () => {
 		expect(screen.getByRole("note").textContent).toContain("Some untracked files");
 		rerender(
 			<ChangesTab
+				graphiteStack={graphiteStack}
 				workspaceId={workspaceId}
 				scope={{ kind: "commit", sha: "abc" }}
 				onScopeChange={vi.fn()}
@@ -184,7 +190,7 @@ describe("REV-01 changes tab", () => {
 
 	it("offers Discard changes on a branch scope but not on a single commit", async () => {
 		state.files = { state: "ready", data: [file("src/a/x.ts")] };
-		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn() };
+		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn(), graphiteStack };
 		const { rerender } = render(<ChangesTab {...props} scope={{ kind: "branch" }} />);
 		fireEvent.contextMenu(screen.getByLabelText("Open src/a/x.ts"));
 		expect(await screen.findByText("Discard changes")).toBeTruthy();
@@ -201,7 +207,7 @@ describe("REV-01 changes tab", () => {
 
 	it("CHAT-15 refuses a single-file revert in a per-turn view", async () => {
 		state.files = { state: "ready", data: [file("src/a/x.ts")] };
-		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn() };
+		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn(), graphiteStack };
 		render(
 			<ChangesTab
 				{...props}

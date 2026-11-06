@@ -10,7 +10,14 @@ import { ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import { graphiteState } from "../git/gh-commands.ts";
-import { GRAPHITE_POLL_INTERVAL_MS, GraphiteService, parseGraphiteState } from "./graphite.ts";
+import {
+	GRAPHITE_POLL_INTERVAL_MS,
+	type GraphiteBranch,
+	GraphiteService,
+	type GraphiteStack,
+	graphiteStackOf,
+	parseGraphiteState,
+} from "./graphite.ts";
 
 const repo = "/code/repo";
 
@@ -82,6 +89,14 @@ describe("PR-08 Graphite state", () => {
 		expect(service.containsBranch(repo, "feature/one")).toBe(true);
 	});
 
+	it("gives no parent for a branch that sits right on the trunk", async () => {
+		const { service } = makeService(defaultHandler);
+		await service.refresh(repo);
+
+		// The diff target of a branch on the trunk stays the remote target, as Conductor's does.
+		expect(service.parentBranchOf(repo, "feature/one")).toBeNull();
+	});
+
 	it("writes only the newest answer when two reads overlap", async () => {
 		let stateCalls = 0;
 		let releaseFirst: (() => void) | undefined;
@@ -115,6 +130,55 @@ describe("PR-08 Graphite state", () => {
 
 		expect(service.containsBranch(repo, "feature/new")).toBe(true);
 		expect(service.containsBranch(repo, "feature/old")).toBe(false);
+	});
+});
+
+describe("PR-08 Graphite stack of a branch", () => {
+	const branch = (
+		name: string,
+		parentBranch: string | null,
+		extra: Partial<GraphiteBranch> = {},
+	): GraphiteBranch => ({ name, trunk: false, needsRestack: false, parentBranch, ...extra });
+	const branches: GraphiteBranch[] = [
+		branch("main", null, { trunk: true }),
+		branch("feat-c", "feat-b"),
+		branch("feat-a", "main"),
+		branch("other", "main"),
+		branch("feat-b", "feat-a", { needsRestack: true }),
+	];
+	const names = (stack: GraphiteStack) => stack.branches.map((entry) => entry.name);
+
+	it("lists the branch's stack from its top down to the trunk, without other stacks", () => {
+		const stack = graphiteStackOf(branches, "feat-b");
+
+		expect(stack.isInStack).toBe(true);
+		expect(names(stack)).toEqual(["feat-c", "feat-b", "feat-a", "main"]);
+		expect(stack.branches[1]?.needsRestack).toBe(true);
+	});
+
+	it("is the same stack read from its lowest branch", () => {
+		expect(names(graphiteStackOf(branches, "feat-a"))).toEqual([
+			"feat-c",
+			"feat-b",
+			"feat-a",
+			"main",
+		]);
+	});
+
+	it("is no stack on the trunk, on a branch Graphite does not know, or on an empty state", () => {
+		expect(graphiteStackOf(branches, "main")).toEqual({ isInStack: false, branches: [] });
+		expect(graphiteStackOf(branches, "elsewhere")).toEqual({ isInStack: false, branches: [] });
+		expect(graphiteStackOf([], "feat-b")).toEqual({ isInStack: false, branches: [] });
+	});
+
+	it("is no stack for a branch Graphite tracks with no trunk or other branch beside it", () => {
+		expect(graphiteStackOf([branch("alone", null)], "alone").isInStack).toBe(false);
+	});
+
+	it("still lists every branch when two of them name each other as parent", () => {
+		const looped = [branch("x", "y"), branch("y", "x")];
+
+		expect(new Set(names(graphiteStackOf(looped, "x")))).toEqual(new Set(["x", "y"]));
 	});
 });
 

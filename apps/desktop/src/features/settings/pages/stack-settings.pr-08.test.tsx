@@ -2,9 +2,11 @@
  * @feature PR-08 Stacked PRs and read-only Graphite: the two settings
  * Owns: the container tests that the Git page shows "Use GitHub stacked PRs" and the Experimental
  * page shows "Graphite stack support" with Conductor's words, and that the Graphite switch is
- * positive on screen while its stored key stays the inverted `graphite_disabled`.
+ * positive on screen while its stored key stays the inverted `graphite_disabled`, off until the
+ * user turns it on.
  * Behaviour: ui-map.md 6 (Git: "Use GitHub stacked PRs"; Experimental: "Graphite stack support"),
- * services-map.md 4.1.5 (the key says disabled, the toggle says support).
+ * services-map.md 4.1.5 (the key says disabled, the toggle says support), 4.1 (`graphite_disabled`
+ * defaults to true), native-and-sidecar-map.md (a migration turns Graphite stacks off by default).
  * Test first: turning "Graphite stack support" off stores `graphite_disabled` as true.
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -40,10 +42,33 @@ describe("PR-08 stack settings", () => {
 		expect(screen.queryByText("Allow stacked pull requests")).toBeNull();
 	});
 
+	it("leaves Graphite stack support off until the user turns it on", async () => {
+		test = createTestContainer();
+		const harness = test;
+		await harness.container.services.settings.start();
+		render(
+			<ServicesProvider container={harness.container}>
+				<ExperimentalPage />
+			</ServicesProvider>,
+		);
+
+		const toggle = screen.getByRole("switch", { name: "Graphite stack support" });
+		expect(toggle.getAttribute("aria-checked")).toBe("false");
+		expect(harness.container.services.settings.get<boolean>("graphite_disabled")).toBe(true);
+
+		fireEvent.click(toggle);
+
+		await waitFor(() =>
+			expect(harness.container.services.settings.get<boolean>("graphite_disabled")).toBe(false),
+		);
+	});
+
 	it("shows Graphite stack support switched on and stores the inverted key when turned off", async () => {
 		test = createTestContainer();
 		const harness = test;
 		await harness.container.services.settings.start();
+		const on = await harness.container.actions.settings.set("graphite_disabled", false);
+		if (!on.ok) throw new Error(on.error.message);
 		render(
 			<ServicesProvider container={harness.container}>
 				<ExperimentalPage />

@@ -18,12 +18,13 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { BranchSync, PullRequest, Workspace } from "../../core/model.ts";
+import type { ShellCommand } from "../../platform/platform.ts";
 import {
 	createTestContainer,
 	seedPullRequest,
@@ -119,7 +120,8 @@ const readinessAnswer = (lower: string, upper: string) =>
 /**
  * A clean, pushed workspace whose pull request #12 is ready to merge and sits in a stack of two.
  * GitHub reports the lower pull request #11 with `lowerState`. `sync` is the branch against its
- * remote, `stacked: false` puts #12 outside any stack, and `stackSync` answers `gh stack sync`.
+ * remote, `stacked: false` puts #12 outside any stack, `stackSync` answers `gh stack sync`, and
+ * `graphiteState` is what `gt state` prints, and `git` answers a command first when it returns one.
  */
 async function seedPanel(
 	lowerState = "CLEAN",
@@ -127,6 +129,8 @@ async function seedPanel(
 		sync?: BranchSync;
 		stacked?: boolean;
 		stackSync?: ReturnType<typeof output>;
+		graphiteState?: string;
+		git?: (command: ShellCommand) => ReturnType<typeof output> | null;
 	} = {},
 ): Promise<{ harness: TestContainer; workspace: Workspace }> {
 	const harness = createTestContainer();
@@ -148,6 +152,9 @@ async function seedPanel(
 		description: null,
 	});
 	await harness.container.services.workspace.start();
+	// Graphite stack support starts off; these tests run as a user who turned it on.
+	const graphiteOn = await harness.container.actions.settings.set("graphite_disabled", false);
+	if (!graphiteOn.ok) throw new Error(graphiteOn.error.message);
 	harness.container.services.git.store.setState({
 		byWorkspace: {
 			[workspace.id]: {
@@ -175,8 +182,12 @@ async function seedPanel(
 		byWorkspace: { [workspace.id]: { pullRequest, unavailable: "none", fetchedAt: 1 } },
 	});
 	harness.memory.controls.scriptShell((command) => {
+		const answer = options.git?.(command);
+		if (answer !== null && answer !== undefined) return answer;
 		if (command.program === "gt" && command.args[0] === "--version") return output("gt 1.0.0\n");
-		if (command.program === "gt" && command.args[0] === "state") return output("{}");
+		if (command.program === "gt" && command.args[0] === "state") {
+			return output(options.graphiteState ?? "{}");
+		}
 		if (command.program === "git" && command.args.includes("get-url")) {
 			return output("git@github.com:o/r.git\n");
 		}
@@ -237,6 +248,17 @@ const stateReads = (harness: TestContainer) =>
 	);
 
 describe("PR-08 Graphite poll in the git panel", () => {
+	it("runs no gt command while Graphite stack support is at its default", async () => {
+		const harness = createTestContainer();
+		test = harness;
+
+		await harness.container.services.graphite.refresh(ROOT);
+
+		expect(
+			harness.memory.controls.shellCalls.filter((command) => command.program === "gt"),
+		).toEqual([]);
+	});
+
 	it("polls the shown workspace's repository and releases the poll on unmount", async () => {
 		const { harness, workspace } = await seedPanel();
 
@@ -251,6 +273,107 @@ describe("PR-08 Graphite poll in the git panel", () => {
 		const stop = harness.container.services.graphite.watch(ROOT);
 		await waitFor(() => expect(stateReads(harness)).toHaveLength(2));
 		stop();
+	});
+});
+
+describe("PR-08 Graphite stack in the Changes tab", () => {
+	const graphiteState = JSON.stringify({
+		main: { trunk: true },
+		"feat-a": { parents: [{ ref: "main", sha: "m0" }] },
+		"feat-b": { needs_restack: true, parents: [{ ref: "feat-a", sha: "a1" }] },
+		"feat-c": { parents: [{ ref: "feat-b", sha: "b1" }] },
+		other: { parents: [{ ref: "main", sha: "m0" }] },
+	});
+	/** The branch's changes: one file against the merge base with the trunk. */
+	const changes = (command: ShellCommand) => {
+		if (command.program !== "git") return null;
+		if (command.args.includes("merge-base")) return output(`${"1".repeat(40)}\n`);
+		if (command.args.includes("--name-status")) return output("M\tsrc/stacked.ts\n");
+		if (command.args.includes("--numstat")) return output("2\t1\tsrc/stacked.ts\n");
+		return null;
+	};
+	const stackMembersRead = (harness: TestContainer) =>
+		harness.memory.controls.shellCalls.some(
+			(command) => command.program === "gh" && command.args[1]?.includes("/stacks/5") === true,
+		);
+
+	it("lists the branch's Graphite stack in place of the GitHub one and checks out with gt", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { graphiteState, git: changes });
+		await renderPanel(harness, workspace);
+
+		const names = async () =>
+			(await screen.findAllByTestId("graphite-branch")).map((row) => row.dataset.branch);
+		expect(await names()).toEqual(["feat-c", "feat-b", "feat-a", "main"]);
+		expect(screen.getByLabelText("This branch needs to be restacked. Use gt restack")).toBeTruthy();
+		// The checked-out branch shows its own changes under its row.
+		const featB = screen
+			.getAllByTestId("graphite-branch")
+			.find((row) => row.dataset.branch === "feat-b") as HTMLElement;
+		expect(await within(featB).findByRole("button", { name: "Open src/stacked.ts" })).toBeTruthy();
+		// The GitHub stack is read, and Graphite's list still takes its place.
+		await waitFor(() => expect(stackMembersRead(harness)).toBe(true));
+		expect(await names()).toHaveLength(4);
+		expect(screen.queryByText("Stack PRs")).toBeNull();
+
+		const featA = screen
+			.getAllByTestId("graphite-branch")
+			.find((row) => row.dataset.branch === "feat-a") as HTMLElement;
+		fireEvent.click(within(featA).getByRole("button", { name: "Checkout this branch" }));
+
+		const checkouts = () =>
+			harness.memory.controls.shellCalls.filter(
+				(command) => command.program === "gt" && command.args[0] === "checkout",
+			);
+		await waitFor(() =>
+			expect(checkouts().map((command) => command.args)).toEqual([["checkout", "feat-a"]]),
+		);
+		expect(checkouts()[0]?.cwd).toBe("/code/workspaces/pr-08-panel");
+	});
+
+	it("heads the panel with the stack's size and no pull request actions in a Graphite stack", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { graphiteState, git: changes });
+		await renderPanel(harness, workspace);
+
+		expect(await screen.findByText("3 branches stacked")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: /Merge stack/ })).toBeNull();
+		expect(screen.queryByText("Ready to merge")).toBeNull();
+	});
+
+	it("leaves Cmd+Shift+L alone in a Graphite stack, and pulls outside one", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { graphiteState, git: changes });
+		const pull = vi
+			.spyOn(harness.container.services.git, "pull")
+			.mockResolvedValue(ok("up_to_date"));
+		await renderPanel(harness, workspace);
+		await screen.findByText("3 branches stacked");
+
+		fireEvent.keyDown(document.body, { key: "l", metaKey: true, shiftKey: true });
+		expect(pull).not.toHaveBeenCalled();
+
+		await harness.container.actions.settings.set("graphite_disabled", true);
+		await waitFor(() => expect(screen.queryByText("3 branches stacked")).toBeNull());
+		fireEvent.keyDown(document.body, { key: "l", metaKey: true, shiftKey: true });
+		await waitFor(() => expect(pull).toHaveBeenCalledWith(workspace.id));
+	});
+
+	it("keeps the GitHub stack when Graphite has no stack for the branch", async () => {
+		const { harness, workspace } = await seedPanel();
+		await renderPanel(harness, workspace);
+
+		expect(await screen.findByText("Stack PRs")).toBeTruthy();
+		await waitFor(() => expect(stateReads(harness).length).toBeGreaterThan(0));
+		expect(screen.queryAllByTestId("graphite-branch")).toHaveLength(0);
+	});
+
+	it("shows no Graphite stack while Graphite stack support is off", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { graphiteState });
+		await harness.container.services.graphite.refresh(ROOT);
+		const off = await harness.container.actions.settings.set("graphite_disabled", true);
+		if (!off.ok) throw new Error(off.error.message);
+		await renderPanel(harness, workspace);
+
+		expect(await screen.findByText("Stack PRs")).toBeTruthy();
+		expect(screen.queryAllByTestId("graphite-branch")).toHaveLength(0);
 	});
 });
 

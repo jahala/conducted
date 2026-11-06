@@ -834,9 +834,11 @@ const SETTINGS_TABLE = [
 		default: true,
 	},
 	// The stored key says disabled and the switch says support, as in Conductor (services-map.md
-	// 4.1.5), so the switch shows the opposite of the stored value. Off by default, as every
-	// Experimental setting is, which leaves Graphite support on. Conductor's description goes on
-	// about cloud workspaces, which this app does not have, so that sentence is left out.
+	// 4.1.5), so the switch shows the opposite of the stored value. Graphite support starts off, so
+	// the app runs no `gt` until the user turns it on: Conductor's defaults hold `graphite_disabled`
+	// true (services-map.md 4.1) and a migration turns Graphite stacks off by default
+	// (native-and-sidecar-map.md). Conductor's description goes on about cloud workspaces, which
+	// this app does not have, so that sentence is left out.
 	{
 		key: "graphite_disabled",
 		page: "experimental",
@@ -847,7 +849,7 @@ const SETTINGS_TABLE = [
 		searchTerms: ["graphite", "stack", "detect", "gt"],
 		feature: "PR-08",
 		type: "bool",
-		default: false,
+		default: true,
 		shownInverted: true,
 	},
 	{

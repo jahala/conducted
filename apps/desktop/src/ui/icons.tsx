@@ -103,6 +103,10 @@ export const GitMergeIcon = (p: P) => (
 		{...p}
 	/>
 );
+export const ArrowDownToLineIcon = (p: P) => (
+	<Icon d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3.5 13.5h9" {...p} />
+);
+export const TriangleAlertIcon = (p: P) => <Icon d="M8 2.5L14 13H2zM8 6.5v3M8 11.25v.01" {...p} />;
 export const PencilIcon = (p: P) => (
 	<Icon d="M10.5 2.5l3 3-7.5 7.5-3.5.5.5-3.5zM8.5 4.5l3 3" {...p} />
 );
