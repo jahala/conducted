@@ -16,6 +16,10 @@
 //!   read here.
 //! - Group by workspace: a process belongs to the longest workspace path that is a prefix of its
 //!   working directory. Processes with no match have no workspace.
+//! - The kernel reports a working directory with symbolic links resolved (on macOS, `/var` and
+//!   `/tmp` are links into `/private`). Workspace paths are resolved the same way before they are
+//!   compared, and the row carries the path the UI sent. A path that resolves to no folder can
+//!   hold no process, so it groups nothing.
 //! - A process can vanish between listing and reading. Skip it quietly.
 //! - Never return command lines or arguments: they can contain tokens. `name` is the program's
 //!   base name only.
@@ -94,6 +98,8 @@ fn collect_usage(
     previous: &mut HashMap<u32, CpuSample>,
 ) -> CommandResult<Vec<ProcessUsage>> {
     let taken_at_ns = now_ns()?;
+    let workspaces = resolve_workspaces(workspace_paths);
+    let resolved_paths: Vec<String> = workspaces.keys().cloned().collect();
     let refresh = ProcessRefreshKind::nothing()
         .with_cpu()
         .with_memory()
@@ -149,7 +155,8 @@ fn collect_usage(
             name: process.name().to_string_lossy().into_owned(),
             cpu_percent,
             memory_bytes: process.memory(),
-            workspace_path: workspace_for(process.cwd(), workspace_paths),
+            workspace_path: workspace_for(process.cwd(), &resolved_paths)
+                .and_then(|resolved| workspaces.get(&resolved).cloned()),
         });
     }
     *previous = next;
@@ -165,6 +172,19 @@ fn percent_between(previous: CpuSample, current: CpuSample) -> f32 {
         return 0.0;
     }
     ((cpu_ns as f64 / wall_ns as f64) * 100.0) as f32
+}
+
+/// Each absolute workspace path with its symbolic links resolved, mapped to the path as sent.
+/// The kernel reports working directories in resolved form, so they are compared in that form.
+fn resolve_workspaces(workspace_paths: &[String]) -> HashMap<String, String> {
+    workspace_paths
+        .iter()
+        .filter(|given| Path::new(given.as_str()).is_absolute())
+        .filter_map(|given| {
+            let resolved = std::fs::canonicalize(given).ok()?;
+            Some((resolved.to_string_lossy().into_owned(), given.clone()))
+        })
+        .collect()
 }
 
 /// The longest absolute workspace path that contains `cwd`, if any.
@@ -356,6 +376,34 @@ mod tests {
             ),
             0.0
         );
+    }
+
+    #[test]
+    fn plat_14_a_workspace_path_is_compared_with_its_links_resolved() {
+        let workspace = TempWorkspace::new();
+        let real = workspace.path().join("real");
+        let link = workspace.path().join("link");
+        std::fs::create_dir(&real).expect("create the real folder");
+        std::os::unix::fs::symlink(&real, &link).expect("link to the real folder");
+        let link_path = link.to_string_lossy().into_owned();
+        let resolved = std::fs::canonicalize(&real)
+            .expect("resolve the real folder")
+            .to_string_lossy()
+            .into_owned();
+
+        let workspaces = resolve_workspaces(&[
+            link_path.clone(),
+            "relative".to_string(),
+            String::new(),
+            workspace
+                .path()
+                .join("missing")
+                .to_string_lossy()
+                .into_owned(),
+        ]);
+
+        assert_eq!(workspaces.len(), 1, "only the folder that exists is kept");
+        assert_eq!(workspaces.get(&resolved), Some(&link_path));
     }
 
     #[test]
