@@ -11,6 +11,7 @@ import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { countingIds } from "../../test-support/ids.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { StartOptions } from "../runner.ts";
@@ -65,7 +66,7 @@ function makeDeps(overrides: Partial<ClaudeRunnerDeps> = {}): ClaudeRunnerDeps {
 	const common: RunnerCommonDeps = {
 		logger: fakeLogger().logger,
 		clock: { now: () => 0 },
-		ids: { uuid: () => "uuid" },
+		ids: countingIds(),
 		probe: async () => ok({ stdout: "", stderr: "", exitCode: 0 }),
 		findExecutable: async () => "/bin/claude",
 	};
@@ -76,7 +77,7 @@ function makeDeps(overrides: Partial<ClaudeRunnerDeps> = {}): ClaudeRunnerDeps {
 		appTools: {} as AppToolBackend,
 		hasTranscript: async () => false,
 		realPath: async (path) => path,
-		newUuid: () => "uuid",
+		newUuid: countingIds("turn").uuid,
 		scheduler: noScheduler,
 		createCanUseTool: () =>
 			(async () => ({ behavior: "allow", updatedInput: {} })) as unknown as CanUseTool,

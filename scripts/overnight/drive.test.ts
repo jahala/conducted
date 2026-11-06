@@ -7,6 +7,7 @@ import { expect, test } from "bun:test";
 import type { BacklogRow } from "../issues/model.ts";
 import {
 	auditPrompt,
+	clipLog,
 	deepseekBalance,
 	fixerPrompt,
 	joinNodeId,
@@ -64,6 +65,16 @@ test("a fixer prompt for a group carries every id's rule", () => {
 	const group = fixerPrompt(["CHAT-03", "CHAT-04"], "boom");
 	expect(group).toContain("each of CHAT-03, CHAT-04");
 	expect(group).toContain("The GitHub issues of these features");
+});
+
+test("a long log keeps its start and its end, and says how much was cut", () => {
+	const log = `first failure\n${"x".repeat(30_000)}\nTest Files  3 failed`;
+	const clipped = clipLog(log, 1_000);
+	expect(clipped.startsWith("first failure")).toBe(true);
+	expect(clipped.endsWith("Test Files  3 failed")).toBe(true);
+	expect(clipped).toContain(`[... ${log.length - 1_000} characters of the log cut here ...]`);
+	expect(fixerPrompt(["CHAT-03"], log)).toContain("Test Files  3 failed");
+	expect(clipLog("short log", 1_000)).toBe("short log");
 });
 
 test("the rules still carry the engineering rules the audits enforce", () => {

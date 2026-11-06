@@ -19,7 +19,7 @@ Status: proposed (2026-11-04). This replaces section 3 of [parallel-build.md](pa
 | Discussion, assignee, open or closed                    | the GitHub issue                                                  | nowhere                                                        |
 | Done                                                    | the backlog row's status, set in the PR that finishes the feature | the PR closes the issue (`Closes #N`)                          |
 
-A check (`pnpm issues --check`, run in CI with the read-only token) fails when a `done` row's issue is still open, or a closed issue's row is not `done`.
+A check (`pnpm issues --check`) fails when a `done` row's issue is still open, or a closed issue's row is not `done`. CI does not run it, because a pull request's `done` rows close their issues only when it merges (D041); the conductor runs it after each merge.
 
 ## Issue hierarchy
 

@@ -12,10 +12,12 @@ import {
 	checkMockingTheThing,
 	checkStandInHome,
 	checkTestsCannotFail,
+	checkTestsCannotPass,
 	checkTimeAndLeaks,
 	compareWithBaseline,
 	countFindings,
 	renderBaseline,
+	risesOver,
 	scanTestShapes,
 	type Violation,
 	writeBaseline,
@@ -60,6 +62,7 @@ describe("planted samples", () => {
 			"mocking-the-thing",
 			"stand-in-home",
 			"tests-cannot-fail",
+			"tests-cannot-pass",
 			"time-and-leaks",
 		]);
 	});
@@ -133,6 +136,18 @@ describe("the baseline", () => {
 		expect(problems.map((problem) => problem.message).join("\n")).toContain("baseline says 1");
 	});
 
+	test("a guard the baseline does not list yet takes its first counts; a listed one may not rise", () => {
+		const next = countFindings([
+			violation("a.test.ts", "tests-cannot-pass"),
+			violation("b.test.ts", "time-and-leaks"),
+		]);
+		const before: Partial<ReturnType<typeof countFindings>> = {
+			"time-and-leaks": { "b.test.ts": 0 },
+		};
+		expect(risesOver(before, next)).toEqual(["time-and-leaks: b.test.ts 0 -> 1"]);
+		expect(risesOver({ "time-and-leaks": { "b.test.ts": 1 } }, next)).toEqual([]);
+	});
+
 	test("ignores findings of the other guards", () => {
 		expect(
 			compareWithBaseline("time-and-leaks", [violation("a.test.ts", "mocking-the-thing")], {}),
@@ -141,14 +156,20 @@ describe("the baseline", () => {
 });
 
 describe("the guards end to end", () => {
-	const guards = [checkTestsCannotFail, checkMockingTheThing, checkStandInHome, checkTimeAndLeaks];
+	const guards = [
+		checkTestsCannotFail,
+		checkMockingTheThing,
+		checkStandInHome,
+		checkTimeAndLeaks,
+		checkTestsCannotPass,
+	];
 	const sample = PLANTED.find((item) => item.check === "real-time" && item.file.endsWith(".ts"));
 
 	test("a violation with no baseline fails the guard that owns it, and only that one", async () => {
 		if (sample === undefined) throw new Error("no real-time sample");
 		plant(sample);
 		const results = await Promise.all(guards.map((check) => check(root)));
-		expect(results.map((problems) => problems.length)).toEqual([0, 0, 0, 1]);
+		expect(results.map((problems) => problems.length)).toEqual([0, 0, 0, 1, 0]);
 	});
 
 	test("the written baseline lets today's violations pass, and a new one fails", async () => {

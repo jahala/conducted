@@ -1,9 +1,13 @@
+import { join } from "node:path";
 import process from "node:process";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
+// CI names a folder here, and the run also writes a JUnit report into it, so
+// scripts/test-report.ts can list every failed test by file (ci.yml).
+const reports = process.env.CONDUCTED_TEST_REPORTS;
 
 // Tauri expects a fixed dev port and handles errors itself.
 export default defineConfig({
@@ -19,6 +23,14 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		setupFiles: ["./src/test/setup.ts"],
+		...(reports
+			? {
+					reporters: [
+						...configDefaults.reporters,
+						["junit", { outputFile: join(reports, "desktop.xml") }],
+					],
+				}
+			: {}),
 		// Used by `pnpm test:coverage` only. It reports numbers and sets no threshold.
 		coverage: {
 			provider: "v8",

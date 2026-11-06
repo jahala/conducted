@@ -1,5 +1,5 @@
 import type { AgentInstall, AgentProvider } from "@conducted/protocol";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { providerKeychainRef } from "../../../core/services/agent-catalog.ts";
@@ -80,7 +80,19 @@ async function mounted() {
 	test.memory.controls.emitSidecarLine(
 		JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { providers } }),
 	);
+	// The answer reaches the store a few microtasks later; wait until the catalogue shows.
+	await screen.findByRole("combobox", { name: "Provider" });
 	return test;
+}
+
+/**
+ * The Save key button beside the key field labelled `label`. OpenCode's dialog also shows the Custom
+ * provider form (SET-09), which has a Save key button of its own.
+ */
+function saveKeyBeside(label: string): HTMLElement {
+	const row = screen.getByLabelText(label).parentElement;
+	if (row === null) throw new Error(`no field row for ${label}`);
+	return within(row).getByRole("button", { name: "Save key" });
 }
 
 async function choose(selectName: string, optionName: string) {
@@ -97,7 +109,7 @@ describe("SET-10 OpenCode providers", () => {
 		fireEvent.change(screen.getByLabelText("DeepSeek"), {
 			target: { value: "sk-deepseek" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(saveKeyBeside("DeepSeek"));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		const key = {
@@ -131,7 +143,7 @@ describe("SET-10 OpenCode providers", () => {
 
 		await choose("Provider", "Z.AI");
 		fireEvent.change(await screen.findByLabelText("Z.AI"), { target: { value: "sk-zhipu" } });
-		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		fireEvent.click(saveKeyBeside("Z.AI"));
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 
 		await choose("Provider", "Zhipu AI");

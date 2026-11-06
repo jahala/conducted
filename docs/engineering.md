@@ -55,7 +55,7 @@ Rules every test follows:
 
 - **Never test a mock of the thing under test**, and never test a placeholder.
 - **Every checklist item has a test that would fail without it.** A test that would still pass with the feature removed does not count.
-- **Fakes behave like the real thing.** An id source hands out a new id on every call, never a constant. The night's most repeated test bug was a fake that gave every turn the same id.
+- **Fakes behave like the real thing.** An id source hands out a new id on every call, never a constant: use `createTestIds` from `apps/desktop/src/test/ids.ts` or `countingIds` from `packages/sidecar/src/test-support/ids.ts`. The night's most repeated test bug was a fake that gave every turn the same id.
 - **Screens are tested over the real container.** Use `createTestContainer` from `apps/desktop/src/test/container.ts`, and `seedRepo` and `seedWorkspace` to put data in it, instead of a hand-built object cast to `Container`. Tests that need a real database use `openTestDatabase` from `apps/desktop/src/test/sqlite.ts`.
 - **The sidecar's stand-ins have one home: `packages/sidecar/src/test-support/`.** `FakeApp` checks every message against the protocol schemas the real `RpcPeer` uses, `FakePublisher` checks every event, and each stand-in has a contract test next to it that runs the real class on the same inputs. A test file that declares its own copy fails `test-support/one-home.test.ts`.
 - **jsdom has no layout.** `apps/desktop/src/test/setup.ts` adds the layout methods editors call (`getClientRects` and the like). Do not stub them per test.
@@ -66,7 +66,7 @@ Rules every test follows:
 - **Release what you hold:** timers, processes, sockets, file handles.
 - **Test at real size.** Anything that lists or loops is tested at the size it meets in use: a chat with 20,000 events, a sidebar with 300 workspaces, a diff of 5,000 files.
 - **A guard proves it can fail.** A check that reads source text includes a sample it must flag.
-- **Four guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, and real time or leaked state. Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
+- **Five guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, real time or leaked state, and tests that cannot pass. A test cannot pass when a Testing Library query looks for text with whitespace at an end or doubled (the library trims and collapses the page's text first), or when a `vi.mock` factory leaves out a name that a module the test reaches imports (Vitest throws when that code runs; start the factory from `importOriginal()` or use `createTestContainer`). Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
 
 ## A run leaves nothing behind
 

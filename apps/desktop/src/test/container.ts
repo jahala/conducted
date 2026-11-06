@@ -10,7 +10,7 @@
  * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
-import type { Clock, IdSource } from "@conducted/shared";
+import type { Clock } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
@@ -21,17 +21,12 @@ import { tomlCodec } from "../core/services/toml-codec.ts";
 import type { PlaceNames } from "../core/services/workspace.ts";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
+import { createTestIds } from "./ids.ts";
 import { openTestDatabase } from "./sqlite.ts";
 
 const FIXED_NOW = 1_700_000_000_000;
 const FIXED_CLOCK: Clock = { now: () => FIXED_NOW };
 const SILENT_SOUND: SoundPlayer = { play: async () => {} };
-
-/** A fresh counter per container, so two calls never share an id. */
-const createTestIds = (): IdSource => {
-	let next = 0;
-	return { uuid: () => `test-id-${++next}` };
-};
 
 /** A place name that is never already taken. */
 const createTestPlaceNames = (): PlaceNames => ({

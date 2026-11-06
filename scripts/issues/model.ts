@@ -184,6 +184,17 @@ export function issueTitle(row: BacklogRow): string {
 	return `${row.id} ${row.title}`;
 }
 
+/**
+ * What a planned row waits for. Only the cloud and Remote Control rows wait for the spikes in
+ * docs/plans/cloud-and-remote.md; any other planned row waits for its own spike or decision (D062).
+ */
+export function plannedNote(row: BacklogRow): string {
+	if (row.id.startsWith("CLOUD-") || row.id.startsWith("RC-")) {
+		return "Planned: waits for its spike in `docs/plans/cloud-and-remote.md`.";
+	}
+	return "Planned: not ready to build yet; it waits for a spike or a decision first.";
+}
+
 export function renderIssue(
 	row: BacklogRow,
 	items: Item[],
@@ -200,9 +211,7 @@ export function renderIssue(
 		`Owner folder: \`${row.owner}\``,
 	];
 	if (row.needs.length > 0) lines.push(`Blocked by: ${row.needs.map(ref).join(", ")}`);
-	if (row.status === "planned") {
-		lines.push("", "Planned: waits for its spike in `docs/plans/cloud-and-remote.md`.");
-	}
+	if (row.status === "planned") lines.push("", plannedNote(row));
 	if (files.length > 0) {
 		lines.push("", "### Owning files", "");
 		for (const file of files) {
