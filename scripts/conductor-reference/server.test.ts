@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type { ReferenceMapping } from "./backend.ts";
 import { type Catalogue, loadCatalogue, type SeededState } from "./catalogue.ts";
 import {
-	CONTENT_POLICY,
 	fileUnder,
 	injectBefore,
 	type ReferenceServer,
@@ -77,7 +76,10 @@ describe("the reference server", () => {
 		const { opened, location, page, html } = await openPage("sidebar");
 		expect(opened.status).toBe(302);
 		expect(location).toBe("/projects/sidebar");
-		expect(page.headers.get("content-security-policy")).toBe(CONTENT_POLICY);
+		// Only the page's own origin, so the browser refuses every other host.
+		expect(page.headers.get("content-security-policy")).toBe(
+			"default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
+		);
 		const standin = html.indexOf("/__reference/standin.js");
 		expect(standin).toBeGreaterThan(-1);
 		expect(standin).toBeLessThan(html.indexOf('type="module"'));
