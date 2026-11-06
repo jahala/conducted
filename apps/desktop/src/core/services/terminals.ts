@@ -30,6 +30,9 @@
  * reads the live screen, keeps the text of a finished terminal in memory, and falls back to the
  * saved screen for an older one. A run or spotlight script never saves its screen, so its output
  * stays off disk. Still a placeholder: the shell integration (RUN-09).
+ * SET-13: every terminal and script gets `CONDUCTED_PATH_PREFIX`, the shim folder for the program
+ * paths chosen in settings (or the bundled bin folder), so a chosen `claude` or `codex` is the one
+ * the shell runs. A script that already carries the variable keeps it.
  * Test first: buildScriptEnv sets CONDUCTED_PORT and CONDUCTED_WORKSPACE_PATH from the workspace.
  */
 import {
@@ -238,6 +241,8 @@ export interface TerminalsServiceDeps {
 	now: () => number;
 	/** Runs `callback` after `ms`; returns a function that cancels it. Injected so tests control time. */
 	setTimer?: (callback: () => void, ms: number) => () => void;
+	/** The folder to put first on PATH (SET-13). Without it, a terminal gets no path prefix. */
+	pathPrefixFor?: () => Promise<Result<string>>;
 }
 
 /** Milliseconds a stop waits for the process to exit before it reports "not confirmed". */
@@ -441,6 +446,22 @@ export class TerminalsService {
 		return record;
 	}
 
+	/**
+	 * Adds the chosen program shim folder to a terminal's environment (SET-13). A script that
+	 * already carries the variable keeps it, so run scripts are not staged twice.
+	 */
+	async #withPathPrefix(
+		env?: Readonly<Record<string, string>>,
+	): Promise<Result<Readonly<Record<string, string>> | undefined>> {
+		if (env?.CONDUCTED_PATH_PREFIX !== undefined && env.CONDUCTED_PATH_PREFIX !== "") {
+			return ok(env);
+		}
+		if (this.#deps.pathPrefixFor === undefined) return ok(env);
+		const prefix = await this.#deps.pathPrefixFor();
+		if (!prefix.ok) return prefix;
+		return ok({ ...(env ?? {}), CONDUCTED_PATH_PREFIX: prefix.value });
+	}
+
 	async #spawn(
 		terminal: Terminal,
 		existing?: ConnectionRecord,
@@ -631,6 +652,8 @@ export class TerminalsService {
 		}
 		const folder = await this.#requireFolder(workspace.value.path);
 		if (!folder.ok) return folder;
+		const environment = await this.#withPathPrefix();
+		if (!environment.ok) return environment;
 
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId,
@@ -645,7 +668,11 @@ export class TerminalsService {
 		});
 		if (!started.ok) return started;
 
-		const spawned = await this.#spawn(started.value);
+		const spawned = await this.#spawn(
+			started.value,
+			undefined,
+			environment.value === undefined ? undefined : { env: environment.value },
+		);
 		if (!spawned.ok) {
 			await this.#persistEnd(started.value.id, this.#deps.now(), null);
 			return spawned;
@@ -708,6 +735,8 @@ export class TerminalsService {
 		}
 		const folder = await this.#requireFolder(input.cwd);
 		if (!folder.ok) return folder;
+		const environment = await this.#withPathPrefix(input.env);
+		if (!environment.ok) return environment;
 
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId: input.workspaceId,
@@ -733,7 +762,7 @@ export class TerminalsService {
 
 		const spawned = await this.#spawn(started.value, undefined, {
 			command: { program: login.shell, args: ["-l", "-c", input.command] },
-			env: input.env,
+			env: environment.value ?? input.env,
 		});
 		if (!spawned.ok) {
 			await this.#persistEnd(started.value.id, this.#deps.now(), null);
@@ -952,6 +981,8 @@ export class TerminalsService {
 
 		const folder = await this.#requireFolder(repo.value.rootPath);
 		if (!folder.ok) return folder;
+		const environment = await this.#withPathPrefix();
+		if (!environment.ok) return environment;
 
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId: null,
@@ -965,7 +996,11 @@ export class TerminalsService {
 		});
 		if (!started.ok) return started;
 
-		const spawned = await this.#spawn(started.value);
+		const spawned = await this.#spawn(
+			started.value,
+			undefined,
+			environment.value === undefined ? undefined : { env: environment.value },
+		);
 		if (!spawned.ok) {
 			await this.#persistEnd(started.value.id, this.#deps.now(), null);
 			return spawned;
@@ -1000,10 +1035,16 @@ export class TerminalsService {
 
 		const folder = await this.#requireFolder(terminal.cwd);
 		if (!folder.ok) return folder;
+		const environment = await this.#withPathPrefix();
+		if (!environment.ok) return environment;
 
 		const record = this.#records.get(id) ?? this.#record(terminal);
 		this.#emit(record, new TextEncoder().encode(`${RESTART_DIVIDER}\r\n`));
-		const spawned = await this.#spawn(terminal, record);
+		const spawned = await this.#spawn(
+			terminal,
+			record,
+			environment.value === undefined ? undefined : { env: environment.value },
+		);
 		if (!spawned.ok) return spawned;
 		this.#update(id, { endedAt: null, exitCode: null });
 		return ok(undefined);

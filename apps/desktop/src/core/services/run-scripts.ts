@@ -26,6 +26,8 @@
  * Setup, archive and run scripts receive the Environment page's variables for the repository
  * (SET-04): the global values, with the repository's own values replacing them. The values come
  * from the Keychain through the composition root, never from a file.
+ * All three also receive `CONDUCTED_PATH_PREFIX` (SET-13): the shim folder for the program paths
+ * chosen in settings, or the bundled bin folder when none are chosen or staging fails.
  * Built now: `runSetup` and `stopAll` (WS-03 and RUN-01), `runArchive` (WS-05), which runs the
  * repository's archive script once through the shell before the worktree is removed, the run
  * actions above (RUN-01), and the RUN-03 paths: polling the workspace's listening ports into
@@ -163,6 +165,11 @@ export interface RunScriptsServiceDeps {
 	 * it; a test of another path may leave it out, and no extra variables are then passed.
 	 */
 	environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
+	/**
+	 * The folder to put first on PATH (SET-13). The composition root supplies it; a test of
+	 * another path may leave it out, and the bundled bin folder is then used.
+	 */
+	pathPrefixFor?: () => Promise<Result<string>>;
 }
 
 interface RunProcess {
@@ -353,6 +360,9 @@ export class RunScriptsService {
 			defaultBranch: repo.value.defaultBranch,
 			userEnv: userEnv.value,
 		});
+		const prefix = await this.#pathPrefix();
+		if (!prefix.ok) return prefix;
+		env.CONDUCTED_PATH_PREFIX = prefix.value;
 		const started = await this.#deps.terminals.runScript({
 			workspaceId,
 			kind: "setup",
@@ -417,6 +427,9 @@ export class RunScriptsService {
 			defaultBranch: repo.value.defaultBranch,
 			userEnv: userEnv.value,
 		});
+		const prefix = await this.#pathPrefix();
+		if (!prefix.ok) return prefix;
+		env.CONDUCTED_PATH_PREFIX = prefix.value;
 		const result = await this.#deps.shell.run({
 			program: "zsh",
 			args: ["-lc", script],
@@ -679,6 +692,12 @@ export class RunScriptsService {
 		return this.#deps.environmentFor(repoId);
 	}
 
+	/** The folder to put first on PATH, or the bundled bin folder when no source is wired. */
+	async #pathPrefix(): Promise<Result<string>> {
+		if (this.#deps.pathPrefixFor === undefined) return ok(binDir(this.#deps.fs.paths));
+		return this.#deps.pathPrefixFor();
+	}
+
 	async #afterSetup(workspaceId: WorkspaceId, succeeded: boolean): Promise<Result<void>> {
 		const pending = this.#pending.get(workspaceId);
 		if (pending !== undefined) {
@@ -746,7 +765,9 @@ export class RunScriptsService {
 			defaultBranch: repo.defaultBranch,
 			userEnv: userEnv.value,
 		});
-		env.CONDUCTED_PATH_PREFIX = binDir(this.#deps.fs.paths);
+		const prefix = await this.#pathPrefix();
+		if (!prefix.ok) return prefix;
+		env.CONDUCTED_PATH_PREFIX = prefix.value;
 		const cwd = expandActionCwd(action.cwd ?? workspace.path, env);
 		const command = actionCommand(action);
 

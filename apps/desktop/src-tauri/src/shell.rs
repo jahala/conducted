@@ -1,6 +1,13 @@
 //! @feature PLAT-03 Shell commands: run, start, cancel
 //! @feature PLAT-04 Capture the login-shell PATH at startup
 //! @feature PLAT-29 Limit the paths, programs and links the webview can reach
+//! @feature SET-13 Chosen program paths reach terminals and scripts
+//!
+//! SET-13 owns one thing here: `path_with_prefix`, which puts the folder named by
+//! `CONDUCTED_PATH_PREFIX` first on a child's PATH. Every script run through `shell_run` and every
+//! terminal started by `pty_spawn` uses it, so a chosen program shim and the bundled bin folder
+//! reach both through one variable. Behaviour: services-map.md 5A.8.2 (path overrides) and
+//! 5A.1.2 (the bundled bin folder on PATH).
 //!
 //! Owns: running one-shot programs for the UI (git, gh, scripts) with a timeout and a cancel that
 //! kills the whole process group, and capturing the user's login-shell PATH once.
@@ -362,6 +369,18 @@ fn output_too_large_error() -> CommandError {
     }
 }
 
+/// Puts `prefix` first on `path`. An empty prefix leaves the path alone; an empty path becomes
+/// the prefix. The prefix may name more than one folder, as a PATH entry may.
+pub fn path_with_prefix(prefix: &str, path: &str) -> String {
+    if prefix.is_empty() {
+        return path.to_string();
+    }
+    if path.is_empty() {
+        return prefix.to_string();
+    }
+    format!("{prefix}:{path}")
+}
+
 /// Finds a bare program name on the PATH the child will see.
 fn resolve_program(program: &str, path: Option<&str>) -> CommandResult<PathBuf> {
     if program.contains('/') {
@@ -420,6 +439,14 @@ fn build_command(
     if let Some(env) = &request.env {
         for (key, value) in env {
             command.env(key, value);
+        }
+        if let Some(prefix) = env.get("CONDUCTED_PATH_PREFIX") {
+            let path = env
+                .get("PATH")
+                .or_else(|| base_env.get("PATH"))
+                .map(String::as_str)
+                .unwrap_or("");
+            command.env("PATH", path_with_prefix(prefix, path));
         }
     }
     command.process_group(0);
@@ -2247,6 +2274,35 @@ mod tests {
 
         assert_eq!(status.signal(), Some(9), "SIGKILL ended it after the grace");
         assert!(!process_group::group_exists(pid));
+    }
+
+    #[test]
+    fn set_13_a_script_path_prefix_goes_first_on_path() {
+        let mut command = request("/bin/sh", &["-c", "true"]);
+        command.env = Some(HashMap::from([(
+            "CONDUCTED_PATH_PREFIX".to_string(),
+            "/data/bin-overrides/abc".to_string(),
+        )]));
+
+        let built = build_command(&command, &test_env(), &test_program_roots())
+            .expect("the command is built");
+
+        assert_eq!(
+            built.get_env("PATH"),
+            Some(std::ffi::OsStr::new(
+                "/data/bin-overrides/abc:/usr/bin:/bin:/usr/sbin:/sbin"
+            ))
+        );
+    }
+
+    #[test]
+    fn set_13_the_path_prefix_joins_a_path_without_doubling_the_colon() {
+        assert_eq!(
+            path_with_prefix("/shims/abc", "/usr/bin"),
+            "/shims/abc:/usr/bin"
+        );
+        assert_eq!(path_with_prefix("/shims/abc", ""), "/shims/abc");
+        assert_eq!(path_with_prefix("", "/usr/bin"), "/usr/bin");
     }
 
     #[test]
