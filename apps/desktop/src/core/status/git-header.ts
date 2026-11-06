@@ -20,6 +20,9 @@
  *                         or PR mergeable is "conflicting"
  *   detached              no branch is checked out (detached HEAD)     Detached HEAD               Continue (GIT-17)
  *   uncommitted           uncommittedFiles > 0                         Uncommitted changes         Commit and push (agent)
+ *   local_merge           local-git forge, ahead > 0                   Ready to merge              Merge (agent)
+ *   local_conflicts       local-git forge, mergeState DIRTY            Merge conflicts             Resolve (agent)
+ *   local_loading         local-git forge, info not read yet           Loading PR info...          none
  *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve (agent)
  *                                                                      Remote branch was rebased
  *   behind                sync.behind > 0, ahead is 0                  Behind by N commit(s)       Pull
@@ -71,7 +74,9 @@
  * action id, plus the order cases (conflicts beats uncommitted, uncommitted beats behind), and
  * "uncommitted files and no PR" gives the action "commit_and_push".
  */
+import type { AppError } from "@conducted/shared";
 import type { CheckRun, GitState, PullRequest } from "../model.ts";
+import type { LocalPrInfo } from "../services/local-git-forge.ts";
 import { hasMergeConflict, isActivePullRequest, reviewIsBlocking } from "./pull-request-status.ts";
 
 export type GitHeaderActionId =
@@ -140,6 +145,13 @@ export interface GitHeaderInputs {
 	agentWorking: boolean;
 	/** "local" is a repository without a GitHub remote (services-map.md 3.7.7). */
 	forge: "github" | "local";
+	/**
+	 * The synthesised local-git pull request, when the switch is on and the caller asked for it.
+	 * `null` means it is still being read; `undefined` means this caller does not use the forge.
+	 */
+	localForge?: LocalPrInfo | null;
+	/** Why the synthesised local-git information could not be read. */
+	localForgeError?: AppError | null;
 	automergeSettingOn: boolean;
 	treatOptionalChecksAsBlocking: boolean;
 	stack: { size: number; blockedReason: string | null } | null;
@@ -210,8 +222,16 @@ function hasSkippedRequiredCheck(pullRequest: PullRequest): boolean {
 
 /** The state machine of ui-map.md 3.6. First matching row wins, in the order of the table above. */
 export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
-	const { git, agentWorking, forge, automergeSettingOn, treatOptionalChecksAsBlocking, stack } =
-		inputs;
+	const {
+		git,
+		agentWorking,
+		forge,
+		localForge,
+		localForgeError,
+		automergeSettingOn,
+		treatOptionalChecksAsBlocking,
+		stack,
+	} = inputs;
 	const pullRequest = git.pullRequest;
 	const active = isActivePullRequest(pullRequest) ? pullRequest : null;
 	const canUseGithub = forge === "github";
@@ -255,6 +275,42 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			tone: "attention",
 			action: action("commit_and_push", "Commit and push"),
 		};
+	}
+	// The local-git forge stands in for a pull request: commits ahead of the target are ready to
+	// merge, and a predicted conflict is the conflicts state. The switch off means no info was
+	// asked for, and the plain "no GitHub remote" states below apply.
+	if (forge === "local" && localForge !== undefined) {
+		if (localForge === null) {
+			if (localForgeError !== undefined && localForgeError !== null) {
+				return {
+					kind: "pr_unavailable",
+					title: "PR info unavailable",
+					tone: "danger",
+					action: action("retry", "Retry"),
+				};
+			}
+			return { kind: "loading", title: "Loading PR info...", tone: "busy", action: null };
+		}
+		if (localForge.mergeState === "DIRTY") {
+			return {
+				kind: "conflicts",
+				title: "Merge conflicts",
+				tone: "danger",
+				action: action("resolve", "Resolve"),
+			};
+		}
+		if (localForge.ahead > 0) {
+			return {
+				kind: "ready_to_merge",
+				title: "Ready to merge",
+				tone: "success",
+				action: action("merge", "Merge"),
+			};
+		}
+		if (git.changedFiles > 0) {
+			return { kind: "changes", title: "Changes", tone: "neutral", action: null };
+		}
+		return { kind: "clean", title: "No changes", tone: "neutral", action: null };
 	}
 	if ((git.sync.ahead > 0 && git.sync.behind > 0) || git.sync.rewritten) {
 		return {
