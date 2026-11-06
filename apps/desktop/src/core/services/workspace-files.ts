@@ -34,7 +34,9 @@
  * still copied; the first failure is returned. A conflict resolution needs one choice per conflict
  * and the same number as the file holds; malformed markers or a count that does not match fail
  * before the file is written. The save is atomic, and after it leaves no markers the file is
- * staged with `git add`.
+ * staged with `git add`. A `git add` that fails after the write (an index lock, a linked folder
+ * that is not a repository) returns `conflict_saved_not_staged`, so the screen does not call a
+ * save that landed a failed save.
  * Our design choice: an upload never replaces an artifact. A name clash is refused with a message
  * that names the file, so the user renames it rather than losing the agent's file.
  * Our design choice: a preview URL carries the file's modified time as a query string. The asset
@@ -198,6 +200,9 @@ const artifactEntryFrom = (context: string, entry: FileStat): ArtifactEntry | nu
 		modifiedAt: entry.modifiedAt,
 	};
 };
+
+/** A conflict resolution was written to disk, but `git add` failed afterwards. */
+export const CONFLICT_SAVED_NOT_STAGED = "conflict_saved_not_staged";
 
 /** One conflict region in a file, in the order it appears. */
 export interface ConflictHunk {
@@ -695,7 +700,15 @@ export class WorkspaceFilesService {
 		const staged = await this.#deps.git.runChecked(addPath(resolved.value.relative), {
 			cwd: resolved.value.root,
 		});
-		return staged.ok ? ok(undefined) : err(staged.error);
+		if (staged.ok) return ok(undefined);
+		// The file is already resolved on disk, so this is not a failed save.
+		return err(
+			appError(
+				CONFLICT_SAVED_NOT_STAGED,
+				`Saved "${relativePath}", but git could not stage it: ${staged.error.message}`,
+				staged.error,
+			),
+		);
 	}
 
 	/** Reads the first page of the Artifacts tab, replacing the pages the tab held. */

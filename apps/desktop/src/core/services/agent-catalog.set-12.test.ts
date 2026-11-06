@@ -87,6 +87,45 @@ describe("SET-12 agent config files", () => {
 		expect(await test.memory.platform.fs.readText(path)).toEqual(ok('{"model":"opus"}'));
 	});
 
+	it("refuses Claude settings that are not valid JSON and leaves the file alone", async () => {
+		test = createTestContainer();
+		const catalog = test.container.services.agentCatalog;
+		const path = claudeFile(test);
+		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
+			ok(undefined),
+		);
+		const loaded = await catalog.loadConfigFile("claude");
+		if (!loaded.ok) throw new Error(loaded.error.message);
+
+		const saved = await catalog.saveConfigFile("claude", '{"model": ', loaded.value.modifiedAt);
+
+		expect(saved.ok).toBe(false);
+		if (!saved.ok) {
+			expect(saved.error.code).toBe("agent_config_invalid");
+			expect(saved.error.message).toContain("is not valid JSON");
+		}
+		expect(await test.memory.platform.fs.readText(path)).toEqual(ok('{"model":"opus"}'));
+
+		const notObject = await catalog.saveConfigFile("claude", "[1, 2]", loaded.value.modifiedAt);
+		expect(notObject.ok).toBe(false);
+		if (!notObject.ok) expect(notObject.error.code).toBe("agent_config_invalid");
+	});
+
+	it("refuses a Codex config that is not valid TOML and creates no file", async () => {
+		test = createTestContainer();
+		const catalog = test.container.services.agentCatalog;
+		const path = codexFile(test);
+
+		const saved = await catalog.saveConfigFile("codex", 'model = "gpt-5\n[broken', null);
+
+		expect(saved.ok).toBe(false);
+		if (!saved.ok) {
+			expect(saved.error.code).toBe("agent_config_invalid");
+			expect(saved.error.message).toContain("is not valid TOML");
+		}
+		expect(await test.memory.platform.fs.exists(path)).toBe(false);
+	});
+
 	it("keeps the newer config read when two answer out of order", async () => {
 		test = createTestContainer();
 		const fs = test.memory.platform.fs;

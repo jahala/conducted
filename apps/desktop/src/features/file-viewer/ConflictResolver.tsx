@@ -8,17 +8,28 @@
  * "Failed to save conflict resolution").
  * Data: useActions().files.resolveConflicts and the conflict parser of the workspace files service.
  * Must handle: malformed markers (a notice, no choices), a file with no markers (draws nothing),
- * choices not yet made for every conflict (save disabled), a failed save (toast), and a save that
- * changed the file (the file text and the change list read again).
+ * choices not yet made for every conflict (save disabled), a failed save (toast), a file that
+ * changed on disk after the rows were drawn (refused with the same toast, and the file is read
+ * again), a save that landed but could not be staged (its own toast, not the failure one), and a
+ * save that changed the file (the file text and the change list read again).
+ * Our design choice: the "changed on disk" text and the "Saved, but could not stage the file"
+ * title are our wording; the research names only "Failed to save conflict resolution". The check
+ * reads the file just before the save. The service reads it once more to apply the choices, so a
+ * write that lands between those two reads is not caught; closing that gap needs the seen text
+ * in `Actions.files.resolveConflicts`.
  * Test first: a file with one conflict shows the three choices, and saving "both" writes the two
  * sides with no markers and refreshes the change list.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import { appError, err, type WorkspaceId } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { ConflictChoice } from "../../core/api.ts";
-import { fileQueryKey, useActions } from "../../core/hooks.ts";
-import { type ConflictHunk, parseConflictMarkers } from "../../core/services/workspace-files.ts";
+import { fileQueryKey, useActions, useReadFileNow } from "../../core/hooks.ts";
+import {
+	CONFLICT_SAVED_NOT_STAGED,
+	type ConflictHunk,
+	parseConflictMarkers,
+} from "../../core/services/workspace-files.ts";
 import { toastError } from "../../ui/Toast.tsx";
 
 const CHOICES: readonly { value: ConflictChoice; label: string }[] = [
@@ -30,12 +41,13 @@ const CHOICES: readonly { value: ConflictChoice; label: string }[] = [
 export interface ConflictResolverProps {
 	workspaceId: WorkspaceId;
 	path: string;
-	/** The file text to read conflict markers from. */
+	/** The working file's text, as the screen shows it. The rows are drawn from this text. */
 	text: string;
 }
 
 export function ConflictResolver({ workspaceId, path, text }: ConflictResolverProps) {
 	const actions = useActions();
+	const readNow = useReadFileNow(workspaceId, path);
 	const queryClient = useQueryClient();
 	const parsed = useMemo(() => parseConflictMarkers(text), [text]);
 	const hunks: readonly ConflictHunk[] = parsed.ok ? parsed.value : [];
@@ -73,14 +85,31 @@ export function ConflictResolver({ workspaceId, path, text }: ConflictResolverPr
 		if (!complete || saving) return;
 		const decided = choices.filter((choice): choice is ConflictChoice => choice !== null);
 		setSaving(true);
-		const result = await actions.files.resolveConflicts(workspaceId, path, decided);
+		const result = await saveAsShown(decided);
 		setSaving(false);
-		if (!result.ok) {
+		if (!result.ok && result.error.code !== CONFLICT_SAVED_NOT_STAGED) {
 			toastError("Failed to save conflict resolution", result.error);
+			await queryClient.invalidateQueries({ queryKey: fileQueryKey(workspaceId, path) });
 			return;
 		}
+		if (!result.ok) toastError("Saved, but could not stage the file", result.error);
 		await queryClient.invalidateQueries({ queryKey: ["git"] });
 		await queryClient.invalidateQueries({ queryKey: fileQueryKey(workspaceId, path) });
+	};
+
+	// The choices apply by position, so they may only land on the text the rows were drawn from.
+	const saveAsShown = async (decided: ConflictChoice[]) => {
+		const now = await readNow();
+		if (!now.ok) return now;
+		if (now.value.kind !== "text" || now.value.text !== text) {
+			return err(
+				appError(
+					"changed_on_disk",
+					`"${path}" changed on disk after its conflicts were shown. Check them again.`,
+				),
+			);
+		}
+		return actions.files.resolveConflicts(workspaceId, path, decided);
 	};
 
 	return (

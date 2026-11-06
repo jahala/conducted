@@ -715,7 +715,7 @@ PLAT-07	rpc	pty-exit event reports a terminal exit.	native-and-sidecar-map A4	co
 PLAT-07	rpc	pty-ready event reports a terminal is ready.	native-and-sidecar-map A4	covered
 PLAT-28	rpc	agent_binary_progress event reports download progress of an agent program.	native-and-sidecar-map A4	covered
 PLAT-34	rpc	binary_verification_errors event reports agent programs that failed verification.	native-and-sidecar-map A4	missing
-PLAT-13	rpc	manual_update_status event reports update download state.	native-and-sidecar-map A4	covered
+PLAT-13	rpc	The updater://status event (Conductor names it manual_update_status) reports update download state.	native-and-sidecar-map A4	covered
 CLOUD-10	rpc	port-forward-event reports port forward state.	native-and-sidecar-map A4	missing
 CLOUD-10	rpc	port-forward-token-request asks for a forward token.	native-and-sidecar-map A4	missing
 CLOUD-11	rpc	remote-file-sync events report file sync progress.	native-and-sidecar-map A4	missing
@@ -790,7 +790,7 @@ PLAT-13	integration	Update feed is hosted by CrabNebula; ours uses our own feed 
 PLAT-13	integration	Updates are checked with minisign signatures.	native-and-sidecar-map A9	covered
 PLAT-13	integration	The plugin update path installs a new version.	native-and-sidecar-map A9	covered
 PLAT-13	integration	The manual update path retries with backoff and keeps its state across restarts.	native-and-sidecar-map A9	covered
-PLAT-13	integration	Release notes of the installed version are shown after relaunch.	native-and-sidecar-map A9	partly
+APP-06	integration	Release notes of the installed version are shown after relaunch.	native-and-sidecar-map A9	partly
 PLAT-28	integration	The update manifest also carries new agent programs.	native-and-sidecar-map A9	missing
 PLAT-28	rule	Agent program versions are pinned per app version.	native-and-sidecar-map A9	covered
 PLAT-28	rule	The release feed ships inside the app (programs/release-feed.json) with the official download URL, size and SHA-256 of each pinned program per CPU, from the vendors' own release hosts (found missing by the slice 2 step 3 rust audit).	native-and-sidecar-map A9	covered
@@ -1573,7 +1573,7 @@ RUN-02	message	Spotlight start checks the root has no merge or rebase in progres
 RUN-02	git	Spotlight start saves the repository root as the pre-spotlight checkpoint.	services-map 5A.2.2	covered
 RUN-02	rule	Spotlight runs the spotlighter script with checkpointer and watchexec paths in the workspace terminal.	services-map 5A.2.2	covered
 APP-01	startup	A leftover Spotlight checkpoint is healed at app start for every repository, not only on the next Spotlight start.	services-map 5A.2.5	partly
-RUN-08	rule	The sync loop uses watchexec with ignore rules, runs one job at a time and skips when busy.	services-map 5A.2.3	covered
+RUN-08	rule	The sync loop uses watchexec with ignore rules, runs one job at a time and runs once more for changes that arrived during a run.	services-map 5A.2.3	covered
 GIT-10	script	Spotlight uses the checkpointer script to save, restore and diff.	services-map 5A.2.4	covered
 RUN-02	timeout	Stopping Spotlight kills the sync, waits a 20 second watchdog, restores pre-spotlight and deletes the ref only on success.	services-map 5A.2.5	covered
 RUN-02	startup	Quitting the app does not restore Spotlight; the next start heals it.	services-map 5A.2.5	covered
@@ -2160,7 +2160,7 @@ PR-01	message	Refreshing GitHub data can fail with "Couldn't refresh GitHub".	in
 PLAT-24	message	If System Settings cannot open, tell the user to grant Full Disk Access under Privacy & Security.	inventory:toast row 873	missing
 PLAT-09	message	The internal sidecar health check shows "Sidecar HTTP is healthy" or "Sidecar HTTP health check failed"; ours checks health over the socket (getHealth).	inventory:toast rows 894, 896	covered
 RUN-02	message	Turning Spotlight testing on or off can fail with "Failed to update spotlight testing".	inventory:toast row 903	covered
-PLAT-13	message	When no update is found, show "You're up to date!"	inventory:toast row 1033	covered
+APP-06	message	When no update is found, show "You're up to date!"	inventory:toast row 1033	covered
 APP-03	message	Copying the app logs for support shows "App logs copied".	inventory:toast row 809	covered
 PLAT-16	message	A deep link that cannot open its workspace shows "Couldn't open workspace".	inventory:toast row 959	covered
 PLAT-16	message	A link that is not a valid deep link shows "Invalid deep link".	inventory:toast row 971	covered
@@ -2169,7 +2169,7 @@ PLAT-16	message	A plan deep link with data that cannot be decoded shows "Invalid
 APP-08	message	If the sidecar process cannot start, show "Failed to start agents".	inventory:toast row 1046	missing
 NAV-14	integration	The UI subscribes to the Rust menu command event and the deep-link event and runs the matching command by id.	ui-map 1.1	partly
 PLAT-14	integration	The sidebar resource table shows CPU and memory per process grouped by workspace, read from the Rust shell, only when its setting is on.	ui-map 1.3, 4.8	covered
-PLAT-13	integration	The update notice says the app restarts by itself when all agents are idle and offers Restart when idle and See changes.	ui-map 1.3	covered
+APP-06	integration	The update notice says the app restarts by itself when all agents are idle and offers Restart when idle and See changes.	ui-map 1.3	covered
 APP-08	message	A dismissible warning in the sidebar footer appears when the macOS version is too old for the app.	ui-map 1.3, 4.8	missing
 PLAT-32	rule	The shell reports the macOS version so the UI can decide whether to show the old-system warning.	ui-map 1.3, 4.8	missing
 PLAT-11	integration	The Dock icon carries a badge driven by agent state.	ui-map 1.3	covered
@@ -2210,7 +2210,7 @@ SET-03	integration	The Providers dialog lists the agent providers and lets the u
 PR-01	integration	The GitHub dialogs connect a GitHub account through the gh login and show its status.	ui-map 5.2	covered
 SIDE-16	rpc	The MCP status dialog lists the chat's MCP servers with their state and logs.	ui-map 5.2	covered
 APP-08	message	A confirm warns when the Intel build runs on Apple silicon and points to the right build.	ui-map 5.2, 7.4	missing
-PLAT-13	integration	The app-update confirm waits until agents are idle before restarting.	ui-map 5.2	covered
+APP-06	integration	The app-update confirm waits until agents are idle before restarting.	ui-map 5.2	covered
 SIDE-17	rpc	Hovering the context wheel shows context usage for the chat.	ui-map 5.2	covered
 PLAT-19	integration	The Open in menu lists the installed editors, IDEs, terminals and git tools that the shell detected.	ui-map 5.2, 3.10	covered
 PLAT-16	integration	A chat tab can copy a deep link to its chat.	ui-map 3.2, 5.3	covered
@@ -2554,7 +2554,7 @@ CLOUD-05	store	The gh_cloud token keys are handled by the Worker's outbound toke
 DATA-05	store	The panel, sidebar and diff view keys (left_panel_*, sidebar_*, using_split_view, wrap_lines, hide_whitespace_changes) are stored as state settings.	services-map 4.2.3	covered
 DATA-05	store	The keybinding_overrides_v1 setting stores user key changes.	services-map 4.2.3	covered
 DATA-05	store	The onboarding_step and first_time_onboarding_step keys record onboarding progress; two keys exist for one flow.	services-map 4.2.3	covered
-PLAT-13	store	last_seen_announcement is stored but nothing shows an announcement after an update.	services-map 4.2.3	partly
+APP-06	store	last_seen_announcement is stored but nothing shows an announcement after an update.	services-map 4.2.3	partly
 APP-10	store	Callout dismissals are stored and can be reset with Reset callout dismissals.	ui-map 7.1	missing
 AGENT-16	store	The chrome_mode_enabled key stores the Claude in Chrome choice.	services-map 4.2.3	missing
 DATA-05	rule	A list of sensitive setting keys is kept out of logs; the list is not named.	services-map 4.2.3	partly
@@ -2674,7 +2674,7 @@ AGENT-06	rule	A pre-tool gate takes the start checkpoint; the runner warns about
 AGENT-07	rule	Generated images are staged inside the workspace.	other-runners 3	missing
 AGENT-09	rule	App tools reach Cursor, and its store folder sits under app data.	other-runners 2.3	missing
 AGENT-11	rule	fs/write_text_file waits for beforeFirstWrite; session/new passes the app-tool MCP servers; a boolean option capability; an empty ACP reply is an error naming the adapter; a no-steer capability flag hides steering.	other-runners 2.2	missing
-PLAT-13	rule	The update prefetches the agent programs the next version pins.	native-and-sidecar-map A9	missing
+PLAT-28	rule	The update prefetches the agent programs the next version pins.	native-and-sidecar-map A9	missing
 GIT-02	store	Query keys live in one file.	services-map 2.5.1	missing
 DATA-02	rule	Archive-based lifetimes count from archived_at.	services-map 2.7	missing
 DATA-06	rule	The 30-day prune counts from archived_at.	services-map 2.7	missing
@@ -3047,3 +3047,4 @@ CHAT-15	rule	After a revert the agent forgets the reverted turns: revertTo asks 
 PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	covered
 PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	covered
 SET-05	rpc	McpService.refresh sends the chat's launch with listMcpServers (the container's launchFor), so MCP status runs the program and keys the user chose; the sidecar already lists with it (moved from the SIDE-21 contract change).	docs/reports/slice-2	missing
+SIDE-16	rpc	listMcpServers carries each server's recent log lines, so the MCP status dialog shows a log and not only the failure text (moved from the SET-05 audit of slice 3 part 1e).	ui-map 3.10	missing

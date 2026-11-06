@@ -24,10 +24,13 @@
  * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
  * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
  * print OSC 633 markers: a program started, a command finished (with its exit code), and the
- * prompt. The service reads the markers from the output to keep `runningProgram` per terminal. The
- * files are rewritten at every app start so an update reaches existing installs; the user's own
- * `ZDOTDIR`, when given, travels in a second variable so the shim can find their dotfiles; a shell
- * that is not zsh, and every script terminal, start without the shim; a marker split across two
+ * prompt. The service reads the markers from the output to keep `runningProgram` per terminal, as
+ * Conductor keeps it on its terminal session (services-map.md 5A.4.6); the research names no screen
+ * that shows it, so none does yet. The files are rewritten at every app start so an update reaches
+ * existing installs; the shim reads the user's `.zshenv` from their home folder, and when that file
+ * sets `ZDOTDIR` it reads their other dotfiles from that folder (a `ZDOTDIR` set only in the app's
+ * own launch environment is not seen: `Shell.loginEnv` does not return it); a shell that is not
+ * zsh, and every script terminal, start without the shim; a marker split across two
  * output chunks is still read; output with a marker still reaches the screen unchanged. Our design
  * choice: the marker namespace is `Conducted`, so markers are ours and not Conductor's.
  * Our design choice: environment variables are named CONDUCTED_*. Scripts run as
@@ -90,21 +93,26 @@ export function zshIntegrationFiles(): Readonly<
 	return {
 		".zshenv": `# Conducted shell integration. Zsh reads this file first, from the shim folder.
 _conducted_shim_zdotdir="\${ZDOTDIR:-$HOME}"
-CONDUCTED_USER_ZDOTDIR="\${CONDUCTED_USER_ZDOTDIR:-$HOME}"
-if [ "$CONDUCTED_USER_ZDOTDIR" != "$_conducted_shim_zdotdir" ] && [ -f "$CONDUCTED_USER_ZDOTDIR/.zshenv" ]; then
-  source "$CONDUCTED_USER_ZDOTDIR/.zshenv"
+# Zsh reads a user's .zshenv from their home folder, as it would without the shim.
+_conducted_user_zdotdir="$HOME"
+if [ "$_conducted_user_zdotdir" != "$_conducted_shim_zdotdir" ] && [ -f "$_conducted_user_zdotdir/.zshenv" ]; then
+  source "$_conducted_user_zdotdir/.zshenv"
+  # A .zshenv that sets ZDOTDIR names the folder that holds the user's other dotfiles.
+  if [ -n "\${ZDOTDIR:-}" ] && [ "$ZDOTDIR" != "$_conducted_shim_zdotdir" ]; then
+    _conducted_user_zdotdir="$ZDOTDIR"
+  fi
 fi
 # Keep loading the rest of the shim even when the user's .zshenv changes ZDOTDIR.
 ZDOTDIR="$_conducted_shim_zdotdir"
 `,
 		".zprofile": `# Conducted shell integration. Zsh reads this file for a login shell.
-if [ "$CONDUCTED_USER_ZDOTDIR" != "$ZDOTDIR" ] && [ -f "$CONDUCTED_USER_ZDOTDIR/.zprofile" ]; then
-  source "$CONDUCTED_USER_ZDOTDIR/.zprofile"
+if [ "$_conducted_user_zdotdir" != "$ZDOTDIR" ] && [ -f "$_conducted_user_zdotdir/.zprofile" ]; then
+  source "$_conducted_user_zdotdir/.zprofile"
 fi
 `,
 		".zshrc": `# Conducted shell integration. Zsh reads this file for an interactive shell.
-if [ "$CONDUCTED_USER_ZDOTDIR" != "$ZDOTDIR" ] && [ -f "$CONDUCTED_USER_ZDOTDIR/.zshrc" ]; then
-  source "$CONDUCTED_USER_ZDOTDIR/.zshrc"
+if [ "$_conducted_user_zdotdir" != "$ZDOTDIR" ] && [ -f "$_conducted_user_zdotdir/.zshrc" ]; then
+  source "$_conducted_user_zdotdir/.zshrc"
 fi
 
 _conducted_marker() {
@@ -130,25 +138,19 @@ add-zsh-hook preexec _conducted_preexec
 add-zsh-hook precmd _conducted_precmd
 `,
 		".zlogin": `# Conducted shell integration. Zsh reads this file last for a login shell.
-if [ "$CONDUCTED_USER_ZDOTDIR" != "$ZDOTDIR" ] && [ -f "$CONDUCTED_USER_ZDOTDIR/.zlogin" ]; then
-  source "$CONDUCTED_USER_ZDOTDIR/.zlogin"
+if [ "$_conducted_user_zdotdir" != "$ZDOTDIR" ] && [ -f "$_conducted_user_zdotdir/.zlogin" ]; then
+  source "$_conducted_user_zdotdir/.zlogin"
 fi
 `,
 	};
 }
 
 /**
- * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder, and the user's own
- * `ZDOTDIR` (or null when unknown) travels in a second variable so the shim can find their files.
+ * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder. The shim finds the
+ * user's own dotfiles itself: their home folder, or the `ZDOTDIR` their `.zshenv` sets.
  */
-export function shellIntegrationEnv(
-	shimDir: string,
-	userZdotdir: string | null,
-): Readonly<Record<string, string>> {
-	return {
-		ZDOTDIR: shimDir,
-		CONDUCTED_USER_ZDOTDIR: userZdotdir ?? "",
-	};
+export function shellIntegrationEnv(shimDir: string): Readonly<Record<string, string>> {
+	return { ZDOTDIR: shimDir };
 }
 
 const parseShellMarker = (payload: string): ShellIntegrationEvent | null => {
@@ -618,7 +620,7 @@ export class TerminalsService {
 		// Only an interactive zsh terminal loads the shim. A script is not zsh and must not.
 		const env =
 			options?.command === undefined && terminal.kind === "terminal" && this.#shimDir !== null
-				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir, null) }
+				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir) }
 				: options?.env;
 		const spawned = await this.#deps.platform.pty.spawn({
 			cwd: terminal.cwd,

@@ -2,10 +2,11 @@
  * @feature DATA-01 Query hook contract for screens
  * @feature REV-08 File content query and the editor's draft for the viewer
  * @feature REV-10 Artifact pages query
+ * @feature REV-11 The conflict rows' read of the file just before they save
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: the file hooks: trees, file text, workspace and repository searches, and the artifact
- * pages; and, outside the Queries contract, `useFileDraft` (the editor's unsaved draft of one file)
- * and `fileQueryKey`. `useRepoFileSearch` searches a repository's main clone before a workspace
+ * pages; and, outside the Queries contract, `useFileDraft` (the editor's unsaved draft of one file),
+ * `useReadFileNow` (one read past the cache, for the conflict rows) and `fileQueryKey`. `useRepoFileSearch` searches a repository's main clone before a workspace
  * exists, for the new-workspace composer's `@` menu (SIDE-22).
  * Behaviour: services-map.md 2.5 (queries for file data), 2.5.2 (an open file's modified time is
  * polled every 5 s); core/hooks.ts states the contract. The file tree is a query with its own key,
@@ -93,6 +94,18 @@ export const useFileContent: Queries["useFileContent"] = (workspaceId, path) => 
 	if (query.data === undefined) return { state: "loading" };
 	return { state: "ready", data: query.data };
 };
+
+/**
+ * Reads a file's content now, past the query cache. The conflict rows use it to check that the
+ * disk still holds the text they showed before they save (REV-11).
+ */
+export function useReadFileNow(
+	workspaceId: WorkspaceId,
+	path: string,
+): () => Promise<Result<FileContent>> {
+	const service = useServices().services.workspaceFiles;
+	return () => service.readContent(workspaceId, path);
+}
 
 export interface FileDraftHandle {
 	/** The unsaved edits, or undefined when the file is clean. */

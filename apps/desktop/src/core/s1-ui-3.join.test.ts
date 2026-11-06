@@ -181,7 +181,8 @@ describe("s1-ui-3 join RUN-09 zsh shell integration", () => {
 		must(await terminals.create(workspace.id));
 
 		const spawn = test.memory.controls.ptySpawns.at(-1);
-		expect(spawn?.env).toMatchObject({ ZDOTDIR: dir, CONDUCTED_USER_ZDOTDIR: "" });
+		expect(spawn?.env).toMatchObject({ ZDOTDIR: dir });
+		expect(spawn?.env).not.toHaveProperty("CONDUCTED_USER_ZDOTDIR");
 	});
 });
 

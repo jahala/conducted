@@ -270,6 +270,7 @@ describe("RUN-08 the sync loop", () => {
 			"--watch",
 			".",
 			"--project-origin",
+			"--on-busy-update=queue",
 			"--emit-events-to=environment",
 			"--ignore",
 			"*.tmp.*",

@@ -56,7 +56,7 @@ describe("RUN-09 zsh shim files", () => {
 		expect(Object.keys(files)).toEqual([...ZSH_INTEGRATION_FILE_NAMES]);
 		expect(ZSH_INTEGRATION_FILE_NAMES.length).toBeGreaterThan(0);
 		for (const name of ZSH_INTEGRATION_FILE_NAMES) {
-			expect(files[name]).toContain(`source "$CONDUCTED_USER_ZDOTDIR/${name}"`);
+			expect(files[name]).toContain(`source "$_conducted_user_zdotdir/${name}"`);
 		}
 		expect(files[".zshrc"]).toContain("]633;Conducted;");
 		expect(files[".zshrc"]).toContain("ProgramStart;");
@@ -66,15 +66,10 @@ describe("RUN-09 zsh shim files", () => {
 		expect(files[".zshrc"]).toContain("add-zsh-hook precmd");
 	});
 
-	it("starts zsh with the shim folder and keeps the user's folder in a second variable", () => {
-		expect(shellIntegrationEnv("/data/zsh", "/Users/a/.config/zsh")).toEqual({
-			ZDOTDIR: "/data/zsh",
-			CONDUCTED_USER_ZDOTDIR: "/Users/a/.config/zsh",
-		});
-		expect(shellIntegrationEnv("/data/zsh", null)).toEqual({
-			ZDOTDIR: "/data/zsh",
-			CONDUCTED_USER_ZDOTDIR: "",
-		});
+	it("starts zsh with the shim folder and leaves finding the user's folder to the shim", () => {
+		expect(shellIntegrationEnv("/data/zsh")).toEqual({ ZDOTDIR: "/data/zsh" });
+		// An empty user folder variable used to send every user to $HOME, whatever their ZDOTDIR.
+		expect(shellIntegrationEnv("/data/zsh")).not.toHaveProperty("CONDUCTED_USER_ZDOTDIR");
 	});
 });
 
@@ -138,7 +133,8 @@ describe("RUN-09 shell integration in the real container", () => {
 		must(await terminals.create(workspace.id));
 
 		const spawn = test.memory.controls.ptySpawns.at(-1);
-		expect(spawn?.env).toMatchObject({ ZDOTDIR: dir, CONDUCTED_USER_ZDOTDIR: "" });
+		expect(spawn?.env).toMatchObject({ ZDOTDIR: dir });
+		expect(spawn?.env).not.toHaveProperty("CONDUCTED_USER_ZDOTDIR");
 	});
 
 	it("keeps the running program from the markers, even when a marker is split", async () => {
