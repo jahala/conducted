@@ -112,6 +112,28 @@ describe("CHAT-23 shell code block output", () => {
 		expect(screen.getByText("Exit code 0")).toBeTruthy();
 	});
 
+	it("keeps only the newest output of a command that prints megabytes, and says so", async () => {
+		const connection = fakeConnection();
+		state.connection = { state: "ready", data: connection };
+		renderBlock();
+		await startRun(connection);
+
+		// 48 chunks of 64 KiB: 3 MiB in all, as a verbose build or `yes` prints.
+		const chunk = `${"y\n".repeat(32 * 1024 - 8)}`;
+		act(() => connection.emit(`first-chunk-marker\n${chunk}`));
+		for (let index = 1; index < 47; index += 1) act(() => connection.emit(chunk));
+		act(() => connection.emit(`${chunk}last-chunk-marker\n`));
+
+		const shown = [...document.querySelectorAll("pre")].at(-1)?.textContent ?? "";
+		expect(shown).toContain("last-chunk-marker");
+		expect(shown).not.toContain("first-chunk-marker");
+		expect(shown.length).toBeLessThanOrEqual(256 * 1024);
+		expect(screen.getByText("Earlier output cut")).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "Clear output" }));
+		expect(screen.queryByText("Earlier output cut")).toBeNull();
+	});
+
 	it("shows Failed with a non-zero exit code", async () => {
 		const connection = fakeConnection();
 		state.connection = { state: "ready", data: connection };

@@ -10,10 +10,9 @@
  * A video in a reply opens with no autoplay and no sound until the user starts it, and starting one pauses
  * the other videos in the same reply.
  * Must handle: a codec the webview cannot play (a card with "Open in another app", no blank box); a file
- * path outside the workspace or a web address (not loaded, with a plain message); a file still being
- * written (the player reads the file's current bytes); no autoplay and no sound until the user starts it;
- * several videos in one reply (starting one pauses the others); a video taller than the chat (capped height,
- * keeps its aspect ratio); keyboard focus visible on the player.
+ * path outside the workspace or a web address (not loaded, with a plain message); no autoplay and no sound
+ * until the user starts it; several videos in one reply (starting one pauses the others); a video taller
+ * than the chat (capped height, keeps its aspect ratio); keyboard focus visible on the player.
  * Test first: pressing "l" on a focused player moves the time forward by 10 seconds, and not past the end.
  */
 import type { WorkspaceId } from "@conducted/shared";

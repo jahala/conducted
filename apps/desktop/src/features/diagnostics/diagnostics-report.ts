@@ -6,14 +6,16 @@
  * Behaviour: ui-map.md 2, `/diagnostics` ("Env values are hashed except a safe list"); services-map.md
  * 3.0 and native-and-sidecar-map.md (captured login-shell PATH, secrets stripped).
  * Data: `useDiagnostics()` returns the capture; `Actions.app.createDiagnosticsChat(workspaceId)`
- * writes the redacted report to a file and starts a chat with it attached. Hashing is passed in (it
- * needs the platform's crypto), so the functions stay pure.
+ * writes the redacted report to a file and starts a chat with it attached. redactCapture takes the
+ * hash as a parameter. The screen and writeRedactedReport pass shortSha256, which uses Web Crypto's
+ * SHA-256, so redaction is async.
  * Safe list: names whose values are shown as they are, such as SHELL, LANG, TERM, TERM_PROGRAM
  * and COLORTERM. The exact list is Our design choice and is a parameter.
  * Must handle: an empty environment, values that contain newlines, PATH entries (shown one per
- * line, with home folder replaced by "~" in the redacted report), the same variable twice, very
- * long values (cut in the report with a note), and names that look secret (anything with TOKEN,
- * KEY, SECRET, PASSWORD: always hashed even if on the safe list).
+ * line), the home folder in PATH, the shell, the agent paths and the sidecar log (replaced by "~"
+ * in the redacted report), the same variable twice, very long values (cut in the report with a
+ * note), and names that look secret (anything with TOKEN, KEY, SECRET, PASSWORD: always hashed
+ * even if on the safe list).
  * Test first: redactCapture hashes a variable named API_TOKEN even when the safe list names it, and
  * keeps LANG as it is.
  */
@@ -44,7 +46,7 @@ export const MAX_REPORT_VALUE_LENGTH = 2_000;
 export interface RedactionOptions {
 	safeEnvNames: ReadonlySet<string>;
 	/** Returns a short stable hash of a value, e.g. the first 8 hex characters of SHA-256. */
-	hash: (value: string) => string;
+	hash: (value: string) => Promise<string>;
 	homeDir: string;
 }
 
@@ -59,18 +61,28 @@ export function isSecretName(name: string): boolean {
 	return SECRET_NAME.test(name);
 }
 
-export function redactCapture(
+export async function redactCapture(
 	capture: DiagnosticsCapture,
 	options: RedactionOptions,
-): DiagnosticsCapture {
+): Promise<DiagnosticsCapture> {
 	const env: Record<string, string> = {};
 	for (const [name, value] of Object.entries(capture.env)) {
-		env[name] = isSecretName(name) || !options.safeEnvNames.has(name) ? options.hash(value) : value;
+		env[name] =
+			isSecretName(name) || !options.safeEnvNames.has(name) ? await options.hash(value) : value;
 	}
+	const home = (path: string): string => redactHome(path, options.homeDir);
 	return {
 		...capture,
-		path: redactHome(capture.path, options.homeDir),
+		shell: home(capture.shell),
+		path: home(capture.path),
 		env,
+		agents: capture.agents.map((agent) =>
+			agent.path === null ? agent : { ...agent, path: home(agent.path) },
+		),
+		sidecar: {
+			...capture.sidecar,
+			logPath: capture.sidecar.logPath === null ? null : home(capture.sidecar.logPath),
+		},
 	};
 }
 
@@ -148,7 +160,7 @@ export async function writeRedactedReport(
 	capture: DiagnosticsCapture,
 	fileName: string,
 ): Promise<Result<string>> {
-	const redacted = redactCapture(capture, {
+	const redacted = await redactCapture(capture, {
 		safeEnvNames: SAFE_ENV_NAMES,
 		hash: shortSha256,
 		homeDir: platform.fs.paths.home,
@@ -163,90 +175,13 @@ export async function writeRedactedReport(
 	return ok(path);
 }
 
-const SHA256_K = new Uint32Array([
-	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-	0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-	0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-	0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-	0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-	0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-	0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-	0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-]);
-
-function sha256(input: Uint8Array): Uint8Array {
-	const length = input.length;
-	const withPadding = new Uint8Array((((length + 9) >> 6) + 1) << 6);
-	withPadding.set(input);
-	withPadding[length] = 0x80;
-	const view = new DataView(withPadding.buffer);
-	const bits = length * 8;
-	view.setUint32(withPadding.length - 8, Math.floor(bits / 0x1_0000_0000));
-	view.setUint32(withPadding.length - 4, bits >>> 0);
-
-	const hash = new Uint32Array([
-		0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-	]);
-	const words = new Uint32Array(64);
-	for (let offset = 0; offset < withPadding.length; offset += 64) {
-		for (let index = 0; index < 16; index += 1) {
-			words[index] = view.getUint32(offset + index * 4);
-		}
-		for (let index = 16; index < 64; index += 1) {
-			const before15 = words[index - 15] ?? 0;
-			const before2 = words[index - 2] ?? 0;
-			const s0 = rotr(before15, 7) ^ rotr(before15, 18) ^ (before15 >>> 3);
-			const s1 = rotr(before2, 17) ^ rotr(before2, 19) ^ (before2 >>> 10);
-			words[index] = ((words[index - 16] ?? 0) + s0 + (words[index - 7] ?? 0) + s1) >>> 0;
-		}
-		let a = hash[0] ?? 0;
-		let b = hash[1] ?? 0;
-		let c = hash[2] ?? 0;
-		let d = hash[3] ?? 0;
-		let e = hash[4] ?? 0;
-		let f = hash[5] ?? 0;
-		let g = hash[6] ?? 0;
-		let h = hash[7] ?? 0;
-		for (let index = 0; index < 64; index += 1) {
-			const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
-			const choice = (e & f) ^ (~e & g);
-			const temp1 = (h + s1 + choice + (SHA256_K[index] ?? 0) + (words[index] ?? 0)) >>> 0;
-			const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
-			const majority = (a & b) ^ (a & c) ^ (b & c);
-			const temp2 = (s0 + majority) >>> 0;
-			h = g;
-			g = f;
-			f = e;
-			e = (d + temp1) >>> 0;
-			d = c;
-			c = b;
-			b = a;
-			a = (temp1 + temp2) >>> 0;
-		}
-		hash[0] = ((hash[0] ?? 0) + a) >>> 0;
-		hash[1] = ((hash[1] ?? 0) + b) >>> 0;
-		hash[2] = ((hash[2] ?? 0) + c) >>> 0;
-		hash[3] = ((hash[3] ?? 0) + d) >>> 0;
-		hash[4] = ((hash[4] ?? 0) + e) >>> 0;
-		hash[5] = ((hash[5] ?? 0) + f) >>> 0;
-		hash[6] = ((hash[6] ?? 0) + g) >>> 0;
-		hash[7] = ((hash[7] ?? 0) + h) >>> 0;
-	}
-
-	const digest = new Uint8Array(32);
-	const digestView = new DataView(digest.buffer);
-	for (let index = 0; index < 8; index += 1) {
-		digestView.setUint32(index * 4, hash[index] ?? 0);
-	}
-	return digest;
-}
-
-function rotr(value: number, bits: number): number {
-	return (value >>> bits) | (value << (32 - bits));
-}
-
-/** A short stable hash for a secret value: the first eight hex characters of SHA-256. */
-export function shortSha256(value: string): string {
-	const digest = sha256(new TextEncoder().encode(value));
+/**
+ * A short stable hash for a secret value: the first eight hex characters of SHA-256, from the
+ * webview's Web Crypto.
+ */
+export async function shortSha256(value: string): Promise<string> {
+	const digest = new Uint8Array(
+		await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
+	);
 	return Array.from(digest.slice(0, 4), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

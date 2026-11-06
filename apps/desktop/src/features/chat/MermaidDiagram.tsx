@@ -10,17 +10,20 @@
  * that is still streaming keeps its last drawing instead of flashing a parse error. The app's light or dark
  * theme picks the Mermaid theme.
  * Must handle: source that is still streaming (keep the last diagram that rendered, redraw after the text
- * stops changing; never show a parse error for half a diagram); source that does not parse (show the source
- * as a code block with a short plain message, never a stack trace); the app theme changing (redraw in the
- * new theme); a very large diagram (the expanded view scrolls and zooms; zoom limits at both ends, "Reset"
- * returns to fit); script, links and click handlers in the diagram (strict security level, the SVG is
- * sanitised and removed of scripts and event handlers before it is inserted); two diagrams in one reply
- * (unique element ids); "Copy Mermaid source" copies the exact source text; the expanded view closes with
- * Escape and returns focus through the shared Dialog.
+ * stops changing; never show a parse error for half a diagram); source that does not parse, or a Mermaid
+ * library that fails to load (show the source as a code block with a short plain message, never a stack
+ * trace; the log says which of the two failed and why); the app theme changing (redraw in the new theme);
+ * a very large diagram (the expanded view scrolls and zooms from the top left corner, so scrolling reaches
+ * every edge; zoom limits at both ends, "Reset" returns to fit); script, links and click handlers in the
+ * diagram (strict security level, the SVG is sanitised and removed of scripts and event handlers before it
+ * is inserted); two diagrams in one reply (unique element ids); "Copy Mermaid source" copies the exact
+ * source text; the expanded view closes with Escape and returns focus through the shared Dialog.
  * Test first: a source that fails to parse renders the source as code with a plain message and no thrown
  * error.
  */
+import { messageOf } from "@conducted/shared";
 import { useEffect, useId, useRef, useState } from "react";
+import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
@@ -39,6 +42,8 @@ const SETTLE_MS = 250;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
+
+type MermaidApi = typeof import("mermaid").default;
 
 interface Drawn {
 	source: string;
@@ -78,6 +83,7 @@ function SanitizedSvg({ svg }: { svg: string }) {
 
 export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 	const actions = useActions();
+	const { platform } = useServices();
 	const theme = useThemeType();
 	const reactId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
 	const id = `mermaid-${reactId}`;
@@ -97,9 +103,21 @@ export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 		setFailedSource(null);
 		let cancelled = false;
 		const timer = setTimeout(() => {
+			const fail = (message: string): void => {
+				if (cancelled || latest.current !== source) return;
+				platform.app.writeLog("warn", message);
+				setDrawn(null);
+				setFailedSource(source);
+			};
 			void (async () => {
+				let mermaid: MermaidApi;
 				try {
-					const mermaid = (await import("mermaid")).default;
+					mermaid = (await import("mermaid")).default;
+				} catch (cause) {
+					fail(`The Mermaid library could not be loaded: ${messageOf(cause)}`);
+					return;
+				}
+				try {
 					mermaid.initialize({
 						startOnLoad: false,
 						securityLevel: "strict",
@@ -111,10 +129,8 @@ export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 					if (svg.length === 0) throw new Error("The diagram's SVG could not be read.");
 					if (cancelled || latest.current !== source) return;
 					setDrawn({ source, svg, theme });
-				} catch {
-					if (cancelled || latest.current !== source) return;
-					setDrawn(null);
-					setFailedSource(source);
+				} catch (cause) {
+					fail(`The Mermaid diagram could not be drawn: ${messageOf(cause)}`);
 				}
 			})();
 		}, SETTLE_MS);
@@ -122,7 +138,7 @@ export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-	}, [source, streaming, theme, id, drawnSource, drawnTheme]);
+	}, [source, streaming, theme, id, drawnSource, drawnTheme, platform]);
 
 	if (failedSource === source) {
 		return (
@@ -199,8 +215,8 @@ export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 						<div
 							data-testid="mermaid-expanded"
 							data-zoom={zoom}
-							className="origin-center transition-transform [&_svg]:h-auto [&_svg]:max-w-full"
-							style={{ transform: `scale(${zoom})` }}
+							className="transition-transform [&_svg]:h-auto [&_svg]:max-w-full"
+							style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}
 						>
 							<SanitizedSvg svg={drawn.svg} />
 						</div>

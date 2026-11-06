@@ -101,6 +101,28 @@ describe("CHAT-22 Codex visualization", () => {
 		expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
 	});
 
+	it("puts its policy ahead of every script of the page and blocks form posts", async () => {
+		await mount({
+			html: '<!DOCTYPE html><script>early()</script><html><head><title>Chart</title></head><body><form action="https://example.com/collect"></form><script>late()</script></body></html>',
+		});
+		const frame = (await screen.findByTitle("Visualization")) as HTMLIFrameElement;
+		const parsed = new DOMParser().parseFromString(frame.getAttribute("srcdoc") ?? "", "text/html");
+		const policy = parsed.querySelector('meta[http-equiv="Content-Security-Policy"]');
+
+		expect(policy?.getAttribute("content")).toContain("default-src 'none'");
+		expect(policy?.getAttribute("content")).toContain("form-action 'none'");
+		expect(parsed.compatMode).toBe("CSS1Compat");
+		const scripts = [...parsed.querySelectorAll("script")].map((script) => script.textContent);
+		expect(scripts.filter((text) => text === "early()" || text === "late()")).toEqual([
+			"early()",
+			"late()",
+		]);
+		for (const script of parsed.querySelectorAll("script")) {
+			const position = policy?.compareDocumentPosition(script) ?? 0;
+			expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+		}
+	});
+
 	it("opens the file by its path inside the workspace", async () => {
 		const entry = await mount({ html: "<p>Hi</p>" });
 		await screen.findByTitle("Visualization");
