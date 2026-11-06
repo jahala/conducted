@@ -1,15 +1,17 @@
 /**
  * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in; SET-09 provider keys;
  * SET-10 OpenCode providers and their keys
+ * @feature SET-12 Claude settings and Codex config editors
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
  * agent, the slash commands of a workspace and of a repository before a workspace exists, starting
  * a sign-in flow, an agent's provider keys and the providers an agent can use.
- * Also the display name and catalogue key that the Agents page and the model picker share.
+ * Also the display name and catalogue key that the Agents page and the model picker share, and
+ * the text of an agent's own settings file for its editor on the Agents page.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
- * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states and provider
- * credential forms), services-map.md 4.2.8 (provider keys), D033 (one strip list; only the agent's
- * own provider keys reach it).
+ * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states, provider
+ * credential forms and the Claude settings and Codex config editors), services-map.md 4.2.8
+ * (provider keys), D033 (one strip list; only the agent's own provider keys reach it).
  * Must handle: the sidecar is not up yet (the install list stays "loading" until the request
  * answers, and a request that fails shows its error); an `agentInstallsChanged` notification
  * replaces the list without a request; a model
@@ -23,7 +25,9 @@
  * the row and its Keychain entry. OpenCode and Pi read every stored key at once, and OpenCode's
  * catalogue gives one variable to several providers (ZHIPU_API_KEY for Z.AI and Zhipu AI), so
  * for an ACP agent a variable has one row: saving it under one provider replaces the rows of the
- * same variable under the others, and removing it removes it for every provider.
+ * same variable under the others, and removing it removes it for every provider. A config file is
+ * read from the agent's own home folder (`~/.claude/settings.json` or `~/.codex/config.toml`); a
+ * missing file reads as empty text, and a save refuses when the file changed since it was read.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
  * saved to disk. A provider key's Keychain name is built from the agent, ACP agent, provider and
  * variable, so saving the same key twice replaces one entry. OpenCode and Pi use OpenCode's own
@@ -31,7 +35,8 @@
  * Test first: two refreshes of the install list, answered out of order, leave the newer answer;
  * two model lists for one agent key, answered out of order, leave the newer answer; two provider
  * key lists for one agent, answered out of order, leave the newer answer; two provider lists for
- * one agent, answered out of order, leave the newer answer.
+ * one agent, answered out of order, leave the newer answer; two config reads for one agent,
+ * answered out of order, leave the newer answer.
  */
 import {
 	AGENT_PROVIDER_TABLE,
@@ -45,7 +50,7 @@ import {
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { appError, err, notImplemented, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Keychain } from "../../platform/platform.ts";
+import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import type { ProviderKey, ProviderKeyRepository } from "../db/provider-keys.ts";
@@ -68,6 +73,8 @@ export interface AgentCatalogState {
 	providerKeys?: Readonly<Record<string, Loadable<ProviderKeyView[]>>>;
 	/** The providers an agent can use, keyed by `agentKey(agent, acpAgent)`. */
 	providers?: Readonly<Record<string, Loadable<AgentProvider[]>>>;
+	/** The two config files the Agents page edits, keyed by agent. */
+	configFiles?: Readonly<Record<string, Loadable<AgentConfigFile>>>;
 }
 
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
@@ -113,6 +120,8 @@ export interface AgentCatalogServiceDeps {
 	providerKeys?: ProviderKeyRepository;
 	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
+	/** The file system and home folder of the two config files. Absent only in tests that do not use them. */
+	fs?: ConfigFileSystem;
 }
 
 /**
@@ -139,6 +148,22 @@ function providerKeyView(key: ProviderKey): ProviderKeyView {
 	};
 }
 
+/** The folder and file of an agent's own settings, under the user's home folder. */
+function configFileFor(
+	home: string,
+	agent: AgentConfigFile["agent"],
+): { folder: string; path: string } {
+	const root = home.replace(/\/+$/, "");
+	const folder = agent === "claude" ? `${root}/.claude` : `${root}/.codex`;
+	const name = agent === "claude" ? "settings.json" : "config.toml";
+	return { folder, path: `${folder}/${name}` };
+}
+
+type ConfigFileSystem = Pick<
+	FileSystem,
+	"readText" | "writeTextAtomic" | "stat" | "mkdirp" | "registerRoot" | "paths"
+>;
+
 export class AgentCatalogService {
 	readonly store: StoreApi<AgentCatalogState>;
 	readonly #deps: AgentCatalogServiceDeps;
@@ -154,6 +179,8 @@ export class AgentCatalogService {
 	readonly #providerKeyRequests = createLatestWins<string>();
 	/** Only the newest provider-list request for an agent changes state. */
 	readonly #providerRequests = createLatestWins<string>();
+	/** Only the newest config-file request for an agent changes state. */
+	readonly #configFileRequests = createLatestWins<AgentConfigFile["agent"]>();
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -164,6 +191,7 @@ export class AgentCatalogService {
 			preWorkspaceSlashCommands: {},
 			providerKeys: {},
 			providers: {},
+			configFiles: {},
 		}));
 	}
 
@@ -571,13 +599,94 @@ export class AgentCatalogService {
 		return loaded.ok ? ok(undefined) : err(loaded.error);
 	}
 
-	/** Backs `Actions.agents.saveConfigFile`. */
-	saveConfigFile(
-		_agent: AgentConfigFile["agent"],
-		_text: string,
-		_expectedModifiedAt: number | null,
+	/**
+	 * Backs `useAgentConfigFile`. Reads one agent's own settings file. A missing file is a ready
+	 * value with empty text, so the editor can create it. A late answer for an older read never
+	 * replaces the newer one.
+	 */
+	async loadConfigFile(agent: AgentConfigFile["agent"]): Promise<Result<AgentConfigFile>> {
+		const ticket = this.#configFileRequests.begin(agent);
+		this.store.setState((state) => ({
+			configFiles: { ...state.configFiles, [agent]: { state: "loading" } },
+		}));
+		const read = await this.#readConfigFile(agent);
+		if (!this.#configFileRequests.isLatest(ticket)) {
+			this.#configFileRequests.settle(ticket);
+			return read;
+		}
+		this.#configFileRequests.settle(ticket);
+		if (!read.ok) {
+			this.store.setState((state) => ({
+				configFiles: { ...state.configFiles, [agent]: { state: "error", error: read.error } },
+			}));
+			return read;
+		}
+		this.store.setState((state) => ({
+			configFiles: { ...state.configFiles, [agent]: { state: "ready", data: read.value } },
+		}));
+		return read;
+	}
+
+	/**
+	 * Backs `Actions.agents.saveConfigFile`. Writes the text only when the file still has the
+	 * modified time the editor read, so a change made elsewhere is never overwritten. On success
+	 * the store reloads from disk.
+	 */
+	async saveConfigFile(
+		agent: AgentConfigFile["agent"],
+		text: string,
+		expectedModifiedAt: number | null,
 	): Promise<Result<void>> {
-		return notImplemented("SET-12");
+		const fs = this.#deps.fs;
+		if (fs === undefined) return err(this.#configFilesUnavailable());
+		const { folder, path } = configFileFor(fs.paths.home, agent);
+		const registered = await fs.registerRoot(folder);
+		if (!registered.ok) return err(registered.error);
+
+		const info = await fs.stat(path);
+		let current: number | null;
+		if (info.ok) current = info.value.modifiedAt;
+		else if (info.error.code === "fs_not_found") current = null;
+		else return err(info.error);
+
+		if (current !== expectedModifiedAt) {
+			return err(
+				appError(
+					"changed_on_disk",
+					`${path} changed on disk since it was opened. Close and reopen the editor to see the new text.`,
+				),
+			);
+		}
+
+		const made = await fs.mkdirp(folder);
+		if (!made.ok) return err(made.error);
+		const written = await fs.writeTextAtomic(path, text);
+		if (!written.ok) return err(written.error);
+		const loaded = await this.loadConfigFile(agent);
+		return loaded.ok ? ok(undefined) : err(loaded.error);
+	}
+
+	async #readConfigFile(agent: AgentConfigFile["agent"]): Promise<Result<AgentConfigFile>> {
+		const fs = this.#deps.fs;
+		if (fs === undefined) return err(this.#configFilesUnavailable());
+		const { folder, path } = configFileFor(fs.paths.home, agent);
+		const registered = await fs.registerRoot(folder);
+		if (!registered.ok) return err(registered.error);
+
+		const info = await fs.stat(path);
+		if (!info.ok) {
+			if (info.error.code === "fs_not_found") {
+				return ok({ agent, path, text: "", exists: false, modifiedAt: null });
+			}
+			return err(info.error);
+		}
+		const read = await fs.readText(path);
+		if (!read.ok) return err(read.error);
+		return ok({ agent, path, text: read.value, exists: true, modifiedAt: info.value.modifiedAt });
+	}
+
+	#configFilesUnavailable() {
+		return appError("agent_config_unavailable", "The agent configuration files are not available.");
 	}
 
 	/** Backs `Actions.agents.syncConfigs`. */

@@ -7,6 +7,7 @@
  * Data: the parent passes one AgentInstall from useAgentInstalls().
  * The program manager downloads, updates and removes programs (PLAT-28, D021); this card shows
  * what the catalogue reports. A missing program shows how to install it and a Refresh action.
+ * The parent may also pass one action that opens the agent's own config editor (SET-12).
  * Must handle: not installed, installed but not signed in, signed in, signed in status unknown,
  * version check failed, a custom path in use (marked), a long path (middle truncation, copyable),
  * sign-in in flight, and the ACP agents OpenCode and Pi sharing one agent kind (the card shows the
@@ -32,6 +33,8 @@ export interface AgentCardProps {
 	onProviders?: () => void;
 	/** Copies the program path. Left out when the page has no clipboard action. */
 	onCopyPath?: (path: string) => void;
+	/** Opens the agent's own config file, when the agent has one (SET-12). */
+	configAction?: { label: string; onClick: () => void };
 	/**
 	 * Offered beside a warning when the page passes it. The Agents page passes none: the research
 	 * shows no update action on an agent card (an open PLAT-28 item).
@@ -65,6 +68,7 @@ export function AgentCard({
 	onProviders,
 	onCopyPath,
 	onUpdate,
+	configAction,
 }: AgentCardProps) {
 	const name = agentDisplayName(install);
 	const state = agentState(install);
@@ -92,6 +96,11 @@ export function AgentCard({
 					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
+					{configAction ? (
+						<Button size="sm" variant="secondary" onClick={configAction.onClick}>
+							{configAction.label}
+						</Button>
+					) : null}
 					{!notInstalled && onProviders ? (
 						<Button size="sm" variant="secondary" onClick={onProviders}>
 							Providers
