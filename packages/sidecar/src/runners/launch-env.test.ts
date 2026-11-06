@@ -389,7 +389,8 @@ describe("SIDE-21 agent provider list", () => {
 			opencode.map((provider) => provider.id),
 		);
 
+		const listed = opencode.length;
 		opencode.pop();
-		expect(agentProviders("acp", "opencode")).toHaveLength(4);
+		expect(agentProviders("acp", "opencode")).toHaveLength(listed);
 	});
 });

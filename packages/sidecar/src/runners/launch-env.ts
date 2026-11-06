@@ -292,12 +292,24 @@ const AGENT_PROVIDERS: Readonly<Record<Exclude<AgentKind, "acp">, AgentProvider[
 			label: "Google Vertex AI",
 			keyEnvVars: ["GOOGLE_APPLICATION_CREDENTIALS"],
 		},
+		// The Providers dialog's "Custom provider" (SET-09): the key and the optional workspace ID
+		// go where the app's provider forms put them (keyEnvVarFor, workspaceIdEnvVarFor).
+		{
+			id: "custom",
+			label: "Custom provider",
+			keyEnvVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID"],
+		},
 	],
 	codex: [
 		{
 			id: "openai",
 			label: "OpenAI API key",
 			keyEnvVars: ["OPENAI_API_KEY"],
+		},
+		{
+			id: "custom",
+			label: "Custom provider",
+			keyEnvVars: ["OPENAI_API_KEY", "OPENAI_ORG_ID"],
 		},
 	],
 	cursor: [
