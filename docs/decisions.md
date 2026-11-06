@@ -537,11 +537,11 @@ Context: the owner's cap of three agents at once covered the DeepSeek builders t
 Chosen by the owner: DeepSeek builders run outside the cap, in parallel as needed. The cap of three still holds for Claude agents (Opus and Sonnet). The lead runs at most two batch plans at once with three builders each, and still lands one batch at a time; Rust builds and full test suites stay one at a time.
 Why: the builders were the bottleneck, and they cost the owner's subscription nothing.
 
-## D078. PR-07's activity list gets review and status entries through the pull request model (2026-11-06)
+## D078. PR-07's activity list shows commits and comments, as Conductor's does (2026-11-06)
 
-Context: PR-07's checklist asks for commits, reviews, comments and status changes in the PR activity list (ui-map 3.2). The finisher built commits and comments only, because reviews and merged or closed changes need new fields on the pull request model, which about 30 test fixtures build.
-Chosen: the fields are added to the pull request model as part of PR-07, and every fixture that builds a pull request is updated in the same change. The change serves one feature, so it is no contract change in D069's sense.
-Why: the checklist item is Conductor's behaviour, and the data the list needs has one home, the model.
+Context: PR-07's checklist asked for commits, reviews, comments and status changes in the PR activity list. The lead first planned new pull request model fields for reviews and status changes. The ui-2 fixer then read Conductor's activity list (renderApp `l6a` @9996475): it shows commits and comments only, and Conductor uses review data only for the reviewer list.
+Chosen: the activity list shows commits and comments. The checklist item reads "commits and comments". The pull request model gets no new fields. The review and status branches the builder left in `PrActivityItem.tsx`, which nothing reaches, go to the desktop UI hardening.
+Why: Conductor is the reference (D020), and the list it draws needs no data we lack.
 
 ## D079. App updates use the Tauri updater plugin with our own signing key (2026-11-06)
 
