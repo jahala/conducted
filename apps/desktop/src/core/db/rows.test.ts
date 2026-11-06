@@ -538,7 +538,7 @@ describe("repair and lifetime helpers", () => {
 });
 
 describe("createRepositories", () => {
-	it("returns all sixteen repositories", () => {
+	it("returns all seventeen repositories", () => {
 		const unused = {} as never;
 		const repositories = createRepositories(unused, unused);
 		expect(Object.keys(repositories).sort()).toEqual(
@@ -559,6 +559,7 @@ describe("createRepositories", () => {
 				"backlogWorkspaces",
 				"snippets",
 				"providerKeys",
+				"modelContextWindows",
 			].sort(),
 		);
 	});
