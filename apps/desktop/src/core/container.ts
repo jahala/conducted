@@ -762,6 +762,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		fs: platform.fs,
 		setIntendedTargetBranch: (id, branch) => workspace.setIntendedTargetBranch(id, branch),
 		moveOpenPullRequestBase: (id, branch) => github.moveOpenPullRequestBase(id, branch),
+		stackOf: (id) => github.stackMembersOf(id),
 	});
 	const github = new GithubService({
 		git: gitRunner,

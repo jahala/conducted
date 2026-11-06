@@ -7,7 +7,9 @@
  * the target picker.
  * Entries, in order: Current branch, Target branch (opens TargetBranchPicker), All changes,
  * Uncommitted changes (Cmd+Alt+U, shows "N files changed"), then one entry per commit with its
- * message, short hash, author and date. Per-turn entries are not part of the issue's scope.
+ * message, short hash, author and date. Per-turn entries are not part of the issue's scope. A
+ * range of stack pull requests is chosen in the stack view, not here; the trigger names it
+ * "Changes in #N" or "Changes in N PRs" (PR-08).
  * Must handle: a branch with no commits ahead (commit list empty state), a branch list that fails
  * to load (the submenu says so and the rest of the panel keeps working), no file count while the
  * git state is loading, and the shortcut hint following the user's rebind.
@@ -59,6 +61,13 @@ function scopeLabel(scope: DiffScope): string {
 			return `Commit ${scope.sha.slice(0, 7)}`;
 		case "turn":
 			return "One turn";
+		case "range": {
+			// Conductor's words for a stack range (PR-08).
+			const [only] = scope.prNumbers;
+			return scope.prNumbers.length === 1 && only !== undefined
+				? `Changes in #${only}`
+				: `Changes in ${scope.prNumbers.length} PRs`;
+		}
 	}
 }
 
