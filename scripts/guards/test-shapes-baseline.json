@@ -222,5 +222,16 @@
 		"packages/sidecar/src/session/serial-queue.test.ts": 1,
 		"packages/sidecar/src/session/turn.test.ts": 2,
 		"packages/sidecar/src/util/async-queue.test.ts": 1
+	},
+	"tests-cannot-pass": {
+		"apps/desktop/src/features/chat/MessageList.chat-27.test.tsx": 2,
+		"apps/desktop/src/features/chat/tools/ToolCard.test.tsx": 1,
+		"apps/desktop/src/features/git-panel/changes/rev-01-hooked.test.tsx": 2,
+		"apps/desktop/src/features/git-panel/git-panel.pr-02.test.tsx": 1,
+		"apps/desktop/src/features/git-panel/git-panel.rev-05.test.tsx": 1,
+		"apps/desktop/src/features/git-panel/rev-01-panel.test.tsx": 1,
+		"apps/desktop/src/features/sidebar/GroupedWorkspaces.nav-03.test.tsx": 1,
+		"apps/desktop/src/features/workspace/SplitPanes.nav-10.test.tsx": 2,
+		"apps/desktop/src/features/workspace/TabStrip.nav-10.test.tsx": 1
 	}
 }
