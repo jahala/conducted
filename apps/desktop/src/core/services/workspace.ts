@@ -3,11 +3,13 @@
  * workspace
  * @feature WS-02 Create from a branch, PR or issue
  * @feature WS-04 Rename the placeholder branch after the first message
+ * @feature WS-11 Backlog workspaces: save now, start later
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat from the default branch, an existing local branch, a pull request or an issue,
  * running the setup script, archiving a workspace, unarchiving one, deleting one or all of a
  * repository's workspaces, storing the intended target branch (GIT-08), saving a renamed branch
- * (GIT-09), and renaming the placeholder branch from a suggested name after the first message.
+ * (GIT-09), renaming the placeholder branch from a suggested name after the first message, and
+ * saving, starting and removing backlog workspaces.
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.3.1 (workspace
  * delete), 2.4.1 (state machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive, unarchive
  * and delete), 3.11 (branch rename, the first-message rename and the stored target branch),
@@ -53,8 +55,11 @@
  * that cannot be restored is rolled back: the re-added folder and a branch the call created are
  * removed and the state goes back to archived. A rollback step that fails is named in the
  * returned error, and a workspace that cannot go back to archived stays initializing in the store.
- * Not built yet (placeholders): linked paths (WS-07), the kanban status (NAV-06) and the backlog
- * workspace operations (WS-11).
+ * Built now (WS-11): a backlog workspace keeps its repository, first message, attachments, chat
+ * config and section without a worktree or branch. Starting one runs the normal creation flow and
+ * removes the saved entry; removing one deletes only the entry. Starting with no repository left
+ * returns the message the create flow shows.
+ * Not built yet (placeholders): linked paths (WS-07) and the kanban status (NAV-06).
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -670,6 +675,9 @@ export interface SetupRun {
 
 export interface WorkspaceState {
 	loaded: boolean;
+	/** Workspaces saved to the backlog, not started yet (WS-11). */
+	backlogLoaded: boolean;
+	backlogById: Readonly<Record<string, BacklogWorkspace>>;
 	workspacesById: Readonly<Record<string, Workspace>>;
 	/** In memory only: the setup script's state per workspace. */
 	setup: Readonly<Record<string, SetupState>>;
@@ -717,7 +725,7 @@ export interface WorkspaceServiceDeps {
 	 */
 	gitCache?: Pick<GitCache, "remove">;
 	git: GitRunner;
-	repos: Pick<Repositories, "repos" | "workspaces" | "sessions" | "sections">;
+	repos: Pick<Repositories, "repos" | "workspaces" | "sessions" | "sections" | "backlogWorkspaces">;
 	placeNames: PlaceNames;
 	sessions: WorkspaceSessionsPort;
 	/**
@@ -774,6 +782,8 @@ export class WorkspaceService {
 		this.#deps = deps;
 		this.store = createStore<WorkspaceState>(() => ({
 			loaded: false,
+			backlogLoaded: false,
+			backlogById: {},
 			workspacesById: {},
 			setup: {},
 			setupRuns: {},
@@ -816,9 +826,18 @@ export class WorkspaceService {
 				interruptedReason: null,
 			};
 		}
+		const backlog = await this.#deps.repos.backlogWorkspaces.list();
+		if (!backlog.ok) {
+			this.store.setState((state) => ({ ...state, loaded: true, backlogLoaded: true }));
+			return backlog;
+		}
+		const backlogById: Record<string, BacklogWorkspace> = {};
+		for (const entry of backlog.value) backlogById[entry.id] = entry;
 		this.store.setState((state) => ({
 			...state,
 			loaded: true,
+			backlogLoaded: true,
+			backlogById,
 			workspacesById,
 			setupRuns,
 		}));
@@ -2029,19 +2048,88 @@ export class WorkspaceService {
 		return this.#deps.sessions.firstDraftOf(id);
 	}
 
-	/** Backs `Actions.workspaces.addToBacklog`. */
-	addToBacklog(_input: NewWorkspaceInput): Promise<Result<BacklogWorkspace>> {
-		return notImplemented("WS-11");
+	/** Shown when a backlog workspace is started but its repository is gone (ui-map 3.9). */
+	static readonly NO_READY_REPOSITORY_MESSAGE =
+		"No ready repository. Pick one to start this workspace.";
+
+	/** Backs `Actions.workspaces.addToBacklog`: saves the draft without making a worktree. */
+	async addToBacklog(input: NewWorkspaceInput): Promise<Result<BacklogWorkspace>> {
+		const found = await this.#deps.repos.repos.get(input.repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		if (input.from.kind !== "default") {
+			return err(
+				appError(
+					"backlog_base_unsupported",
+					"A backlog workspace starts from the default branch. Create it now to use a branch, pull request or issue.",
+				),
+			);
+		}
+		const saved = await this.#deps.repos.backlogWorkspaces.create({
+			repoId: input.repoId,
+			displayName: null,
+			prompt: input.prompt,
+			attachmentPaths: [...input.attachmentPaths],
+			config: input.config,
+			sectionId: input.sectionId,
+		});
+		if (!saved.ok) return saved;
+		this.#upsertBacklog(saved.value);
+		return saved;
 	}
 
-	/** Backs `Actions.workspaces.startFromBacklog`: the normal create flow, keeping the id. */
-	startFromBacklog(_id: WorkspaceId): Promise<Result<Workspace>> {
-		return notImplemented("WS-11");
+	/** Backs `Actions.workspaces.startFromBacklog`: the normal create flow, keeping its draft. */
+	async startFromBacklog(id: WorkspaceId): Promise<Result<Workspace>> {
+		const found = await this.#deps.repos.backlogWorkspaces.get(id);
+		if (!found.ok) return found;
+		const entry = found.value;
+		if (entry === null) {
+			return err(appError("workspace_unknown", "That backlog workspace no longer exists."));
+		}
+		const repo = await this.#deps.repos.repos.get(entry.repoId);
+		if (!repo.ok) return repo;
+		if (repo.value === null) {
+			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+		}
+		const created = await this.create({
+			repoId: entry.repoId,
+			from: { kind: "default" },
+			prompt: entry.prompt,
+			attachmentPaths: [...entry.attachmentPaths],
+			config: entry.config,
+			sectionId: entry.sectionId,
+		});
+		if (!created.ok) return created;
+		const removed = await this.#deps.repos.backlogWorkspaces.delete(id);
+		if (!removed.ok) return removed;
+		this.#forgetBacklog(id);
+		return created;
 	}
 
 	/** Backs `Actions.workspaces.removeFromBacklog`. */
-	removeFromBacklog(_id: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("WS-11");
+	async removeFromBacklog(id: WorkspaceId): Promise<Result<void>> {
+		const removed = await this.#deps.repos.backlogWorkspaces.delete(id);
+		if (!removed.ok) return removed;
+		this.#forgetBacklog(id);
+		return ok(undefined);
+	}
+
+	/** Puts a saved backlog workspace in the store, so the backlog screen shows it after saving. */
+	#upsertBacklog(entry: BacklogWorkspace): void {
+		this.store.setState((state) => ({
+			...state,
+			backlogById: { ...state.backlogById, [entry.id]: entry },
+		}));
+	}
+
+	#forgetBacklog(id: WorkspaceId): void {
+		this.store.setState((state) => {
+			const backlogById = { ...state.backlogById };
+			delete backlogById[id];
+			return { ...state, backlogById };
+		});
 	}
 
 	/** Keeps the ids of workspaces being archived, so the sidebar can show that state (1.5). */

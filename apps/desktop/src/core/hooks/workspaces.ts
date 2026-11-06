@@ -7,14 +7,14 @@
  * Test first: the test for a hook body lives with the feature that implements it.
  */
 import { idleLiveState } from "@conducted/protocol";
-import { type AppError, appError, notImplemented, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, type WorkspaceId } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { SetupView, Workspace } from "../model.ts";
+import type { BacklogWorkspace, SetupView, Workspace } from "../model.ts";
 import type { SessionsState } from "../services/sessions.ts";
 import { type ChatStatusInput, deriveWorkspaceStatus } from "../status/workspace-status.ts";
 
@@ -121,7 +121,20 @@ export const useInstalledApps: Queries["useInstalledApps"] = () => {
 	if (query.data === undefined) return { state: "loading" };
 	return { state: "ready", data: query.data };
 };
-export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => notImplemented("WS-11");
+export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => {
+	const store = useServices().services.workspace.store;
+	const loaded = useStore(store, (state) => state.backlogLoaded);
+	const byId = useStore(store, (state) => state.backlogById);
+	return useMemo<Loadable<BacklogWorkspace[]>>(() => {
+		if (!loaded) return { state: "loading" };
+		return {
+			state: "ready",
+			data: Object.values(byId).sort(
+				(left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+			),
+		};
+	}, [byId, loaded]);
+};
 export const useSetupState: Queries["useSetupState"] = (workspaceId) => {
 	const container = useServices();
 	const workspaceStore = container.services.workspace.store;

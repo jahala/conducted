@@ -41,6 +41,8 @@ function workspace(id: string, createdAt: number): Workspace {
 function setup() {
 	const store = createStore<WorkspaceState>(() => ({
 		loaded: false,
+		backlogLoaded: false,
+		backlogById: {},
 		workspacesById: {},
 		setup: {},
 		archiving: {},

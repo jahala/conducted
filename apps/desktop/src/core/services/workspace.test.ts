@@ -15,7 +15,7 @@ import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { OFFLINE_FALLBACK_MESSAGE } from "../git/worktree.ts";
-import type { Repo, RepoConfig, Session, Workspace } from "../model.ts";
+import type { BacklogWorkspace, Repo, RepoConfig, Session, Workspace } from "../model.ts";
 import { allocatePort } from "./ports.ts";
 import {
 	baseBranchFor,
@@ -146,10 +146,62 @@ function defaultGitReply(worktreePath: string) {
 interface Harness {
 	service: WorkspaceService;
 	rows: Workspace[];
+	backlogRows: BacklogWorkspace[];
+	backlog: ReturnType<typeof makeBacklogRepository>;
 	createFirstChat: ReturnType<typeof vi.fn>;
 	firstDraftOf: ReturnType<typeof vi.fn>;
 	moveWorkspace: ReturnType<typeof vi.fn>;
+	runSetup: ReturnType<typeof vi.fn>;
 	calls: { command: GitCommand; cwd: string }[];
+}
+
+/** A backlog repository that keeps its rows in memory, with a new id on every create. */
+function makeBacklogRepository(rows: BacklogWorkspace[]) {
+	return {
+		async list() {
+			return ok([...rows]);
+		},
+		async listByRepo(repoId: RepoId) {
+			return ok(rows.filter((row) => row.repoId === repoId));
+		},
+		async get(id: WorkspaceId) {
+			const row = rows.find((candidate) => candidate.id === id);
+			return ok(row === undefined ? null : { ...row });
+		},
+		async create(input: {
+			repoId: RepoId;
+			displayName: string | null;
+			prompt: string;
+			attachmentPaths: string[];
+			config: SessionConfig;
+			sectionId: SectionId | null;
+		}) {
+			const entry: BacklogWorkspace = {
+				id: `b-${rows.length + 1}` as WorkspaceId,
+				repoId: input.repoId,
+				displayName: input.displayName,
+				prompt: input.prompt,
+				attachmentPaths: [...input.attachmentPaths],
+				config: input.config,
+				sectionId: input.sectionId,
+				createdAt: 1000,
+				updatedAt: 1000,
+			};
+			rows.push(entry);
+			return ok(entry);
+		},
+		async update() {
+			return ok(undefined);
+		},
+		async setSection() {
+			return ok(undefined);
+		},
+		async delete(id: WorkspaceId) {
+			const index = rows.findIndex((row) => row.id === id);
+			if (index >= 0) rows.splice(index, 1);
+			return ok(undefined);
+		},
+	};
 }
 
 function makeHarness(
@@ -170,6 +222,8 @@ function makeHarness(
 	} = {},
 ): Harness {
 	const rows = options.rows ?? [];
+	const backlogRows: BacklogWorkspace[] = [];
+	const backlog = makeBacklogRepository(backlogRows);
 	const settings: Record<string, unknown> = {
 		conducted_root_path: "~/conducted",
 		branch_prefix_type: "none",
@@ -348,6 +402,7 @@ function makeHarness(
 	const moveWorkspace = vi.fn(async () =>
 		options.moveFails === true ? err(appError("section_missing", "missing")) : ok(undefined),
 	);
+	const runSetup = vi.fn(async () => ok({ exitCode: 0 }));
 
 	const deps = {
 		platform: { fs, opener: {} },
@@ -361,6 +416,7 @@ function makeHarness(
 			workspaces,
 			sessions: {},
 			sections: { moveWorkspace },
+			backlogWorkspaces: backlog,
 		},
 		placeNames: { pick: () => "oslo" },
 		sessions: {
@@ -383,7 +439,7 @@ function makeHarness(
 				? err(appError("config_failed", "The default config could not be read."))
 				: ok(options.defaultConfigValue ?? sampleConfig),
 		scripts: {
-			runSetup: async () => ok({ exitCode: 0 }),
+			runSetup,
 			runArchive: async () => ok(undefined),
 			stopWorkspace: async () => ok(undefined),
 		},
@@ -394,9 +450,12 @@ function makeHarness(
 	return {
 		service: new WorkspaceService(deps),
 		rows,
+		backlogRows,
+		backlog,
 		createFirstChat,
 		firstDraftOf,
 		moveWorkspace,
+		runSetup,
 		calls,
 	};
 }
@@ -855,5 +914,102 @@ describe("WS-01 retrySetup pressed twice", () => {
 		expect(second.ok).toBe(true);
 		const copyListings = calls.filter((call) => call.command.args.includes("--others"));
 		expect(copyListings).toHaveLength(1);
+	});
+});
+
+describe("WS-11 backlog workspaces", () => {
+	it("saves a workspace without making a worktree", async () => {
+		const { service, rows, backlogRows, calls } = makeHarness();
+
+		const result = await service.addToBacklog(newInput);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.repoId).toBe(baseRepo.id);
+			expect(result.value.prompt).toBe(newInput.prompt);
+			expect(result.value.config).toEqual(sampleConfig);
+		}
+		expect(rows).toHaveLength(0);
+		expect(backlogRows).toHaveLength(1);
+		expect(calls).toHaveLength(0);
+	});
+
+	it("shows the saved workspace in the store as soon as it is added", async () => {
+		const { service } = makeHarness();
+
+		const result = await service.addToBacklog(newInput);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(service.store.getState().backlogById[result.value.id]).toEqual(result.value);
+		}
+	});
+
+	it("starts a saved workspace: worktree, setup and its first message, then removes the entry", async () => {
+		const { service, rows, backlogRows, createFirstChat, runSetup, calls } = makeHarness();
+		const saved = await service.addToBacklog(newInput);
+		expect(saved.ok).toBe(true);
+		if (!saved.ok) return;
+
+		const started = await service.startFromBacklog(saved.value.id);
+
+		expect(started.ok).toBe(true);
+		expect(rows).toHaveLength(1);
+		expect(backlogRows).toHaveLength(0);
+		expect(createFirstChat).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ prompt: newInput.prompt, repoId: baseRepo.id }),
+		);
+		expect(calls.some((call) => call.command.args[0] === "worktree")).toBe(true);
+		expect(runSetup).toHaveBeenCalledWith(expect.any(String), expect.any(Function));
+		expect(service.store.getState().backlogById[saved.value.id]).toBeUndefined();
+	});
+
+	it("says no ready repository remains when its repository is gone", async () => {
+		const { service, backlog } = makeHarness();
+		const created = await backlog.create({
+			repoId: "gone" as RepoId,
+			displayName: null,
+			prompt: "Finish the report",
+			attachmentPaths: [],
+			config: sampleConfig,
+			sectionId: null,
+		});
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+
+		const started = await service.startFromBacklog(created.value.id);
+
+		expect(started.ok).toBe(false);
+		if (!started.ok) {
+			expect(started.error.message).toBe("No ready repository. Pick one to start this workspace.");
+		}
+	});
+
+	it("removes a saved workspace without touching any worktree", async () => {
+		const { service, backlogRows, calls } = makeHarness();
+		const saved = await service.addToBacklog(newInput);
+		expect(saved.ok).toBe(true);
+		if (!saved.ok) return;
+
+		const removed = await service.removeFromBacklog(saved.value.id);
+
+		expect(removed.ok).toBe(true);
+		expect(backlogRows).toHaveLength(0);
+		expect(service.store.getState().backlogById[saved.value.id]).toBeUndefined();
+		expect(calls).toHaveLength(0);
+	});
+
+	it("refuses a saved workspace from a branch, pull request or issue instead of dropping the source", async () => {
+		const { service, backlogRows } = makeHarness();
+
+		const result = await service.addToBacklog({
+			...newInput,
+			from: { kind: "branch", name: "feature/login" },
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("backlog_base_unsupported");
+		expect(backlogRows).toHaveLength(0);
 	});
 });
