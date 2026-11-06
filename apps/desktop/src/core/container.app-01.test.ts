@@ -390,9 +390,32 @@ describe("APP-01 after start", () => {
 
 		safe.mockReturnValue(true);
 		harness.memory.controls.emitQuitRequested();
-		expect(quit).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
 
 		await harness.container.stop();
+	});
+
+	it("stops the container before it quits, so drafts and stored events are written first", async () => {
+		const harness = build();
+		stubStartup(harness);
+		vi.spyOn(harness.container.services.updates, "isSafeToQuit").mockReturnValue(true);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const flush = vi.spyOn(harness.container.services.composer, "flush");
+		const detach = vi.mocked(harness.container.sidecar.stop);
+
+		await harness.container.start();
+		harness.memory.controls.emitQuitRequested();
+		// A second request while the first one stops the app does not stop or quit twice.
+		harness.memory.controls.emitQuitRequested();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		expect(flush).toHaveBeenCalledTimes(1);
+		expect(detach).toHaveBeenCalledTimes(1);
+		const [flushedAt] = flush.mock.invocationCallOrder;
+		const [detachedAt] = detach.mock.invocationCallOrder;
+		const [quitAt] = quit.mock.invocationCallOrder;
+		expect(flushedAt).toBeLessThan(quitAt ?? 0);
+		expect(detachedAt).toBeLessThan(quitAt ?? 0);
 	});
 
 	it("asks the user before quitting while agents are working", async () => {
