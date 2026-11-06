@@ -584,3 +584,14 @@ Why: the owner's rulings. The visible difference from Conductor, which bundles t
 Context: D066 held AGENT-09 back for two reasons: the SDK could not ship, and the sidecar could not learn whether Cursor is signed in, because the app keeps the key in the Keychain. D083 settles the first. A chat already gets the key: the provider key the user saves in Settings reaches the runner as `CURSOR_API_KEY` in the chat's start environment, and a refused key points the user to Settings.
 Chosen: AGENT-09 is done. Showing Cursor as signed in follows the fixer's proposal in D066: the desktop sets Cursor's signed-in state from whether its own provider key for Cursor is saved, a desktop-only change. That change, and removing a deleted workspace's `cursor-sdk-store/<hash>` folder, are follow-ups under APP-16 with the hardening.
 Why: a user can install the SDK, pick Cursor and chat with it, which is what the row's title says; the two follow-ups change what the Agents page shows and what is removed, not whether Cursor runs.
+
+## D085. Why each open backlog row is still open at the end of 6 November (2026-11-06)
+
+Context: the day goal asks that no row is `stub` or `planned` without a decision saying why. At 22:00, 240 of 264 rows are done.
+Chosen: these 24 rows stay open, each for the reason named.
+
+- REV-13, PR-10, RUN-05 and APP-06 (`stub`, step 2): each needs a row that landed with part 1e (#338, merged 19:26). The goal starts no step after 19:00. They are the next run's first batch.
+- PLAT-36 and SIDE-25 (`planned`): neither started. PLAT-36 needs Rust builds, which the release and the fixers held all afternoon. SIDE-25 moves the sidecar's adapters, the files AGENT-09 and the part-1e fixers were changing. They go after step 2.
+- APP-16 (`planned`): it gathers the hardening findings on done features. The slice-3 hardening did not start today. Its inputs are in docs/reports/day-2026-11-06.md, "Findings by area", and in D071, D084 and D078.
+- CLOUD-01 and CLOUD-03 to CLOUD-18 (`planned`): the cloud spike passed (D075), and the rows are built through the loop, starting with CLOUD-01, the host seam. None started today, because the spike, Remote Control and the priority-3 rows came first in the goal's order.
+  Why: each reason is a dependency or the goal's own order and time rule. No row is held for a missing input from the owner.
