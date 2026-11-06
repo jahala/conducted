@@ -199,9 +199,9 @@ export const FLOWS: Flow[] = [
 		state: "command-palette",
 		steps: [
 			{
-				step: "Type Settings and press Enter",
+				step: "Type Open settings and press Enter",
 				run: async (page) => {
-					await page.keyboard.type("Settings");
+					await page.keyboard.type("Open settings");
 					await page.keyboard.press("Enter");
 				},
 			},
@@ -256,6 +256,13 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 	});
 	const page = await context.newPage();
 	await page.clock.setFixedTime(CATALOGUE_NOW);
+	// The catalogue logs every shell command and sidecar request nobody scripted: the likely reason a
+	// step's result never came.
+	const unscripted: string[] = [];
+	page.on("console", (message) => {
+		const text = message.text();
+		if (text.startsWith("[catalogue]")) unscripted.push(text.replace("[catalogue] ", ""));
+	});
 	try {
 		await page.goto(
 			`${url}?${new URLSearchParams({ state: flow.state, theme: "light" }).toString()}`,
@@ -277,7 +284,9 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 				result.steps.push({ step: step.step, ok: true });
 			} catch (cause) {
 				const message = cause instanceof Error ? cause.message.split("\n")[0] : String(cause);
-				result.steps.push({ step: step.step, ok: false, detail: message });
+				const logged = [...new Set(unscripted)].slice(-3);
+				const why = logged.length === 0 ? "" : `; the catalogue logged: ${logged.join("; ")}`;
+				result.steps.push({ step: step.step, ok: false, detail: `${message}${why}` });
 				break;
 			}
 		}
