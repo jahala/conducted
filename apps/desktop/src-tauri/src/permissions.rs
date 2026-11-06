@@ -12,7 +12,8 @@
 //! - A missing TCC database also means no access. The check reads another candidate when one is
 //!   absent, because the user and system databases can appear separately.
 //! - A System Settings that cannot open returns a failure that tells the user to grant Full Disk
-//!   Access under Privacy & Security themselves.
+//!   Access under Privacy & Security themselves. That covers `open` exiting with an error and
+//!   `open` that cannot be started at all.
 //!
 //! Our design choice: the check opens the protected TCC database as a file. macOS allows that
 //! read only with Full Disk Access, which is the same permission the row is about. We do not query
@@ -56,18 +57,24 @@ fn privacy_pane_command(program: &str) -> Command {
     command
 }
 
+/// The failure for every way System Settings can fail to open, with the step the user takes.
+fn open_failed(cause: &str) -> CommandError {
+    CommandError::Failed {
+        code: "full_disk_access_open_failed",
+        message: format!(
+            "System Settings could not be opened ({cause}). Grant Full Disk Access under Privacy & Security yourself."
+        ),
+    }
+}
+
 fn open_settings_with(program: &str) -> CommandResult<()> {
     let status = privacy_pane_command(program)
         .status()
-        .map_err(CommandError::Io)?;
+        .map_err(|error| open_failed(&format!("{program} could not start: {error}")))?;
     if status.success() {
         return Ok(());
     }
-    Err(CommandError::Failed {
-        code: "full_disk_access_open_failed",
-        message: "System Settings could not be opened. Grant Full Disk Access under Privacy & Security yourself."
-            .to_string(),
-    })
+    Err(open_failed(&format!("{program} exited with {status}")))
 }
 
 /// Whether this app has Full Disk Access, for the General settings row.
@@ -153,6 +160,29 @@ mod tests {
     #[test]
     fn plat_24_open_failure_tells_the_user_to_grant_access_by_hand() {
         let error = open_settings_with("/usr/bin/false").expect_err("false exits non-zero");
+
+        match error {
+            CommandError::Failed { code, message } => {
+                assert_eq!(code, "full_disk_access_open_failed");
+                assert!(
+                    message.contains("Full Disk Access"),
+                    "message was {message:?}"
+                );
+                assert!(
+                    message.contains("Privacy & Security"),
+                    "message was {message:?}"
+                );
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[test]
+    fn plat_24_an_opener_that_cannot_start_also_tells_the_user_what_to_do() {
+        let folder = TempDir::new();
+        let missing = folder.path().join("no-such-opener");
+        let error = open_settings_with(&missing.to_string_lossy())
+            .expect_err("a program that does not exist cannot start");
 
         match error {
             CommandError::Failed { code, message } => {

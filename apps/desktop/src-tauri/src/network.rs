@@ -10,9 +10,13 @@
 //!
 //! Must handle: a watcher that cannot start is an error, not a silent startup; every change of
 //! connectivity is reported once, and a callback that repeats the current state reports nothing;
-//! `network_status` reads the live state and stores it, and a read that fails is an error rather
-//! than a made-up answer; the watcher reports the answer the command reads because both use the
-//! same reachability rule.
+//! `network_status` reads the live state and only reports it, and a read that fails is an error
+//! rather than a made-up answer; the watcher reports the answer the command reads because both use
+//! the same reachability rule.
+//! Our design choice: only the watcher writes the stored answer, and it compares and stores under
+//! one lock. A command read can be older than the watcher's last callback; if the command stored
+//! it, the stored answer would say online while the Mac is offline, and the next real change
+//! would be compared to that wrong answer and never reported.
 //!
 //! Our design choice: the watcher asks `SCNetworkReachability` for a public address instead of
 //! watching every `SCDynamicStore` key. It gives the same offline/online fact with less to parse.
@@ -22,14 +26,14 @@
 //! Test first: a repeated connectivity state emits `network://changed` only once, and a change
 //! from offline to online emits the new state.
 
+use std::sync::Mutex;
 use std::sync::mpsc::Sender;
-use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
 use system_configuration::network_reachability::{ReachabilityFlags, SCNetworkReachability};
-use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, lock};
 
 /// Event carrying the new online state after the Mac gains or loses its connection.
 pub const EVENT_NETWORK_CHANGED: &str = "network://changed";
@@ -37,24 +41,27 @@ pub const EVENT_NETWORK_CHANGED: &str = "network://changed";
 /// The host the reachability check asks about. A numeric address needs no DNS lookup.
 const PROBE_HOST: &std::ffi::CStr = c"1.1.1.1";
 
-/// The last connectivity answer the app saw.
+/// The last connectivity answer the watcher reported.
 #[derive(Default)]
 pub struct NetworkState {
     online: Mutex<Option<bool>>,
 }
 
 impl NetworkState {
+    /// The stored answer. Only tests read it; the UI asks `network_status` for the live state.
+    #[cfg(test)]
     fn get(&self) -> Option<bool> {
         *lock(&self.online)
     }
 
-    fn set(&self, online: bool) {
-        *lock(&self.online) = Some(online);
+    /// Stores `online` and returns whether it differs from the stored answer. The compare and the
+    /// store happen under one lock, so no other answer can land between them.
+    fn replace(&self, online: bool) -> bool {
+        let mut stored = lock(&self.online);
+        let changed = *stored != Some(online);
+        *stored = Some(online);
+        changed
     }
-}
-
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Whether reachability flags mean the Mac can reach the network. A connection that still has to
@@ -84,26 +91,22 @@ pub fn read_online() -> CommandResult<bool> {
     Ok(online_from_flags(flags))
 }
 
-/// The current connectivity, for `SystemFacts.isOnline`. Stores the answer so a later event and
-/// the command agree.
+/// The current connectivity, for `SystemFacts.isOnline`. It reads the live state and leaves the
+/// watcher's stored answer alone.
 #[tauri::command]
-pub fn network_status(state: State<'_, NetworkState>) -> CommandResult<bool> {
-    let online = read_online()?;
-    state.set(online);
-    Ok(online)
+pub fn network_status() -> CommandResult<bool> {
+    read_online()
 }
 
-/// Records a connectivity answer and tells the UI when it differs from the last one. Returns
-/// whether the event was sent.
+/// Records a connectivity answer from the watcher and tells the UI when it differs from the last
+/// one. Returns whether the event was sent.
 pub fn publish_change<R: Runtime>(app: &AppHandle<R>, online: bool) -> bool {
-    let state = app.state::<NetworkState>();
-    if state.get() == Some(online) {
+    if !app.state::<NetworkState>().replace(online) {
         return false;
     }
-    state.set(online);
     if let Err(error) = app.emit(EVENT_NETWORK_CHANGED, online) {
-        // The event only wakes a window that is listening. `network_status` reads the same stored
-        // answer, so a failed emit loses no fact the UI can ask for.
+        // The event only wakes a window that is listening. `network_status` reads the same live
+        // state, so a failed emit loses no fact the UI can ask for.
         eprintln!("network watcher: could not report the network change: {error}");
     }
     true
@@ -158,7 +161,8 @@ fn prepare(app: &AppHandle) -> CommandResult<SCNetworkReachability> {
             code: "network_watch_failed",
             message: format!("Could not read the Mac's network state: {error}"),
         })?;
-    app.state::<NetworkState>().set(online_from_flags(initial));
+    app.state::<NetworkState>()
+        .replace(online_from_flags(initial));
 
     let callback_app = app.clone();
     reachability
@@ -237,12 +241,40 @@ mod tests {
     }
 
     #[test]
-    fn plat_26_network_status_reads_the_live_state_and_stores_it() {
+    fn plat_26_network_status_reads_the_live_state_and_stores_nothing() {
         let app = mock_app();
         app.manage(NetworkState::default());
 
-        let online = network_status(app.state::<NetworkState>())
-            .expect("the Mac should report its network state");
-        assert_eq!(app.state::<NetworkState>().get(), Some(online));
+        let online = network_status().expect("the Mac should report its network state");
+        // The live read is the answer the reachability rule gives, and only the watcher stores.
+        assert_eq!(online, read_online().expect("a second live read"));
+        assert_eq!(app.state::<NetworkState>().get(), None);
+    }
+
+    #[test]
+    fn plat_26_an_older_command_answer_cannot_hide_the_next_change() {
+        let (app, events) = app_listening();
+
+        // The watcher saw the Mac go offline.
+        assert!(publish_change(app.handle(), false));
+        let offline = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("going offline is reported");
+        assert!(!offline, "the event carried online");
+
+        // A status read that started before that callback finishes now with its older answer.
+        let older = network_status().expect("the Mac should report its network state");
+        assert_eq!(
+            app.state::<NetworkState>().get(),
+            Some(false),
+            "the command's answer ({older}) replaced the watcher's newer one"
+        );
+
+        // So coming back online is still a change, and the UI hears it.
+        assert!(publish_change(app.handle(), true));
+        let online = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("coming back online is reported");
+        assert!(online, "the event carried offline");
     }
 }

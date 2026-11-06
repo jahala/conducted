@@ -661,6 +661,7 @@ version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "core-foundation 0.9.4",
+ "dirs",
  "futures-util",
  "globset",
  "grep-matcher",

@@ -38,15 +38,15 @@
 //! from `notification_take_pending`, and a second call returns an empty list.
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::deep_link::SCHEME;
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, lock};
 
 /// Event sent when a notification is clicked. The UI drains the queued links in response.
 pub const EVENT_CLICKED: &str = "notification://clicked";
@@ -109,10 +109,6 @@ impl NotificationState {
         }
         vec![newest]
     }
-}
-
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Accepts only our own scheme. The OS can report anything as a notification action.
@@ -219,12 +215,7 @@ fn install_click_handler(app: &AppHandle) {
 /// Sets the Dock badge to a count, or clears it with `None`.
 #[tauri::command]
 pub async fn set_dock_badge(app: AppHandle, count: Option<u32>) -> CommandResult<()> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| CommandError::Failed {
-            code: "window_missing",
-            message: "The main window is not open.".to_owned(),
-        })?;
+    let window = crate::window::main_window(&app)?;
 
     #[cfg(target_os = "macos")]
     let result = window.set_badge_label(badge_label(count));

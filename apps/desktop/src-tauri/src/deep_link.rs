@@ -8,10 +8,14 @@
 //! `deep-link://new-url`, notification clicks reuse the same router).
 //!
 //! Must handle:
-//! - Only the `conducted` scheme is accepted. Other schemes are dropped and logged, because the
-//!   OS can hand over anything registered to the app.
-//! - The URL is passed on as a string without being decoded. Parsing belongs to the UI, which
-//!   owns the route table. Links longer than `MAX_URL_BYTES` are dropped.
+//! - Every link the plugin hands over goes to the UI, whatever its scheme. The UI's parser is the
+//!   one home of the scheme rule and the route table, so a link it cannot read reaches it and is
+//!   reported there instead of vanishing here. Conductor's parser lives in its UI the same way.
+//! - The plugin hands links over already parsed, so the string the UI gets is the `url` crate's:
+//!   the scheme in lower case and characters a URL may not hold (a space) percent-encoded; the
+//!   host, the path and an existing encoding stay as given. Nothing is decoded here.
+//! - Links longer than `MAX_URL_BYTES` are dropped, and the drop is written to the app log. The
+//!   UI cannot show a message for them yet: that needs a rejection event in `platform.ts`.
 //! - A link that arrives while the app is already running brings the window to the front.
 //! - A launch link is not missed: the UI reads the plugin's current URL when it subscribes
 //!   (`platform/tauri.ts`), and this module forwards every later link on the plugin's event.
@@ -22,27 +26,21 @@
 //! Our design choice: a second launch with a URL needs `tauri-plugin-single-instance`. The
 //! one-instance guard is PLAT-27's, so that path is not part of this module.
 //!
-//! Test first: `normalise("conducted://workspace?id=1")` returns the URL unchanged and
-//! `normalise("https://example.com")` fails with `deep_link_bad_scheme`.
+//! Test first: `normalise("conducted://workspace?id=1")` returns the URL unchanged, a link of
+//! another scheme reaches the UI unchanged, and a link over `MAX_URL_BYTES` fails with
+//! `deep_link_too_long`.
 
-use tauri::{AppHandle, Emitter, Manager, Runtime, Url};
+use tauri::{AppHandle, Emitter, Runtime, Url};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 use crate::error::{CommandError, CommandResult};
 
-/// Event carrying one accepted URL as a string.
+/// Event carrying one URL as a string.
 pub const EVENT_DEEP_LINK: &str = "app://deep-link";
-/// The one scheme this app accepts.
+/// The one scheme this app registers with macOS.
 pub const SCHEME: &str = "conducted";
 /// Longest accepted URL.
 pub const MAX_URL_BYTES: usize = 64 * 1024;
-
-fn bad_scheme() -> CommandError {
-    CommandError::Failed {
-        code: "deep_link_bad_scheme",
-        message: format!("A deep link must start with {SCHEME}://."),
-    }
-}
 
 fn too_long() -> CommandError {
     CommandError::Failed {
@@ -51,51 +49,57 @@ fn too_long() -> CommandError {
     }
 }
 
-/// Checks the scheme and length of a URL and returns it for forwarding.
+/// Checks the length of a URL and returns it for forwarding. The scheme and the route are the
+/// UI parser's to judge.
 pub fn normalise(url: &str) -> CommandResult<String> {
     if url.len() > MAX_URL_BYTES {
         return Err(too_long());
     }
-
-    let Some((scheme, _)) = url.split_once("://") else {
-        return Err(bad_scheme());
-    };
-    if !scheme.eq_ignore_ascii_case(SCHEME) {
-        return Err(bad_scheme());
-    }
-
     Ok(url.to_owned())
 }
 
 /// Brings the one window to the front, so a link opened from another app is noticed.
 fn focus_main<R: Runtime>(app: &AppHandle<R>) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    if let Err(error) = window.set_focus() {
-        eprintln!("deep link: could not bring the window to the front: {error}");
+    let focused = crate::window::main_window(app).and_then(|window| {
+        window.set_focus().map_err(|error| CommandError::Failed {
+            code: "window_focus_failed",
+            message: error.to_string(),
+        })
+    });
+    if let Err(error) = focused {
+        report(
+            app,
+            &format!("deep link: could not bring the window to the front: {error}"),
+        );
     }
 }
 
-/// Forwards each accepted URL, in order, as one `app://deep-link` event. A rejected URL is logged
-/// and the links after it still go on.
+/// Writes a failure to the app log, or to stderr while the log is not running.
+fn report<R: Runtime>(app: &AppHandle<R>, message: &str) {
+    crate::log_or_stderr(app, "warn", message);
+}
+
+/// Forwards each URL, in order, as one `app://deep-link` event. A link over the size limit is
+/// written to the app log, and the links after it still go on.
 fn deliver<R: Runtime>(app: &AppHandle<R>, urls: Vec<Url>) {
     for url in urls {
-        let raw = url.to_string();
-        match normalise(&raw) {
+        match normalise(url.as_str()) {
             Ok(link) => {
                 focus_main(app);
                 if let Err(error) = app.emit(EVENT_DEEP_LINK, link) {
-                    eprintln!("deep link: could not send the link to the UI: {error}");
+                    report(
+                        app,
+                        &format!("deep link: could not send the link to the UI: {error}"),
+                    );
                 }
             }
-            Err(error) => eprintln!("deep link: dropped a URL: {error}"),
+            Err(error) => report(app, &format!("deep link: dropped a URL: {error}")),
         }
     }
 }
 
-/// Registers the plugin's open-url handler. Each accepted URL is shown (window to the front) and
-/// emitted as `app://deep-link`. Called once from `run()`.
+/// Registers the plugin's open-url handler. Each URL within the size limit is shown (window to
+/// the front) and emitted as `app://deep-link`. Called once from `run()`.
 pub fn register<R: Runtime>(app: &AppHandle<R>) -> CommandResult<()> {
     app.deep_link().on_open_url({
         let app = app.clone();
@@ -143,39 +147,22 @@ mod tests {
     }
 
     #[test]
-    fn plat_16_another_scheme_fails_with_deep_link_bad_scheme() {
-        let error = normalise("https://example.com").expect_err("the scheme is refused");
-        assert!(matches!(
-            error,
-            CommandError::Failed {
-                code: "deep_link_bad_scheme",
-                ..
-            }
-        ));
+    fn plat_16_another_scheme_is_left_for_the_ui_parser_to_refuse() {
+        let forwarded = normalise("https://example.com").expect("the UI judges the scheme");
+        assert_eq!(forwarded, "https://example.com");
     }
 
     #[test]
-    fn plat_16_a_variant_scheme_is_refused() {
-        let error = normalise("conducted-beta://workspace?id=1").expect_err("there is one scheme");
-        assert!(matches!(
-            error,
-            CommandError::Failed {
-                code: "deep_link_bad_scheme",
-                ..
-            }
-        ));
+    fn plat_16_a_variant_scheme_is_left_for_the_ui_parser_to_refuse() {
+        let forwarded =
+            normalise("conducted-beta://workspace?id=1").expect("the UI judges the scheme");
+        assert_eq!(forwarded, "conducted-beta://workspace?id=1");
     }
 
     #[test]
-    fn plat_16_a_string_without_a_scheme_is_refused() {
-        let error = normalise("workspace?id=1").expect_err("a bare string is not a link");
-        assert!(matches!(
-            error,
-            CommandError::Failed {
-                code: "deep_link_bad_scheme",
-                ..
-            }
-        ));
+    fn plat_16_a_string_without_a_scheme_is_left_for_the_ui_parser_to_refuse() {
+        let forwarded = normalise("workspace?id=1").expect("the UI judges the scheme");
+        assert_eq!(forwarded, "workspace?id=1");
     }
 
     #[test]
@@ -236,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn plat_16_a_running_link_of_another_scheme_is_dropped() {
+    fn plat_16_a_running_link_of_another_scheme_reaches_the_ui_to_be_refused() {
         let app = app_with_the_plugin();
         let events = received(&app);
         register(app.handle()).expect("the handler registers");
@@ -245,6 +232,29 @@ mod tests {
             .emit(
                 "deep-link://new-url",
                 vec![Url::parse("https://example.com").expect("a URL")],
+            )
+            .expect("emit the plugin event");
+
+        let payload = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the link arrives for the UI to refuse");
+        assert_eq!(
+            serde_json::from_str::<String>(&payload).expect("the payload is a string"),
+            "https://example.com/"
+        );
+    }
+
+    #[test]
+    fn plat_16_a_running_link_over_the_limit_is_dropped() {
+        let app = app_with_the_plugin();
+        let events = received(&app);
+        register(app.handle()).expect("the handler registers");
+
+        let long = format!("conducted://workspace?id={}", "x".repeat(MAX_URL_BYTES));
+        app.handle()
+            .emit(
+                "deep-link://new-url",
+                vec![Url::parse(&long).expect("a URL")],
             )
             .expect("emit the plugin event");
         app.handle()
@@ -257,6 +267,40 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<String>(&first).expect("the payload is a string"),
             "marker"
+        );
+    }
+
+    #[test]
+    fn plat_16_the_ui_gets_the_link_as_the_url_crate_writes_it() {
+        let app = app_with_the_plugin();
+        let events = received(&app);
+        register(app.handle()).expect("the handler registers");
+
+        app.handle()
+            .emit(
+                "deep-link://new-url",
+                vec![
+                    Url::parse("CONDUCTED://Workspace?id=A%20b&prompt=x%2Fy").expect("a URL"),
+                    Url::parse("conducted://path=/tmp/a b&prompt=hi there").expect("a URL"),
+                ],
+            )
+            .expect("emit the plugin event");
+
+        // The scheme is lower case; the host and an existing encoding are kept as given.
+        let first = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the first link arrives");
+        assert_eq!(
+            serde_json::from_str::<String>(&first).expect("the payload is a string"),
+            "conducted://Workspace?id=A%20b&prompt=x%2Fy"
+        );
+        // A space is not a URL character, so it arrives encoded.
+        let second = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the second link arrives");
+        assert_eq!(
+            serde_json::from_str::<String>(&second).expect("the payload is a string"),
+            "conducted://path=/tmp/a%20b&prompt=hi%20there"
         );
     }
 
