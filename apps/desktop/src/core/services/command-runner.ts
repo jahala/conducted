@@ -74,6 +74,8 @@ const NO_OPEN_CHAT_NEEDED: ReadonlySet<string> = new Set(["chat.nextNeedingAtten
  * next-chat commands exempt, so the registry needs no second table to keep in step.
  */
 export function commandRequirement(id: string): keyof CommandContext | null {
+	// Linking a pull request is how a workspace gets one, so it must work while it has none.
+	if (id === "pr.link") return "hasWorkspace";
 	if (id.startsWith("pr.")) return "hasOpenPr";
 	if (id === "chat.newTab") return "hasWorkspace";
 	if (id.startsWith("chat.") && !NO_OPEN_CHAT_NEEDED.has(id)) return "hasOpenChat";
