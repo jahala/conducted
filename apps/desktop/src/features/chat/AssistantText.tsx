@@ -14,6 +14,7 @@
  * Test first: A text with an unclosed code fence renders as a code block without throwing; the
  * "not_absolutely_right" setting controls whether a leading absolutely-right phrase is removed.
  */
+import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
 import { useSetting } from "../../core/hooks.ts";
 import { cn } from "../../ui/cn.ts";
@@ -280,9 +281,13 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
 export interface AssistantTextProps {
 	text: string;
+	/** The workspace a shell code block's command runs in. */
+	workspaceId?: WorkspaceId;
+	/** The workspace is ready and not archived. */
+	canRun?: boolean;
 }
 
-export function AssistantText({ text }: AssistantTextProps) {
+export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps) {
 	const style = useSetting<string>("markdown_style");
 	const stripFiller = useSetting<boolean>("not_absolutely_right");
 	const cleaned = stripFiller ? stripLeadingFiller(text) : text;
@@ -302,7 +307,15 @@ export function AssistantText({ text }: AssistantTextProps) {
 				const key = `block-${blockIndex}`;
 				switch (block.kind) {
 					case "code":
-						return <CodeBlock key={key} code={block.code} language={block.language} />;
+						return (
+							<CodeBlock
+								key={key}
+								code={block.code}
+								language={block.language}
+								workspaceId={workspaceId}
+								canRun={canRun}
+							/>
+						);
 					case "heading": {
 						const Tag = HEADING_TAGS[block.level];
 						return (

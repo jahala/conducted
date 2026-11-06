@@ -70,6 +70,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 	const chat = useChat(sessionId);
 	const workspace = useWorkspace(workspaceId);
 	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const canRun = workspace.state === "ready" && workspace.data.state === "ready";
 	const draft = useDraft(sessionId);
 	const actions = useActions();
 	const expandAll = useSetting<boolean>("expand_tool_calls");
@@ -115,6 +116,8 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 								<TurnItem
 									turn={turn}
 									sessionId={sessionId}
+									workspaceId={workspaceId}
+									canRun={canRun}
 									retry={index === data.turns.length - 1 ? data.liveState.retry : undefined}
 								/>
 							)}
