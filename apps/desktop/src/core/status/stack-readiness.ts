@@ -2,8 +2,9 @@
  * @feature PR-08 Stack readiness
  * Owns: the one home of the rules that decide whether a GitHub stack can merge: each entry's own
  * readiness, the roll-up to a stack verdict ("ready" or "blocked"), the first entry that blocks a
- * stack merge (diverged, draft or not ready), how many pull requests a stack merge takes, and the
- * words the Git panel header and the stack view show for them.
+ * stack merge (diverged, draft or not ready), how many pull requests a stack merge takes, the
+ * words the Git panel header and the stack view show for them, and whether a pull request is in a
+ * GitHub stack at all (so the header's Resolve on a diverged branch syncs the stack first).
  * Behaviour: services-map.md 3.8.2 (readiness per stack entry from GitHub's `mergeStateStatus`;
  * the research names the rules but does not give them, so they follow Conductor's own code, read
  * for behaviour only, D002), ui-map.md 3.6 ("Merge stack").
@@ -17,7 +18,7 @@
  * Test first: a lower pull request that GitHub reports as BLOCKED blocks the stack merge of the
  * pull request above it, and the header names it.
  */
-import type { StackEntryView } from "../model.ts";
+import type { PullRequest, StackEntryView } from "../model.ts";
 
 /** One entry's own readiness, from its draft flag and GitHub's merge state. */
 export type EntryReadiness = "ready" | "notReady" | "draft" | "unknown";
@@ -140,6 +141,19 @@ export function stackBlockerTitle(blocker: StackBlocker): string {
 		case "notReady":
 			return `#${blocker.prNumber} isn't ready to merge`;
 	}
+}
+
+/**
+ * Whether the pull request is in a GitHub stack: there is one, it is not merged, and the stack
+ * read found members for it. As in Conductor, a merged pull request no longer counts.
+ */
+export function isInGitHubStack(
+	pullRequest: PullRequest | null,
+	entries: readonly StackEntryView[] | null,
+): boolean {
+	return (
+		pullRequest !== null && pullRequest.state !== "merged" && entries !== null && entries.length > 0
+	);
 }
 
 /** What the Git panel header needs from a stack; null when the pull request is in no stack. */

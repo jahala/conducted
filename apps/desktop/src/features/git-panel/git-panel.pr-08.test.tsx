@@ -2,12 +2,15 @@
  * @feature PR-08 Stacked PRs and read-only Graphite
  * Owns: the container tests that the git panel polls Graphite only for the repository of the
  * workspace it shows, releases that poll when it unmounts, runs `gh stack merge` from the
- * header's "Merge stack", and offers that merge only when the stack's readiness allows it.
+ * header's "Merge stack", offers that merge only when the stack's readiness allows it, and that
+ * the header's Resolve on a branch incompatible with its remote runs `gh stack sync` for a
+ * stacked pull request, asking the agent only when the sync fails or the branch is not stacked.
  * Behaviour: services-map.md 3.8.1 (`gt state` every 5 s for the visible workspace's repository),
- * 3.8.2 (`gh stack merge`, readiness per stack entry), ui-map.md 3.6 ("Merge stack" for stacks).
+ * 3.8.2 (`gh stack merge`, `gh stack sync`, readiness per stack entry), ui-map.md 3.6 ("Merge
+ * stack" for stacks, "Incompatible with remote" with Resolve).
  * Test first: mounting the panel runs `gt state` in the workspace's repository.
  */
-import { ok } from "@conducted/shared";
+import { ok, type SessionId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -20,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { PullRequest, Workspace } from "../../core/model.ts";
+import type { BranchSync, PullRequest, Workspace } from "../../core/model.ts";
 import {
 	createTestContainer,
 	seedPullRequest,
@@ -77,6 +80,10 @@ const stackAnswer = JSON.stringify({
 	},
 });
 
+const notStackedAnswer = JSON.stringify({
+	data: { repository: { pullRequest: { number: 12, stackEntry: null } } },
+});
+
 const membersAnswer = JSON.stringify({
 	pull_requests: [
 		{
@@ -111,10 +118,16 @@ const readinessAnswer = (lower: string, upper: string) =>
 
 /**
  * A clean, pushed workspace whose pull request #12 is ready to merge and sits in a stack of two.
- * GitHub reports the lower pull request #11 with `lowerState`.
+ * GitHub reports the lower pull request #11 with `lowerState`. `sync` is the branch against its
+ * remote, `stacked: false` puts #12 outside any stack, and `stackSync` answers `gh stack sync`.
  */
 async function seedPanel(
 	lowerState = "CLEAN",
+	options: {
+		sync?: BranchSync;
+		stacked?: boolean;
+		stackSync?: ReturnType<typeof output>;
+	} = {},
 ): Promise<{ harness: TestContainer; workspace: Workspace }> {
 	const harness = createTestContainer();
 	test = harness;
@@ -150,7 +163,7 @@ async function seedPanel(
 					changedFiles: 1,
 					operation: "none",
 					commits: [],
-					sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
+					sync: options.sync ?? { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
 					behindTarget: 0,
 				},
 				error: null,
@@ -171,7 +184,9 @@ async function seedPanel(
 			return output(`${ROOT}/.git\n`);
 		}
 		if (command.program === "gh" && command.args.includes("graphql")) {
-			if (command.args.some((arg) => arg.includes("stackEntry"))) return output(stackAnswer);
+			if (command.args.some((arg) => arg.includes("stackEntry"))) {
+				return output(options.stacked === false ? notStackedAnswer : stackAnswer);
+			}
 			if (command.args.some((arg) => arg.includes("mergeStateStatus"))) {
 				return output(readinessAnswer(lowerState, "CLEAN"));
 			}
@@ -181,6 +196,9 @@ async function seedPanel(
 		}
 		if (command.program === "gh" && command.args[1]?.includes("/stacks/5") === true) {
 			return output(membersAnswer);
+		}
+		if (command.program === "gh" && command.args[0] === "stack" && command.args[1] === "sync") {
+			return options.stackSync ?? output("✓ Stack synced\n");
 		}
 		return output();
 	});
@@ -273,5 +291,74 @@ describe("PR-08 Merge stack in the git panel", () => {
 
 		expect((await screen.findAllByText("#11 isn't ready to merge")).length).toBeGreaterThan(0);
 		expect(screen.queryByRole("button", { name: /Merge/ })).toBeNull();
+	});
+});
+
+describe("PR-08 Resolve on a stacked branch incompatible with its remote", () => {
+	const diverged: BranchSync = { ahead: 1, behind: 2, rewritten: false, hasUpstream: true };
+
+	/** Records what the agent is asked, at the seam between the git panel's services and a chat. */
+	const recordAgent = (harness: TestContainer): string[] => {
+		const sent: string[] = [];
+		// seam: PR-08 the chat is the agent's door; the test reads what reaches it, not a reply.
+		vi.spyOn(harness.container.services.sessions, "sendInstruction").mockImplementation(
+			async (_workspaceId, text) => {
+				sent.push(text);
+				return ok("session-1" as SessionId);
+			},
+		);
+		return sent;
+	};
+
+	const stackSyncs = (harness: TestContainer) =>
+		harness.memory.controls.shellCalls.filter(
+			(command) =>
+				command.program === "gh" && command.args[0] === "stack" && command.args[1] === "sync",
+		);
+
+	it("runs gh stack sync and asks the agent nothing when the sync succeeds", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { sync: diverged });
+		const sent = recordAgent(harness);
+		await renderPanel(harness, workspace);
+		// The stack has been read once the stack view lists its lower pull request.
+		await screen.findByText(/Add the parser/);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Resolve" }));
+
+		await waitFor(() => expect(stackSyncs(harness)).toHaveLength(1));
+		expect(stackSyncs(harness)[0]?.cwd).toBe("/code/workspaces/pr-08-panel");
+		// The sync's pending state clears when it has finished, so any fallback would be sent by now.
+		await waitFor(() =>
+			expect(
+				harness.container.services.github.store.getState().pendingActions[workspace.id],
+			).toBeUndefined(),
+		);
+		expect(sent).toEqual([]);
+	});
+
+	it("asks the agent to resolve the incompatibility when the stack sync fails", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", {
+			sync: diverged,
+			stackSync: output("", 'unknown command "stack" for "gh"\n', 1),
+		});
+		const sent = recordAgent(harness);
+		await renderPanel(harness, workspace);
+		await screen.findByText(/Add the parser/);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Resolve" }));
+
+		await waitFor(() => expect(sent).toEqual(["Resolve branch incompatibility with remote"]));
+		expect(stackSyncs(harness)).toHaveLength(1);
+	});
+
+	it("asks the agent at once when the pull request is not in a stack", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { sync: diverged, stacked: false });
+		const sent = recordAgent(harness);
+		await renderPanel(harness, workspace);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Resolve" }));
+
+		await waitFor(() => expect(sent).toEqual(["Resolve branch incompatibility with remote"]));
+		expect(stackSyncs(harness)).toHaveLength(0);
 	});
 });

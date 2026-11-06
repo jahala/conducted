@@ -119,7 +119,7 @@ describe("GIT-04 git header state machine", () => {
 				}),
 				kind: "diverged",
 				title: "Incompatible with remote",
-				action: "resolve",
+				action: "resolve_incompatible",
 			},
 			{
 				name: "behind",

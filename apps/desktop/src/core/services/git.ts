@@ -43,6 +43,8 @@
  * fetches it at most once a minute for one repository and branch. PR-08 supplies the Graphite
  * parent of the branch, and that local parent is then the diff target; the pull request base is
  * used when Graphite reports none.
+ * PR-08 Resolve on a branch incompatible with its remote: when no stack sync fixed it, the agent
+ * gets Conductor's one-line request (`resolveIncompatible`), with no repository prompt.
  * PR-08 range scope: resolves the workspace's stack pull requests in its repository
  * (git/stack-range.ts), fetching the branches of missing commits at most once a minute for one
  * repository and branch, apart from the GIT-13 fetch, and compares the run the scope names. A
@@ -175,6 +177,7 @@ import {
 	commitAndPushInstruction,
 	pullRebaseStrategy,
 	pullStrategy,
+	RESOLVE_INCOMPATIBLE_INSTRUCTION,
 	reconcileInstruction,
 	resolveConflictsInstruction,
 } from "./agent-instructions.ts";
@@ -1760,6 +1763,20 @@ export class GitService {
 			strategy: strategy.value,
 		});
 		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+		return sent.ok ? ok(undefined) : err(sent.error);
+	}
+
+	/**
+	 * Asks the agent to resolve a branch that is incompatible with its remote. The Git panel calls
+	 * it for the header's Resolve on a diverged branch, after a stack sync failed or when the pull
+	 * request is not in a GitHub stack (services-map 3.8.2). The message carries no steps: the
+	 * agent reads the branch state itself, as in Conductor.
+	 */
+	async resolveIncompatible(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const sent = await this.#deps.agent.sendInstruction(
+			workspaceId,
+			RESOLVE_INCOMPATIBLE_INSTRUCTION,
+		);
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 

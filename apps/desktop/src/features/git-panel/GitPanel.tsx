@@ -6,7 +6,8 @@
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * @feature GIT-14 Local-git forge: header state and the merge request to the agent
  * @feature PR-08 the stack readiness the header reads for its "Merge stack" action, which runs the
- * stack merge, and the Graphite poll for the repository of the workspace on screen
+ * stack merge, the header's Resolve on a branch incompatible with its remote, which syncs a GitHub
+ * stack first, and the Graphite poll for the repository of the workspace on screen
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
  * embedded by the workspace screen.
@@ -74,7 +75,7 @@ import {
 	type GitHeaderActionId,
 	type GitHeaderInputs,
 } from "../../core/status/git-header.ts";
-import { headerStackInput } from "../../core/status/stack-readiness.ts";
+import { headerStackInput, isInGitHubStack } from "../../core/status/stack-readiness.ts";
 import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
@@ -298,6 +299,20 @@ export function GitPanel({
 				return run(actions.git.push(workspaceId), "Couldn't push");
 			case "resolve":
 				return run(actions.git.resolveConflicts(workspaceId), "Couldn't ask the agent to resolve");
+			case "resolve_incompatible": {
+				// A stacked branch first tries `gh stack sync`, as Conductor does. When the sync fails,
+				// Conductor shows no error of its own: it asks the agent instead, and so does this.
+				const pullRequest = git.state === "ready" ? git.data.pullRequest : null;
+				const entries = stack.state === "ready" ? stack.data : null;
+				if (isInGitHubStack(pullRequest, entries)) {
+					const synced = await actions.pullRequests.syncStack(workspaceId);
+					if (synced.ok) return;
+				}
+				return run(
+					gitService.resolveIncompatible(workspaceId),
+					"Couldn't ask the agent to resolve",
+				);
+			}
 			case "ready_for_review":
 				return run(
 					actions.pullRequests.markReady(workspaceId),
