@@ -24,6 +24,7 @@ import { type StartedApp, startApp } from "../main.tsx";
 import { CatalogueIndex } from "./CatalogueIndex.tsx";
 import { CATALOGUE_MARKER } from "./marker.ts";
 import { setSetting } from "./seeds.ts";
+import { openCatalogueDatabase } from "./sqlite.ts";
 import type { CatalogueState, Scene, Theme } from "./state.ts";
 import { CATALOGUE_STATES } from "./states/index.ts";
 import { createWorld } from "./world.ts";
@@ -111,7 +112,7 @@ async function mountState(
 	state: CatalogueState,
 	theme: Theme,
 ): Promise<void> {
-	const world = await createWorld();
+	const world = createWorld(await openCatalogueDatabase());
 	await setSetting(world, "theme", theme);
 	const scene = await state.seed(world);
 	const app = startApp({
