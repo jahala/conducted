@@ -24,6 +24,8 @@ export interface PopoverProps {
 	/** Opens on hover and focus instead of click. */
 	hover?: boolean;
 	className?: string;
+	/** Told when the popover opens or closes, for content that is read on opening. */
+	onOpenChange?: (open: boolean) => void;
 }
 
 const contentClass = "z-50 rounded-lg bg-raised p-3 text-sm text-fg shadow-popover outline-none";
@@ -35,10 +37,11 @@ export function Popover({
 	align = "center",
 	hover = false,
 	className,
+	onOpenChange,
 }: PopoverProps) {
 	if (hover) {
 		return (
-			<HoverCard.Root openDelay={200} closeDelay={150}>
+			<HoverCard.Root openDelay={200} closeDelay={150} onOpenChange={onOpenChange}>
 				<HoverCard.Trigger asChild>{trigger}</HoverCard.Trigger>
 				<HoverCard.Portal>
 					<HoverCard.Content
@@ -54,7 +57,7 @@ export function Popover({
 		);
 	}
 	return (
-		<Radix.Root>
+		<Radix.Root onOpenChange={onOpenChange}>
 			<Radix.Trigger asChild>{trigger}</Radix.Trigger>
 			<Radix.Portal>
 				<Radix.Content

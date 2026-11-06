@@ -1,24 +1,21 @@
 /**
  * @feature CHAT-28 Account and rate-limit rows in the usage popover
- * Owns: tests of the account and plan-usage rows: which fields show, the middle-cut email with its
- * full value, the limit bars, reset text, window names and the Codex waiting note.
- * Behaviour: docs/research/conductor/claude-runner.md 7 and coverage/inventory-controls.md
- * ("Account details in the plan usage popover").
- * Test first: login method "Claude subscription" and plan "Max" show two rows and no Organization
- * or Email row.
+ * Owns: tests of the usage section of the context card: the heading, each limit window with what
+ * is left and when it resets, the warning, the loading and empty notes, and the account rows.
+ * Behaviour: Conductor's popover (renderApp `TGi`, `SXo`, `yXo`, `xXo` for the windows; `BXo` and
+ * `EGi` for the rows); coverage/inventory-controls.md ("Account details in the plan usage
+ * popover").
+ * Test first: a Claude account with plan "Max" and login method "Claude account" shows those rows
+ * and no Organization row.
  */
 import type { RateLimit } from "@conducted/protocol";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { UsageAccountRows, type UsageAccount } from "./UsageAccountRows.tsx";
+import { type UsageAccount, UsageAccountRows, type UsageAnswer } from "./UsageAccountRows.tsx";
 
 const NOW = 1_800_000_000_000;
 
 afterEach(cleanup);
-
-function account(over: Partial<UsageAccount> = {}): UsageAccount {
-	return { loginMethod: "Claude subscription", plan: "Max", ...over };
-}
 
 function limit(over: Partial<RateLimit> = {}): RateLimit {
 	return { label: "5-hour limit", usedPercent: 42, windowMinutes: 300, ...over };
@@ -26,127 +23,172 @@ function limit(over: Partial<RateLimit> = {}): RateLimit {
 
 function renderRows(
 	over: {
-		account?: UsageAccount | null;
+		agent?: "claude" | "codex";
+		account?: UsageAccount;
 		rateLimits?: RateLimit[];
-		limitsPending?: boolean;
-		now?: number;
+		answer?: UsageAnswer | null;
+		loading?: boolean;
 	} = {},
 ) {
+	const answer: UsageAnswer | null =
+		over.answer !== undefined
+			? over.answer
+			: { rateLimits: over.rateLimits ?? [], ...(over.account ? { account: over.account } : {}) };
 	return render(
 		<UsageAccountRows
-			account={over.account === undefined ? account() : over.account}
-			rateLimits={over.rateLimits ?? []}
-			limitsPending={over.limitsPending ?? false}
-			now={over.now ?? NOW}
+			agent={over.agent ?? "claude"}
+			answer={answer}
+			loading={over.loading ?? false}
+			now={NOW}
 		/>,
 	);
 }
 
-describe("CHAT-28 account rows", () => {
-	it("shows login method and plan only when the account has just those two", () => {
-		renderRows({ account: account({ loginMethod: "Claude subscription", plan: "Max" }) });
+/** The label and value of each account row, in order. */
+function rows(): [string, string][] {
+	const list = screen.queryByRole("list", { name: "Account" });
+	if (list === null) return [];
+	return within(list)
+		.getAllByRole("listitem")
+		.map((item) => {
+			const [label, value] = Array.from(item.children).map((child) => child.textContent ?? "");
+			return [label ?? "", value ?? ""];
+		});
+}
 
-		expect(screen.getByText("Login method")).toBeTruthy();
-		expect(screen.getByText("Claude subscription")).toBeTruthy();
-		expect(screen.getByText("Plan")).toBeTruthy();
-		expect(screen.getByText("Max")).toBeTruthy();
-		expect(screen.queryByText("Organization")).toBeNull();
-		expect(screen.queryByText("Email")).toBeNull();
-	});
-
-	it("shows organization and email when the account carries them", () => {
+describe("CHAT-28 usage section of the context card", () => {
+	it("shows a Claude account's provider, plan, login method and email, and no organization", () => {
 		renderRows({
-			account: account({
+			account: {
+				provider: "Anthropic API",
+				plan: "Max",
+				loginMethod: "Claude account",
 				organization: "Anthropic",
 				email: "person@example.com",
-			}),
+			},
 		});
 
-		expect(screen.getByText("Organization")).toBeTruthy();
-		expect(screen.getByText("Anthropic")).toBeTruthy();
-		expect(screen.getByText("Email")).toBeTruthy();
-		expect(screen.getByText("person@example.com")).toBeTruthy();
+		expect(screen.getByText("Claude usage")).toBeTruthy();
+		expect(rows()).toEqual([
+			["Provider", "Anthropic API"],
+			["Plan", "Max"],
+			["Login method", "Claude account"],
+			["Email", "person@example.com"],
+		]);
+		expect(screen.queryByText("Organization")).toBeNull();
 	});
 
-	it("leaves a fieldless account with no rows at all", () => {
-		const { container } = renderRows({ account: {} });
-		expect(container.textContent).toBe("");
+	it("shows only the rows the account has", () => {
+		renderRows({ account: { plan: "Max", loginMethod: "Claude account" } });
+
+		expect(rows()).toEqual([
+			["Plan", "Max"],
+			["Login method", "Claude account"],
+		]);
 	});
 
-	it("cuts a long email in the middle and keeps the full text in the tooltip", () => {
-		const email = "a.very.long.email.address.for.testing@example.com";
-		renderRows({ account: account({ email }) });
+	it("labels a key sign-in Auth", () => {
+		renderRows({ account: { auth: "API key" } });
 
-		expect(screen.getByText("Email")).toBeTruthy();
-		const full = screen.getByTitle(email);
-		expect(full.textContent).toContain("…");
-		expect(full.textContent).not.toBe(email);
-	});
-});
-
-describe("CHAT-28 plan usage rows", () => {
-	it("renders nothing when there is no account and no limit", () => {
-		const { container } = renderRows({ account: null });
-		expect(container.textContent).toBe("");
+		expect(rows()).toEqual([["Auth", "API key"]]);
 	});
 
-	it("shows a plan usage heading with the reported percentage and window name", () => {
-		renderRows({ account: null, rateLimits: [limit({ usedPercent: 42 })] });
-
-		expect(screen.getByText("Plan usage")).toBeTruthy();
-		expect(screen.getByText("5-hour limit")).toBeTruthy();
-		expect(screen.getByText("42%")).toBeTruthy();
-		expect(screen.getByText("5 hours")).toBeTruthy();
-	});
-
-	it("names the seven-day window Weekly and any other window from its minutes", () => {
+	it("labels a Codex email Account and heads the section Codex usage", () => {
 		renderRows({
-			account: null,
+			agent: "codex",
+			account: { provider: "OpenAI", plan: "Plus", auth: "ChatGPT login", email: "me@x.com" },
+		});
+
+		expect(screen.getByText("Codex usage")).toBeTruthy();
+		expect(rows()).toEqual([
+			["Provider", "OpenAI"],
+			["Plan", "Plus"],
+			["Auth", "ChatGPT login"],
+			["Account", "me@x.com"],
+		]);
+	});
+
+	it("keeps a long email whole in its title while the row cuts it", () => {
+		const email = "a.very.long.address.for.someone@an-example-company.example.com";
+		renderRows({ account: { email } });
+
+		const value = screen.getByText(email);
+		expect(value.getAttribute("title")).toBe(email);
+		expect(value.className).toContain("truncate");
+	});
+
+	it("names each window from its length and shows what is left", () => {
+		renderRows({
 			rateLimits: [
-				limit({ label: "Weekly limit", usedPercent: 10, windowMinutes: 10_080 }),
-				limit({ label: "Short limit", usedPercent: 20, windowMinutes: 90 }),
+				limit({ usedPercent: 42, windowMinutes: 300 }),
+				limit({ label: "7-day limit", usedPercent: 10, windowMinutes: 10_080 }),
+				limit({ label: "Short", usedPercent: 0, windowMinutes: 90 }),
 			],
 		});
 
-		expect(screen.getByText("Weekly")).toBeTruthy();
-		expect(screen.getByText("90 minutes")).toBeTruthy();
+		expect(screen.getByText("5h limit")).toBeTruthy();
+		expect(screen.getByText("58% left")).toBeTruthy();
+		expect(screen.getByText("7d limit")).toBeTruthy();
+		expect(screen.getByText("90% left")).toBeTruthy();
+		expect(screen.getByText("90m limit")).toBeTruthy();
+		expect(
+			screen.getByRole("progressbar", { name: "5h limit" }).getAttribute("aria-valuenow"),
+		).toBe("58");
 	});
 
-	it("clamps the bar at 100 percent but shows the percentage as reported", () => {
-		renderRows({ account: null, rateLimits: [limit({ usedPercent: 140 })] });
+	it("uses the window's own label when its length is not known", () => {
+		renderRows({ rateLimits: [limit({ label: "Primary limit", windowMinutes: undefined })] });
 
-		expect(screen.getByText("140%")).toBeTruthy();
-		const bar = screen.getByRole("progressbar", { name: "5-hour limit" });
-		expect(bar.getAttribute("aria-valuenow")).toBe("100");
-		const fill = bar.firstElementChild as HTMLElement | null;
-		expect(fill?.style.width).toBe("100%");
+		expect(screen.getByText("Primary limit")).toBeTruthy();
 	});
 
-	it("says Resetting when the reset time has passed", () => {
+	it("never shows less than nothing left", () => {
+		renderRows({ rateLimits: [limit({ usedPercent: 140 })] });
+
+		expect(screen.getByText("0% left")).toBeTruthy();
+		expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("0");
+	});
+
+	it("warns at 20 percent left or less", () => {
+		renderRows({ rateLimits: [limit({ usedPercent: 81 })] });
+		expect(screen.getByText("You're approaching your Claude usage limit.")).toBeTruthy();
+		cleanup();
+
+		renderRows({ rateLimits: [limit({ usedPercent: 79 })] });
+		expect(screen.queryByText("You're approaching your Claude usage limit.")).toBeNull();
+	});
+
+	it("drops a window whose reset time has passed and says when the others reset", () => {
 		renderRows({
-			account: null,
-			rateLimits: [limit({ resetsAt: NOW - 60_000 })],
-			now: NOW,
+			rateLimits: [
+				limit({ usedPercent: 99, resetsAt: NOW - 60_000 }),
+				limit({ label: "7-day limit", windowMinutes: 10_080, resetsAt: NOW + 3_600_000 }),
+				limit({ label: "Short", windowMinutes: 90 }),
+			],
 		});
 
-		expect(screen.getByText("Resetting")).toBeTruthy();
+		expect(screen.queryByText("5h limit")).toBeNull();
+		expect(screen.getByText(/^Resets \w{3} \d{1,2}, \d{4}, /)).toBeTruthy();
+		expect(screen.getByText("Resets reset time unavailable")).toBeTruthy();
 	});
 
-	it("counts down to a future reset time", () => {
-		renderRows({
-			account: null,
-			rateLimits: [limit({ resetsAt: NOW + 2 * 60 * 60 * 1000 + 30 * 60 * 1000 })],
-			now: NOW,
-		});
+	it("says Loading usage while the answer is on its way", () => {
+		renderRows({ answer: null, loading: true });
 
-		expect(screen.getByText("Resets in 2h 30m")).toBeTruthy();
+		expect(screen.getByText("Loading usage…")).toBeTruthy();
 	});
 
-	it("says usage data is not available yet for Codex instead of zero percent", () => {
-		renderRows({ account: null, rateLimits: [], limitsPending: true });
+	it("says the provider gave no usage data when there is no window", () => {
+		renderRows({ answer: null });
+		expect(
+			screen.getByText("Usage data unavailable from provider. It refreshes after Claude responds."),
+		).toBeTruthy();
+		cleanup();
 
-		expect(screen.getByText("Usage data is not available yet.")).toBeTruthy();
-		expect(screen.queryByRole("progressbar")).toBeNull();
-		expect(screen.queryByText("0%")).toBeNull();
+		renderRows({ agent: "codex", rateLimits: [] });
+		expect(
+			screen.getByText("Usage data unavailable from provider. It refreshes after Codex responds."),
+		).toBeTruthy();
+		expect(screen.queryByRole("list", { name: "Account" })).toBeNull();
 	});
 });

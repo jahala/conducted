@@ -91,6 +91,7 @@
 import {
 	type AcpConfigOption,
 	type AgentLaunch,
+	type appToSidecarRequests,
 	type Interaction,
 	type InteractionAnswer,
 	type InteractionRequest,
@@ -98,6 +99,7 @@ import {
 	type LiveState,
 	type Progress,
 	type RemoteControlStatus,
+	type ResultOf,
 	type SessionConfig,
 	type SessionEvent,
 	type WorkspaceContext,
@@ -363,6 +365,9 @@ export interface SessionsServiceDeps {
 	now: () => number;
 	newId: () => string;
 }
+
+/** The sidecar's usage answer for one chat (SIDE-17, CHAT-28). */
+export type ContextUsageAnswer = ResultOf<(typeof appToSidecarRequests)["getContextUsage"]>;
 
 /** The message that carries the diagnostics report into the new chat. Our words. */
 const DIAGNOSTICS_CHAT_PROMPT = "Here is my Conducted diagnostics report.";
@@ -1251,6 +1256,14 @@ export class SessionsService implements AgentMessenger {
 	 * Asks the sidecar for a chat's Remote Control link, for a chat shown after the app reloaded. A
 	 * chat the sidecar does not know has none running.
 	 */
+	/**
+	 * Asks the sidecar for a chat's context and plan usage and its signed-in account, for the
+	 * context card (SIDE-17, CHAT-28). Read on demand; nothing is kept here.
+	 */
+	contextUsage(sessionId: SessionId): Promise<Result<ContextUsageAnswer>> {
+		return this.#deps.sidecar.request("getContextUsage", { sessionId });
+	}
+
 	async refreshRemoteControl(sessionId: SessionId): Promise<Result<void>> {
 		const ticket = this.#remoteControlRequests.begin(sessionId);
 		const status = await this.#deps.sidecar.request("getSessionStatus", { sessionId });

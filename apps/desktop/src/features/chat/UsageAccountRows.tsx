@@ -1,143 +1,176 @@
 /**
  * @feature CHAT-28 Account and rate-limit rows in the usage popover
- * Owns: the rows at the bottom of the usage hover card that say who the agent is signed in as
- * (login method, organization, email, plan) and the plan usage rows with their bars.
- * Behaviour: coverage/inventory-controls.md ("Account details in the plan usage popover": "Login
- * method", "Organization", "Email" and "Plan"; for Codex primary and secondary limits, and a note
- * when usage data is not available yet); claude-runner.md 7 (plan usage: five-hour and seven-day
- * windows, each with a used percentage and a reset time; failures leave the rows out).
- * Data: the sidecar's `getContextUsage` answer carries `account` and `rateLimits`.
- * Must handle: an account with only some fields (only the rows that have a value are shown); no
- * account and no limits (nothing shown, and no empty heading); an email that is long (cut in the
- * middle, full text in a tooltip); a limit above 100 percent (clamped for the bar, the number shown
- * as reported); a reset time in the past (shown as "Resetting"); a window length of 300 or 10,080
- * minutes (named "5 hours" and "Weekly", other lengths named from the minutes); Codex that has not
- * reported yet (the "not available yet" note, not zero percent); the email being private (it is
- * shown only inside this popover and never logged).
- * Test first: an account with login method "Claude subscription" and plan "Max" shows two rows and
- * no Organization or Email row.
+ * Owns: the usage section at the bottom of the context card for Claude and Codex chats: the
+ * "Claude usage" or "Codex usage" heading, each plan limit window with how much is left, its bar
+ * and its reset time, the warning near a limit, and the rows that say who the agent is signed in
+ * as.
+ * Behaviour: Conductor's card (renderApp `TGi`, `SXo`, `yXo`, `xXo`: a window is named from its
+ * length ("5h limit", "7d limit", "90m limit"), shows "N% left", warns at 20 percent left or less,
+ * and is dropped once its reset time has passed; `BXo` and `EGi`: the rows Provider, Plan,
+ * Login method or Auth, and Email, which Codex calls Account); claude-runner.md 7 (plan usage
+ * windows, failures leave the rows out); coverage/inventory-controls.md ("Account details in the
+ * plan usage popover").
+ * Data: the sidecar's `getContextUsage` answer, which ContextWheel asks for when its card opens.
+ * Must handle: an answer still on its way ("Loading usage…"); no answer or no window (the
+ * provider note); an account with only some fields (only those rows); a limit above 100 percent
+ * (0% left); a reset time that is not known ("Resets reset time unavailable"); a long email (cut,
+ * whole in its title); the email being private (shown only here, never logged).
+ * Our design choice: Conductor also lists the organization elsewhere; its popover leaves it out,
+ * and so does this one. Codex's "Using ChatGPT plan" row for an OpenAI-hosted model is not built.
+ * Test first: a Claude account with plan "Max" and login method "Claude account" shows those rows
+ * and no Organization row.
  */
 import type { appToSidecarRequests, RateLimit, ResultOf } from "@conducted/protocol";
-import { TruncatedText } from "../../ui/TruncatedText.tsx";
+import { cn } from "../../ui/cn.ts";
+import { Spinner } from "../../ui/Spinner.tsx";
+
+type ContextUsageAnswer = ResultOf<(typeof appToSidecarRequests)["getContextUsage"]>;
 
 /** The signed-in account in the sidecar's usage answer. */
-export type UsageAccount = NonNullable<
-	ResultOf<(typeof appToSidecarRequests)["getContextUsage"]>["account"]
->;
+export type UsageAccount = NonNullable<ContextUsageAnswer["account"]>;
+
+/** The parts of the usage answer this section draws. */
+export type UsageAnswer = Pick<ContextUsageAnswer, "rateLimits" | "account">;
 
 export interface UsageAccountRowsProps {
-	account: UsageAccount | null;
-	rateLimits: readonly RateLimit[];
-	/** Codex has not sent its limits yet. */
-	limitsPending: boolean;
+	agent: "claude" | "codex";
+	/** Null before an answer arrives, or when the sidecar could not give one. */
+	answer: UsageAnswer | null;
+	loading: boolean;
 	/** The current time in milliseconds, passed in so the reset text can be tested. */
 	now: number;
 }
 
-const FIVE_HOURS_MINUTES = 5 * 60;
-const WEEK_MINUTES = 7 * 24 * 60;
-const EMAIL_MAX_LENGTH = 38;
+/** At or below this many percent left, the window turns to the warning colour (Conductor's `kGi`). */
+const LOW_PERCENT_LEFT = 20;
 
-function windowName(minutes: number | undefined): string | null {
-	if (minutes === undefined) return null;
-	if (minutes === FIVE_HOURS_MINUTES) return "5 hours";
-	if (minutes === WEEK_MINUTES) return "Weekly";
-	return `${minutes} minutes`;
+const AGENT_NAME = { claude: "Claude", codex: "Codex" } as const;
+
+/** Conductor's window name: whole days, whole hours, else minutes. */
+function windowName(limit: RateLimit): string {
+	const minutes = limit.windowMinutes;
+	if (minutes === undefined) return limit.label;
+	if (minutes % 1440 === 0) return `${minutes / 1440}d limit`;
+	if (minutes % 60 === 0) return `${minutes / 60}h limit`;
+	return `${minutes}m limit`;
 }
 
-function resetText(resetsAt: number | undefined, now: number): string | null {
-	if (resetsAt === undefined) return null;
-	if (resetsAt <= now) return "Resetting";
-	const minutes = Math.max(1, Math.ceil((resetsAt - now) / 60_000));
-	if (minutes < 60) return `Resets in ${minutes}m`;
-	const hours = Math.floor(minutes / 60);
-	const restMinutes = minutes % 60;
-	if (hours < 24) return restMinutes === 0 ? `Resets in ${hours}h` : `Resets in ${hours}h ${restMinutes}m`;
-	const days = Math.floor(hours / 24);
-	const restHours = hours % 24;
-	return restHours === 0 ? `Resets in ${days}d` : `Resets in ${days}d ${restHours}h`;
+/** The reset time as Conductor writes it: a short date, then the time. */
+function resetText(resetsAt: number | undefined): string {
+	if (resetsAt === undefined) return "reset time unavailable";
+	const at = new Date(resetsAt);
+	const date = at.toLocaleDateString(undefined, {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+	});
+	const time = at.toLocaleTimeString(undefined, {
+		hour: "numeric",
+		minute: "2-digit",
+		hour12: true,
+	});
+	return `${date}, ${time}`;
 }
 
-function RateLimitRow({ limit, now }: { limit: RateLimit; now: number }) {
-	const clamped = Math.max(0, Math.min(100, limit.usedPercent));
-	const window = windowName(limit.windowMinutes);
-	const reset = resetText(limit.resetsAt, now);
-	const name = limit.label === "" ? (window ?? "Usage") : limit.label;
+interface WindowView {
+	name: string;
+	left: number;
+	resetsAt: number | undefined;
+}
+
+function windowsOf(limits: readonly RateLimit[], now: number): WindowView[] {
+	return limits
+		.filter((limit) => limit.resetsAt === undefined || limit.resetsAt > now)
+		.map((limit) => ({
+			name: windowName(limit),
+			left: Math.max(0, 100 - limit.usedPercent),
+			resetsAt: limit.resetsAt,
+		}));
+}
+
+function WindowRow({ window }: { window: WindowView }) {
+	const low = window.left <= LOW_PERCENT_LEFT;
+	const left = Math.round(window.left);
 	return (
-		<div>
-			<div className="flex items-baseline justify-between gap-2 text-xs">
-				<span className="min-w-0 truncate text-fg">{name}</span>
-				<span className="shrink-0 tabular-nums text-fg-muted">{limit.usedPercent}%</span>
+		<div className="flex flex-col gap-1">
+			<div className="flex justify-between gap-4 text-xs">
+				<span className="text-fg-muted">{window.name}</span>
+				<span className={cn("font-medium tabular-nums", low ? "text-warning" : "text-fg")}>
+					{left}% left
+				</span>
 			</div>
 			<div
 				role="progressbar"
-				aria-label={name}
+				aria-label={window.name}
 				aria-valuemin={0}
 				aria-valuemax={100}
-				aria-valuenow={clamped}
-				className="mt-1 h-1.5 overflow-hidden rounded-full bg-border"
+				aria-valuenow={left}
+				className="h-1.5 w-full overflow-hidden rounded-sm bg-border"
 			>
-				<div className="h-full rounded-full bg-accent" style={{ width: `${clamped}%` }} />
+				<div
+					className={cn("h-full rounded-sm", low ? "bg-warning" : "bg-fg")}
+					style={{ width: `${window.left}%` }}
+				/>
 			</div>
-			{window === null && reset === null ? null : (
-				<div className="mt-1 flex items-baseline justify-between gap-2 text-2xs text-fg-subtle">
-					<span>{window}</span>
-					<span>{reset}</span>
-				</div>
-			)}
+			<div className="text-2xs text-fg-muted">Resets {resetText(window.resetsAt)}</div>
 		</div>
 	);
 }
 
-/** The account and plan-usage rows below the context details. Nothing when there is nothing to say. */
-export function UsageAccountRows({ account, rateLimits, limitsPending, now }: UsageAccountRowsProps) {
-	const rows: { label: string; value: string; truncated?: boolean }[] = [];
-	if (account !== null) {
-		if (account.loginMethod !== undefined && account.loginMethod !== "") {
-			rows.push({ label: "Login method", value: account.loginMethod });
-		}
-		if (account.organization !== undefined && account.organization !== "") {
-			rows.push({ label: "Organization", value: account.organization });
-		}
-		if (account.email !== undefined && account.email !== "") {
-			rows.push({ label: "Email", value: account.email, truncated: true });
-		}
-		if (account.plan !== undefined && account.plan !== "") {
-			rows.push({ label: "Plan", value: account.plan });
-		}
-	}
-	const hasLimits = rateLimits.length > 0;
-	const showPending = limitsPending && !hasLimits;
-	if (rows.length === 0 && !hasLimits && !showPending) return null;
+/** The account rows in Conductor's order. Codex names its email row Account. */
+function accountRows(
+	agent: UsageAccountRowsProps["agent"],
+	account: UsageAccount | undefined,
+): { label: string; value: string }[] {
+	if (account === undefined) return [];
+	const rows: { label: string; value: string | undefined }[] = [
+		{ label: "Provider", value: account.provider },
+		{ label: "Plan", value: account.plan },
+		{ label: "Login method", value: account.loginMethod },
+		{ label: "Auth", value: account.auth },
+		{ label: agent === "codex" ? "Account" : "Email", value: account.email },
+	];
+	return rows.filter((row): row is { label: string; value: string } => (row.value ?? "") !== "");
+}
+
+/** The usage section of the context card for a Claude or Codex chat. */
+export function UsageAccountRows({ agent, answer, loading, now }: UsageAccountRowsProps) {
+	const name = AGENT_NAME[agent];
+	const windows = windowsOf(answer?.rateLimits ?? [], now);
+	const low = windows.some((window) => window.left <= LOW_PERCENT_LEFT);
+	const rows = accountRows(agent, answer?.account);
 
 	return (
-		<div className="mt-2 flex flex-col gap-3 border-t border-border pt-2">
-			{hasLimits ? (
+		<div className="flex flex-col gap-2 border-t border-border pt-2 text-xs">
+			<span className="text-sm font-medium text-fg">{name} usage</span>
+			{windows.length > 0 ? (
 				<div className="flex flex-col gap-2">
-					<span className="font-medium text-fg">Plan usage</span>
-					{rateLimits.map((limit, index) => (
-						<RateLimitRow key={`${limit.label}-${index}`} limit={limit} now={now} />
+					{windows.map((window) => (
+						<WindowRow key={window.name} window={window} />
 					))}
 				</div>
-			) : null}
-			{showPending ? (
-				<p className="text-xs text-fg-muted">Usage data is not available yet.</p>
-			) : null}
+			) : loading ? (
+				<div className="flex items-center gap-2 text-fg-muted">
+					<Spinner size="sm" label="Loading usage" />
+					<span>Loading usage…</span>
+				</div>
+			) : (
+				<p className="text-fg-muted">
+					Usage data unavailable from provider. It refreshes after {name} responds.
+				</p>
+			)}
+			{low ? <p className="text-warning">You're approaching your {name} usage limit.</p> : null}
 			{rows.length === 0 ? null : (
-				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+				<ul aria-label="Account" className="flex flex-col border-t border-border pt-1">
 					{rows.map((row) => (
-						<div key={row.label} className="contents">
-							<dt className="text-fg-muted">{row.label}</dt>
-							<dd className="min-w-0">
-								{row.truncated === true ? (
-									<TruncatedText text={row.value} maxLength={EMAIL_MAX_LENGTH} />
-								) : (
-									row.value
-								)}
-							</dd>
-						</div>
+						<li key={row.label} className="flex justify-between gap-4 py-0.5">
+							<span className="shrink-0 text-fg-muted">{row.label}</span>
+							<span title={row.value} className="min-w-0 truncate text-fg-subtle">
+								{row.value}
+							</span>
+						</li>
 					))}
-				</dl>
+				</ul>
 			)}
 		</div>
 	);
