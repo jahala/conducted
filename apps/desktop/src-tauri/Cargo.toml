@@ -48,7 +48,7 @@ nucleo-matcher = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "system-proxy", "charset", "http2"] }
 futures-util = "0.3"
 sha2 = "0.10"
-tokio = { version = "1", features = ["fs", "io-util", "macros"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
 [dev-dependencies]

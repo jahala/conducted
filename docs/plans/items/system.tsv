@@ -27,7 +27,7 @@ GIT-11	script	The bundled git-busy-check script reports whether git is mid-opera
 DATA-01	store	The main database holds the repos, workspaces, chats and events; ours has 13 tables and 3 migrations, with one event log per chat (D006).	overview 5	covered
 DATA-01	store	Conductor's separate client-side message cache database; ours has none and the UI reads the one database.	overview 5	covered
 SIDE-06	store	Session event outbox, one JSON file per chat.	overview 5	covered
-PLAT-28	capability	The app downloads, verifies and updates its own copies of claude and codex in an agent-binaries folder and a bin folder, and removes old versions.	overview 5	missing
+PLAT-28	capability	The app downloads, verifies and updates its own copies of claude and codex in an agent-binaries folder and a bin folder, and removes old versions.	overview 5	partly
 PR-01	capability	The gh program is bundled in Conductor's bin folder; ours uses the user's own gh.	overview 5	covered
 RUN-08	capability	The watchexec program is bundled in Conductor's bin folder for the spotlighter script; ours expects watchexec on the PATH.	overview 5	covered
 DATA-05	store	Global settings file in the user's home folder; the settings registry reads it but the data model has no row for it.	overview 5	partly
@@ -618,7 +618,7 @@ CLOUD-10	rule	Cloud workspaces have a TCP tunnel core for port forwarding.	nativ
 CLOUD-09	rule	Cloud workspaces have a workspace runtime core that runs terminals, scripts and previews remotely.	native-and-sidecar-map A1	covered
 PLAT-02	rule	App startup registers plugins, menus and window state.	native-and-sidecar-map A2	covered
 PLAT-27	startup	App startup raises the open-file limit and forwards Rust panics to the log.	native-and-sidecar-map A2	missing
-PLAT-28	startup	App startup prepares the Claude Code and Codex programs before agents run.	native-and-sidecar-map A2	missing
+PLAT-28	startup	App startup prepares the Claude Code and Codex programs before agents run.	native-and-sidecar-map A2	covered
 PLAT-03	command	execute_shell_command runs a shell command and returns its output.	native-and-sidecar-map A2	covered
 PLAT-03	command	execute_shell_command_cancellable starts a cancellable shell command.	native-and-sidecar-map A2	covered
 PLAT-03	command	cancel_shell_command kills the command's whole process group.	native-and-sidecar-map A2	covered
@@ -670,11 +670,11 @@ PLAT-30	command	native_http fetch makes an HTTP request from Rust with proxy set
 PLAT-30	command	native_http download fetches a file with progress and cancel (used for agent programs and updates).	native-and-sidecar-map A2	missing
 PLAT-30	command	native_http upload sends a file with progress and cancel.	native-and-sidecar-map A2	partly
 CLOUD-03	command	raw_websocket commands open and use a WebSocket from Rust.	native-and-sidecar-map A2	covered
-PLAT-28	command	Binary manager command that returns the install state of Claude Code and Codex.	native-and-sidecar-map A2	missing
-PLAT-28	command	Binary manager command that requests an install of an agent program.	native-and-sidecar-map A2	missing
-PLAT-28	command	Binary manager command that downloads an agent program again.	native-and-sidecar-map A2	missing
-PLAT-28	command	Binary manager command that removes an installed agent program.	native-and-sidecar-map A2	missing
-PLAT-28	command	Binary manager command that prefetches agent programs in the background.	native-and-sidecar-map A2	missing
+PLAT-28	command	Binary manager command that returns the install state of Claude Code and Codex.	native-and-sidecar-map A2	covered
+PLAT-28	command	Binary manager command that requests an install of an agent program.	native-and-sidecar-map A2	covered
+PLAT-28	command	Binary manager command that downloads an agent program again.	native-and-sidecar-map A2	covered
+PLAT-28	command	Binary manager command that removes an installed agent program.	native-and-sidecar-map A2	covered
+PLAT-28	command	Binary manager command that prefetches agent programs in the background.	native-and-sidecar-map A2	covered
 PLAT-28	command	Binary manager command that records a user-chosen agent program path override.	native-and-sidecar-map A2	missing
 PLAT-28	command	sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.	native-and-sidecar-map A2	partly
 PLAT-13	command	check_for_updates checks for a new app version.	native-and-sidecar-map A2	covered
@@ -704,7 +704,7 @@ PLAT-17	rule	A newer database blocks startup; each migration also ships its undo
 PLAT-17	store	Database migrations apply at startup for the main database (we have no second cache database).	native-and-sidecar-map A2	covered
 PLAT-26	integration	A network change watcher notices going offline or online.	native-and-sidecar-map A2	missing
 PLAT-22	integration	Navigation guard keeps the webview on the app origin and opens outside links in the browser.	native-and-sidecar-map A2	missing
-PLAT-28	integration	Quarantine flag is stripped from downloaded agent programs so they run.	native-and-sidecar-map A2	missing
+PLAT-28	integration	Quarantine flag is stripped from downloaded agent programs so they run.	native-and-sidecar-map A2	covered
 PLAT-09	rule	Stdout and stderr of the shell go to the Tauri log; ours writes sidecar output to its own log file.	native-and-sidecar-map A2	covered
 PLAT-29	rule	The webview may read only listed paths (~/.claude.json, ~/.claude, Claude Desktop config); ours accepts any absolute path.	native-and-sidecar-map A3	partly
 PLAT-29	rule	Shell access is limited to named scopes (bash, kill, which, open, sidecar); ours runs any program.	native-and-sidecar-map A3	partly
@@ -713,7 +713,7 @@ PLAT-09	rpc	rpc_from_sidecar event delivers sidecar lines to the UI.	native-and-
 PLAT-07	rpc	pty-data event delivers terminal output.	native-and-sidecar-map A4	covered
 PLAT-07	rpc	pty-exit event reports a terminal exit.	native-and-sidecar-map A4	covered
 PLAT-07	rpc	pty-ready event reports a terminal is ready.	native-and-sidecar-map A4	covered
-PLAT-28	rpc	agent_binary_progress event reports download progress of an agent program.	native-and-sidecar-map A4	missing
+PLAT-28	rpc	agent_binary_progress event reports download progress of an agent program.	native-and-sidecar-map A4	covered
 PLAT-34	rpc	binary_verification_errors event reports agent programs that failed verification.	native-and-sidecar-map A4	missing
 PLAT-13	rpc	manual_update_status event reports update download state.	native-and-sidecar-map A4	covered
 CLOUD-10	rpc	port-forward-event reports port forward state.	native-and-sidecar-map A4	missing
@@ -772,7 +772,7 @@ SIDE-07	timeout	Two warm agent processes are kept.	native-and-sidecar-map A6 9	c
 PLAT-09	rule	Rust has no restart loop; the app restarts the sidecar on demand (D013).	native-and-sidecar-map A6 9	covered
 PLAT-28	timeout	The sidecar start timeout waits for agent program preparation to finish.	native-and-sidecar-map A6 9	missing
 PLAT-09	store	The sidecar log is a file with mode 0600, per process id; ours keeps five in the app log folder.	native-and-sidecar-map A6 10	covered
-PLAT-28	integration	The app bin folder is appended to PATH so claude, codex and gh resolve in terminals.	native-and-sidecar-map A6 11	missing
+PLAT-35	integration	The app bin folder is appended to PATH so claude, codex and gh resolve in terminals.	native-and-sidecar-map A6 11	missing
 PLAT-04	integration	The login-shell PATH is repaired at startup.	native-and-sidecar-map A6 11	covered
 PLAT-16	integration	Deep link scheme list has several variant schemes; ours has one (conducted).	native-and-sidecar-map A8	covered
 PLAT-16	rule	The host picks the route and the UI parses the link.	native-and-sidecar-map A8	covered
@@ -792,10 +792,11 @@ PLAT-13	integration	The plugin update path installs a new version.	native-and-si
 PLAT-13	integration	The manual update path retries with backoff and keeps its state across restarts.	native-and-sidecar-map A9	covered
 PLAT-13	integration	Release notes of the installed version are shown after relaunch.	native-and-sidecar-map A9	partly
 PLAT-28	integration	The update manifest also carries new agent programs.	native-and-sidecar-map A9	missing
-PLAT-28	rule	Agent program versions are pinned per app version.	native-and-sidecar-map A9	missing
-PLAT-28	store	Each agent install keeps metadata with size and mtime checks.	native-and-sidecar-map A9	missing
-PLAT-28	state	Each agent program keeps retry state after a failed download.	native-and-sidecar-map A9	missing
-PLAT-28	rule	Old agent program versions are pruned.	native-and-sidecar-map A9	missing
+PLAT-28	rule	Agent program versions are pinned per app version.	native-and-sidecar-map A9	covered
+PLAT-28	rule	The release feed (agent-binaries/manifest.json, or data compiled into the app) gives the official download URL, size and SHA-256 of each pinned program for darwin-arm64; nothing produces it yet, so every install fails with program_release_missing (found by the slice 2 step 3 rust audit).	native-and-sidecar-map A9	missing
+PLAT-28	store	Each agent install keeps metadata with size and mtime checks.	native-and-sidecar-map A9	covered
+PLAT-28	state	Each agent program keeps retry state after a failed download.	native-and-sidecar-map A9	covered
+PLAT-28	rule	Old agent program versions are pruned.	native-and-sidecar-map A9	covered
 PLAT-34	startup	Launch verification copies bin, runs each program and re-copies on failure.	native-and-sidecar-map A9	missing
 CLOUD-10	rule	port_forward uses token requests and shows an error page when the forward fails.	native-and-sidecar-map A10	missing
 CLOUD-09	rule	tcp_tunnel carries multiplexed streams to the cloud workspace.	native-and-sidecar-map A10	covered
@@ -910,10 +911,10 @@ PLAT-08	store	local-storage.entries keeps terminal history.	native-and-sidecar-m
 DATA-07	store	local-storage.entries keeps a cache of git PR data; ours has no row for it in the data model.	native-and-sidecar-map D1	missing
 SIDE-06	store	sidecar-v2-session-event-outbox folder holds the event outbox.	native-and-sidecar-map D1	covered
 SIDE-22	store	sidecar-v2-completions/slash-command-snapshots.json holds slash-command snapshots.	native-and-sidecar-map D1	missing
-PLAT-28	store	The agent-binaries folder holds downloaded agent programs.	native-and-sidecar-map D1	missing
-PLAT-28	store	The .meta folder holds per-install metadata for agent programs.	native-and-sidecar-map D1	missing
+PLAT-28	store	The agent-binaries folder holds downloaded agent programs.	native-and-sidecar-map D1	covered
+PLAT-28	store	The .meta folder holds per-install metadata for agent programs.	native-and-sidecar-map D1	covered
 PLAT-28	store	The acp-providers folder holds downloaded ACP adapters.	native-and-sidecar-map D1	missing
-PLAT-28	store	The bin folder holds PATH shims for agent programs.	native-and-sidecar-map D1	missing
+PLAT-28	store	The bin folder holds PATH shims for agent programs.	native-and-sidecar-map D1	covered
 PLAT-28	store	The bin-overrides folder holds user-chosen agent programs.	native-and-sidecar-map D1	missing
 PLAT-28	store	The .bin-source-markers.json file records where each bin entry came from.	native-and-sidecar-map D1	missing
 RUN-09	store	The terminal-shell-integration/zsh folder holds the shim files.	native-and-sidecar-map D1	missing
@@ -2567,7 +2568,7 @@ APP-08	message	A full-screen Wrong version of Conductor for this Mac message app
 PLAT-09	message	A full-screen Failed to start agents message says Conductor will not work and shows the log path; it needs Copy diagnostics and Retry.	ui-map 7.4	partly
 PLAT-32	rule	The macOS version warning needs the OS version from the shell and a dismiss that is remembered.	ui-map 1.3	missing
 SIDE-15	message	Agent program and sign-in problems appear as banners in the chat.	ui-map 7.4, 3.3	covered
-PLAT-28	operation	Settings Advanced has Agent binaries with Re-download and Retry; Conductor downloads agents and the app must do the same (D021).	ui-map 7.4	missing
+PLAT-28	operation	Settings Advanced has Agent binaries with Re-download and Retry; Conductor downloads agents and the app must do the same (D021).	ui-map 7.4	covered
 CLOUD-03	state	A cloud workspace shows Workspace unavailable with Reconnect when its host cannot be reached.	ui-map 7.4	covered
 GIT-04	message	The PR panel shows No internet connection when GitHub cannot be reached.	ui-map 7.4	covered
 GIT-04	message	The PR panel shows GitHub access required when gh has no access.	ui-map 7.4	covered
@@ -2899,7 +2900,7 @@ PR-03	rule	No non-test caller (only summarizeChecks is used) (moved by the core 
 PR-03	rule	Never read in this file (moved by the core hardening).	docs/reports/slice-2	missing
 WS-06	rule	No caller until unarchive is built (moved by the core hardening).	docs/reports/slice-2	missing
 WS-10	rule	Calls removal.removeWorkspacesOf, which is notImplemented("WS-10") and throws. Removing a project throws in the live app until WS-10 is built (moved by the core hardening).	docs/reports/slice-2	missing
-PLAT-28	rule	Container.ts:501 step "programs" calls system.start(), a placeholder that throws, inside runSteps (a synchronous throw rejects start()) (moved by the core hardening).	docs/reports/slice-2	missing
+PLAT-28	rule	Container.ts:501 step "programs" calls system.start(), a placeholder that throws, inside runSteps (a synchronous throw rejects start()) (moved by the core hardening).	docs/reports/slice-2	covered
 APP-06	rule	Container.ts:562-566 calls updates.check() hourly; the placeholder throws inside the interval callback (moved by the core hardening).	docs/reports/slice-2	missing
 RUN-01	rule	Terminals.ts runScript (RUN-01) is a placeholder but run-scripts.ts runSetup (WS-03, done) and the workspace setup flow call it, so setup cannot run in the real app (moved by the core hardening).	docs/reports/slice-2	missing
 NAV-12	rule	Features/chat/MessageList.tsx:72, app/layout-persistence.ts:64 and :69 use void settings.set(...), so a failed save never reaches the user (moved by the core hardening).	docs/reports/slice-2	missing

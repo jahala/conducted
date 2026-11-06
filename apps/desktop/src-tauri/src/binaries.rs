@@ -33,16 +33,42 @@
 //! @feature PLAT-28 Agent program manager: download, verify, update, prune
 //! Owns: the agent programs `claude` and `codex`: reading the pinned release feed, downloading a
 //! program with a SHA-256 and progress, clearing its quarantine flag, writing its install
-//! metadata, pointing the PATH shim at it, moving old versions to the Trash, and keeping retry
-//! state. Commands: `programs_state`, `program_install`, `program_redownload`, `program_remove`
-//! and `programs_prefetch`.
-//! Behaviour: native-and-sidecar-map.md A2, A6 and A9; services-map.md 5A.8.1.
-//! Must handle: a download that fails (retry state and next attempt), a checksum that does not
-//! match (refused, never installed), a second install of a program already installing (joined, no
-//! second download), a missing release feed (a named error, never an invented URL), the user's
-//! chosen path (the manager only writes its own folders), and old versions (moved to the Trash).
-//! Our design choice: the release feed is a JSON file the packaging step writes at
-//! `agent-binaries/manifest.json`, because the app has no hosted feed of its own yet.
+//! metadata, writing its shim in the app's bin folder, moving old versions to the Trash, and
+//! retrying a failed download. Commands: `programs_state`, `program_install`,
+//! `program_redownload`, `program_remove` and `programs_prefetch`. `setup` in lib.rs runs the same
+//! prefetch at launch through `prepare_on_launch`.
+//! Behaviour: native-and-sidecar-map.md A2 (`lib.rs` prepares the agent programs at startup), A6
+//! and A9 (pinned versions, metadata, shims, retry state, pruning); services-map.md 5A.8.1
+//! (states, Retry).
+//! Must handle:
+//! - A failed download. A failure a retry can fix (network, timeout, server error, wrong checksum)
+//!   shows Retrying with the attempt and the time of the next one, and runs again after that
+//!   wait. After the last attempt, or at once for a failure that repeats the same way (no feed, a
+//!   version this app does not pin), it shows Failed with the error.
+//! - A checksum that does not match: refused, never installed.
+//! - A second install of a program already installing: joined, no second download.
+//! - Install of a program whose pinned version is installed and still matches its metadata: Ready
+//!   at once, no download. Re-download always downloads.
+//! - Remove while an install runs: the install is cancelled and the remove waits until it has
+//!   stopped, so nothing is written after the folder goes to the Trash and Missing is the last
+//!   state.
+//! - An old version that cannot be moved to the Trash: the new version stays Ready and its status
+//!   carries the error.
+//! - A status the window cannot receive: a command returns the error; a background install keeps
+//!   it on the stored status, so `programs_state` returns it.
+//! - A missing release feed: a named error, never an invented URL.
+//! - The app exits: running installs are cancelled, also while they wait to retry.
+//!
+//! Not built yet: nothing writes the release feed. The official download URL and SHA-256 of each
+//! pinned version are not in the repo, so every install fails with `program_release_missing`
+//! until a producer supplies them (an open PLAT-28 item). The shim is written, but putting the bin
+//! folder on PATH is PLAT-35 (`path_with_helpers`). User-chosen program paths are SET-13
+//! (`programs_sync_path_overrides`). The sidecar does not look for the managed copy yet, so
+//! `sidecar.rs` sets no agent binaries folder for it (open PLAT-28 items).
+//! Our design choice: five attempts, one second after the first failure and doubling after each
+//! further one (`RetryPolicy::APP`). The research shows the retry state, not its numbers.
+//! Our design choice: the release feed is a JSON file at `agent-binaries/manifest.json` in the
+//! app data folder.
 //! Test first: installing a program writes its metadata, points the bin shim at it and prunes the
 //! old version.
 //!
@@ -75,7 +101,7 @@
 //! Test first: a bundled `gh` that exits nonzero is copied, run again after a re-copy, and
 //! reported as a verification error.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::io::Read;
@@ -84,7 +110,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -505,7 +531,8 @@ pub fn path_with_helpers(_bin_dir: &Path, _path: &str) -> CommandResult<String> 
 /// Event carrying one program's status, including download progress.
 pub const EVENT_PROGRAM_STATUS: &str = "programs://status";
 
-/// The version this app pins for each agent program (A9). A release feed must serve these.
+/// The version this app pins for each agent program. These are the versions Conductor 0.92.1 pins
+/// (native-and-sidecar-map.md A9, "Pinned versions in this build"). A release feed must serve them.
 pub fn pinned_version(program: ManagedProgram) -> Option<&'static str> {
     match program {
         ManagedProgram::Claude => Some("2.1.308"),
@@ -556,10 +583,20 @@ impl ProgramStatus {
             path: None,
         }
     }
+
+    /// An installed copy found on disk.
+    fn installed(program: ManagedProgram, version: &str, binary: &Path) -> Self {
+        Self {
+            state: ProgramState::Ready,
+            version: Some(version.to_string()),
+            path: Some(binary.to_string_lossy().into_owned()),
+            ..Self::missing(program)
+        }
+    }
 }
 
-/// One downloadable file of a release, named by CPU. The manifest is produced with the app's
-/// packages (PLAT-25); it is read from `agent-binaries/manifest.json` in the app data folder.
+/// One downloadable file of a release, named by CPU. Nothing produces the feed yet (see the
+/// PLAT-28 header); it is read from `agent-binaries/manifest.json` in the app data folder.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReleaseAsset {
@@ -617,15 +654,143 @@ impl ProgramDirs {
             bin: data.join("bin"),
         }
     }
+
+    fn manifest(&self) -> PathBuf {
+        self.binaries.join("manifest.json")
+    }
+
+    fn program(&self, program: ManagedProgram) -> PathBuf {
+        self.binaries.join(program.as_str())
+    }
+
+    fn binary(&self, program: ManagedProgram, version: &str) -> PathBuf {
+        self.program(program).join(version).join(program.as_str())
+    }
+
+    fn metadata(&self, program: ManagedProgram, version: &str) -> PathBuf {
+        self.binaries
+            .join(".meta")
+            .join(format!("{}-{version}.json", program.as_str()))
+    }
+
+    fn shim(&self, program: ManagedProgram) -> PathBuf {
+        self.bin.join(program.as_str())
+    }
+}
+
+/// How often a failed download is tried, and how long the manager waits between tries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryPolicy {
+    /// Attempts in all, the first one included.
+    pub attempts: u32,
+    /// The wait after the first failure. It doubles after each further failure.
+    pub first_delay_ms: u64,
+}
+
+impl RetryPolicy {
+    /// Our design choice: five attempts, one second after the first failure and doubling after
+    /// that. The research shows the retry state (A9), not its numbers.
+    pub const APP: RetryPolicy = RetryPolicy {
+        attempts: 5,
+        first_delay_ms: 1_000,
+    };
+
+    /// The wait before the next attempt, after `failures` failed ones.
+    fn delay_ms(self, failures: u32) -> u64 {
+        self.first_delay_ms
+            .saturating_mul(1u64 << failures.saturating_sub(1).min(5))
+    }
+}
+
+/// True when trying again can help: the network, the server or a corrupt download. A missing feed,
+/// a version the app does not pin or a refused URL fails the same way every time.
+fn retry_can_fix(error: &CommandError) -> bool {
+    match error {
+        CommandError::Failed { code, .. } => matches!(
+            *code,
+            "http_timeout" | "http_request_failed" | "http_status" | "http_checksum_mismatch"
+        ),
+        _ => false,
+    }
+}
+
+/// Install a program, or use the copy already installed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallMode {
+    /// Use the installed pinned version when its metadata still matches; download only without one.
+    Install,
+    /// Download the pinned version again, replacing the installed copy.
+    Redownload,
+}
+
+/// Where the manager reports a status. The app sends it to the window on `EVENT_PROGRAM_STATUS`.
+pub trait StatusSink: Send + Sync + 'static {
+    fn send(&self, status: &ProgramStatus) -> CommandResult<()>;
+}
+
+impl<R: Runtime> StatusSink for AppHandle<R> {
+    fn send(&self, status: &ProgramStatus) -> CommandResult<()> {
+        self.emit(EVENT_PROGRAM_STATUS, status)
+            .map_err(|error| CommandError::Failed {
+                code: "program_status_not_sent",
+                message: format!(
+                    "Could not tell the window about {}: {error}",
+                    status.program
+                ),
+            })
+    }
+}
+
+/// Moves a path to the Trash. The app passes `files::trash_path`.
+pub type Trash = Arc<dyn Fn(&Path) -> CommandResult<()> + Send + Sync>;
+
+/// What an install needs from outside: the folders, the download's hosts and stall timeout, the
+/// retry policy and the Trash. The app builds it from its data folder; a test passes its own.
+#[derive(Clone)]
+pub struct InstallContext {
+    pub dirs: ProgramDirs,
+    pub allowed_hosts: &'static [&'static str],
+    pub stall_timeout: Duration,
+    pub retry: RetryPolicy,
+    pub trash: Trash,
+}
+
+impl InstallContext {
+    fn for_app<R: Runtime>(app: &AppHandle<R>) -> CommandResult<Self> {
+        let data = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| CommandError::Failed {
+                code: "program_data_dir_failed",
+                message: format!("Could not find the app data folder: {error}"),
+            })?;
+        Ok(Self {
+            dirs: ProgramDirs::in_app_data(&data),
+            allowed_hosts: crate::http::ALLOWED_HOSTS,
+            stall_timeout: Duration::from_millis(crate::http::DOWNLOAD_STALL_TIMEOUT_MS),
+            retry: RetryPolicy::APP,
+            trash: Arc::new(files::trash_path),
+        })
+    }
+}
+
+/// One running install: its id, so only its own task clears it, and the token that stops it.
+struct Run {
+    id: u64,
+    cancel: CancellationToken,
 }
 
 #[derive(Default)]
 struct ProgramsInner {
     statuses: Mutex<HashMap<ManagedProgram, ProgramStatus>>,
-    running: Mutex<HashSet<ManagedProgram>>,
+    runs: Mutex<HashMap<ManagedProgram, Run>>,
+    next_run: AtomicU64,
+    /// One lock per program. An install holds it for its whole run and a remove holds it while it
+    /// removes, so the two never write the program's files or status at the same time.
+    slots: Mutex<HashMap<ManagedProgram, Arc<tokio::sync::Mutex<()>>>>,
 }
 
-/// The program manager's state, shared by the commands and the background downloads.
+/// The program manager's state, shared by the commands and the background installs.
 #[derive(Clone, Default)]
 pub struct ProgramsState {
     inner: Arc<ProgramsInner>,
@@ -642,44 +807,125 @@ impl ProgramsState {
 
     /// One program's status. A program with no record is missing.
     pub fn status(&self, program: ManagedProgram) -> ProgramStatus {
-        lock_or_recover(&self.inner.statuses)
+        self.inner
+            .statuses
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
             .get(&program)
             .cloned()
             .unwrap_or_else(|| ProgramStatus::missing(program))
     }
 
-    /// Stores a status and tells the window. The store is updated first, so the event never shows
-    /// a state the command cannot read back.
-    fn emit(&self, app: &AppHandle, status: ProgramStatus) {
-        lock_or_recover(&self.inner.statuses).insert(status.program, status.clone());
-        if let Err(error) = app.emit(EVENT_PROGRAM_STATUS, &status) {
-            eprintln!("could not report the status of {}: {error}", status.program);
+    /// Stores a status and sends it. The store is updated first, so the command can read back
+    /// every state the window was told about. A send that fails is returned to the caller.
+    fn publish(&self, sink: &dyn StatusSink, status: ProgramStatus) -> CommandResult<()> {
+        self.inner
+            .statuses
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(status.program, status.clone());
+        sink.send(&status)
+    }
+
+    /// Adds an error a background install could not send to the program's stored status, after
+    /// the error the status already carries, so the next `programs_state` returns both.
+    fn keep_error(&self, program: ManagedProgram, error: &CommandError) {
+        let mut statuses = self
+            .inner
+            .statuses
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let status = statuses
+            .entry(program)
+            .or_insert_with(|| ProgramStatus::missing(program));
+        status.error = Some(match status.error.take() {
+            Some(earlier) => format!("{earlier} {error}"),
+            None => error.to_string(),
+        });
+    }
+
+    /// Claims the program for a new install. None when an install of it is already running, so
+    /// the caller joins that one. A cancelled run no longer counts.
+    fn begin(&self, program: ManagedProgram) -> Option<(u64, CancellationToken)> {
+        let mut runs = self
+            .inner
+            .runs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if runs
+            .get(&program)
+            .is_some_and(|run| !run.cancel.is_cancelled())
+        {
+            return None;
+        }
+        let id = self.inner.next_run.fetch_add(1, Ordering::Relaxed);
+        let cancel = CancellationToken::new();
+        runs.insert(
+            program,
+            Run {
+                id,
+                cancel: cancel.clone(),
+            },
+        );
+        Some((id, cancel))
+    }
+
+    /// Ends the run `id`. A newer run of the same program is left alone.
+    fn finish(&self, program: ManagedProgram, id: u64) {
+        let mut runs = self
+            .inner
+            .runs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if runs.get(&program).is_some_and(|run| run.id == id) {
+            runs.remove(&program);
         }
     }
 
-    /// Starts one install. False means the same program already has one running.
-    fn begin(&self, program: ManagedProgram) -> bool {
-        lock_or_recover(&self.inner.running).insert(program)
+    fn is_installing(&self, program: ManagedProgram) -> bool {
+        self.inner
+            .runs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&program)
+            .is_some_and(|run| !run.cancel.is_cancelled())
     }
 
-    fn finish(&self, program: ManagedProgram) {
-        lock_or_recover(&self.inner.running).remove(&program);
+    fn cancel(&self, program: ManagedProgram) {
+        if let Some(run) = self
+            .inner
+            .runs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&program)
+        {
+            run.cancel.cancel();
+        }
     }
-}
 
-fn lock_or_recover<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
-    value
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
+    /// Stops every running install, including one waiting out its retry delay. `lib.rs` calls it
+    /// when the app exits.
+    pub fn cancel_all(&self) {
+        for run in self
+            .inner
+            .runs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+        {
+            run.cancel.cancel();
+        }
+    }
 
-fn app_data_dir(app: &AppHandle) -> CommandResult<PathBuf> {
-    app.path()
-        .app_data_dir()
-        .map_err(|error| CommandError::Failed {
-            code: "program_data_dir_failed",
-            message: format!("Could not find the app data folder: {error}"),
-        })
+    fn slot(&self, program: ManagedProgram) -> Arc<tokio::sync::Mutex<()>> {
+        self.inner
+            .slots
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(program)
+            .or_default()
+            .clone()
+    }
 }
 
 /// Reads the release feed. A missing feed is a named error: the app never invents a download.
@@ -704,22 +950,24 @@ fn now_ms() -> u64 {
         .unwrap_or_default()
 }
 
-fn retry_delay_ms(attempt: u32) -> u64 {
-    1_000u64 << attempt.min(5)
-}
-
-/// Moves an old program version to the macOS Trash.
-fn trash_app_file(path: &Path) -> CommandResult<()> {
-    files::trash_path(path)
-}
-
-/// Records a failure and the attempt's retry time, so the Retry button and the status carry it.
-fn failed_status(previous: &ProgramStatus, error: &CommandError) -> ProgramStatus {
+/// The status after a failed attempt. While attempts remain and a retry can fix the error, it is
+/// Retrying with the time of the next attempt; otherwise it is Failed.
+fn failed_status(
+    previous: &ProgramStatus,
+    error: &CommandError,
+    retry: RetryPolicy,
+    now: u64,
+) -> ProgramStatus {
     let attempt = previous.attempt.saturating_add(1);
+    let retrying = attempt < retry.attempts && retry_can_fix(error);
     ProgramStatus {
-        state: ProgramState::Retrying,
+        state: if retrying {
+            ProgramState::Retrying
+        } else {
+            ProgramState::Failed
+        },
         attempt,
-        next_attempt_at: Some(now_ms().saturating_add(retry_delay_ms(attempt))),
+        next_attempt_at: retrying.then(|| now.saturating_add(retry.delay_ms(attempt))),
         error: Some(error.to_string()),
         ..previous.clone()
     }
@@ -798,25 +1046,39 @@ fn strip_quarantine(path: &Path) -> CommandResult<()> {
     })
 }
 
+/// Runs `remove` on `path` when something is there, a dangling link included. Nothing there is
+/// fine. A path that cannot be read fails with `code`.
+fn remove_if_present(
+    path: &Path,
+    code: &'static str,
+    remove: impl FnOnce(&Path) -> CommandResult<()>,
+) -> CommandResult<()> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => remove(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(CommandError::Failed {
+            code,
+            message: format!("Could not read {}: {error}", path.display()),
+        }),
+    }
+}
+
+fn remove_link(link: &Path, code: &'static str) -> CommandResult<()> {
+    fs::remove_file(link).map_err(|error| CommandError::Failed {
+        code,
+        message: format!("Could not remove {}: {error}", link.display()),
+    })
+}
+
 fn install_bin_shim(bin_dir: &Path, program: ManagedProgram, binary: &Path) -> CommandResult<()> {
     fs::create_dir_all(bin_dir).map_err(|error| CommandError::Failed {
         code: "program_bin_dir_failed",
         message: format!("Could not make {}: {error}", bin_dir.display()),
     })?;
     let link = bin_dir.join(program.as_str());
-    match fs::symlink_metadata(&link) {
-        Ok(_) => fs::remove_file(&link).map_err(|error| CommandError::Failed {
-            code: "program_bin_shim_failed",
-            message: format!("Could not replace {}: {error}", link.display()),
-        })?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(CommandError::Failed {
-                code: "program_bin_shim_failed",
-                message: format!("Could not read {}: {error}", link.display()),
-            });
-        }
-    }
+    remove_if_present(&link, "program_bin_shim_failed", |link| {
+        remove_link(link, "program_bin_shim_failed")
+    })?;
     symlink(binary, &link).map_err(|error| CommandError::Failed {
         code: "program_bin_shim_failed",
         message: format!(
@@ -889,39 +1151,40 @@ fn metadata_matches(binary: &Path, metadata_path: &Path) -> bool {
     actual_size == size && actual_mtime == verified_mtime
 }
 
-/// Marks an already-installed pinned program ready, so a restart shows the copy on disk.
-fn hydrate_from_disk(app: &AppHandle, state: &ProgramsState) -> CommandResult<()> {
-    let dirs = ProgramDirs::in_app_data(&app_data_dir(app)?);
+/// The installed copy of the pinned version, when its metadata still matches the file on disk.
+fn installed_copy(dirs: &ProgramDirs, program: ManagedProgram) -> Option<(&'static str, PathBuf)> {
+    let version = pinned_version(program)?;
+    let binary = dirs.binary(program, version);
+    metadata_matches(&binary, &dirs.metadata(program, version)).then_some((version, binary))
+}
+
+/// Marks an installed pinned program ready, so a restart shows the copy on disk. A program that
+/// already has a state, or is installing, is left alone.
+fn hydrate_from_disk(
+    dirs: &ProgramDirs,
+    state: &ProgramsState,
+    sink: &dyn StatusSink,
+) -> CommandResult<()> {
     for program in ManagedProgram::AGENTS {
-        if state.status(program).state != ProgramState::Missing {
+        if state.status(program).state != ProgramState::Missing || state.is_installing(program) {
             continue;
         }
-        let Some(version) = pinned_version(program) else {
-            continue;
-        };
-        let binary = dirs
-            .binaries
-            .join(program.as_str())
-            .join(version)
-            .join(program.as_str());
-        let metadata_path = dirs
-            .binaries
-            .join(".meta")
-            .join(format!("{}-{version}.json", program.as_str()));
-        if !metadata_matches(&binary, &metadata_path) {
-            continue;
+        if let Some((version, binary)) = installed_copy(dirs, program) {
+            state.publish(sink, ProgramStatus::installed(program, version, &binary))?;
         }
-        let mut status = ProgramStatus::missing(program);
-        status.state = ProgramState::Ready;
-        status.version = Some(version.to_string());
-        status.path = Some(binary.to_string_lossy().into_owned());
-        state.emit(app, status);
     }
     Ok(())
 }
 
-/// Makes a downloaded file the program's current version: clears quarantine, records its
-/// metadata, points the PATH shim at it and removes older versions.
+/// What `finish_install` did besides installing. The new version is in place and usable either
+/// way; an old version it could not move to the Trash is reported here, not as a failed install.
+#[derive(Debug)]
+pub struct Installed {
+    pub prune_error: Option<CommandError>,
+}
+
+/// Makes a downloaded file the program's current version: checks it against the feed's SHA-256,
+/// clears quarantine, records its metadata, points the PATH shim at it and removes older versions.
 pub fn finish_install(
     program: ManagedProgram,
     version: &str,
@@ -929,7 +1192,7 @@ pub fn finish_install(
     sha256: &str,
     dirs: &ProgramDirs,
     trash: &dyn Fn(&Path) -> CommandResult<()>,
-) -> CommandResult<()> {
+) -> CommandResult<Installed> {
     use std::os::unix::fs::PermissionsExt;
 
     let actual = sha256_of_file(binary)?;
@@ -946,11 +1209,13 @@ pub fn finish_install(
             message: format!("Could not make {} runnable: {error}", binary.display()),
         }
     })?;
-    let metadata_dir = dirs.binaries.join(".meta");
-    fs::create_dir_all(&metadata_dir).map_err(|error| CommandError::Failed {
-        code: "program_metadata_failed",
-        message: format!("Could not make {}: {error}", metadata_dir.display()),
-    })?;
+    let metadata_path = dirs.metadata(program, version);
+    if let Some(metadata_dir) = metadata_path.parent() {
+        fs::create_dir_all(metadata_dir).map_err(|error| CommandError::Failed {
+            code: "program_metadata_failed",
+            message: format!("Could not make {}: {error}", metadata_dir.display()),
+        })?;
+    }
     let size = fs::metadata(binary)
         .map(|metadata| metadata.len())
         .map_err(|error| CommandError::Failed {
@@ -963,24 +1228,27 @@ pub fn finish_install(
         "downloadedAtUnixMs": now_ms(),
         "verifiedMtimeUnixMs": modified_ms(binary)?,
     });
-    let metadata_path = metadata_dir.join(format!("{}-{version}.json", program.as_str()));
     fs::write(&metadata_path, metadata.to_string()).map_err(|error| CommandError::Failed {
         code: "program_metadata_failed",
         message: format!("Could not write {}: {error}", metadata_path.display()),
     })?;
     install_bin_shim(&dirs.bin, program, binary)?;
-    prune_versions(&dirs.binaries.join(program.as_str()), version, trash)
+    Ok(Installed {
+        prune_error: prune_versions(&dirs.program(program), version, trash).err(),
+    })
 }
 
+/// One attempt: reads the feed, downloads the pinned version with progress and installs it.
+/// Returns the Ready status. `status` carries the attempt count into each status it sends.
 async fn download_and_finish(
-    app: &AppHandle,
+    ctx: &InstallContext,
     state: &ProgramsState,
+    sink: &dyn StatusSink,
     program: ManagedProgram,
-    _redownload: bool,
-) -> CommandResult<()> {
-    let data = app_data_dir(app)?;
-    let dirs = ProgramDirs::in_app_data(&data);
-    let manifest = read_release_manifest(&dirs.binaries.join("manifest.json"))?;
+    status: &ProgramStatus,
+    cancel: &CancellationToken,
+) -> CommandResult<ProgramStatus> {
+    let manifest = read_release_manifest(&ctx.dirs.manifest())?;
     let release = manifest
         .release(program)
         .ok_or_else(|| CommandError::Failed {
@@ -988,7 +1256,7 @@ async fn download_and_finish(
             message: format!("The release feed has no {program} program."),
         })?;
     let pinned = pinned_version(program).ok_or_else(|| CommandError::Failed {
-        code: "program_release_missing",
+        code: "program_not_managed",
         message: format!("{program} is not an agent program this app manages."),
     })?;
     if release.version != pinned {
@@ -1001,67 +1269,205 @@ async fn download_and_finish(
         });
     }
     let asset = asset_for(release);
-    let version = release.version.clone();
-    let target_dir = dirs.binaries.join(program.as_str()).join(&version);
-    fs::create_dir_all(&target_dir).map_err(|error| CommandError::Failed {
-        code: "program_install_failed",
-        message: format!("Could not make {}: {error}", target_dir.display()),
-    })?;
-    let target = target_dir.join(program.as_str());
+    let target = ctx.dirs.binary(program, pinned);
+    if let Some(target_dir) = target.parent() {
+        fs::create_dir_all(target_dir).map_err(|error| CommandError::Failed {
+            code: "program_install_failed",
+            message: format!("Could not make {}: {error}", target_dir.display()),
+        })?;
+    }
 
-    let mut queued = state.status(program);
-    queued.state = ProgramState::Downloading;
-    queued.version = Some(version.clone());
-    queued.bytes_downloaded = 0;
-    queued.bytes_total = Some(asset.size);
-    queued.error = None;
-    state.emit(app, queued);
-
-    let progress_state = state.clone();
-    let progress_app = app.clone();
-    let expected_size = asset.size;
+    let mut downloading = ProgramStatus {
+        state: ProgramState::Downloading,
+        version: Some(pinned.to_string()),
+        bytes_downloaded: 0,
+        bytes_total: Some(asset.size),
+        next_attempt_at: None,
+        error: None,
+        ..status.clone()
+    };
+    state.publish(sink, downloading.clone())?;
     let outcome = crate::http::download_request(
-        crate::http::ALLOWED_HOSTS,
+        ctx.allowed_hosts,
         &asset.url,
         &target,
         Some(asset.sha256.as_str()),
-        Duration::from_millis(crate::http::DOWNLOAD_STALL_TIMEOUT_MS),
-        CancellationToken::new(),
-        move |received, total| {
-            let mut status = progress_state.status(program);
-            status.state = ProgramState::Downloading;
-            status.bytes_downloaded = received;
-            status.bytes_total = total.or(Some(expected_size));
-            progress_state.emit(&progress_app, status);
-            Ok(())
+        ctx.stall_timeout,
+        cancel.clone(),
+        |received, total| {
+            downloading.bytes_downloaded = received;
+            downloading.bytes_total = total.or(Some(asset.size));
+            state.publish(sink, downloading.clone())
         },
     )
     .await?;
 
-    let mut verifying = state.status(program);
-    verifying.state = ProgramState::Verifying;
-    verifying.bytes_downloaded = outcome.size_bytes;
-    state.emit(app, verifying);
+    let verifying = ProgramStatus {
+        state: ProgramState::Verifying,
+        bytes_downloaded: outcome.size_bytes,
+        ..downloading
+    };
+    state.publish(sink, verifying)?;
 
-    finish_install(
+    let dirs = ctx.dirs.clone();
+    let trash = Arc::clone(&ctx.trash);
+    let expected = asset.sha256.clone();
+    let binary = target.clone();
+    // Hashing a program of a few hundred MB blocks, so it runs off the async workers.
+    let installed = crate::error::blocking("program_install_failed", move || {
+        finish_install(program, pinned, &binary, &expected, &dirs, &*trash)
+    })
+    .await?;
+
+    Ok(ProgramStatus {
         program,
-        &version,
-        &target,
-        &outcome.sha256,
-        &dirs,
-        &trash_app_file,
-    )?;
+        state: ProgramState::Ready,
+        version: Some(pinned.to_string()),
+        bytes_downloaded: outcome.size_bytes,
+        bytes_total: Some(outcome.size_bytes),
+        attempt: 0,
+        next_attempt_at: None,
+        error: installed.prune_error.map(|error| error.to_string()),
+        path: Some(target.to_string_lossy().into_owned()),
+    })
+}
 
-    let mut ready = state.status(program);
-    ready.state = ProgramState::Ready;
-    ready.version = Some(version);
-    ready.bytes_downloaded = outcome.size_bytes;
-    ready.bytes_total = Some(outcome.size_bytes);
-    ready.attempt = 0;
-    ready.next_attempt_at = None;
-    ready.error = None;
-    ready.path = Some(target.to_string_lossy().into_owned());
-    state.emit(app, ready);
+/// Installs one program and ends Ready or Failed. A failure a retry can fix is tried again after
+/// the policy's wait, with Retrying shown meanwhile. A cancelled run stops without a final status:
+/// whoever cancelled it reports the program's state. Returns an error only for a status it could
+/// not send.
+pub async fn run_install(
+    ctx: &InstallContext,
+    state: &ProgramsState,
+    sink: &dyn StatusSink,
+    program: ManagedProgram,
+    mode: InstallMode,
+    cancel: &CancellationToken,
+) -> CommandResult<()> {
+    if mode == InstallMode::Install
+        && let Some((version, binary)) = installed_copy(&ctx.dirs, program)
+    {
+        return state.publish(sink, ProgramStatus::installed(program, version, &binary));
+    }
+    let mut status = ProgramStatus {
+        attempt: 0,
+        next_attempt_at: None,
+        error: None,
+        ..state.status(program)
+    };
+    loop {
+        let failure = match download_and_finish(ctx, state, sink, program, &status, cancel).await {
+            Ok(ready) => return state.publish(sink, ready),
+            Err(_) if cancel.is_cancelled() => return Ok(()),
+            Err(error) => error,
+        };
+        status = failed_status(&status, &failure, ctx.retry, now_ms());
+        state.publish(sink, status.clone())?;
+        let Some(next_attempt_at) = status.next_attempt_at else {
+            return Ok(());
+        };
+        let wait = Duration::from_millis(next_attempt_at.saturating_sub(now_ms()));
+        tokio::select! {
+            _ = cancel.cancelled() => return Ok(()),
+            _ = tokio::time::sleep(wait) => {}
+        }
+    }
+}
+
+/// Starts an install in the background and shows the program Queued, or joins the install that
+/// is already running. Returns the new run's task, or None when it joined.
+fn start_install(
+    ctx: InstallContext,
+    state: &ProgramsState,
+    sink: Arc<dyn StatusSink>,
+    program: ManagedProgram,
+    mode: InstallMode,
+) -> CommandResult<Option<tauri::async_runtime::JoinHandle<()>>> {
+    let Some((id, cancel)) = state.begin(program) else {
+        return Ok(None);
+    };
+    let queued = ProgramStatus {
+        state: ProgramState::Queued,
+        attempt: 0,
+        next_attempt_at: None,
+        error: None,
+        ..state.status(program)
+    };
+    if let Err(error) = state.publish(sink.as_ref(), queued) {
+        state.finish(program, id);
+        return Err(error);
+    }
+    let manager = state.clone();
+    Ok(Some(tauri::async_runtime::spawn(async move {
+        let slot = manager.slot(program);
+        let held = slot.lock().await;
+        if !cancel.is_cancelled()
+            && let Err(error) =
+                run_install(&ctx, &manager, sink.as_ref(), program, mode, &cancel).await
+        {
+            manager.keep_error(program, &error);
+        }
+        // The run ends before the lock is released, so an install that starts next is a new run.
+        manager.finish(program, id);
+        drop(held);
+    })))
+}
+
+/// Moves a program's versions to the Trash, removes its PATH shim and reports it Missing. A
+/// running install is cancelled first, and the remove waits until that run has stopped, so the
+/// install never writes into the trashed folder or reports a state after Missing.
+pub async fn remove_program(
+    ctx: &InstallContext,
+    state: &ProgramsState,
+    sink: &dyn StatusSink,
+    program: ManagedProgram,
+) -> CommandResult<()> {
+    state.cancel(program);
+    let slot = state.slot(program);
+    let _held = slot.lock().await;
+    remove_if_present(
+        &ctx.dirs.program(program),
+        "program_remove_failed",
+        |folder| (ctx.trash)(folder),
+    )?;
+    remove_if_present(&ctx.dirs.shim(program), "program_remove_failed", |link| {
+        remove_link(link, "program_remove_failed")
+    })?;
+    state.publish(sink, ProgramStatus::missing(program))
+}
+
+/// Shows the installed copies, then starts an install of every agent program that is not ready.
+/// Returns the tasks it started.
+fn prefetch(
+    ctx: &InstallContext,
+    state: &ProgramsState,
+    sink: Arc<dyn StatusSink>,
+) -> CommandResult<Vec<tauri::async_runtime::JoinHandle<()>>> {
+    hydrate_from_disk(&ctx.dirs, state, sink.as_ref())?;
+    let mut started = Vec::new();
+    for program in ManagedProgram::AGENTS {
+        if state.status(program).state == ProgramState::Ready {
+            continue;
+        }
+        if let Some(task) = start_install(
+            ctx.clone(),
+            state,
+            Arc::clone(&sink),
+            program,
+            InstallMode::Install,
+        )? {
+            started.push(task);
+        }
+    }
+    Ok(started)
+}
+
+/// Prepares the agent programs at launch (A2: `lib.rs` prepares the agent binaries at startup).
+/// Called from `setup` in `lib.rs`; the installs run in the background.
+pub fn prepare_on_launch<R: Runtime>(app: &AppHandle<R>) -> CommandResult<()> {
+    let ctx = InstallContext::for_app(app)?;
+    let state = app.state::<ProgramsState>();
+    prefetch(&ctx, state.inner(), Arc::new(app.clone()))?;
     Ok(())
 }
 
@@ -1075,38 +1481,19 @@ fn require_agent(program: ManagedProgram) -> CommandResult<()> {
     })
 }
 
-fn start_install(
-    app: &AppHandle,
-    state: &ProgramsState,
-    program: ManagedProgram,
-    redownload: bool,
-) {
-    if !ManagedProgram::AGENTS.contains(&program) || !state.begin(program) {
-        return;
-    }
-    let manager = state.clone();
-    let handle = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let outcome = download_and_finish(&handle, &manager, program, redownload).await;
-        if let Err(error) = outcome {
-            let status = failed_status(&manager.status(program), &error);
-            manager.emit(&handle, status);
-        }
-        manager.finish(program);
-    });
-}
-
 /// Returns the install state of Claude Code and Codex, including a copy already on disk.
 #[tauri::command]
 pub fn programs_state(
     app: AppHandle,
     state: State<'_, ProgramsState>,
 ) -> CommandResult<Vec<ProgramStatus>> {
-    hydrate_from_disk(&app, state.inner())?;
+    let ctx = InstallContext::for_app(&app)?;
+    hydrate_from_disk(&ctx.dirs, state.inner(), &app)?;
     Ok(state.snapshot())
 }
 
-/// Requests an install of an agent program. A program already installing joins that install.
+/// Installs an agent program, or shows the matching copy already installed. A program already
+/// installing joins that install.
 #[tauri::command]
 pub fn program_install(
     app: AppHandle,
@@ -1114,7 +1501,14 @@ pub fn program_install(
     program: ManagedProgram,
 ) -> CommandResult<()> {
     require_agent(program)?;
-    start_install(&app, state.inner(), program, false);
+    let ctx = InstallContext::for_app(&app)?;
+    start_install(
+        ctx,
+        state.inner(),
+        Arc::new(app),
+        program,
+        InstallMode::Install,
+    )?;
     Ok(())
 }
 
@@ -1126,57 +1520,37 @@ pub fn program_redownload(
     program: ManagedProgram,
 ) -> CommandResult<()> {
     require_agent(program)?;
-    start_install(&app, state.inner(), program, true);
+    let ctx = InstallContext::for_app(&app)?;
+    start_install(
+        ctx,
+        state.inner(),
+        Arc::new(app),
+        program,
+        InstallMode::Redownload,
+    )?;
     Ok(())
 }
 
-/// Moves an installed agent program to the Trash and reports it missing.
+/// Moves an installed agent program to the Trash and reports it missing. Cancels and waits for a
+/// running install of it first.
 #[tauri::command]
-pub fn program_remove(
+pub async fn program_remove(
     app: AppHandle,
     state: State<'_, ProgramsState>,
     program: ManagedProgram,
 ) -> CommandResult<()> {
     require_agent(program)?;
-    let dirs = ProgramDirs::in_app_data(&app_data_dir(&app)?);
-    let program_dir = dirs.binaries.join(program.as_str());
-    match fs::symlink_metadata(&program_dir) {
-        Ok(_) => files::trash_path(&program_dir)?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(CommandError::Failed {
-                code: "program_remove_failed",
-                message: format!("Could not read {}: {error}", program_dir.display()),
-            });
-        }
-    }
-    let link = dirs.bin.join(program.as_str());
-    match fs::symlink_metadata(&link) {
-        Ok(_) => fs::remove_file(&link).map_err(|error| CommandError::Failed {
-            code: "program_remove_failed",
-            message: format!("Could not remove {}: {error}", link.display()),
-        })?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(CommandError::Failed {
-                code: "program_remove_failed",
-                message: format!("Could not read {}: {error}", link.display()),
-            });
-        }
-    }
-    state.emit(&app, ProgramStatus::missing(program));
-    Ok(())
+    let ctx = InstallContext::for_app(&app)?;
+    remove_program(&ctx, state.inner(), &app, program).await
 }
 
-/// Downloads, in the background, the agent programs that are not installed yet.
+/// Downloads, in the background, the agent programs that are not ready. Until an update feed
+/// carries the next versions (PLAT-28's update manifest item), these are the versions this app
+/// pins.
 #[tauri::command]
 pub fn programs_prefetch(app: AppHandle, state: State<'_, ProgramsState>) -> CommandResult<()> {
-    hydrate_from_disk(&app, state.inner())?;
-    for program in ManagedProgram::AGENTS {
-        if state.status(program).state != ProgramState::Ready {
-            start_install(&app, state.inner(), program, false);
-        }
-    }
+    let ctx = InstallContext::for_app(&app)?;
+    prefetch(&ctx, state.inner(), Arc::new(app.clone()))?;
     Ok(())
 }
 
@@ -1699,22 +2073,21 @@ mod tests {
     fn plat_28_a_second_install_of_the_same_program_is_joined() {
         let state = ProgramsState::default();
 
+        let first = state.begin(ManagedProgram::Claude);
+        assert!(first.is_some(), "the first install runs");
         assert!(
-            state.begin(ManagedProgram::Claude),
-            "the first install runs"
-        );
-        assert!(
-            !state.begin(ManagedProgram::Claude),
+            state.begin(ManagedProgram::Claude).is_none(),
             "a second install of the same program joins the first"
         );
         assert!(
-            state.begin(ManagedProgram::Codex),
+            state.begin(ManagedProgram::Codex).is_some(),
             "another program runs alone"
         );
 
-        state.finish(ManagedProgram::Claude);
+        let (id, _cancel) = first.expect("the first run");
+        state.finish(ManagedProgram::Claude, id);
         assert!(
-            state.begin(ManagedProgram::Claude),
+            state.begin(ManagedProgram::Claude).is_some(),
             "a finished install allows a new one"
         );
     }
@@ -1727,7 +2100,7 @@ mod tests {
             message: "The download did not answer.".to_string(),
         };
 
-        let failed = failed_status(&previous, &error);
+        let failed = failed_status(&previous, &error, RetryPolicy::APP, 7);
 
         assert_eq!(failed.state, ProgramState::Retrying);
         assert_eq!(failed.attempt, 1);
@@ -1736,6 +2109,7 @@ mod tests {
             Some("The download did not answer.")
         );
         assert!(failed.next_attempt_at.is_some());
+        assert_eq!(failed.next_attempt_at, Some(1_007));
     }
 
     #[test]
@@ -1764,7 +2138,7 @@ mod tests {
         fs::write(old.join("claude"), b"old").expect("write the old program");
         let trash = folder.folder("trash");
 
-        finish_install(
+        let installed = finish_install(
             ManagedProgram::Claude,
             "2.1.308",
             &binary,
@@ -1780,6 +2154,10 @@ mod tests {
             },
         )
         .expect("install");
+        assert!(
+            installed.prune_error.is_none(),
+            "the old version was trashed"
+        );
 
         let metadata = fs::read_to_string(dirs.binaries.join(".meta").join("claude-2.1.308.json"))
             .expect("metadata");
@@ -1888,5 +2266,835 @@ mod tests {
             .expect("the adapter's EVENTS names programsStatus");
         assert_eq!(listened, EVENT_PROGRAM_STATUS);
         assert_eq!(EVENT_PROGRAM_STATUS, "programs://status");
+    }
+
+    // ------------------------------------------------------------ PLAT-28 installs, end to end
+
+    /// Records every status the manager sends and hands each one to the test as it arrives.
+    struct Recorder {
+        sent: Mutex<Vec<ProgramStatus>>,
+        arrivals: std::sync::mpsc::Sender<ProgramStatus>,
+    }
+
+    impl Recorder {
+        fn new() -> (Arc<Self>, std::sync::mpsc::Receiver<ProgramStatus>) {
+            let (arrivals, receiver) = std::sync::mpsc::channel();
+            let recorder = Self {
+                sent: Mutex::new(Vec::new()),
+                arrivals,
+            };
+            (Arc::new(recorder), receiver)
+        }
+
+        fn sent(&self, program: ManagedProgram) -> Vec<ProgramStatus> {
+            self.sent
+                .lock()
+                .expect("read the record")
+                .iter()
+                .filter(|status| status.program == program)
+                .cloned()
+                .collect()
+        }
+
+        /// The states sent for `program`, with repeats in a row (download progress) folded.
+        fn states(&self, program: ManagedProgram) -> Vec<ProgramState> {
+            let mut states: Vec<ProgramState> = self
+                .sent(program)
+                .iter()
+                .map(|status| status.state)
+                .collect();
+            states.dedup();
+            states
+        }
+
+        fn first(&self, program: ManagedProgram, state: ProgramState) -> ProgramStatus {
+            self.sent(program)
+                .into_iter()
+                .find(|status| status.state == state)
+                .expect("the state was sent")
+        }
+    }
+
+    impl StatusSink for Recorder {
+        fn send(&self, status: &ProgramStatus) -> CommandResult<()> {
+            self.sent
+                .lock()
+                .expect("record the status")
+                .push(status.clone());
+            self.arrivals
+                .send(status.clone())
+                .expect("the test still listens");
+            Ok(())
+        }
+    }
+
+    /// A window that takes `allowed` statuses and then refuses every one.
+    struct RefusingSink {
+        allowed: Mutex<u32>,
+    }
+
+    impl StatusSink for RefusingSink {
+        fn send(&self, _status: &ProgramStatus) -> CommandResult<()> {
+            let mut allowed = self.allowed.lock().expect("read the allowance");
+            if *allowed == 0 {
+                return Err(CommandError::Failed {
+                    code: "test_window_gone",
+                    message: "The test window is gone.".to_string(),
+                });
+            }
+            *allowed -= 1;
+            Ok(())
+        }
+    }
+
+    fn wait_for(
+        arrivals: &std::sync::mpsc::Receiver<ProgramStatus>,
+        matches: impl Fn(&ProgramStatus) -> bool,
+    ) -> ProgramStatus {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            let status = arrivals.recv_timeout(left).expect("the status arrives");
+            if matches(&status) {
+                return status;
+            }
+        }
+    }
+
+    /// One answer of the local test server.
+    enum Answer {
+        /// A status code and a body.
+        Body(u16, &'static [u8]),
+        /// Says when the request arrived, then holds it open until the test releases it.
+        Hold {
+            arrived: std::sync::mpsc::Sender<()>,
+            release: std::sync::mpsc::Receiver<()>,
+        },
+    }
+
+    fn read_request_head(stream: &mut std::net::TcpStream) {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("set the read timeout");
+        let mut head = Vec::new();
+        let mut buffer = [0u8; 1024];
+        while !head.windows(4).any(|window| window == b"\r\n\r\n") {
+            let read = stream.read(&mut buffer).expect("read the request");
+            assert!(read > 0, "the request ended before its head");
+            head.extend_from_slice(&buffer[..read]);
+        }
+    }
+
+    /// Answers one request per answer, in order, then stops listening. The thread returns how many
+    /// requests it answered.
+    fn serve(answers: Vec<Answer>) -> (String, thread::JoinHandle<usize>) {
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind the test server");
+        let address = listener.local_addr().expect("read the test address");
+        let server = thread::spawn(move || {
+            let mut served = 0;
+            for answer in answers {
+                let (mut stream, _) = listener.accept().expect("accept a request");
+                read_request_head(&mut stream);
+                served += 1;
+                match answer {
+                    Answer::Body(status, body) => {
+                        let head = format!(
+                            "HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        stream.write_all(head.as_bytes()).expect("write the head");
+                        stream.write_all(body).expect("write the body");
+                    }
+                    Answer::Hold { arrived, release } => {
+                        arrived.send(()).expect("tell the test");
+                        release.recv().expect("the test releases the request");
+                    }
+                }
+            }
+            served
+        });
+        (format!("http://{address}/program"), server)
+    }
+
+    fn sha_hex(bytes: &[u8]) -> String {
+        format!("{:x}", Sha256::digest(bytes))
+    }
+
+    fn claude_version() -> &'static str {
+        pinned_version(ManagedProgram::Claude).expect("Claude is pinned")
+    }
+
+    fn trash_into(folder: PathBuf) -> Trash {
+        Arc::new(move |path: &Path| {
+            let name = path.file_name().expect("a name").to_owned();
+            fs::rename(path, folder.join(name)).map_err(CommandError::Io)
+        })
+    }
+
+    fn install_context(folder: &TempDir, retry: RetryPolicy) -> InstallContext {
+        InstallContext {
+            dirs: ProgramDirs::in_app_data(&folder.folder("data")),
+            allowed_hosts: &["127.0.0.1"],
+            stall_timeout: Duration::from_secs(10),
+            retry,
+            trash: trash_into(folder.folder("trash")),
+        }
+    }
+
+    const NO_WAIT: RetryPolicy = RetryPolicy {
+        attempts: 3,
+        first_delay_ms: 0,
+    };
+
+    /// A feed that offers `version` of Claude at `url`, with the size and hash of `body`.
+    fn write_feed(dirs: &ProgramDirs, version: &str, url: &str, body: &[u8]) {
+        let asset = ReleaseAsset {
+            url: url.to_string(),
+            sha256: sha_hex(body),
+            size: body.len() as u64,
+        };
+        let manifest = ReleaseManifest {
+            claude: Some(ProgramRelease {
+                version: version.to_string(),
+                darwin_arm64: asset.clone(),
+                darwin_x64: asset,
+            }),
+            codex: None,
+        };
+        fs::create_dir_all(&dirs.binaries).expect("make the binaries folder");
+        fs::write(
+            dirs.manifest(),
+            serde_json::to_string(&manifest).expect("serialise the feed"),
+        )
+        .expect("write the feed");
+    }
+
+    /// Puts `body` on disk as the installed pinned Claude, the way a finished install leaves it.
+    fn install_on_disk(ctx: &InstallContext, body: &[u8]) -> PathBuf {
+        let binary = ctx.dirs.binary(ManagedProgram::Claude, claude_version());
+        fs::create_dir_all(binary.parent().expect("a version folder"))
+            .expect("make the version folder");
+        fs::write(&binary, body).expect("write the program");
+        finish_install(
+            ManagedProgram::Claude,
+            claude_version(),
+            &binary,
+            &sha_hex(body),
+            &ctx.dirs,
+            &*ctx.trash,
+        )
+        .expect("install on disk");
+        binary
+    }
+
+    fn install_claude(
+        ctx: &InstallContext,
+        state: &ProgramsState,
+        sink: &dyn StatusSink,
+        mode: InstallMode,
+    ) {
+        tauri::async_runtime::block_on(run_install(
+            ctx,
+            state,
+            sink,
+            ManagedProgram::Claude,
+            mode,
+            &CancellationToken::new(),
+        ))
+        .expect("every status was sent");
+    }
+
+    #[test]
+    fn plat_28_a_failed_download_is_tried_again_and_then_installs() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (url, server) = serve(vec![Answer::Body(500, b""), Answer::Body(200, b"abc")]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(server.join().expect("the server ends"), 2);
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![
+                ProgramState::Downloading,
+                ProgramState::Retrying,
+                ProgramState::Downloading,
+                ProgramState::Verifying,
+                ProgramState::Ready,
+            ]
+        );
+        let retrying = recorder.first(ManagedProgram::Claude, ProgramState::Retrying);
+        assert_eq!(retrying.attempt, 1);
+        assert!(retrying.next_attempt_at.is_some());
+        assert!(
+            retrying
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("500")),
+            "the retry shows why: {:?}",
+            retrying.error
+        );
+        let ready = state.status(ManagedProgram::Claude);
+        assert_eq!(ready.state, ProgramState::Ready);
+        assert_eq!((ready.attempt, ready.error), (0, None));
+        let binary = ctx.dirs.binary(ManagedProgram::Claude, claude_version());
+        assert_eq!(fs::read(&binary).expect("the installed program"), b"abc");
+        assert_eq!(
+            fs::read_link(ctx.dirs.shim(ManagedProgram::Claude)).expect("the shim"),
+            binary
+        );
+    }
+
+    #[test]
+    fn plat_28_a_download_that_keeps_failing_ends_failed_after_the_last_attempt() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (url, server) = serve(vec![
+            Answer::Body(503, b""),
+            Answer::Body(503, b""),
+            Answer::Body(503, b""),
+        ]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(server.join().expect("the server ends"), 3);
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![
+                ProgramState::Downloading,
+                ProgramState::Retrying,
+                ProgramState::Downloading,
+                ProgramState::Retrying,
+                ProgramState::Downloading,
+                ProgramState::Failed,
+            ]
+        );
+        let failed = state.status(ManagedProgram::Claude);
+        assert_eq!(failed.state, ProgramState::Failed);
+        assert_eq!(failed.attempt, 3);
+        assert_eq!(failed.next_attempt_at, None);
+        assert!(
+            failed
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("503"))
+        );
+    }
+
+    #[test]
+    fn plat_28_a_missing_feed_fails_at_once_without_a_retry() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Failed]
+        );
+        let failed = state.status(ManagedProgram::Claude);
+        assert_eq!(failed.attempt, 1);
+        assert!(
+            failed
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("release feed"))
+        );
+    }
+
+    #[test]
+    fn plat_28_a_feed_with_another_version_is_refused_without_a_download() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        // Nothing listens on port 1, so a download would fail with a network error instead.
+        write_feed(&ctx.dirs, "2.1.307", "http://127.0.0.1:1/program", b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Failed]
+        );
+        let error = state
+            .status(ManagedProgram::Claude)
+            .error
+            .expect("the refusal is shown");
+        assert!(
+            error.contains("offers claude 2.1.307") && error.contains("pins 2.1.308"),
+            "{error}"
+        );
+        assert!(!ctx.dirs.program(ManagedProgram::Claude).exists());
+    }
+
+    #[test]
+    fn plat_28_a_checksum_that_does_not_match_is_never_installed() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (url, server) = serve(vec![
+            Answer::Body(200, b"xyz"),
+            Answer::Body(200, b"xyz"),
+            Answer::Body(200, b"xyz"),
+        ]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(server.join().expect("the server ends"), 3);
+        let failed = state.status(ManagedProgram::Claude);
+        assert_eq!(failed.state, ProgramState::Failed);
+        assert!(
+            failed
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("SHA-256"))
+        );
+        let binary = ctx.dirs.binary(ManagedProgram::Claude, claude_version());
+        assert!(!binary.exists(), "the refused file is not installed");
+        let left: Vec<_> = fs::read_dir(binary.parent().expect("the version folder"))
+            .expect("list the version folder")
+            .collect();
+        assert!(left.is_empty(), "no partial file is left: {left:?}");
+        assert!(fs::symlink_metadata(ctx.dirs.shim(ManagedProgram::Claude)).is_err());
+        assert!(
+            !recorder
+                .states(ManagedProgram::Claude)
+                .contains(&ProgramState::Ready)
+        );
+    }
+
+    #[test]
+    fn plat_28_install_of_a_ready_program_downloads_nothing() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let binary = install_on_disk(&ctx, b"abc");
+        write_feed(
+            &ctx.dirs,
+            claude_version(),
+            "http://127.0.0.1:1/program",
+            b"abc",
+        );
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Ready]
+        );
+        let ready = state.status(ManagedProgram::Claude);
+        assert_eq!(ready.path, Some(binary.to_string_lossy().into_owned()));
+        assert_eq!(ready.version.as_deref(), Some(claude_version()));
+    }
+
+    #[test]
+    fn plat_28_redownload_replaces_the_installed_copy() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let binary = install_on_disk(&ctx, b"old");
+        let (url, server) = serve(vec![Answer::Body(200, b"new")]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"new");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Redownload);
+
+        assert_eq!(server.join().expect("the server ends"), 1);
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![
+                ProgramState::Downloading,
+                ProgramState::Verifying,
+                ProgramState::Ready,
+            ]
+        );
+        assert_eq!(fs::read(&binary).expect("the new program"), b"new");
+        assert!(installed_copy(&ctx.dirs, ManagedProgram::Claude).is_some());
+    }
+
+    #[test]
+    fn plat_28_an_old_version_that_cannot_be_trashed_leaves_the_new_one_ready() {
+        let folder = TempDir::new();
+        let mut ctx = install_context(&folder, NO_WAIT);
+        ctx.trash = Arc::new(|_path: &Path| {
+            Err(CommandError::Failed {
+                code: "test_trash_refused",
+                message: "The test Trash refused the old version.".to_string(),
+            })
+        });
+        let old = ctx.dirs.program(ManagedProgram::Claude).join("2.1.307");
+        fs::create_dir_all(&old).expect("make the old version");
+        let (url, server) = serve(vec![Answer::Body(200, b"abc")]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(server.join().expect("the server ends"), 1);
+        let ready = state.status(ManagedProgram::Claude);
+        assert_eq!(ready.state, ProgramState::Ready);
+        assert_eq!(
+            ready.error.as_deref(),
+            Some("The test Trash refused the old version.")
+        );
+        assert!(old.is_dir(), "the old version is still there");
+        assert!(
+            !recorder
+                .states(ManagedProgram::Claude)
+                .contains(&ProgramState::Retrying)
+        );
+    }
+
+    #[test]
+    fn plat_28_remove_cancels_a_running_install_and_missing_is_the_last_state() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (arrived, request_arrived) = std::sync::mpsc::channel();
+        let (release, hold) = std::sync::mpsc::channel();
+        let (url, server) = serve(vec![Answer::Hold {
+            arrived,
+            release: hold,
+        }]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        let task = start_install(
+            ctx.clone(),
+            &state,
+            recorder.clone(),
+            ManagedProgram::Claude,
+            InstallMode::Install,
+        )
+        .expect("the install starts")
+        .expect("a new run");
+        wait_for(&arrivals, |status| {
+            status.state == ProgramState::Downloading
+        });
+        request_arrived
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the download reaches the server");
+
+        tauri::async_runtime::block_on(remove_program(
+            &ctx,
+            &state,
+            recorder.as_ref(),
+            ManagedProgram::Claude,
+        ))
+        .expect("the remove succeeds");
+        tauri::async_runtime::block_on(task).expect("the install task ends");
+        release.send(()).expect("release the server");
+        assert_eq!(server.join().expect("the server ends"), 1);
+
+        let sent = recorder.sent(ManagedProgram::Claude);
+        assert_eq!(
+            sent.last().map(|status| status.state),
+            Some(ProgramState::Missing)
+        );
+        assert_eq!(
+            state.status(ManagedProgram::Claude).state,
+            ProgramState::Missing
+        );
+        assert!(!ctx.dirs.program(ManagedProgram::Claude).exists());
+        assert!(folder.path().join("trash").join("claude").is_dir());
+        assert!(fs::symlink_metadata(ctx.dirs.shim(ManagedProgram::Claude)).is_err());
+        assert!(!state.is_installing(ManagedProgram::Claude));
+    }
+
+    #[test]
+    fn plat_28_remove_trashes_the_program_and_its_shim() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        install_on_disk(&ctx, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        tauri::async_runtime::block_on(remove_program(
+            &ctx,
+            &state,
+            recorder.as_ref(),
+            ManagedProgram::Claude,
+        ))
+        .expect("the remove succeeds");
+
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Missing]
+        );
+        assert!(!ctx.dirs.program(ManagedProgram::Claude).exists());
+        assert!(
+            folder
+                .path()
+                .join("trash")
+                .join("claude")
+                .join(claude_version())
+                .join("claude")
+                .is_file()
+        );
+        assert!(fs::symlink_metadata(ctx.dirs.shim(ManagedProgram::Claude)).is_err());
+    }
+
+    #[test]
+    fn plat_28_a_second_start_joins_the_running_install_and_downloads_once() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (url, server) = serve(vec![Answer::Body(200, b"abc")]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        let first = start_install(
+            ctx.clone(),
+            &state,
+            recorder.clone(),
+            ManagedProgram::Claude,
+            InstallMode::Redownload,
+        )
+        .expect("the first install starts");
+        let second = start_install(
+            ctx.clone(),
+            &state,
+            recorder.clone(),
+            ManagedProgram::Claude,
+            InstallMode::Redownload,
+        )
+        .expect("the second install is accepted");
+
+        assert!(second.is_none(), "the second install joins the first");
+        tauri::async_runtime::block_on(first.expect("a new run")).expect("the install ends");
+        assert_eq!(server.join().expect("the server ends"), 1);
+        assert_eq!(
+            recorder
+                .sent(ManagedProgram::Claude)
+                .iter()
+                .filter(|status| status.state == ProgramState::Queued)
+                .count(),
+            1
+        );
+        assert_eq!(
+            state.status(ManagedProgram::Claude).state,
+            ProgramState::Ready
+        );
+    }
+
+    #[test]
+    fn plat_28_a_status_the_window_refuses_is_returned_by_the_command() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let state = ProgramsState::default();
+        let window = RefusingSink {
+            allowed: Mutex::new(0),
+        };
+
+        let error = tauri::async_runtime::block_on(remove_program(
+            &ctx,
+            &state,
+            &window,
+            ManagedProgram::Claude,
+        ))
+        .expect_err("the window could not be told");
+
+        assert_eq!(error_code(error), "test_window_gone");
+        assert_eq!(
+            state.status(ManagedProgram::Claude).state,
+            ProgramState::Missing
+        );
+    }
+
+    #[test]
+    fn plat_28_a_background_install_keeps_a_status_the_window_refused() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let state = ProgramsState::default();
+        // The window takes Queued, then refuses the Failed that follows (there is no feed).
+        let window = Arc::new(RefusingSink {
+            allowed: Mutex::new(1),
+        });
+
+        let task = start_install(
+            ctx,
+            &state,
+            window,
+            ManagedProgram::Claude,
+            InstallMode::Install,
+        )
+        .expect("Queued was sent")
+        .expect("a new run");
+        tauri::async_runtime::block_on(task).expect("the install task ends");
+
+        let kept = state.status(ManagedProgram::Claude);
+        assert_eq!(kept.state, ProgramState::Failed);
+        let error = kept.error.expect("the errors are kept");
+        assert!(error.contains("release feed"), "{error}");
+        assert!(error.contains("The test window is gone."), "{error}");
+    }
+
+    #[test]
+    fn plat_28_the_app_sends_a_status_on_the_status_event() {
+        use tauri::Listener;
+        let app = tauri::test::mock_app();
+        let (sender, events) = std::sync::mpsc::channel::<String>();
+        app.handle().listen(EVENT_PROGRAM_STATUS, move |event| {
+            sender
+                .send(event.payload().to_string())
+                .expect("the test still listens");
+        });
+        let state = ProgramsState::default();
+
+        state
+            .publish(app.handle(), ProgramStatus::missing(ManagedProgram::Codex))
+            .expect("the window is told");
+
+        let payload = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the status arrives");
+        let parsed: serde_json::Value = serde_json::from_str(&payload).expect("JSON");
+        assert_eq!(parsed["program"], "codex");
+        assert_eq!(parsed["state"], "missing");
+    }
+
+    #[test]
+    fn plat_28_a_quarantine_flag_that_is_set_is_cleared() {
+        let folder = TempDir::new();
+        let path = folder.path().join("claude");
+        fs::write(&path, b"program").expect("write program");
+        let set = Command::new("xattr")
+            .args(["-w", "com.apple.quarantine", "0081;00000000;Test;"])
+            .arg(&path)
+            .status()
+            .expect("run xattr");
+        assert!(set.success(), "the flag is set");
+
+        strip_quarantine(&path).expect("the flag is cleared");
+
+        let read = Command::new("xattr")
+            .args(["-p", "com.apple.quarantine"])
+            .arg(&path)
+            .output()
+            .expect("run xattr");
+        assert!(!read.status.success(), "the flag is gone");
+    }
+
+    #[test]
+    fn plat_28_the_shim_replaces_an_old_link_and_a_dangling_one() {
+        let folder = TempDir::new();
+        let bin = folder.folder("bin");
+        let old = folder.path().join("old-claude");
+        fs::write(&old, b"old").expect("write the old program");
+        let new = folder.path().join("new-claude");
+        fs::write(&new, b"new").expect("write the new program");
+        symlink(&old, bin.join("claude")).expect("an old shim");
+        symlink(folder.path().join("gone"), bin.join("codex")).expect("a dangling shim");
+
+        install_bin_shim(&bin, ManagedProgram::Claude, &new).expect("replace the old shim");
+        install_bin_shim(&bin, ManagedProgram::Codex, &new).expect("replace the dangling shim");
+
+        assert_eq!(fs::read_link(bin.join("claude")).expect("claude shim"), new);
+        assert_eq!(fs::read_link(bin.join("codex")).expect("codex shim"), new);
+    }
+
+    #[test]
+    fn plat_28_a_restart_shows_the_installed_copy_ready() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let binary = install_on_disk(&ctx, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        hydrate_from_disk(&ctx.dirs, &state, recorder.as_ref()).expect("hydrate");
+
+        let claude = state.status(ManagedProgram::Claude);
+        assert_eq!(claude.state, ProgramState::Ready);
+        assert_eq!(claude.path, Some(binary.to_string_lossy().into_owned()));
+        assert_eq!(
+            state.status(ManagedProgram::Codex).state,
+            ProgramState::Missing
+        );
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Ready]
+        );
+    }
+
+    #[test]
+    fn plat_28_prefetch_installs_only_the_programs_that_are_not_ready() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        install_on_disk(&ctx, b"abc");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        let started = prefetch(&ctx, &state, recorder.clone()).expect("prefetch starts");
+        assert_eq!(started.len(), 1, "only Codex needs an install");
+        for task in started {
+            tauri::async_runtime::block_on(task).expect("the install task ends");
+        }
+
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Ready]
+        );
+        let codex = state.status(ManagedProgram::Codex);
+        assert_eq!(codex.state, ProgramState::Failed);
+        assert!(
+            codex
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("release feed"))
+        );
+    }
+
+    #[test]
+    fn plat_28_app_exit_stops_an_install_that_waits_to_retry() {
+        let folder = TempDir::new();
+        let ctx = install_context(
+            &folder,
+            RetryPolicy {
+                attempts: 3,
+                first_delay_ms: 600_000,
+            },
+        );
+        let (url, server) = serve(vec![Answer::Body(500, b"")]);
+        write_feed(&ctx.dirs, claude_version(), &url, b"abc");
+        let (recorder, arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+        let task = start_install(
+            ctx,
+            &state,
+            recorder.clone(),
+            ManagedProgram::Claude,
+            InstallMode::Install,
+        )
+        .expect("the install starts")
+        .expect("a new run");
+        wait_for(&arrivals, |status| status.state == ProgramState::Retrying);
+
+        state.cancel_all();
+
+        tauri::async_runtime::block_on(async {
+            tokio::time::timeout(Duration::from_secs(10), task).await
+        })
+        .expect("the install stops without waiting out its delay")
+        .expect("the install task ends");
+        assert_eq!(server.join().expect("the server ends"), 1);
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude).last(),
+            Some(&ProgramState::Retrying)
+        );
+        assert!(!state.is_installing(ManagedProgram::Claude));
     }
 }
