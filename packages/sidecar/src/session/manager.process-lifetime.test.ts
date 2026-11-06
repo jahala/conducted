@@ -42,6 +42,7 @@ import type {
 import { FakeApp } from "../test-support/fake-app.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
+import { loginShellOver } from "../test-support/login-shell.ts";
 import { LiveStateStore } from "./live-state.ts";
 import { DefaultSessionManager } from "./manager.ts";
 
@@ -200,7 +201,12 @@ function harness() {
 		liveState,
 		interactions: new FakeInteractions(),
 		queue: createKeyedQueue(),
-		models: new RunnerModelCatalog({ runners: registry, logger, clock }),
+		models: new RunnerModelCatalog({
+			runners: registry,
+			shellEnv: loginShellOver({ PATH: "/usr/bin" }, logger),
+			logger,
+			clock,
+		}),
 		clock,
 		ids: { uuid: () => `id-${++nextId}` },
 		logger,

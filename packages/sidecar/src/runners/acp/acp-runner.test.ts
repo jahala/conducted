@@ -435,7 +435,7 @@ function makeListingRunner(
 describe("AGENT-12 ACP model and command listing", () => {
 	test("models are mapped from the model config option and the session is closed", async () => {
 		const { runner, closed } = makeListingRunner();
-		const models = await runner.listModels();
+		const models = await runner.listModels({ env: {} });
 		expect(models.map((model) => model.id)).toEqual(["m1", "m2"]);
 		expect(models.map((model) => model.isDefault)).toEqual([false, true]);
 		expect(closed()).toBe(1);
@@ -453,7 +453,7 @@ describe("AGENT-12 ACP model and command listing", () => {
 				});
 			},
 		});
-		const models = await runner.listModels();
+		const models = await runner.listModels({ env: {} });
 		expect(models.map((model) => model.id)).toEqual(["m1", "m2"]);
 	});
 
@@ -463,7 +463,7 @@ describe("AGENT-12 ACP model and command listing", () => {
 			{ adapter: { ...ACP_ADAPTERS.opencode, waitForModelCatalogMs: 5 } },
 		);
 
-		await expect(runner.listModels()).rejects.toMatchObject({
+		await expect(runner.listModels({ env: {} })).rejects.toMatchObject({
 			code: "acp_model_list_timeout",
 		});
 	});
@@ -482,7 +482,7 @@ describe("AGENT-12 ACP model and command listing", () => {
 		);
 		const started = Date.now();
 
-		await expect(runner.listModels()).rejects.toMatchObject({
+		await expect(runner.listModels({ env: {} })).rejects.toMatchObject({
 			code: "acp_model_list_timeout",
 		});
 		expect(Date.now() - started).toBeLessThan(1000);
@@ -492,7 +492,7 @@ describe("AGENT-12 ACP model and command listing", () => {
 		const { runner } = makeListingRunner({ configOptions: [] }, { adapter: ACP_ADAPTERS.pi });
 		const started = Date.now();
 
-		expect(await runner.listModels()).toEqual([]);
+		expect(await runner.listModels({ env: {} })).toEqual([]);
 		expect(Date.now() - started).toBeLessThan(1000);
 	});
 
@@ -500,7 +500,7 @@ describe("AGENT-12 ACP model and command listing", () => {
 		const { runner, closed } = makeListingRunner({
 			open: err(appError("acp_open_failed", "OpenCode refused the session.")),
 		});
-		await expect(runner.listModels()).rejects.toMatchObject({ code: "acp_open_failed" });
+		await expect(runner.listModels({ env: {} })).rejects.toMatchObject({ code: "acp_open_failed" });
 		expect(closed()).toBe(1);
 	});
 
@@ -513,7 +513,7 @@ describe("AGENT-12 ACP model and command listing", () => {
 				} as SessionNotification);
 			},
 		});
-		expect(await runner.listSlashCommands("/tmp/work")).toEqual([
+		expect(await runner.listSlashCommands("/tmp/work", { env: {} })).toEqual([
 			{ name: "review", description: "Review the diff", argumentHint: "<path>" },
 		]);
 	});

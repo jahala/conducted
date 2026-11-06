@@ -1060,6 +1060,41 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		);
 	});
 
+	test("SIDE-21 model, slash command and MCP lists run the program and keys of the app's launch", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const launch: AgentLaunch = {
+			executablePath: "/opt/claude/bin/claude",
+			env: { HTTPS_PROXY: "http://proxy" },
+			providerKeys: {
+				CLAUDE_CODE_OAUTH_TOKEN: { value: "oauth-token", source: "entered" },
+				OPENAI_API_KEY: { value: "sk-codex", source: "entered" },
+			},
+		};
+		try {
+			unwrap(await h.handlers.listModels({ agent: "claude", launch }));
+			unwrap(
+				await h.handlers.listSlashCommands({
+					agent: "claude",
+					workspacePath: folder,
+					repoRootPath: folder,
+					launch,
+				}),
+			);
+			unwrap(await h.handlers.listMcpServers({ agent: "claude", workspacePath: folder, launch }));
+
+			expect(h.seen.claudeOptions).toHaveLength(3);
+			for (const { options } of h.seen.claudeOptions) {
+				expect(options.pathToClaudeCodeExecutable).toBe("/opt/claude/bin/claude");
+				expect(options.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe("oauth-token");
+				expect(options.env?.HTTPS_PROXY).toBe("http://proxy");
+				expect(options.env?.OPENAI_API_KEY).toBeUndefined();
+			}
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("SIDE-22 the slash command cache answers before a chat starts", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder);

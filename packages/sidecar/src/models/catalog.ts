@@ -14,6 +14,9 @@
  *  - a model id the agent no longer offers: validate() returns an error value naming it
  *  - a slow ACP catalog: the 15 s wait lives in the ACP runner, this class only caches the answer
  *  - two callers at once: one discovery run (single flight)
+ *  - a request with the app's launch (SIDE-21): the list comes from the program and keys the
+ *    launch names (runners/launch-env.ts, `listingContext`), and lists of different launches are
+ *    cached apart, by the launch's fingerprint
  *  - invalidate() drops the cache; the composition root (SIDE-01) calls it from the agent
  *    detector's onChanged, because a new CLI version can add models
  *  - a discovery that was already running when the cache was cleared never overwrites the new one
@@ -28,12 +31,15 @@
  * default model is the entry the runner marks `isDefault`; when none is marked the caller uses the
  * user's default_model setting (sessions-agents-native, section 5).
  */
-import type { ModelInfo, SessionConfig } from "@conducted/protocol";
+import type { AgentLaunch, ModelInfo, SessionConfig } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Clock } from "@conducted/shared";
 import { type AppError, appError, asAppError, err, ok, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
+import { launchFingerprint } from "../process/launch-fingerprint.ts";
+import { listingContext } from "../runners/launch-env.ts";
 import { type RunnerRegistry, selectorKey } from "../runners/registry.ts";
-import type { Runner } from "../runners/runner.ts";
+import type { ListingContext, Runner } from "../runners/runner.ts";
+import type { ShellEnvProvider } from "../shell-env/capture.ts";
 
 /** How long a discovered list is reused. Conductor refreshes its catalog every hour. */
 export const MODEL_CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -60,7 +66,12 @@ export function defaultModel(models: readonly ModelInfo[]): ModelInfo | undefine
 }
 
 export interface ModelCatalog {
-	list(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<ModelInfo[], AppError>>;
+	/** The agent's models, read with the app's launch when one is given (SIDE-21). */
+	list(
+		agent: AgentKind,
+		acpAgent?: AcpAgent,
+		launch?: AgentLaunch,
+	): Promise<Result<ModelInfo[], AppError>>;
 	/** Checks the chosen model against the agent's list. */
 	validate(config: SessionConfig): Promise<Result<ModelInfo, AppError>>;
 	/** Drops cached lists. */
@@ -77,6 +88,8 @@ export class RunnerModelCatalog implements ModelCatalog {
 	constructor(
 		protected readonly deps: {
 			runners: RunnerRegistry;
+			/** The login-shell capture a listing runs in. */
+			shellEnv: ShellEnvProvider;
 			logger: Logger;
 			clock: Clock;
 		},
@@ -84,16 +97,22 @@ export class RunnerModelCatalog implements ModelCatalog {
 		this.clock = deps.clock;
 	}
 
-	async list(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<ModelInfo[], AppError>> {
+	async list(
+		agent: AgentKind,
+		acpAgent?: AcpAgent,
+		launch?: AgentLaunch,
+	): Promise<Result<ModelInfo[], AppError>> {
 		const runner = this.deps.runners.get({ agent, acpAgent });
 		if (!runner.ok) return runner;
 
-		const selector = { agent, acpAgent };
-		const key = selectorKey(selector);
+		const label = selectorKey({ agent, acpAgent });
+		// The launch's fingerprint keeps lists of different programs or keys apart. Logs name only
+		// the agent, never the fingerprint of its keys.
+		const key = launch === undefined ? label : `${label}#${launchFingerprint(launch)}`;
 		const cached = this.cache.get(key);
 		if (cached !== undefined && this.clock.now() - cached.at < MODEL_CATALOG_TTL_MS) {
 			this.deps.logger.debug("Model catalog cache hit", {
-				agent: key,
+				agent: label,
 				models: cached.models.length,
 			});
 			return ok([...cached.models]);
@@ -102,7 +121,7 @@ export class RunnerModelCatalog implements ModelCatalog {
 		const pending = this.inFlight.get(key);
 		if (pending !== undefined) return pending;
 
-		const started = this.discover(key, runner.value);
+		const started = this.discover(key, label, runner.value, agent, launch);
 		this.inFlight.set(key, started);
 		void started.finally(() => {
 			if (this.inFlight.get(key) === started) this.inFlight.delete(key);
@@ -134,18 +153,30 @@ export class RunnerModelCatalog implements ModelCatalog {
 		this.deps.logger.debug("Model catalog cache cleared");
 	}
 
-	private async discover(key: string, runner: Runner): Promise<Result<ModelInfo[], AppError>> {
+	private async discover(
+		key: string,
+		label: string,
+		runner: Runner,
+		agent: AgentKind,
+		launch: AgentLaunch | undefined,
+	): Promise<Result<ModelInfo[], AppError>> {
 		const generation = this.generation;
+		const context: Result<ListingContext, AppError> = await listingContext({
+			agent,
+			shellEnv: this.deps.shellEnv,
+			...(launch === undefined ? {} : { launch }),
+		});
+		if (!context.ok) return context;
 		try {
-			const models = await runner.listModels();
+			const models = await runner.listModels(context.value);
 			if (generation === this.generation) {
 				this.cache.set(key, { models, at: this.clock.now() });
 			}
-			this.deps.logger.debug("Listed agent models", { agent: key, models: models.length });
+			this.deps.logger.debug("Listed agent models", { agent: label, models: models.length });
 			return ok([...models]);
 		} catch (cause) {
-			const error = asAppError(MODEL_LIST_FAILED, `Could not list models for ${key}`, cause);
-			this.deps.logger.warn("Could not list agent models", { agent: key, code: error.code });
+			const error = asAppError(MODEL_LIST_FAILED, `Could not list models for ${label}`, cause);
+			this.deps.logger.warn("Could not list agent models", { agent: label, code: error.code });
 			return err(error);
 		}
 	}

@@ -265,18 +265,21 @@ export const appToSidecarRequests = {
 	),
 	/**
 	 * Without a workspace (the new-workspace composer), the sidecar answers from its saved list
-	 * for the repository and agent, and `fromCache` is true (SIDE-22).
+	 * for the repository and agent, and `fromCache` is true (SIDE-22). With one, the agent lists
+	 * them, started as `launch` says when it is given (SIDE-21).
 	 */
 	listSlashCommands: method(
 		z.object({
 			...zAgentRef,
 			workspacePath: z.string().optional(),
 			repoRootPath: z.string(),
+			launch: zAgentLaunch.optional(),
 		}),
 		z.object({ commands: z.array(zSlashCommand), fromCache: z.boolean() }),
 	),
+	/** The agent's MCP servers in a workspace, started as `launch` says when it is given (SIDE-21). */
 	listMcpServers: method(
-		z.object({ ...zAgentRef, workspacePath: z.string() }),
+		z.object({ ...zAgentRef, workspacePath: z.string(), launch: zAgentLaunch.optional() }),
 		z.object({
 			servers: z.array(
 				z.object({
@@ -294,7 +297,14 @@ export const appToSidecarRequests = {
 			),
 		}),
 	),
-	listModels: method(z.object(zAgentRef), z.object({ models: z.array(zModelInfo) })),
+	/**
+	 * The agent's models. With `launch`, the list comes from the program and keys the user chose
+	 * (SIDE-21); without it, from the managed or PATH program and the login shell's environment.
+	 */
+	listModels: method(
+		z.object({ ...zAgentRef, launch: zAgentLaunch.optional() }),
+		z.object({ models: z.array(zModelInfo) }),
+	),
 	/** Which agent programs are installed, their versions and whether they are signed in. */
 	getAgentInstalls: method(empty, z.object({ agents: z.array(zAgentInstall) })),
 	/** Start the agent's own sign-in flow (browser or device code). Only one per agent runs at a time. */

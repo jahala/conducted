@@ -1207,11 +1207,15 @@ export class SettingsService {
 	/**
 	 * The Environment page's variables for one repository, the one rule both its scripts and its agents'
 	 * launch use. Rows come in name order with the global row before the repository's (env-vars.ts), so
-	 * a repository's value replaces the global one of the same name. A value the Keychain cannot give
-	 * back fails the whole read with a message that names the variable, never the global value instead.
+	 * a repository's value replaces the global one of the same name. Without a repository (an agent's
+	 * model list), the global variables only. A value the Keychain cannot give back fails the whole read
+	 * with a message that names the variable, never the global value instead.
 	 */
-	async environmentFor(repoId: RepoId): Promise<Result<Record<string, string>>> {
-		const listed = await this.#deps.repos.envVars.listForRepo(repoId);
+	async environmentFor(repoId: RepoId | null): Promise<Result<Record<string, string>>> {
+		const listed =
+			repoId === null
+				? await this.#deps.repos.envVars.listGlobal()
+				: await this.#deps.repos.envVars.listForRepo(repoId);
 		if (!listed.ok) {
 			return err(
 				appError(

@@ -490,7 +490,12 @@ function harness(
 		liveState: pipelineLiveState ?? liveState,
 		interactions,
 		queue,
-		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
+		models: new RunnerModelCatalog({
+			runners: registry,
+			shellEnv: fakeShellEnv(options.macSecrets),
+			logger,
+			clock: { now: () => 1000 },
+		}),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `event-${++nextId}` },
 		logger,

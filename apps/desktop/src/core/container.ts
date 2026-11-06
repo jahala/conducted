@@ -34,6 +34,7 @@
 
 import { AGENT_PROVIDER_TABLE, type AgentLaunch, signInEnvVars } from "@conducted/protocol";
 import {
+	type AcpAgent,
 	type AgentKind,
 	appError,
 	type Clock,
@@ -41,6 +42,7 @@ import {
 	type IdSource,
 	messageOf,
 	ok,
+	type RepoId,
 	type Result,
 	type SessionId,
 	type WorkspaceId,
@@ -223,6 +225,17 @@ export function createArchiveOnMerged(
 	};
 }
 
+/** The setting that holds the program the user chose for an agent, when the agent has one. */
+function programPathSetting(
+	agent: AgentKind,
+	acpAgent: AcpAgent | undefined,
+): "claude_executable_path" | "codex_executable_path" | "opencode_executable_path" | null {
+	if (agent === "claude") return "claude_executable_path";
+	if (agent === "codex") return "codex_executable_path";
+	if (agent === "acp" && acpAgent === "opencode") return "opencode_executable_path";
+	return null;
+}
+
 /**
  * Whether a stored provider key goes into an agent's launch (SET-09, D033). Only the credential of the
  * chosen sign-in reaches the agent: the keys of its provider that the agent-provider table lists for
@@ -401,6 +414,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const repo = lookups.repoOf(ws.value.id);
 			return ready(repo.ok ? ok(repo.value.rootPath) : repo);
 		},
+		launchFor: (agent, acpAgent, sessionId) => {
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			const ws = lookups.workspaceOfSession(sessionId);
+			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
 	});
@@ -420,17 +438,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
 	 * that names it, so the send or warm that asked shows it instead of starting without it.
 	 */
-	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
+	const launchForAgent = async (
+		agent: AgentKind,
+		acpAgent: AcpAgent | undefined,
+		repoId: RepoId | null,
+	): Promise<Result<AgentLaunch>> => {
 		const env: Record<string, string> = {};
 		const providerKeys: AgentLaunch["providerKeys"] = {};
-		const workspace = lookups.workspace(session.workspaceId);
-		if (!workspace.ok) return workspace;
 		const providerSetting =
-			session.config.agent === "claude"
-				? "claude_provider"
-				: session.config.agent === "codex"
-					? "codex_provider"
-					: null;
+			agent === "claude" ? "claude_provider" : agent === "codex" ? "codex_provider" : null;
 		const chosenProvider =
 			providerSetting === null ? undefined : setting<string>(providerSetting).trim().toLowerCase();
 		const readSecret = async (ref: string, name: string): Promise<Result<string>> => {
@@ -456,22 +472,20 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 		// Claude reads its Bedrock region and Vertex project from these variables. They go in first,
 		// so a variable of the same name on the Environment page wins.
-		if (session.config.agent === "claude" && chosenProvider === "bedrock") {
+		if (agent === "claude" && chosenProvider === "bedrock") {
 			const region = setting<string>("bedrock_region").trim();
 			if (region !== "") env.AWS_REGION = region;
 		}
-		if (session.config.agent === "claude" && chosenProvider === "vertex") {
+		if (agent === "claude" && chosenProvider === "vertex") {
 			const project = setting<string>("vertex_project_id").trim();
 			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
 		}
-		// The Environment page's variables, by the one rule the repository scripts also use.
-		const variables = await settings.environmentFor(workspace.value.repoId);
+		// The Environment page's variables, by the one rule the repository scripts also use. Without a
+		// repository (a model list), only the global ones.
+		const variables = await settings.environmentFor(repoId);
 		if (!variables.ok) return variables;
 		Object.assign(env, variables.value);
-		const keys = await repositories.providerKeys.listForAgent(
-			session.config.agent,
-			session.config.acpAgent ?? null,
-		);
+		const keys = await repositories.providerKeys.listForAgent(agent, acpAgent ?? null);
 		if (!keys.ok) {
 			return err(
 				appError(
@@ -482,7 +496,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			);
 		}
 		for (const key of keys.value) {
-			if (!launchTakesKey(session.config.agent, chosenProvider, key)) continue;
+			if (!launchTakesKey(agent, chosenProvider, key)) continue;
 			if (key.source === "this_mac") {
 				// The app cannot read the Mac's environment. The sidecar fills the value in from the login
 				// shell it captured, and fails the launch when that variable is not set there.
@@ -494,14 +508,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (!value.ok) return value;
 			providerKeys[key.envVar] = { value: value.value, source: "entered" };
 		}
-		const executableKey =
-			session.config.agent === "claude"
-				? "claude_executable_path"
-				: session.config.agent === "codex"
-					? "codex_executable_path"
-					: session.config.agent === "acp" && session.config.acpAgent === "opencode"
-						? "opencode_executable_path"
-						: null;
+		const executableKey = programPathSetting(agent, acpAgent);
 		const executablePath = executableKey === null ? "" : setting<string>(executableKey).trim();
 		const provider =
 			chosenProvider === undefined || chosenProvider === "" ? undefined : chosenProvider;
@@ -511,6 +518,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 			...(executablePath === "" ? {} : { executablePath }),
 			...(provider === undefined ? {} : { provider }),
 		});
+	};
+	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
+		const workspace = lookups.workspace(session.workspaceId);
+		if (!workspace.ok) return workspace;
+		return launchForAgent(session.config.agent, session.config.acpAgent, workspace.value.repoId);
 	};
 	const chatTitles = new ChatTitleService({
 		sidecar: client,

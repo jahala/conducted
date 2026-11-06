@@ -46,9 +46,10 @@ import {
 import type { AcpAgent, AgentKind, SessionId } from "@conducted/shared";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { AGENT_NOT_INSTALLED } from "../models/catalog.ts";
-import type { CapturedShellEnv } from "../shell-env/capture.ts";
+import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import { buildAgentEnv } from "../shell-env/env.ts";
 import type { FindExecutable } from "./deps.ts";
+import type { ListingContext } from "./runner.ts";
 
 export interface AgentProgram {
 	/** Absolute path of the program to run. */
@@ -151,32 +152,41 @@ export interface BuildEnvironmentInput {
 export function buildAgentEnvironment(
 	input: BuildEnvironmentInput,
 ): Result<Record<string, string>> {
+	const variables = launchVariables(input.agent, input.launch);
+	if (!variables.ok) return variables;
+	return ok(buildAgentEnv(input.base, input.sessionId, input.workspace, variables.value));
+}
+
+/**
+ * What a launch adds to the captured environment: the user's variables, then the base URL, then the
+ * agent's own keys, then Claude's provider routing.
+ */
+function launchVariables(agent: AgentKind, launch: AgentLaunch): Result<Record<string, string>> {
 	// A custom provider decides which variables it needs, so every entered key reaches the agent.
 	// The built-in providers get only the variables listed for their agent (D033).
 	const ownKeyNames =
-		input.launch.provider?.trim().toLowerCase() === "custom"
+		launch.provider?.trim().toLowerCase() === "custom"
 			? null
-			: agentProviders(input.agent).flatMap((provider) => provider.keyEnvVars);
+			: agentProviders(agent).flatMap((provider) => provider.keyEnvVars);
 	const ownKeys: Record<string, string> = {};
-	for (const [name, key] of Object.entries(input.launch.providerKeys)) {
+	for (const [name, key] of Object.entries(launch.providerKeys)) {
 		if (ownKeyNames !== null && !ownKeyNames.includes(name)) continue;
 		ownKeys[name] = key.value;
 	}
-	const baseUrl = baseUrlEnvironment(input.agent, input.launch.baseUrl);
+	const baseUrl = baseUrlEnvironment(agent, launch.baseUrl);
 	if (!baseUrl.ok) return baseUrl;
-	const userVariables: Record<string, string> = {
-		...input.launch.env,
+	const variables: Record<string, string> = {
+		...launch.env,
 		...baseUrl.value,
 		...ownKeys,
 	};
 
-	if (input.agent === "claude") {
-		const routing = claudeProviderEnvironment(input.launch.provider);
+	if (agent === "claude") {
+		const routing = claudeProviderEnvironment(launch.provider);
 		if (!routing.ok) return routing;
-		Object.assign(userVariables, routing.value);
+		Object.assign(variables, routing.value);
 	}
-
-	return ok(buildAgentEnv(input.base, input.sessionId, input.workspace, userVariables));
+	return ok(variables);
 }
 
 /**
@@ -221,6 +231,34 @@ export function agentEnvironmentFromCapture(
 	if (!launch.ok) return launch;
 	const { captured, ...rest } = input;
 	return buildAgentEnvironment({ ...rest, base: captured.env, launch: launch.value });
+}
+
+/**
+ * How a listing call (models, slash commands, MCP servers) starts the agent: the login shell
+ * captured for `folder`, with the launch's variables and keys added and its program chosen, so the
+ * list comes from the program and keys a chat would use (SIDE-21). Without a launch the listing
+ * runs the captured environment and the managed or PATH program. A launch's key chosen from this
+ * Mac that the shell does not set fails with its name, as a chat's start does.
+ */
+export async function listingContext(input: {
+	agent: AgentKind;
+	shellEnv: ShellEnvProvider;
+	/** The folder whose login-shell capture to use; missing: the sidecar's own folder. */
+	folder?: string;
+	launch?: AgentLaunch;
+}): Promise<Result<ListingContext>> {
+	const captured = await input.shellEnv.get(input.folder);
+	if (!captured.ok) return captured;
+	if (input.launch === undefined) return ok({ env: captured.value.env });
+	const launch = fillMacKeys(input.launch, captured.value);
+	if (!launch.ok) return launch;
+	const variables = launchVariables(input.agent, launch.value);
+	if (!variables.ok) return variables;
+	const executablePath = launch.value.executablePath;
+	return ok({
+		env: { ...captured.value.env, ...variables.value },
+		...(executablePath === undefined || executablePath === "" ? {} : { executablePath }),
+	});
 }
 
 /** The variable that replaces the provider's own address, for the agents that have one. */

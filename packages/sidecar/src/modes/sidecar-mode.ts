@@ -801,8 +801,8 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		skillPluginDir: config.skillPluginDir,
 		cursorStoreDir: config.cursorStoreDir,
 	});
-	const models = new RunnerModelCatalog({ runners, logger, clock });
 	const shellEnv = ports.shellEnv;
+	const models = new RunnerModelCatalog({ runners, shellEnv, logger, clock });
 	const utilityPrompt = new AgentUtilityPromptRunner({
 		runners,
 		shellEnv,
@@ -857,9 +857,9 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		outbox,
 		models,
 		agents,
-		slashCommands: new RunnerSlashCommandLister({ runners, logger }),
+		slashCommands: new RunnerSlashCommandLister({ runners, shellEnv, logger }),
 		completions,
-		mcpServers: new RunnerMcpServerLister({ runners, logger }),
+		mcpServers: new RunnerMcpServerLister({ runners, shellEnv, logger }),
 		usage: new SessionUsageReader({ logger, sessions }),
 		shellEnv,
 		utilityPrompt,

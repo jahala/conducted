@@ -80,6 +80,7 @@ export function buildHandlers(deps: HandlerDeps): {
 					params.agent,
 					params.acpAgent,
 					params.workspacePath,
+					params.launch,
 				);
 				if (!listed.ok) {
 					deps.logger.warn("Could not refresh the slash command cache; keeping the last list", {
@@ -109,12 +110,13 @@ export function buildHandlers(deps: HandlerDeps): {
 					params.agent,
 					params.acpAgent,
 					params.workspacePath,
+					params.launch,
 				);
 				if (!listed.ok) return listed;
 				return ok({ servers: listed.value });
 			},
 			listModels: async (params) => {
-				const listed = await deps.models.list(params.agent, params.acpAgent);
+				const listed = await deps.models.list(params.agent, params.acpAgent, params.launch);
 				if (!listed.ok) return listed;
 				return ok({ models: listed.value });
 			},

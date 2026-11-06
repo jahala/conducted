@@ -195,7 +195,12 @@ function buildManager(agent: AgentSession, logger: Logger): DefaultSessionManage
 		liveState: new LiveStateStore({ app, flushed: async () => {} }),
 		interactions: new FakeInteractions(),
 		queue: createKeyedQueue(),
-		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
+		models: new RunnerModelCatalog({
+			runners: registry,
+			shellEnv: fakeShellEnv(),
+			logger,
+			clock: { now: () => 1000 },
+		}),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `id-${++nextId}` },
 		logger,

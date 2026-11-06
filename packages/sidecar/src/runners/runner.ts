@@ -8,7 +8,9 @@
  * AGENT-17 adds two ACP-only optional methods for a chat's config options beyond the model.
  * AGENT-13 adds a Codex-only optional goal accessor and a goal-change callback.
  * SIDE-21 adds the program the user chose (`StartOptions.executablePath`), which each runner starts
- * through `findAgentProgram` in launch-env.ts.
+ * through `findAgentProgram` in launch-env.ts. The listing calls take the same choice and the
+ * environment built from the app's launch (`ListingContext`), so a model list runs the program
+ * and keys a chat would.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
  * and capabilities are declared up front instead of discovered by catching "not supported".
  */
@@ -171,6 +173,17 @@ export interface RunnerSlashCommand {
 	kind?: "command" | "skill";
 }
 
+/**
+ * How a listing call (models, slash commands, MCP servers) starts the agent program: the captured
+ * login-shell environment with the launch's variables and keys added, and the program the user
+ * chose. Built by `listingContext` in launch-env.ts.
+ */
+export interface ListingContext {
+	env: Readonly<Record<string, string>>;
+	/** Missing: the managed copy, then the login-shell PATH copy (`findAgentProgram`). */
+	executablePath?: string;
+}
+
 /** The factory for one agent kind. */
 export interface Runner {
 	readonly agent: AgentKind;
@@ -181,13 +194,13 @@ export interface Runner {
 	 */
 	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version?: string } | null>;
 	start(options: StartOptions): Promise<AgentSession>;
-	listModels(): Promise<ModelInfo[]>;
-	listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]>;
+	listModels(context: ListingContext): Promise<ModelInfo[]>;
+	listSlashCommands(workspacePath: string, context: ListingContext): Promise<RunnerSlashCommand[]>;
 	/**
 	 * The agent's MCP servers and their status. Only runners whose capabilities.mcpServers is
 	 * true need it; the models/slash-and-mcp.ts lister calls it when it is present.
 	 */
-	listMcpServers?(workspacePath: string): Promise<McpServerView[]>;
+	listMcpServers?(workspacePath: string, context: ListingContext): Promise<McpServerView[]>;
 }
 
 /** One MCP server's status: the protocol's own listMcpServers server shape. */
