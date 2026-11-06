@@ -1442,7 +1442,7 @@ PR-04	git	Re-run failed checks uses the run id parsed from the check's details U
 PR-04	git	A failed job's log shows the last 1000 lines, with a retry without the escape-sequence flag.	services-map 3.7.5	partly
 PR-04	git	Annotations are read for jobs that never started.	services-map 3.7.5	partly
 PR-03	git	Whether a PR exists for a branch name is checked with gh pr list.	services-map 3.7.5	covered
-PR-07	rule	The PR activity list shows commits, reviews, comments and status changes.	frontend 7	partly
+PR-07	rule	The PR activity list shows commits and comments (renderApp l6a @9996475; D078).	frontend 7	partly
 GIT-07	rule	Conflict resolution goes to the agent as an instruction.	services-map 3.7.6	covered
 PR-05	rule	Fixing CI errors goes to the agent as an instruction.	services-map 3.7.6	covered
 GIT-14	git	For a repo without GitHub, PR-like info is made from rev-list counts.	services-map 3.7.7	missing
