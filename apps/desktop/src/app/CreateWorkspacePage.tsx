@@ -5,9 +5,10 @@
  * @feature WS-11 Backlog workspaces: save now, start later
  * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: the "new workspace" dialog at /create: the project picker (with Open project, Open GitHub project,
- * Quick start and the projects under Recents), the "···" options (section, plan mode, Backlog), the
- * toggleable "create from" picker (default branch, an existing local branch, a pull request or an issue),
- * the first message with a model field, and the "Create ↵" button. The first message is kept as the
+ * Quick start and the projects under Recents), the "···" options (section, Backlog), the toggleable
+ * "create from" picker (default branch, an existing local branch, a pull request or an issue), the first
+ * message with the composer's model menu, the "+" menu (plan mode), and the "Create ↵" button with its
+ * "Create in section" dropdown. The first message is kept as the
  * new-workspace draft in the composer store, so the Create row can mark it and the dialog restores it
  * (NAV-16). Typing '@' in the first message offers the chosen repository's own files before any
  * workspace exists (SIDE-22).
@@ -16,17 +17,19 @@
  * that is not loaded gives "Repository not found", and the page keeps its usual first project.
  * Behaviour: measured from Conductor 0.92.1 and the owner's captures: a modal over the blurred screen,
  * 768px wide with a 12px radius in the muted fill; a 48px top row with the project name and its chevron, a
- * "···" button and, at the right, the create-from source with its chevron; a borderless text area with "What
- * do you want to work on?"; a bottom row with the model at the left and "Create ↵" at the right. Escape or a
+ * "···" button and, at the right, the create-from control (two round marks and a chevron, or the chosen
+ * branch, pull request or issue); a borderless text area with "What do you want to work on?"; a bottom
+ * row with the model menu at the left, then "+", the outlined "Add to backlog ⌥↵" and the 24px "Create ↵"
+ * split button whose chevron lists the sections under "Create in section" (renderApp @10145385). Escape or a
  * click outside closes it and returns to the screen it opened over. ui-map.md 3.9 (New workspace flow), 5.4
  * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
  * starts a backlog workspace).
  * Our design choice: the page marks itself as a dialog scope, so inside it Cmd+Enter arrives as
  * "Confirm the open dialog"; in start mode Start answers that command as well as its own.
  * Our design choice: the dialog keeps the first message in a plain textarea until the composer editor can be
- * reused outside a chat; attachments wait for COMP-07, so Conductor's "+" is not drawn. The model is a
- * free-text field until the composer's model picker can be used without a chat. "Add to backlog" stays a
- * visible button beside Create (ours).
+ * reused outside a chat. Conductor's "+" also adds attachments; ours offers plan mode only, because an
+ * attachment is staged into a chat and none exists yet. Conductor shows "Add to backlog" for cloud
+ * organisations only; ours shows it whenever unstarted workspaces are on.
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
  * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat;
  * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
@@ -59,21 +62,33 @@ import {
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
 import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
+import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
 import { AddProjectButton, useAddProject } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
+import { cn } from "../ui/cn.ts";
 import { Dialog, DialogContent } from "../ui/Dialog.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
 import { Input, Label } from "../ui/Input.tsx";
 import {
 	ChevronDownIcon,
+	CircleIcon,
 	FolderIcon,
 	FolderPlusIcon,
 	GitBranchIcon,
 	GlobeIcon,
 	MoreHorizontalIcon,
+	PlusIcon,
+	PullRequestIcon,
 } from "../ui/icons.tsx";
-import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "../ui/Menu.tsx";
+import {
+	Menu,
+	MenuCheckboxItem,
+	MenuContent,
+	MenuItem,
+	MenuLabel,
+	MenuTrigger,
+} from "../ui/Menu.tsx";
 import { Select } from "../ui/Select.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { useCommandHandler } from "./command-dispatcher.ts";
@@ -237,7 +252,23 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [prompt, setPrompt] = useState(search.prompt ?? "");
 	const [mention, setMention] = useState<FileMentionQuery | null>(null);
 	const [slashMention, setSlashMention] = useState<FileMentionQuery | null>(null);
-	const [model, setModel] = useState(defaultModel);
+	// The first chat's agent, model, effort and fast mode, chosen in the same menu as the composer's.
+	const [choice, setChoice] = useState<ModelChoice>(() => {
+		const config = newWorkspaceSessionConfig({
+			model: defaultModel,
+			effort: defaultEffort,
+			fastMode: defaultFastMode,
+			planMode: false,
+			requireToolApproval: false,
+		});
+		return {
+			agent: config.agent,
+			acpAgent: config.acpAgent,
+			model: config.model,
+			effort: config.effort,
+			fastMode: config.fastMode,
+		};
+	});
 	const [planMode, setPlanMode] = useState(defaultPlanMode);
 	const [sectionId, setSectionId] = useState(() => search.section ?? "");
 	const [busy, setBusy] = useState(false);
@@ -329,7 +360,13 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		setRepoId(backlogEntry.repoId);
 		setFromKind("default");
 		setPrompt(backlogEntry.prompt);
-		setModel(backlogEntry.config.model);
+		setChoice({
+			agent: backlogEntry.config.agent,
+			acpAgent: backlogEntry.config.acpAgent,
+			model: backlogEntry.config.model,
+			effort: backlogEntry.config.effort,
+			fastMode: backlogEntry.config.fastMode,
+		});
 		setPlanMode(backlogEntry.config.planMode);
 		setSectionId(backlogEntry.sectionId ?? "");
 	}, [backlogEntry]);
@@ -397,7 +434,10 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	// The text fields are read-only rather than disabled, so focus and Cmd+Enter still work.
 	const fieldsLocked = busy || startMode;
 
-	function makeInput(repo: typeof selectedRepo): NewWorkspaceInput | null {
+	function makeInput(
+		repo: typeof selectedRepo,
+		section: string = sectionId,
+	): NewWorkspaceInput | null {
 		if (repo === undefined) {
 			toast.error("No repository selected");
 			return null;
@@ -422,20 +462,24 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			}
 			from = { kind: "issue", provider: selectedIssue.provider, id: selectedIssue.id };
 		}
-		const config = newWorkspaceSessionConfig({
-			model,
-			effort: defaultEffort,
-			fastMode: defaultFastMode,
-			planMode,
-			requireToolApproval: toolApprovals,
-		});
+		const config = {
+			...newWorkspaceSessionConfig({
+				model: choice.model,
+				effort: choice.effort,
+				fastMode: choice.fastMode,
+				planMode,
+				requireToolApproval: toolApprovals,
+			}),
+			agent: choice.agent,
+			acpAgent: choice.acpAgent,
+		};
 		return {
 			repoId: repo.id,
 			from,
 			prompt,
 			attachmentPaths: [],
 			config,
-			sectionId: sectionId === "" ? null : (sectionId as SectionId),
+			sectionId: section === "" ? null : (section as SectionId),
 		};
 	}
 
@@ -456,7 +500,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		});
 	}
 
-	async function submit() {
+	async function submit(section: string = sectionId) {
 		if (startMode) {
 			if (backlogEntry === undefined) {
 				toast.error("That backlog workspace no longer exists");
@@ -477,7 +521,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			});
 			return;
 		}
-		const input = makeInput(selectedRepo);
+		const input = makeInput(selectedRepo, section);
 		if (input === null) return;
 		await flight.run("create", async () => {
 			setFailedId(null);
@@ -531,17 +575,6 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		...sections.map((section) => ({ value: section.id, label: section.name })),
 	];
 
-	const fromLabel =
-		fromKind === "branch"
-			? branchName.trim() || "Branch"
-			: fromKind === "pull_request"
-				? selectedPullRequest === null
-					? "Pull request"
-					: `#${selectedPullRequest.number}`
-				: fromKind === "issue"
-					? (selectedIssue?.identifier ?? "Issue")
-					: selectedRepo.defaultBranch;
-
 	return (
 		<Dialog
 			open
@@ -589,22 +622,24 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							<MoreHorizontalIcon className="size-3.5" />
 						</Button>
 						<span className="flex-1" />
-						<Button
+						<button
 							type="button"
-							variant="ghost"
-							size="sm"
 							aria-label="Show or hide the create-from picker"
 							aria-expanded={pickerOpen}
 							aria-controls="create-from-picker"
 							disabled={fieldsLocked}
 							title="Create from"
-							className="max-w-56 gap-1.5 font-normal text-fg-muted"
+							className="-mr-1.5 flex h-7 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-1.5 text-fg outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus aria-expanded:bg-hover disabled:opacity-50"
 							onClick={() => setPickerOpen((open) => !open)}
 						>
-							<GitBranchIcon className="size-3.5 shrink-0" />
-							<span className="truncate">{fromLabel}</span>
-							<ChevronDownIcon className="size-3 shrink-0" />
-						</Button>
+							<FromSource
+								kind={fromKind}
+								branch={branchName.trim()}
+								pullRequest={selectedPullRequest}
+								issue={selectedIssue}
+							/>
+							<ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
+						</button>
 					</header>
 
 					{startMode ? (
@@ -705,15 +740,6 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 									disabled={fieldsLocked || sections.length === 0}
 								/>
 							</div>
-							<label className="flex h-8 items-center gap-2 text-sm text-fg">
-								<input
-									type="checkbox"
-									checked={planMode}
-									onChange={(event) => setPlanMode(event.target.checked)}
-									disabled={fieldsLocked}
-								/>
-								Plan mode
-							</label>
 							{backlogEnabled ? (
 								<Button
 									type="button"
@@ -816,26 +842,43 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 					)}
 
 					<footer className="flex items-center gap-2 px-3 pt-2 pb-3">
-						<label className="flex min-w-0 items-center gap-1 rounded-md px-2 text-sm hover:bg-hover">
-							<span className="sr-only">Model</span>
-							<input
-								id="create-workspace-model"
-								aria-label="Model"
-								value={model}
-								onChange={(event) => setModel(event.target.value)}
-								placeholder="Default model"
-								disabled={busy}
-								readOnly={startMode}
-								className="h-7 w-36 min-w-0 bg-transparent text-sm text-fg outline-none placeholder:text-fg"
-							/>
-							<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
-						</label>
+						<ModelMenu
+							config={choice}
+							started={false}
+							onApply={setChoice}
+							scope="new-workspace"
+							disabled={fieldsLocked}
+						/>
 						<span className="flex-1" />
+						<Menu>
+							<MenuTrigger asChild>
+								<Button
+									type="button"
+									variant="ghost"
+									size="xs"
+									aria-label="Add"
+									title="Plan mode and more"
+									disabled={fieldsLocked}
+									className="w-6 px-0 text-fg-muted"
+								>
+									<PlusIcon className="size-4" />
+								</Button>
+							</MenuTrigger>
+							<MenuContent side="top" align="end">
+								<MenuCheckboxItem
+									checked={planMode}
+									disabled={fieldsLocked}
+									onCheckedChange={(checked) => setPlanMode(checked === true)}
+								>
+									Plan mode
+								</MenuCheckboxItem>
+							</MenuContent>
+						</Menu>
 						{startMode ? (
 							<Button
 								type="button"
-								variant="ghost"
-								size="sm"
+								variant="outline"
+								size="xs"
 								onClick={() => void navigate({ to: "/backlog" })}
 							>
 								Cancel
@@ -843,31 +886,124 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						) : backlogEnabled ? (
 							<Button
 								type="button"
-								variant="ghost"
-								size="sm"
+								variant="outline"
+								size="xs"
 								aria-label="Add to backlog"
+								title="Add to backlog ⌥↵"
 								disabled={busy}
 								onClick={() => void saveToBacklog()}
 							>
 								Add to backlog
+								<span aria-hidden="true" className="text-xs">
+									⌥↵
+								</span>
 							</Button>
 						) : null}
-						<Button
-							type="submit"
-							size="sm"
-							loading={busy}
-							aria-label={startMode ? "Start" : "Create workspace"}
-							className="gap-1.5"
-						>
-							{startMode ? "Start" : "Create"}
-							<span aria-hidden="true" className="text-xs opacity-70">
-								↵
-							</span>
-						</Button>
+						<div className="flex items-center">
+							<Button
+								type="submit"
+								size="xs"
+								loading={busy}
+								aria-label={startMode ? "Start" : "Create workspace"}
+								title={startMode ? "Start workspace ↵" : "Create workspace ↵"}
+								className={cn("text-sm", !startMode && sections.length > 0 && "rounded-r-none")}
+							>
+								{startMode ? "Start" : "Create"}
+								<span aria-hidden="true" className="text-xs">
+									↵
+								</span>
+							</Button>
+							{!startMode && sections.length > 0 ? (
+								<Menu>
+									<MenuTrigger asChild>
+										<Button
+											type="button"
+											size="xs"
+											aria-label="Create in section"
+											title="Create in section"
+											disabled={busy}
+											className="w-6 rounded-l-none border-l border-canvas/20 px-0"
+										>
+											<ChevronDownIcon className="size-3.5" />
+										</Button>
+									</MenuTrigger>
+									<MenuContent side="top" align="end" className="w-56">
+										<MenuLabel>Create in section</MenuLabel>
+										{sections.map((section) => (
+											<MenuItem
+												key={section.id}
+												onSelect={() => {
+													setSectionId(section.id);
+													void submit(section.id);
+												}}
+											>
+												<span className="min-w-0 truncate">{section.name}</span>
+											</MenuItem>
+										))}
+									</MenuContent>
+								</Menu>
+							) : null}
+						</div>
 					</footer>
 				</form>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/**
+ * What the create-from control shows, as Conductor draws it (renderApp @11449595): two overlapping round
+ * marks while the workspace starts from the default branch, the branch icon and name for a branch, a
+ * "PR #n" chip and the title for a pull request, and the identifier and title for an issue.
+ * Our design choice: the two marks are our own pull-request and issue glyphs; Conductor's are the
+ * Linear and GitHub logos, which are not ours to copy (D002).
+ */
+function FromSource({
+	kind,
+	branch,
+	pullRequest,
+	issue,
+}: {
+	kind: FromKind;
+	branch: string;
+	pullRequest: PullRequestSummary | null;
+	issue: IssueView | null;
+}) {
+	if (kind === "branch" && branch !== "") {
+		return (
+			<>
+				<GitBranchIcon className="size-4 shrink-0 text-fg-muted" />
+				<span className="truncate text-sm font-medium">{branch}</span>
+			</>
+		);
+	}
+	if (kind === "pull_request" && pullRequest !== null) {
+		return (
+			<>
+				<span className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium">
+					PR #{pullRequest.number}
+				</span>
+				<span className="truncate text-sm">{pullRequest.title}</span>
+			</>
+		);
+	}
+	if (kind === "issue" && issue !== null) {
+		return (
+			<>
+				<span className="shrink-0 font-mono text-xs text-fg-muted">{issue.identifier}</span>
+				<span className="truncate text-sm">{issue.title}</span>
+			</>
+		);
+	}
+	return (
+		<span aria-hidden="true" className="flex shrink-0 -space-x-1">
+			<span className="flex size-4 items-center justify-center rounded-full border border-canvas bg-raised text-fg">
+				<CircleIcon className="size-2.5" />
+			</span>
+			<span className="flex size-4 items-center justify-center rounded-full border border-canvas bg-fg text-canvas">
+				<PullRequestIcon className="size-2.5" />
+			</span>
+		</span>
 	);
 }
 

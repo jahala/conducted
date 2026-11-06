@@ -1,7 +1,7 @@
 /**
  * @feature COMP-02 Model picker
- * Owns: The button and menu that choose agent, model, effort and fast mode for a chat, with
- * favourites.
+ * Owns: The button and menu that choose agent, model, effort and fast mode, with favourites: bound to a
+ * chat (ModelPicker), and the same menu for the new-workspace dialog's first chat (ModelMenu).
  * Behaviour: ui-map.md 3.5 (Model picker, Cmd+/: favourites up to 5 selectable with Cmd+Ctrl+1..5,
  * submenus Agent, Model, Effort, toggle Fast (Cmd+Shift+E), search 'Search models', 'No models
  * found'; switching agent or model in a started chat shows 'Opens in new chat'; Cmd+Shift+/ cycles
@@ -110,32 +110,11 @@ export function modelsForPicker(
 	);
 }
 
+/** The chat's picker: the menu bound to one session, with the chat's rules for a change. */
 export function ModelPicker({ sessionId }: ModelPickerProps) {
 	const actions = useActions();
 	const { services } = useServices();
-	const triggerRef = useRef<HTMLButtonElement>(null);
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
-	const installs = useStore(services.agentCatalog.store, (state) => state.installs);
-	const favorites = useStore(services.favoriteModels.store, (state) => state.favorites);
-	const visible = useSetting<string>("visible_provider_models");
-	const config = session?.config;
-	const models = useModels(config?.agent ?? "claude", config?.acpAgent);
-	const fastShortcut = useLiveShortcut("chat.toggleFastMode");
-	const [search, setSearch] = useState("");
-	const agentChoices = useRef(createLatestWins());
-
-	const allModels = models.state === "ready" ? models.data : [];
-	const currentModel =
-		config === undefined ? undefined : allModels.find((model) => model.id === config.model);
-	const pickerModels = useMemo(() => modelsForPicker(allModels, visible), [allModels, visible]);
-	const filteredModels = useMemo(() => {
-		const query = search.trim().toLowerCase();
-		if (query.length === 0) return pickerModels;
-		return pickerModels.filter(
-			(model) =>
-				model.label.toLowerCase().includes(query) || model.id.toLowerCase().includes(query),
-		);
-	}, [pickerModels, search]);
 
 	const applyConfig = useCallback(
 		async (change: ConfigChange) => {
@@ -173,6 +152,67 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 		},
 		[actions, session, sessionId],
 	);
+
+	return (
+		<ModelMenu
+			config={session?.config}
+			started={session !== undefined && session.lastUserMessageAt !== null}
+			onApply={applyConfig}
+			scope={sessionId}
+			commands
+		/>
+	);
+}
+
+export type ModelChoice = ConfigChange;
+
+export interface ModelMenuProps {
+	/** The choice the menu shows; undefined while the chat loads. */
+	config: ConfigChange | undefined;
+	/** True when the chat has sent a message, so another agent opens a new chat. */
+	started: boolean;
+	onApply: (change: ConfigChange) => void | Promise<void>;
+	/** Keys the newest-agent-choice rule, one per chat or dialog. */
+	scope: string;
+	/** Registers the chat shortcuts (Cmd+/, fast mode, cycle effort, loadouts). One menu per screen does. */
+	commands?: boolean;
+	disabled?: boolean;
+}
+
+/**
+ * The model menu and its trigger, for any owner of a choice: the chat's picker and the new-workspace
+ * dialog both use it, as Conductor uses one menu in both places.
+ */
+export function ModelMenu({
+	config,
+	started,
+	onApply: applyConfig,
+	scope,
+	commands = false,
+	disabled = false,
+}: ModelMenuProps) {
+	const { services } = useServices();
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	const installs = useStore(services.agentCatalog.store, (state) => state.installs);
+	const favorites = useStore(services.favoriteModels.store, (state) => state.favorites);
+	const visible = useSetting<string>("visible_provider_models");
+	const models = useModels(config?.agent ?? "claude", config?.acpAgent);
+	const fastShortcut = useLiveShortcut("chat.toggleFastMode");
+	const [search, setSearch] = useState("");
+	const agentChoices = useRef(createLatestWins());
+
+	const allModels = models.state === "ready" ? models.data : [];
+	const currentModel =
+		config === undefined ? undefined : allModels.find((model) => model.id === config.model);
+	const pickerModels = useMemo(() => modelsForPicker(allModels, visible), [allModels, visible]);
+	const filteredModels = useMemo(() => {
+		const query = search.trim().toLowerCase();
+		if (query.length === 0) return pickerModels;
+		return pickerModels.filter(
+			(model) =>
+				model.label.toLowerCase().includes(query) || model.id.toLowerCase().includes(query),
+		);
+	}, [pickerModels, search]);
 
 	const changeOf = useCallback(
 		(patch: Partial<ConfigChange>): ConfigChange | undefined => {
@@ -212,7 +252,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 		async (choice: Choice) => {
 			if (config === undefined || sameChoice(config, choice)) return;
 			const key = agentKey(choice.agent, choice.acpAgent);
-			const ticket = agentChoices.current.begin(sessionId);
+			const ticket = agentChoices.current.begin(scope);
 			let entry = services.agentCatalog.store.getState().models[key];
 			if (entry === undefined) {
 				const loaded = await services.agentCatalog.loadModels(choice.agent, choice.acpAgent);
@@ -237,7 +277,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				fastMode: chosen.supportsFastMode ? config.fastMode : false,
 			});
 		},
-		[applyConfig, config, services, sessionId, visible],
+		[applyConfig, config, services, scope, visible],
 	);
 
 	const chooseEffort = useCallback(
@@ -290,6 +330,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 
 	/** Applies the favourite at `index`. False when there is none, so the key passes on. */
 	const selectLoadout = (index: number): boolean => {
+		if (!commands) return false;
 		const favorite = favorites[index];
 		if (favorite === undefined) return false;
 		pickFavorite(favorite);
@@ -297,17 +338,17 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	};
 
 	useCommandHandler("chat.openModelPicker", "area", () => {
-		if (triggerRef.current === null) return false;
+		if (!commands || triggerRef.current === null) return false;
 		triggerRef.current.click();
 		return true;
 	});
 	useCommandHandler("chat.toggleFastMode", "area", () => {
-		if (config === undefined) return false;
+		if (!commands || config === undefined) return false;
 		toggleFast();
 		return true;
 	});
 	useCommandHandler("chat.cycleEffort", "area", () => {
-		if (config === undefined) return false;
+		if (!commands || config === undefined) return false;
 		cycleEffort();
 		return true;
 	});
@@ -353,7 +394,6 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 
 	const flyoutRow =
 		"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover disabled:cursor-not-allowed disabled:opacity-50";
-	const started = session?.lastUserMessageAt !== null && session?.lastUserMessageAt !== undefined;
 
 	const modelRow = (model: ModelInfo, value?: string) => {
 		const selected = config?.model === model.id;
@@ -447,6 +487,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 					ref={triggerRef}
 					variant="ghost"
 					size="sm"
+					disabled={disabled}
 					aria-label="Model picker"
 					title={`${agentName}: change agent`}
 					className="max-w-64 gap-1 px-2 font-normal"

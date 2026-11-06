@@ -85,6 +85,8 @@ function makeContainer(sectionRows: readonly Section[] = []) {
 				default_fast_mode: false,
 				default_plan_mode: false,
 				tool_approvals_enabled: false,
+				visible_provider_models: "",
+				keybinding_overrides_v1: "",
 			})[key] as T,
 		set: async () => ok(undefined),
 	};
@@ -124,10 +126,25 @@ function makeContainer(sectionRows: readonly Section[] = []) {
 			return ok(undefined);
 		},
 	};
+	// The dialog's model menu is the composer's: it reads the agent catalogue and the favourites.
+	const agentCatalog = {
+		store: createStore(() => ({
+			installs: { state: "loading" as const },
+			models: {},
+			slashCommands: {},
+		})),
+		loadModels: async () => ok([]),
+	};
+	const favoriteModels = {
+		store: createStore(() => ({ loaded: true, favorites: [] })),
+		start: async () => ok(undefined),
+	};
 	const container = {
 		services: {
 			repo: repoService,
 			settings,
+			agentCatalog,
+			favoriteModels,
 			sections: { store: sections },
 			workspace: { store: workspaceStore },
 			composer,
