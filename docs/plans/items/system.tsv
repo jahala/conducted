@@ -2542,7 +2542,7 @@ DATA-05	store	Each resolved setting reports its source layer and whether it is l
 DATA-05	message	Saving into an invalid settings file says it cannot save and offers Overwrite file; no component owns the prompt.	services-map 4.2.1	partly
 DATA-05	message	Entries dropped while reading settings (unparseable, unknown key, wrong type, unsupported value) are reported but no screen shows them.	services-map 4.2.1	partly
 DATA-05	rule	Writing settings adds git exclude lines for the .conducted files.	services-map 4.2.1	covered
-DATA-05	rule	The settings file keeps a schema line and sorted keys.	services-map 4.2.1	covered
+DATA-05	rule	The settings file keeps a schema line; a new file is written with sorted keys, and an existing one keeps its own order (SET-14).	services-map 4.2.1	covered
 DATA-05	store	Environment variable tables can hold a none marker or a Keychain marker; the file should hold names and the Keychain the values.	services-map 4.2.4	partly
 SET-07	store	Hidden run actions are kept in local storage and not in the settings file.	services-map 4.2.4	covered
 PLAT-10	store	Keychain key names cover gh tokens, the Codex key and per-scope environment variables; no document lists our names.	services-map 4.2.8	partly
@@ -2693,7 +2693,7 @@ PLAT-35	rule	The app's bin folder is added to PATH after the login-shell repair.
 AGENT-03	rule	One smoke test runs a Claude turn end to end through the real translator.	claude-runner 1	missing
 SIDE-21	rule	Runners start the agent program the detector found (Settings path, managed copy, then PATH), never a second PATH lookup.	other-runners 5	missing
 PLAT-36	rule	Rust command tests run through a mock Tauri app: shell start, cancel and timeout events, the file paths command, and a terminal from spawn to exit.	native-and-sidecar-map A2	missing
-SET-14	rule	Rewriting a settings file keeps the user's comments, or warns before the first rewrite that would drop them.	services-map 4.2	missing
+SET-14	rule	Rewriting a settings file keeps the user's comments, or warns before the first rewrite that would drop them.	services-map 4.2	covered
 SIDE-02	rule	A smoke test starts the real sidecar host on a temporary socket path and sees the handshake line.	sessions 10	missing
 AGENT-06	operation	The agent detector reads Codex sign-in through the Codex runner's account call.	other-runners 5	missing
 AGENT-09	operation	The agent detector reads Cursor sign-in through the Cursor runner.	other-runners 5	missing
