@@ -3,17 +3,19 @@
  * @feature PR-08 Stack readiness
  * Owns: tests for the readiness rules of a GitHub stack: each entry's own readiness, the roll-up
  * to a stack verdict, the first entry that blocks a stack merge, the number of pull requests a
- * stack merge takes, and the words the header and the stack view show for them.
+ * stack merge takes, the words the header and the stack view show for them, and whether a pull
+ * request is in a GitHub stack.
  * Behaviour: services-map.md 3.8.2 (readiness per stack entry; Conductor's rules, checked against
  * its own code where the research names them only).
  * Test first: a lower pull request that GitHub reports as BLOCKED blocks the stack merge of the
  * pull request above it, and the header names it.
  */
 import { describe, expect, it } from "vitest";
-import type { StackEntryView } from "../model.ts";
+import type { PullRequest, StackEntryView } from "../model.ts";
 import {
 	entryReadiness,
 	headerStackInput,
+	isInGitHubStack,
 	stackBlocker,
 	stackBlockerTitle,
 	stackEntryStatus,
@@ -226,5 +228,40 @@ describe("PR-08 the stack view's readiness", () => {
 				needsRebase: false,
 			}),
 		).toEqual({ label: "Closed", tone: "danger" });
+	});
+});
+
+describe("PR-08 whether a pull request is in a GitHub stack", () => {
+	const pullRequest = (state: PullRequest["state"]): PullRequest => ({
+		number: 2,
+		url: "https://github.com/o/r/pull/2",
+		title: "PR 2",
+		body: "",
+		state,
+		mergeable: "mergeable",
+		reviewDecision: null,
+		checks: [],
+		inMergeQueue: false,
+		autoMergeEnabled: false,
+		baseBranch: "feat-1",
+		authorLogin: "octocat",
+		viewerDidAuthor: true,
+		viewerCanMerge: true,
+		mergeMethod: "squash",
+		reviewers: [],
+		deployments: [],
+		updatedAt: 0,
+	});
+
+	it("counts an open pull request whose stack read found members", () => {
+		expect(isInGitHubStack(pullRequest("open"), chain())).toBe(true);
+		expect(isInGitHubStack(pullRequest("draft"), chain())).toBe(true);
+	});
+
+	it("leaves out a merged pull request, no pull request, and a stack read with no members", () => {
+		expect(isInGitHubStack(pullRequest("merged"), chain())).toBe(false);
+		expect(isInGitHubStack(null, chain())).toBe(false);
+		expect(isInGitHubStack(pullRequest("open"), [])).toBe(false);
+		expect(isInGitHubStack(pullRequest("open"), null)).toBe(false);
 	});
 });

@@ -2,9 +2,10 @@
 /**
  * @feature PR-08 GitHub stacks: reading a pull request's stack, the stack sync and the stack merge
  * Owns: tests for the native stack read, each entry's readiness and commit ids, the optional
- * `stackEntry` retry, the stack merge, the locks the stack sync holds, and the extension error both
- * stack commands share and the sync's abort errors.
- * Behaviour: services-map.md 3.8.2, 3.0.3 (`gh stack sync` runs under the worktree and repo locks).
+ * `stackEntry` retry and its memory per remote host, the stack merge, the locks the stack sync
+ * holds, and the extension error both stack commands share and the sync's abort errors.
+ * Behaviour: services-map.md 3.8.2, 3.7.2 (a refused optional field is remembered per remote host),
+ * 3.0.3 (`gh stack sync` runs under the worktree and repo locks).
  * Test first: a stack member list comes back from trunk up with the workspace branch marked as
  * current.
  */
@@ -265,7 +266,7 @@ describe("PR-08 GitHub stack read", () => {
 		expect(await service.readStack(workspaceId)).toEqual(ok([]));
 	});
 
-	it("retries without the optional stackEntry field and remembers that repository", async () => {
+	it("retries without the optional stackEntry field and remembers that host", async () => {
 		const git = new FakeGitRunner(stackHandler);
 		const service = makeService(git);
 
@@ -285,6 +286,66 @@ describe("PR-08 GitHub stack read", () => {
 
 		expect(await service.readStack(workspaceId)).toEqual(ok([]));
 		expect(git.commands).toHaveLength(0);
+	});
+});
+
+describe("PR-08 the optional stackEntry field is remembered per remote host", () => {
+	const firstId = "ws-first" as WorkspaceId;
+	const secondId = "ws-second" as WorkspaceId;
+	const thirdId = "ws-third" as WorkspaceId;
+	/** Three workspaces, each in its own repository. The third one's remote is on another host. */
+	const remotes: Record<string, string> = {
+		"/wt-first": "git@github.com:o/first.git\n",
+		"/wt-second": "https://github.com/o/second.git\n",
+		"/wt-third": "ssh://git@ssh.github.com:443/o/third.git\n",
+	};
+	const paths: Record<string, string> = {
+		[firstId]: "/wt-first",
+		[secondId]: "/wt-second",
+		[thirdId]: "/wt-third",
+	};
+
+	function makeHostService(git: FakeGitRunner): GithubService {
+		return new GithubService({
+			git,
+			agent: {} as never,
+			contextOf: async (id) => ok({ ...context, workspaceId: id, workspacePath: paths[id] ?? "" }),
+			onMerged: () => {},
+			now: () => 1_000,
+			probeCwd: "/tmp",
+		});
+	}
+
+	const hostHandler = (
+		command: { program: string; args: readonly string[] },
+		options: { cwd?: string },
+	): ReturnType<typeof gitOutput> => {
+		if (command.program === "git") return gitOutput(remotes[options.cwd ?? ""] ?? "");
+		return stackHandler(command);
+	};
+
+	const askedForField = (git: FakeGitRunner): boolean[] =>
+		graphqlCalls(git).map((command) => command.args.some((arg) => arg.includes("stackEntry")));
+
+	it("skips the field for another repository on the host that refused it", async () => {
+		const git = new FakeGitRunner(hostHandler);
+		const service = makeHostService(git);
+
+		expect(await service.readStack(firstId)).toEqual(ok([]));
+		expect(askedForField(git)).toEqual([true, false]);
+
+		// The second repository is on the same host, so its read goes straight to the plain query.
+		expect(await service.readStack(secondId)).toEqual(ok([]));
+		expect(askedForField(git)).toEqual([true, false, false]);
+	});
+
+	it("still asks another host for the field", async () => {
+		const git = new FakeGitRunner(hostHandler);
+		const service = makeHostService(git);
+
+		expect(await service.readStack(firstId)).toEqual(ok([]));
+		expect(await service.readStack(thirdId)).toEqual(ok([]));
+		expect(askedForField(git)).toEqual([true, false, true, false]);
 	});
 });
 

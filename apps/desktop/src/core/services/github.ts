@@ -57,7 +57,7 @@
  * workspace and leaves its last entry alone; a failed budget probe pauses polling and is reported
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
- * is retried without and remembered per repository, each stack entry carries the restack flag
+ * is retried without and remembered per remote host, each stack entry carries the restack flag
  * the Graphite service last read for its branch (false before that repository was ever read), its
  * head and base commit ids, and GitHub's merge state from one readiness query for every member
  * (a readiness read that fails leaves every merge state unknown and keeps the stack, as Conductor
@@ -383,17 +383,30 @@ export interface GithubRepository {
 
 const NOT_GITHUB_REMOTE = "This repository has no GitHub remote.";
 
+/** A GitHub remote: the host it names and the repository's owner and name. */
+interface GithubRemote extends GithubRepository {
+	/** The host name, lower case, for example "github.com" or "ssh.github.com". */
+	host: string;
+}
+
 /**
  * Reads `owner/name` out of a GitHub remote URL, in any of the shapes git stores: HTTPS, scp-like
  * SSH and an ssh:// URL. Every other host is refused, the same rule as `isGithubRemoteUrl`.
  */
 export function githubRepositoryFromRemote(url: string): Result<GithubRepository> {
+	const remote = githubRemoteFromUrl(url);
+	return remote.ok ? ok({ owner: remote.value.owner, name: remote.value.name }) : remote;
+}
+
+/** The one parser behind `githubRepositoryFromRemote`, keeping the host as well. */
+function githubRemoteFromUrl(url: string): Result<GithubRemote> {
 	const trimmed = url.trim();
 	if (trimmed === "") return err(appError("github_not_github", NOT_GITHUB_REMOTE));
+	let host: string;
 	let path: string;
 	const scp = hasUrlScheme(trimmed) ? null : SCP_LIKE_REMOTE.exec(trimmed);
 	if (scp !== null) {
-		if (!isGithubHost(scp[1])) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
+		host = scp[1] ?? "";
 		path = scp[2] ?? "";
 	} else {
 		let parsed: URL;
@@ -402,11 +415,10 @@ export function githubRepositoryFromRemote(url: string): Result<GithubRepository
 		} catch {
 			return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 		}
-		if (!isGithubHost(parsed.hostname)) {
-			return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-		}
+		host = parsed.hostname;
 		path = parsed.pathname;
 	}
+	if (!isGithubHost(host)) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 	const parts = path
 		.replace(/^\/+/, "")
 		.replace(/\/+$/, "")
@@ -418,7 +430,7 @@ export function githubRepositoryFromRemote(url: string): Result<GithubRepository
 	if (owner === undefined || name === undefined) {
 		return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 	}
-	return ok({ owner, name });
+	return ok({ host: host.toLowerCase(), owner, name });
 }
 
 /** Whether the issues tab may ask GitHub for this repository (services-map 5B.8.2). */
@@ -1617,7 +1629,7 @@ export class GithubService {
 	readonly #pollingRepos = new Set<string>();
 	/** Each repository's merge method, read once from GitHub (services-map 3.7.5). */
 	readonly #mergeMethodByRepo = new Map<string, MergeMethod>();
-	/** GitHub hosts that refused the optional `stackEntry` field, remembered per repository. */
+	/** The remote hosts that refused the optional `stackEntry` field (services-map 3.7.2). */
 	readonly #stackEntryUnsupported = new Set<string>();
 	/**
 	 * The members the last stack read found, per workspace, for the range diff scope. One entry per
@@ -3035,16 +3047,17 @@ export class GithubService {
 			return ok([]);
 		}
 
-		const repository = await this.#repositoryOf(found);
-		if (!repository.ok) return err(repository.error);
-		const repositoryKey = repositoryPath(repository.value);
-		const includeStackEntry = !this.#stackEntryUnsupported.has(repositoryKey);
+		const remote = await this.#remoteOf(found);
+		if (!remote.ok) return err(remote.error);
+		// A host that refused the field once is asked without it from then on, for every repository.
+		const host = remote.value.host;
+		const includeStackEntry = !this.#stackEntryUnsupported.has(host);
 
 		const readDetails = (withField: boolean) =>
 			this.#readGh(prStackQuery(prNumber, withField), found.workspacePath);
 		let details = await readDetails(includeStackEntry);
 		if (includeStackEntry && !details.ok && isUndefinedStackFieldError(details.error.message)) {
-			this.#stackEntryUnsupported.add(repositoryKey);
+			this.#stackEntryUnsupported.add(host);
 			details = await readDetails(false);
 		}
 		if (!details.ok) return err(details.error);
@@ -3422,11 +3435,17 @@ export class GithubService {
 
 	/** The GitHub repository of a workspace, from its configured remote. */
 	async #repositoryOf(context: PrWorkspaceContext): Promise<Result<GithubRepository>> {
+		const remote = await this.#remoteOf(context);
+		return remote.ok ? ok({ owner: remote.value.owner, name: remote.value.name }) : remote;
+	}
+
+	/** The workspace's configured remote, with its host. */
+	async #remoteOf(context: PrWorkspaceContext): Promise<Result<GithubRemote>> {
 		const url = await this.#deps.git.stdout(remoteGetUrl(context.remote), {
 			cwd: context.workspacePath,
 		});
 		if (!url.ok) return err(url.error);
-		return githubRepositoryFromRemote(url.value);
+		return githubRemoteFromUrl(url.value);
 	}
 
 	/** Writes a context file under the workspace, creating its folder first. */

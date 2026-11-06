@@ -5,8 +5,8 @@
  * the palette and the header offer the same actions.
  * Behaviour: ui-map.md 3.6, table "Header status chip and action"; services-map.md 3.5 to 3.7 (what
  * each action does). Commit, conflict fixes and PR creation are sent to the agent as chat messages
- * (structure-map.md section 6, point 5). Only pull, push, ready, merge, approve and auto-merge run
- * commands directly.
+ * (structure-map.md section 6, point 5). Only pull, push, ready, merge, approve, auto-merge and the
+ * stack sync behind Resolve on a stacked branch (PR-08) run commands directly.
  *
  * The cases, first match wins. The research lists the states but not their order, so the order
  * below is Our design choice: local problems first (they can be seen offline), then PR state.
@@ -25,8 +25,9 @@
  *   pr_unavailable        local-git forge, info could not be read      PR info unavailable         Retry
  *   loading               local-git forge, info not read yet           Loading PR info...          none
  *   changes / clean       local-git forge, nothing ahead               Changes / No changes        none
- *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve (agent)
- *                                                                      Remote branch was rebased
+ *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve: `gh stack sync`
+ *                                                                      Remote branch was rebased   for a stacked PR, else or
+ *                                                                                                  on failure the agent
  *   behind                sync.behind > 0, ahead is 0                  Behind by N commit(s)       Pull
  *   ahead                 sync.ahead > 0, behind is 0                  Ahead by N commit(s)        Push
  *   loading               pullRequestUnavailable "loading"             Loading PR info...          none
@@ -93,6 +94,7 @@ export type GitHeaderActionId =
 	| "pull"
 	| "push"
 	| "resolve"
+	| "resolve_incompatible"
 	| "add_comments_to_chat"
 	| "ready_for_review"
 	| "fix_errors"
@@ -335,7 +337,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			kind: "diverged",
 			title: git.sync.rewritten ? "Remote branch was rebased" : "Incompatible with remote",
 			tone: "danger",
-			action: action("resolve", "Resolve"),
+			action: action("resolve_incompatible", "Resolve"),
 		};
 	}
 	if (git.sync.behind > 0 && git.sync.ahead === 0) {
