@@ -1,0 +1,44 @@
+name: Catalogue shots
+
+# Draws every state of the states catalogue (docs/engineering.md, "States catalogue") in Chromium
+# and uploads the PNGs, so a screen change can be read beside Conductor's captures without a
+# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "apps/desktop/src/**"
+      - "scripts/catalogue/**"
+      - "apps/desktop/vite.catalogue.config.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalogue-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: pnpm install --frozen-lockfile
+      # The Chromium build that matches the locked playwright-core, with the system libraries it needs.
+      - run: pnpm exec playwright-core install --with-deps chromium
+      - run: bun scripts/catalogue/shots.ts
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        with:
+          name: catalogue-shots
+          path: .context/shots/ours/
+          retention-days: 14
