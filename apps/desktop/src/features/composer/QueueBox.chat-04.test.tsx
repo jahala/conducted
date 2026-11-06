@@ -253,13 +253,33 @@ describe("CHAT-04 queue box", () => {
 		renderBox(test, session.id);
 
 		await screen.findByRole("listbox", { name: "Queued messages" });
-		expect(screen.getAllByRole("option")).toHaveLength(4);
-
-		fireEvent.click(screen.getByRole("button", { name: "Collapse queue" }));
 		expect(screen.getAllByRole("option")).toHaveLength(3);
 
 		fireEvent.click(screen.getByRole("button", { name: "Expand queue" }));
 		expect(screen.getAllByRole("option")).toHaveLength(4);
+
+		fireEvent.click(screen.getByRole("button", { name: "Collapse queue" }));
+		expect(screen.getAllByRole("option")).toHaveLength(3);
+	});
+
+	it("starts a queue of more than three rows collapsed to the first three", async () => {
+		const { test, session } = await setup();
+		for (const text of ["One", "Two", "Three", "Four", "Five"]) await add(test, session.id, text);
+		renderBox(test, session.id);
+
+		await screen.findByRole("listbox", { name: "Queued messages" });
+		expect(screen.getAllByRole("option").map((row) => row.textContent)).toEqual([
+			expect.stringContaining("One"),
+			expect.stringContaining("Two"),
+			expect.stringContaining("Three"),
+		]);
+		expect(screen.queryByText("Five")).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "Show all 5" }));
+		expect(screen.getAllByRole("option")).toHaveLength(5);
+
+		fireEvent.click(screen.getByRole("button", { name: "Collapse queue" }));
+		expect(screen.getAllByRole("option")).toHaveLength(3);
 	});
 
 	it("reorders a row by dragging it and reports a failed reorder", async () => {

@@ -24,7 +24,7 @@
  * repository prompt is set, the Resolve conflicts request names the target and the rebase or merge
  * steps, and its rebase steps finish with a leased force push; the extra review instructions from
  * "Edit before sending" are added after the chosen base; the Fix errors request names the branch,
- * each failing check and its log tail when one was read.
+ * each failing check and its log tail when one was read, or why its log could not be read.
  * Our design choice: all wording is our own. Each function returns plain text with no hidden
  * markers. The text is the message the user sees in the chat, so it must be readable.
  * Test first: commitAndPushInstruction names the branch and remote; createPrInstruction mentions
@@ -194,13 +194,23 @@ export const resolveConflictsInstruction = (
 };
 
 /**
+ * One failing check for Fix errors: the last lines of its log, or why the log could not be read.
+ * Both are null for a check that has no log, such as an external status.
+ */
+export interface FailingCheck {
+	check: CheckRun;
+	logTail: string | null;
+	logError: string | null;
+}
+
+/**
  * The instruction for "Fix errors". Each failing check is named with its details URL and the last
- * lines of its log when one was read. A repository prompt replaces the default text (ui-map 6
- * Actions).
+ * lines of its log when one was read, or the reason its log could not be read. A repository
+ * prompt replaces the default text (ui-map 6 Actions). The target branch and remote play no part.
  */
 export const fixErrorsInstruction = (
-	input: InstructionBase & {
-		failing: readonly { check: CheckRun; logTail: string | null }[];
+	input: Pick<InstructionBase, "branch" | "customPrompt"> & {
+		failing: readonly FailingCheck[];
 	},
 ): string => {
 	const custom = input.customPrompt?.trim() ?? "";
@@ -211,9 +221,10 @@ export const fixErrorsInstruction = (
 		const url = entry.check.url === null ? "" : ` (${entry.check.url})`;
 		const heading = `${index + 1}. ${entry.check.name}${url}`;
 		const log = entry.logTail?.trim() ?? "";
-		return log.length === 0
+		if (log.length > 0) return `${heading}\nLast lines of the log:\n${log}`;
+		return entry.logError === null
 			? `${heading}\nNo log was available for this check.`
-			: `${heading}\nLast lines of the log:\n${log}`;
+			: `${heading}\nCouldn't read the log: ${entry.logError}`;
 	});
 	const closing =
 		"Find the cause of each failure and fix it. Run the affected checks locally and make sure they pass. Keep the change focused on what makes the checks pass.";

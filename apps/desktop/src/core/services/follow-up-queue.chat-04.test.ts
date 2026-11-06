@@ -174,6 +174,48 @@ describe("CHAT-04 loading and writing the queue", () => {
 		expect(must(await repositories.queuedMessages.listBySession(sessionId))).toHaveLength(2);
 	});
 
+	it("keeps the stored rows ahead of a follow-up queued while the first load is in flight", async () => {
+		const stored = [
+			must(
+				await repositories.queuedMessages.enqueue({
+					id: "stored-1" as MessageId,
+					sessionId,
+					text: "First",
+					attachmentPaths: [],
+					delivery: "queue",
+				}),
+			),
+			must(
+				await repositories.queuedMessages.enqueue({
+					id: "stored-2" as MessageId,
+					sessionId,
+					text: "Second",
+					attachmentPaths: [],
+					delivery: "queue",
+				}),
+			),
+		];
+		const slow = deferred<Result<QueuedMessage[]>>();
+		vi.spyOn(repositories.queuedMessages, "listBySession").mockImplementationOnce(
+			() => slow.promise,
+		);
+
+		const loading = queue.load(sessionId);
+		const added = await enqueue();
+		slow.resolve(ok(stored));
+		await loading;
+
+		expect(queue.store.getState().bySession[sessionId]?.map((row) => row.id)).toEqual([
+			"stored-1",
+			"stored-2",
+			added.id,
+		]);
+		live = idle();
+		expect(await queue.release(sessionId)).toEqual(ok(undefined));
+		expect(deliver).toHaveBeenCalledTimes(1);
+		expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ id: "stored-1" }));
+	});
+
 	it("edits a waiting row's text and refuses one that is sending", async () => {
 		const row = await enqueue();
 

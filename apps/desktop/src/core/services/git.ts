@@ -63,7 +63,9 @@
  * starts from the target branch; from a detached HEAD it starts from the current commit. It writes
  * a "Branch continued" note, saves the new branch on the workspace, and sends the note to the open
  * chat. A note or chat failure is reported as "Failed to attach continue context"; the branch
- * itself stays.
+ * itself stays. A failed save of the new branch on the workspace checks the old branch (or the
+ * detached commit) out again and removes the new branch. The time of each continue is kept, so a
+ * merged pull request read before it no longer shows for the new branch (`stateOf`).
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -85,6 +87,7 @@ import { createLatestWins } from "../async/latest-wins.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
+	branchDeleteForce,
 	branchListLocal,
 	branchShowCurrent,
 	catFileExists,
@@ -203,6 +206,11 @@ export interface GitServiceState {
 	byWorkspace: Readonly<Record<string, WorkspaceGitEntry>>;
 	/** Branch lists keyed by the repository's main worktree folder. */
 	branchesByRepo: Readonly<Record<string, BranchesEntry>>;
+	/**
+	 * When each workspace last continued on a new branch (GIT-17). A merged pull request read
+	 * before that time belongs to the branch the workspace left, so `stateOf` no longer shows it.
+	 */
+	continuedAt: Readonly<Record<string, number>>;
 }
 
 export type PollDepth = "metadata" | "uncommitted" | "full";
@@ -571,7 +579,11 @@ export class GitService {
 
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<GitServiceState>(() => ({ byWorkspace: {}, branchesByRepo: {} }));
+		this.store = createStore<GitServiceState>(() => ({
+			byWorkspace: {},
+			branchesByRepo: {},
+			continuedAt: {},
+		}));
 	}
 
 	/** Polls a workspace until the returned function is called. Several callers share one timer. */
@@ -905,7 +917,8 @@ export class GitService {
 		prEntry?: WorkspacePrEntry,
 		pendingAction: PullRequestAction | null = null,
 	): GitState | null {
-		const snapshot = this.store.getState().byWorkspace[String(workspaceId)]?.snapshot ?? null;
+		const state = this.store.getState();
+		const snapshot = state.byWorkspace[String(workspaceId)]?.snapshot ?? null;
 		if (snapshot === null) return null;
 		if (
 			DEPTH_RANK[snapshot.depth] < DEPTH_RANK.uncommitted ||
@@ -914,6 +927,13 @@ export class GitService {
 		) {
 			return null;
 		}
+		// A merged pull request read no later than the last Continue belongs to the branch the
+		// workspace left. The new branch has no pull request until GitHub says otherwise.
+		const continuedAt = state.continuedAt[String(workspaceId)];
+		const leftBehind =
+			continuedAt !== undefined &&
+			prEntry?.pullRequest?.state === "merged" &&
+			(prEntry.fetchedAt ?? 0) <= continuedAt;
 		return {
 			branch: snapshot.branch ?? "",
 			uncommittedFiles: snapshot.uncommittedFiles,
@@ -923,11 +943,11 @@ export class GitService {
 			hasConflicts: snapshot.conflictedPaths.length > 0,
 			operation: snapshot.operation,
 			sync: snapshot.sync,
-			pullRequest: prEntry?.pullRequest ?? null,
+			pullRequest: leftBehind ? null : (prEntry?.pullRequest ?? null),
 			pullRequestUnavailable:
 				prEntry === undefined
 					? "loading"
-					: prEntry.unavailable === "no_pr"
+					: leftBehind || prEntry.unavailable === "no_pr"
 						? "none"
 						: prEntry.unavailable,
 			untrackedFilesTruncated: snapshot.untrackedTruncated,
@@ -1820,7 +1840,14 @@ export class GitService {
 				if (!checkedOut.ok) return checkedOut;
 
 				const saved = await this.#deps.renameWorkspaceBranch(workspaceId, newBranch);
-				if (!saved.ok) return saved;
+				if (!saved.ok) {
+					// The workspace record still names the old branch, so the worktree goes back to it.
+					const back = detached ? start.value.sha : previousBranch;
+					return this.#undoContinue(context.workspacePath, back, newBranch, saved.error);
+				}
+				this.store.setState((state) => ({
+					continuedAt: { ...state.continuedAt, [String(workspaceId)]: this.#deps.now() },
+				}));
 
 				const text = continueNoteText({
 					previousBranch,
@@ -1837,6 +1864,42 @@ export class GitService {
 					: err(appError("continue_note_failed", CONTINUE_NOTE_FAILED_MESSAGE, sent.error));
 			},
 		);
+	}
+
+	/**
+	 * Puts the worktree back where it was after the workspace could not save the new branch, and
+	 * removes that branch, which has no commits of its own yet. The save error is returned either
+	 * way. When going back fails, the error says the worktree stayed on the new branch, with the
+	 * code `continue_branch_unsaved`, so the panel reads the git state again.
+	 */
+	async #undoContinue(
+		workspacePath: string,
+		back: string,
+		newBranch: string,
+		saveError: AppError,
+	): Promise<Result<void>> {
+		const options = { cwd: workspacePath };
+		const returned = await this.#deps.git.runChecked(checkout(back), options);
+		if (!returned.ok) {
+			return err(
+				appError(
+					"continue_branch_unsaved",
+					`The workspace couldn't save the new branch ${newBranch}, and the worktree stayed on it.`,
+					saveError,
+				),
+			);
+		}
+		const removed = await this.#deps.git.runChecked(branchDeleteForce(newBranch), options);
+		if (!removed.ok) {
+			return err(
+				appError(
+					saveError.code,
+					`${saveError.message} The unused branch ${newBranch} could not be removed.`,
+					removed.error,
+				),
+			);
+		}
+		return err(saveError);
 	}
 
 	/** A detached HEAD continues from the commit it points at. */

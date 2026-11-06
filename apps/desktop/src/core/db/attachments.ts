@@ -2,7 +2,8 @@
  * @feature DATA-01 Repository for the attachments table
  * Owns: rows for files attached to a draft or a sent message. The files themselves live under
  * the app data folder. A review attachment also names the comment it carried (REV-12), so a
- * comment can be found from the messages and chats that received it.
+ * comment can be found from the messages and chats that received it. The review service records
+ * one such row, already sent, for each comment it sends to a chat (`addSent`).
  * Behaviour: services-map.md 2.3.5 (attachments: add draft, attach drafts to a message, restore
  * to draft, remove) and 5A.6.2 (draft staging folder).
  * Must handle: attaching drafts to a message is one statement over a JSON list of ids; removing
@@ -113,6 +114,12 @@ export interface AttachmentRepository {
 	listByComment(commentId: CommentId): Promise<Result<Attachment[]>>;
 	/** ATTACHMENTS_SQL.insert with is_draft=true. */
 	addDraft(input: NewAttachment): Promise<Result<Attachment>>;
+	/**
+	 * ATTACHMENTS_SQL.insert with is_draft=false, for a file a chat already received. It is never
+	 * offered as a draft and the draft lifetime job leaves it alone. The message id is null when the
+	 * sender does not know it.
+	 */
+	addSent(input: NewAttachment & { messageId: string | null }): Promise<Result<Attachment>>;
 	/** ATTACHMENTS_SQL.setPath, after a file finished copying into the staging folder. */
 	setPath(id: AttachmentId, path: string): Promise<Result<void>>;
 	/** ATTACHMENTS_SQL.attachDrafts. Returns how many rows changed. */
@@ -141,6 +148,40 @@ export function createAttachmentRepository(
 		const rows = await selectRows<AttachmentRow>(db, sql, params, what);
 		return rows.ok ? ok(rows.value.map(attachmentFromRow)) : err(rows.error);
 	};
+	const insert = (
+		input: NewAttachment,
+		sent: { isDraft: boolean; messageId: string | null },
+		what: string,
+	): Promise<Result<Attachment>> =>
+		inTransaction(db, what, async (tx) => {
+			const attachment: AttachmentInsert = {
+				id: deps.ids.uuid() as AttachmentId,
+				sessionId: input.sessionId,
+				kind: input.kind,
+				originalName: input.originalName,
+				path: input.path,
+				isDraft: sent.isDraft,
+				commentId: input.commentId,
+				messageId: sent.messageId,
+				createdAt: deps.clock.now(),
+			};
+			const written = await executeStatement(
+				tx,
+				ATTACHMENTS_SQL.insert,
+				attachmentToParams(attachment),
+				what,
+			);
+			if (!written.ok) return err(written.error);
+			return ok({
+				id: attachment.id,
+				sessionId: attachment.sessionId,
+				kind: attachment.kind,
+				originalName: attachment.originalName,
+				path: attachment.path,
+				isDraft: attachment.isDraft,
+				commentId: attachment.commentId,
+			});
+		});
 	return {
 		get: async (id) => {
 			const rows = await selectRows<AttachmentRow>(
@@ -161,36 +202,10 @@ export function createAttachmentRepository(
 			list(ATTACHMENTS_SQL.listByMessage, [messageId], "Listing a message's attachments"),
 		listByComment: (commentId) =>
 			list(ATTACHMENTS_SQL.listByComment, [commentId], "Listing a comment's attachments"),
-		addDraft: async (input) =>
-			inTransaction(db, "Adding a draft attachment", async (tx) => {
-				const attachment: AttachmentInsert = {
-					id: deps.ids.uuid() as AttachmentId,
-					sessionId: input.sessionId,
-					kind: input.kind,
-					originalName: input.originalName,
-					path: input.path,
-					isDraft: true,
-					commentId: input.commentId,
-					messageId: null,
-					createdAt: deps.clock.now(),
-				};
-				const written = await executeStatement(
-					tx,
-					ATTACHMENTS_SQL.insert,
-					attachmentToParams(attachment),
-					"Adding a draft attachment",
-				);
-				if (!written.ok) return err(written.error);
-				return ok({
-					id: attachment.id,
-					sessionId: attachment.sessionId,
-					kind: attachment.kind,
-					originalName: attachment.originalName,
-					path: attachment.path,
-					isDraft: attachment.isDraft,
-					commentId: attachment.commentId,
-				});
-			}),
+		addDraft: (input) =>
+			insert(input, { isDraft: true, messageId: null }, "Adding a draft attachment"),
+		addSent: (input) =>
+			insert(input, { isDraft: false, messageId: input.messageId }, "Recording a sent attachment"),
 		setPath: (id, path) =>
 			executeExisting(db, ATTACHMENTS_SQL.setPath, [path, id], "Saving an attachment path"),
 		attachDrafts: async (sessionId, messageId, ids) => {
