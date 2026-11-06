@@ -1,5 +1,6 @@
 /**
- * @feature SIDE-21 Agent settings reach the sidecar: program paths, environment, keys
+ * @feature SIDE-21 Agent settings reach the sidecar: program paths, environment, keys;
+ * SET-10 OpenCode providers and their keys
  * Owns: turning a chat's `AgentLaunch` (from `sendMessage`, `warmAgent` and `runUtilityPrompt`)
  * into what a runner needs: the program to start and the environment to start it with. Also the
  * providers an agent can use and the environment variable names that hold their keys.
@@ -38,6 +39,7 @@ import { appError, err, ok, type Result } from "@conducted/shared";
 import { AGENT_NOT_INSTALLED } from "../models/catalog.ts";
 import type { CapturedShellEnv } from "../shell-env/capture.ts";
 import { buildAgentEnv } from "../shell-env/env.ts";
+import { opencodeProviders } from "./acp/opencode-providers.ts";
 import type { FindExecutable } from "./deps.ts";
 
 export interface AgentProgram {
@@ -250,7 +252,7 @@ export function claudeProviderEnvironment(
 	return ok({ [variable]: "1" });
 }
 
-/** The providers an agent can use and the variables their keys go to (SET-10 adds more). */
+/** The providers an agent can use and the variables their keys go to. */
 export function agentProviders(agent: AgentKind, _acpAgent?: AcpAgent): AgentProvider[] {
 	if (agent === "acp") return [...ACP_PROVIDERS];
 	return [...AGENT_PROVIDERS[agent]];
@@ -321,12 +323,9 @@ const AGENT_PROVIDERS: Readonly<Record<Exclude<AgentKind, "acp">, AgentProvider[
 	],
 };
 
-/** The providers OpenCode and Pi both read. SET-10 extends this list. */
+/** The providers OpenCode and Pi both read: the OpenCode catalogue (SET-10) and a custom one. */
 const ACP_PROVIDERS: AgentProvider[] = [
-	{ id: "openai", label: "OpenAI", keyEnvVars: ["OPENAI_API_KEY"] },
-	{ id: "anthropic", label: "Anthropic", keyEnvVars: ["ANTHROPIC_API_KEY"] },
-	{ id: "openrouter", label: "OpenRouter", keyEnvVars: ["OPENROUTER_API_KEY"] },
-	{ id: "xai", label: "xAI", keyEnvVars: ["XAI_API_KEY"] },
+	...opencodeProviders(),
 	{
 		id: "custom",
 		label: "Custom provider",
