@@ -91,10 +91,10 @@ describe("GIT-15 through the real container", () => {
 			const git = harness.container.services.git;
 
 			expect(await git.setSparseCheckoutDirectories(workspace.id, ["apps"])).toEqual(ok(undefined));
-			expect(commands.map((args) => args.slice(0, 2))).toEqual([
-				["config", "core.sparseCheckout"],
-				["sparse-checkout", "init"],
-				["sparse-checkout", "set"],
+			expect(commands).toEqual([
+				["config", "--get", "core.sparseCheckout"],
+				["sparse-checkout", "init", "--cone"],
+				["sparse-checkout", "set", "--", "apps"],
 			]);
 			expect(await git.sparseCheckoutSettings(workspace.id)).toEqual(
 				ok({ enabled: true, directories: ["apps"], topLevelDirectories: ["apps", "packages"] }),

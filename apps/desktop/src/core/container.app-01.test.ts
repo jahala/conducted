@@ -11,7 +11,7 @@ import { appError, err, ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
-import { createContainer, QUIT_STOP_LIMIT_MS } from "./container.ts";
+import { createContainer, QUIT_STOP_LIMIT_MS, type Services } from "./container.ts";
 import type { Repo, Session, Workspace } from "./model.ts";
 import { tomlCodec } from "./services/toml-codec.ts";
 import { UPDATE_CHECK_INTERVAL_MS } from "./services/updates.ts";
@@ -34,34 +34,37 @@ const ids = (() => {
 	return { uuid: () => `id-${++next}` };
 })();
 
-const SERVICE_NAMES = [
-	"settings",
-	"repo",
-	"workspace",
-	"sections",
-	"favoriteModels",
-	"agentCatalog",
-	"mcp",
-	"linear",
-	"git",
-	"github",
-	"localGitForge",
-	"checkpoint",
-	"fileDiff",
-	"workspaceFiles",
-	"review",
-	"sessions",
-	"followUpQueue",
-	"composer",
-	"runScripts",
-	"spotlight",
-	"ports",
-	"terminals",
-	"notifications",
-	"updates",
-	"system",
-	"commands",
-];
+// Every key of the Services interface. The compiler rejects this object when a service is added
+// or removed, so the list cannot drift from the interface it checks.
+const SERVICE_NAMES = Object.keys({
+	settings: true,
+	repo: true,
+	workspace: true,
+	sections: true,
+	favoriteModels: true,
+	agentCatalog: true,
+	mcp: true,
+	linear: true,
+	git: true,
+	gitCache: true,
+	github: true,
+	localGitForge: true,
+	checkpoint: true,
+	fileDiff: true,
+	workspaceFiles: true,
+	review: true,
+	sessions: true,
+	followUpQueue: true,
+	composer: true,
+	runScripts: true,
+	spotlight: true,
+	ports: true,
+	terminals: true,
+	notifications: true,
+	updates: true,
+	system: true,
+	commands: true,
+} satisfies Record<keyof Services, true>);
 
 function recordingDatabase(events: string[]): Database {
 	const database: Database = {
