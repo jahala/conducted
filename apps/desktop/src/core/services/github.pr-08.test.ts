@@ -1,15 +1,17 @@
 // @vitest-environment node
 /**
  * @feature PR-08 GitHub stacks: reading a pull request's stack, the stack sync and the stack merge
- * Owns: tests for the native stack read, the optional `stackEntry` retry, the stack merge, and the
- * extension error both stack commands share and the sync's abort errors.
- * Behaviour: services-map.md 3.8.2.
+ * Owns: tests for the native stack read, each entry's readiness and commit ids, the optional
+ * `stackEntry` retry, the stack merge, the locks the stack sync holds, and the extension error both
+ * stack commands share and the sync's abort errors.
+ * Behaviour: services-map.md 3.8.2, 3.0.3 (`gh stack sync` runs under the worktree and repo locks).
  * Test first: a stack member list comes back from trunk up with the workspace branch marked as
  * current.
  */
 import { ok, type WorkspaceId } from "@conducted/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
+import { repoLockKey } from "../git/locks.ts";
 import type { PrWorkspaceContext } from "./github.ts";
 import { GithubService } from "./github.ts";
 import { GraphiteService } from "./graphite.ts";
@@ -31,6 +33,7 @@ function makeService(
 	git: FakeGitRunner,
 	options: {
 		prNumber?: number | null;
+		repoRootPath?: string;
 		setting?: <T>(key: string) => T;
 		graphite?: GraphiteService;
 	} = {},
@@ -42,6 +45,7 @@ function makeService(
 			ok({
 				...context,
 				prNumber: options.prNumber === undefined ? context.prNumber : options.prNumber,
+				...(options.repoRootPath === undefined ? {} : { repoRootPath: options.repoRootPath }),
 			}),
 		onMerged: () => {},
 		now: () => 1_000,
@@ -63,7 +67,8 @@ const membersAnswer = (): string =>
 				state: "OPEN",
 				draft: false,
 				merged_at: null,
-				head: { ref: "feat-a" },
+				head: { ref: "feat-a", sha: "a1" },
+				base: { ref: "main", sha: "m0" },
 			},
 			{
 				number: 11,
@@ -71,7 +76,8 @@ const membersAnswer = (): string =>
 				state: "OPEN",
 				draft: false,
 				merged_at: null,
-				head: { ref: "feat-b" },
+				head: { ref: "feat-b", sha: "b1" },
+				base: { ref: "feat-a", sha: "a1" },
 			},
 			{
 				number: 12,
@@ -79,7 +85,8 @@ const membersAnswer = (): string =>
 				state: "OPEN",
 				draft: true,
 				merged_at: null,
-				head: { ref: "feat-c" },
+				head: { ref: "feat-c", sha: "c1" },
+				base: { ref: "feat-b", sha: "b1" },
 			},
 		],
 	});
@@ -88,6 +95,22 @@ const stackEntry = {
 	position: 2,
 	stack: { number: 5, size: 3, baseRefName: "main" },
 };
+
+/** GitHub's answer to the readiness query: one aliased pull request per stack member. */
+const readinessAnswer = (statuses: Record<number, string>): string =>
+	JSON.stringify({
+		data: {
+			repository: Object.fromEntries(
+				Object.entries(statuses).map(([number, status], index) => [
+					`pr${index}`,
+					{ number: Number(number), mergeStateStatus: status },
+				]),
+			),
+		},
+	});
+
+const isReadinessQuery = (args: readonly string[]): boolean =>
+	args.includes("graphql") && args.some((arg) => arg.includes("mergeStateStatus"));
 
 function stackHandler(command: {
 	program: string;
@@ -126,6 +149,79 @@ describe("PR-08 GitHub stack read", () => {
 		expect(read.value.map((entry) => entry.isCurrent)).toEqual([false, true, false]);
 		expect(read.value[2]?.state).toBe("draft");
 		expect(read.value.map((entry) => entry.needsRestack)).toEqual([false, false, false]);
+	});
+
+	it("reads each entry's readiness and commit ids", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "git") return gitOutput("git@github.com:o/r.git\n");
+			if (isReadinessQuery(command.args)) {
+				return gitOutput(readinessAnswer({ 10: "CLEAN", 11: "BLOCKED", 12: "DRAFT" }));
+			}
+			if (command.args.includes("graphql")) return gitOutput(stackAnswer(stackEntry));
+			if (command.args[1]?.includes("/stacks/5") === true) return gitOutput(membersAnswer());
+			return gitOutput();
+		});
+		const service = makeService(git);
+
+		const read = await service.readStack(workspaceId);
+		expect(read.ok).toBe(true);
+		if (!read.ok) return;
+		expect(read.value.map((entry) => entry.mergeStateStatus)).toEqual([
+			"CLEAN",
+			"BLOCKED",
+			"DRAFT",
+		]);
+		expect(read.value.map((entry) => entry.headSha)).toEqual(["a1", "b1", "c1"]);
+		expect(read.value.map((entry) => entry.baseSha)).toEqual(["m0", "a1", "b1"]);
+		// Each pull request number reaches GitHub as a variable, never written into the query.
+		const query = git.commands.find((command) => isReadinessQuery(command.args));
+		expect(query?.args).toEqual(
+			expect.arrayContaining(["-F", "pr0=10", "-F", "pr1=11", "-F", "pr2=12"]),
+		);
+	});
+
+	it("keeps the stack with unknown readiness when the readiness read fails", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "git") return gitOutput("git@github.com:o/r.git\n");
+			if (isReadinessQuery(command.args)) return gitOutput("", "HTTP 502", 1);
+			if (command.args.includes("graphql")) return gitOutput(stackAnswer(stackEntry));
+			if (command.args[1]?.includes("/stacks/5") === true) return gitOutput(membersAnswer());
+			return gitOutput();
+		});
+		const service = makeService(git);
+
+		const read = await service.readStack(workspaceId);
+		expect(read.ok).toBe(true);
+		if (!read.ok) return;
+		expect(read.value.map((entry) => entry.number)).toEqual([10, 11, 12]);
+		expect(read.value.map((entry) => entry.mergeStateStatus)).toEqual([null, null, null]);
+	});
+
+	it("refuses a stack member without its head commit", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "git") return gitOutput("git@github.com:o/r.git\n");
+			if (command.args.includes("graphql")) return gitOutput(stackAnswer(stackEntry));
+			if (command.args[1]?.includes("/stacks/5") === true) {
+				return gitOutput(
+					JSON.stringify({
+						pull_requests: [
+							{
+								number: 10,
+								title: "t",
+								state: "OPEN",
+								head: { ref: "feat-a" },
+								base: { ref: "main", sha: "m0" },
+							},
+						],
+					}),
+				);
+			}
+			return gitOutput();
+		});
+		const service = makeService(git);
+
+		const read = await service.readStack(workspaceId);
+		expect(read.ok).toBe(false);
 	});
 
 	it("marks the entry Graphite says needs a restack", async () => {
@@ -252,7 +348,7 @@ describe("PR-08 GitHub stack merge", () => {
 describe("PR-08 GitHub stack sync", () => {
 	it("says how to install the extension when gh does not know the stack command", async () => {
 		const git = new FakeGitRunner(() => gitOutput("", 'unknown command "stack" for "gh"', 1));
-		const service = makeService(git);
+		const service = makeService(git, { repoRootPath: "/repo" });
 
 		const sync = await service.syncStack(workspaceId);
 		expect(sync.ok).toBe(false);
@@ -265,7 +361,7 @@ describe("PR-08 GitHub stack sync", () => {
 
 	it("treats a cross mark as an aborted sync", async () => {
 		const git = new FakeGitRunner(() => gitOutput("✓ synced\n✗ one branch needs attention\n"));
-		const service = makeService(git);
+		const service = makeService(git, { repoRootPath: "/repo" });
 
 		const sync = await service.syncStack(workspaceId);
 		expect(sync.ok).toBe(false);
@@ -275,9 +371,42 @@ describe("PR-08 GitHub stack sync", () => {
 
 	it("succeeds when gh syncs the stack without a cross mark", async () => {
 		const git = new FakeGitRunner(() => gitOutput("✓ synced\n"));
-		const service = makeService(git);
+		const service = makeService(git, { repoRootPath: "/repo" });
 
 		expect(await service.syncStack(workspaceId)).toEqual(ok(undefined));
+	});
+
+	it("runs under the worktree lock and then the repo lock", async () => {
+		const git = new FakeGitRunner(() => gitOutput("✓ synced\n"));
+		const service = makeService(git, { repoRootPath: "/repo" });
+		let release = () => {};
+		const held = git.locks.run(
+			repoLockKey("/repo"),
+			() =>
+				new Promise<void>((resolve) => {
+					release = resolve;
+				}),
+		);
+
+		const sync = service.syncStack(workspaceId);
+		await vi.waitFor(() => expect(git.repoLocks).toEqual(["/repo"]));
+		expect(git.worktreeLocks).toEqual(["/wt"]);
+		const syncs = () => git.commands.filter((command) => command.args[0] === "stack");
+		expect(syncs()).toHaveLength(0);
+
+		release();
+		await held;
+		expect(await sync).toEqual(ok(undefined));
+		expect(syncs()).toHaveLength(1);
+	});
+
+	it("refuses when the repository's main worktree is not known", async () => {
+		const git = new FakeGitRunner(() => gitOutput("✓ synced\n"));
+		const service = makeService(git);
+
+		const sync = await service.syncStack(workspaceId);
+		expect(sync.ok).toBe(false);
+		expect(git.commands).toHaveLength(0);
 	});
 
 	it("refuses when stacked pull requests are turned off", async () => {

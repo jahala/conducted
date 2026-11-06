@@ -23,8 +23,9 @@
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
- * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, and
- * `gh stack sync`), 3.7.4 and 5A.7.3 (review threads, their extra comment pages, general comments
+ * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, each
+ * member's readiness, and `gh stack sync`), 3.0.3 (`gh stack sync` holds the worktree lock, then
+ * the repo lock), 3.7.4 and 5A.7.3 (review threads, their extra comment pages, general comments
  * and `resolveReviewThread`), 3.7.2 and 5B.1.2 to 5B.1.4
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
  * rate-limit gate), 2.5.2 and 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open
@@ -57,7 +58,11 @@
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
  * is retried without and remembered per repository, each stack entry carries the restack flag
- * the Graphite service last read for its branch (false before that repository was ever read), a
+ * the Graphite service last read for its branch (false before that repository was ever read), its
+ * head and base commit ids, and GitHub's merge state from one readiness query for every member
+ * (a readiness read that fails leaves every merge state unknown and keeps the stack, as Conductor
+ * does; a member without its commit ids is an error), a stack sync runs under the worktree lock
+ * and then the repo lock and is refused when the main worktree is not known, a
  * stack sync or stack merge that `gh` answers with an unknown command gets the install message
  * naming that action, a stack sync that prints a cross mark or its abort notice is an error, never
  * a success, and a stack merge runs `gh stack merge` with the repository's first allowed merge
@@ -73,7 +78,8 @@
  * the Checks tab's required marks need the branch-protection read. The stack catch-up belongs to
  * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button.
  * `gt state` and `gt checkout` run in graphite.ts; the stack read only asks that service for a
- * restack flag. The
+ * restack flag. The readiness rules that read the merge states live in
+ * core/status/stack-readiness.ts. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
  * calls `onMerged` and the workspace service archives the workspace, and calls
  * `onPullRequestChanged` when an open pull request's `updatedAt` changes so review comments sync.
@@ -140,6 +146,7 @@ import {
 	reviewThreadsQuery,
 	stackMembers,
 	stackMerge,
+	stackReadinessQuery,
 	stackSync,
 } from "../git/gh-commands.ts";
 import {
@@ -154,6 +161,7 @@ import type {
 	GitHubOwner,
 	GitHubRepoSummary,
 	IssueView,
+	MergeStateStatus,
 	PullRequest,
 	PullRequestAction,
 	PullRequestSummary,
@@ -608,6 +616,8 @@ export interface StackMember {
 	title: string;
 	branch: string;
 	state: StackEntryView["state"];
+	headSha: string;
+	baseSha: string;
 }
 
 /**
@@ -686,13 +696,18 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 		const number = item.number;
 		const title = stringField(item, "title");
 		const head = item.head;
+		const base = item.base;
 		const branch = isRecord(head) ? stringField(head, "ref") : null;
+		const headSha = isRecord(head) ? stringField(head, "sha") : null;
+		const baseSha = isRecord(base) ? stringField(base, "sha") : null;
 		if (
 			typeof number !== "number" ||
 			!Number.isSafeInteger(number) ||
 			number <= 0 ||
 			title === null ||
-			branch === null
+			branch === null ||
+			headSha === null ||
+			baseSha === null
 		) {
 			return err(responseInvalid());
 		}
@@ -701,9 +716,48 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 			merged ? "MERGED" : stringField(item, "state"),
 			item.draft === true,
 		);
-		members.push({ number, title, branch, state });
+		members.push({ number, title, branch, state, headSha, baseSha });
 	}
 	return ok(members);
+}
+
+const MERGE_STATE_STATUSES: readonly MergeStateStatus[] = [
+	"CLEAN",
+	"DIRTY",
+	"BEHIND",
+	"UNSTABLE",
+	"BLOCKED",
+	"DRAFT",
+	"HAS_HOOKS",
+	"UNKNOWN",
+];
+
+function isMergeStateStatus(value: unknown): value is MergeStateStatus {
+	return MERGE_STATE_STATUSES.some((status) => status === value);
+}
+
+/**
+ * Reads the answer of `stackReadinessQuery`: GitHub's merge state by pull request number. A null
+ * alias (a pull request GitHub did not return) is left out; any other shape is an error.
+ */
+export function parseStackReadiness(text: string): Result<Map<number, MergeStateStatus>> {
+	const json = parseJson(text);
+	if (!json.ok) return err(json.error);
+	if (!isRecord(json.value)) return err(responseInvalid());
+	const data = json.value.data;
+	if (!isRecord(data)) return err(responseInvalid());
+	const repository = data.repository;
+	if (!isRecord(repository)) return err(responseInvalid());
+	const statuses = new Map<number, MergeStateStatus>();
+	for (const pullRequest of Object.values(repository)) {
+		if (pullRequest === null) continue;
+		if (!isRecord(pullRequest)) return err(responseInvalid());
+		const number = pullRequest.number;
+		const status = pullRequest.mergeStateStatus;
+		if (typeof number !== "number" || !isMergeStateStatus(status)) return err(responseInvalid());
+		statuses.set(number, status);
+	}
+	return ok(statuses);
 }
 
 export function parseGithubRepos(text: string): Result<GitHubRepoSummary[]> {
@@ -2901,9 +2955,9 @@ export class GithubService {
 
 	/**
 	 * Backs `Actions.pullRequests.syncStack`. Runs `gh stack sync` for a stacked branch
-	 * (services-map 3.8.2). A command that `gh` does not
-	 * know means the stack extension is missing; a cross mark or "Sync aborted" means the sync
-	 * stopped partway. Both are errors, so a partial sync is never reported as done.
+	 * (services-map 3.8.2) under the worktree lock and then the repo lock (3.0.3). A command that
+	 * `gh` does not know means the stack extension is missing; a cross mark or "Sync aborted" means
+	 * the sync stopped partway. Both are errors, so a partial sync is never reported as done.
 	 */
 	syncStack(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const setting = this.#deps.setting;
@@ -2917,28 +2971,40 @@ export class GithubService {
 		return this.#writeAction("syncStack", "syncing_stack", workspaceId, async () => {
 			const context = await this.#deps.contextOf(workspaceId);
 			if (!context.ok) return err(context.error);
-			const settings = await this.#ghSettings();
-			if (!settings.ok) return err(settings.error);
-			const runOptions = this.#runOptions(settings.value, context.value.workspacePath);
-			const synced = await this.#runStackCommand(stackSync(), runOptions, "Syncing");
-			if (!synced.ok) return err(synced.error);
-			if (hasStackSyncAbort(synced.value.text)) {
+			const { workspacePath, repoRootPath } = context.value;
+			if (repoRootPath === undefined) {
 				return err(
 					appError(
-						"github_stack_sync_aborted",
-						"The stack sync stopped before it finished. Nothing was reported as done.",
+						"github_repo_root_unknown",
+						"The stack sync needs the repository's main folder, which is not known.",
 					),
 				);
 			}
-			return ok(undefined);
+			const settings = await this.#ghSettings();
+			if (!settings.ok) return err(settings.error);
+			const runOptions = this.#runOptions(settings.value, workspacePath);
+			// The sync rewrites the workspace branch and the branch config of the whole repository.
+			return this.#deps.git.withWorktreeAndRepoLocks(workspacePath, repoRootPath, async () => {
+				const synced = await this.#runStackCommand(stackSync(), runOptions, "Syncing");
+				if (!synced.ok) return err(synced.error);
+				if (hasStackSyncAbort(synced.value.text)) {
+					return err(
+						appError(
+							"github_stack_sync_aborted",
+							"The stack sync stopped before it finished. Nothing was reported as done.",
+						),
+					);
+				}
+				return ok(undefined);
+			});
 		});
 	}
 
 	/**
-	 * Reads the GitHub stack the workspace's pull request belongs to, from trunk up
-	 * (services-map 3.8.2). A pull request outside a stack, or stacks turned off in Settings, is an
-	 * empty answer, not an error. The optional `stackEntry` field is retried without when the host
-	 * does not know it, and that host is remembered.
+	 * Reads the GitHub stack the workspace's pull request belongs to, from trunk up, with each
+	 * member's commit ids and merge state (services-map 3.8.2). A pull request outside a stack, or
+	 * stacks turned off in Settings, is an empty answer, not an error. The optional `stackEntry`
+	 * field is retried without when the host does not know it, and that host is remembered.
 	 */
 	async readStack(workspaceId: WorkspaceId): Promise<Result<StackEntryView[]>> {
 		const setting = this.#deps.setting;
@@ -2972,14 +3038,36 @@ export class GithubService {
 		if (!members.ok) return err(members.error);
 		const parsedMembers = parseStackMembers(members.value);
 		if (!parsedMembers.ok) return err(parsedMembers.error);
+		const readiness = await this.#readStackReadiness(
+			parsedMembers.value.map((member) => member.number),
+			found.workspacePath,
+		);
 		const repoRootPath = found.repoRootPath ?? found.workspacePath;
 		return ok(
 			parsedMembers.value.map((member) => ({
 				...member,
 				isCurrent: member.branch === found.branch,
 				needsRestack: this.#deps.graphite?.needsRestackOf(repoRootPath, member.branch) ?? false,
+				mergeStateStatus: readiness.get(member.number) ?? null,
 			})),
 		);
+	}
+
+	/**
+	 * GitHub's merge state of each stack member, in one query (services-map 3.8.2). A failed read
+	 * or an answer the app cannot parse leaves every entry's readiness unknown and keeps the stack:
+	 * the readiness rules treat unknown as "not known yet", so the stack view still shows, with
+	 * no verdict, as Conductor does.
+	 */
+	async #readStackReadiness(
+		prNumbers: readonly number[],
+		cwd: string,
+	): Promise<Map<number, MergeStateStatus>> {
+		if (prNumbers.length === 0) return new Map();
+		const answer = await this.#readGh(stackReadinessQuery(prNumbers), cwd);
+		if (!answer.ok) return new Map();
+		const parsed = parseStackReadiness(answer.value);
+		return parsed.ok ? parsed.value : new Map();
 	}
 
 	/**

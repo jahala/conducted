@@ -1,10 +1,10 @@
 /**
  * @feature PR-08 Stacked PRs and read-only Graphite
  * Owns: the container tests that the git panel polls Graphite only for the repository of the
- * workspace it shows, releases that poll when it unmounts, and runs `gh stack merge` from the
- * header's "Merge stack".
+ * workspace it shows, releases that poll when it unmounts, runs `gh stack merge` from the
+ * header's "Merge stack", and offers that merge only when the stack's readiness allows it.
  * Behaviour: services-map.md 3.8.1 (`gt state` every 5 s for the visible workspace's repository),
- * 3.8.2 (`gh stack merge`), ui-map.md 3.6 ("Merge stack" for stacks).
+ * 3.8.2 (`gh stack merge`, readiness per stack entry), ui-map.md 3.6 ("Merge stack" for stacks).
  * Test first: mounting the panel runs `gt state` in the workspace's repository.
  */
 import { ok } from "@conducted/shared";
@@ -79,13 +79,43 @@ const stackAnswer = JSON.stringify({
 
 const membersAnswer = JSON.stringify({
 	pull_requests: [
-		{ number: 11, title: "Add the parser", state: "OPEN", draft: false, head: { ref: "feat-a" } },
-		{ number: 12, title: "Use the parser", state: "OPEN", draft: false, head: { ref: "feat-b" } },
+		{
+			number: 11,
+			title: "Add the parser",
+			state: "OPEN",
+			draft: false,
+			head: { ref: "feat-a", sha: "a1" },
+			base: { ref: "main", sha: "m0" },
+		},
+		{
+			number: 12,
+			title: "Use the parser",
+			state: "OPEN",
+			draft: false,
+			head: { ref: "feat-b", sha: "b1" },
+			base: { ref: "feat-a", sha: "a1" },
+		},
 	],
 });
 
-/** A clean, pushed workspace whose pull request #12 is ready to merge and sits in a stack of two. */
-async function seedPanel(): Promise<{ harness: TestContainer; workspace: Workspace }> {
+/** GitHub's merge state of #11 and #12, as the stack readiness query returns it. */
+const readinessAnswer = (lower: string, upper: string) =>
+	JSON.stringify({
+		data: {
+			repository: {
+				pr0: { number: 11, mergeStateStatus: lower },
+				pr1: { number: 12, mergeStateStatus: upper },
+			},
+		},
+	});
+
+/**
+ * A clean, pushed workspace whose pull request #12 is ready to merge and sits in a stack of two.
+ * GitHub reports the lower pull request #11 with `lowerState`.
+ */
+async function seedPanel(
+	lowerState = "CLEAN",
+): Promise<{ harness: TestContainer; workspace: Workspace }> {
 	const harness = createTestContainer();
 	test = harness;
 	const repo = await seedRepo(harness.container, {
@@ -142,6 +172,9 @@ async function seedPanel(): Promise<{ harness: TestContainer; workspace: Workspa
 		}
 		if (command.program === "gh" && command.args.includes("graphql")) {
 			if (command.args.some((arg) => arg.includes("stackEntry"))) return output(stackAnswer);
+			if (command.args.some((arg) => arg.includes("mergeStateStatus"))) {
+				return output(readinessAnswer(lowerState, "CLEAN"));
+			}
 			if (command.args.some((arg) => arg.includes("squashMergeAllowed"))) {
 				return output("[true,false,false]\n");
 			}
@@ -220,5 +253,25 @@ describe("PR-08 Merge stack in the git panel", () => {
 				command.program === "gh" && command.args[0] === "pr" && command.args[1] === "merge",
 		);
 		expect(singleMerges).toHaveLength(0);
+	});
+
+	it("says how many pull requests the stack merge takes", async () => {
+		const { harness, workspace } = await seedPanel();
+		await renderPanel(harness, workspace);
+
+		const button = await screen.findByRole("button", { name: /Merge stack/ });
+		expect(button.textContent).toContain("2");
+		fireEvent.focus(button);
+		expect((await screen.findAllByText("Merge 2 PRs from bottom to top")).length).toBeGreaterThan(
+			0,
+		);
+	});
+
+	it("names the lower pull request that keeps the stack from merging", async () => {
+		const { harness, workspace } = await seedPanel("BLOCKED");
+		await renderPanel(harness, workspace);
+
+		expect((await screen.findAllByText("#11 isn't ready to merge")).length).toBeGreaterThan(0);
+		expect(screen.queryByRole("button", { name: /Merge/ })).toBeNull();
 	});
 });

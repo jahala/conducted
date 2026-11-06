@@ -5,14 +5,15 @@
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * @feature GIT-14 Local-git forge: header state and the merge request to the agent
- * @feature PR-08 the stack size the header reads for its "Merge stack" action, which runs the stack
- * merge, and the Graphite poll for the repository of the workspace on screen
+ * @feature PR-08 the stack readiness the header reads for its "Merge stack" action, which runs the
+ * stack merge, and the Graphite poll for the repository of the workspace on screen
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
  * embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs), 5.4 (Cmd+Shift+X fix errors); frontend
  * layout in structure-map.md 3.2.
- * Data: useGitState, useWorkspaceStatus (agent working), useStack (the stack size), useActions().
+ * Data: useGitState, useWorkspaceStatus (agent working), useStack (the stack, judged for the
+ * workspace's pull request by core/status/stack-readiness.ts), useActions().
  * While mounted, the panel watches its workspace's repository with the Graphite service and
  * releases the watch on unmount or when the workspace moves to another repository, so `gt state`
  * runs only for the repository on screen (services-map.md 3.8.1).
@@ -73,6 +74,7 @@ import {
 	type GitHeaderActionId,
 	type GitHeaderInputs,
 } from "../../core/status/git-header.ts";
+import { headerStackInput } from "../../core/status/stack-readiness.ts";
 import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
@@ -196,8 +198,8 @@ export function GitPanel({
 					automergeSettingOn: automergeEnabled,
 					treatOptionalChecksAsBlocking: optionalChecksBlocking,
 					stack:
-						stack.state === "ready" && stack.data.length > 1
-							? { size: stack.data.length, blockedReason: null }
+						stack.state === "ready" && git.data.pullRequest !== null
+							? headerStackInput(stack.data, git.data.pullRequest.number)
 							: null,
 				}
 			: null;

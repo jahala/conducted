@@ -1,8 +1,8 @@
 /**
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn;
- * CHAT-05 Cancel a turn; CHAT-16 Fork a chat from a turn; CHAT-17 Copy transcript and search chat
- * history; CHAT-21 Fork a chat to a new workspace; CHAT-27 Retry a failed turn in a new chat;
- * WS-10 Delete a workspace's chats
+ * CHAT-05 Cancel a turn; CHAT-13 Progress tracker above the composer; CHAT-16 Fork a chat from a
+ * turn; CHAT-17 Copy transcript and search chat history; CHAT-21 Fork a chat to a new workspace;
+ * CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
@@ -34,12 +34,12 @@
  * drafts to the Trash before the rows go, and a missing file is nothing to do; a live state from
  * the sidecar is shown as it arrives and an
  * open interaction in it becomes the chat's card, while a live state without one withdraws the
- * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
- * and an idle live state with no finished notice, while its agent session id stays for resume and
- * a failed live-state write is returned; a review chat uses the review model, fast mode and effort
- * from settings,
- * falls back to the default chat model when no review model is set, and does not start when a
- * review setting cannot be used; a fork copies the chat up to a checkpointed turn into a new chat
+ * card; the agent's progress tracker replaces the chat's on every update and an empty update
+ * clears it, while a new turn clears it too; a chat the sidecar lost gets every open turn closed
+ * as `interrupted` in one transaction and an idle live state with no finished notice, while its
+ * agent session id stays for resume and a failed live-state write is returned; a review chat uses
+ * the review model, fast mode and effort from settings, falls back to the default chat model when
+ * no review model is set, and does not start when a review setting cannot be used; a fork copies the chat up to a checkpointed turn into a new chat
  * of the same workspace and refuses a turn with no checkpoint with "Unable to fork chat"; a fork
  * whose copied part holds no agent message to resume at is refused, so two chats never share one
  * agent session; a fork copies the checkpoint refs it keeps under its own ids, so its revert works
@@ -60,9 +60,9 @@
  * a new chat and resumes the agent at the turn's last message. For CHAT-21, the same copy can be
  * made into a different workspace.
  *
- * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
- * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
- * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
+ * The chat view (turns built from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the
+ * interaction paths (answer, requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and
+ * `markInterrupted` here.
  * CHAT-15 owns `markReverted`, which marks the open chat's loaded events from the reverted turn
  * onward so the turn list hides them without a reload.
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
@@ -179,9 +179,8 @@ export interface SessionsState {
 	cancelling: Readonly<Record<string, boolean>>;
 	/** Stored events loaded for each opened chat, in `idx` order. */
 	events: Readonly<Record<string, readonly StoredEvent[]>>;
-	progress: Readonly<
-		Record<string, { title?: string; steps: { label: string; status: string }[] }>
-	>;
+	/** The agent's progress tracker for each chat. A new update replaces it; an empty one clears it. */
+	progress: Readonly<Record<string, Progress>>;
 	/** Messages held in memory before the sidecar got them, whose `user_message` event has not arrived yet. */
 	sending: Readonly<Record<string, readonly PendingSend[]>>;
 	/** Messages the sidecar did not accept, kept for Retry and Discard. */
@@ -1585,7 +1584,13 @@ export class SessionsService implements AgentMessenger {
 
 			const open = state.openInteractions[sessionId];
 			const closeInteraction = event.type === "turn_ended" && open !== undefined;
-			if (events === state.events && !closeInteraction && !sendingChanged) return {};
+			const clearProgress =
+				event.type === "user_message" &&
+				event.delivery === "new_turn" &&
+				state.progress[sessionId] !== undefined;
+			if (events === state.events && !closeInteraction && !sendingChanged && !clearProgress) {
+				return {};
+			}
 
 			const next: Partial<SessionsState> = {};
 			if (events !== state.events) next.events = events;
@@ -1596,6 +1601,11 @@ export class SessionsService implements AgentMessenger {
 				const openInteractions = { ...state.openInteractions };
 				delete openInteractions[sessionId];
 				next.openInteractions = openInteractions;
+			}
+			if (clearProgress) {
+				const progress = { ...state.progress };
+				delete progress[sessionId];
+				next.progress = progress;
 			}
 			return next;
 		});
@@ -1663,8 +1673,17 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Replaces the chat's progress tracker. An update with no blocks clears it. */
-	setProgress(_sessionId: SessionId, _progress: Progress): void {
-		notImplemented("CHAT-13");
+	setProgress(sessionId: SessionId, progress: Progress): void {
+		this.store.setState((state) => {
+			const current = state.progress[sessionId];
+			if (progress.blocks.length === 0) {
+				if (current === undefined) return {};
+				const cleared = { ...state.progress };
+				delete cleared[sessionId];
+				return { progress: cleared };
+			}
+			return { progress: { ...state.progress, [sessionId]: progress } };
+		});
 	}
 
 	/**
@@ -1742,7 +1761,7 @@ export class SessionsService implements AgentMessenger {
 							expiresAt: open.expiresAt,
 							timedOut: open.timedOut,
 						},
-			progress: null,
+			progress: state.progress[sessionId] ?? null,
 			goal: null,
 		};
 	}
