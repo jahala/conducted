@@ -7,8 +7,8 @@
  * Our design choice: A function from dependencies to extensions, so the editor can be tested with
  * stand-in search functions. The trigger builders are inputs for tests; the default builders are
  * each trigger's own feature. The '#' trigger is loaded only when the caller passes its
- * dependencies: the app leaves it out until COMP-05 builds pull request search. The fourth
- * Conductor trigger (a section sign for saved snippets) is not verified and is left out.
+ * dependencies; the composer passes them, so the app loads all three. The fourth Conductor
+ * trigger (a section sign for saved snippets) is not verified and is left out.
  * Must handle: each trigger is an independent extension; a trigger the caller leaves out is not
  * loaded; the base kit removes the marks and blocks the plain-text composer does not use.
  * Test first: buildComposerExtensions returns one extension for each of the three triggers plus the
