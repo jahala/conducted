@@ -10,6 +10,7 @@
  * Must handle: steer rows go before queue rows; a paused queue releases no queue row; nothing is
  * picked while a row is `sending`; failed rows are skipped and the next one is tried; a message
  * that fails to send becomes `failed` with its error; a stale load never overwrites a newer one;
+ * a follow-up queued before the chat's rows were read reads them all, so stored rows stay ahead;
  * an agent that cannot steer (ACP agents) gets a message sent with the default mode as a normal
  * follow-up, while an explicit steer (a send with steer delivery, or send-now-as-steer) fails
  * visibly and a queued row stays queued (other-runners.md 2.4); a row is delivered under its own
@@ -157,6 +158,13 @@ export class FollowUpQueue {
 			delivery: input.delivery,
 		});
 		if (!created.ok) return created;
+		// A chat whose rows are not in the store yet is read whole, so earlier stored rows are
+		// never hidden behind the new one. That read is the newest, so a load already in flight
+		// (which may have started before the insert) cannot overwrite it.
+		if (this.store.getState().bySession[input.sessionId] === undefined) {
+			const loaded = await this.load(input.sessionId);
+			return loaded.ok ? created : loaded;
+		}
 		this.#loads.invalidate(input.sessionId);
 		this.#appendRow(created.value);
 		return created;
@@ -327,10 +335,12 @@ export class FollowUpQueue {
 		});
 	}
 
-	/** Adds one row to the loaded queue, or starts the queue if this chat has no rows loaded. */
+	/** Adds one row to a chat whose rows are already in the store. */
 	#appendRow(row: QueuedMessage): void {
 		this.store.setState((state) => {
-			const rows = [...(state.bySession[row.sessionId] ?? []), row].sort(byPosition);
+			const loaded = state.bySession[row.sessionId];
+			if (loaded === undefined) return {};
+			const rows = [...loaded, row].sort(byPosition);
 			return { bySession: { ...state.bySession, [row.sessionId]: rows } };
 		});
 	}

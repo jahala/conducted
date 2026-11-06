@@ -1,5 +1,6 @@
 /**
  * @feature REV-03 Review: diff comments and AI review
+ * @feature REV-12 comment states, and the attachment rows that say which chat received a comment
  * Owns: the review comments on a workspace's diff (load, add, edit, resolve, remove, send to
  * chat), the reads and writes behind the agent's GetDiffComments and DiffComment tools, and
  * starting an AI review chat.
@@ -9,16 +10,20 @@
  * load runs once per workspace and only the newest read writes the store; writes for one
  * workspace run in order, so an insert finishes before a later write; an inactive (outdated or
  * resolved) comment cannot be sent to chat; sending to chat writes each comment as a small file
- * in the workspace and marks the comments reviewed only after the chat accepted the message;
- * hiding a comment keeps it hidden until the user brings it back; every pending open comment can
- * be made ready in one step; editing a comment that was sent rewrites its file; the AI review
+ * in the workspace and, only after the chat accepted the message, records one sent attachment
+ * per comment naming that chat and marks all of them reviewed in one statement; a failure there
+ * is reported as sent but not recorded (`review_sent_not_recorded`), not as a failed send;
+ * hiding a comment keeps it hidden until the user brings it back, which makes it pending; a
+ * superseded comment is never hidden or brought back; every pending open comment can be made
+ * ready in one step; editing a comment that was sent rewrites its file; the AI review
  * creates a new chat with the review model and sends the review instruction, using the
  * repository's review prompt when it has one.
  * Not built here: GitHub sync (REV-04). A comment's side, its suggested change and its place in a
  * reply thread are stored by the repositories but not yet taken by `add`, whose screen API
  * (core/api.ts) has no parameters for them.
  * Our design choice: sending to chat asks the active chat through AgentMessenger, because the
- * composer's attachment pipeline belongs to COMP-01.
+ * composer's attachment pipeline belongs to COMP-01. AgentMessenger answers with the chat but not
+ * the message, so the attachment rows name the chat and leave the message id empty.
  * Test first: create, edit, resolve and remove each write SQLite and re-read the workspace rows.
  */
 import { join } from "node:path";
@@ -30,6 +35,7 @@ import {
 	notImplemented,
 	ok,
 	type Result,
+	type SessionId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -48,7 +54,7 @@ export interface ReviewState {
 }
 
 export interface ReviewServiceDeps {
-	repos: Pick<Repositories, "diffComments">;
+	repos: Pick<Repositories, "diffComments" | "attachments">;
 	git: GitRunner;
 	agent: AgentMessenger;
 	fs: Pick<FileSystem, "mkdirp" | "writeTextAtomic" | "exists">;
@@ -107,6 +113,12 @@ function commentFileText(comment: DiffComment): string {
 	parts.push(`Resolved: ${comment.resolved ? "yes" : "no"}`);
 	parts.push("", "## Comment", comment.body);
 	return `${parts.join("\n")}\n`;
+}
+
+function supersededComment(): Result<never> {
+	return err(
+		appError("review_comment_superseded", "A superseded comment can't be hidden or brought back."),
+	);
 }
 
 function inactiveComment(): Result<never> {
@@ -325,13 +337,48 @@ export class ReviewService {
 				`Review these comments on the diff:\n\n${mentions.join("\n")}`,
 			);
 			if (!sent.ok) return sent;
-			for (const comment of found) {
-				const reviewed = await this.#deps.repos.diffComments.setState(comment.id, "reviewed");
-				if (!reviewed.ok) return reviewed;
-			}
+			const recorded = await this.#recordSent(workspacePath.value, sent.value, found);
 			const refreshed = await this.#read(workspaceId);
+			if (!recorded.ok) return recorded;
 			return refreshed.ok ? ok(undefined) : refreshed;
 		});
+	}
+
+	/**
+	 * After a chat took the message: one sent attachment per comment, naming the comment and the
+	 * chat, then every comment marked reviewed in one statement. A failure here is not a failed
+	 * send, so it gets its own code, `review_sent_not_recorded`, and the message says the comments
+	 * did reach the chat.
+	 */
+	async #recordSent(
+		workspacePath: string,
+		sessionId: SessionId,
+		comments: readonly DiffComment[],
+	): Promise<Result<void>> {
+		const notRecorded = (cause: unknown): Result<void> =>
+			err(
+				appError(
+					"review_sent_not_recorded",
+					"The comments were added to the chat, but couldn't be marked as sent.",
+					cause,
+				),
+			);
+		for (const comment of comments) {
+			const fileName = commentFileName(comment.id);
+			const recorded = await this.#deps.repos.attachments.addSent({
+				sessionId,
+				messageId: null,
+				kind: "review",
+				originalName: fileName,
+				path: join(workspacePath, COMMENT_FOLDER, fileName),
+				commentId: comment.id,
+			});
+			if (!recorded.ok) return notRecorded(recorded.error);
+		}
+		const reviewed = await this.#deps.repos.diffComments.markReviewed(
+			comments.map((comment) => comment.id),
+		);
+		return reviewed.ok ? ok(undefined) : notRecorded(reviewed.error);
 	}
 
 	/** Pulls review threads and general comments of the workspace's PR into the table. */
@@ -368,19 +415,28 @@ export class ReviewService {
 		return this.#deps.startReviewChat(workspaceId, text);
 	}
 
-	/** Backs `Actions.comments.setHidden`. Bringing a hidden comment back makes it pending. */
+	/**
+	 * Backs `Actions.comments.setHidden`. Bringing a hidden comment back makes it pending, as
+	 * Conductor's `unhideComment` does (services-map.md 5A.7.1); a comment that is not hidden keeps
+	 * its state. A superseded comment is frozen and refused either way.
+	 */
 	async setHidden(id: CommentId, hidden: boolean): Promise<Result<void>> {
 		const found = await this.#deps.repos.diffComments.get(id);
 		if (!found.ok) return found;
 		if (found.value === null)
 			return err(appError("db.not_found", "That comment no longer exists."));
+		if (found.value.state === "superseded") return supersededComment();
 		const workspaceId = found.value.workspaceId;
 		return this.#writes.run(workspaceId, async () => {
-			const written = await this.#deps.repos.diffComments.setState(
-				id,
-				hidden ? "hidden" : "pending",
-			);
+			const written = hidden
+				? await this.#deps.repos.diffComments.hide(id)
+				: await this.#deps.repos.diffComments.unhide(id);
 			if (!written.ok) return written;
+			if (!written.value && hidden) {
+				// The guarded statement changed nothing: the comment was superseded meanwhile.
+				const refreshed = await this.#read(workspaceId);
+				return refreshed.ok ? supersededComment() : refreshed;
+			}
 			return this.#read(workspaceId);
 		});
 	}

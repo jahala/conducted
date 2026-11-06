@@ -19,7 +19,12 @@ import {
 import { localSettingsFile } from "../app-paths.ts";
 import type { CheckRun, PullRequest } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
-import { GithubService, type GithubServiceDeps } from "./github.ts";
+import {
+	FIX_ERRORS_LOG_LINES,
+	FIX_ERRORS_LOG_READS,
+	GithubService,
+	type GithubServiceDeps,
+} from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 import { tomlCodec } from "./toml-codec.ts";
 
@@ -201,6 +206,79 @@ describe("PR-05 fix errors sends failing checks to the agent", () => {
 		showPullRequest(github, pullRequest([check("build", "failure", null)]));
 
 		expect(await github.fixErrors(workspaceId)).toEqual(err(failure));
+	});
+
+	it("names the reason when a check's log could not be read", async () => {
+		const { github, calls } = service((command) =>
+			commandText(command).includes("actions/jobs/")
+				? gitOutput("", "gh: HTTP 410: logs are gone", 1)
+				: gitOutput("", "", 0),
+		);
+		showPullRequest(
+			github,
+			pullRequest([check("build", "failure", "https://github.com/o/r/actions/runs/77/job/1")]),
+		);
+
+		expect(await github.fixErrors(workspaceId)).toEqual(ok(undefined));
+
+		const text = calls[0]?.text ?? "";
+		expect(text).toContain("build");
+		expect(text).toContain("Couldn't read the log: No logs were recorded, or they have expired.");
+		expect(text).not.toContain("No log was available for this check.");
+	});
+
+	it("sends each log without terminal escapes and only its last lines", async () => {
+		const esc = String.fromCharCode(27);
+		const lines = Array.from({ length: 150 }, (_, index) => `${esc}[31mline ${index + 1}${esc}[0m`);
+		const { github, calls } = service((command) =>
+			commandText(command).includes("actions/jobs/1/logs")
+				? gitOutput(lines.join("\n"), "", 0)
+				: gitOutput("", "", 0),
+		);
+		showPullRequest(
+			github,
+			pullRequest([check("build", "failure", "https://github.com/o/r/actions/runs/77/job/1")]),
+		);
+
+		expect(await github.fixErrors(workspaceId)).toEqual(ok(undefined));
+
+		const text = calls[0]?.text ?? "";
+		expect(text).not.toContain(esc);
+		expect(text).toContain("line 150");
+		expect(text).toContain(`line ${150 - FIX_ERRORS_LOG_LINES + 1}\n`);
+		expect(text).not.toContain(`line ${150 - FIX_ERRORS_LOG_LINES}\n`);
+	});
+
+	it("reads several logs at once, at most four, and keeps the checks in order", async () => {
+		const waiting: (() => void)[] = [];
+		const { github, calls } = service((command) => {
+			const job = /actions\/jobs\/(\d+)\/logs/.exec(commandText(command))?.[1];
+			if (job === undefined) return gitOutput("", "", 0);
+			return new Promise<ReturnType<typeof gitOutput>>((resolve) => {
+				waiting.push(() => resolve(gitOutput(`error in job ${job}\n`, "", 0)));
+			});
+		});
+		const failing = Array.from({ length: 6 }, (_, index) =>
+			check(
+				`job-${index + 1}`,
+				"failure",
+				`https://github.com/o/r/actions/runs/7/job/${index + 1}`,
+			),
+		);
+		showPullRequest(github, pullRequest(failing));
+
+		const fixing = github.fixErrors(workspaceId);
+		await vi.waitFor(() => expect(waiting).toHaveLength(FIX_ERRORS_LOG_READS));
+		await Promise.resolve();
+		expect(waiting).toHaveLength(FIX_ERRORS_LOG_READS);
+		for (const release of waiting.splice(0)) release();
+		await vi.waitFor(() => expect(waiting).toHaveLength(2));
+		for (const release of waiting.splice(0)) release();
+
+		expect(await fixing).toEqual(ok(undefined));
+		const text = calls[0]?.text ?? "";
+		expect(text.match(/job-\d/g)).toEqual(["job-1", "job-2", "job-3", "job-4", "job-5", "job-6"]);
+		expect(text).toContain("error in job 6");
 	});
 });
 

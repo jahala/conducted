@@ -9,9 +9,11 @@
  * Must handle: a sync from GitHub upserts by id and must not undo a local resolve; a sync never
  * rewrites a comment that belongs to another workspace, and refuses a list that names one; a
  * hidden or reviewed comment stays put until GitHub edits its body, then returns to pending; a
- * superseded comment is never updated or deleted; a setter on a missing comment returns
- * `db.not_found`; threads are resolved together; every pending open comment can be made ready,
- * and a workspace's comments can be superseded, in one statement; the sync delete only touches
+ * superseded comment is never updated or deleted, hidden or brought back; only a hidden comment
+ * is brought back, and it returns to pending; comments sent to a chat are marked reviewed in one
+ * statement; a setter on a missing comment returns `db.not_found`; threads are resolved together;
+ * every pending open comment can be made ready, and a workspace's comments can be superseded, in
+ * one statement; the sync delete only touches
  * author_kind 'github' rows and receives the ids to keep as a JSON list (no giant IN clause);
  * replies point to their parent by reply_to_id.
  * Test first: diffCommentToParams then diffCommentFromRow gives back the same comment.
@@ -148,6 +150,15 @@ export const DIFF_COMMENTS_SQL = {
 	setBody: "UPDATE diff_comments SET body = $1, suggestion = $2, updated_at = $3 WHERE id = $4",
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
 	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
+	/** Hides a comment. A superseded comment stays frozen. */
+	hide: `UPDATE diff_comments SET state = 'hidden', updated_at = $2
+		WHERE id = $1 AND state <> 'superseded'`,
+	/** Brings a hidden comment back as pending (services-map.md 5A.7.1, `unhideComment`). */
+	unhide: `UPDATE diff_comments SET state = 'pending', updated_at = $2
+		WHERE id = $1 AND state = 'hidden'`,
+	/** `$1` is a JSON list of comment ids. Every one that is not superseded becomes reviewed. */
+	markReviewed: `UPDATE diff_comments SET state = 'reviewed', updated_at = $2
+		WHERE id IN (SELECT value FROM json_each($1)) AND state <> 'superseded'`,
 	/** Every pending, open comment of the workspace becomes ready for review. */
 	markReadyForReview: `UPDATE diff_comments SET state = 'ready_for_review', updated_at = $2
 		WHERE workspace_id = $1 AND state = 'pending' AND resolved = 0 AND outdated = 0`,
@@ -208,6 +219,12 @@ export interface DiffCommentRepository {
 	setResolved(id: CommentId, resolved: boolean): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setState: hide, mark ready, reviewed or superseded (REV-12). */
 	setState(id: CommentId, state: ReviewCommentState): Promise<Result<void>>;
+	/** DIFF_COMMENTS_SQL.hide. False when the comment is superseded or missing. */
+	hide(id: CommentId): Promise<Result<boolean>>;
+	/** DIFF_COMMENTS_SQL.unhide. False when the comment was not hidden. */
+	unhide(id: CommentId): Promise<Result<boolean>>;
+	/** DIFF_COMMENTS_SQL.markReviewed, one statement for all the ids. Returns how many changed. */
+	markReviewed(ids: readonly CommentId[]): Promise<Result<number>>;
 	/** DIFF_COMMENTS_SQL.markReadyForReview: pending, open comments become ready. */
 	markReadyForReview(workspaceId: WorkspaceId): Promise<Result<number>>;
 	/** DIFF_COMMENTS_SQL.supersedeWorkspace: every comment of the workspace is superseded. */
@@ -351,6 +368,35 @@ export function createDiffCommentRepository(
 				[state, now(), id],
 				"Changing a review comment's state",
 			),
+		hide: async (id) => {
+			const hidden = await executeStatement(
+				db,
+				DIFF_COMMENTS_SQL.hide,
+				[id, now()],
+				"Hiding a review comment",
+			);
+			return hidden.ok ? ok(hidden.value > 0) : err(hidden.error);
+		},
+		unhide: async (id) => {
+			const shown = await executeStatement(
+				db,
+				DIFF_COMMENTS_SQL.unhide,
+				[id, now()],
+				"Bringing back a review comment",
+			);
+			return shown.ok ? ok(shown.value > 0) : err(shown.error);
+		},
+		markReviewed: async (ids) => {
+			const json = stringifyJson(ids, "diff_comments.ids");
+			if (!json.ok) return err(json.error);
+			const marked = await executeStatement(
+				db,
+				DIFF_COMMENTS_SQL.markReviewed,
+				[json.value, now()],
+				"Marking review comments reviewed",
+			);
+			return marked.ok ? ok(marked.value) : err(marked.error);
+		},
 		markReadyForReview: async (workspaceId) => {
 			const marked = await executeStatement(
 				db,

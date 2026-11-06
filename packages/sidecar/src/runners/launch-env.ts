@@ -10,13 +10,15 @@
  * key rule is D033 in docs/decisions.md: one strip list removes every provider key from the
  * captured environment (`shell-env/env.ts`); each runner then gets only the keys of its own
  * provider, and a key that came from the Mac's environment only when the user picked "Use the key
- * from this Mac".
+ * from this Mac". When the launch names a custom provider, the user's entered keys all reach it,
+ * because that provider decides which variables it needs.
  * Must handle: a program path that does not exist or is not executable (an error value that names
  * the path, never a quiet switch to another copy); a `.js` program path (`viaRuntime`: Claude
  * starts it through node, the SDK's `executable`; Codex and ACP programs start the file itself,
  * which runs through its own `#!` line); no path given (the managed copy, then the copy on the
  * login-shell PATH, D021; PLAT-28 installs managed copies, so today there is none to find); a key
- * meant for another agent (never passed); a user variable that has the name of a stripped key (the
+ * meant for another agent (never passed unless the provider is custom); a user variable that has
+ * the name of a stripped key (the
  * user wins, as `shell-env/env.ts` already does for overrides); Claude provider routing for
  * Bedrock, Vertex, Foundry and Mantle (the matching `CLAUDE_CODE_USE_*` variable is set, nothing
  * else changes); an unknown provider (an error value); a base URL (`ANTHROPIC_BASE_URL` for Claude,
@@ -135,12 +137,15 @@ export interface BuildEnvironmentInput {
 export function buildAgentEnvironment(
 	input: BuildEnvironmentInput,
 ): Result<Record<string, string>> {
-	const ownKeyNames = agentProviders(input.agent, input.acpAgent).flatMap(
-		(provider) => provider.keyEnvVars,
-	);
+	// A custom provider decides which variables it needs, so every entered key reaches the agent.
+	// The built-in providers get only the variables listed for their agent (D033).
+	const ownKeyNames =
+		input.launch.provider?.trim().toLowerCase() === "custom"
+			? null
+			: agentProviders(input.agent, input.acpAgent).flatMap((provider) => provider.keyEnvVars);
 	const ownKeys: Record<string, string> = {};
 	for (const [name, key] of Object.entries(input.launch.providerKeys)) {
-		if (!ownKeyNames.includes(name)) continue;
+		if (ownKeyNames !== null && !ownKeyNames.includes(name)) continue;
 		ownKeys[name] = key.value;
 	}
 	const baseUrl = baseUrlEnvironment(input.agent, input.launch.baseUrl);
@@ -184,7 +189,7 @@ export function claudeProviderEnvironment(
 	provider: string | undefined,
 ): Result<Record<string, string>> {
 	const name = provider?.trim().toLowerCase();
-	if (name === undefined || name === "" || name === "anthropic") return ok({});
+	if (name === undefined || name === "" || name === "anthropic" || name === "custom") return ok({});
 	const variable = CLAUDE_PROVIDER_VARIABLES[name];
 	if (variable === undefined) {
 		return err(
@@ -220,12 +225,19 @@ const AGENT_PROVIDERS: Readonly<Record<Exclude<AgentKind, "acp">, AgentProvider[
 		{
 			id: "anthropic",
 			label: "Anthropic API key",
-			keyEnvVars: ["ANTHROPIC_API_KEY"],
+			// The subscription token signs a Claude Code subscription in through the same provider.
+			keyEnvVars: ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
 		},
 		{
 			id: "bedrock",
 			label: "Amazon Bedrock",
-			keyEnvVars: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+			keyEnvVars: [
+				"AWS_ACCESS_KEY_ID",
+				"AWS_SECRET_ACCESS_KEY",
+				"AWS_SESSION_TOKEN",
+				"AWS_BEARER_TOKEN_BEDROCK",
+				"ANTHROPIC_MODEL",
+			],
 		},
 		{
 			id: "vertex",
@@ -255,6 +267,11 @@ const ACP_PROVIDERS: AgentProvider[] = [
 	{ id: "anthropic", label: "Anthropic", keyEnvVars: ["ANTHROPIC_API_KEY"] },
 	{ id: "openrouter", label: "OpenRouter", keyEnvVars: ["OPENROUTER_API_KEY"] },
 	{ id: "xai", label: "xAI", keyEnvVars: ["XAI_API_KEY"] },
+	{
+		id: "custom",
+		label: "Custom provider",
+		keyEnvVars: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_ORG_ID", "OPENCODE_WORKSPACE_ID"],
+	},
 ];
 
 function runsThroughRuntime(programPath: string): boolean {

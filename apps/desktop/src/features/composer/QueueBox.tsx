@@ -11,8 +11,8 @@
  * 'Follow-up behavior'.
  * Must handle: Empty queue (renders nothing); paused queue (shows 'Resume'); a message that failed
  * to send (row shows the error and Retry); editing a message that the agent has just started (the
- * edit is refused with a message); drag reorder fails (order returns, toast); many rows (collapsed
- * to the first few).
+ * edit is refused with a message); drag reorder fails (order returns, toast); many rows (more than
+ * three start collapsed to the first three, with 'Show all N').
  * Test first: Deleting a queued message calls sessions.queue.remove(id); a failure restores the row
  * and shows 'Failed to delete queued message'.
  */
@@ -50,13 +50,15 @@ export function QueueBox({ sessionId }: QueueBoxProps) {
 		(state) => state.pausedSessionIds[sessionId] === true,
 	);
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
-	const [collapsed, setCollapsed] = useState(false);
+	// Null until the user folds or unfolds the box; until then a long queue starts folded.
+	const [collapsedChoice, setCollapsed] = useState<boolean | null>(null);
 	const [selectedId, setSelectedId] = useState<MessageId | null>(null);
 	const [editingId, setEditingId] = useState<MessageId | null>(null);
 	const [editText, setEditText] = useState("");
 	const [draggingId, setDraggingId] = useState<MessageId | null>(null);
 
 	const ordered = useMemo(() => [...rows].sort(byPosition), [rows]);
+	const collapsed = collapsedChoice ?? ordered.length > COLLAPSED_ROW_LIMIT;
 	const canSteer = session === undefined || agentCanSteer(session.config);
 	const editing = ordered.find((row) => row.id === editingId) ?? null;
 	const selected = ordered.find((row) => row.id === selectedId) ?? null;

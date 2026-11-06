@@ -4,11 +4,12 @@
  * to the chat as a file.
  */
 import { join } from "node:path";
-import type { CommentId, SessionId, WorkspaceId } from "@conducted/shared";
+import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { ok } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { createRepositories } from "../db/repositories.ts";
+import { sampleSession } from "../db/test-fixtures.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { DiffComment } from "../model.ts";
 import { ReviewService, type ReviewServiceDeps } from "./review.ts";
@@ -37,9 +38,14 @@ function serviceFor(
 		repos: repositories,
 		git: {} as GitRunner,
 		agent: {
+			// A real chat takes the message, so the attachment rows that name it can be stored.
 			sendInstruction: async (workspaceId, text) => {
 				sent.push({ workspaceId, text });
-				return ok("chat-1" as SessionId);
+				const chat = await container.container.services.sessions.create(
+					workspaceId,
+					sampleSession.config,
+				);
+				return chat.ok ? ok(chat.value.id) : chat;
 			},
 		},
 		fs: container.container.platform.fs,
@@ -169,6 +175,7 @@ describe("REV-03 review comment store over the real container", () => {
 		const fresh = comment("fresh", { workspaceId: workspace.id, body: "fresh" });
 		const { service } = serviceFor(test, {
 			repos: {
+				attachments: repositories.attachments,
 				diffComments: {
 					...repositories.diffComments,
 					listByWorkspace: async () => {

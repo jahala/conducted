@@ -59,6 +59,8 @@ function harness(options: {
 	targetSha: string;
 	write?: (path: string, text: string) => Promise<Result<void>>;
 	send?: (workspaceId: WorkspaceId) => Promise<Result<SessionId>>;
+	save?: (branch: string) => Promise<Result<void>>;
+	now?: () => number;
 }): Harness {
 	const saved: string[] = [];
 	const sent: Sent[] = [];
@@ -78,6 +80,8 @@ function harness(options: {
 			return ok(output("git@example.com:acme/app.git\n"));
 		}
 		if (first === "checkout" && second === "-b") return ok(output(""));
+		if (first === "checkout" && command.args.length === 2) return ok(output(""));
+		if (first === "branch" && second === "-D") return ok(output(""));
 		return err(appError("git_unscripted", `unexpected command: ${command.args.join(" ")}`));
 	});
 	const fs: Pick<
@@ -106,12 +110,13 @@ function harness(options: {
 			},
 		},
 		renameWorkspaceBranch: async (_id, branch) => {
+			if (options.save !== undefined) return options.save(branch);
 			saved.push(branch);
 			return ok(undefined);
 		},
 		setIntendedTargetBranch: async () => ok(undefined),
 		moveOpenPullRequestBase: async () => ok(false),
-		now: () => 0,
+		now: options.now ?? (() => 0),
 		fs,
 	});
 	return { service, runner, saved, sent, files };
@@ -198,5 +203,123 @@ describe("GIT-17 continue note failures", () => {
 		if (result.ok) return;
 		expect(result.error.message).toBe("Failed to attach continue context");
 		expect(h.saved).toEqual(["continued-work"]);
+	});
+});
+
+describe("GIT-17 a branch the workspace could not save", () => {
+	it("checks the old branch out again and removes the new one", async () => {
+		const failure = appError("db.locked", "The database is locked.");
+		const h = harness({
+			currentBranch: "feat",
+			headSha: "head-sha",
+			targetSha: "target-sha",
+			save: async () => err(failure),
+		});
+
+		const result = await h.service.continueOnNewBranch(workspaceId, "continued-work");
+
+		expect(result).toEqual(err(failure));
+		const after = h.runner.commands
+			.map((command) => command.args)
+			.filter((args) => args[0] === "checkout" || (args[0] === "branch" && args[1] === "-D"));
+		expect(after).toEqual([
+			["checkout", "-b", "continued-work", "target-sha"],
+			["checkout", "feat"],
+			["branch", "-D", "--", "continued-work"],
+		]);
+		expect(h.sent).toEqual([]);
+		expect(h.files.size).toBe(0);
+		expect(h.service.store.getState().continuedAt[workspaceId]).toBeUndefined();
+	});
+
+	it("goes back to the detached commit when HEAD was detached", async () => {
+		const h = harness({
+			currentBranch: "",
+			headSha: "head-sha",
+			targetSha: "target-sha",
+			save: async () => err(appError("db.locked", "The database is locked.")),
+		});
+
+		await h.service.continueOnNewBranch(workspaceId, "continued-work");
+
+		expect(
+			h.runner.commands.some((command) => command.args.join(" ") === "checkout head-sha"),
+		).toBe(true);
+	});
+});
+
+describe("GIT-17 the merged pull request after a continue", () => {
+	const merged = {
+		pullRequest: {
+			number: 12,
+			url: "https://github.com/acme/app/pull/12",
+			title: "A change",
+			body: "",
+			state: "merged" as const,
+			mergeable: "mergeable" as const,
+			reviewDecision: null,
+			checks: [],
+			inMergeQueue: false,
+			autoMergeEnabled: false,
+			baseBranch: "main",
+			authorLogin: null,
+			viewerDidAuthor: false,
+			viewerCanMerge: true,
+			mergeMethod: "squash" as const,
+			reviewers: [],
+			deployments: [],
+			updatedAt: 0,
+		},
+		unavailable: "none" as const,
+		fetchedAt: 5,
+	};
+
+	const showSnapshot = (service: GitService, branch: string): void => {
+		service.store.setState({
+			byWorkspace: {
+				[workspaceId]: {
+					snapshot: {
+						depth: "full",
+						branch,
+						mergeBase: "abc123",
+						mergeBaseError: null,
+						files: [],
+						conflictedPaths: [],
+						untrackedTruncated: false,
+						uncommittedFiles: 0,
+						changedFiles: 0,
+						operation: "none",
+						commits: [],
+						sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
+						behindTarget: 0,
+					},
+					error: null,
+					refreshedAt: 1,
+				},
+			},
+		});
+	};
+
+	it("leaves out a merged pull request read before the continue, and keeps a newer read", async () => {
+		const h = harness({
+			currentBranch: "feat",
+			headSha: "head-sha",
+			targetSha: "target-sha",
+			now: () => 10,
+		});
+		showSnapshot(h.service, "feat");
+		expect(h.service.stateOf(workspaceId, merged)?.pullRequest?.state).toBe("merged");
+
+		expect(await h.service.continueOnNewBranch(workspaceId, "continued-work")).toEqual(
+			ok(undefined),
+		);
+		showSnapshot(h.service, "continued-work");
+
+		const after = h.service.stateOf(workspaceId, merged);
+		expect(after?.pullRequest).toBeNull();
+		expect(after?.pullRequestUnavailable).toBe("none");
+		expect(h.service.stateOf(workspaceId, { ...merged, fetchedAt: 11 })?.pullRequest?.state).toBe(
+			"merged",
+		);
 	});
 });

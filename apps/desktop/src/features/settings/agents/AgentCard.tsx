@@ -1,7 +1,7 @@
 /**
  * @feature SET-03 Agent card
- * Owns: one agent program on the Agents page. Name, whether it is installed, version, path, and
- * the sign-in state with its action.
+ * Owns: one agent program on the Agents page. Name, whether it is installed, version, path, the
+ * sign-in state with its action, and the way into its provider forms.
  * Behaviour: ui-map.md 6, "Agents page" (one card per provider; states "Loaded from env", "API key
  * configured", "Validation failed", "Recommended").
  * Data: the parent passes one AgentInstall from useAgentInstalls().
@@ -28,6 +28,8 @@ export interface AgentCardProps {
 	signInBusy: boolean;
 	onSignIn: () => void;
 	onRefresh: () => void;
+	/** Opens the agent's Providers dialog. Left out when the page has no provider forms. */
+	onProviders?: () => void;
 	/** Copies the program path. Left out when the page has no clipboard action. */
 	onCopyPath?: (path: string) => void;
 	/** Offered beside a warning. Left out until the program manager can download (D021). */
@@ -57,6 +59,7 @@ export function AgentCard({
 	signInBusy,
 	onSignIn,
 	onRefresh,
+	onProviders,
 	onCopyPath,
 	onUpdate,
 }: AgentCardProps) {
@@ -86,6 +89,11 @@ export function AgentCard({
 					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
+					{!notInstalled && onProviders ? (
+						<Button size="sm" variant="secondary" onClick={onProviders}>
+							Providers
+						</Button>
+					) : null}
 					{!notInstalled && install.authenticated !== true ? (
 						<Button size="sm" variant="default" loading={signInBusy} onClick={onSignIn}>
 							Sign in

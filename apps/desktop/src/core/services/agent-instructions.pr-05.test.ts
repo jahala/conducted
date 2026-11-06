@@ -26,8 +26,9 @@ describe("PR-05 fixErrorsInstruction", () => {
 				{
 					check: check("build", "https://github.com/o/r/actions/runs/1/job/2"),
 					logTail: "error: build failed",
+					logError: null,
 				},
-				{ check: check("test"), logTail: null },
+				{ check: check("test"), logTail: null, logError: null },
 			],
 		});
 
@@ -42,7 +43,7 @@ describe("PR-05 fixErrorsInstruction", () => {
 	it("tells the agent to find the cause and run the affected checks", () => {
 		const text = fixErrorsInstruction({
 			...base,
-			failing: [{ check: check("lint"), logTail: null }],
+			failing: [{ check: check("lint"), logTail: null, logError: null }],
 		});
 
 		expect(text).toContain("Find the cause");
@@ -53,7 +54,7 @@ describe("PR-05 fixErrorsInstruction", () => {
 		const text = fixErrorsInstruction({
 			...base,
 			customPrompt: "  Use the migration checklist.  ",
-			failing: [{ check: check("build"), logTail: "error" }],
+			failing: [{ check: check("build"), logTail: "error", logError: null }],
 		});
 
 		expect(text).toBe("Use the migration checklist.");
@@ -65,10 +66,27 @@ describe("PR-05 fixErrorsInstruction", () => {
 		const text = fixErrorsInstruction({
 			...base,
 			customPrompt: "   ",
-			failing: [{ check: check("build"), logTail: null }],
+			failing: [{ check: check("build"), logTail: null, logError: null }],
 		});
 
 		expect(text).toContain("Fix the failing checks");
 		expect(text).toContain("build");
+	});
+
+	it("says why a check's log could not be read", () => {
+		const text = fixErrorsInstruction({
+			...base,
+			failing: [
+				{
+					check: check("build", "https://github.com/o/r/actions/runs/1/job/2"),
+					logTail: null,
+					logError: "No logs were recorded, or they have expired.",
+				},
+			],
+		});
+
+		expect(text).toContain("1. build (https://github.com/o/r/actions/runs/1/job/2)");
+		expect(text).toContain("Couldn't read the log: No logs were recorded, or they have expired.");
+		expect(text).not.toContain("No log was available for this check.");
 	});
 });

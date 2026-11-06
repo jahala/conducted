@@ -19,10 +19,13 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 	const { services } = useServices();
 	const entry = useStore(services.git.store, (state) => state.byWorkspace[workspaceId]);
 	const prEntry = useStore(services.github.store, (state) => state.byWorkspace[workspaceId]);
+	// A Continue changes which pull request belongs to the workspace (GitService.stateOf).
+	const continuedAt = useStore(services.git.store, (state) => state.continuedAt[workspaceId]);
 	// The pending action lives in the GitHub store, so this re-renders when an action starts and ends.
 	const pendingAction = useStore(services.github.store, () =>
 		services.github.pendingAction(workspaceId),
 	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: stateOf reads continuedAt from the git store, so a Continue must recompute the state.
 	return useMemo<Loadable<GitState>>(() => {
 		if (entry === undefined || (entry.snapshot === null && entry.error === null)) {
 			return { state: "loading" };
@@ -38,7 +41,7 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 		}
 		const state = services.git.stateOf(workspaceId, prEntry, pendingAction);
 		return state === null ? { state: "loading" } : { state: "ready", data: state };
-	}, [services.git, workspaceId, entry, prEntry, pendingAction]);
+	}, [services.git, workspaceId, entry, prEntry, pendingAction, continuedAt]);
 };
 const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
 	["git", "workspace", workspaceId, "changes", scope] as const;
