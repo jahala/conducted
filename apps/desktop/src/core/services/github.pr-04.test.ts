@@ -8,7 +8,6 @@ import {
 } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { CheckRun, PullRequest } from "../model.ts";
-import type { GitCache } from "./git-cache.ts";
 import { checkLogTail, GithubService, type GithubServiceDeps, parseCheckJob } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
@@ -18,7 +17,6 @@ function service(handler: GitHandler) {
 	const git = new FakeGitRunner(handler);
 	const service = new GithubService({
 		git,
-		cache: {} as GitCache,
 		agent: {} as AgentMessenger,
 		contextOf: async () =>
 			ok({ workspaceId, workspacePath: "/wt", branch: "feat", remote: "origin", prNumber: 12 }),

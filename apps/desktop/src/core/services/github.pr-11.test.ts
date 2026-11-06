@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import type { FileSystem, ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
-import type { GitCache } from "./git-cache.ts";
 import {
 	canListGithubIssues,
 	type GithubAccess,
@@ -110,7 +109,6 @@ function makeService(
 ): GithubService {
 	return new GithubService({
 		git,
-		cache: {} as GitCache,
 		agent: {} as AgentMessenger,
 		contextOf: async () =>
 			overrides.contextOf === undefined

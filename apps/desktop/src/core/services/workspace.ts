@@ -30,8 +30,9 @@
  * the next `-vN` suffix, and `auto_rename_workspace_on_branch_name_set` renames the workspace to
  * the new branch name unless the user set a name.
  * Built now (WS-10): delete a workspace by id and every workspace of a repository. It cancels the
- * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log
- * and viewed-files file to the Trash, deletes its chats with their attachment files, then deletes
+ * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log,
+ * viewed-files file and git cache files (DATA-07) to the Trash, deletes its chats with their
+ * attachment files, then deletes
  * the row and forgets it in the store. A repository removal stops every workspace's processes first.
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
@@ -128,6 +129,7 @@ import type {
 	Session,
 	Workspace,
 } from "../model.ts";
+import type { GitCache } from "./git-cache.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 
 export interface PlaceNames {
@@ -709,6 +711,11 @@ export interface BranchNameSuggester {
 
 export interface WorkspaceServiceDeps {
 	platform: Pick<Platform, "fs" | "opener" | "shell">;
+	/**
+	 * The restart cache of each workspace's changes and pull request info (DATA-07). Deleting a
+	 * workspace removes its entries. The composition root supplies it.
+	 */
+	gitCache?: Pick<GitCache, "remove">;
 	git: GitRunner;
 	repos: Pick<Repositories, "repos" | "workspaces" | "sessions" | "sections">;
 	placeNames: PlaceNames;
@@ -1792,6 +1799,8 @@ export class WorkspaceService {
 			viewedFilesFile(this.#deps.platform.fs.paths, id),
 		);
 		if (!viewed.ok) return viewed;
+		const cached = await this.#deps.gitCache?.remove(id);
+		if (cached !== undefined && !cached.ok) return cached;
 
 		const chats = await this.#deps.sessions.deleteAll(id);
 		if (!chats.ok) return chats;

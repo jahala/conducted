@@ -2,12 +2,15 @@
  * @feature PR-08 Stack view in the Changes tab
  * Owns: a read-only list of the PRs in a stack, from trunk up, with the current one marked.
  * Behaviour: ui-map.md 3.6 ("Stack view: Stack PRs, Current, (trunk), gt restack, Checkout this
- * branch, Ready for review"); services-map.md 3.8 (Graphite and GitHub stacks are read-only plus
- * checkout; a ready action only marks a draft).
- * Data: the entries come from useStack(workspaceId); the parent supplies the trunk branch.
- * Must handle: no stack (renders nothing, so the parent does not offer the view), a branch that
- * needs a restack (shows the `gt restack` hint, never runs it), a draft entry with a Ready for
- * review action, and the current branch (marked, with no checkout action).
+ * branch, Ready for review"); services-map.md 3.8 (a stack is read-only plus checkout; a ready
+ * action only marks a draft).
+ * Data: the props. No screen renders this view yet: mounting it in the Changes tab, with entries
+ * from useStack(workspaceId), the trunk from the target branch, Checkout through switch branch and
+ * Ready through mark ready, is an open PR-08 item. Graphite is not read anywhere yet, so every
+ * entry's `needsRestack` is false today and the `gt restack` hint never shows in the app.
+ * Must handle: no stack (renders nothing, so the parent does not offer the view), an entry whose
+ * `needsRestack` is true (shows the `gt restack` hint, never runs it), a draft entry with a Ready
+ * for review action, and the current branch (marked, with no checkout action).
  * Test first: three entries render in order with the current one marked and the trunk shown first.
  */
 import type { StackEntryView } from "../../../core/model.ts";

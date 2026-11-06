@@ -63,6 +63,30 @@ function turn(over: Partial<ChatTurn> = {}): ChatTurn {
 
 let test: TestContainer | undefined;
 
+/** A user message with its own text, for search cases the shared fixture's text cannot show. */
+function userMessage(id: string, turn: string, at: number, text: string): SessionEvent {
+	const event = userMessageEvent(id, turn, at);
+	if (event.type !== "user_message") throw new Error("the fixture is a user message");
+	return { ...event, text };
+}
+
+/** A started container with one chat, and a way to store events in that chat's log. */
+async function storedChat() {
+	test = createTestContainer();
+	const workspace = await seedWorkspace(test.container);
+	const sessions = test.container.services.sessions;
+	const chat = must(await sessions.create(workspace.id, sampleSession.config));
+	must(await sessions.start());
+	const repositories = createRepositories(test.container.platform.db, {
+		clock: { now: () => 2000 },
+		ids: { uuid: () => crypto.randomUUID() },
+	});
+	const append = async (event: SessionEvent): Promise<void> => {
+		must(await repositories.sessionEvents.append(chat.id, event, event.at));
+	};
+	return { sessions, chatId: chat.id, append, repositories };
+}
+
 afterEach(async () => {
 	if (test !== undefined) {
 		await test.container.stop();
@@ -167,6 +191,61 @@ describe("CHAT-17 searchHistory", () => {
 			"Fix the login bug",
 		]);
 		expect(must(await sessions.searchHistory("a", 10))).toEqual([]);
+	});
+
+	it("fills the limit with real matches, not with rows whose JSON keys hold the query", async () => {
+		const { sessions, chatId, append } = await storedChat();
+		// Every stored event's JSON has a "text" key, but only the oldest message says "text".
+		await append(userMessage("e1", "turn-1", 100, "Check the text field"));
+		await append(agentEvent("e2", "turn-1", 110, [{ kind: "text", text: "All done." }]));
+		await append(agentEvent("e3", "turn-1", 120, [{ kind: "text", text: "Done again." }]));
+		await append(agentEvent("e4", "turn-1", 130, [{ kind: "text", text: "Still done." }]));
+
+		const hits = must(await sessions.searchHistory("text", 2));
+
+		expect(hits).toEqual([
+			{ sessionId: chatId, turnId: "turn-1", excerpt: "Check the text field", at: 100 },
+		]);
+	});
+
+	it("finds a query with a quote, which the stored JSON escapes", async () => {
+		const { sessions, chatId, append } = await storedChat();
+		await append(userMessage("e1", "turn-1", 100, 'Say "hello" twice'));
+
+		const hits = must(await sessions.searchHistory('"hello"', 10));
+
+		expect(hits.map((hit) => [hit.sessionId, hit.excerpt])).toEqual([
+			[chatId, 'Say "hello" twice'],
+		]);
+	});
+
+	it("matches % and _ in the query literally", async () => {
+		const { sessions, chatId, append } = await storedChat();
+		// The newer rows would match if % and _ were wildcards, and a limit of 1 would keep only them.
+		await append(userMessage("e1", "turn-1", 100, "I am 100% sure"));
+		await append(userMessage("e2", "turn-2", 200, "I am 100 percent sure"));
+		await append(userMessage("e3", "turn-3", 300, "Rename a1_2b"));
+		await append(userMessage("e4", "turn-4", 400, "Rename a132b"));
+
+		expect(must(await sessions.searchHistory("100%", 1))).toEqual([
+			{ sessionId: chatId, turnId: "turn-1", excerpt: "I am 100% sure", at: 100 },
+		]);
+		expect(must(await sessions.searchHistory("1_2", 1))).toEqual([
+			{ sessionId: chatId, turnId: "turn-3", excerpt: "Rename a1_2b", at: 300 },
+		]);
+	});
+
+	it("does not search reverted events", async () => {
+		const { sessions, chatId, append, repositories } = await storedChat();
+		await append(userMessage("e1", "turn-1", 100, "Keep the login form"));
+		await append(userMessage("e2", "turn-2", 200, "Drop the login form"));
+		expect(
+			must(await repositories.sessionEvents.markRevertedFromTurn(chatId, "turn-2" as TurnId, 300)),
+		).toBe(1);
+
+		const hits = must(await sessions.searchHistory("login form", 10));
+
+		expect(hits.map((hit) => hit.excerpt)).toEqual(["Keep the login form"]);
 	});
 
 	it("copies a chat's transcript to the clipboard through the composition root", async () => {

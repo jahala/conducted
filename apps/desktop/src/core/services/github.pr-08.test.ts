@@ -32,7 +32,6 @@ function makeService(
 ): GithubService {
 	return new GithubService({
 		git,
-		cache: {} as never,
 		agent: {} as never,
 		contextOf: async () =>
 			ok({

@@ -20,9 +20,11 @@
  *                         or PR mergeable is "conflicting"
  *   detached              no branch is checked out (detached HEAD)     Detached HEAD               Continue (GIT-17)
  *   uncommitted           uncommittedFiles > 0                         Uncommitted changes         Commit and push (agent)
- *   local_merge           local-git forge, ahead > 0                   Ready to merge              Merge (agent)
- *   local_conflicts       local-git forge, mergeState DIRTY            Merge conflicts             Resolve (agent)
- *   local_loading         local-git forge, info not read yet           Loading PR info...          none
+ *   conflicts             local-git forge, mergeState DIRTY            Merge conflicts             Resolve (agent)
+ *   ready_to_merge        local-git forge, ahead > 0                   Ready to merge              Merge (agent)
+ *   pr_unavailable        local-git forge, info could not be read      PR info unavailable         Retry
+ *   loading               local-git forge, info not read yet           Loading PR info...          none
+ *   changes / clean       local-git forge, nothing ahead               Changes / No changes        none
  *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve (agent)
  *                                                                      Remote branch was rebased
  *   behind                sync.behind > 0, ahead is 0                  Behind by N commit(s)       Pull
@@ -33,15 +35,17 @@
  *   pr_unavailable        any other missing PR info that is not "no PR yet" PR info unavailable      Retry
  *   changes               no PR, changedFiles > 0                      Changes                     Create PR (agent)
  *   changes_requested     reviewDecision changes_requested             PR changes requested        Add all comments to chat
- *   draft_pr              PR state draft                               Draft PR open               Ready for review
+ *   draft_pr              PR state draft                               Draft PR open               Ready for review, if the
+ *                                                                                                  forge can mark ready
  *   checks_failing        any check failure                            N / M checks failed         Fix errors (agent)
  *                                                                      (plus ", K pending" if any)
  *   checks_pending        any check pending or running                 N checks pending...         Auto-merge toggle, only if
  *                                                                                                  the setting is on, the forge
- *                                                                                                  is GitHub and the viewer may
- *                                                                                                  merge
- *   review_required       reviewDecision review_required               PR review required          Approve if the viewer may,
- *                                                                                                  otherwise a waiting note
+ *                                                                                                  can auto-merge and the viewer
+ *                                                                                                  may merge
+ *   review_required       reviewDecision review_required               PR review required          Approve if the forge can make
+ *                                                                                                  remote requests and the viewer
+ *                                                                                                  may, otherwise a waiting note
  *   blocked               mergeable unknown after checks reported,     Blocked from merging        none
  *                         or a required check was skipped
  *   checking_mergeability mergeable "unknown", no checks reported yet  Checking mergeability...    none
@@ -76,7 +80,7 @@
  */
 import type { AppError } from "@conducted/shared";
 import type { CheckRun, GitState, PullRequest } from "../model.ts";
-import type { LocalPrInfo } from "../services/local-git-forge.ts";
+import { capabilitiesFor, type LocalPrInfo } from "../services/local-git-forge.ts";
 import { hasMergeConflict, isActivePullRequest, reviewIsBlocking } from "./pull-request-status.ts";
 
 export type GitHeaderActionId =
@@ -234,7 +238,8 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 	} = inputs;
 	const pullRequest = git.pullRequest;
 	const active = isActivePullRequest(pullRequest) ? pullRequest : null;
-	const canUseGithub = forge === "github";
+	// What the forge can do decides which remote actions the header offers (services-map 5B.1.5).
+	const can = capabilitiesFor(forge);
 
 	// Continue starts a new branch in the same workspace (services-map.md 3.1).
 	if (pullRequest?.state === "merged") {
@@ -398,7 +403,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			kind: "draft_pr",
 			title: "Draft PR open",
 			tone: "neutral",
-			action: canUseGithub ? action("ready_for_review", "Ready for review") : null,
+			action: can.markReady ? action("ready_for_review", "Ready for review") : null,
 		};
 	}
 	if (failing.length > 0) {
@@ -416,7 +421,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			title: `${checkCount(pending.length)} pending...`,
 			tone: "busy",
 			action:
-				automergeSettingOn && canUseGithub && active.viewerCanMerge
+				automergeSettingOn && can.autoMerge && active.viewerCanMerge
 					? action(
 							"toggle_automerge",
 							active.autoMergeEnabled ? "Disable auto-merge" : "Enable auto-merge",
@@ -425,7 +430,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 		};
 	}
 	if (active.reviewDecision === "review_required") {
-		const canApprove = canUseGithub && active.viewerCanMerge && !active.viewerDidAuthor;
+		const canApprove = can.remoteRequests && active.viewerCanMerge && !active.viewerDidAuthor;
 		return {
 			kind: "review_required",
 			title: "PR review required",

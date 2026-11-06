@@ -144,7 +144,6 @@ import {
 	fixErrorsInstruction,
 } from "./agent-instructions.ts";
 import { parseTargetBranch } from "./git.ts";
-import type { GitCache } from "./git-cache.ts";
 import { buildDeepLink } from "./notifications.ts";
 import {
 	closedPrIsShown,
@@ -336,9 +335,12 @@ const isGithubHost = (host: string | undefined): boolean => {
 	return name === "github.com" || name === "ssh.github.com";
 };
 
-/** The forge a remote gets: GitHub for github.com only, local git for everything else. */
-export function forgeForRemoteUrl(url: string): "github" | "local" {
-	return isGithubRemoteUrl(url) ? "github" : "local";
+/**
+ * The forge a remote gets: GitHub for github.com only, local git for everything else, and local
+ * git for a repository with no remote at all (null). The one home of this rule.
+ */
+export function forgeForRemoteUrl(url: string | null): "github" | "local" {
+	return url !== null && isGithubRemoteUrl(url) ? "github" : "local";
 }
 
 /** The owner and repository name GitHub needs for its REST paths. */
@@ -1030,8 +1032,6 @@ interface GhCallSettings {
 
 export interface GithubServiceDeps {
 	git: GitRunner;
-	/** The last pull request info of each workspace, shown before the first poll answers (DATA-07). */
-	cache: GitCache;
 	agent: AgentMessenger;
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<PrWorkspaceContext>>;
 	/** Called when a PR becomes merged, so the workspace service can archive on merge. */
@@ -1592,6 +1592,16 @@ export class GithubService {
 		this.#lastPolledAt.clear();
 		this.#headByWorkspace.clear();
 		this.#repoKeyByWorkspace.clear();
+	}
+
+	/**
+	 * Shows pull request info cached before the last restart until the first poll answers
+	 * (DATA-07). A workspace that already has an entry keeps it, so a poll that answered first wins.
+	 */
+	paintCached(workspaceId: WorkspaceId, entry: WorkspacePrEntry): void {
+		const key = String(workspaceId);
+		if (this.store.getState().byWorkspace[key] !== undefined) return;
+		this.#writeEntry(key, entry);
 	}
 
 	/** Polls one workspace once. A newer poll's answer wins if two overlap. */

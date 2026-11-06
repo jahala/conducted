@@ -1,6 +1,7 @@
 import { appError } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import type { GitState } from "../model.ts";
+import type { GitState, PullRequest } from "../model.ts";
+import { capabilitiesFor } from "../services/local-git-forge.ts";
 import { computeGitHeader, type GitHeaderInputs } from "./git-header.ts";
 
 const gitState = (overrides: Partial<GitState> = {}): GitState => ({
@@ -29,7 +30,78 @@ const inputs = (overrides: Partial<GitHeaderInputs> = {}): GitHeaderInputs => ({
 	...overrides,
 });
 
+const openPullRequest = (overrides: Partial<PullRequest> = {}): PullRequest => ({
+	number: 1,
+	url: "https://example.test/pull/1",
+	title: "A change",
+	body: "",
+	state: "open",
+	mergeable: "mergeable",
+	reviewDecision: null,
+	checks: [],
+	inMergeQueue: false,
+	autoMergeEnabled: false,
+	baseBranch: "main",
+	authorLogin: "octocat",
+	viewerDidAuthor: false,
+	viewerCanMerge: true,
+	mergeMethod: "squash",
+	reviewers: [],
+	deployments: [],
+	updatedAt: 0,
+	...overrides,
+});
+
 describe("GIT-14 local-git forge header", () => {
+	it("offers each remote action only when the forge's capability says it can", () => {
+		const pending = openPullRequest({
+			checks: [
+				{
+					name: "build",
+					state: "running",
+					required: true,
+					url: null,
+					startedAt: null,
+					completedAt: null,
+				},
+			] as PullRequest["checks"],
+		});
+		for (const forge of ["github", "local"] as const) {
+			const can = capabilitiesFor(forge);
+			const draft = computeGitHeader(
+				inputs({ forge, git: gitState({ pullRequest: openPullRequest({ state: "draft" }) }) }),
+			);
+			expect(draft.action?.id === "ready_for_review").toBe(can.markReady);
+
+			const checksPending = computeGitHeader(
+				inputs({ forge, automergeSettingOn: true, git: gitState({ pullRequest: pending }) }),
+			);
+			expect(checksPending.action?.id === "toggle_automerge").toBe(can.autoMerge);
+
+			const review = computeGitHeader(
+				inputs({
+					forge,
+					git: gitState({
+						pullRequest: openPullRequest({ reviewDecision: "review_required" }),
+					}),
+				}),
+			);
+			expect(review.action?.waitingNote === null).toBe(can.remoteRequests);
+		}
+		expect(capabilitiesFor("github")).toEqual({
+			remoteRequests: true,
+			markReady: true,
+			merge: true,
+			autoMerge: true,
+		});
+		expect(capabilitiesFor("local")).toEqual({
+			remoteRequests: false,
+			markReady: false,
+			merge: false,
+			autoMerge: false,
+		});
+	});
+
 	it("offers Merge when the local branch is ahead with no predicted conflict", () => {
 		const header = computeGitHeader(
 			inputs({ localForge: { ahead: 2, behind: 0, mergeState: "CLEAN" } }),

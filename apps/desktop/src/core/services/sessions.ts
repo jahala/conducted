@@ -38,7 +38,11 @@
  * from settings,
  * falls back to the default chat model when no review model is set, and does not start when a
  * review setting cannot be used; a fork copies the chat up to a checkpointed turn into a new chat
- * of the same workspace and refuses a turn with no checkpoint with "Unable to fork chat".
+ * of the same workspace and refuses a turn with no checkpoint with "Unable to fork chat"; a fork
+ * whose copied part holds no agent message to resume at is refused, so two chats never share one
+ * agent session; a fork copies the checkpoint refs it keeps under its own ids, so its revert works
+ * and survives the origin's deletion. Not yet held: the fork's resume point lives in memory until
+ * its first send, so a restart before that send loses it (CHAT-16 open item; it needs a column).
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -85,6 +89,7 @@ import {
 import {
 	type AppError,
 	appError,
+	type CheckpointId,
 	type EventId,
 	err,
 	type InteractionId,
@@ -107,6 +112,7 @@ import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
 import type { StoredSessionEvent } from "../db/session-events.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
+import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
@@ -295,6 +301,15 @@ export interface SessionsServiceDeps {
 	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
 	 */
 	pruneCheckpoints?: (sessionId: SessionId, workspaceId: WorkspaceId) => Promise<Result<number>>;
+	/**
+	 * Copies checkpoint refs under new ids, for a fork (CHAT-16). Each pair is a checkpoint id the
+	 * origin's events name and the fork's own id for the same turn and phase. The composition root
+	 * supplies it; a fork with checkpoints to copy and no way to copy them is refused.
+	 */
+	copyCheckpoints?: (
+		workspaceId: WorkspaceId,
+		pairs: readonly (readonly [from: string, to: string])[],
+	) => Promise<Result<number>>;
 	/** Runs after a chat's first message is accepted. WS-04 uses it to rename the branch. */
 	onFirstMessage?: (session: Session, text: string) => Promise<void>;
 	/** Reports work that runs beside the send, such as the first-message branch rename. */
@@ -1801,7 +1816,8 @@ export class SessionsService implements AgentMessenger {
 	 * turn into a new chat of the same workspace. The new chat keeps the origin's title, config and
 	 * agent session id. Its first send resumes the agent at the turn's last message and asks for a
 	 * forked session, so the two chats continue apart. A turn with no checkpoint is refused and
-	 * nothing is created.
+	 * nothing is created, and so is a fork of a chat with an agent session but no agent message to
+	 * resume at. The checkpoint refs the copied turns name are copied under the fork's own ids.
 	 */
 	async forkFrom(id: SessionId, turnId: TurnId): Promise<Result<Session>> {
 		const found = await this.#session(id);
@@ -1833,6 +1849,16 @@ export class SessionsService implements AgentMessenger {
 				nativeMessageId = row.event.message.nativeId;
 			}
 		}
+		// Without a message to resume at, the agent would resume the origin's own session, and both
+		// chats would write to one agent history.
+		if (origin.agentSessionId !== null && nativeMessageId === undefined) {
+			return err(
+				appError(
+					"chat_fork_no_agent_message",
+					"Unable to fork chat: the agent has no message to fork from in this turn or before it.",
+				),
+			);
+		}
 
 		const created = await this.create(origin.workspaceId, origin.config);
 		if (!created.ok) return created;
@@ -1853,9 +1879,35 @@ export class SessionsService implements AgentMessenger {
 			if (!saved.ok) return discard(saved.error);
 		}
 
-		const repository = this.#deps.repositories().sessionEvents;
+		// The fork gets its own copy of every checkpoint it keeps, named by its own id, so its revert
+		// and turn changes find them, and deleting the origin (which prunes the origin's refs) leaves
+		// the fork's restore points in place.
+		const copiedEvents: StoredSessionEvent[] = [];
+		const pairs: [from: string, to: string][] = [];
 		for (const row of stored.value) {
 			if (row.idx > cutoff) break;
+			const event = row.event;
+			if (event.type === "checkpoint" && event.checkpointId !== undefined) {
+				const own = turnCheckpointId(forked.id, event.turnId, event.phase);
+				pairs.push([event.checkpointId, own]);
+				copiedEvents.push({ ...row, event: { ...event, checkpointId: own as CheckpointId } });
+			} else {
+				copiedEvents.push(row);
+			}
+		}
+		if (pairs.length > 0) {
+			const copyCheckpoints = this.#deps.copyCheckpoints;
+			if (copyCheckpoints === undefined) {
+				return discard(
+					appError("chat_fork_unwired", "Unable to fork chat: checkpoints cannot be copied here."),
+				);
+			}
+			const copied = await copyCheckpoints(origin.workspaceId, pairs);
+			if (!copied.ok) return discard(copied.error);
+		}
+
+		const repository = this.#deps.repositories().sessionEvents;
+		for (const row of copiedEvents) {
 			const appended = await repository.append(forked.id, row.event, row.receivedAt);
 			if (!appended.ok) return discard(appended.error);
 		}

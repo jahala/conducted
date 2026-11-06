@@ -91,7 +91,6 @@ function makeService(
 ): GithubService {
 	return new GithubService({
 		git,
-		cache: {} as never,
 		agent,
 		contextOf: async () => ok(context(overrides)),
 		onMerged: () => {},

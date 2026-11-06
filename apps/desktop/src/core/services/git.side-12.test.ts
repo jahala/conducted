@@ -40,7 +40,6 @@ function runner(busyMarker: string | null): GitRunner {
 const service = (git: GitRunner): GitService =>
 	new GitService({
 		git,
-		cache: {} as never,
 		contextOf: async () => ok(context),
 		agent: {} as never,
 		renameWorkspaceBranch: async () => ok(undefined),

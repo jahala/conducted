@@ -76,7 +76,6 @@ const makeService = (
 ): GitService =>
 	new GitService({
 		git,
-		cache: {} as never,
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
 		renameWorkspaceBranch: async () => ok(undefined),

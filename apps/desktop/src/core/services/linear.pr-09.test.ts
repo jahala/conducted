@@ -1,13 +1,14 @@
 /**
  * @feature PR-09 Linear issues: list, link, attach as context
- * Owns: tests for the Linear queries, their cache lifetimes, the key-rejected state, the context
- * file and the composition root reaching the service.
+ * Owns: tests for the Linear queries, their cache lifetimes, the key-rejected state, the team
+ * filter of the search, the startup access check, the context file and the composition root
+ * reaching the service.
  * Behaviour: services-map.md 5B.8.1 (queries and cache times), 5B.8.3 (the context file),
  * ui-map.md 6 (the API key on the Account page).
  * Test first: a 401 moves the state to "key rejected" and a second call makes no request.
  */
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Platform } from "../../platform/platform.ts";
 import { createTestContainer } from "../../test/container.ts";
 import {
@@ -124,6 +125,29 @@ function harness(
 
 const bodies = (calls: readonly Call[]): string[] => calls.map((call) => JSON.stringify(call.body));
 
+/** The operation name a request body's query declares, such as "GetUserTeamIds". */
+const operationOf = (body: unknown): string => {
+	const query = (body as { query?: unknown }).query;
+	return typeof query === "string" ? (/query (\w+)/.exec(query)?.[1] ?? "") : "";
+};
+
+/** Answers each Linear request by the operation it names, so concurrent calls get the right one. */
+function answerByOperation(answers: Record<string, HttpAnswer>, calls: Call[]): LinearHttp {
+	return {
+		postJson: async (url, headers, body) => {
+			calls.push({ url, headers, body });
+			return (
+				answers[operationOf(body)] ??
+				err(appError("linear_test_unscripted", `No answer for ${operationOf(body)}.`))
+			);
+		},
+	};
+}
+
+const viewerTeams = data({
+	viewer: { teams: { nodes: [{ id: "team-1", key: "ENG", name: "Engineering" }] } },
+});
+
 let close: (() => void) | null = null;
 
 afterEach(() => {
@@ -156,6 +180,39 @@ describe("PR-09 Linear access", () => {
 		expect(!result.ok && result.error.code).toBe("linear_not_connected");
 		expect(test.service.store.getState().connection).toBe("not_connected");
 		expect(test.calls).toHaveLength(0);
+	});
+
+	it("checks the stored key at startup, so the Account page leaves its loading state", async () => {
+		const test = createTestContainer();
+		try {
+			const { services } = test.container;
+			// The services the Linear check does not need stay quiet.
+			for (const service of [
+				services.repo,
+				services.workspace,
+				services.sections,
+				services.favoriteModels,
+				services.terminals,
+				services.system,
+			]) {
+				vi.spyOn(service, "start").mockResolvedValue(ok(undefined) as never);
+			}
+			vi.spyOn(services.github, "checkAccess").mockResolvedValue(ok({ status: "unknown" }));
+			vi.spyOn(services.runScripts, "stopAll").mockResolvedValue(ok(undefined));
+			expect(services.linear.store.getState().connection).toBe("unknown");
+
+			const started = await test.container.start();
+
+			expect(started.ok).toBe(true);
+			expect(
+				started.ok && started.value.warnings.filter((warning) => warning.step === "linear access"),
+			).toEqual([]);
+			expect(services.linear.store.getState().connection).toBe("not_connected");
+		} finally {
+			vi.restoreAllMocks();
+			await test.container.stop();
+			test.close();
+		}
 	});
 
 	it("stores a good key and reports the viewer", async () => {
@@ -285,35 +342,77 @@ describe("PR-09 Linear queries", () => {
 	});
 
 	it("runs the search and by-id queries for an identifier and merges the answers", async () => {
+		const calls: Call[] = [];
 		const test = harness({
 			key: "lin_api_good",
-			answers: [
-				data({ searchIssues: { nodes: [issueRaw()] } }),
-				data({ issue: issueRaw({ title: "Called directly" }) }),
-			],
+			http: answerByOperation(
+				{
+					GetUserTeamIds: viewerTeams,
+					SearchIssuesWithTeamFilter: data({ searchIssues: { nodes: [issueRaw()] } }),
+					GetIssueById: data({ issue: issueRaw({ title: "Called directly" }) }),
+				},
+				calls,
+			),
 		});
 		const result = await test.service.search("ENG-12");
 		expect(result.ok).toBe(true);
 		expect(result.ok && result.value.map((issue) => issue.title)).toEqual(["Called directly"]);
-		expect(test.calls).toHaveLength(2);
-		const sent = bodies(test.calls).join("\n");
+		expect(calls.map((call) => operationOf(call.body)).sort()).toEqual([
+			"GetIssueById",
+			"GetUserTeamIds",
+			"SearchIssuesWithTeamFilter",
+		]);
+		const sent = bodies(calls).join("\n");
 		expect(sent).toContain("searchIssues");
 		expect(sent).toContain("issue(id:");
 		expect(sent).toContain("ENG-12");
 	});
 
+	it("keeps a search to the viewer's teams and leaves out completed and canceled issues", async () => {
+		const calls: Call[] = [];
+		const test = harness({
+			key: "lin_api_good",
+			http: answerByOperation(
+				{
+					GetUserTeamIds: viewerTeams,
+					SearchIssuesWithTeamFilter: data({ searchIssues: { nodes: [issueRaw()] } }),
+				},
+				calls,
+			),
+		});
+
+		const result = await test.service.search("list");
+
+		expect(result.ok && result.value.map((issue) => issue.identifier)).toEqual(["ENG-12"]);
+		const search = calls.find((call) => operationOf(call.body) === "SearchIssuesWithTeamFilter");
+		const body = search?.body as { query: string; variables: Record<string, unknown> } | undefined;
+		expect(body?.variables).toEqual({ term: "list", teamIds: ["team-1"] });
+		expect(body?.query).toContain("team: { id: { in: $teamIds } }");
+		expect(body?.query).toContain('state: { type: { nin: ["completed", "canceled"] } }');
+	});
+
 	it("serves a search from the 15 second cache", async () => {
 		let now = NOW;
+		const calls: Call[] = [];
 		const test = harness({
 			key: "lin_api_good",
 			now: () => now,
-			answers: [data({ searchIssues: { nodes: [issueRaw()] } })],
+			http: answerByOperation(
+				{
+					GetUserTeamIds: viewerTeams,
+					SearchIssuesWithTeamFilter: data({ searchIssues: { nodes: [issueRaw()] } }),
+				},
+				calls,
+			),
 		});
 		await test.service.search("list");
 		now += LINEAR_SEARCH_CACHE_MS - 1;
 		const cached = await test.service.search("list");
 		expect(cached.ok).toBe(true);
-		expect(test.calls).toHaveLength(1);
+		expect(calls.map((call) => operationOf(call.body))).toEqual([
+			"GetUserTeamIds",
+			"SearchIssuesWithTeamFilter",
+		]);
 	});
 
 	it("serves an issue by id from the 60 second cache", async () => {
