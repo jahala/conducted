@@ -56,6 +56,16 @@ Kill criterion: drop the cloud option, and keep the notes, if any of these fails
 - an active hour costs over 0.15 US dollars in sandbox time;
 - work in progress cannot be kept across a sandbox restart.
 
+### Spike result (2026-11-06): passes all four
+
+On the owner's Cloudflare account, with `@cloudflare/sandbox` 1.0.3, the `basic` instance (1/4 vCPU, 1 GiB) and our unchanged sidecar behind a small WebSocket bridge, driven from this Mac with events stored through the desktop's database code. Full numbers and method: [cloud-spike-2026-11-06.md](../research/cloud-spike-2026-11-06.md); the spike code is on the `spike/cloud` branch.
+
+- **Warm start to the first token:** 2.3 to 8.8 s (limit 15 s).
+- **Cold start:** 14.5 s after a deploy, 5.4 s after a restart (limit 2 minutes).
+- **An active hour:** about 0.019 US dollars measured; 0.082 on `basic` and 0.110 on `standard-1` with the CPU busy all hour (limit 0.15).
+- **Work kept across a restart:** yes, with an R2 backup of the workspace and the agent's transcripts; the backup must run at each turn end, since a sandbox that dies mid-turn loses everything after the last one.
+- What the build needs that the spike found: a Linux build of the sidecar; the Rust shell owns the cloud connection (the web view cannot set WebSocket headers); a pairing token as a Worker secret; a package allow-list for setup scripts; the sidecar telling the Worker a turn is running, so a long turn survives the laptop closing; deleting a Worker leaves its container application billing, so an uninstall deletes both.
+
 ## Part 2. Claude Remote Control
 
 ### What the user gets
@@ -94,6 +104,19 @@ Either way, the session manager must accept input that did not come from the des
 1. Try path A on one SDK-driven chat with `remoteControlAtStartup` on. Check three things: the chat appears in claude.ai/code; a message typed there arrives in our stream; an approval answered there resolves.
 2. If A fails, try path B with `attachBridgeSession` on the same chat.
 3. Drop the feature until Anthropic documents SDK support if neither works without reverse-engineering an undocumented protocol. Any alpha API we use is pinned to an exact SDK version and covered by a contract test.
+
+### Spike result (2026-11-06): path A passes
+
+Run on this Mac with the claude.ai login, `@anthropic-ai/claude-agent-sdk` 0.3.318 and Claude Code 2.1.319, from `spike/remote-control/probe.mjs`; the owner did the claude.ai side by hand.
+
+- **The setting alone does nothing.** `settings: { remoteControlAtStartup: true }` on an SDK chat starts no bridge: no `bridge_state` message, no session on claude.ai.
+- **The query object's `enableRemoteControl(true, name)` works.** It is on the SDK's query object but not in its public types. It answers `{ session_url, bridge_session_id, bridge_epoch, ... }` and the stream reports `bridge_state` `ready`, then `connected`.
+- **Check 1, the chat appears:** passed. The session URL opened the chat on claude.ai/code, with its first reply.
+- **Check 2, a message typed there arrives:** passed. Each message the owner sent started a turn in our stream (tool calls, results, the reply and `result`). The text the owner typed is not in the stream; the turn carries its `user_message_uuid`, so the app reads the text from the agent's own transcript.
+- **Check 3, an approval answered there resolves:** passed. A write asked our `canUseTool` (as the sidecar's permission handler does), then the answer from claude.ai settled it: the request's `signal` aborted after 4 s and the tool ran. The app must read that abort as "answered elsewhere" and close its own card.
+- **Path B (`attachBridgeSession`) was not needed.**
+
+Verdict against the kill criterion: path A works without reverse-engineering a protocol, through one SDK method that is not in the public types. As the criterion asks, the SDK stays pinned to an exact version, and a contract test fails when `enableRemoteControl` or its answer's shape changes (D074).
 
 ## Order
 
