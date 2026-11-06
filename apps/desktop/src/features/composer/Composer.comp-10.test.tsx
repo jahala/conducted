@@ -5,11 +5,12 @@
  * sending sets the goal ('/goal <text>') instead of sending a message.
  * Behaviour: D054 (a feature is reachable from the composition root), ui-map.md 3.5, and
  * Conductor's composer (its goal mode, from the frontend bundle).
+ * Attachments are not part of a goal, so saving one keeps them in the composer and the draft.
  * Test first: choosing /goal shows "Set a goal", and Enter sends '/goal <text>'.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import type { SessionId, WorkspaceId } from "@conducted/shared";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { createElement, Fragment, type ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -93,6 +94,46 @@ describe("COMP-10 /goal from the composer", () => {
 				).toEqual(["/goal Ship the importer"]),
 			);
 			await waitFor(() => expect(screen.queryByText("Set a goal")).toBeNull());
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("keeps the attachments when a goal is saved, as a goal does not take them", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			const started = await test.container.sidecar.start();
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			const calls = answerSidecar(test, deliveredAsAsked);
+			test.memory.controls.files.set("/tmp/notes.md", "notes");
+			test.container.services.sessions.setViewing(session.id);
+			const editor = await mountComposer(test, workspace.id, session.id);
+			test.memory.controls.emitFileDrop({ kind: "drop", paths: ["/tmp/notes.md"], x: 10, y: 10 });
+			const attachments = await screen.findByRole("list", { name: "Attachments" });
+			await waitFor(() => expect(within(attachments).queryAllByRole("listitem")).toHaveLength(1));
+			act(() => {
+				editor.commands.insertContent("/go");
+			});
+			fireEvent.click(await screen.findByText("/goal"));
+			expect(await screen.findByText("Set a goal")).toBeTruthy();
+			act(() => {
+				editor.commands.insertContent("Ship the importer");
+			});
+			fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
+			await waitFor(() =>
+				expect(
+					calls.filter((call) => call.method === "sendMessage").map((call) => call.params.text),
+				).toEqual(["/goal Ship the importer"]),
+			);
+			await waitFor(() => expect(screen.queryByText("Set a goal")).toBeNull());
+			const kept = screen.getByRole("list", { name: "Attachments" });
+			expect(within(kept).getAllByRole("listitem")[0]?.textContent).toContain("notes.md");
+			const draft = test.container.services.composer.draftOf(session.id);
+			expect(draft.text).toBe("");
+			expect(draft.attachmentPaths).toHaveLength(1);
 		} finally {
 			await test.container.stop();
 			test.close();

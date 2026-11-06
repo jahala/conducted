@@ -5,7 +5,8 @@
  * Must handle: one id per command; several shortcuts per command; the same keys in different scopes;
  *   the table holds the default send-key mode only (the dispatcher applies the swap); plus and other symbol keys; bad shortcut text returns an error instead of
  *   throwing; the user's overrides replace the defaults, never bind a fixed command, and feed the
- *   key-cap hints.
+ *   key-cap hints; reserved keys (Cmd+, and Cmd+Q, and a fixed command's key in its scope) are
+ *   refused to a rebind (`reservedCommand`, NAV-09).
  * Test first: every default shortcut parses, and no two commands share a shortcut inside one scope.
  *
  * This file is data and pure functions only. A separate service maps command ids to handlers.
@@ -1669,4 +1670,29 @@ export function findShortcutConflicts(
 		}
 	}
 	return conflicts;
+}
+
+/**
+ * The fixed command that already holds `combination` and so refuses it to `commandId`: one of the
+ * app's own commands (`appReserved`, the ids of Cmd+, and Cmd+Q) anywhere, or another fixed
+ * command's key in the same scope. Null when the keys are free to take. The shortcuts dialog and
+ * the Settings page both ask this, through NAV-09's keybinding rules, before a rebind.
+ */
+export function reservedCommand(
+	combination: string,
+	commandId: string,
+	appReserved: ReadonlySet<string>,
+	commands: readonly CommandDef[] = COMMANDS,
+): CommandDef | null {
+	const form = formatShortcut(combination);
+	const target = commands.find((command) => command.id === commandId);
+	for (const command of commands) {
+		if (command.configurable || command.id === commandId) continue;
+		const sameScope = target !== undefined && command.scope === target.scope;
+		if (!appReserved.has(command.id) && !sameScope) continue;
+		for (const shortcut of command.defaultShortcuts) {
+			if (formatShortcut(shortcut) === form) return command;
+		}
+	}
+	return null;
 }

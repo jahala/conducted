@@ -1,10 +1,14 @@
 /**
  * @feature NAV-13 World map
- * Owns: the drawing: an Equal Earth sphere and graticule with one marker per place, and zoom and pan.
+ * Owns: the drawing: an Equal Earth sphere, graticule and land outline with one marker per place,
+ * and zoom and pan.
  * Behaviour: ui-map.md 4 (the map has a sphere, a graticule and a zoomable group; markers are the way
  * into a workspace, and Conductor draws the map with a react-simple-maps style kit).
- * Our design choice: no map library or map data is installed, so this file draws the sphere, the
- * graticule and the markers itself from the Equal Earth formula. Unvisited places are small dots;
+ * Our design choice: no map library is installed, so this file draws the sphere, the graticule,
+ * the land and the markers itself from the Equal Earth formula. The land is Natural Earth's 1:110m
+ * coastline (public domain, land-outline.ts), projected once and zoomed with an SVG transform, so it
+ * stays under the markers. Conductor draws country borders; one land shape is enough to read the
+ * map as the world, and needs no country data. Unvisited places are small dots;
  * a visited place is a focusable button. Zoom has buttons as well as the wheel, and nothing is
  * animated, so reduced motion needs no separate path.
  * Must handle: a place with no position is not drawn; markers keep their text label in the DOM and
@@ -12,9 +16,11 @@
  * Test first: given two places the map renders two focusable markers named after them.
  */
 import { type PointerEvent, useRef, useState, type WheelEvent } from "react";
+import type { GazetteerPlace } from "../../core/services/place-gazetteer.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
-import type { GazetteerPlace, PassportPlace } from "./passport-places.ts";
+import { LAND_RINGS } from "./land-outline.ts";
+import type { PassportPlace } from "./passport-places.ts";
 
 interface WorldMapProps {
 	places: PassportPlace[];
@@ -75,6 +81,25 @@ const MERIDIANS = [180, 150, 120, 90, 60, 30, 0, -30, -60, -90, -120, -150];
 
 function pathThrough(points: readonly Point[]): string {
 	return `M ${points.map((point) => `${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" L ")}`;
+}
+
+/** The land at zoom 1 with no pan, as one SVG path with a subpath per ring. Built once. */
+const LAND_PATH = LAND_RINGS.map((ring) =>
+	pathThrough(
+		ring.split(",").map((pair) => {
+			const [longitude = 0, latitude = 0] = pair.split(" ").map(Number);
+			return project(latitude, longitude, ZERO_VIEW);
+		}),
+	),
+)
+	.map((subpath) => `${subpath} Z`)
+	.join(" ");
+
+/** Moves the land drawn at zoom 1 to the current zoom and pan, as `project` does for a point. */
+function landTransform(view: View): string {
+	const centreX = MAP_WIDTH / 2;
+	const centreY = MAP_HEIGHT / 2;
+	return `translate(${centreX + view.panX} ${centreY + view.panY}) scale(${view.zoom}) translate(${-centreX} ${-centreY})`;
 }
 
 function parallelPath(latitude: number, view: View): string {
@@ -169,6 +194,14 @@ export function WorldMap({ places, unvisited = [], onOpen }: WorldMapProps) {
 					className="fill-none stroke-border-strong"
 					strokeWidth={1}
 					data-map-sphere
+				/>
+				<path
+					d={LAND_PATH}
+					transform={landTransform(view)}
+					className="fill-active stroke-border"
+					strokeWidth={0.5}
+					vectorEffect="non-scaling-stroke"
+					data-map-land
 				/>
 				<g data-map-graticule>
 					{PARALLELS.map((latitude) => (

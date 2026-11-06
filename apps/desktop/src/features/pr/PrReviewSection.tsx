@@ -7,7 +7,7 @@
  * with `gh pr edit`).
  * Must handle: the viewer being the author (no Approve), an already approved pull request (no
  * Approve), changes requested, review not required, approval failing (the caller keeps the button
- * usable), and a review request or removal with no login typed.
+ * usable), and a review request with no login typed.
  * Test first: when viewerDidAuthor is true there is no Approve button.
  */
 import { useState } from "react";

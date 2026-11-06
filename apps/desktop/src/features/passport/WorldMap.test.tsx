@@ -1,14 +1,16 @@
 /**
  * @feature NAV-13 World map
- * Owns: tests that the map draws a sphere and graticule, that every plotted place is a focusable
- * marker, and that zoom, unvisited dots and opening a place work.
+ * Owns: tests that the map draws a sphere, a graticule and the land, that every plotted place is a
+ * focusable marker, and that zoom, unvisited dots and opening a place work.
  * Test first: given two places the map renders two focusable markers named after them.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Workspace, WorkspaceState } from "../../core/model.ts";
-import type { GazetteerPlace, PassportPlace } from "./passport-places.ts";
+import type { GazetteerPlace } from "../../core/services/place-gazetteer.ts";
+import { LAND_RINGS } from "./land-outline.ts";
+import type { PassportPlace } from "./passport-places.ts";
 import { WorldMap } from "./WorldMap.tsx";
 
 function workspace(directoryName: string, state: WorkspaceState = "ready"): Workspace {
@@ -75,6 +77,21 @@ describe("NAV-13 world map", () => {
 		expect(container.querySelector("[data-map-graticule]")?.children.length).toBeGreaterThan(0);
 	});
 
+	it("draws every land outline, and zooms it with the markers", () => {
+		const { container } = render(
+			<WorldMap places={[place("Lisbon", 38.7223, -9.1393)]} onOpen={() => {}} />,
+		);
+		const land = container.querySelector("[data-map-land]");
+		expect(land?.getAttribute("d")?.match(/M/g)?.length).toBe(LAND_RINGS.length);
+		expect(land?.getAttribute("transform")).toContain("scale(1)");
+
+		fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+		expect(container.querySelector("[data-map-land]")?.getAttribute("transform")).toContain(
+			"scale(1.5)",
+		);
+	});
+
 	it("changes the zoom from the buttons and resets it", () => {
 		const { container } = render(
 			<WorldMap places={[place("Lisbon", 38.7223, -9.1393)]} onOpen={() => {}} />,
@@ -103,7 +120,7 @@ describe("NAV-13 world map", () => {
 
 	it("draws gazetteer places no workspace has visited as dots", () => {
 		const unvisited: GazetteerPlace[] = [
-			{ name: "Oslo", country: "Norway", latitude: 59.9139, longitude: 10.7522 },
+			{ name: "Oslo", country: "Norway", latitude: 59.9139, longitude: 10.7522, tier: "uncommon" },
 		];
 		const { container } = render(
 			<WorldMap

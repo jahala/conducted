@@ -1,7 +1,8 @@
 /**
  * @feature PRJ-05 Repository icon
  * Owns: tests for the sidebar avatar and its Change repository icon dialog over the real container:
- * the context menu, the picker's sources, choosing an emoji, removing one, and uploading an image.
+ * the context menu, the picker's sources, choosing an emoji, removing one, uploading an image, and
+ * the letter shown when a favicon or owner avatar does not load.
  * Test first: right-clicking the avatar offers Change repository icon, and choosing an emoji saves it.
  */
 import { ok } from "@conducted/shared";
@@ -39,6 +40,21 @@ async function openPicker(repo: Repo): Promise<void> {
 }
 
 describe("PRJ-05 repository icon avatar", () => {
+	it("shows the repository's letter when its owner avatar or favicon fails to load", async () => {
+		const { repo } = await renderAvatar({
+			name: "conducted",
+			remoteUrl: "https://gitlab.example.com/me/conducted.git",
+		});
+		const avatar = screen.getByRole("img", { name: `${repo.name} icon` });
+		const image = avatar.querySelector("img");
+		expect(image?.getAttribute("src")).toBe("https://gitlab.example.com/favicon.ico");
+
+		fireEvent.error(image as HTMLImageElement);
+
+		expect(avatar.querySelector("img")).toBeNull();
+		expect(avatar.textContent).toBe("C");
+	});
+
 	it("opens the picker from the repo icon's right-click menu", async () => {
 		const { repo } = await renderAvatar({ icon: "emoji:🚀" });
 		await openPicker(repo);

@@ -17,6 +17,10 @@ import {
 	leaveZenMode,
 	type ShellPanelHandles,
 	toggleZenMode,
+	useZenModeControls,
+	useZenPanel,
+	type ZenModeControls,
+	ZenModeProvider,
 	zenModeOff,
 } from "./zen-mode.ts";
 
@@ -97,6 +101,17 @@ describe("NAV-12 zen mode", () => {
 		expect(state).toEqual({ left: true, right: null });
 	});
 
+	it("opens both panels when both are already closed, as after a restart in zen mode", () => {
+		// The snapshot is not saved, so a restart in zen mode starts with both panels closed and
+		// no record of them; Cmd+. then opens both, as Conductor does.
+		const { panels, state } = fakePanels(false, false);
+
+		const next = toggleZenMode(panels, zenModeOff);
+
+		expect(next.active).toBe(false);
+		expect(state).toEqual({ left: true, right: true });
+	});
+
 	it("turns on from the off state and off again", () => {
 		const { panels, state } = fakePanels(true, true);
 
@@ -107,6 +122,49 @@ describe("NAV-12 zen mode", () => {
 		const off = toggleZenMode(panels, on);
 		expect(off.active).toBe(false);
 		expect(state).toEqual({ left: true, right: true });
+	});
+});
+
+/** A right panel as the zen-mode provider sees it, with its open state in `state`. */
+function RegisteredRightPanel({
+	state,
+	reached,
+}: {
+	state: { open: boolean };
+	reached: { controls: ZenModeControls | null };
+}) {
+	reached.controls = useZenModeControls();
+	useZenPanel("right", {
+		isOpen: () => state.open,
+		setOpen: (open) => {
+			state.open = open;
+		},
+	});
+	return null;
+}
+
+describe("NAV-12 the right panel's saved state", () => {
+	it("saves a change the panel reports itself, such as a divider drag, once", () => {
+		const saved: boolean[] = [];
+		const state = { open: true };
+		const reached: { controls: ZenModeControls | null } = { controls: null };
+		render(
+			<ZenModeProvider rightInitialOpen onRightOpenChange={(open) => saved.push(open)}>
+				<RegisteredRightPanel state={state} reached={reached} />
+			</ZenModeProvider>,
+		);
+		const zen = reached.controls as ZenModeControls;
+
+		// The divider closes the panel: the provider did not ask, the panel tells it.
+		state.open = false;
+		zen.panelOpenChanged("right", false);
+		zen.panelOpenChanged("right", false);
+		expect(saved).toEqual([false]);
+
+		// Cmd+Alt+B opens it again; the panel reports its new state, which is saved once too.
+		zen.togglePanel("right");
+		zen.panelOpenChanged("right", true);
+		expect(saved).toEqual([false, true]);
 	});
 });
 

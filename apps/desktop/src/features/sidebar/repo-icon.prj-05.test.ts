@@ -38,8 +38,8 @@ describe("PRJ-05 repository avatar sources", () => {
 		});
 	});
 
-	it("reads an emoji saved without the prefix", () => {
-		expect(repoIconSource(repo({ icon: "🧪" }))).toEqual({ kind: "emoji", emoji: "🧪" });
+	it("treats a value with no known prefix as no icon, so the fallbacks apply", () => {
+		expect(repoIconSource(repo({ icon: "🧪" }))).toEqual({ kind: "letter", letter: "C" });
 	});
 
 	it("reads an uploaded icon path", () => {

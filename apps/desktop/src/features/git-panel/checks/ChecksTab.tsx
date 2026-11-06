@@ -1,6 +1,7 @@
 /**
  * @feature PR-04 Checks tab
- * Owns: the Checks tab body. The PR summary, git status, the checks list with logs, deployments,
+ * Owns: the Checks tab body. The inline PR title and description editor (PR-07's PrInlineEditor,
+ * at the top as in Conductor), the PR summary, git status, the checks list with logs, deployments,
  * PR comments and reviewers.
  * Behaviour: ui-map.md 3.6, "Checks" paragraph; services-map.md 3.7.2 (what the poll returns),
  * 3.7.4 (review comments) and 3.7.5 (re-run, failed job log).
@@ -14,7 +15,9 @@
  * sync shows a line above the comments saying they may be out of date. "Hide" sets the comment's
  * state to hidden through `actions.comments.setHidden` (REV-12); hidden and superseded comments
  * are left out of the list, and a sync keeps a hidden GitHub comment hidden.
- * Children: PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
+ * A failed title or description save shows Conductor's toast, "Failed to update PR on GitHub:"
+ * with the reason.
+ * Children: PrInlineEditor, PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
  * Must handle: no PR yet (explain, offer Create PR), PR info loading, offline, no GitHub access
  * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
  * says checks need GitHub).
@@ -34,6 +37,7 @@ import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
+import { PrInlineEditor } from "../../pr/PrInlineEditor.tsx";
 import { ChecksList } from "./ChecksList.tsx";
 import { DeploymentsList } from "./DeploymentsList.tsx";
 import { PrCommentsList } from "./PrCommentsList.tsx";
@@ -161,6 +165,13 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 		void runAction("Couldn't hide the comment", () => actions.comments.setHidden(id, true));
 	};
 
+	/** The inline title and description editor's Save: one `gh pr edit` with both (PR-07). */
+	const savePullRequestText = async (title: string, body: string): Promise<boolean> => {
+		const result = await actions.pullRequests.updateTitleAndBody(workspaceId, title, body);
+		if (!result.ok) toast.error(`Failed to update PR on GitHub: ${result.error.message}`);
+		return result.ok;
+	};
+
 	const openComment = (id: CommentId) => {
 		const comment = githubComments.find((entry) => entry.id === id);
 		if (comment?.remoteUrl == null) {
@@ -206,6 +217,11 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-auto">
+			<PrInlineEditor
+				title={pullRequest.title}
+				body={pullRequest.body}
+				onSave={savePullRequestText}
+			/>
 			<PrSummaryHeader
 				pullRequest={pullRequest}
 				branch={git.data.branch}

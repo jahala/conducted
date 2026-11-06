@@ -10,11 +10,13 @@
  * Our design choice: a workspace row has a draft when any open chat in it has one, and "Open draft" opens the
  * first such chat.
  * Must handle: a draft that is not loaded yet (load it, then show the marker); a whitespace-only draft (no
- * marker); a chat whose draft file cannot be read (no marker, the composer tells the user when the chat opens).
+ * marker); a chat whose draft file cannot be read (no marker and no toast from the sidebar, read once per
+ * mount; the composer tells the user when the chat opens); a sidebar of 300 workspaces (one listing of the
+ * drafts folder, `composer.savedDraftIds`, then a read only for each chat that has a draft file).
  * Test first: a whitespace-only new-workspace draft shows no marker; text shows one.
  */
 import type { SessionId } from "@conducted/shared";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import type { Draft } from "../../core/api.ts";
 import { NEW_WORKSPACE_DRAFT_ID as NEW_WORKSPACE_DRAFT_KEY } from "../../core/app-paths.ts";
@@ -62,19 +64,34 @@ export interface WorkspaceDraft {
 	draft: Draft;
 }
 
-/** The first open chat in a workspace with a non-empty draft, or null. */
+/**
+ * The first open chat in a workspace with a non-empty draft, or null. Only chats the drafts folder
+ * lists are read, each at most once per mount, so a sidebar of 300 workspaces reads only the drafts
+ * that exist, and typing in a composer reads nothing again.
+ */
 export function useWorkspaceDraft(sessionIds: readonly SessionId[]): WorkspaceDraft | null {
 	const composer = useServices().services.composer;
 	const drafts = useStore(composer.store, (state) => state.drafts);
+	const requested = useRef(new Set<SessionId>());
 	const ids = sessionIds.join("\u0000");
 	useEffect(() => {
-		for (const id of ids === "" ? [] : (ids.split("\u0000") as SessionId[])) {
-			if (drafts[id] !== undefined) continue;
-			void composer.loadDraft(id).then((result) => {
-				if (!result.ok) toastError("Couldn't load the draft", result.error);
-			});
-		}
-	}, [composer, drafts, ids]);
+		const wanted = ids === "" ? [] : (ids.split("\u0000") as SessionId[]);
+		let live = true;
+		void composer.savedDraftIds().then((saved) => {
+			// A listing that fails shows no marker; the composer says so when the chat opens.
+			if (!live || !saved.ok) return;
+			for (const id of wanted) {
+				if (!saved.value.has(id) || requested.current.has(id)) continue;
+				if (composer.store.getState().drafts[id] !== undefined) continue;
+				requested.current.add(id);
+				// An unreadable draft shows no marker; the composer says so when the chat opens.
+				void composer.loadDraft(id);
+			}
+		});
+		return () => {
+			live = false;
+		};
+	}, [composer, ids]);
 	for (const id of ids === "" ? [] : (ids.split("\u0000") as SessionId[])) {
 		const draft = drafts[id];
 		if (hasDraft(draft)) return { sessionId: id, draft };

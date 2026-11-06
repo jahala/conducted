@@ -1,6 +1,7 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Dialogs, FileSystem, Opener, Shell, ShellOutput } from "../../platform/platform.ts";
+import { createTestIds } from "../../test/ids.ts";
 import type { NewRepo, RepoRepository } from "../db/repos.ts";
 import type { GitCommand } from "../git/commands.ts";
 import {
@@ -195,6 +196,7 @@ function makeService(options: { dirs?: readonly string[] } = {}) {
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
 		settings: {} as RepoServiceDeps["settings"],
 		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
+		ids: createTestIds(),
 	});
 	return { service, repos, git };
 }

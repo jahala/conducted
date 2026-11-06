@@ -7,6 +7,7 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { Workspace, WorkspaceState } from "../../core/model.ts";
+import { createPlaceNames } from "../../core/services/workspace.ts";
 import { buildPassportPlaces, unvisitedPlaces } from "./passport-places.ts";
 
 function workspace(directoryName: string, state: WorkspaceState = "ready"): Workspace {
@@ -37,6 +38,27 @@ function workspace(directoryName: string, state: WorkspaceState = "ready"): Work
 		updatedAt: 1,
 	};
 }
+
+describe("NAV-13 the workspace namer and the map read one list of places", () => {
+	it("puts every folder name the namer gives on the map, suffixed names too", () => {
+		let seed = 0.37;
+		const random = () => {
+			seed = ((seed * 9301 + 49297) % 233280) / 233280;
+			return seed;
+		};
+		const namer = createPlaceNames(random);
+		const taken = new Set<string>();
+		// Past the end of the list the namer adds a collision suffix to a place name.
+		for (let index = 0; index < 120; index += 1) taken.add(namer.pick(taken));
+
+		const places = buildPassportPlaces([...taken].map((name) => workspace(name)));
+
+		expect(places.filter((place) => place.position === null).map((place) => place.name)).toEqual(
+			[],
+		);
+		expect(unvisitedPlaces(places)).toEqual([]);
+	});
+});
 
 describe("NAV-13 passport places", () => {
 	it("matches 'lisbon-v2' to Lisbon and gives its position and country", () => {

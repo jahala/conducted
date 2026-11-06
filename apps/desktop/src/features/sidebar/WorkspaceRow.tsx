@@ -31,7 +31,7 @@ import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useWorkspaceDraft } from "../composer/draft-sources.ts";
-import { type StatusTone, statusText } from "../workspace/status-text.ts";
+import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
@@ -47,14 +47,6 @@ export interface WorkspaceRowProps {
 	/** The current time. The list reads it once a minute and hands it to every row. */
 	now: number;
 }
-
-const toneClass: Record<StatusTone, string> = {
-	attention: "text-accent",
-	active: "text-fg-muted",
-	danger: "text-danger",
-	success: "text-success",
-	neutral: "text-fg-muted",
-};
 
 /** The display form of the shortcut an event presses, as `useLiveShortcut` shows it. */
 function shortcutFromEvent(event: KeyboardEvent): string | null {
@@ -157,7 +149,9 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 			<span className="flex min-w-0 flex-1 flex-col">
 				<span className="truncate font-book">{workspaceName(workspace)}</span>
 				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
+					<span className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
+						{subtitle.text}
+					</span>
 				)}
 			</span>
 			<RepoIconAvatar repo={repo} />

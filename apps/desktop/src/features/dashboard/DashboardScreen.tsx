@@ -9,7 +9,8 @@
  * filter shows only with more than one project, and an empty board is one centred 'New workspace'
  * button that opens the create screen for the chosen project.
  * Our design choice: A moved card shows in its new column at once; a failed write puts it back and
- * shows a toast.
+ * shows a toast. A card moved again before its first write answers stays in its last column: only
+ * the newest move's answer clears what the board shows (a request counter per card).
  * Must handle: Setting off (waits for the settings to load, then goes to Home); loading; error; no
  * workspaces ('New workspace'); a failed status change returns the card to its column and shows a
  * toast; archived workspaces are not on the board.
@@ -18,7 +19,7 @@
  */
 import type { RepoId, Result } from "@conducted/shared";
 import { Navigate, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useRepos, useSetting, useWorkspaces } from "../../core/hooks.ts";
@@ -112,22 +113,30 @@ export function DashboardScreen() {
 	const { repo, workspace } = services;
 	const [project, setProject] = useState<RepoId | null>(null);
 	const [overrides, setOverrides] = useState<Record<string, KanbanStatus>>({});
+	// The newest move of each card. Only its answer clears the card's override, so a card moved
+	// twice stays where it was last put while the first write answers.
+	const latestMove = useRef(new Map<Workspace["id"], number>());
 
 	const move = useCallback(
 		(workspaceId: Workspace["id"], status: KanbanStatus) => {
 			const current = workspace.store.getState().workspacesById[workspaceId];
-			if (current === undefined || current.kanbanStatus === status) return;
+			if (current === undefined) return;
+			const shown = overrides[workspaceId] ?? current.kanbanStatus;
+			if (shown === status) return;
+			const ticket = (latestMove.current.get(workspaceId) ?? 0) + 1;
+			latestMove.current.set(workspaceId, ticket);
 			setOverrides((previous) => ({ ...previous, [workspaceId]: status }));
 			void actions.workspaces.setKanbanStatus(workspaceId, status).then((result) => {
+				if (!result.ok) toastError("Couldn't change the workspace status", result.error);
+				if (latestMove.current.get(workspaceId) !== ticket) return;
 				setOverrides((previous) => {
 					const next = { ...previous };
 					delete next[workspaceId];
 					return next;
 				});
-				if (!result.ok) toastError("Couldn't change the workspace status", result.error);
 			});
 		},
-		[actions, workspace.store],
+		[actions, overrides, workspace.store],
 	);
 
 	const retry = (start: () => Promise<Result<void>>) => () => {

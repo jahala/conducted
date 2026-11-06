@@ -3,8 +3,8 @@
  * Owns: one line or card in the activity list, by entry kind.
  * Behaviour: ui-map.md 3.2 (PR tab: "Activity"); the kinds are listed in pr-activity.ts.
  * Must handle: each kind having its own icon and text, a review with a body (card) versus a bare
- * approval (one line), an author whose avatar is missing or fails to load (a letter), and times
- * shown relative with the exact time in a tooltip.
+ * approval (one line), an author whose avatar is missing or fails to load (a letter), times
+ * shown relative with the exact time in a tooltip, and an entry with no usable time (no time shown).
  * Test first: a "review" entry with state "changes_requested" renders the author and that state.
  */
 import { useState } from "react";
@@ -60,6 +60,8 @@ function AuthorAvatar({ login, avatarUrl }: { login: string; avatarUrl: string |
 }
 
 function Time({ at }: { at: number }) {
+	// An entry with no usable time shows none (it sorts last, pr-activity.ts).
+	if (!Number.isFinite(at)) return null;
 	const date = new Date(at);
 	return (
 		<time

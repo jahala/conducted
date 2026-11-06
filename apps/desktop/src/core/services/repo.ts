@@ -7,7 +7,11 @@
  * `.conducted/settings.local.toml` overriding it. Also owns Quick start: creating a project from
  * one of the three templates and creating its private GitHub repository (PRJ-03). Also owns the
  * repository icon (PRJ-05): validating and copying an uploaded image, saving an emoji, and clearing
- * the icon back to its fallback.
+ * the icon back to its fallback. An upload is copied to a new file in the icons folder
+ * (`<repoId>-<uuid>.<ext>`), the database then points to it, and only then is the earlier upload
+ * trashed; a failed write trashes the new copy and keeps the old icon. Clearing or replacing an
+ * icon, or removing its project, trashes the uploaded file. The web view is given the icons
+ * folder (at start) and the one picked file (to read its size), never the folder it came from.
  * Behaviour: ui-map.md 3.9 (add project, Create project), 4 item 8 (Add project menu),
  * services-map.md 3.2 (add repository steps: `git init` when missing, remote URL read and
  * normalised, default branch detection; the create-a-new-GitHub-repo flow), 2.3.2 (repo
@@ -44,7 +48,15 @@
  * PRJ-03 test first: an empty template creates its folder, first commit and project row.
  * PRJ-05 test first: an uploaded PNG is copied into app storage and saved as a file icon.
  */
-import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	type IdSource,
+	ok,
+	type RepoId,
+	type Result,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import { appDataPath, localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
@@ -259,6 +271,13 @@ const ICON_FAILED_MESSAGE = "Failed to set the icon. Try a different image.";
 /** Where uploaded repository icons live under the app data folder. */
 export const repoIconsDir = (paths: Platform["fs"]["paths"]): string => appDataPath(paths, "icons");
 
+/** The stored value of an uploaded icon starts with this, then its path in the icons folder. */
+const FILE_ICON_PREFIX = "file:";
+
+/** The uploaded image a stored icon value points to, or null for an emoji or no icon. */
+const uploadedIconPath = (icon: string | null): string | null =>
+	icon?.startsWith(FILE_ICON_PREFIX) === true ? icon.slice(FILE_ICON_PREFIX.length) : null;
+
 /** The lower-case extension of a file name, or null when it has none. */
 function iconExtension(path: string): string | null {
 	const name = path.slice(path.lastIndexOf("/") + 1);
@@ -281,6 +300,8 @@ export interface RepoServiceDeps {
 	repos: Pick<Repositories, "repos" | "settings">;
 	settings: Pick<SettingsService, "readSettingsFile" | "updateSettingsFile">;
 	removal: RepoRemovalPort;
+	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
+	ids: Pick<IdSource, "uuid">;
 }
 
 /** The value and the file that supplied it: the local file wins over the shared file. */
@@ -898,7 +919,11 @@ export class RepoService {
 			configDropped,
 			order: state.order.filter((id) => id !== repoId),
 		});
-		return ok(undefined);
+		// An uploaded icon belongs to its project and goes to the Trash with it.
+		const icon = uploadedIconPath(found.value.icon);
+		if (icon === null) return ok(undefined);
+		const trashed = await trashIfPresent(this.#deps.platform.fs, icon);
+		return trashed.ok ? ok(undefined) : trashed;
 	}
 
 	/**
@@ -1076,8 +1101,8 @@ export class RepoService {
 			if (extension === null || !ICON_EXTENSIONS.has(extension)) {
 				return err(appError("repo_icon_type", ICON_TYPE_MESSAGE));
 			}
-			const parent = icon.path.slice(0, icon.path.lastIndexOf("/")) || "/";
-			const reachable = await this.#deps.platform.fs.registerRoot(parent);
+			// Only the picked file is opened to the file commands for its size, never its folder.
+			const reachable = await this.#deps.platform.fs.registerRoot(icon.path);
 			if (!reachable.ok) {
 				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, reachable.error));
 			}
@@ -1094,12 +1119,14 @@ export class RepoService {
 			}
 			const made = await this.#deps.platform.fs.mkdirp(folder);
 			if (!made.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, made.error));
-			const destination = `${folder}/${repoId}.${extension}`;
+			// A new name for every upload: the old file stays until the database points away from it,
+			// and the web view cannot show a cached image from the same address.
+			const destination = `${folder}/${repoId}-${this.#deps.ids.uuid()}.${extension}`;
 			const copied = await copyFileKeepingMode(this.#deps.platform.shell, icon.path, destination);
 			if (!copied.ok) {
 				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, copied.error));
 			}
-			stored = `file:${destination}`;
+			stored = `${FILE_ICON_PREFIX}${destination}`;
 			copiedTo = destination;
 		}
 
@@ -1120,6 +1147,20 @@ export class RepoService {
 		}
 
 		this.#upsert({ ...repo, icon: stored });
+		// The database no longer points to the earlier upload, so it goes to the Trash.
+		const previous = uploadedIconPath(repo.icon);
+		if (previous !== null && previous !== copiedTo) {
+			const removed = await trashIfPresent(this.#deps.platform.fs, previous);
+			if (!removed.ok) {
+				return err(
+					appError(
+						"repo_icon_cleanup_failed",
+						"The icon changed, but the old image could not be moved to the Trash.",
+						removed.error,
+					),
+				);
+			}
+		}
 		return ok(undefined);
 	}
 

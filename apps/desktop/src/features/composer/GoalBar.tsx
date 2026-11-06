@@ -12,10 +12,11 @@
  * `actions.sessions.goal`. The field is the `chat-goal` command scope, so Cmd+Enter reaches
  * `chat.saveGoal` and a rebind follows it.
  * Must handle: a chat that is not Codex (nothing is shown); no goal or a completed one (nothing is
- * shown); a goal read that fails (a toast, and nothing is shown); Save with empty text ("Enter a
- * goal first.", the field stays open); a save, pause, resume or clear the service refuses (its
- * message) or that fails ("Failed to update goal." with the reason); a second click while a change
- * is on its way (buttons are disabled).
+ * shown); a goal read that fails (a toast, and nothing is shown); Save with empty text (the
+ * service's "Enter a goal first.", the field stays open); a save, pause, resume or clear the
+ * service refuses (its message) or that fails ("Failed to update goal." with the reason; a failed
+ * save keeps the field open with the typed text); a second click while a change is on its way
+ * (buttons are disabled).
  * Test first: Save with empty text shows "Enter a goal first."
  */
 import type { CodexGoal } from "@conducted/protocol";
@@ -94,22 +95,23 @@ export function GoalBar({ sessionId }: { sessionId: SessionId }) {
 		setDraft("");
 	}, [sessionId]);
 
-	const run = (change: () => Promise<Result<void>>) => {
+	const run = (change: () => Promise<Result<void>>, onDone?: () => void) => {
 		setSaving(true);
 		void change()
 			.then((result) => {
-				if (!result.ok) toastGoalError(result.error);
+				if (result.ok) onDone?.();
+				else toastGoalError(result.error);
 			})
 			.finally(() => setSaving(false));
 	};
 
+	// The service refuses empty text with "Enter a goal first."; the field closes only once the
+	// goal is sent, so a refused or failed save keeps what the user typed.
 	const save = () => {
-		if (draft.trim().length === 0) {
-			toast.error("Enter a goal first.");
-			return;
-		}
-		setEditing(false);
-		run(() => actions.sessions.goal.set(sessionId, draft));
+		run(
+			() => actions.sessions.goal.set(sessionId, draft),
+			() => setEditing(false),
+		);
 	};
 
 	useCommandHandler("chat.saveGoal", "area", () => {

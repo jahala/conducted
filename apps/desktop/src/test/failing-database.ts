@@ -1,7 +1,8 @@
 /**
  * @feature test support A real database that fails one chosen query
- * Owns: `failingOnSelect`, which wraps a real `Database` so that one SQL select rejects with the
- * given error, outside a transaction and inside it, and every other call goes to the real database.
+ * Owns: `failingOnSelect` and `failingOnExecute`, which wrap a real `Database` so that one SQL
+ * select or write rejects with the given error, outside a transaction and inside it, and every
+ * other call goes to the real database.
  * Behaviour: the wrapped database is the real one (openTestDatabase or the app's queued wrapper), so
  * the only difference a test sees is the one failure it asked for.
  * Contract test: ../core/db/repair.test.ts
@@ -18,5 +19,17 @@ export function failingOnSelect(inner: Database, failingSql: string, error: Erro
 			sql === failingSql ? Promise.reject(error) : inner.select<Row>(sql, params),
 		transaction: <T>(work: (db: Database) => Promise<T>): Promise<T> =>
 			inner.transaction((tx) => work(failingOnSelect(tx, failingSql, error))),
+	};
+}
+
+/** The real database, except that one write statement rejects with `error`. */
+export function failingOnExecute(inner: Database, failingSql: string, error: Error): Database {
+	return {
+		execute: (sql, params) =>
+			sql === failingSql ? Promise.reject(error) : inner.execute(sql, params),
+		select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> =>
+			inner.select<Row>(sql, params),
+		transaction: <T>(work: (db: Database) => Promise<T>): Promise<T> =>
+			inner.transaction((tx) => work(failingOnExecute(tx, failingSql, error))),
 	};
 }

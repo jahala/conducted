@@ -1,3 +1,12 @@
+/**
+ * @feature PR-07 PrTab
+ * Owns: tests of the PR tab over the real container: a draft's merge bar and the branch commits,
+ * the "#<number>" link and its right-click menu (Open in..., Copy link, Copy number), and an
+ * activity comment opening the Comment tab.
+ * Behaviour: ui-map.md 3.2, 5.3 and 6.
+ * Test first: with a PR in state "draft" the merge bar shows "Mark ready" and no Merge button.
+ */
+import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { ok } from "@conducted/shared";
 import {
 	createMemoryHistory,
@@ -11,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { PullRequest, Workspace } from "../../core/model.ts";
+import type { DiffComment, PullRequest, Workspace } from "../../core/model.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -95,7 +104,7 @@ async function seedTab(pr: PullRequest): Promise<{ test: TestContainer; workspac
 	return { test, workspace };
 }
 
-async function renderTab(harness: TestContainer, workspace: Workspace): Promise<void> {
+async function renderTab(harness: TestContainer, workspace: Workspace) {
 	const rootRoute = createRootRoute();
 	const route = createRoute({
 		getParentRoute: () => rootRoute,
@@ -118,7 +127,29 @@ async function renderTab(harness: TestContainer, workspace: Workspace): Promise<
 		</ServicesProvider>,
 	);
 	await router.load();
+	return router;
 }
+
+const githubComment = (workspaceId: WorkspaceId): DiffComment => ({
+	id: "comment-1" as CommentId,
+	workspaceId,
+	filePath: "src/app.ts",
+	line: 4,
+	endLine: null,
+	body: "Rename this function",
+	author: { kind: "github", name: "hubot", avatarUrl: null },
+	state: "pending",
+	side: "additions",
+	threadId: "thread-1",
+	replyToId: null,
+	suggestion: null,
+	suggestionBaseCode: null,
+	remoteUrl: null,
+	resolved: false,
+	outdated: false,
+	createdAt: 1_700_000_100_000,
+	updatedAt: 1_700_000_100_000,
+});
 
 describe("PR-07 PrTab", () => {
 	it("shows Mark ready and no Merge button for a draft, and lists branch commits", async () => {
@@ -147,6 +178,56 @@ describe("PR-07 PrTab", () => {
 
 		await waitFor(() =>
 			expect(openUrl).toHaveBeenCalledWith("https://app.graphite.com/github/pr/me/project/12"),
+		);
+	});
+
+	it("offers Open in, Copy link and Copy number on the number's right-click menu", async () => {
+		const { test: harness, workspace } = await seedTab(pullRequest());
+		const opened = vi.spyOn(harness.memory.platform.opener, "openUrl");
+		await renderTab(harness, workspace);
+		const link = await screen.findByRole("link", { name: "#12" });
+
+		fireEvent.contextMenu(link);
+		expect(
+			(await screen.findAllByRole("menuitem")).map((item) => item.textContent?.trim()),
+		).toEqual([
+			expect.stringContaining("Open in GitHub"),
+			"Open in Linear",
+			"Open in Graphite",
+			"Copy link",
+			"Copy number",
+		]);
+		fireEvent.click(screen.getByRole("menuitem", { name: "Open in Linear" }));
+		await waitFor(() =>
+			expect(opened).toHaveBeenCalledWith("https://linear.review/me/project/pull/12"),
+		);
+
+		fireEvent.contextMenu(link);
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy link" }));
+		await waitFor(() =>
+			expect(harness.memory.controls.clipboardText).toBe("https://github.com/me/project/pull/12"),
+		);
+
+		fireEvent.contextMenu(link);
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy number" }));
+		await waitFor(() => expect(harness.memory.controls.clipboardText).toBe("12"));
+	});
+
+	it("opens the Comment tab for a comment chosen in the activity list", async () => {
+		const { test: harness, workspace } = await seedTab(pullRequest());
+		harness.container.services.review.store.setState((state) => ({
+			...state,
+			byWorkspace: { ...state.byWorkspace, [workspace.id]: [githubComment(workspace.id)] },
+		}));
+		const router = await renderTab(harness, workspace);
+
+		fireEvent.click(await screen.findByText("Rename this function"));
+
+		await waitFor(() =>
+			expect(router.state.location.search).toMatchObject({
+				tab: "comment",
+				commentId: "comment-1",
+			}),
 		);
 	});
 });
