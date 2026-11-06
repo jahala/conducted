@@ -42,6 +42,7 @@ pub mod menu;
 pub mod navigation;
 pub mod notifications;
 pub mod open_with;
+pub mod permissions;
 mod process_group;
 pub mod pty;
 pub mod resource_usage;
@@ -318,6 +319,8 @@ pub fn run() {
             health,
             app_info,
             system_info,
+            permissions::full_disk_access_check,
+            permissions::full_disk_access_open_settings,
             app_quit,
             set_quit_handler_ready,
             window_toggle_inspector,
