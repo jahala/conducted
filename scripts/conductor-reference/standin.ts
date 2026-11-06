@@ -11,6 +11,8 @@
  * - `metadata` names the current window and webview, and the boot data can add the other globals a
  *   frontend reads synchronously (such as the OS plugin's values).
  * - `convertFileSrc` points at the backend's asset route, which answers nothing and logs the request.
+ * - `__REFERENCE_ACTIVITY__` counts calls and those still waiting, so the screenshot run (run.ts) can
+ *   tell when the page has stopped asking.
  *
  * The server serves this file with its types stripped and calls `installStandin` with the session's
  * boot data. It has no imports, so it runs as one classic script.
@@ -58,15 +60,22 @@ export function installStandin(host: Host, boot: StandinBoot): void {
 	};
 
 	const headers = { "content-type": "application/json", "x-reference-session": boot.session };
+	const activity = { calls: 0, pending: 0 };
 	const post = async (command: string, args: unknown): Promise<unknown> => {
-		const response = await host.fetch(`${boot.base}/invoke`, {
-			method: "POST",
-			headers,
-			body: JSON.stringify({ command, args: args ?? {} }),
-		});
-		const answer = (await response.json()) as { ok: boolean; value?: unknown; error?: unknown };
-		if (answer.ok) return answer.value;
-		throw answer.error;
+		activity.calls += 1;
+		activity.pending += 1;
+		try {
+			const response = await host.fetch(`${boot.base}/invoke`, {
+				method: "POST",
+				headers,
+				body: JSON.stringify({ command, args: args ?? {} }),
+			});
+			const answer = (await response.json()) as { ok: boolean; value?: unknown; error?: unknown };
+			if (answer.ok) return answer.value;
+			throw answer.error;
+		} finally {
+			activity.pending -= 1;
+		}
 	};
 
 	const invoke = async (command: string, args?: Record<string, unknown>): Promise<unknown> => {
@@ -125,6 +134,7 @@ export function installStandin(host: Host, boot: StandinBoot): void {
 		},
 	};
 	host.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener };
+	host.__REFERENCE_ACTIVITY__ = activity;
 	for (const [name, value] of Object.entries(boot.globals)) host[name] = value;
 	stream().catch((cause: unknown) => host.console.error("[reference] event stream ended:", cause));
 }

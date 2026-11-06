@@ -4,12 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ReferenceMapping } from "./backend.ts";
 import { type Catalogue, loadCatalogue, type SeededState } from "./catalogue.ts";
-import {
-	fileUnder,
-	injectBefore,
-	type ReferenceServer,
-	startReferenceServer,
-} from "./server.ts";
+import { fileUnder, injectBefore, type ReferenceServer, startReferenceServer } from "./server.ts";
 
 // A bundle of our own: an index page with one module, and one asset.
 const INDEX = `<!doctype html><html><head><script type="module" src="/assets/app-TEST0001.js"></script></head><body></body></html>`;
@@ -141,6 +136,9 @@ describe("the reference server", () => {
 			event: "rpc_reply",
 			payload: { line: JSON.stringify({ jsonrpc: "2.0", id: 9, result: "pong" }) },
 		});
+
+		// Four calls went to the backend (listen stays in the page), and none is still waiting.
+		expect(host.__REFERENCE_ACTIVITY__).toEqual({ calls: 4, pending: 0 });
 
 		const log = (await (await get("/__reference/log")).json()) as Record<
 			string,

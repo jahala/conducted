@@ -188,7 +188,7 @@ export async function startReferenceServer(options: {
 				session.write === undefined ? session.queue.push(push) : session.write(push),
 		});
 		sessions.set(id, session);
-		const bootData = mapping.boot(seeded);
+		const bootData = await mapping.boot(seeded);
 		const boot: StandinBoot = {
 			session: id,
 			base: BASE,

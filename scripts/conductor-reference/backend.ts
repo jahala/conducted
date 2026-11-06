@@ -31,6 +31,8 @@ export interface SessionContext<State = unknown> {
 	send(channel: number, message: unknown): void;
 	/** Sends a JSON-RPC notification or request from the sidecar to the page. */
 	sidecarSend(method: string, params: unknown): void;
+	/** Declines this call (see `Declined`), so a mapping loaded by path needs no import of ours. */
+	decline(detail: string): never;
 }
 
 export type CommandHandler<State = unknown> = (
@@ -64,10 +66,21 @@ export interface ReferenceMapping<State = unknown> {
 		rows?: Record<string, Record<string, unknown>[]>;
 		setup?: string[];
 	}[];
-	boot(state: State): Boot;
+	boot(state: State): Boot | Promise<Boot>;
 	commands: Record<string, CommandHandler<State>>;
 	tunnel?: Tunnel;
 	sidecar: Record<string, (params: unknown, context: SessionContext<State>) => unknown>;
+}
+
+/**
+ * Thrown by a handler that has no answer for this particular call, such as a shell command the sample
+ * data has no output for. The call is logged as unanswered under `<name>: <detail>` and answered with
+ * an error, the same as a call with no handler.
+ */
+export class Declined extends Error {
+	constructor(readonly detail: string) {
+		super(`The reference has no answer for ${detail}.`);
+	}
 }
 
 export interface Unanswered {
@@ -141,6 +154,9 @@ export function openSession<State>(options: {
 			push({ kind: "channel", channel, message: { index, message } });
 		},
 		sidecarSend: (method, params) => sendLine({ id: nextSidecarId++, method, params }),
+		decline: (detail) => {
+			throw new Declined(detail);
+		},
 	};
 
 	const answerRpc = async (message: RpcMessage): Promise<void> => {
@@ -164,7 +180,11 @@ export function openSession<State>(options: {
 			const result = await handler(message.params, context);
 			if (isRequest) sendLine({ id: message.id, result: result ?? null });
 		} catch (cause) {
-			if (isRequest) sendLine({ id: message.id, error: { code: -32000, message: failure(cause) } });
+			if (cause instanceof Declined) {
+				log.record("sidecar", `${message.method}: ${cause.detail}`, message.params);
+			}
+			const code = cause instanceof Declined ? -32601 : -32000;
+			if (isRequest) sendLine({ id: message.id, error: { code, message: failure(cause) } });
 		}
 	};
 
@@ -200,6 +220,7 @@ export function openSession<State>(options: {
 			try {
 				return { ok: true, value: (await handler(args, context)) ?? null };
 			} catch (cause) {
+				if (cause instanceof Declined) log.record("command", `${command}: ${cause.detail}`, args);
 				return { ok: false, error: failure(cause) };
 			}
 		},

@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { openSession, type Push, type ReferenceMapping, UnansweredLog } from "./backend.ts";
+import {
+	Declined,
+	openSession,
+	type Push,
+	type ReferenceMapping,
+	UnansweredLog,
+} from "./backend.ts";
 import { buildDatabase } from "./sql-plugin.ts";
 import { loadSqlJs, type SqlJsStatic } from "./sqljs-types.ts";
 
@@ -22,6 +28,10 @@ const mapping: ReferenceMapping<Sample> = {
 		broken: () => {
 			throw new Error("the disk is gone");
 		},
+		run: (args) => {
+			throw new Declined(String(args.command));
+		},
+		ask: (args, context) => context.decline(`ask ${String(args.what)}`),
 		watch: (args, context) => {
 			const channel = Number(String(args.onEvent).replace("__CHANNEL__:", ""));
 			context.send(channel, "first");
@@ -87,6 +97,20 @@ describe("a reference backend session", () => {
 	test("answers a throwing handler with its message", async () => {
 		const { backend } = session();
 		expect(await backend.invoke("broken", {})).toEqual({ ok: false, error: "the disk is gone" });
+		backend.close();
+	});
+
+	test("logs a declined call under its detail and answers it with an error", async () => {
+		const { backend, log } = session();
+		expect(await backend.invoke("run", { command: "git status" })).toEqual({
+			ok: false,
+			error: "The reference has no answer for git status.",
+		});
+		expect(await backend.invoke("ask", { what: "name" })).toMatchObject({ ok: false });
+		expect(log.list()).toEqual([
+			{ kind: "command", name: "ask: ask name", count: 1, firstArgs: { what: "name" } },
+			{ kind: "command", name: "run: git status", count: 1, firstArgs: { command: "git status" } },
+		]);
 		backend.close();
 	});
 
