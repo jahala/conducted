@@ -353,16 +353,19 @@ describe("CHAT-12 plan review bar", () => {
 		);
 	});
 
-	it("shows the first lines of a long plan with a Show all control", async () => {
+	// Conductor's bar holds only its controls; the plan's text is the chat's plan card (renderApp's
+	// composer strip, dca). This test showed the bar's own copy of the plan.
+	it("leaves the plan's text to the chat's plan card: the bar has no title or plan", async () => {
 		const { test, session } = await setup();
 		const longPlan = Array.from({ length: 30 }, (_, index) => `Step ${index + 1}`).join("\n");
 
 		renderBar(test, session.id, { plan: longPlan });
 
-		expect(screen.getByText(/Step 1/)).toBeTruthy();
-		expect(screen.queryByText(/Step 30/)).toBeNull();
-		fireEvent.click(screen.getByRole("button", { name: /Show all 30 lines/ }));
-		expect(screen.getByText(/Step 30/)).toBeTruthy();
+		const bar = screen.getByRole("group", { name: "Plan review" });
+		expect(bar.textContent).not.toContain("Step 1");
+		expect(bar.textContent).not.toContain("Review plan");
+		expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+		expect(screen.getByRole("button", { name: /Approve/ })).toBeTruthy();
 	});
 
 	it("links the plan file", async () => {
@@ -389,7 +392,7 @@ describe("CHAT-12 plan review bar", () => {
 			</ServicesProvider>,
 		);
 
-		expect(screen.getByText("Review plan")).toBeTruthy();
+		expect(screen.getByRole("group", { name: "Plan review" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
 	});
 });
