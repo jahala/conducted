@@ -18,7 +18,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { VERSION_FILES } from "./guards/versions.ts";
+import { setVersion, VERSION_FILES } from "./guards/versions.ts";
 import { addRelease, releaseSection } from "./release/changelog.ts";
 import { type CiRun, ciGate } from "./release/gates.ts";
 import { type ReleaseStepId, releasePlan } from "./release/plan.ts";
@@ -100,9 +100,12 @@ const runs: Record<ReleaseStepId, () => void | Promise<void>> = {
 			data.version = version;
 			writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
 		}
-		const tomlPath = join(root, "apps/desktop/src-tauri/Cargo.toml");
-		const toml = readFileSync(tomlPath, "utf8") as string;
-		writeFileSync(tomlPath, toml.replace(/^version = "[^"]+"/m, `version = "${version}"`));
+		// Cargo.lock follows Cargo.toml through cargo itself; the other files are written in place.
+		for (const file of VERSION_FILES) {
+			if (file.endsWith(".json") || file.endsWith("Cargo.lock")) continue;
+			const path = join(root, file);
+			writeFileSync(path, setVersion(file, readFileSync(path, "utf8") as string, version));
+		}
 		sh(
 			["cargo", "update", "--package", "conducted", "--offline"],
 			join(root, "apps/desktop/src-tauri"),
