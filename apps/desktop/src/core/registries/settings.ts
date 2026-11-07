@@ -1079,9 +1079,8 @@ const SETTINGS_TABLE = [
 		key: "custom_prompt_general",
 		page: "actions",
 		scopes: ["repo"],
-		title: "General instructions",
-		description:
-			"Extra instructions sent to the agent at the start of every new chat in this repository.",
+		title: "General preferences",
+		description: "Add custom instructions sent to the agent at the start of every new chat.",
 		searchTerms: ["prompt", "instructions", "preferences", "system"],
 		tomlKey: "prompts.general",
 		fileLayers: "user-and-repo",
@@ -1179,8 +1178,7 @@ const SETTINGS_TABLE = [
 		page: "misc",
 		scopes: ["repo"],
 		title: "Files to copy",
-		description:
-			"File paths or patterns copied from the main clone into each new workspace, such as .env.",
+		description: "Conducted will automatically copy these file paths in each new workspace.",
 		searchTerms: ["copy", "include", "glob", "worktreeinclude", "env", "files"],
 		tomlKey: "file_include_globs",
 		fileLayers: "user-and-repo",

@@ -116,7 +116,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		<div className="flex flex-col gap-6">
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Misc</h1>
-				<p className="text-sm text-fg-muted">Icon, folders, preview URLs and removal.</p>
+				<p className="text-sm text-fg-muted">Repository paths and workspace file behavior.</p>
 			</div>
 
 			<LoadableView
@@ -165,7 +165,8 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										<div>
 											<p className="text-sm font-medium text-fg">Root path</p>
 											<p className="text-sm text-fg-muted">
-												Do not move or delete this folder. Remove the repository here instead.
+												Do not move or delete this directory. Instead, remove the repository in
+												Conducted.
 											</p>
 											<p className="mt-1 break-all font-mono text-xs text-fg-muted">
 												{repoValue.rootPath}
@@ -174,8 +175,8 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										<div>
 											<p className="text-sm font-medium text-fg">Workspaces path</p>
 											<p className="text-sm text-fg-muted">
-												Do not move or delete the workspace folders. Archive workspaces here
-												instead.
+												Do not move or delete the workspace subdirectories. Instead, archive
+												workspaces in Conducted.
 											</p>
 											<p className="mt-1 break-all font-mono text-xs text-fg-muted">
 												{`${rootPath.replace(/\/+$/, "")}/workspaces/${repoValue.name}`}
@@ -234,7 +235,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 									<div className="flex flex-col gap-2 border-t border-border pt-4">
 										<p className="text-sm font-medium text-fg">Files to copy</p>
 										<p className="text-sm text-fg-muted">
-											These file paths or patterns are copied into each new workspace.
+											Conducted will automatically copy these file paths in each new workspace.
 										</p>
 										<FilesToCopyField
 											patterns={settings.copyFiles}

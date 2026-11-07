@@ -125,8 +125,7 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Scripts</h1>
 				<p className="text-sm text-fg-muted">
-					Repository scripts run around a workspace's life: setup when it is created, archive before
-					it is archived.
+					Commands that run when workspaces are set up or archived.
 				</p>
 			</div>
 

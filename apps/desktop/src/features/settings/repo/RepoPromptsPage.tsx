@@ -8,7 +8,7 @@
  * preferences") and "Actions (repo)" table; services-map.md 3.7.6 and 4.2.3 (custom_prompt_*).
  * Data: useRepoConfig(repoId).prompts, useActions().projects.updateConfig.
  * Rows (our wording), RepoConfig.prompts field:
- *   General instructions          general
+ *   General preferences           general
  *   Review                        codeReview
  *   Create PR                     createPr
  *   Fix errors                    fixErrors
@@ -41,8 +41,8 @@ const PROMPT_FIELDS: readonly {
 }[] = [
 	{
 		key: "general",
-		label: "General instructions",
-		description: "Sent to the agent at the start of every new chat in this repository.",
+		label: "General preferences",
+		description: "Add custom instructions sent to the agent at the start of every new chat.",
 	},
 	{
 		key: "codeReview",
