@@ -13,15 +13,23 @@
  *
  * PLAT-28 also renders the Agent binaries section here: the state of the Claude Code and Codex
  * programs and of Cursor's SDK (AGENT-09, installed only from here, D083), with Install or Retry,
- * Re-download and Remove. The programs themselves are downloaded and verified by the system
- * service, not by this page.
+ * Re-download and Remove. PLAT-35 adds a Helper programs section for gh and watchexec, kept apart
+ * from the agent programs, so a failed or missing download of either shows its error and Retry
+ * here instead of running a copy on PATH (D088). The programs themselves are downloaded and
+ * verified by the system service, not by this page.
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
 import { useState } from "react";
 import { useServices } from "../../../core/context.tsx";
-import { useActions, useAgentPrograms, useSetting } from "../../../core/hooks.ts";
+import {
+	useActions,
+	useAgentPrograms,
+	useHelperPrograms,
+	useSetting,
+} from "../../../core/hooks.ts";
 import type { AgentProgramView } from "../../../core/model.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
+import { PROGRAM_DISPLAY_NAMES } from "../../../core/services/system.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
@@ -100,6 +108,8 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 
 			<AgentBinaries />
 
+			<HelperPrograms />
+
 			<AlertDialog
 				open={pendingRoot !== null}
 				onOpenChange={(open) => {
@@ -173,6 +183,65 @@ function AgentBinaries() {
 	);
 }
 
+/**
+ * The helper programs the app downloads for its own commands (PLAT-35), kept apart from the agent
+ * programs as Conductor's page does. A failed or missing download shows its error here with Retry,
+ * so the app never needs a copy on PATH (D088).
+ */
+function HelperPrograms() {
+	const programs = useHelperPrograms();
+	const actions = useActions();
+	const [busy, setBusy] = useState<ManagedProgram | null>(null);
+
+	const run = async (program: ManagedProgram, action: () => Promise<Result<void>>) => {
+		setBusy(program);
+		const result = await action();
+		setBusy(null);
+		if (!result.ok) toastError("Couldn't update the helper program", result.error);
+	};
+
+	return (
+		<div className="flex flex-col gap-3 border-t border-border py-4">
+			<div className="flex flex-col gap-1">
+				<p className="text-sm font-medium text-fg">Helper programs</p>
+				<p className="max-w-prose text-sm text-fg-muted">
+					The GitHub CLI and watchexec, which the app downloads for GitHub and Spotlight.
+				</p>
+			</div>
+			{programs.state === "loading" ? (
+				<p className="text-sm text-fg-subtle">Checking the helper programs.</p>
+			) : programs.state === "error" ? (
+				<p role="alert" className="text-sm text-danger">
+					{programs.error.message}
+				</p>
+			) : programs.data.length === 0 ? (
+				<p className="text-sm text-fg-subtle">No helper programs are managed.</p>
+			) : (
+				<ul className="flex flex-col gap-2">
+					{programs.data.map((view) => (
+						<AgentBinaryRow
+							key={view.status.program}
+							view={view}
+							busy={busy === view.status.program}
+							onInstall={() =>
+								void run(view.status.program, () => actions.programs.install(view.status.program))
+							}
+							onRedownload={() =>
+								void run(view.status.program, () =>
+									actions.programs.redownload(view.status.program),
+								)
+							}
+							onRemove={() =>
+								void run(view.status.program, () => actions.programs.remove(view.status.program))
+							}
+						/>
+					))}
+				</ul>
+			)}
+		</div>
+	);
+}
+
 function AgentBinaryRow({
 	view,
 	busy,
@@ -187,7 +256,7 @@ function AgentBinaryRow({
 	onRemove: () => void;
 }) {
 	const { status } = view;
-	const name = PROGRAM_NAMES[status.program] ?? status.program;
+	const name = PROGRAM_DISPLAY_NAMES[status.program];
 	const detail =
 		view.userPath !== null
 			? `Using the program at ${view.userPath}.`
@@ -225,13 +294,6 @@ function AgentBinaryRow({
 		</li>
 	);
 }
-
-/** The names the Agent binaries section shows. */
-const PROGRAM_NAMES: Partial<Record<ManagedProgram, string>> = {
-	claude: "Claude Code",
-	codex: "Codex",
-	cursor: "Cursor SDK",
-};
 
 function describeProgramStatus(
 	state: AgentProgramView["status"]["state"],

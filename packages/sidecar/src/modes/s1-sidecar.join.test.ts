@@ -35,7 +35,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,6 +72,7 @@ import { cursorSdkFiles, FakeCursorRun, FakeCursorSdk } from "../test-support/cu
 import { DEFAULT_APP_REPLIES, FakeApp } from "../test-support/fake-app.ts";
 import { FakeChild, type JsonRpcMessage } from "../test-support/fake-child.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
+import { layOutManagedPrograms } from "../test-support/managed-programs.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { appToolsMcpEntry, BRIDGE_TOKEN_ENV } from "../tools/mcp-launch.ts";
@@ -207,8 +208,10 @@ async function harness(
 		storage?: MemoryStorage;
 		/** Cursor's SDK, installed in the agent binaries folder the way the program manager leaves it. */
 		cursorSdk?: FakeCursorSdk;
-		/** The app's bin and managed programs folders, when a test lays out managed copies. */
+		/** The app's bin and managed programs folders, when a test lays out its own copies. */
 		programs?: { binDir: string; agentBinariesDir: string };
+		/** False lays out no managed copy, so the tests can check what the app does without one. */
+		managedPrograms?: boolean;
 		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
 		claude?: TalkingClaude;
 		/** User message texts in Claude's transcript, by uuid (RC-03). */
@@ -233,12 +236,14 @@ async function harness(
 		env: { PATH: "/usr/bin", HOME: home },
 		providerSecrets: {},
 	};
-	const agentBinariesDir =
-		options.programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
+	const programs =
+		options.programs ??
+		(options.managedPrograms === false ? undefined : await layOutManagedPrograms(folder));
+	const agentBinariesDir = programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
 	const cursorFiles = cursorSdkFiles(agentBinariesDir, process.arch);
 	const host = composeSidecar(
 		{
-			binDir: options.programs?.binDir ?? BIN_DIR,
+			binDir: programs?.binDir ?? BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
@@ -947,17 +952,27 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		});
 	});
 
+	test("D088 a managed agent with no managed copy fails with its name and never runs the PATH copy", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder, { managedPrograms: false });
+
+		const sent = await h.handlers.sendMessage(sendParams(folder, baseConfig()));
+
+		expect("ok" in sent && sent.ok).toBe(false);
+		if ("ok" in sent && !sent.ok) {
+			expect(sent.error.code).toBe("agent_not_installed");
+			expect(sent.error.message).toContain("Claude Code");
+			expect(sent.error.message).toContain("Retry");
+		}
+		expect(h.seen.claudeOptions).toEqual([]);
+	});
+
 	test("PLAT-28 PLAT-35 a Codex chat with no chosen program starts the managed copy, with the bin folder first on PATH", async () => {
 		const folder = await workspaceFolder();
-		const binDir = path.join(folder, "app-bin");
-		const agentBinariesDir = path.join(folder, "agent-binaries");
-		const version = path.join(agentBinariesDir, "codex", "0.164.0");
-		await mkdir(binDir, { recursive: true });
-		await mkdir(version, { recursive: true });
-		const managed = path.join(version, "codex");
-		await writeFile(managed, "#!/bin/sh\nexit 0\n");
-		await chmod(managed, 0o755);
-		await symlink(managed, path.join(binDir, "codex"));
+		const { binDir, agentBinariesDir } = await layOutManagedPrograms(folder, ["codex"], {
+			version: "0.164.0",
+		});
+		const managed = path.join(agentBinariesDir, "codex", "0.164.0", "codex");
 		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
 		const spawned = h.seen.nextCodexSpawn();
 
@@ -1627,15 +1642,10 @@ describe("s1-sidecar join the batch through the composition root", () => {
 
 	test("PLAT-28 SIDE-21 model, slash command and MCP lists with no chosen program run the managed copy, as a chat's start does", async () => {
 		const folder = await workspaceFolder();
-		const binDir = path.join(folder, "app-bin");
-		const agentBinariesDir = path.join(folder, "agent-binaries");
-		const version = path.join(agentBinariesDir, "claude", "2.1.0");
-		await mkdir(binDir, { recursive: true });
-		await mkdir(version, { recursive: true });
-		const managed = path.join(version, "claude");
-		await writeFile(managed, "#!/bin/sh\nexit 0\n");
-		await chmod(managed, 0o755);
-		await symlink(managed, path.join(binDir, "claude"));
+		const { binDir, agentBinariesDir } = await layOutManagedPrograms(folder, ["claude"], {
+			version: "2.1.0",
+		});
+		const managed = path.join(agentBinariesDir, "claude", "2.1.0", "claude");
 		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
 		const launch: AgentLaunch = { env: {}, providerKeys: {} };
 		try {
@@ -1665,8 +1675,9 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		try {
 			const before = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
 			expect(before.agents.find((install) => install.agent === "claude")).toMatchObject({
-				path: "/usr/bin/claude",
-				source: "login_path",
+				installed: true,
+				source: "managed",
+				version: "1.0.0",
 			});
 
 			await h.host.handlers.notifications.setAgentPrograms({

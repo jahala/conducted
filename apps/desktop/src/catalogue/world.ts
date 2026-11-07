@@ -21,6 +21,7 @@ import type {
 	ResultOf,
 } from "@conducted/protocol";
 import type { Clock, IdSource } from "@conducted/shared";
+import { programsBinDir } from "../core/app-paths.ts";
 import { createRepositories, type Repositories } from "../core/db/repositories.ts";
 import { createMemoryPlatform, type MemoryPlatform, type ShellScript } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
@@ -173,6 +174,26 @@ export function createWorld(database: Database): World {
 	});
 	// Seeds draw their own ids, so the app's first ids are the same whatever a state seeds.
 	const repositories = createRepositories(database, { clock, ids: createTestIds("seed") });
+
+	// The helper programs the program manager has downloaded (PLAT-35). A gh command runs only
+	// from the manager's ready copy (D088), so the Checks tab has checks instead of a missing
+	// program error.
+	const binDir = programsBinDir(memory.platform.fs.paths);
+	for (const program of ["gh", "watchexec"] as const) {
+		const path = `${binDir}/${program}`;
+		memory.controls.files.set(path, "");
+		memory.controls.setProgramStatus({
+			program,
+			state: "ready",
+			version: "test",
+			bytesDownloaded: 0,
+			bytesTotal: null,
+			attempt: 0,
+			nextAttemptAt: null,
+			error: null,
+			path,
+		});
+	}
 
 	memory.controls.scriptShell((command) => {
 		console.info("[catalogue] unscripted shell command:", command.program, command.args.join(" "));

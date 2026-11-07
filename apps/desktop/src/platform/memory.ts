@@ -112,6 +112,8 @@ export interface MemoryPlatformControls {
 	failSystemInfo(message: string): void;
 	/** Changes what `system.hasFullDiskAccess` reports. */
 	setFullDiskAccess(granted: boolean): void;
+	/** Sets one managed program's status, as the program manager would report it. */
+	setProgramStatus(status: ProgramStatus): void;
 	/** Makes `system.hasFullDiskAccess` fail with this message; null restores the answer. */
 	failFullDiskAccessCheck(message: string | null): void;
 	/** Makes `system.openFullDiskAccessSettings` fail with this message; null restores success. */
@@ -1228,6 +1230,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		setClipboardFilePaths: (paths) => {
 			clipboardFilePaths = [...paths];
 		},
+		setProgramStatus,
 		queueDialogAnswers: (answers) => {
 			dialogAnswers.push(answers);
 		},

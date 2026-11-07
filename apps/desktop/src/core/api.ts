@@ -333,8 +333,10 @@ export interface Queries {
 	usePlans(workspaceId: WorkspaceId): Loadable<PlanEntry[]>;
 	/** The user's prompt snippets. */
 	useSnippets(): Loadable<Snippet[]>;
-	/** The programs the app downloads and keeps up to date, with the user's choice for each. */
+	/** The agent programs the app downloads and keeps up to date, with the user's choice for each. */
 	useAgentPrograms(): Loadable<AgentProgramView[]>;
+	/** The helper programs the app downloads for its own commands (gh and watchexec). */
+	useHelperPrograms(): Loadable<AgentProgramView[]>;
 	/** The provider keys of an agent, without their values. */
 	useProviderKeys(agent: AgentKind, acpAgent?: AcpAgent): Loadable<ProviderKeyView[]>;
 	/** The providers an agent can use and the variables for their keys. */

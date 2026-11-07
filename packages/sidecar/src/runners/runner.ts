@@ -89,8 +89,8 @@ export interface StartOptions {
 	env: Readonly<Record<string, string>>;
 	/**
 	 * The program the user chose in Settings, from the chat's launch (SIDE-21). Missing: the user
-	 * chose none, so the runner takes the managed copy, then the login-shell PATH copy
-	 * (`findAgentProgram` in launch-env.ts).
+	 * chose none, so the runner takes the managed copy (`findAgentProgram` in launch-env.ts). A
+	 * managed agent never runs a PATH copy (D088); an ACP agent is found there.
 	 */
 	executablePath?: string;
 	resume?: { agentSessionId: string; atNativeMessageId?: string };
@@ -208,7 +208,7 @@ export interface RunnerSlashCommand {
  */
 export interface ListingContext {
 	env: Readonly<Record<string, string>>;
-	/** Missing: the managed copy, then the login-shell PATH copy (`findAgentProgram`). */
+	/** Missing: the managed copy (an ACP agent: the login-shell PATH copy; `findAgentProgram`). */
 	executablePath?: string;
 }
 

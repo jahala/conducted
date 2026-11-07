@@ -145,7 +145,7 @@ function scriptEnv(overrides: Record<string, string> = {}): Record<string, strin
 		...GIT_ENV,
 		PATH: `${join(base, "watcher-bin")}:${process.env.PATH ?? ""}`,
 		CONDUCTED_CHECKPOINTER_PATH: CHECKPOINTER,
-		CONDUCTED_WATCHEXEC_PATH: "watchexec",
+		CONDUCTED_WATCHEXEC_PATH: join(base, "watcher-bin", "watchexec"),
 		CONDUCTED_ROOT_PATH: root,
 		CONDUCTED_TEST_TRIGGER: triggerPath,
 		CONDUCTED_TEST_WATCHEXEC_ARGS: argsPath,
@@ -242,10 +242,16 @@ describe("RUN-08 environment and prerequisites", () => {
 		expect(noRoot.err).toContain("CONDUCTED_ROOT_PATH is not a folder");
 	});
 
-	test("exits 1 when watchexec cannot be found on PATH", () => {
-		const result = runOnce(scriptEnv({ CONDUCTED_WATCHEXEC_PATH: "watchexec-missing-run-08" }));
-		expect(result.code).toBe(1);
-		expect(result.err).toContain("watchexec program is not on PATH");
+	test("exits 1 when the watchexec path is not an executable file", () => {
+		const missing = runOnce(
+			scriptEnv({ CONDUCTED_WATCHEXEC_PATH: join(base, "missing-watchexec") }),
+		);
+		expect(missing.code).toBe(1);
+		expect(missing.err).toContain("watchexec program is not executable");
+
+		const bareName = runOnce(scriptEnv({ CONDUCTED_WATCHEXEC_PATH: "watchexec" }));
+		expect(bareName.code).toBe(1);
+		expect(bareName.err).toContain("must be an absolute path");
 	});
 
 	test("exits 64 on a command line argument", () => {
@@ -260,7 +266,7 @@ describe("RUN-08 environment and prerequisites", () => {
 });
 
 describe("RUN-08 the sync loop", () => {
-	test("finds watchexec on PATH, passes its ignore rules, and mirrors changes into the root", async () => {
+	test("runs the watchexec at the given path, passes its ignore rules, and mirrors changes into the root", async () => {
 		const proc = startScript();
 
 		await waitFor(() => existsSync(argsPath), "watchexec to start");

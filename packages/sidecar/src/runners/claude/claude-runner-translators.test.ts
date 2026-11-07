@@ -5,6 +5,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { ok } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { countingIds } from "../../test-support/ids.ts";
+import { managedProgramFinder } from "../../test-support/managed-programs.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
@@ -179,6 +180,7 @@ function makeDeps(overrides: Partial<ClaudeRunnerDeps> = {}): ClaudeRunnerDeps {
 		ids: countingIds(),
 		probe: async () => ok({ stdout: "", stderr: "", exitCode: 0 }),
 		findExecutable: async () => "/bin/claude",
+		findManagedProgram: managedProgramFinder({ claude: "/bin/claude" }),
 	};
 	let turn = 0;
 	return {

@@ -167,6 +167,7 @@ export class AcpRunner implements Runner {
 			env: options.env,
 			findExecutable: this.deps.findExecutable,
 			findManagedProgram: this.deps.findManagedProgram,
+			usePathCopy: true,
 		});
 		if (!program.ok) throw program.error;
 		const executablePath = program.value.path;
@@ -332,6 +333,7 @@ export class AcpRunner implements Runner {
 			env: context.env,
 			findExecutable: this.deps.findExecutable,
 			findManagedProgram: this.deps.findManagedProgram,
+			usePathCopy: true,
 		});
 		if (!program.ok) throw program.error;
 		return program.value.path;

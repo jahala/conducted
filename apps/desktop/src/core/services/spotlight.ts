@@ -27,8 +27,8 @@
  * root and removes the sync loop's `cp-spotlight-*` checkpoints.
  * Our design choice: the saved id and the helper scripts come from core/git/refs.ts and
  * core/app-paths.ts, so bin/ and the UI agree. File watching is done by the script, not the UI.
- * Watchexec is passed by name. The terminal's PATH starts with the app's bin folder, so the
- * managed copy runs (PLAT-35), and the user's own copy when there is none.
+ * Watchexec is the app's own copy, passed as an absolute path (PLAT-35); a missing copy is a named
+ * error and Spotlight never runs a watchexec on PATH (D088).
  * Test first: starting with a leftover pre-spotlight checkpoint restores it before saving a new one.
  */
 import {
@@ -141,10 +141,10 @@ export interface SpotlightServiceDeps {
 	/** bin/git-busy-check.sh, which says whether a merge or rebase is in progress. */
 	busyCheckPath?: string;
 	/**
-	 * The watcher the sync loop runs. "watchexec" is found on the terminal's PATH, which starts
-	 * with the app's bin folder, so the managed copy wins (PLAT-35).
+	 * The app's own watchexec, resolved when Spotlight starts (PLAT-35). The sync loop gets its
+	 * absolute path, never a name looked up on PATH (D088).
 	 */
-	watchexecPath?: string;
+	watchexecPath?: () => Promise<Result<string>>;
 	configFor?: (workspaceId: WorkspaceId) => Promise<Result<RepoConfig>>;
 	workspaceFor?: (workspaceId: WorkspaceId) => Promise<Result<Workspace>>;
 	repoFor?: (workspaceId: WorkspaceId) => Promise<Result<Repo>>;
@@ -265,6 +265,8 @@ export class SpotlightService {
 				),
 			);
 		}
+		const watcher = await watchexecPath();
+		if (!watcher.ok) return watcher;
 
 		const stoppedRuns = await this.#stopRuns(workspaceId);
 		if (!stoppedRuns.ok) return stoppedRuns;
@@ -304,7 +306,7 @@ export class SpotlightService {
 			env: {
 				CONDUCTED_ROOT_PATH: rootPath,
 				CONDUCTED_CHECKPOINTER_PATH: checkpointerPath,
-				CONDUCTED_WATCHEXEC_PATH: watchexecPath,
+				CONDUCTED_WATCHEXEC_PATH: watcher.value,
 			},
 		});
 		if (!started.ok) {

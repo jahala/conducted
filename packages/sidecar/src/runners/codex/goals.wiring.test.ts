@@ -31,6 +31,7 @@ import { createLogger } from "../../logging/logger.ts";
 import { composeSidecar, type SidecarComposition } from "../../modes/sidecar-mode.ts";
 import { FakeApp } from "../../test-support/fake-app.ts";
 import { FakeChild, type JsonRpcMessage } from "../../test-support/fake-child.ts";
+import { layOutManagedPrograms } from "../../test-support/managed-programs.ts";
 import { MemoryStorage } from "../../test-support/memory-storage.ts";
 import type { JsonRpcChild } from "./app-server-client.ts";
 
@@ -144,13 +145,14 @@ async function harness(): Promise<{
 		env: { PATH: "/usr/bin", HOME: path.join(folder, "home") },
 		providerSecrets: {},
 	};
+	const programs = await layOutManagedPrograms(folder, ["codex"]);
 	const host = composeSidecar(
 		{
-			binDir: folder,
+			binDir: programs.binDir,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
-			agentBinariesDir: path.join(folder, "agent-binaries"),
+			agentBinariesDir: programs.agentBinariesDir,
 			logDir: path.join(folder, "log"),
 			appVersion: "0.0.0",
 			logLevel: "info",

@@ -41,9 +41,13 @@ export const useDiagnostics: Queries["useDiagnostics"] = () => {
 	return { state: "ready", data: query.data };
 };
 
-/** PLAT-28: the program store the system service fills at startup and on every status event. */
+/** PLAT-28: the agent program store the system service fills at startup and on every status event. */
 export const useAgentPrograms: Queries["useAgentPrograms"] = () =>
 	useStore(useServices().services.system.store, (state) => state.programs);
+
+/** PLAT-35: the helper programs (gh and watchexec) the app downloads for its own commands. */
+export const useHelperPrograms: Queries["useHelperPrograms"] = () =>
+	useStore(useServices().services.system.store, (state) => state.helpers);
 
 const SYSTEM_INFO_KEY = ["system", "info"] as const;
 

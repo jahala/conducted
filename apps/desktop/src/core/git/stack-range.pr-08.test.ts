@@ -56,8 +56,8 @@ const runner = new ShellGitRunner({
 	locks: new KeyedMutex(),
 	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 	log: () => undefined,
-	// No managed programs folder: git runs from the login PATH (PLAT-28).
 	programsBin: "",
+	programPath: async () => err(appError("program_not_installed", "The app's gh is not installed.")),
 });
 
 let root: string;

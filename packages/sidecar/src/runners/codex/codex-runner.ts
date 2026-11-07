@@ -13,8 +13,9 @@
  *    the entry is built at start() from the bridge endpoint and token, and the session gives the
  *    token back when it is disposed (SIDE-13)
  *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
- *    path, else the managed copy (PLAT-28), else the copy on the login-shell PATH; a user path
- *    that cannot run is an error that names it
+ *    path, else the managed copy (PLAT-28); the app never runs a PATH copy of Codex, and a missing
+ *    managed copy is an error that names it and offers Retry (D088); a user path that cannot run
+ *    is an error that names it
  *  - the listing calls run the program and environment of their `ListingContext` (the app's
  *    launch), by the same rule as start()
  *  - listSlashCommands(): from `skills/list`; names are shown with the leading slash by the UI,
@@ -122,6 +123,7 @@ export class CodexRunner implements Runner {
 			env: options.env,
 			findExecutable: this.deps.findExecutable,
 			findManagedProgram: this.deps.findManagedProgram,
+			usePathCopy: false,
 		});
 		if (!program.ok) throw program.error;
 		const codexPath = program.value.path;
@@ -294,6 +296,7 @@ export class CodexRunner implements Runner {
 			env: context.env,
 			findExecutable: this.deps.findExecutable,
 			findManagedProgram: this.deps.findManagedProgram,
+			usePathCopy: false,
 		});
 		if (!program.ok) throw program.error;
 		return program.value.path;

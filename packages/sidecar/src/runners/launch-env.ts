@@ -7,8 +7,9 @@
  * Behaviour: claude-runner.md 1.2 (the user's own program path reaches the Claude runner, and
  * Conductor starts a `.js` path through a JavaScript runtime) and 1.3 (environment), sessions.md 1
  * and 4, other-runners.md 2.1 (`OPENAI_BASE_URL` override for Codex) and 5 (runners start the
- * program the user chose, the managed copy, then the PATH copy), native-and-sidecar-map.md B4. The
- * key rule is D033 in docs/decisions.md: one strip list removes every provider key from the
+ * program the user chose, else the managed copy; an agent the app does not manage is found on
+ * PATH), native-and-sidecar-map.md B4. The key rule is D033 in docs/decisions.md: one strip list
+ * removes every provider key from the
  * captured environment (`shell-env/env.ts`); each runner then gets only the keys of its own
  * provider, and a key that came from the Mac's environment only when the user picked "Use the key
  * from this Mac": the app sends such a key with source `this_mac` and no value, and `fillMacKeys`
@@ -19,7 +20,9 @@
  * the path, never a quiet switch to another copy); a `.js` program path (`viaRuntime`: Claude
  * starts it through node, the SDK's `executable`; Codex and ACP programs start the file itself,
  * which runs through its own `#!` line); no path given (the managed copy, which `managed-programs.ts`
- * finds through the program manager's bin link, then the copy on the login-shell PATH, D021); a key
+ * finds through the program manager's bin link; a managed agent never looks on PATH, and its
+ * missing copy is an error that names it and offers Retry, D088; an ACP agent is found on the
+ * login-shell PATH); a key
  * meant for another agent (never passed unless the provider is custom); a user variable that has
  * the name of a stripped key (the
  * user wins, as `shell-env/env.ts` already does for overrides); Claude provider routing for
@@ -67,11 +70,21 @@ export interface ResolveProgramInput {
 	managedPath: string | null;
 	/** The copy found on the login-shell PATH, when there is one. */
 	pathCopy: string | null;
+	/**
+	 * True for an agent program the app does not manage (an ACP agent), whose copy is found on the
+	 * login-shell PATH. False for a managed agent: the app never runs a PATH copy of one, even
+	 * when the managed copy is missing (D088).
+	 */
+	usePathCopy: boolean;
 	/** Checks that a file exists and can run. */
 	isExecutable(path: string): Promise<boolean>;
 }
 
-/** Picks the program: the user's path, else the managed copy, else the PATH copy. */
+/**
+ * Picks the program: the user's path, else the managed copy, else, only for an agent the app does
+ * not manage, the PATH copy. A managed agent with no copy is an error that names it and points to
+ * the Retry in Settings; the app never switches to a PATH copy by itself (D088).
+ */
 export async function resolveAgentProgram(
 	input: ResolveProgramInput,
 ): Promise<Result<AgentProgram>> {
@@ -95,7 +108,7 @@ export async function resolveAgentProgram(
 		});
 	}
 
-	if (input.pathCopy !== null && (await input.isExecutable(input.pathCopy))) {
+	if (input.usePathCopy && input.pathCopy !== null && (await input.isExecutable(input.pathCopy))) {
 		return ok({
 			path: input.pathCopy,
 			viaRuntime: runsThroughRuntime(input.pathCopy),
@@ -105,19 +118,23 @@ export async function resolveAgentProgram(
 	return err(
 		appError(
 			AGENT_NOT_INSTALLED,
-			`${agentName(input.agent)} was not found. Install it, or choose its program in Settings.`,
+			input.usePathCopy
+				? `${agentName(input.agent)} was not found. Install it, or choose its program in Settings.`
+				: `${agentName(input.agent)} is not installed. Retry its download in Settings > Advanced, or choose its program in Settings.`,
 		),
 	);
 }
 
 /**
- * The program a runner starts for a chat: the user's path, the managed copy, or the copy named
- * `name` on the login-shell PATH, through the one rule in `resolveAgentProgram`. A path is checked
- * with the same `findExecutable` that searches the PATH, which takes a name with a slash as it is.
+ * The program a runner starts for a chat: the user's path, else the managed copy, through the one
+ * rule in `resolveAgentProgram`. An agent the app manages never looks on PATH; an ACP agent, which
+ * the app does not manage, still uses the copy named `name` on the login-shell PATH. A path is
+ * checked with the same `findExecutable` that searches the PATH, which takes a name with a slash as
+ * it is.
  */
 export async function findAgentProgram(input: {
 	agent: AgentKind;
-	/** The name looked up on the login-shell PATH, for example "codex". */
+	/** The name looked up on the login-shell PATH for an unmanaged agent, for example "codex". */
 	name: string;
 	/** The program the user chose in Settings, from the chat's launch. */
 	executablePath: string | undefined;
@@ -125,13 +142,17 @@ export async function findAgentProgram(input: {
 	findExecutable: FindExecutable;
 	/** The app's managed copy (PLAT-28). Absent: there is none to find. */
 	findManagedProgram?: FindManagedProgram | undefined;
+	/** True for an agent the app does not manage: its copy comes from the login-shell PATH. */
+	usePathCopy: boolean;
 }): Promise<Result<AgentProgram>> {
 	const managed = (await input.findManagedProgram?.(input.name)) ?? null;
+	const pathCopy = input.usePathCopy ? await input.findExecutable(input.name, input.env) : null;
 	return resolveAgentProgram({
 		agent: input.agent,
 		launch: { executablePath: input.executablePath },
 		managedPath: managed === null ? null : managed.path,
-		pathCopy: await input.findExecutable(input.name, input.env),
+		pathCopy,
+		usePathCopy: input.usePathCopy,
 		isExecutable: async (candidate) => (await input.findExecutable(candidate, input.env)) !== null,
 	});
 }

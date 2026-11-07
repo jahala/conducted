@@ -4,6 +4,7 @@ import type { Result, SessionId, WorkspaceId } from "@conducted/shared";
 import {
 	buildAgentEnvironment,
 	claudeProviderEnvironment,
+	findAgentProgram,
 	resolveAgentProgram,
 } from "./launch-env.ts";
 
@@ -304,6 +305,7 @@ describe("SIDE-21 choosing the agent program", () => {
 				launch: launch({ executablePath: "/opt/claude" }),
 				managedPath: "/app/claude",
 				pathCopy: "/usr/local/bin/claude",
+				usePathCopy: false,
 				isExecutable: executableIn("/opt/claude", "/app/claude", "/usr/local/bin/claude"),
 			}),
 		);
@@ -318,6 +320,7 @@ describe("SIDE-21 choosing the agent program", () => {
 				launch: launch({ executablePath: "/opt/codex/cli.js" }),
 				managedPath: null,
 				pathCopy: null,
+				usePathCopy: false,
 				isExecutable: executableIn("/opt/codex/cli.js"),
 			}),
 		);
@@ -332,6 +335,7 @@ describe("SIDE-21 choosing the agent program", () => {
 			launch: launch({ executablePath: "/opt/missing-claude" }),
 			managedPath: "/app/claude",
 			pathCopy: "/usr/local/bin/claude",
+			usePathCopy: false,
 			isExecutable: async (candidate) => {
 				checked.push(candidate);
 				return candidate !== "/opt/missing-claude";
@@ -353,6 +357,7 @@ describe("SIDE-21 choosing the agent program", () => {
 				launch: launch(),
 				managedPath: "/app/claude",
 				pathCopy: "/usr/local/bin/claude",
+				usePathCopy: false,
 				isExecutable: executableIn("/app/claude", "/usr/local/bin/claude"),
 			}),
 		);
@@ -360,18 +365,37 @@ describe("SIDE-21 choosing the agent program", () => {
 		expect(program).toEqual({ path: "/app/claude", viaRuntime: false });
 	});
 
-	test("SIDE-21 a managed copy that cannot run falls back to the login-shell PATH copy", async () => {
+	test("SIDE-21 a managed copy that cannot run is an error naming the program, never the PATH copy", async () => {
+		const result = await resolveAgentProgram({
+			agent: "claude",
+			launch: launch(),
+			managedPath: "/app/broken-claude",
+			pathCopy: "/usr/local/bin/claude",
+			usePathCopy: false,
+			isExecutable: executableIn("/usr/local/bin/claude"),
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe("agent_not_installed");
+			expect(result.error.message).toContain("Claude Code");
+			expect(result.error.message).toContain("Retry");
+		}
+	});
+
+	test("SIDE-21 an agent the app does not manage still uses the login-shell PATH copy", async () => {
 		const program = must(
 			await resolveAgentProgram({
-				agent: "claude",
+				agent: "acp",
 				launch: launch(),
-				managedPath: "/app/broken-claude",
-				pathCopy: "/usr/local/bin/claude",
-				isExecutable: executableIn("/usr/local/bin/claude"),
+				managedPath: null,
+				pathCopy: "/usr/local/bin/opencode",
+				usePathCopy: true,
+				isExecutable: executableIn("/usr/local/bin/opencode"),
 			}),
 		);
 
-		expect(program).toEqual({ path: "/usr/local/bin/claude", viaRuntime: false });
+		expect(program).toEqual({ path: "/usr/local/bin/opencode", viaRuntime: false });
 	});
 
 	test("SIDE-21 no program anywhere is agent_not_installed", async () => {
@@ -380,11 +404,36 @@ describe("SIDE-21 choosing the agent program", () => {
 			launch: launch(),
 			managedPath: null,
 			pathCopy: null,
+			usePathCopy: true,
 			isExecutable: async () => true,
 		});
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.code).toBe("agent_not_installed");
+	});
+
+	test("SIDE-21 a managed agent with no custom path never looks on PATH", async () => {
+		const searched: string[] = [];
+		const result = await findAgentProgram({
+			agent: "claude",
+			name: "claude",
+			executablePath: undefined,
+			env: { PATH: "/usr/bin" },
+			findExecutable: async (name) => {
+				searched.push(name);
+				return "/usr/bin/claude";
+			},
+			findManagedProgram: async () => null,
+			usePathCopy: false,
+		});
+
+		expect(searched).toEqual([]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe("agent_not_installed");
+			expect(result.error.message).toContain("Claude Code");
+			expect(result.error.message).toContain("Retry");
+		}
 	});
 });
 

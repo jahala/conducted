@@ -398,6 +398,18 @@ Context: D014 stored scrollback as plain owner-only files because it was simpler
 Chosen: each saved scrollback entry is AES-256-GCM encrypted under that key, created in the Keychain on first use and reused after that. The entry file holds our format magic, the random nonce and the ciphertext with its tag; the terminal id is also the additional authenticated data, and the entry is never read as plain text. A plain entry left by an earlier version is encrypted in place on the first start that opens the history folder. If encryption fails, the file is left and the failure is logged, so nothing is silently dropped and a later start retries. The migration also needs the terminal row id that names the entry, so `PtySpawn` carries `terminalId` into `pty_spawn`.
 Why: D020. The user's terminal output can hold secrets, and the Keychain is where the rest of the app's secrets already live. The file format is ours; only the scheme follows the research, as the issue asks.
 
+## D088. The app runs only its own copy of Claude Code, Codex, gh and watchexec (2026-11-07)
+
+Replaces the fallback part of D021 and D024.
+Context: D021 and D024 allowed a copy on the user's PATH "when a download is not possible". That is a silent fallback: a failed download hid behind an older PATH copy, and the user could not tell which binary ran (issue #349). Conductor runs its own copy of each, and uses another path only where the user sets one in settings.
+Chosen:
+
+- The app runs the program manager's copy (PLAT-28) of Claude Code, Codex, gh and watchexec. The only other program it runs is the one the user chose for Claude Code or Codex in Settings (SET-13). It never chooses one of these programs from the user's PATH.
+- A missing copy, or a download that failed, is an error that names the program and says to Retry its download in Settings > Advanced. The agent programs and the helper programs each show their state and Retry there. No feature falls back to a PATH copy by itself.
+- The sidecar's agent detection reports a managed agent with no managed copy as not installed, never as a program found on PATH, because a chat would not run it.
+- ACP agents (OpenCode and Pi) are not downloaded by the app, so they keep their login-shell PATH lookup. The app's bin folder also stays first on PATH for terminals, scripts and the agents' own commands, where it is the record of the managed copies.
+  Why: a program that runs is one the user can see and act on. A silent switch to a PATH copy hides a broken download and makes the failure impossible to explain. OpenCode and Pi have no managed download yet, and removing their PATH lookup would take those agents away.
+
 ## D089. Claude's model list comes from a throwaway Claude process (2026-11-07)
 
 Proposed by the sidecar-diff fix PR; not yet ruled on by the owner.

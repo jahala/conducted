@@ -14,7 +14,9 @@
  * version's checksum matched, so the link is the one record of which copy is ready. The sidecar
  * reads the link instead of repeating the manager's checks.
  * Our design choice: the bin folder comes first on the agents' PATH, so `gh` in an agent's
- * terminal is the managed copy, as D024 asks.
+ * terminal is the managed copy, as D024 asks. That PATH order is for the agent's own commands: the
+ * app chooses an agent's program by the managed copy alone, never by a PATH search, and a missing
+ * copy is an error that names the program (D088).
  * Test first: a `claude` link in the bin folder that points into the agent binaries folder is
  * found with the version of its folder.
  */
@@ -32,6 +34,14 @@ export interface ManagedProgram {
 
 /** Finds the managed copy of the program named `name`. Null when there is none ready. */
 export type FindManagedProgram = (name: string) => Promise<ManagedProgram | null>;
+
+/**
+ * True for an agent whose program the app manages (PLAT-28, AGENT-09). The app runs only the
+ * program manager's copy of one, or the program the user chose in Settings; it never uses a copy
+ * on the login-shell PATH (D088). ACP agents are not managed, so they keep their PATH lookup.
+ */
+export const isManagedAgentProgram = (agent: string): boolean =>
+	agent === "claude" || agent === "codex" || agent === "cursor";
 
 export interface ManagedProgramFiles {
 	/** The real path of `target`, every link resolved. Null when it does not exist. */

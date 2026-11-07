@@ -11,7 +11,9 @@
  * inside the worktree lock, and it cannot be taken any other way; a lock waited on longer than
  * 10 s is logged through the injected `sleep`, never aborted (the timer starts only when the lock
  * is already held, so a free lock leaves no timer behind); a login-shell PATH that cannot be read
- * is logged and tried again on the next command.
+ * is logged and tried again on the next command; a `gh` command runs only when the program
+ * manager's copy is ready, and otherwise fails with its named error, so no `gh` on PATH answers
+ * instead (D088); the HTTPS retry is skipped when there is no ready `gh`.
  * Our design choice: every command is `{ program, args }`, never a shell string, so there is no
  * quoting layer. `-c core.quotePath=false` is added for the program `git` only.
  * Xcode licence: this file detects the error and describes the toast (`xcodeLicenseToast`).
@@ -73,7 +75,9 @@ export const xcodeLicenseToast = (): XcodeLicenseToast => ({
 
 /**
  * Environment for the one HTTPS retry: SSH remote URLs for github.com are rewritten to HTTPS and
- * credentials come from `gh auth git-credential`. Nothing is written to disk or config files.
+ * credentials come from `gh auth git-credential`. The app's bin folder is first on PATH, so it is
+ * the program manager's copy; the retry runs only when that copy is ready (D088). Nothing is
+ * written to disk or config files.
  */
 export const httpsFallbackEnv = (): Readonly<Record<string, string>> => ({
 	GIT_TERMINAL_PROMPT: "0",
@@ -124,11 +128,16 @@ export interface ShellGitRunnerDeps {
 	shell: Shell;
 	locks: KeyedMutex;
 	/**
-	 * The app's bin folder (`programsBinDir`), put before the login-shell PATH, so `gh` is the
-	 * managed copy when the program manager installed one (PLAT-35, D024), else the user's own. An
-	 * empty string puts no folder first.
+	 * The app's bin folder (`programsBinDir`), put before the login-shell PATH, so `gh` resolves to
+	 * the program manager's link (PLAT-35, D024). An empty string puts no folder first.
 	 */
 	programsBin: string;
+	/**
+	 * Checks that the program manager has a ready `gh` before a gh command runs (D088). When it is
+	 * missing or failed, the command fails with the program's named error and nothing runs, so a
+	 * `gh` on the rest of PATH never answers instead.
+	 */
+	programPath?: (name: "gh") => Promise<Result<string>>;
 	/** Waits `ms`. A parameter so tests do not sleep. */
 	sleep: (ms: number) => Promise<void>;
 	log: (level: "warn" | "info", message: string) => void;
@@ -158,6 +167,13 @@ export class ShellGitRunner implements GitRunner {
 	async run(command: GitCommand, options: GitRunOptions): Promise<Result<ShellOutput>> {
 		const first = await this.#runWithLockRetry(command, options);
 		if (!this.#shouldTryHttps(command, first)) return first;
+		const gh = await this.#requireProgram("gh");
+		if (!gh.ok) {
+			// The retry would need gh to answer with the user's credentials. Without the app's own
+			// copy it is skipped rather than run a gh on PATH (D088).
+			this.#deps.log("warn", "HTTPS retry skipped: the app's gh is not installed");
+			return first;
+		}
 		const retry = await this.#runWithLockRetry(command, {
 			...options,
 			env: { ...(options.env ?? {}), ...httpsFallbackEnv() },
@@ -183,9 +199,15 @@ export class ShellGitRunner implements GitRunner {
 	}
 
 	async start(command: GitCommand, options: GitRunOptions): Promise<RunningGitCommand> {
-		const running: RunningCommand = this.#deps.shell.start(
-			await this.#toShellCommand(command, options),
-		);
+		const resolved = await this.#toShellCommand(command, options);
+		if (!resolved.ok) {
+			return {
+				id: `${command.program}-not-started`,
+				done: Promise.resolve(err(resolved.error)),
+				cancel: async () => undefined,
+			};
+		}
+		const running: RunningCommand = this.#deps.shell.start(resolved.value);
 		return {
 			id: running.id,
 			done: running.done.then(
@@ -224,13 +246,14 @@ export class ShellGitRunner implements GitRunner {
 		options: GitRunOptions,
 	): Promise<Result<ShellOutput>> {
 		const shellCommand = await this.#toShellCommand(command, options);
+		if (!shellCommand.ok) return shellCommand;
 		const retryOnLock = command.retryOnLock ?? command.program === "git";
 		const delays = retryOnLock ? GIT_LOCK_RETRY_DELAYS_MS : [];
-		let result = await this.#runShell(shellCommand);
+		let result = await this.#runShell(shellCommand.value);
 		for (const delay of delays) {
 			if (!result.ok || !isGitLockError(result.value.stderr)) break;
 			await this.#deps.sleep(delay);
-			result = await this.#runShell(shellCommand);
+			result = await this.#runShell(shellCommand.value);
 		}
 		return result;
 	}
@@ -240,24 +263,46 @@ export class ShellGitRunner implements GitRunner {
 		return result.ok ? result : err(gitShellError(result.error));
 	}
 
-	async #toShellCommand(command: GitCommand, options: GitRunOptions): Promise<ShellCommand> {
+	async #toShellCommand(
+		command: GitCommand,
+		options: GitRunOptions,
+	): Promise<Result<ShellCommand>> {
+		if (command.program === "gh") {
+			const ready = await this.#requireProgram("gh");
+			if (!ready.ok) return ready;
+		}
 		const args =
 			command.program === "git" ? [...QUOTE_PATH_OFF_ARGS, ...command.args] : [...command.args];
 		const env = await this.#shellEnv(options.env);
-		return {
+		return ok({
 			program: command.program,
 			args,
 			cwd: options.cwd,
 			...(env === undefined ? {} : { env }),
 			...(command.stdin === undefined ? {} : { stdin: command.stdin }),
 			...(command.timeoutMs === undefined ? {} : { timeoutMs: command.timeoutMs }),
-		};
+		});
+	}
+
+	/** The program manager's ready copy of `program`, or the error that says why there is none. */
+	async #requireProgram(program: "gh"): Promise<Result<string>> {
+		if (this.#deps.programPath === undefined) {
+			return err(
+				appError(
+					"program_not_installed",
+					"GitHub CLI (gh) is not installed. Retry its download in Settings > Advanced.",
+				),
+			);
+		}
+		return this.#deps.programPath(program);
 	}
 
 	/**
 	 * Puts the app's bin folder, then the captured login-shell PATH, in front of every command
-	 * (services-map 5A.8.3; PLAT-35). Without a login-shell PATH the command keeps the shell's own
-	 * PATH, because the bin folder alone would hide git.
+	 * (services-map 5A.8.3; PLAT-35). A gh command only gets here after `#requireProgram` proved the
+	 * manager's copy is ready, and the bin folder is first, so `gh` is that copy (D088). Without a
+	 * login-shell PATH the command keeps the shell's own PATH, because the bin folder alone would
+	 * hide git.
 	 */
 	async #shellEnv(
 		extra: Readonly<Record<string, string>> | undefined,

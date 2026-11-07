@@ -16,6 +16,7 @@ import {
 	QUOTE_PATH_OFF_ARGS,
 	SHELL_TIMEOUT_CODE,
 	ShellGitRunner,
+	type ShellGitRunnerDeps,
 	SSH_BLOCKED_HTTPS_FAILED_MESSAGE,
 	XCODE_LICENSE_FIX_ACTION,
 	XCODE_LICENSE_TOAST_MESSAGE,
@@ -75,7 +76,10 @@ const makeShell = (
 	};
 };
 
-const makeRunner = (shell: Shell) => {
+const makeRunner = (
+	shell: Shell,
+	programPath: ShellGitRunnerDeps["programPath"] = async () => ok("/app/bin/gh"),
+) => {
 	const logs: { level: "warn" | "info"; message: string }[] = [];
 	const sleeps: number[] = [];
 	const warmWaits: (() => void)[] = [];
@@ -84,6 +88,7 @@ const makeRunner = (shell: Shell) => {
 		shell,
 		locks,
 		programsBin: "/data/bin",
+		programPath,
 		sleep: (ms) => {
 			if (ms === LOCK_WARM_TIMEOUT_MS) {
 				return new Promise<void>((resolve) => {
@@ -134,6 +139,7 @@ describe("GIT-01 httpsFallbackEnv", () => {
 			expect(env[`GIT_CONFIG_KEY_${i}`]).toBeDefined();
 			expect(env[`GIT_CONFIG_VALUE_${i}`]).toBeDefined();
 		}
+		expect(env.GIT_CONFIG_VALUE_2).toBe("!gh auth git-credential");
 	});
 });
 
@@ -231,7 +237,7 @@ describe("GIT-01 ShellGitRunner", () => {
 		});
 	});
 
-	it("PLAT-35 runs gh from the app's bin folder first, so the managed copy wins over the login-shell copy", async () => {
+	it("PLAT-35 runs gh from the app's bin folder first, after the manager's copy is ready", async () => {
 		const shell = makeShell(async () => ok(out(0)));
 		const { runner } = makeRunner(shell.shell);
 
@@ -239,6 +245,28 @@ describe("GIT-01 ShellGitRunner", () => {
 
 		expect(shell.calls[0]?.program).toBe("gh");
 		expect(shell.calls[0]?.env?.PATH).toBe("/data/bin:/Users/me/.local/bin:/usr/bin:/bin");
+	});
+
+	it("D088 a gh the app does not have is an error that names it, and no command runs", async () => {
+		const shell = makeShell(async () => ok(out(0)));
+		const { runner } = makeRunner(shell.shell, async () =>
+			err(
+				appError(
+					"program_not_installed",
+					"GitHub CLI (gh) is not installed. Retry its download in Settings > Advanced.",
+				),
+			),
+		);
+
+		const result = await runner.run({ program: "gh", args: ["pr", "list"] }, { cwd: "/w" });
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe("program_not_installed");
+			expect(result.error.message).toContain("GitHub CLI (gh)");
+			expect(result.error.message).toContain("Retry");
+		}
+		expect(shell.calls).toEqual([]);
 	});
 
 	it("retries an index.lock failure after 50, 100 and 200 ms", async () => {

@@ -142,6 +142,40 @@ describe("SET-02 AdvancedPage", () => {
 		expect(install).toHaveBeenCalledWith("cursor");
 	});
 
+	it("D088 shows a failed helper program with Retry, so the app never falls back to PATH", async () => {
+		const mounted = await mountPage();
+		const install = vi.spyOn(mounted.container.platform.programs, "install");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				helpers: {
+					state: "ready",
+					data: [
+						{
+							status: {
+								program: "gh",
+								state: "failed",
+								version: null,
+								bytesDownloaded: 0,
+								bytesTotal: null,
+								attempt: 5,
+								nextAttemptAt: null,
+								error: "The download was cut off.",
+								path: null,
+							},
+							userPath: null,
+						},
+					],
+				},
+			});
+		});
+
+		expect(await screen.findByText("GitHub CLI (gh)")).toBeTruthy();
+		expect(screen.getByText("The download failed: The download was cut off.")).toBeTruthy();
+		fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+		expect(install).toHaveBeenCalledWith("gh");
+	});
+
 	it("asks before changing the root folder and saves the new path", async () => {
 		const mounted = await mountPage();
 		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/tmp/new-root"));

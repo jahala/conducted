@@ -73,6 +73,22 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		channel: "dev",
 		enforceFileScope: options.enforceFileScope,
 	});
+	// A normal app has its helper programs downloaded (PLAT-35). A test that checks what happens
+	// without one removes it first.
+	for (const program of ["gh", "watchexec"] as const) {
+		memory.controls.files.set(`${memory.platform.fs.paths.appData}/bin/${program}`, "");
+		memory.controls.setProgramStatus({
+			program,
+			state: "ready",
+			version: "test",
+			bytesDownloaded: 0,
+			bytesTotal: null,
+			attempt: 0,
+			nextAttemptAt: null,
+			error: null,
+			path: `${memory.platform.fs.paths.appData}/bin/${program}`,
+		});
+	}
 	const reported: { title: string; message: string }[] = [];
 	const container = createContainer({
 		platform: memory.platform,

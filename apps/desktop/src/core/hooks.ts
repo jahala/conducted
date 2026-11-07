@@ -32,7 +32,7 @@
  *                 useProviderKeys, useAgentProviders, useAcpConfigOptions, useAgentConfigFile,
  *                 useConfigSyncPreview
  *   commands.ts   useShortcutOverrides, useCommands, useLiveShortcut
- *   system.ts     useUpdateStatus, useDiagnostics, useAgentPrograms, useSystemInfo,
+ *   system.ts     useUpdateStatus, useDiagnostics, useAgentPrograms, useHelperPrograms, useSystemInfo,
  *                 useFullDiskAccess
  * Test first: useActions returns the action table of the container it is given. The test for a
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
