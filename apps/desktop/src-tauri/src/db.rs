@@ -109,6 +109,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0010_scan_indexes.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "drop_unused_columns",
+            sql: include_str!("../migrations/0011_drop_unused_columns.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

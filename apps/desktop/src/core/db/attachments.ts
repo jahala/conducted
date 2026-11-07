@@ -80,17 +80,13 @@ export const ATTACHMENTS_SQL = {
 	listBySession: `SELECT ${COLUMNS} FROM attachments WHERE session_id = $1 ORDER BY created_at, id`,
 	listDraftsBySession: `SELECT ${COLUMNS} FROM attachments WHERE session_id = $1 AND is_draft = 1
 		ORDER BY created_at, id`,
-	listByMessage: `SELECT ${COLUMNS} FROM attachments WHERE message_id = $1 ORDER BY created_at, id`,
 	insert: `INSERT INTO attachments (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-	/** The attachments that carried a review comment, so the app knows which messages sent it. */
-	listByComment: `SELECT ${COLUMNS} FROM attachments WHERE comment_id = $1 ORDER BY created_at, id`,
 	setPath: "UPDATE attachments SET path = $1 WHERE id = $2",
 	/** `$3` is a JSON list of attachment ids. Only drafts of the given chat are touched. */
 	attachDrafts: `UPDATE attachments SET message_id = $1, is_draft = 0
 		WHERE session_id = $2 AND is_draft = 1 AND id IN (SELECT value FROM json_each($3))`,
 	restoreToDraft: "UPDATE attachments SET message_id = NULL, is_draft = 1 WHERE message_id = $1",
 	/** Returns the path so the caller can trash the file. */
-	deleteReturningPath: "DELETE FROM attachments WHERE id = $1 RETURNING path",
 	deleteDraftReturningPath:
 		"DELETE FROM attachments WHERE id = $1 AND session_id = $2 AND is_draft = 1 RETURNING path",
 } as const;
@@ -108,10 +104,6 @@ export interface AttachmentRepository {
 	listBySession(sessionId: SessionId): Promise<Result<Attachment[]>>;
 	/** ATTACHMENTS_SQL.listDraftsBySession. */
 	listDraftsBySession(sessionId: SessionId): Promise<Result<Attachment[]>>;
-	/** ATTACHMENTS_SQL.listByMessage. */
-	listByMessage(messageId: string): Promise<Result<Attachment[]>>;
-	/** ATTACHMENTS_SQL.listByComment. */
-	listByComment(commentId: CommentId): Promise<Result<Attachment[]>>;
 	/** ATTACHMENTS_SQL.insert with is_draft=true. */
 	addDraft(input: NewAttachment): Promise<Result<Attachment>>;
 	/**
@@ -130,8 +122,6 @@ export interface AttachmentRepository {
 	): Promise<Result<number>>;
 	/** ATTACHMENTS_SQL.restoreToDraft, when a queued message goes back to the composer. */
 	restoreToDraft(messageId: string): Promise<Result<number>>;
-	/** ATTACHMENTS_SQL.deleteReturningPath, run with `select`. `ok(null)` when it was gone. */
-	remove(id: AttachmentId): Promise<Result<string | null>>;
 	/** ATTACHMENTS_SQL.deleteDraftReturningPath. Refuses attachments already sent. */
 	removeDraft(sessionId: SessionId, id: AttachmentId): Promise<Result<string | null>>;
 }
@@ -198,10 +188,6 @@ export function createAttachmentRepository(
 			list(ATTACHMENTS_SQL.listBySession, [sessionId], "Listing attachments"),
 		listDraftsBySession: (sessionId) =>
 			list(ATTACHMENTS_SQL.listDraftsBySession, [sessionId], "Listing draft attachments"),
-		listByMessage: (messageId) =>
-			list(ATTACHMENTS_SQL.listByMessage, [messageId], "Listing a message's attachments"),
-		listByComment: (commentId) =>
-			list(ATTACHMENTS_SQL.listByComment, [commentId], "Listing a comment's attachments"),
 		addDraft: (input) =>
 			insert(input, { isDraft: true, messageId: null }, "Adding a draft attachment"),
 		addSent: (input) =>
@@ -227,15 +213,6 @@ export function createAttachmentRepository(
 				"Restoring attachments to a draft",
 			);
 			return written.ok ? ok(written.value) : err(written.error);
-		},
-		remove: async (id) => {
-			const rows = await selectRows<{ path: string }>(
-				db,
-				ATTACHMENTS_SQL.deleteReturningPath,
-				[id],
-				"Removing an attachment",
-			);
-			return rows.ok ? ok(rows.value[0]?.path ?? null) : err(rows.error);
 		},
 		removeDraft: async (sessionId, id) => {
 			const rows = await selectRows<{ path: string }>(

@@ -25,7 +25,6 @@ function workspace(directoryName: string, state: WorkspaceState = "ready"): Work
 		kanbanStatus: "in_progress",
 		port: 55000,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,

@@ -309,7 +309,6 @@ describe("CHAT-05 cancel a turn", () => {
 		expect(result).toEqual(ok(undefined));
 		const drafts = must(await repositories.attachments.listDraftsBySession(session.id));
 		expect(drafts.map((row) => row.id)).toEqual([attachment.id]);
-		expect(must(await repositories.attachments.listByMessage(String(sent.messageId)))).toEqual([]);
 	});
 
 	it("restores only the messages the sidecar dropped, not the turn that was already running", async () => {

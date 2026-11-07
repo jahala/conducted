@@ -935,8 +935,6 @@ export class TerminalsService {
 			title: nextTerminalTitle(existing),
 			cwd: workspace.value.path,
 			startCommand: options?.command ?? null,
-			cols: DEFAULT_COLS,
-			rows: DEFAULT_ROWS,
 		});
 		if (!started.ok) return started;
 
@@ -1036,8 +1034,6 @@ export class TerminalsService {
 			title: input.title,
 			cwd: input.cwd,
 			startCommand: null,
-			cols: DEFAULT_COLS,
-			rows: DEFAULT_ROWS,
 		});
 		if (!started.ok) return started;
 
@@ -1283,8 +1279,6 @@ export class TerminalsService {
 			title: nextTerminalTitle(existing),
 			cwd: repo.value.rootPath,
 			startCommand: null,
-			cols: DEFAULT_COLS,
-			rows: DEFAULT_ROWS,
 		});
 		if (!started.ok) return started;
 

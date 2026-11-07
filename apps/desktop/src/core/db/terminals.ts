@@ -36,8 +36,6 @@ export interface TerminalRow {
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
 	cwd: string;
-	cols: number;
-	rows: number;
 	start_command: string | null;
 	screen_state: string | null;
 	started_at: number;
@@ -58,8 +56,8 @@ export const terminalFromRow = (row: TerminalRow): Terminal => ({
 	exitCode: row.exit_code,
 });
 
-/** The model has no size or screen state; they are columns written at insert. */
-export type TerminalInsert = Terminal & { cols: number; rows: number; screenState: string | null };
+/** The model has no screen state; it is a column written at insert. */
+export type TerminalInsert = Terminal & { screenState: string | null };
 
 /** Parameters for TERMINALS_SQL.insert, in column order. */
 export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] => [
@@ -69,8 +67,6 @@ export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] =
 	terminal.kind,
 	terminal.title,
 	terminal.cwd,
-	terminal.cols,
-	terminal.rows,
 	terminal.startCommand,
 	terminal.screenState,
 	terminal.startedAt,
@@ -78,7 +74,7 @@ export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] =
 	terminal.exitCode,
 ];
 
-const COLUMNS = `id, workspace_id, repo_id, kind, title, cwd, cols, rows, start_command,
+const COLUMNS = `id, workspace_id, repo_id, kind, title, cwd, start_command,
 	screen_state, started_at, ended_at, exit_code`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
@@ -86,14 +82,11 @@ export const TERMINALS_SQL = {
 	listByWorkspace: `SELECT ${COLUMNS} FROM terminals WHERE workspace_id = $1
 		ORDER BY started_at, id`,
 	listByRepo: `SELECT ${COLUMNS} FROM terminals WHERE repo_id = $1 ORDER BY started_at, id`,
-	listActive: `SELECT ${COLUMNS} FROM terminals WHERE ended_at IS NULL ORDER BY started_at, id`,
 	get: `SELECT ${COLUMNS} FROM terminals WHERE id = $1`,
 	insert: `INSERT INTO terminals (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		$11, $12, $13)`,
+		$11)`,
 	getScreenState: "SELECT screen_state FROM terminals WHERE id = $1",
 	setScreenState: "UPDATE terminals SET screen_state = $1 WHERE id = $2",
-	setTitle: "UPDATE terminals SET title = $1 WHERE id = $2",
-	setSize: "UPDATE terminals SET cols = $1, rows = $2 WHERE id = $3",
 	markEnded:
 		"UPDATE terminals SET ended_at = $1, exit_code = $2 WHERE id = $3 AND ended_at IS NULL",
 	delete: "DELETE FROM terminals WHERE id = $1",
@@ -103,26 +96,17 @@ export const TERMINALS_SQL = {
 export type NewTerminal = Pick<
 	Terminal,
 	"workspaceId" | "repoId" | "kind" | "title" | "cwd" | "startCommand"
-> & {
-	cols: number;
-	rows: number;
-};
+>;
 
 export interface TerminalRepository {
 	/** TERMINALS_SQL.listByWorkspace, oldest first. */
 	listByWorkspace(workspaceId: WorkspaceId): Promise<Result<Terminal[]>>;
 	/** TERMINALS_SQL.listByRepo: the repository terminal and its earlier runs. */
 	listByRepo(repoId: RepoId): Promise<Result<Terminal[]>>;
-	/** TERMINALS_SQL.listActive: terminals with no end time. */
-	listActive(): Promise<Result<Terminal[]>>;
 	/** TERMINALS_SQL.get. A missing terminal is `ok(null)`. */
 	get(id: TerminalId): Promise<Result<Terminal | null>>;
 	/** TERMINALS_SQL.insert, with started_at from the clock and no end. */
 	start(input: NewTerminal): Promise<Result<Terminal>>;
-	/** TERMINALS_SQL.setTitle. */
-	setTitle(id: TerminalId, title: string): Promise<Result<void>>;
-	/** TERMINALS_SQL.setSize. */
-	setSize(id: TerminalId, cols: number, rows: number): Promise<Result<void>>;
 	/** TERMINALS_SQL.getScreenState: the saved JSON snapshot. `ok(null)` when none is saved. */
 	getScreenState(id: TerminalId): Promise<Result<string | null>>;
 	/** TERMINALS_SQL.setScreenState, written when a terminal ends or the app quits. */
@@ -150,7 +134,6 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 			list(TERMINALS_SQL.listByWorkspace, [workspaceId], "Listing terminals"),
 		listByRepo: (repoId) =>
 			list(TERMINALS_SQL.listByRepo, [repoId], "Listing repository terminals"),
-		listActive: () => list(TERMINALS_SQL.listActive, [], "Listing open terminals"),
 		get: async (id) => {
 			const rows = await selectRows<TerminalRow>(db, TERMINALS_SQL.get, [id], "Reading a terminal");
 			if (!rows.ok) return err(rows.error);
@@ -171,8 +154,6 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 					startedAt: at,
 					endedAt: null,
 					exitCode: null,
-					cols: input.cols,
-					rows: input.rows,
 					screenState: null,
 				};
 				const written = await executeStatement(
@@ -195,10 +176,6 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 					exitCode: terminal.exitCode,
 				});
 			}),
-		setTitle: (id, title) =>
-			executeExisting(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
-		setSize: (id, cols, rows) =>
-			executeVoid(db, TERMINALS_SQL.setSize, [cols, rows, id], "Resizing a terminal"),
 		getScreenState: async (id) => {
 			const rows = await selectRows<Pick<TerminalRow, "screen_state">>(
 				db,

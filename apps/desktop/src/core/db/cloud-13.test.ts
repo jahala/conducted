@@ -124,8 +124,6 @@ async function seed(host: Host, name: string, port: number): Promise<WorkspaceId
 			title: name,
 			cwd: `/code/workspaces/${name}`,
 			startCommand: null,
-			cols: 80,
-			rows: 24,
 		}),
 	);
 	return workspace.id;
