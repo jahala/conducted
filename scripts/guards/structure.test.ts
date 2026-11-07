@@ -379,6 +379,44 @@ describe("test-only-exports", () => {
 	);
 
 	test(
+		"flags a repository method with no production caller, and honours a marker for a known pending screen",
+		async () => {
+			putBacklog();
+			put("apps/desktop/tsconfig.json", TSCONFIG);
+			put("packages/sidecar/tsconfig.json", TSCONFIG);
+			put(
+				"apps/desktop/src/core/db/thing.ts",
+				[
+					"/** @feature CHAT-01 A */",
+					"export interface ThingRepository {",
+					"\t// unwired: CHAT-02 waits for its screen",
+					"\twaiting(): number;",
+					"\tdead(): number;",
+					"\tlive(): number;",
+					"}",
+					"export function makeThing(): ThingRepository {",
+					"\treturn { waiting: () => 1, dead: () => 2, live: () => 3 };",
+					"}",
+					"",
+				].join("\n"),
+			);
+			put(
+				"apps/desktop/src/core/db/thing.test.ts",
+				'import { makeThing } from "./thing.ts";\nvoid [makeThing().waiting(), makeThing().dead()];\n',
+			);
+			put(
+				"apps/desktop/src/use-thing.ts",
+				'/** Uses a thing. */\nimport { makeThing } from "./core/db/thing.ts";\nexport function useThing() { return makeThing().live(); }\n',
+			);
+			const found = await scanTestOnlyExports(root);
+			expect(found.map((v) => `${v.file} ${v.name}`).sort()).toEqual([
+				"apps/desktop/src/core/db/thing.ts dead",
+			]);
+		},
+		COMPILER_TIMEOUT_MS,
+	);
+
+	test(
 		"fails without a baseline, passes with an exact one and fails when it is stale",
 		async () => {
 			plant();

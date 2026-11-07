@@ -45,7 +45,6 @@ const workspace: Workspace = {
 	kanbanStatus: "in_progress",
 	port: 55_000,
 	pinnedAt: null,
-	notes: null,
 	linkedPaths: [],
 	prNumber: null,
 	prTitle: null,

@@ -24,6 +24,7 @@ const DELETE_WORKSPACES_SQL = `DELETE FROM workspaces
 	WHERE host_kind = 'cloud' AND host_url = $1 AND host_vm_id = $2`;
 
 export interface HostCopyRepository {
+	// unwired: CLOUD-13 the cloud host removal flow has no caller yet.
 	/** Deletes every workspace of `host` in one transaction; the local host is refused. */
 	remove(host: Host): Promise<Result<void>>;
 }

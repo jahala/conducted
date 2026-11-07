@@ -54,9 +54,6 @@ export const repoSettingKey = (repoId: string, key: string): string => `repo:${r
 export const SETTINGS_SQL = {
 	get: "SELECT key, value, updated_at FROM settings WHERE key = $1",
 	list: "SELECT key, value, updated_at FROM settings ORDER BY key",
-	/** `$1` is a prefix such as "repo:<id>:". Compared by length, so no LIKE escaping is needed. */
-	listByPrefix: `SELECT key, value, updated_at FROM settings
-		WHERE substr(key, 1, length($1)) = $1 ORDER BY key`,
 	upsert: `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
 		ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 	delete: "DELETE FROM settings WHERE key = $1",
@@ -64,18 +61,12 @@ export const SETTINGS_SQL = {
 } as const;
 
 export interface SettingsRepository {
-	/** SETTINGS_SQL.get. A missing key is `ok(null)`. */
-	get(key: string): Promise<Result<Setting | null>>;
 	/** SETTINGS_SQL.list, for the single load at startup. */
 	list(): Promise<Result<Setting[]>>;
-	/** SETTINGS_SQL.listByPrefix, for all values of one repo. */
-	listByPrefix(prefix: string): Promise<Result<Setting[]>>;
 	/** SETTINGS_SQL.upsert with updated_at from the clock. */
 	set(key: string, value: unknown): Promise<Result<Setting>>;
 	/** SETTINGS_SQL.delete. Deleting a missing key is not an error. */
 	delete(key: string): Promise<Result<void>>;
-	/** SETTINGS_SQL.deleteByPrefix. Returns the number of rows removed. */
-	deleteByPrefix(prefix: string): Promise<Result<number>>;
 }
 
 export function createSettingsRepository(db: Database, deps: RepositoryDeps): SettingsRepository {
@@ -88,15 +79,7 @@ export function createSettingsRepository(db: Database, deps: RepositoryDeps): Se
 		return rows.ok ? collectResults(rows.value.map(settingFromRow)) : err(rows.error);
 	};
 	return {
-		get: async (key) => {
-			const rows = await selectRows<SettingRow>(db, SETTINGS_SQL.get, [key], "Reading a setting");
-			if (!rows.ok) return err(rows.error);
-			const row = rows.value[0];
-			return row === undefined ? ok(null) : settingFromRow(row);
-		},
 		list: () => list(SETTINGS_SQL.list, [], "Listing settings"),
-		listByPrefix: (prefix) =>
-			list(SETTINGS_SQL.listByPrefix, [prefix], "Listing settings of one scope"),
 		set: async (key, value) => {
 			const setting: Setting = { key, value, updatedAt: deps.clock.now() };
 			const params = settingToParams(setting);
@@ -110,14 +93,5 @@ export function createSettingsRepository(db: Database, deps: RepositoryDeps): Se
 			return written.ok ? ok(setting) : err(written.error);
 		},
 		delete: (key) => executeVoid(db, SETTINGS_SQL.delete, [key], "Removing a setting"),
-		deleteByPrefix: async (prefix) => {
-			const written = await executeStatement(
-				db,
-				SETTINGS_SQL.deleteByPrefix,
-				[prefix],
-				"Removing settings of one scope",
-			);
-			return written.ok ? ok(written.value) : err(written.error);
-		},
 	};
 }

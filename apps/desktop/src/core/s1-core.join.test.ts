@@ -419,10 +419,11 @@ describe("s1-core join", () => {
 				commentId: first.id,
 			});
 
-			expect(await repositories.attachments.listByComment(first.id)).toEqual(ok([attachment]));
-			expect(await repositories.attachments.listByComment(second.id)).toEqual(
-				ok([expect.objectContaining({ sessionId: chat.id, commentId: second.id })]),
-			);
+			const listed = must(await repositories.attachments.listBySession(chat.id));
+			expect(listed.filter((row) => row.commentId === first.id)).toEqual([attachment]);
+			expect(listed.filter((row) => row.commentId === second.id)).toEqual([
+				expect.objectContaining({ sessionId: chat.id, commentId: second.id }),
+			]);
 		} finally {
 			await test.container.stop();
 			test.close();

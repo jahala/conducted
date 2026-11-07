@@ -28,6 +28,9 @@ afterEach(() => {
 	store.close();
 });
 
+const byId = async (id: SnippetId) =>
+	must(await repositories.snippets.list()).find((snippet) => snippet.id === id) ?? null;
+
 describe("DATA-08 snippets repository", () => {
 	it("creates a snippet with a new id and both times", async () => {
 		const created = must(
@@ -45,10 +48,14 @@ describe("DATA-08 snippets repository", () => {
 			createdAt: 1000,
 			updatedAt: 1000,
 		});
-		expect(must(await repositories.snippets.get(created.id))).toEqual(created);
-		expect(must(await repositories.snippets.getByKeyword("rev"))).toEqual(created);
-		expect(must(await repositories.snippets.get("missing" as SnippetId))).toBeNull();
-		expect(must(await repositories.snippets.getByKeyword("other"))).toBeNull();
+		expect(await byId(created.id)).toEqual(created);
+		expect(
+			must(await repositories.snippets.list()).find((snippet) => snippet.keyword === "rev"),
+		).toEqual(created);
+		expect(await byId("missing" as SnippetId)).toBeNull();
+		expect(
+			must(await repositories.snippets.list()).find((snippet) => snippet.keyword === "other"),
+		).toBeUndefined();
 	});
 
 	it("refuses a duplicate keyword and allows two snippets with no keyword", async () => {
@@ -96,7 +103,7 @@ describe("DATA-08 snippets repository", () => {
 				prompt: "New.",
 			}),
 		);
-		expect(must(await repositories.snippets.get(first.id))).toMatchObject({
+		expect(await byId(first.id)).toMatchObject({
 			name: "Renamed",
 			keyword: null,
 			prompt: "New.",
@@ -111,7 +118,7 @@ describe("DATA-08 snippets repository", () => {
 				prompt: "New.",
 			}),
 		).toMatchObject({ ok: false, error: { code: "db.conflict" } });
-		expect(must(await repositories.snippets.get(second.id))?.keyword).toBe("two");
+		expect((await byId(second.id))?.keyword).toBe("two");
 
 		expect(
 			await repositories.snippets.update("missing" as SnippetId, {
@@ -127,7 +134,7 @@ describe("DATA-08 snippets repository", () => {
 			await repositories.snippets.create({ name: "Review", keyword: "rev", prompt: "Review." }),
 		);
 		must(await repositories.snippets.delete(created.id));
-		expect(must(await repositories.snippets.get(created.id))).toBeNull();
+		expect(await byId(created.id)).toBeNull();
 		expect(must(await repositories.snippets.list())).toHaveLength(0);
 	});
 });
