@@ -615,3 +615,29 @@ Chosen:
 Why: the user's own account stays the only home for the Worker and its data, the app carries the code it deploys, no secret enters the web view, and the two outside tools a deploy needs are named when they are missing.
 
 Live verification: one deploy and uninstall through `deploy_worker` and `uninstall_worker` under `conducted-dev-c08-<time>`, with the Worker, container application, images and bucket checked gone afterwards. The numbers and the exact checks are in `docs/research/cloud-spike-2026-11-06.md`.
+
+## D113. Cloud settings are the Worker's, applied at each start; the organisation pages stay out (2026-11-07)
+
+Proposed by the CLOUD-17 PR; not yet ruled on by the owner.
+Context: CLOUD-17's checklist is Conductor's cloud settings pages, which are organisation pages (ui-map 6 Organization: Environment, MCP, Cloud computer), plus the personal Git identity row and the personal cloud variables. D004, D018 and D025 keep organisations out. CLOUD-05's D104 already fixed which Worker secret each model host receives. This records what was built, what belongs to another row, and what was left out.
+
+Chosen:
+
+- **The personal cloud settings live in the Worker.** One object at `settings/user.json` in the Worker's R2 bucket holds `gitIdentity` (`{name, email}`) and `personalCloudEnvVars` (name to value). The desktop reads and writes it at `GET /settings` and `POST /settings` behind the same pairing token as every other route. The reason is the app, not the screen: every sandbox start must read the same identity and variables, and the agent's own commits happen inside the sandbox. Redesigning the local DB would not reach them.
+- **Applied twice.** A start merges the settings into the container environment (`GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, then the variables). The Worker's git route reads them again per call, so an identity saved while a sandbox runs applies to the next desktop commit without a restart.
+- **Names are checked in the Worker.** A variable name that is not a shell name, starts with `CONDUCTED_`, is set by the sandbox (`PATH`, `HOME`, the git scrub, `GH_TOKEN`) or is a provider key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, the Codex and Cursor names) is refused with its reason. A provider key in the sandbox is what the plan forbids; the Worker swaps it in at the outbound handler instead.
+- **The pages are ours.** The Git identity row is on the Git page, where Conductor puts it (ui-map 6 Git), and appears only on a Mac paired with a Worker. The personal cloud variables are on a new Cloud page. Both use Conductor's wording ("Git identity", "Name and email used for commits in cloud workspaces.", "Couldn't update Git identity", "Conductor could not connect to cloud settings. Try again."). Conductor's org Environment and MCP pages are not built (D004, D018).
+- **Data privacy mode.** Conductor gates cloud work with `isCloudRestrictedByDataPrivacy = enterprise_data_privacy === "true" && flag !== "true"`, where the flag is PostHog's `cloud-in-data-privacy-mode` (services-map 4.1.2). We run no flag service (D025), so the flag is always off: while `enterprise_data_privacy` is on, a cloud workspace's run calls (`start`, `git`, `exec`, `files`, `terminal`, `preview-url`, and the relay) answer `cloud_data_privacy`, while settings reads, state, stop, remove and archive still reach the Worker. The truth table is tested in `core/cloud/privacy.ts`.
+- **The model key choice is already the per-chat provider.** CLOUD-17's "Which model key the Worker uses for cloud runs" is the `cloudClaudeCredentialSelection` family in Conductor. In our design the chat's provider is the choice: the router sends the host, and the Worker swaps that host's secret (D104). No second setting would change anything, so none is invented.
+- **The `env_vars` table keeps its two scopes.** Conductor's `env_vars` has a `context` of `local` or `cloud` (services-map 4.2.8). Our DB rows are `global` and `repo` (DATA-01) and the settings files already carry a `[environment_variables.cloud]` table (SET-04). The personal cloud variables are the Worker's object above, not a third DB scope; making the DB row context-aware would be a second home for the same setting.
+
+Left out, and where each item goes:
+
+1. **Port range and forwarding strategy.** "Couldn't update the local port range" and "Couldn't update the forwarding strategy" belong to cloud port forwarding, CLOUD-10 (#252), which builds the forwarding this page would configure.
+2. **MCP servers for the sandbox.** Installing them with none, OAuth, bearer token or custom headers, the "Import from local" list, and their override of a local server of the same name are Conductor's org MCP page (ui-map 6 Organization). The sandbox-side install is CLOUD-10; the org page stays out under D004 and D018.
+3. **The cloud GitHub token entry form.** D104 already records it as the org GitHub page, kept out; the Worker secret exists and the outbound handler swaps it.
+4. **Image extras and build status.** Conductor's org Cloud computer page; CLOUD-04 recorded the software setting as out, and the deploy's build is CLOUD-08/D109.
+
+Why: each built piece is the smallest one that makes the cloud work correct, and every unbuilt item names the row or decision that owns it rather than a look without a feature.
+
+Live verification: none needed beyond the unit and composition tests; no Worker was deployed for this change.
