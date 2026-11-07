@@ -41,6 +41,7 @@ export function createActions(
 		projects: {
 			addLocal: (path) => services.repo.addLocal(path),
 			clone: (url, parentDir) => services.repo.clone(url, parentDir),
+			defaultCloneDirectory: async () => ok(await services.repo.defaultCloneDirectory()),
 			createFromTemplate: (name, parentDir, template) =>
 				services.repo.createFromTemplate(name, parentDir, template),
 			createGitHubRepo: (repoId, input) => services.repo.createGitHubRepo(repoId, input),
