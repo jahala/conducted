@@ -16,6 +16,7 @@ import type { GitRunner } from "../git/runner.ts";
 import type { Repo } from "../model.ts";
 import {
 	defaultBranchFrom,
+	hiddenRunActionsStorageKey,
 	normaliseRemoteUrl,
 	normaliseRootPath,
 	projectNameFromPath,
@@ -469,5 +470,20 @@ describe("PRJ-01 listing and removing projects", () => {
 		expect(ctx.service.store.getState().reposById[repo.id]).toBeUndefined();
 		expect(ctx.service.store.getState().order).toEqual([]);
 		expect(ctx.platform.trash).not.toHaveBeenCalled();
+	});
+
+	it("removes the project's hidden run actions from local storage", async () => {
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app");
+		const repo = must(await ctx.service.addLocal("/code/app"));
+		const key = hiddenRunActionsStorageKey(repo.id);
+		localStorage.setItem(key, '["dev"]');
+
+		try {
+			must(await ctx.service.remove(repo.id));
+			expect(localStorage.getItem(key)).toBeNull();
+		} finally {
+			localStorage.removeItem(key);
+		}
 	});
 });

@@ -203,6 +203,20 @@ export function writeHiddenRunActions(repoId: RepoId, actionIds: readonly string
 	return ok(undefined);
 }
 
+/** Forgets the shared run actions this user hid for a repository. Its project is gone. */
+export function clearHiddenRunActions(repoId: RepoId): Result<void> {
+	const store = hiddenRunActionsStorage();
+	if (!store.ok) return store;
+	try {
+		store.value.removeItem(hiddenRunActionsStorageKey(repoId));
+	} catch (cause) {
+		return err(
+			appError("local_storage_unavailable", "Hidden actions can't be cleared on this Mac.", cause),
+		);
+	}
+	return ok(undefined);
+}
+
 /** The folder's own name, used as the project name. */
 export function projectNameFromPath(path: string): string {
 	const trimmed = normaliseRootPath(path);
@@ -913,6 +927,9 @@ export class RepoService {
 			configDropped,
 			order: state.order.filter((id) => id !== repoId),
 		});
+		// The hidden actions of a deleted project have nothing left to hide them for.
+		const hiddenCleared = clearHiddenRunActions(repoId);
+		if (!hiddenCleared.ok) return hiddenCleared;
 		// An uploaded icon belongs to its project and goes to the Trash with it.
 		const icon = fileIconPath(found.value.icon);
 		if (icon === null) return ok(undefined);
