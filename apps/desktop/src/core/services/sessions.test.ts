@@ -332,7 +332,12 @@ describe("CHAT-01 default session config", () => {
 				planMode: false,
 				requireToolApproval: true,
 				additionalDirectories: [],
-				appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
+				appTools: {
+					diffComments: true,
+					progressUpdates: true,
+					setTargetBranch: true,
+					localExecution: false,
+				},
 			},
 		});
 	});

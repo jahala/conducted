@@ -59,6 +59,25 @@ describe("CHAT-08 tool card", () => {
 		expect(screen.getByText("echo hi")).toBeTruthy();
 	});
 
+	it("renders a command on the Mac with its command and output", () => {
+		state.expand = true;
+		render(
+			<ToolCard
+				call={view(
+					"app_tool",
+					{ command: "echo hi", reason: "It is on the Mac." },
+					"mcp__conducted__RunLocalCommand",
+					"hi",
+				)}
+				sessionId={sessionId}
+			/>,
+		);
+		expect(screen.getByText("Local command")).toBeTruthy();
+		expect(screen.getAllByText("echo hi").length).toBeGreaterThan(0);
+		expect(screen.getByText("It is on the Mac.")).toBeTruthy();
+		expect(screen.getByText("hi")).toBeTruthy();
+	});
+
 	it("renders the generic card for an unknown tool", () => {
 		render(<ToolCard call={view("unknown", { foo: "bar" }, "FooTool")} sessionId={sessionId} />);
 		expect(screen.getByText("FooTool")).toBeTruthy();

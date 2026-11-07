@@ -188,6 +188,9 @@ export function toPermissionResult(
 			};
 		}
 		case "allow":
+		// The card offers this for a command on the Mac only, whose approval the app keeps; a
+		// tool approval reaching here allows the call once.
+		case "allow_for_session":
 			return { result: { behavior: "allow", updatedInput: input }, enableAutoApproveEdits: false };
 		case "allow_with_suggested_rules":
 			return {

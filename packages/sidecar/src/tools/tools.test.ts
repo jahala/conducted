@@ -47,6 +47,14 @@ interface Calls {
 	commentsWritten: DiffCommentInput[][];
 	terminal: { source: string; maxLines: number }[];
 	branches: string[];
+	localCommands: {
+		command: string;
+		description?: string;
+		reason?: string;
+		cwd?: string;
+		timeoutMs: number;
+		extendedTimeoutReason?: string;
+	}[];
 	progress: ProgressUpdate[];
 	questions: Question[][];
 }
@@ -61,6 +69,7 @@ function makeBackend(overrides: Partial<AppToolBackend> = {}): {
 		commentsWritten: [],
 		terminal: [],
 		branches: [],
+		localCommands: [],
 		progress: [],
 		questions: [],
 	};
@@ -84,6 +93,10 @@ function makeBackend(overrides: Partial<AppToolBackend> = {}): {
 		async setTargetBranch(_sessionId, branch) {
 			calls.branches.push(branch);
 			return ok({ ok: true, message: `Now merging into ${branch}.` });
+		},
+		async runLocalCommand(_sessionId, options) {
+			calls.localCommands.push(options);
+			return ok({ code: 0, stdout: "", stderr: "" });
 		},
 		updateProgress(_sessionId, update) {
 			calls.progress.push(update);
@@ -167,7 +180,12 @@ describe("SIDE-12 the app tools reach Claude as an in-process MCP server", () =>
 	test("a tool handler returns the definition's text and annotations", async () => {
 		const config = createAppToolsServer({
 			sessionId,
-			appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
+			appTools: {
+				diffComments: true,
+				progressUpdates: true,
+				setTargetBranch: true,
+				localExecution: true,
+			},
 			backend: makeBackend().backend,
 			logger: testLogger(),
 		});
@@ -228,7 +246,7 @@ describe("SIDE-12 the tool registry follows the switches", () => {
 		);
 		expect(off.map((tool) => tool.name)).not.toContain("UpdateProgress");
 		const all = enabledTools(
-			{ diffComments: true, progressUpdates: true, setTargetBranch: true },
+			{ diffComments: true, progressUpdates: true, setTargetBranch: true, localExecution: true },
 			{ includeAskUserQuestion: true },
 		);
 		expect(all.map((tool) => tool.name)).toEqual([...APP_TOOLS]);

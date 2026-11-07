@@ -16,7 +16,8 @@
  * Our design choice: settings that the research marks as hosted account, billing, organization, remote control,
  * analytics or internal are left out, as are secrets such as tokens and API keys, which belong in the Keychain.
  * The file-sync switch for new cloud workspaces is kept because CLOUD-11 builds the sync it starts.
- * The one internal switch kept is `unstarted_workspaces_enabled`, because the backlog (WS-11) is built.
+ * The internal switches kept are `unstarted_workspaces_enabled` (WS-11) and
+ * `internal_remote_local_execution_mcp` (CLOUD-14), because both are built user controls.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
 
@@ -1540,6 +1541,32 @@ const SETTINGS_TABLE = [
 		feature: "SET-03",
 		type: "string",
 		default: "",
+	},
+	// CLOUD-14. The research's key has the "internal" prefix but the row is a user control on
+	// Advanced ("Remote execution MCP"), so it is kept. On unless stored as "false".
+	{
+		key: "internal_remote_local_execution_mcp",
+		page: "advanced",
+		scopes: ["user"],
+		title: "Remote execution MCP",
+		description:
+			"Let remote agents request approved one-shot commands on this Mac. Each command still requires your approval.",
+		searchTerms: ["remote", "local", "command", "cloud", "mcp", "agent", "execution"],
+		feature: "CLOUD-14",
+		type: "bool",
+		default: true,
+	},
+	{
+		key: "always_allow_local_execution",
+		page: "advanced",
+		scopes: ["user"],
+		title: "Always allow local commands",
+		description:
+			"Run local commands from remote agents without asking. Turned on when you choose Yes always on a local command approval.",
+		searchTerms: ["remote", "local", "command", "cloud", "allow", "always", "approval"],
+		feature: "CLOUD-14",
+		type: "bool",
+		default: false,
 	},
 	// Our design choice: on, as the setting's description says that turning it off is the exception; the research gives no default.
 	{
