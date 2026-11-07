@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { createElement, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { settleEditorTeardown } from "../../../test/composer-teardown.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import {
 	createFileMention,
@@ -63,8 +64,11 @@ const mentionNodes = (editor: Editor) => {
 	return nodes;
 };
 
-afterEach(() => {
+afterEach(async () => {
 	for (const editor of editors.splice(0)) editor.destroy();
+	// A trigger popup unmounts its root in a microtask after the editor is destroyed. Let it run
+	// inside act, or it reaches React's scheduler after this file's window is gone.
+	await settleEditorTeardown(null);
 });
 
 describe("COMP-04 FileMention", () => {

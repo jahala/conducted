@@ -10,6 +10,7 @@ import { Editor } from "@tiptap/react";
 import { createElement, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Snippet } from "../../../core/model.ts";
+import { settleEditorTeardown } from "../../../test/composer-teardown.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import { createSnippetMention, snippetSuggestions } from "./SnippetMention.ts";
 
@@ -59,8 +60,11 @@ function DestroyEditorOnCommit({ editor }: { editor: Editor }) {
 	return null;
 }
 
-afterEach(() => {
+afterEach(async () => {
 	for (const editor of editors.splice(0)) editor.destroy();
+	// A trigger popup unmounts its root in a microtask after the editor is destroyed. Let it run
+	// inside act, or it reaches React's scheduler after this file's window is gone.
+	await settleEditorTeardown(null);
 });
 
 describe("COMP-09 SnippetMention", () => {

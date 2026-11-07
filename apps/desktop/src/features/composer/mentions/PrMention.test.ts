@@ -7,6 +7,7 @@ import type {
 	PrMentionItem,
 	PrMentionSearchResult,
 } from "../../../core/services/mention-search.ts";
+import { settleEditorTeardown } from "../../../test/composer-teardown.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import { createPrMention, type PrMentionDeps } from "./PrMention.ts";
 
@@ -76,8 +77,11 @@ const depsWith = (overrides: Partial<PrMentionDeps>): PrMentionDeps => ({
 	...overrides,
 });
 
-afterEach(() => {
+afterEach(async () => {
 	for (const editor of editors.splice(0)) editor.destroy();
+	// A trigger popup unmounts its root in a microtask after the editor is destroyed. Let it run
+	// inside act, or it reaches React's scheduler after this file's window is gone.
+	await settleEditorTeardown(null);
 });
 
 describe("COMP-05 PrMention", () => {
