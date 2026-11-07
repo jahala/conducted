@@ -1,8 +1,8 @@
 /**
- * @feature NAV-03 Current time for the sidebar
- * Owns: a clock value that moves forward once a minute, so the list's relative times ("5m") stay
- * true without a reload.
- * Behaviour: ui-map.md 4 (a row shows how long ago the workspace was active).
+ * @feature NAV-03 Current time for a list of workspaces
+ * Owns: a clock value that moves forward once a minute, so a list's relative times ("5m") stay
+ * true without a reload. Home's Last active column uses it; the sidebar's rows show no time (D098).
+ * Behaviour: ui-map.md 2 (Home: the "Last active" field of its rows).
  * Our design choice: the list reads the time once and hands it to every row, so 300 rows share one
  * timer. The time source is a parameter; the container exposes no clock to screens yet, so the
  * caller passes none and gets Date.now at this edge.

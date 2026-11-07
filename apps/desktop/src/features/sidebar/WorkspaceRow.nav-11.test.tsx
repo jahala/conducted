@@ -77,13 +77,7 @@ async function unreadWorkspace(container: Container) {
 	must(await container.services.sessions.markUnread(session.id));
 	renderRow(
 		container,
-		<WorkspaceRow
-			workspace={workspace}
-			repo={repo}
-			selected={false}
-			shortcutIndex={null}
-			now={workspace.lastActivityAt}
-		/>,
+		<WorkspaceRow workspace={workspace} repo={repo} selected={false} shortcutIndex={null} />,
 	);
 	const link = await screen.findByRole("link");
 	return { link, session };

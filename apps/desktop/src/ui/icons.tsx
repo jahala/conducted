@@ -60,6 +60,7 @@ export const TargetIcon = (p: P) => (
 );
 export const PauseIcon = (p: P) => <Icon d="M5.5 3.5v9M10.5 3.5v9" {...p} />;
 export const PlayIcon = (p: P) => <Icon d="M5 3.5l7 4.5-7 4.5z" {...p} />;
+export const FastForwardIcon = (p: P) => <Icon d="M2 4l6 4-6 4zM8 4l6 4-6 4z" {...p} />;
 export const SearchIcon = (p: P) => (
 	<Icon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM14 14l-3.5-3.5" {...p} />
 );

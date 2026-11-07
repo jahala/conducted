@@ -85,6 +85,25 @@ describe("SET-06 AppearancePage", () => {
 		expect(screen.getByRole("spinbutton", { name: "Terminal Font Size" })).toBeTruthy();
 	});
 
+	it("lists the rows in one list in Conductor's order, with no section headings", () => {
+		renderPage();
+
+		for (const heading of ["Theme and colours", "Display", "Fonts and code", "Live preview"]) {
+			expect(screen.queryByRole("heading", { name: heading })).toBeNull();
+		}
+		const order = [
+			screen.getByRole("combobox", { name: "Theme" }),
+			screen.getByRole("slider", { name: "App zoom" }),
+			screen.getByRole("combobox", { name: "Accessible colors" }),
+			screen.getByRole("combobox", { name: "Code theme" }),
+		];
+		for (let index = 1; index < order.length; index++) {
+			const before = order[index - 1] as HTMLElement;
+			const after = order[index] as HTMLElement;
+			expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		}
+	});
+
 	it("re-renders the code preview when the code theme changes", async () => {
 		const test = renderPage();
 		const preview = screen.getByRole("figure", { name: "Code preview" });

@@ -241,7 +241,7 @@ Smaller inconsistencies worth a decision:
 
 | Item                                                        | Research ref | Status  | Covered by                                                    | Fix |
 | ----------------------------------------------------------- | ------------ | ------- | ------------------------------------------------------------- | --- |
-| "View options" menu (sort icon "Sort workspaces")           | 4            | Covered | `ViewOptionsMenu.tsx` (NAV-03)                                | -   |
+| "View options" menu ("My workspaces actions" ellipsis)      | 4            | Covered | `ViewOptionsMenu.tsx` (NAV-03)                                | -   |
 | Group by: Status or Project                                 | 4            | Covered | `ViewOptionsMenu.tsx`, setting `sidebar_group_by` (NAV-03)    | -   |
 | Filter by project, searchable from 5 repos                  | 4            | Covered | `ViewOptionsMenu.tsx`, setting `sidebar_repo_filter` (NAV-03) | -   |
 | Sort by: Updated or Created, hidden when manual order is on | 4            | Covered | `ViewOptionsMenu.tsx`, setting `sidebar_sort_by` (NAV-03)     | -   |

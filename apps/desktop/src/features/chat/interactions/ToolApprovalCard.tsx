@@ -8,17 +8,20 @@
  * (Backspace)), claude-runner.md 3.2.
  * Structure (Conductor's approval card, renderApp @8830523): the title with the 'Subagent' badge,
  * the tool card, then one column of full-width buttons, each with its live key on the right:
- * 'Yes', the second choice, any further choice, 'No'.
+ * 'Yes', the second choice, any further choice, 'No'. It is drawn inside the composer's box in
+ * place of the text box (renderApp @9315874), so it has no frame of its own.
  * Our design choice: Our decisions are allow, allow_edits_for_session, allow_with_suggested_rules,
  * always_allow and deny (see the protocol). The buttons between Yes and No come from
- * approvalChoices in approval-tool.ts, which holds Conductor's labels and the ones we keep. The
- * card stays in the dock above the composer; Conductor draws it in place of the composer's text
- * box. Ours keeps the reason above the tool card, the suggested rules list, the blocked-path line
- * and the optional message on 'No', which Conductor's card does not show.
+ * approvalChoices in approval-tool.ts, which holds Conductor's labels and the ones we keep. Ours
+ * keeps the agent's reason above the tool card, the blocked-path line, and an optional message
+ * that goes with 'No', which Conductor's card does not have: it is one more full-width row right
+ * under 'No', drawn as Conductor's question card draws its 'Other…' row (D098). The suggested
+ * rule is named in its button, as Conductor's is; there is no separate list or icon.
  * Must handle: A blocked path outside the workspace (shown with the path); shortcuts fire only
  * while the card or one of its controls has focus and never while the user types in any field; one
  * decision per card, then the card shows what was chosen. The card does not take focus when it
- * arrives, so a person typing a message keeps their place in the composer. The keys are the live
+ * arrives; the composer's text stays in its hidden editor and returns once the card is answered.
+ * The keys are the live
  * bindings of chat.approveTool, chat.approveToolAlternate and chat.denyTool, so a rebind on the
  * Keyboard shortcuts page reaches the card.
  * Test first: Pressing Enter on a bash approval calls sessions.answer with decision 'allow';
@@ -27,17 +30,14 @@
 
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
 import type { InteractionId, SessionId } from "@conducted/shared";
-import { type KeyboardEvent, useId, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { keyPressOf, useScopedKeyMatch } from "../../../app/command-dispatcher.ts";
 import { useLiveShortcut } from "../../../core/hooks.ts";
 import type { ToolCallView } from "../../../core/model.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
-import { Input } from "../../../ui/Input.tsx";
-import { WrenchIcon } from "../../../ui/icons.tsx";
 import { Kbd } from "../../../ui/Kbd.tsx";
 import { ToolCard } from "../tools/ToolCard.tsx";
-import { withKeys } from "../tools/ToolCardFrame.tsx";
 import {
 	type ApprovalChoice,
 	approvalChoices,
@@ -66,7 +66,6 @@ const OUTCOME: Record<Decision, string> = {
 
 export function ToolApprovalCard({ sessionId, interactionId, request }: ToolApprovalCardProps) {
 	const [message, setMessage] = useState("");
-	const messageId = useId();
 	const matchKey = useScopedKeyMatch("chat-card");
 	const answerState = useInteractionAnswer<Extract<InteractionAnswer, { kind: "tool_approval" }>>({
 		sessionId,
@@ -81,7 +80,6 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 	const suggestedRules = request.suggestedRules ?? [];
 	const choices = approvalChoices(request.toolName, suggestedRules);
 	const alternateDecision: Decision = choices[0]?.decision ?? "always_allow";
-	const rules = withKeys(suggestedRules, (rule) => rule, "rule");
 	const pendingDecision = answerState.pending?.decision ?? null;
 	const chosen = answerState.chosen;
 	const toolCall: ToolCallView = {
@@ -138,10 +136,9 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 		<fieldset
 			aria-label="Tool approval"
 			onKeyDown={onKeyDown}
-			className="m-0 flex flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-muted px-4 py-3"
+			className="m-0 flex max-h-[60vh] min-w-0 flex-col gap-4 overflow-y-auto border-0 p-0"
 		>
 			<div className="flex items-center gap-2">
-				<WrenchIcon className="size-4 shrink-0 text-fg-subtle" />
 				<p className="text-sm font-medium text-fg">{approvalTitle(request.toolName)}</p>
 				{request.subAgentId === undefined ? null : <Badge>Subagent</Badge>}
 			</div>
@@ -159,31 +156,6 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 					<span className="font-mono">{request.blockedPath}</span>
 				</p>
 			)}
-
-			{rules.length === 0 ? null : (
-				<div className="flex flex-col gap-1 text-xs text-fg-muted">
-					<span className="font-medium text-fg">The agent suggests these rules:</span>
-					<ul className="list-disc pl-4">
-						{rules.map(({ key, item: rule }) => (
-							<li key={key}>{rule}</li>
-						))}
-					</ul>
-				</div>
-			)}
-
-			<div className="flex flex-col gap-1 text-xs text-fg-muted">
-				<label htmlFor={messageId} className="text-xs font-medium text-fg-muted">
-					Message to the agent (optional)
-				</label>
-				<Input
-					id={messageId}
-					aria-label="Message to the agent"
-					placeholder="Why are you denying this?"
-					value={message}
-					onChange={(event) => setMessage(event.target.value)}
-					disabled={pendingDecision !== null || chosen !== null}
-				/>
-			</div>
 
 			{answerState.failed === null ? null : (
 				<p role="alert" className="text-xs text-danger">
@@ -216,6 +188,15 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 						onClick={() => send("deny")}
 						loading={pendingDecision === "deny"}
 						disabled={disabled}
+					/>
+					<input
+						aria-label="Message to the agent"
+						placeholder="Why are you denying this?"
+						autoComplete="off"
+						value={message}
+						onChange={(event) => setMessage(event.target.value)}
+						disabled={disabled}
+						className="h-9 w-full rounded-md border border-border bg-transparent px-4 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:border-accent disabled:opacity-50"
 					/>
 				</div>
 			) : (

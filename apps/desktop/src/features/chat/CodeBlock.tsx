@@ -1,6 +1,6 @@
 /**
  * @feature CHAT-06 Code block; CHAT-23 Run button on shell code blocks
- * Owns: A highlighted code block with a copy button (and our language label). A shell block in a
+ * Owns: A highlighted code block with a copy button. A shell block in a
  * workspace that can take changes also gets a Run button, its live output, a status mark, its exit
  * code, Stop command and Clear output.
  * Behaviour: ui-map.md 3.3 (code blocks with copy), inventory text R@8061041 (Run on shell blocks),
@@ -9,8 +9,7 @@
  * ligatures, 12px by 10px padding, at most 500px tall before it scrolls; the copy and run icons sit 10px
  * from the top right and show while the pointer is over the block (ours also when they have keyboard focus). Colours are Conductor's Default code
  * theme (code-theme.ts).
- * Our design choice: the language name stays visible at the top right, muted, as before; Conductor shows
- * none.
+ * Conductor's block names no language, so ours shows none (D098).
  * Our design choice: Shell means bash, sh, shell, zsh, fish, ksh or dash. Run goes through
  * Actions.terminals.runCommand, which starts the block's text as a run terminal in the workspace.
  * The block shows the terminal's live stream as plain text with ANSI codes removed. Run is hidden
@@ -327,9 +326,6 @@ export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProp
 				</pre>
 			</div>
 			<div className="absolute right-2.5 top-2.5 flex items-center gap-2">
-				{language === null ? null : (
-					<span className="font-mono text-2xs text-fg-muted">{language}</span>
-				)}
 				{runnable ? (
 					<button
 						type="button"

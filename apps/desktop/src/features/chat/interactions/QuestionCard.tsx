@@ -13,14 +13,15 @@
  * in the tooltip.
  * Our design choice: A skipped question sends an empty list; the tool result says '(Skipped)' and
  * the history card masks a secret answer. A secret question has no option list, and its 'Other…'
- * row hides what is typed, as Conductor's does. The option preview shows below the options. The card
+ * row hides what is typed, as Conductor's does. Conductor's card has no group name and no option
+ * preview, so ours has neither (D098); the group is named by its question. The card
  * asks sessions.answer once and stays disabled while the answer is sent; if that fails it says
  * 'Could not send answers. Try again.' and lets the user send again. A failed Cancel agent says
  * 'Could not cancel the agent. Try again.'
  * Must handle: One question (no previous or next); up to four questions; a multi-select question
  * with nothing ticked (skipped, allowed); 'Other' text empty (not accepted as an answer); the
  * interaction is withdrawn while open (card disappears, typed text is lost on purpose); Cancel
- * agent calls sessions.cancel; an option preview shown while the option is focused or picked; the
+ * agent calls sessions.cancel; the
  * user's rebinds of the chat-question commands on the Keyboard shortcuts page (the card looks each
  * key up in the command registry, so "Pick an answer option by number" uses its n-th shortcut for
  * option n), and the send-key setting, which moves Submit to Cmd+Enter.
@@ -30,7 +31,7 @@
 
 import type { Interaction } from "@conducted/protocol";
 import type { InteractionId, SessionId } from "@conducted/shared";
-import { type KeyboardEvent, type ReactNode, useCallback, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useCallback, useId, useRef, useState } from "react";
 import { fieldOwnsKey, keyPressOf, useScopedKeyMatch } from "../../../app/command-dispatcher.ts";
 import { useActions, useLiveShortcut } from "../../../core/hooks.ts";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
@@ -59,10 +60,10 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 	const [chosen, setChosen] = useState<string[][]>(() => questions.map(() => []));
 	const [otherTexts, setOtherTexts] = useState<string[]>(() => questions.map(() => ""));
 	const [secretAnswers, setSecretAnswers] = useState<string[]>(() => questions.map(() => ""));
-	const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 	const [pending, setPending] = useState(false);
 	const [failed, setFailed] = useState<"answer" | "cancel" | null>(null);
 	const otherRefs = useRef<Array<HTMLInputElement | null>>([]);
+	const questionId = useId();
 	const matchKey = useScopedKeyMatch("chat-question");
 	const submitKey = useLiveShortcut("chat.question.submit");
 	const busy = useRef(false);
@@ -76,7 +77,6 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 
 	function goToPage(next: number): void {
 		setPage(Math.max(0, Math.min(questions.length - 1, next)));
-		setPreviewIndex(null);
 	}
 
 	function toggleOption(questionIndex: number, optionIndex: number): void {
@@ -191,8 +191,6 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 	if (current === undefined) return null;
 
 	const picked = chosen[page] ?? [];
-	const selectedIndex = current.options.findIndex((option) => picked.includes(option.label));
-	const preview = current.options[previewIndex ?? selectedIndex]?.preview;
 	const otherText = (current.secret ? secretAnswers[page] : otherTexts[page]) ?? "";
 	const otherFilled = otherText.trim().length > 0;
 
@@ -206,7 +204,7 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 
 	return (
 		<fieldset
-			aria-label="Agent question"
+			aria-labelledby={questionId}
 			onKeyDown={onKeyDown}
 			className="m-0 w-full rounded-2xl border border-border bg-canvas px-3 py-3"
 		>
@@ -215,7 +213,9 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 					{current.header ? (
 						<div className="mb-1 text-xs text-fg-muted">{current.header}</div>
 					) : null}
-					<p className="max-h-[45vh] overflow-y-auto text-sm text-fg">{current.question}</p>
+					<p id={questionId} className="max-h-[45vh] overflow-y-auto text-sm text-fg">
+						{current.question}
+					</p>
 				</div>
 				<IconButton
 					label="Cancel agent"
@@ -243,8 +243,6 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 										aria-checked={selected}
 										data-question-option={optionIndex}
 										onClick={() => toggleOption(page, optionIndex)}
-										onFocus={() => setPreviewIndex(optionIndex)}
-										onMouseEnter={() => setPreviewIndex(optionIndex)}
 										className={cn(ROW, selected ? "bg-well" : "hover:bg-hover")}
 									>
 										<span aria-hidden="true" className="mt-0.5 w-4 shrink-0 text-xs text-fg-muted">
@@ -303,12 +301,6 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 					) : null}
 				</div>
 			</div>
-
-			{preview ? (
-				<pre className="mt-2 overflow-x-auto rounded-sm bg-well p-2 font-mono text-code text-fg-muted">
-					{preview}
-				</pre>
-			) : null}
 
 			{failed !== null ? (
 				<p role="alert" className="mt-2 text-xs text-danger">

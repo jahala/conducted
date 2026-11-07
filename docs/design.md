@@ -92,6 +92,28 @@ Each row changes one measured value so the pair meets 4.5:1 for text or 3:1 for 
 
 The sixteen terminal colours draw text, so each one meets 4.5:1 on both terminal backgrounds (canvas and panel) in light, dark and low-contrast dark. The light ANSI slots that fell short take the nearest passing value in the same hue, and the dark black is raised for the same reason; every changed pair is in the table above. Search matches use the measured highlight pair (`search-highlight` and `search-highlight-fg`). The transparency setting switches the sidebar surfaces to `--color-sidebar-translucent` through `data-vibrancy="on"`.
 
+## Ours, placed in Conductor's layout
+
+The owner ruled that the UI is exactly Conductor's: a control Conductor also has sits where Conductor puts it, a look that carries no feature goes, and a feature of ours sits in the most logical place within Conductor's layout and visual language (D098). One line per feature of ours, with where it went and why:
+
+- Claude Remote Control (D019): a "Remote Control" item in the composer's "+" menu, after Plan mode, and, while on, a chip after the mode chips that opens its status; Conductor turns chat modes on from "+" and shows a mode that is on as a chip ("Auto-accept edits"). Its settings page stays under Agents & environment, since it is about agent chats.
+- Helper programs and the Cursor SDK rows: on Advanced, beside the managed agent programs, because Conductor's Advanced holds the app's technical paths and programs.
+- The Linear key form: behind "Connect" on Account's Linear row, where Conductor connects Linear.
+- The GitHub token row, the sign-in method and "Check again": on Account, under the GitHub connection row they belong to.
+- "Add to backlog" for local projects: the outlined "Add to backlog ⌥↵" button beside Create in the new-workspace dialog, Conductor's own look for its cloud version, with its switch on Experimental and the saved workspaces on the Backlog page.
+- The agent switch in the model picker: the Agent and Model submenus above Effort, and the agent's name beside each model in search, inside Conductor's picker frame.
+- The optional message on the approval card's "No": one more full-width row right under "No", drawn as Conductor's question card draws its "Other…" row, since the message goes only with "No".
+- "Yes always" where Conductor offers no second choice, and a choice the second one displaced: more full-width rows in the approval card's one column of choices.
+- Archived Home rows' actions (Unarchive, Clear & unarchive, Open in Finder, Copy path): at the right end of the 44px row, drawn as Conductor draws the same actions on its unarchive toast.
+- The Checks tab's PR summary and reviewers list: the summary under the inline title editor at the top, the reviewers after Comments, both in Conductor's section style.
+- "Open diff" for a turn: an item in the turn's "···" menu, so the footer row ends with the file chips as Conductor's does.
+- "Copy summary" for a turn: in the same "···" menu, next to "Copy final message".
+- The Connections page (the local port range): in More, after Advanced, with the other rarely changed technical pages; Conductor has no such page.
+- The Experimental and Advanced pages are Conductor's; the rows of ours on them (the backlog switch, the big terminal command list, the program rows above) sit in Conductor's row style.
+- The MCP servers block and "Search providers" on Agents: the search at the right of the agent tabs, the servers under the tabs, as Conductor's providers page lists its parts.
+- The onboarding agent check and first project: under the step list, above Continue, while their step is current, in Conductor's left column.
+- Create project's description and "Creates folder" line: in Conductor's places, worded for our flow, which creates the folder first and offers the GitHub repository after.
+
 ## The owner's rules
 
 These come from the owner and apply to every screen:

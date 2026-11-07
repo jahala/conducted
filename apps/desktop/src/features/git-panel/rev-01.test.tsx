@@ -26,7 +26,7 @@ const mergeModel: GitHeaderModel = {
 	kind: "ready_to_merge",
 	title: "Ready to merge",
 	tone: "success",
-	action: { id: "merge", label: "Merge", waitingNote: null },
+	action: { id: "merge", label: "Merge" },
 };
 
 describe("REV-01 git header", () => {
@@ -72,19 +72,17 @@ describe("REV-01 git header", () => {
 		expect(onAction).toHaveBeenCalledTimes(2);
 	});
 
-	it("shows a waiting note instead of a button", () => {
+	// This test showed "Waiting for a reviewer" in place of Approve. Conductor shows nothing there, so
+	// a viewer who cannot approve gets no action (D098).
+	it("shows no note and no button when there is no action", () => {
 		const model: GitHeaderModel = {
 			kind: "review_required",
 			title: "PR review required",
 			tone: "attention",
-			action: {
-				id: "approve",
-				label: "Approve",
-				waitingNote: "Waiting for a reviewer",
-			},
+			action: null,
 		};
 		render(<GitHeader model={model} onAction={vi.fn()} />);
-		expect(screen.getByText("Waiting for a reviewer")).toBeTruthy();
+		expect(screen.queryByText("Waiting for a reviewer")).toBeNull();
 		expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
 	});
 

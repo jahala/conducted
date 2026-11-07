@@ -1,7 +1,9 @@
 /**
  * @feature RC-02 Per-chat Remote Control switch and connection status
- * Owns: the Remote Control button in a Claude chat's composer toolbar and its popover: the chat's
- * switch, the link's state as the sidecar reports it, and the link to open in Claude or copy.
+ * Owns: the chat's Remote Control switch (`useRemoteControlSwitch`, which the composer's "+" menu
+ * shows as its "Remote Control" item) and the "Remote Control" chip that shows while it is on, with
+ * its popover: the switch, the link's state as the sidecar reports it, and the link to open in
+ * Claude or copy.
  * Behaviour: docs/plans/cloud-and-remote.md Part 2 (D019): any Claude chat can be opened in
  * claude.ai/code or the Claude app. Conductor has no such switch, so its place and words are ours,
  * kept few and plain. The switch is the chat's stored `remoteControl` config, changed through
@@ -11,10 +13,13 @@
  * state, with Claude's reason when it failed or is unavailable (an API key, a base URL away from
  * Anthropic); no link yet (no Open or Copy); a failed change, open or status read (an error toast);
  * a chat shown after the app reloaded (its status is asked for once when the switch is on).
- * Test first: turning the switch on calls sessions.updateConfig with remoteControl true, and a
- * connected chat shows "Connected" with Open in Claude and Copy link.
- * Our design choice: a globe button beside the context wheel, filled while the switch is on, with a
- * dot for the link: success while ready or connected, danger when it failed or is unavailable.
+ * Test first: choosing Remote Control in the "+" menu calls sessions.updateConfig with remoteControl
+ * true, and a connected chat's chip shows "Connected" with Open in Claude and Copy link.
+ * Placed in Conductor's layout (D098): Conductor turns a chat's modes on from the composer's "+" menu
+ * (Plan mode) and shows a mode that is on as a chip beside the model picker ("Auto-accept edits",
+ * renderApp @8916916). Remote Control follows both: its switch is a "+" item, and while it is on a
+ * 24px chip in the link fill with a globe and a dot for the link (success while ready or connected,
+ * danger when it failed or is unavailable) opens the status popover.
  */
 import type { RemoteControlStatus } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
@@ -49,27 +54,15 @@ function dotClass(state: RemoteControlStatus["state"]): string {
 
 const OFF: RemoteControlStatus = { state: "off" };
 
-export function RemoteControlButton({ sessionId }: { sessionId: SessionId }) {
+/** Whether a chat offers Remote Control, whether it is on, and the change through its config. */
+export function useRemoteControlSwitch(sessionId: SessionId): {
+	offered: boolean;
+	on: boolean;
+	setOn: (next: boolean) => void;
+} {
 	const actions = useActions();
 	const { services } = useServices();
 	const config = useStore(services.sessions.store, (state) => state.sessions[sessionId]?.config);
-	const status = useStore(
-		services.sessions.store,
-		(state) => state.remoteControl?.[sessionId] ?? OFF,
-	);
-	const isClaude = config?.agent === "claude";
-	const on = config?.remoteControl === true;
-
-	// After a reload the store has no link; the sidecar may still hold one.
-	useEffect(() => {
-		if (!isClaude || !on) return;
-		void services.sessions.refreshRemoteControl(sessionId).then((result) => {
-			if (!result.ok) toastError("Couldn't read the Remote Control status", result.error);
-		});
-	}, [services, sessionId, isClaude, on]);
-
-	if (config === undefined || !isClaude) return null;
-
 	const setOn = (next: boolean): void => {
 		const latest = services.sessions.store.getState().sessions[sessionId]?.config;
 		if (latest === undefined) return;
@@ -79,33 +72,51 @@ export function RemoteControlButton({ sessionId }: { sessionId: SessionId }) {
 				if (!result.ok) toastError("Couldn't change Remote Control", result.error);
 			});
 	};
+	return {
+		offered: config?.agent === "claude",
+		on: config?.agent === "claude" && config.remoteControl === true,
+		setOn,
+	};
+}
 
-	const link = on ? status.sessionUrl : undefined;
+export function RemoteControlButton({ sessionId }: { sessionId: SessionId }) {
+	const actions = useActions();
+	const { services } = useServices();
+	const status = useStore(
+		services.sessions.store,
+		(state) => state.remoteControl?.[sessionId] ?? OFF,
+	);
+	const { offered: isClaude, on, setOn } = useRemoteControlSwitch(sessionId);
+
+	// After a reload the store has no link; the sidecar may still hold one.
+	useEffect(() => {
+		if (!isClaude || !on) return;
+		void services.sessions.refreshRemoteControl(sessionId).then((result) => {
+			if (!result.ok) toastError("Couldn't read the Remote Control status", result.error);
+		});
+	}, [services, sessionId, isClaude, on]);
+
+	if (!on) return null;
+
+	const link = status.sessionUrl;
 
 	return (
 		<Popover
 			side="top"
-			align="end"
+			align="start"
 			className="w-72"
 			trigger={
-				<Button
-					variant="ghost"
-					size="xs"
-					aria-label="Remote Control"
-					aria-pressed={on}
-					className="relative aria-pressed:rounded-full aria-pressed:bg-primary-fill aria-pressed:text-canvas"
+				<button
+					type="button"
+					className="flex h-6 items-center gap-1.5 rounded-md bg-highlight-surface px-2 py-0.5 text-link transition-colors hover:opacity-80"
 				>
-					<GlobeIcon width={14} height={14} />
-					{on ? (
-						<span
-							aria-hidden="true"
-							className={cn(
-								"absolute right-0.5 top-0.5 size-1.5 rounded-full",
-								dotClass(status.state),
-							)}
-						/>
-					) : null}
-				</Button>
+					<GlobeIcon className="size-3.5 shrink-0" />
+					<span className="text-xs font-medium whitespace-nowrap">Remote Control</span>
+					<span
+						aria-hidden="true"
+						className={cn("size-1.5 shrink-0 rounded-full", dotClass(status.state))}
+					/>
+				</button>
 			}
 		>
 			<div className="flex flex-col gap-3">
@@ -118,20 +129,18 @@ export function RemoteControlButton({ sessionId }: { sessionId: SessionId }) {
 					</div>
 					<Switch checked={on} onCheckedChange={setOn} aria-label="Remote Control" />
 				</div>
-				{on ? (
-					<div className="flex flex-col gap-1" role="status">
-						<p className="flex items-center gap-2 text-xs font-medium text-fg">
-							<span
-								aria-hidden="true"
-								className={cn("size-2 rounded-full", dotClass(status.state))}
-							/>
-							{STATE_LABELS[status.state]}
-						</p>
-						{status.detail === undefined ? null : (
-							<p className="text-xs text-fg-muted">{status.detail}</p>
-						)}
-					</div>
-				) : null}
+				<div className="flex flex-col gap-1" role="status">
+					<p className="flex items-center gap-2 text-xs font-medium text-fg">
+						<span
+							aria-hidden="true"
+							className={cn("size-2 rounded-full", dotClass(status.state))}
+						/>
+						{STATE_LABELS[status.state]}
+					</p>
+					{status.detail === undefined ? null : (
+						<p className="text-xs text-fg-muted">{status.detail}</p>
+					)}
+				</div>
 				{link === undefined ? null : (
 					<div className="flex items-center gap-1">
 						<Button

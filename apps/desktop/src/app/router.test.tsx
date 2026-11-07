@@ -96,7 +96,7 @@ describe("app shell", () => {
 		);
 		expect(within(nav).getByRole("link", { name: "Create" }).getAttribute("href")).toBe("/create");
 		// The workspace list is built now and shows its empty state, while the footer keeps its own boundary.
-		expect(screen.getByText("No projects yet")).toBeTruthy();
+		expect(screen.getByText("Add a project to get started.")).toBeTruthy();
 	});
 
 	it("opens the command palette from the Search row", async () => {
@@ -114,8 +114,9 @@ describe("routes", () => {
 	it("/all-workspaces renders the Home grid inside the shell", async () => {
 		await openApp("/all-workspaces");
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText("Home")).toBeTruthy();
 		expect(await within(main).findByText("No matching workspaces")).toBeTruthy();
+		// Home has no title in its strip, as Conductor's Home has none (D098).
+		expect(within(main).queryByRole("heading", { name: "Home" })).toBeNull();
 		expect(within(main).getByRole("searchbox", { name: "Search" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});

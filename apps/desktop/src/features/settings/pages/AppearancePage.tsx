@@ -7,17 +7,18 @@
  * Rows (registry titles), key, control:
  *   Theme                         theme                        select: Light, Dark, System
  *   Softer dark theme             low_contrast_dark_mode       toggle
+ *   App zoom                      zoom_level_v2                slider with a reset
+ *   Colored line counts in the    colored_sidebar_diffs        toggle
+ *   sidebar
  *   Color vision palette          color_vision                 select: Default, Protanopia and
  *                                                              deuteranopia, Tritanopia
- *   App zoom                      zoom_level_v2                slider with a reset
  *   Code theme                    code_theme                   select (Shiki bundled themes)
  *   Code font                     mono_font                    select Default or Custom, plus a field
  *   Code ligatures                file_ligatures_enabled       toggle
  *   Markdown style                markdown_style               select: Default, Tufte
  *   Terminal font                 terminal_font_family         select Default or Custom, plus a field
  *   Terminal font size            terminal_font_size           number field
- *   Colored line counts in the    colored_sidebar_diffs        toggle
- *   sidebar
+ * One list in Conductor's order, with no section headings, then the two previews (D098).
  * Children: appearance/CodePreview, appearance/TerminalPreview; rows from ../SettingRow.tsx inside
  * ../SettingsPageFrame.tsx.
  * Our design choice: this page only edits the values. AppearanceController, mounted once at the app
@@ -35,7 +36,11 @@
  */
 import { useEffect, useState } from "react";
 import { useSetting } from "../../../core/hooks.ts";
-import { getSettingDef, type SettingDef } from "../../../core/registries/settings.ts";
+import {
+	getSettingDef,
+	pageDescriptionOf,
+	type SettingDef,
+} from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
@@ -63,8 +68,7 @@ function ZoomRow({ focusSettingKey, saves }: { focusSettingKey: string | null; s
 		<SettingRow
 			settingKey={key}
 			title={def.title}
-			description={def.description}
-			scope="user"
+			description={pageDescriptionOf(def)}
 			disabledReason={null}
 			highlighted={focusSettingKey === key}
 			saveError={saves.errorOf(key)}
@@ -151,8 +155,7 @@ function FontRow({
 		<SettingRow
 			settingKey={settingKey}
 			title={def.title}
-			description={def.description}
-			scope="user"
+			description={pageDescriptionOf(def)}
 			disabledReason={null}
 			highlighted={focusSettingKey === settingKey}
 			saveError={saves.errorOf(settingKey)}
@@ -200,32 +203,20 @@ export function AppearancePage({ focusSettingKey = null }: { focusSettingKey?: s
 	return (
 		<SettingsPageFrame
 			title="Appearance"
-			description="Theme, colours, zoom, fonts, and live previews."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
+			{/* Conductor's page is one list with no section headings (FOa, renderApp @11301088):
+			    theme, low-contrast dark, zoom, sidebar diff colours, accessible colours, code theme,
+			    mono font, ligatures, Markdown style and the terminal font (D098). */}
 			<div className="flex flex-col gap-6">
-				<section aria-labelledby="appearance-colours" className="flex flex-col">
-					<h2 id="appearance-colours" className="mb-1 text-lg font-medium text-fg">
-						Theme and colours
-					</h2>
+				<div className="flex flex-col">
 					{row("theme")}
 					{row("low_contrast_dark_mode")}
-					{row("color_vision")}
-				</section>
-
-				<section aria-labelledby="appearance-display" className="flex flex-col">
-					<h2 id="appearance-display" className="mb-1 text-lg font-medium text-fg">
-						Display
-					</h2>
 					<ZoomRow focusSettingKey={focusSettingKey} saves={saves} />
 					{row("colored_sidebar_diffs")}
-				</section>
-
-				<section aria-labelledby="appearance-fonts" className="flex flex-col">
-					<h2 id="appearance-fonts" className="mb-1 text-lg font-medium text-fg">
-						Fonts and code
-					</h2>
+					{row("color_vision")}
 					{row("code_theme")}
 					<FontRow
 						settingKey="mono_font"
@@ -242,21 +233,15 @@ export function AppearancePage({ focusSettingKey = null }: { focusSettingKey?: s
 						saves={saves}
 					/>
 					{row("terminal_font_size")}
-				</section>
-
-				<section aria-labelledby="appearance-previews" className="flex flex-col gap-3">
-					<h2 id="appearance-previews" className="text-lg font-medium text-fg">
-						Live preview
-					</h2>
-					<div className="grid gap-4 2xl:grid-cols-2">
-						<CodePreview
-							themeName={codeTheme}
-							fontFamily={monoFont === "" ? null : monoFont}
-							ligatures={ligatures}
-						/>
-						<TerminalPreview fontFamily={terminalFont} fontSize={terminalSize} />
-					</div>
-				</section>
+				</div>
+				<div className="grid gap-4 2xl:grid-cols-2">
+					<CodePreview
+						themeName={codeTheme}
+						fontFamily={monoFont === "" ? null : monoFont}
+						ligatures={ligatures}
+					/>
+					<TerminalPreview fontFamily={terminalFont} fontSize={terminalSize} />
+				</div>
 			</div>
 		</SettingsPageFrame>
 	);

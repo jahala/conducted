@@ -11,7 +11,7 @@
  * Test first: picking a model without fast mode support disables the fast mode toggle.
  */
 import { useAgentInstalls, useModels, useSetting } from "../../../core/hooks.ts";
-import { getSettingDef } from "../../../core/registries/settings.ts";
+import { getSettingDef, pageDescriptionOf } from "../../../core/registries/settings.ts";
 import { Select } from "../../../ui/Select.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
@@ -42,7 +42,7 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 	return (
 		<SettingsPageFrame
 			title="Default models"
-			description="The model and options a new chat starts with."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
@@ -55,8 +55,7 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 			<SettingRow
 				settingKey={MODEL_KEY}
 				title={modelDef?.title ?? "Default model"}
-				description={modelDef?.description ?? null}
-				scope="user"
+				description={modelDef === undefined ? null : pageDescriptionOf(modelDef)}
 				disabledReason={models.state === "error" ? models.error.message : null}
 				highlighted={focusSettingKey === MODEL_KEY}
 				saveError={saves.errorOf(MODEL_KEY)}
@@ -79,8 +78,7 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 			<SettingRow
 				settingKey={FAST_MODE_KEY}
 				title={fastDef?.title ?? "Fast mode in new chats"}
-				description={fastDef?.description ?? null}
-				scope="user"
+				description={fastDef === undefined ? null : pageDescriptionOf(fastDef)}
 				disabledReason={supportsFastMode ? null : "The chosen model does not support fast mode."}
 				highlighted={focusSettingKey === FAST_MODE_KEY}
 				saveError={saves.errorOf(FAST_MODE_KEY)}

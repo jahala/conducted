@@ -30,7 +30,6 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../u
 import { toastError } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 import { HeaderChevron, HeaderCount } from "./section-header.tsx";
-import { useNow } from "./use-now.ts";
 import {
 	draggedSection,
 	draggedWorkspace,
@@ -70,7 +69,6 @@ export function SectionList({
 	const repos = useRepos();
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
-	const now = useNow();
 	const manualOrder = useSetting<boolean>("manual_workspace_order");
 	const [editing, setEditing] = useState<Section | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -130,7 +128,7 @@ export function SectionList({
 	const ordered = orderedSections(sections);
 
 	return (
-		<div className="flex flex-col gap-1 py-1">
+		<div className={cn("flex flex-col gap-1", ordered.length > 0 && "py-1")}>
 			{ordered.map((section) => {
 				const members = section.workspaceIds
 					.filter((id) => !excludedIds.has(id))
@@ -143,7 +141,6 @@ export function SectionList({
 						members={members}
 						repoById={repoById}
 						selectedId={selectedId}
-						now={now}
 						manualOrder={manualOrder}
 						over={overSection === section.id}
 						draggingSection={draggingSection !== null}
@@ -164,16 +161,6 @@ export function SectionList({
 					/>
 				);
 			})}
-			<Button
-				variant="ghost"
-				size="sm"
-				className="mx-2 justify-start text-fg-muted"
-				onClick={openCreate}
-			>
-				<PlusIcon />
-				New section...
-			</Button>
-
 			<SectionDialog open={dialogOpen} onOpenChange={setDialogOpen} section={editing} />
 
 			<AlertDialog
@@ -201,7 +188,6 @@ interface SectionGroupProps {
 	members: readonly Workspace[];
 	repoById: ReadonlyMap<Repo["id"], Repo>;
 	selectedId: WorkspaceId | null;
-	now: number;
 	manualOrder: boolean;
 	over: boolean;
 	draggingSection: boolean;
@@ -219,7 +205,6 @@ function SectionGroup({
 	members,
 	repoById,
 	selectedId,
-	now,
 	manualOrder,
 	over,
 	draggingSection,
@@ -385,7 +370,6 @@ function SectionGroup({
 											repo={repo}
 											selected={selectedId === workspace.id}
 											shortcutIndex={null}
-											now={now}
 											indent="flush"
 										/>
 									)}

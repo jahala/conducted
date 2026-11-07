@@ -82,7 +82,7 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 	return (
 		<SettingsPageFrame
 			title="Connections"
-			description="The local ports workspaces draw from. Cloud port forwarding is not part of this app."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>

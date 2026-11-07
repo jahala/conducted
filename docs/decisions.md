@@ -450,6 +450,24 @@ Context: the parity harness (#347) runs on GitHub, so its spec must be in the re
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
 
+## D098. The UI is exactly Conductor's; our own features take the most logical place in its layout (2026-11-07)
+
+Replaces the "kept for the owner" lists of the three parity rounds (`ui-parity-report.md`, `parity-round2-report.md`, `parity-round3-report.md`) and narrows D020's last sentence: a visible difference no longer stays because it adds information.
+Context: after three parity rounds, our screens still differed from Conductor's in where some controls sat and in decoration Conductor does not have. The owner ruled on 7 November 2026:
+
+- "i told you we're doing the UI exactly like conductor"
+- "the feature controls that also exist in conductor should be in the same place as they are in conductor."
+- "for decisions me made that are different then conductor, we should find the best, most logical place for these..."
+- On the header's folder chip, which in Conductor is the "Open in" button: "we do what conductor does".
+
+Chosen: every item of ours that Conductor does not show is sorted into one of three, by reading Conductor's bundle:
+
+1. A control Conductor also has, in another place in ours, moves to Conductor's place with Conductor's words.
+2. A feature of ours that Conductor does not have stays, in the most logical place within Conductor's layout and visual language. `docs/design.md`, "Ours, placed in Conductor's layout", says where each one went and why, and `tests/parity/ours-only.json` maps its words to this decision.
+3. A look that carries no feature (a subtitle, a badge, a heading, a hint line, a label) is removed.
+
+Why: the owner's ruling. A rebuild that looks exactly like Conductor is easier to compare and to switch to, and every feature of ours still has a home.
+
 ## D100. Moving from Conductor is a read-only, all-or-nothing import (2026-11-07)
 
 Context: the owner asked for a way to move users from Conductor to Conducted, "SAFELY" (#353). D038 had left out any `conductor.json` migration, and D027 sets only `CONDUCTED_*` names.

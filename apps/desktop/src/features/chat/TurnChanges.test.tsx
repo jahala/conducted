@@ -2,14 +2,14 @@
  * @feature REV-09 Turn change summary
  * Tests the file chips in a turn's footer: two files then "+N more" (Conductor's footer), the empty case,
  * deleted, renamed and binary files named in each chip's tooltip, the reverted style, and the turn scope
- * handed to Open diff and to a chip.
+ * handed to a chip. Open diff is the turn menu's (TurnFooter), so the chips row has none (D098).
  */
 import type { FileChange } from "@conducted/protocol";
 import type { TurnId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatTurn } from "../../core/model.ts";
-import { TurnChanges } from "./TurnChanges.tsx";
+import { TurnChanges, turnDiffScope } from "./TurnChanges.tsx";
 
 afterEach(cleanup);
 
@@ -97,13 +97,16 @@ describe("REV-09 turn changes", () => {
 		expect(container.querySelector("section")?.className).toContain("line-through");
 	});
 
-	it("hands Open diff the turn scope", () => {
-		const onOpenDiff = vi.fn();
-		render(
-			<TurnChanges turn={turn([change("a.ts")])} sessionId={sessionId} onOpenDiff={onOpenDiff} />,
-		);
-		fireEvent.click(screen.getByRole("button", { name: "Open diff" }));
-		expect(onOpenDiff).toHaveBeenCalledWith({ kind: "turn", sessionId, turnId: "t1" });
+	// This test clicked the chips row's Open diff. It moved to the turn's "···" menu (D098); the scope
+	// it opens with is turnDiffScope's.
+	it("gives Open diff the turn scope, and keeps no Open diff button in the chips row", () => {
+		render(<TurnChanges turn={turn([change("a.ts")])} sessionId={sessionId} />);
+		expect(screen.queryByRole("button", { name: "Open diff" })).toBeNull();
+		expect(turnDiffScope(turn([change("a.ts")]), sessionId)).toEqual({
+			kind: "turn",
+			sessionId,
+			turnId: "t1",
+		});
 	});
 
 	it("hands a chip the file and the turn scope", () => {
@@ -119,9 +122,10 @@ describe("REV-09 turn changes", () => {
 		expect(onOpenFile).toHaveBeenCalledWith("src/a.ts", { kind: "turn", sessionId, turnId: "t1" });
 	});
 
-	it("shows Open diff disabled when no caller can open the panel", () => {
+	// This test checked a disabled Open diff button in the chips row; the row ends with the chips now.
+	it("ends the row with the chips, as Conductor's footer does", () => {
 		render(<TurnChanges turn={turn([change("a.ts")])} sessionId={sessionId} />);
-		const button = screen.getByRole("button", { name: "Open diff" }) as HTMLButtonElement;
-		expect(button.disabled).toBe(true);
+		const section = screen.getByRole("region", { name: "Files changed in this turn" });
+		expect(section.lastElementChild?.textContent).toContain("a.ts");
 	});
 });

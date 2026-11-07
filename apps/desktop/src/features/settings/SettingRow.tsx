@@ -1,7 +1,8 @@
 /**
  * @feature SET-02 Setting row and setting controls
- * Owns: the layout of one setting (title, description, scope marker, reset action and the control
- * on the right), the control for a registry setting, and the save state pages share.
+ * Owns: the layout of one setting (title, description, reset action and the control on the right),
+ * the control for a registry setting, and the save state pages share. A row shows no "User" or
+ * "Repository" marker, as Conductor's rows show none (D098).
  * Behaviour: ui-map.md 6 (each setting has a title, a description and scopes user or repository;
  * per-repository settings offer a reset to the shared file's value).
  * Our design choice: the control is passed in as children, so one row serves toggles, selects,
@@ -27,6 +28,7 @@ import {
 import { useActions, useSetting } from "../../core/hooks.ts";
 import {
 	getSettingDef,
+	pageDescriptionOf,
 	type SettingDef,
 	type SettingPage,
 	type SettingValue,
@@ -63,7 +65,6 @@ export interface SettingRowProps {
 	detail?: string | null;
 	/** "warning" draws the detail in the warning colour. */
 	detailTone?: "warning";
-	scope: "user" | "repo";
 	/** Why the control cannot change now. Set, it disables the control and shows under the text. */
 	disabledReason: ReactNode | null;
 	highlighted: boolean;
@@ -79,7 +80,6 @@ export function SettingRow({
 	description,
 	detail = null,
 	detailTone,
-	scope,
 	disabledReason,
 	highlighted,
 	saveError,
@@ -101,9 +101,6 @@ export function SettingRow({
 				<div className="flex min-w-0 flex-col">
 					<div className="flex min-h-7 flex-wrap items-center gap-2">
 						<p className="text-sm font-medium text-fg">{title}</p>
-						<span className="rounded-sm border border-border px-1.5 py-0.5 text-3xs text-fg-subtle">
-							{scope === "repo" ? "Repository" : "User"}
-						</span>
 					</div>
 					{description ? (
 						<p id={descriptionId} className="mt-0.5 text-sm text-fg-muted">
@@ -383,10 +380,9 @@ function RegistrySettingRow({
 		<SettingRow
 			settingKey={def.key}
 			title={def.title}
-			description={def.description}
+			description={pageDescriptionOf(def)}
 			detail={def.detail ?? null}
 			{...(def.detailTone === undefined ? {} : { detailTone: def.detailTone })}
-			scope={def.scopes.includes("repo") ? "repo" : "user"}
 			disabledReason={unavailable}
 			highlighted={focusSettingKey === def.key}
 			saveError={localError ?? saves.errorOf(def.key)}

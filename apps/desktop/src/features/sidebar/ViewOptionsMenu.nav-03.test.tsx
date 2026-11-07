@@ -32,7 +32,9 @@ const baseView: SidebarView = {
 const actions = { onNewSection: () => {}, onAddProject: () => {} };
 
 async function openMenu() {
-	fireEvent.keyDown(screen.getByRole("button", { name: "Sort workspaces" }), { key: "Enter" });
+	fireEvent.keyDown(screen.getByRole("button", { name: "My workspaces actions" }), {
+		key: "Enter",
+	});
 	return screen.findByRole("menu");
 }
 

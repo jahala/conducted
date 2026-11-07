@@ -251,7 +251,7 @@ describe("s1-ui-2 join", () => {
 
 			await openApp(test.container, `/repository/${workspace.repoId}/workspace/${workspace.id}`);
 
-			const openButton = await screen.findByRole("button", { name: /^Finder$/ });
+			const openButton = await screen.findByRole("button", { name: "Open in Finder" });
 			fireEvent.click(openButton);
 
 			await waitFor(() => expect(openWith).toHaveBeenCalledWith("Finder", workspace.path));

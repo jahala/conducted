@@ -2,7 +2,7 @@
  * @feature NAV-03 Workspace row
  * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: One row of the sidebar list: project avatar (outside project groups), status icon, name,
- * unread dot, the "Open draft" marker, line change counts or the relative time, and badges.
+ * unread dot, the "Open draft" marker, line change counts, and badges.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
  * directory; the repo avatar's emoji, uploaded icon, favicon, owner avatar or letter; badges Draft
  * and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8 (status text), 5.3
@@ -14,17 +14,15 @@
  * then the status icon); the name is a 20px line in weight 450 and the muted sidebar colour, selected or
  * not (the selected row shows only through its fill, renderApp @10427352), 600 and the stronger colour
  * when unread; at the right the added and removed line counts in
- * small monospace ("+4.1k -3"), compact past a thousand. The draft marker sits just before the counts
- * or the time, as in Conductor's trailing cluster (renderApp @10431468).
+ * small monospace ("+4.1k -3"), compact past a thousand. The draft marker sits just before the counts,
+ * as in Conductor's trailing cluster (renderApp @10431468). A row with no line counts shows nothing
+ * there: Conductor's row has no time (D098).
  * Conductor's row has no second line: its status words ("Working...", "Need permission") live in the
  * hover card and the row shows the status only through its icon (@10442724, @10452011). Ours names
  * the status on the icon (its tooltip and accessible name), since the hover card is not built.
- * Our design choice: a row with no line counts shows the relative time in that place, so the time stays on
- * screen for clean workspaces (Conductor shows it only through a display option).
- * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
- * list can refresh every row's "5m" with one timer. Status words come from
- * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
- * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
+ * Our design choice: The row is a link to the workspace route. Status words come from
+ * status-text.ts. Right-clicking the row opens NAV-10's Workspace actions menu, as in Conductor.
+ * The Draft badge needs the pull request state and is left out until its owner is built. The "Archive workspace" badge
  * waits for the state that WS-09 gives it; archived workspaces are never listed here. Hovering a
  * row and pressing the live `sidebar.toggleRead` binding toggles its read state, even when nothing
  * is focused; P waits for NAV-04.
@@ -52,6 +50,7 @@ import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useWorkspaceDraft } from "../composer/draft-sources.ts";
 import { statusText } from "../workspace/status-text.ts";
+import { WorkspaceActionsMenu } from "../workspace/WorkspaceActionsMenu.tsx";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
@@ -64,8 +63,6 @@ export interface WorkspaceRowProps {
 	selected: boolean;
 	/** 1 to 9 for the first nine rows, which have a Cmd+number shortcut. */
 	shortcutIndex: number | null;
-	/** The current time. The list reads it once a minute and hands it to every row. */
-	now: number;
 	/** The project's avatar leads the row; off inside a project's own group, whose header shows it. */
 	showRepo?: boolean;
 	/** Left padding by where the row sits: 20px in the main groups, 12px in Pinned, 6px in sections. */
@@ -103,7 +100,7 @@ function shortcutFromEvent(event: KeyboardEvent): string | null {
 	return formatShortcut(parts.join("+"));
 }
 
-/** A short, stable relative time such as "5m" or "3d". */
+/** A short, stable relative time such as "5m" or "3d", for Home's Last active column. */
 export function relativeTime(at: number, now: number): string {
 	const seconds = Math.max(0, Math.floor((now - at) / 1000));
 	if (seconds < 60) return "now";
@@ -123,7 +120,6 @@ export function WorkspaceRow({
 	repo,
 	selected,
 	shortcutIndex,
-	now,
 	showRepo = true,
 	indent = "grouped",
 }: WorkspaceRowProps) {
@@ -188,70 +184,68 @@ export function WorkspaceRow({
 	});
 
 	return (
-		<Link
-			to="/repository/$repositoryId/workspace/$workspaceId"
-			params={{ repositoryId: repo.id, workspaceId: workspace.id }}
-			aria-current={selected ? "page" : undefined}
-			onMouseEnter={() => setHovered(true)}
-			onMouseLeave={() => setHovered(false)}
-			className={cn(
-				"group relative flex min-w-0 items-start gap-1.5 rounded-md py-2 pr-1.5 text-sm text-sidebar-fg transition-colors hover:bg-hover",
-				INDENT_CLASS[indent],
-				selected && "bg-hover",
-			)}
-		>
-			{showRepo ? (
-				<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
-					<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
-				</span>
-			) : null}
-			<span
-				{...(statusWords === ""
-					? {}
-					: { role: "img", "aria-label": statusWords, title: statusWords })}
-				className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+		<WorkspaceActionsMenu workspaceId={workspace.id}>
+			<Link
+				to="/repository/$repositoryId/workspace/$workspaceId"
+				params={{ repositoryId: repo.id, workspaceId: workspace.id }}
+				aria-current={selected ? "page" : undefined}
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+				className={cn(
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md py-2 pr-1.5 text-sm text-sidebar-fg transition-colors hover:bg-hover",
+					INDENT_CLASS[indent],
+					selected && "bg-hover",
+				)}
 			>
-				<WorkspaceStatusIcon status={status} decorative />
-			</span>
-			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="flex h-5 min-w-0 items-center gap-1.5">
-					<span
-						className={cn(
-							"min-w-0 truncate",
-							unread ? "font-semibold text-fg" : "font-book text-sidebar-fg-muted",
-						)}
-					>
-						{workspaceName(workspace)}
+				{showRepo ? (
+					<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
+						<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
 					</span>
-					<span className="flex-1" />
-					<UnreadDot unread={unread} />
-					<DraftMarker place="workspace-row" draft={draft?.draft ?? null} onOpenDraft={openDraft} />
-					{counts !== null ? (
-						<span className="flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-2xs font-medium group-hover:hidden">
-							<span className="text-git-added">+{compactCount(counts.added)}</span>
-							{counts.removed > 0 ? (
-								<span className="text-git-removed">-{compactCount(counts.removed)}</span>
-							) : null}
-						</span>
-					) : (
-						<time
-							dateTime={new Date(workspace.lastActivityAt).toISOString()}
-							title={new Date(workspace.lastActivityAt).toLocaleString()}
-							className="shrink-0 whitespace-nowrap px-1 py-0.5 text-3xs text-sidebar-fg-muted group-hover:hidden"
-						>
-							{relativeTime(workspace.lastActivityAt, now)}
-						</time>
-					)}
-					{shortcutIndex === null || liveShortcut === null ? null : (
-						<span
-							aria-hidden="true"
-							className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
-						>
-							<Kbd>{liveShortcut}</Kbd>
-						</span>
-					)}
+				) : null}
+				<span
+					{...(statusWords === ""
+						? {}
+						: { role: "img", "aria-label": statusWords, title: statusWords })}
+					className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+				>
+					<WorkspaceStatusIcon status={status} decorative />
 				</span>
-			</span>
-		</Link>
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span className="flex h-5 min-w-0 items-center gap-1.5">
+						<span
+							className={cn(
+								"min-w-0 truncate",
+								unread ? "font-semibold text-fg" : "font-book text-sidebar-fg-muted",
+							)}
+						>
+							{workspaceName(workspace)}
+						</span>
+						<span className="flex-1" />
+						<UnreadDot unread={unread} />
+						<DraftMarker
+							place="workspace-row"
+							draft={draft?.draft ?? null}
+							onOpenDraft={openDraft}
+						/>
+						{counts !== null ? (
+							<span className="flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-2xs font-medium group-hover:hidden">
+								<span className="text-git-added">+{compactCount(counts.added)}</span>
+								{counts.removed > 0 ? (
+									<span className="text-git-removed">-{compactCount(counts.removed)}</span>
+								) : null}
+							</span>
+						) : null}
+						{shortcutIndex === null || liveShortcut === null ? null : (
+							<span
+								aria-hidden="true"
+								className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
+							>
+								<Kbd>{liveShortcut}</Kbd>
+							</span>
+						)}
+					</span>
+				</span>
+			</Link>
+		</WorkspaceActionsMenu>
 	);
 }

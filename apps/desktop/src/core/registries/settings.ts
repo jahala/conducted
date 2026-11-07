@@ -67,7 +67,13 @@ export type SettingDef = {
 	page: SettingPage;
 	scopes: readonly SettingScope[];
 	title: string;
+	/** The line under the title on the page and in search results. */
 	description: string;
+	/**
+	 * False where Conductor's row on the page shows no line under its title (D098): the page leaves
+	 * the description out, and search still shows it.
+	 */
+	pageDescription?: false;
 	/** A small hint under the description, such as the key that adds a new line. */
 	detail?: string;
 	/** A detail that warns, drawn in the warning colour (Graphite's performance note). */
@@ -158,6 +164,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Arrange workspaces manually",
 		description: "Let you drag workspaces into your own order in the sidebar.",
+		pageDescription: false,
 		searchTerms: ["sort", "drag", "order", "reorder"],
 		feature: "NAV-04",
 		type: "bool",
@@ -182,6 +189,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "I'm not absolutely right, thank you very much",
 		description: 'Strip "You\'re absolutely right!" from AI messages',
+		pageDescription: false,
 		searchTerms: ["absolutely right", "sycophancy", "strip", "preamble", "phrase"],
 		feature: "CHAT-06",
 		type: "bool",
@@ -218,6 +226,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Restart automatically on update",
 		description: "Install a downloaded update and restart once no agent is working.",
+		pageDescription: false,
 		searchTerms: ["update", "restart", "upgrade", "idle"],
 		feature: "APP-06",
 		type: "bool",
@@ -304,6 +313,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Low-contrast dark mode",
 		description: "Soften the app's colors when using the dark theme.",
+		pageDescription: false,
 		searchTerms: ["contrast", "dim", "soft", "dark"],
 		feature: "SET-06",
 		type: "bool",
@@ -432,6 +442,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Terminal Font Size",
 		description: "Text size in points for terminals.",
+		pageDescription: false,
 		searchTerms: ["size", "points", "terminal", "text"],
 		feature: "SET-06",
 		type: "number",
@@ -474,6 +485,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Review model",
 		description: "Model used by chats that start an AI code review. Empty uses the default model.",
+		pageDescription: false,
 		searchTerms: ["model", "review", "code review"],
 		tomlKey: "models.review",
 		fileLayers: "user",
@@ -515,6 +527,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Default to plan mode in new chats",
 		description: "Start new chats in plan mode so the agent proposes a plan first.",
+		pageDescription: false,
 		searchTerms: ["plan", "planning", "approve"],
 		tomlKey: "models.default_plan_mode",
 		fileLayers: "user",
@@ -529,6 +542,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Codex thinking level",
 		description: "How hard Codex thinks in new chats.",
+		pageDescription: false,
 		searchTerms: ["codex", "reasoning", "effort", "thinking"],
 		tomlKey: "models.codex.default_thinking_level",
 		fileLayers: "user",
@@ -577,6 +591,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Codex personality",
 		description: "The tone Codex uses in new chats.",
+		pageDescription: false,
 		searchTerms: ["codex", "tone", "style", "friendly", "pragmatic"],
 		tomlKey: "models.codex.personality",
 		fileLayers: "user",
@@ -617,6 +632,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Claude effort level",
 		description: "How much effort Claude spends in new chats.",
+		pageDescription: false,
 		searchTerms: ["claude", "effort", "reasoning", "thinking"],
 		tomlKey: "models.claude_code.default_effort_level",
 		fileLayers: "user",
@@ -709,6 +725,7 @@ const SETTINGS_TABLE = [
 		title: "Automatically rename new branches",
 		description:
 			"After the first message, replace the placeholder branch name with one that describes the task.",
+		pageDescription: false,
 		searchTerms: ["branch", "rename", "placeholder", "auto"],
 		feature: "WS-04",
 		type: "bool",
@@ -720,6 +737,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Rename workspace when branch is named",
 		description: "When the branch gets a real name, rename the workspace to match.",
+		pageDescription: false,
 		searchTerms: ["workspace", "rename", "branch", "title"],
 		feature: "WS-04",
 		type: "bool",
@@ -773,6 +791,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Open pull requests in",
 		description: "Where the open pull request button sends you.",
+		pageDescription: false,
 		searchTerms: ["pull request", "github", "linear", "graphite", "browser"],
 		feature: "PR-07",
 		type: "enum",
@@ -792,6 +811,7 @@ const SETTINGS_TABLE = [
 		title: "Include link to workspace in PR description",
 		description:
 			"Ask the agent to put a link to this workspace in the pull request description. The link only works on your own Mac.",
+		pageDescription: false,
 		searchTerms: ["workspace", "link", "pull request", "description", "deep link"],
 		feature: "PR-02",
 		type: "bool",
@@ -878,6 +898,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Codex tool approvals",
 		description: "How Codex asks for approval before running tools.",
+		pageDescription: false,
 		searchTerms: ["codex", "approval", "permission", "always approve"],
 		tomlKey: "models.codex.tool_approval_policy",
 		fileLayers: "user",
@@ -1749,6 +1770,11 @@ const BY_KEY: ReadonlyMap<string, SettingDef> = new Map(SETTINGS.map((s) => [s.k
 
 export function getSettingDef(key: string): SettingDef | undefined {
 	return BY_KEY.get(key);
+}
+
+/** The line a settings page shows under a row's title, or null where Conductor's row has none. */
+export function pageDescriptionOf(def: SettingDef): string | null {
+	return def.pageDescription === false ? null : def.description;
 }
 
 /** Settings of one page, in table order. */

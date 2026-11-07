@@ -448,19 +448,20 @@ describe("GIT-04 git header state machine", () => {
 				}),
 			});
 
+		// A viewer who cannot approve gets no action; our "Waiting for a reviewer" note is gone (D098).
 		const author = computeGitHeader(reviewRequired({ viewerDidAuthor: true }));
 		expect(author.kind).toBe("review_required");
-		expect(author.action?.id).toBe("approve");
-		expect(author.action?.waitingNote).not.toBeNull();
+		expect(author.title).toBe("PR review required");
+		expect(author.action).toBeNull();
 
 		const noWrite = computeGitHeader(reviewRequired({ viewerCanMerge: false }));
-		expect(noWrite.action?.waitingNote).not.toBeNull();
+		expect(noWrite.action).toBeNull();
 
 		const localForge = computeGitHeader({ ...reviewRequired(), forge: "local" });
-		expect(localForge.action?.waitingNote).not.toBeNull();
+		expect(localForge.action).toBeNull();
 
 		const reviewer = computeGitHeader(reviewRequired());
-		expect(reviewer.action?.waitingNote).toBeNull();
+		expect(reviewer.action?.id).toBe("approve");
 	});
 
 	it("labels Merge with the repository's merge method", () => {
