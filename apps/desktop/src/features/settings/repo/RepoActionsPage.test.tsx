@@ -73,6 +73,26 @@ describe("SET-07 RepoActionsPage", () => {
 		expect(await screen.findByText("No custom actions yet. Add one to get started.")).toBeTruthy();
 	});
 
+	// Conductor's Actions page: its own description, then Custom actions, Use spotlight testing and
+	// the instruction rows (renderApp Enl, _Wa).
+	it("holds the instruction rows after Use spotlight testing, under Conductor's description", async () => {
+		await renderPage();
+
+		expect(
+			await screen.findByText(
+				"Configure action-specific behavior and instructions for this repository.",
+			),
+		).toBeTruthy();
+		expect(
+			screen.getByText("Shortcuts for quick actions, like running your dev server or test suite"),
+		).toBeTruthy();
+		const spotlight = await screen.findByRole("switch", { name: "Use spotlight testing" });
+		const review = await screen.findByText("Code review preferences");
+		expect(
+			spotlight.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+
 	it("saves a personal action's hidden flag to the settings file", async () => {
 		const { repo, container } = await renderPage();
 		must(
@@ -126,7 +146,7 @@ describe("SET-07 RepoActionsPage", () => {
 			.spyOn(container.actions.projects, "updateConfig")
 			.mockResolvedValue(ok(undefined));
 
-		fireEvent.click(await screen.findByRole("button", { name: "Add action" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Add" }));
 		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Tests" } });
 		fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm test" } });
 		fireEvent.click(screen.getByRole("button", { name: "Save action" }));

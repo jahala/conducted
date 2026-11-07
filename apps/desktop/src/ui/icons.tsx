@@ -127,6 +127,13 @@ export const EyeIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A pointer clicking, with rays: run an action. */
+export const MousePointerClickIcon = (p: P) => (
+	<Icon
+		d="M6.5 6.5l6.5 2.25-2.75 1.25-1.25 2.75zM3 1.75l.6 1.85M1.75 3l1.85.6M6 1.75l-.9 1.7M1.75 6l1.7-.9"
+		{...p}
+	/>
+);
 /** An eye struck through: hide what is shown. */
 export const EyeOffIcon = (p: P) => (
 	<Icon
