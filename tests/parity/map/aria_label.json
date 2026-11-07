@@ -30,10 +30,10 @@
 	},
 	"aria_label:R2049152": {
 		"status": "matched",
-		"state": "settings-key-bindings",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"state": "first-run",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(1) > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"aria_label:R2248531": {

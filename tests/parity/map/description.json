@@ -802,14 +802,16 @@
 		"reason": "unshown",
 		"screen": "Settings",
 		"class": "wording",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor has this wording twice, with and without the full stop (@11725533); ours shows the one with it.)"
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11027029": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Settings",
 		"class": "wording",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor has this wording with and without the full stop; ours shows the one with it.)"
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11028884": {
 		"status": "matched",
@@ -1359,7 +1361,8 @@
 		"reason": "unshown",
 		"screen": "Settings",
 		"class": "wording",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor has this wording with and without the full stop; ours shows the one with it.)"
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11265371": {
 		"status": "matched",
@@ -1500,14 +1503,16 @@
 		"reason": "unshown",
 		"screen": "Settings",
 		"class": "wording",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor's page text (@10668720) has no full stop and ours shows that one; this is its settings-list copy.)"
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11300742": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Settings",
 		"class": "wording",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor's page text (@10671665) has no full stop and ours shows that one; this is its settings-list copy.)"
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11300941": {
 		"status": "gap",

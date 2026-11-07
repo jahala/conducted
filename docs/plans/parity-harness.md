@@ -106,6 +106,8 @@ First runs on #347, 7 November 2026. The full gap list is `docs/reports/parity-g
 - The first run found three of the four parts before the map existed; the fourth needs the composer placeholder matched to a state, which the seeding added. Before trusting a result, a reader should know the reverse direction's sample-data rules were then tightened (section 3), and the instrument check still passed after.
 - Counts at c8860c66: 3,814 entries, 703 matched, 57 decided, 3,054 gaps (891 unshown, 2,163 missing); 1,209 ours-only strings (256 distinct); 141 backend names of ours unmatched; 5 of 7 drivable flows pass, and 3 add-project flows are not drivable.
 
+- Step 5's first pass (#363), from run 42329262913's dump of 2a23ec8c: 998 matched, 847 decided, 780 unshown, 6 wording, 1,183 feature gaps; 61 catalogue states; 514 distinct strings of ours unaccounted for, listed for the owner in the gap report; 6 of 7 drivable flows pass. The instrument check passed on every run.
+
 Not checked yet:
 
 - Stage 2's live log (section 3).
