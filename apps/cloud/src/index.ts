@@ -1,9 +1,11 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-06 Keep work across sandbox restarts
- * Owns: the Worker's front door: it checks the pairing token on every request and routes each
- * workspace's git, shell, file and sidecar-relay calls to that workspace's Durable Object. Its
- * outbound handler also carries the sandbox entry's turn-end backup call.
+ * @feature CLOUD-07 Pair the desktop app with the user's Worker
+ * Owns: the Worker's front door: it checks the pairing token on every request, answers the
+ * desktop's pairing check (`/pair`), and routes each workspace's git, shell, file and
+ * sidecar-relay calls to that workspace's Durable Object. Its outbound handler also carries the
+ * sandbox entry's turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
  * HTTPS and one WebSocket; the Worker authenticates and routes). The sandbox's outbound
  * credential swap is outbound.ts (CLOUD-05), which also carries the sandbox entry's turn-end
@@ -17,7 +19,7 @@
  */
 import { DirectoryBackupGateway } from "@cloudflare/sandbox";
 import { INVALID_BODY, WORKSPACE_NAME, zExecBody, zFileBody, zGitBody } from "./args.ts";
-import { isAuthorized } from "./auth.ts";
+import { isAuthorized, PAIR_PATH, pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { Outbound } from "./outbound.ts";
 import { Workspace } from "./workspace.ts";
@@ -62,6 +64,15 @@ export default {
 			return new Response("Unauthorized", { status: 401 });
 		}
 		const url = new URL(request.url);
+		if (url.pathname === PAIR_PATH) {
+			if (request.method !== "GET") {
+				return new Response("Method not allowed", {
+					status: 405,
+					headers: { allow: "GET" },
+				});
+			}
+			return pairAnswer();
+		}
 		const match = ROUTE.exec(url.pathname);
 		if (match === null) return new Response("Not found", { status: 404 });
 		const [, name, action] = match as unknown as [string, string, string];

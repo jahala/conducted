@@ -46,6 +46,7 @@ const SERVICE_NAMES = Object.keys({
 	agentCatalog: true,
 	mcp: true,
 	linear: true,
+	cloudPairing: true,
 	git: true,
 	graphite: true,
 	gitCache: true,
