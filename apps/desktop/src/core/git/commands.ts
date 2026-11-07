@@ -1,5 +1,6 @@
 /**
  * @feature GIT-01 Catalogue of every git invocation the app makes
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * Owns: one pure function per git (or helper script) invocation, each returning a `GitCommand`
  * value. Nothing here runs a process. The runner (runner.ts) executes the value.
  * Behaviour: services-map.md part 3 (3.1 create, 3.3 polling, 3.4 diffs, 3.6 push and pull,
@@ -18,6 +19,7 @@
  * services/agent-instructions.ts). The only `reset --hard` is `resetHard` for the retarget case in
  * services-map 3.11.
  * Test first: revParseVerify("refs/heads/x") lists exit codes 0 and 1 as success.
+ * CLOUD-04 test first: reads a cloud repo's shared clone: set-head, one branch fetch and ls-tree.
  */
 
 export interface GitCommand {
@@ -68,6 +70,9 @@ export const configSetWorktree = (key: string, value: string): GitCommand =>
 	git(["config", "--worktree", key, value]);
 export const remoteGetUrl = (remote: string): GitCommand =>
 	git(["remote", "get-url", "--", remote]);
+/** Points a shared clone's `<remote>/HEAD` at the remote's default branch (services-map 3.14). */
+export const remoteSetHead = (remote: string): GitCommand =>
+	git(["remote", "set-head", remote, "--auto"]);
 export const remoteSetUrl = (remote: string, url: string): GitCommand =>
 	git(["remote", "set-url", "--", remote, url]);
 export const remoteRename = (oldName: string, newName: string): GitCommand =>
@@ -94,6 +99,22 @@ export const cloneWithProgress = (url: string, destination: string): GitCommand 
 /** Fetch without touching FETCH_HEAD, so concurrent fetches do not fight (services-map 3.6.5). */
 export const fetch = (remote: string, refspecs: readonly string[] = []): GitCommand =>
 	git(["fetch", "--no-write-fetch-head", "--prune", "--", remote, ...refspecs], { network: true });
+
+/**
+ * One branch into its remote-tracking ref in a shared clone, without touching FETCH_HEAD or other
+ * refs (services-map 3.14).
+ */
+export const fetchBranchIntoRemoteRef = (remote: string, branch: string): GitCommand =>
+	git(
+		[
+			"fetch",
+			"--no-write-fetch-head",
+			"--",
+			remote,
+			`refs/heads/${branch}:refs/remotes/${remote}/${branch}`,
+		],
+		{ network: true },
+	);
 
 export const worktreeAddNewBranch = (path: string, branch: string, startSha: string): GitCommand =>
 	git(["worktree", "add", path, "-b", branch, startSha], { retryOnLock: false });
@@ -266,6 +287,9 @@ export const showFileAt = (ref: string, path: string): GitCommand =>
 /** The committed settings of a repository, read from a ref instead of the checkout (DATA-05). */
 export const showSettingsFileAt = (ref: string): GitCommand =>
 	showFileAt(ref, ".conducted/settings.toml");
+/** True when a shared clone's ref has a path (services-map 3.14). */
+export const lsTreeFileAt = (ref: string, path: string): GitCommand =>
+	git(["ls-tree", ref, "--", path]);
 export const diffFilePatch = (
 	from: string,
 	to: string | null,

@@ -69,7 +69,7 @@ import { ShellGitRunner } from "./git/runner.ts";
 import { checkHost } from "./host.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import type { DiagnosticsCapture, Session } from "./model.ts";
-import { AgentCatalogService, agentKey, launchTakesKey } from "./services/agent-catalog.ts";
+import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
@@ -531,6 +531,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
+		cloudClientFor: (host) => tunnelForHost(host),
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
 		repoRootPathOf: (sessionId) => {
 			const ws = lookups.workspaceOfSession(sessionId);
@@ -665,9 +666,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 			!setting<boolean>("enterprise_data_privacy"),
 		// The catalog has no price field, so the default picker model is the utility choice.
 		cheapestModel: (session) => {
+			const workspace = lookups.workspaceOfSession(session.id);
 			const models =
 				agentCatalog.store.getState().models[
-					agentKey(session.config.agent, session.config.acpAgent)
+					modelsKey(
+						workspace.ok ? workspace.value.host : undefined,
+						session.config.agent,
+						session.config.acpAgent,
+					)
 				];
 			if (models?.state === "ready") {
 				const picker = models.data.filter((model) => model.status === "picker");

@@ -6,8 +6,9 @@
  * @feature AGENT-09 Cursor: SDK in process
  * Owns: reading the sidecar startup settings from the environment the Rust shell sets: the bin
  * folder, the managed programs folder (PLAT-28), the outbox root, the slash-command cache folder, the Cursor run store folder, the log
- * folder, the app version, the log level and, when the build has one, the bundled skill plugin
- * folder. Nothing else. Every other module receives plain values from here, never process.env.
+ * folder, the app version, the log level, the memory watchdog's incident marker (CLOUD-04) and,
+ * when the build has one, the bundled skill plugin folder. Nothing else. Every other module
+ * receives plain values from here, never process.env.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 steps 6 and 7 and B4 (Rust passes
  * these through environment variables), other-runners.md 2.3 (the Cursor SDK's local run store).
  * SIDE-18 reads the app version and log level; SIDE-22 reads the slash-command cache folder;
@@ -46,6 +47,8 @@ export const SIDECAR_ENV = {
 	appVersion: "CONDUCTED_APP_VERSION",
 	/** The most detailed level the sidecar writes (SIDE-18). */
 	logLevel: "CONDUCTED_LOG_LEVEL",
+	/** The cloud memory watchdog's incident marker (CLOUD-04). */
+	incidentMarkerPath: "CONDUCTED_MEMORY_INCIDENT_MARKER_PATH",
 } as const;
 
 const absolutePath = z
@@ -63,6 +66,7 @@ const zSidecarConfig = z.object({
 	skillPluginDir: absolutePath.optional(),
 	appVersion: z.string().min(1),
 	logLevel: z.enum(LOG_LEVELS),
+	incidentMarkerPath: absolutePath.optional(),
 });
 export type SidecarConfig = z.infer<typeof zSidecarConfig> & { logLevel: LogLevel };
 
@@ -79,6 +83,7 @@ export function parseSidecarConfig(
 		skillPluginDir: env[SIDECAR_ENV.skillPluginDir],
 		appVersion: env[SIDECAR_ENV.appVersion],
 		logLevel: env[SIDECAR_ENV.logLevel],
+		incidentMarkerPath: env[SIDECAR_ENV.incidentMarkerPath],
 	});
 	if (parsed.success) return ok(parsed.data);
 	const problems = parsed.error.issues.map((issue) => {

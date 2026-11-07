@@ -1,5 +1,6 @@
 /**
  * @feature COMP-02 Model picker
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * Owns: The button and menu that choose agent, model, effort and fast mode, with favourites: bound to a
  * chat (ModelPicker), and the same menu for the new-workspace dialog's first chat (ModelMenu).
  * Behaviour: ui-map.md 3.5 (Model picker, Cmd+/: favourites up to 5 selectable with Cmd+Ctrl+1..5,
@@ -26,12 +27,14 @@
  * Must handle: Models not loaded (loading row); the agent is not installed or not signed in (item
  * disabled); a model that lacks the current effort (switch to its default and say so); fast mode not
  * available for the model or the account (toggle hidden); no models match the search; ACP agents
- * (OpenCode, Pi) listed under Agent.
+ * (OpenCode, Pi) listed under Agent; a cloud workspace reads its own model list and shows the
+ * reason when that list is not available (CLOUD-04).
  * Test first: Choosing a model that supports only 'high' effort while 'max' is set updates the
  * config to 'high' and says the effort changed.
+ * CLOUD-04 test first: keeps a cloud workspace's model list apart from the local one.
  */
 
-import type { Effort, ModelInfo, SessionConfig } from "@conducted/protocol";
+import type { Effort, Host, ModelInfo, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -115,6 +118,9 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	const actions = useActions();
 	const { services } = useServices();
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
+	const workspace = useStore(services.workspace.store, (state) =>
+		session === undefined ? undefined : state.workspacesById[session.workspaceId],
+	);
 
 	const applyConfig = useCallback(
 		async (change: ConfigChange) => {
@@ -156,6 +162,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	return (
 		<ModelMenu
 			config={session?.config}
+			host={workspace?.host}
 			started={session !== undefined && session.lastUserMessageAt !== null}
 			onApply={applyConfig}
 			scope={sessionId}
@@ -169,6 +176,8 @@ export type ModelChoice = ConfigChange;
 export interface ModelMenuProps {
 	/** The choice the menu shows; undefined while the chat loads. */
 	config: ConfigChange | undefined;
+	/** The workspace's host, so a cloud workspace reads its own model list. Missing: this Mac. */
+	host?: Host;
 	/** True when the chat has sent a message, so another agent opens a new chat. */
 	started: boolean;
 	onApply: (change: ConfigChange) => void | Promise<void>;
@@ -185,6 +194,7 @@ export interface ModelMenuProps {
  */
 export function ModelMenu({
 	config,
+	host,
 	started,
 	onApply: applyConfig,
 	scope,
@@ -196,7 +206,7 @@ export function ModelMenu({
 	const installs = useStore(services.agentCatalog.store, (state) => state.installs);
 	const favorites = useStore(services.favoriteModels.store, (state) => state.favorites);
 	const visible = useSetting<string>("visible_provider_models");
-	const models = useModels(config?.agent ?? "claude", config?.acpAgent);
+	const models = useModels(config?.agent ?? "claude", config?.acpAgent, host);
 	const fastShortcut = useLiveShortcut("chat.toggleFastMode");
 	const [search, setSearch] = useState("");
 	const agentChoices = useRef(createLatestWins());
