@@ -473,10 +473,22 @@ pub fn move_secrets(
     match result {
         Ok(()) => Ok(written),
         Err(error) => {
-            for key in written.iter().rev() {
-                remove_secret(service, key)?;
+            let left: Vec<&str> = written
+                .iter()
+                .rev()
+                .filter(|key| remove_secret(service, key).is_err())
+                .map(String::as_str)
+                .collect();
+            if left.is_empty() {
+                return Err(error);
             }
-            Err(error)
+            Err(failed(
+                error.code(),
+                format!(
+                    "{error} These Keychain items could not be removed again: {}.",
+                    left.join(", ")
+                ),
+            ))
         }
     }
 }
