@@ -1208,7 +1208,9 @@ export class AgentCatalogService {
 			if (!patched.ok) return err(patched.error);
 			text = patched.value;
 		} else {
-			text = `${toml.stringify({ mcp_servers: servers })}\n`;
+			const written = toml.stringify({ mcp_servers: servers });
+			if (!written.ok) return err(written.error);
+			text = `${written.value}\n`;
 		}
 		const after = await this.#modifiedAtOf(files, path);
 		if (!after.ok) return after;

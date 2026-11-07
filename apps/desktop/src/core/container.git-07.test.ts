@@ -11,8 +11,8 @@ import { ok, type Result, type SessionId } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { ShellOutput } from "../platform/platform.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../test/container.ts";
+import { tomlText } from "../test/toml-text.ts";
 import { localSettingsFile } from "./app-paths.ts";
-import { tomlCodec } from "./services/toml-codec.ts";
 
 const CUSTOM_PROMPT = "Keep both sides of every conflict.";
 
@@ -23,7 +23,7 @@ describe("GIT-07 repository prompt wiring", () => {
 			const repo = await seedRepo(harness.container);
 			harness.memory.controls.files.set(
 				localSettingsFile(repo.rootPath),
-				tomlCodec.stringify({ prompts: { resolve_merge_conflicts: CUSTOM_PROMPT } }),
+				tomlText({ prompts: { resolve_merge_conflicts: CUSTOM_PROMPT } }),
 			);
 			const loaded = await harness.container.services.repo.loadConfig(repo.id);
 			expect(loaded.ok).toBe(true);
