@@ -42,8 +42,9 @@
  * a command the agent lists is sent to it, and any other says it is not available. A
  * terminal-effect command opens a terminal that runs it and shows the terminal command bar above
  * the composer; the bar follows
- * that terminal (closed, finished, failed) and
- * restarts the agent when the user clicks Done. Attachments are added from the '+' menu, a drop or
+ * that terminal (closed, finished, failed); Done
+ * restarts the agent, forgets the chat's cached MCP list (SET-05) and says "Configuration
+ * refreshed." (ui-map.md 3.5). Attachments are added from the '+' menu, a drop or
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
  * The '+' menu's "Link issue", Cmd+I and the palette's "Link issue" open the Link issue dialog
  * (PR-09) of the chat on screen; the issue it links joins the same attachment list.
@@ -418,9 +419,21 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 
 	const finishTerminalCommand = useCallback(() => {
 		setTerminalRun(null);
-		void actions.sessions.restartAgent(sessionId).then((result) => {
-			if (!result.ok) toastError("Couldn't restart the agent", result.error);
-		});
+		void (async () => {
+			const restarted = await actions.sessions.restartAgent(sessionId);
+			if (!restarted.ok) {
+				toastError("Couldn't restart the agent", restarted.error);
+				return;
+			}
+			// The command may have edited the agent's own files (/mcp adds or removes a server), so
+			// the chat's cached MCP list is out of date until the next look reads the config again.
+			const forgotten = await actions.mcp.forget(sessionId);
+			if (!forgotten.ok) {
+				toastError("Couldn't refresh the MCP servers", forgotten.error);
+				return;
+			}
+			toast.success("Configuration refreshed.");
+		})();
 	}, [actions, sessionId]);
 
 	const extensions = useMemo(
