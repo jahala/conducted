@@ -127,19 +127,37 @@ describe("CHAT-08 edit card", () => {
 		expect(screen.getByRole("button", { name: "Open in editor" })).toBeTruthy();
 	});
 
-	it("shows the retry note when the edit failed", async () => {
+	it("shows the retry note when the edit failed because the file was not read yet", async () => {
 		await renderInRouter(
 			<EditCard
 				call={view(
 					"edit",
 					{ file_path: "src/a.ts", old_string: "old", new_string: "new" },
-					{ output: "not found", isError: true },
+					{
+						output: "File has not been read yet. Read it first before writing to it.",
+						isError: true,
+					},
 				)}
 				sessionId={sessionId}
 				defaultExpanded
 			/>,
 		);
 		expect(screen.getByText(/Claude Code has to retry the file edit/)).toBeTruthy();
+	});
+
+	it("leaves the retry note out when the edit failed for another reason", async () => {
+		await renderInRouter(
+			<EditCard
+				call={view(
+					"edit",
+					{ file_path: "src/a.ts", old_string: "old", new_string: "new" },
+					{ output: "String to replace not found in file.", isError: true },
+				)}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.queryByText(/Claude Code has to retry the file edit/)).toBeNull();
 	});
 });
 
