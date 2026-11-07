@@ -1111,6 +1111,10 @@ APP-04	control	Conductor shows "Search repositories" (aria_label, Unplaced); our
 APP-04	message	Conductor shows "Recent repos" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@1897964	missing
 CHAT-24	message	Conductor shows "Failed to render diagram" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@8047788	missing
 CHAT-22	message	Conductor shows "Couldn’t load visualization" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@9498978	missing
+CHAT-06	region	A footer on user message bubbles behind the user_message_footer_enabled flag.	services-map 4.2.3	missing
+REV-08	state	The file editor shows an error card when it fails to open.	inventory description R@9949297	missing
+APP-05	region	The toast area carries the accessible name 'Notifications'.	inventory aria_label R@511358	missing
+WS-05	dialog	Archiving asks to stop running agents, with the dialog 'Archive workspace?'.	inventory description R@11400022	missing
 NAV-13	control	Conductor shows "View workspace world map" (control, Unplaced); ours says "Open the place name map" on Passport command (parity gap, wording).	inventory text R@1853248	missing
 PRJ-02	control	Conductor shows "Location" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@1894370	missing
 PRJ-02	region	Conductor shows "Cloning..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@1895265	missing

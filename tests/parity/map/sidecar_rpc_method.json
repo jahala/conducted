@@ -565,9 +565,10 @@
 		"by": "seed"
 	},
 	"sidecar_rpc_method:S197198": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A method of the phone relay; remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"sidecar_rpc_method:S982464": {
 		"status": "gap",
