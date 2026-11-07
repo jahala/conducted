@@ -21,7 +21,9 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { Terminal } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { hostFromRow } from "./host-rows.ts";
 import {
+	collectResults,
 	executeExisting,
 	executeStatement,
 	executeVoid,
@@ -32,6 +34,9 @@ import {
 export interface TerminalRow {
 	id: TerminalId;
 	workspace_id: WorkspaceId | null;
+	host_kind: "local" | "cloud";
+	host_url: string | null;
+	host_vm_id: string | null;
 	repo_id: RepoId | null;
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
@@ -58,10 +63,16 @@ export const terminalFromRow = (row: TerminalRow): Terminal => ({
 	exitCode: row.exit_code,
 });
 
+/** A stored terminal, refusing a half-written host instead of reading it as local (CLOUD-13). */
+const storedTerminal = (row: TerminalRow): Result<Terminal> => {
+	const host = hostFromRow(row);
+	return host.ok ? ok(terminalFromRow(row)) : host;
+};
+
 /** The model has no size or screen state; they are columns written at insert. */
 export type TerminalInsert = Terminal & { cols: number; rows: number; screenState: string | null };
 
-/** Parameters for TERMINALS_SQL.insert, in column order. */
+/** Parameters for TERMINALS_SQL.insert. The host columns come from the workspace, so they are not here. */
 export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] => [
 	terminal.id,
 	terminal.workspaceId,
@@ -78,8 +89,16 @@ export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] =
 	terminal.exitCode,
 ];
 
-const COLUMNS = `id, workspace_id, repo_id, kind, title, cwd, cols, rows, start_command,
-	screen_state, started_at, ended_at, exit_code`;
+const COLUMNS = `id, workspace_id, host_kind, host_url, host_vm_id, repo_id, kind, title, cwd,
+	cols, rows, start_command, screen_state, started_at, ended_at, exit_code`;
+
+/**
+ * The host is copied from the workspace. A repository terminal has no workspace, so it is local
+ * with no URL or sandbox (CLOUD-13). `terminalToParams` keeps returning the model's values.
+ */
+const HOST_VALUES = `COALESCE((SELECT host_kind FROM workspaces WHERE id = $2), 'local'),
+	(SELECT host_url FROM workspaces WHERE id = $2),
+	(SELECT host_vm_id FROM workspaces WHERE id = $2)`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const TERMINALS_SQL = {
@@ -88,8 +107,8 @@ export const TERMINALS_SQL = {
 	listByRepo: `SELECT ${COLUMNS} FROM terminals WHERE repo_id = $1 ORDER BY started_at, id`,
 	listActive: `SELECT ${COLUMNS} FROM terminals WHERE ended_at IS NULL ORDER BY started_at, id`,
 	get: `SELECT ${COLUMNS} FROM terminals WHERE id = $1`,
-	insert: `INSERT INTO terminals (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		$11, $12, $13)`,
+	insert: `INSERT INTO terminals (${COLUMNS}) VALUES ($1, $2, ${HOST_VALUES}, $3, $4, $5, $6, $7,
+		$8, $9, $10, $11, $12, $13)`,
 	getScreenState: "SELECT screen_state FROM terminals WHERE id = $1",
 	setScreenState: "UPDATE terminals SET screen_state = $1 WHERE id = $2",
 	setTitle: "UPDATE terminals SET title = $1 WHERE id = $2",
@@ -143,7 +162,7 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 		what: string,
 	): Promise<Result<Terminal[]>> => {
 		const rows = await selectRows<TerminalRow>(db, sql, params, what);
-		return rows.ok ? ok(rows.value.map(terminalFromRow)) : err(rows.error);
+		return rows.ok ? collectResults(rows.value.map(storedTerminal)) : err(rows.error);
 	};
 	return {
 		listByWorkspace: (workspaceId) =>
@@ -155,7 +174,7 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 			const rows = await selectRows<TerminalRow>(db, TERMINALS_SQL.get, [id], "Reading a terminal");
 			if (!rows.ok) return err(rows.error);
 			const row = rows.value[0];
-			return row === undefined ? ok(null) : ok(terminalFromRow(row));
+			return row === undefined ? ok(null) : storedTerminal(row);
 		},
 		start: async (input) =>
 			inTransaction(db, "Starting a terminal", async (tx) => {

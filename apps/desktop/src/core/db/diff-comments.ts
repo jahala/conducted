@@ -29,7 +29,9 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { DiffComment, ReviewCommentState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { hostFromRow, workspaceHostExpressions } from "./host-rows.ts";
 import {
+	collectResults,
 	executeExisting,
 	executeStatement,
 	executeVoid,
@@ -43,6 +45,9 @@ import {
 export interface DiffCommentRow {
 	id: CommentId;
 	workspace_id: WorkspaceId;
+	host_kind: "local" | "cloud";
+	host_url: string | null;
+	host_vm_id: string | null;
 	file_path: string;
 	line: number | null;
 	end_line: number | null;
@@ -85,7 +90,13 @@ export const diffCommentFromRow = (row: DiffCommentRow): DiffComment => ({
 	updatedAt: row.updated_at,
 });
 
-/** Parameters for DIFF_COMMENTS_SQL.insert and .upsert, in column order. */
+/** A stored comment, refusing a half-written host instead of reading it as local (CLOUD-13). */
+const storedDiffComment = (row: DiffCommentRow): Result<DiffComment> => {
+	const host = hostFromRow(row);
+	return host.ok ? ok(diffCommentFromRow(row)) : host;
+};
+
+/** Parameters for DIFF_COMMENTS_SQL.insert and .upsert. The host columns come from the workspace, so they are not here. */
 export const diffCommentToParams = (comment: DiffComment): readonly unknown[] => [
 	comment.id,
 	comment.workspaceId,
@@ -110,12 +121,16 @@ export const diffCommentToParams = (comment: DiffComment): readonly unknown[] =>
 	comment.suggestionBaseCode,
 ];
 
-const COLUMNS = `id, workspace_id, file_path, line, end_line, body, author_kind, author_name,
-	author_avatar_url, side, thread_id, reply_to_id, suggestion, remote_url, resolved, outdated,
-	state, location, created_at, updated_at, suggestion_base_code`;
+const COLUMNS = `id, workspace_id, host_kind, host_url, host_vm_id, file_path, line, end_line, body,
+	author_kind, author_name, author_avatar_url, side, thread_id, reply_to_id, suggestion, remote_url,
+	resolved, outdated, state, location, created_at, updated_at, suggestion_base_code`;
 
-const VALUES =
-	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21";
+/**
+ * The values for the insert. The host is copied from the workspace named by `$2`; it takes no
+ * parameter, so `diffCommentToParams` keeps returning the model's values (CLOUD-13).
+ */
+const VALUES = `$1, $2, ${workspaceHostExpressions(2)}, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+	$12, $13, $14, $15, $16, $17, $18, $19, $20, $21`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const DIFF_COMMENTS_SQL = {
@@ -264,7 +279,7 @@ export function createDiffCommentRepository(
 		what: string,
 	): Promise<Result<DiffComment[]>> => {
 		const rows = await selectRows<DiffCommentRow>(db, sql, params, what);
-		return rows.ok ? ok(rows.value.map(diffCommentFromRow)) : err(rows.error);
+		return rows.ok ? collectResults(rows.value.map(storedDiffComment)) : err(rows.error);
 	};
 	return {
 		listByWorkspace: (workspaceId) =>
@@ -282,7 +297,7 @@ export function createDiffCommentRepository(
 			);
 			if (!rows.ok) return err(rows.error);
 			const row = rows.value[0];
-			return row === undefined ? ok(null) : ok(diffCommentFromRow(row));
+			return row === undefined ? ok(null) : storedDiffComment(row);
 		},
 		countOpen: async (workspaceId) => {
 			const rows = await selectRows<{ total: number }>(

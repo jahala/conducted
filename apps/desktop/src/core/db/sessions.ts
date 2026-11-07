@@ -14,6 +14,7 @@ import { err, ok, type Result, type SessionId, type WorkspaceId } from "@conduct
 import type { Database } from "../../platform/platform.ts";
 import type { Session } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { hostFromRow, workspaceHostExpressions } from "./host-rows.ts";
 import {
 	collectResults,
 	executeExisting,
@@ -28,6 +29,9 @@ import {
 export interface SessionRow {
 	id: SessionId;
 	workspace_id: WorkspaceId;
+	host_kind: "local" | "cloud";
+	host_url: string | null;
+	host_vm_id: string | null;
 	title: string | null;
 	config: string;
 	agent_session_id: string | null;
@@ -45,6 +49,8 @@ export interface SessionRow {
 export function sessionFromRow(row: SessionRow): Result<Session> {
 	const config = parseJsonColumn(row.config, zSessionConfig, "sessions.config");
 	if (!config.ok) return config;
+	const host = hostFromRow(row);
+	if (!host.ok) return host;
 	return {
 		ok: true,
 		value: {
@@ -66,7 +72,7 @@ export function sessionFromRow(row: SessionRow): Result<Session> {
 	};
 }
 
-/** Parameters for SESSIONS_SQL.insert, in column order. */
+/** Parameters for SESSIONS_SQL.insert. The host columns come from the workspace, so they are not here. */
 export function sessionToParams(session: Session): Result<readonly unknown[]> {
 	const config = stringifyJson(session.config, "sessions.config");
 	if (!config.ok) return config;
@@ -91,9 +97,9 @@ export function sessionToParams(session: Session): Result<readonly unknown[]> {
 	};
 }
 
-const COLUMNS = `id, workspace_id, title, config, agent_session_id, unread_count,
-	context_used_tokens, context_window_tokens, queue_paused_at, closed_at, last_user_message_at,
-	created_at, updated_at, fork_resume_native_message_id`;
+const COLUMNS = `id, workspace_id, host_kind, host_url, host_vm_id, title, config,
+	agent_session_id, unread_count, context_used_tokens, context_window_tokens, queue_paused_at,
+	closed_at, last_user_message_at, created_at, updated_at, fork_resume_native_message_id`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSIONS_SQL = {
@@ -102,8 +108,16 @@ export const SESSIONS_SQL = {
 	listOpenByWorkspace: `SELECT ${COLUMNS} FROM sessions WHERE workspace_id = $1
 		AND closed_at IS NULL ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM sessions WHERE id = $1`,
-	insert: `INSERT INTO sessions (${COLUMNS})
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+	/**
+	 * The host is copied from the workspace, never passed in, so no caller can store a chat under
+	 * a host its workspace does not have (CLOUD-13). Parameter list unchanged: `sessionToParams`
+	 * still supplies id, workspace and the rest.
+	 */
+	insert: `INSERT INTO sessions (id, workspace_id, host_kind, host_url, host_vm_id, title, config,
+		agent_session_id, unread_count, context_used_tokens, context_window_tokens, queue_paused_at,
+		closed_at, last_user_message_at, created_at, updated_at, fork_resume_native_message_id)
+		VALUES ($1, $2, ${workspaceHostExpressions(2)}, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+			$13, $14)`,
 	setTitle: "UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3",
 	setTitleIfEmpty:
 		"UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3 AND title IS NULL",
