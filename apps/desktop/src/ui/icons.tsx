@@ -101,6 +101,10 @@ export const VolumeIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A closed padlock. */
+export const LockIcon = (p: P) => (
+	<Icon d="M3.5 7.5h9v6h-9zM5.5 7.5V5.25a2.5 2.5 0 0 1 5 0V7.5" {...p} />
+);
 export const CheckIcon = (p: P) => <Icon d="M3 8.5l3 3 7-7" {...p} />;
 export const DotIcon = (p: P) => (
 	<Icon d="M8 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5z" {...p} />
