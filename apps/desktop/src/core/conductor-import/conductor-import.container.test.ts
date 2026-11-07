@@ -526,6 +526,7 @@ describe("APP-17 import from Conductor, through the container", () => {
 		expect(test.memory.controls.secrets.size).toBe(0);
 		expect(test.memory.controls.files.has(`${ROOT}/.conducted/settings.toml`)).toBe(false);
 		expect(test.memory.controls.files.has(`${ROOT}/.conducted/settings.local.toml`)).toBe(false);
+		expect(await test.memory.platform.fs.exists(`${ROOT}/.conducted`)).toBe(false);
 		expect(conductorState(test)).toBe(conductor);
 	});
 
@@ -544,6 +545,31 @@ describe("APP-17 import from Conductor, through the container", () => {
 			reported: failing.reported,
 		});
 		for (const secret of [SECRET, CLOUD_SECRET]) expect(seen).not.toContain(secret);
+	});
+
+	it("a setting Conducted gained since the dry run stops the import, and nothing is replaced", async () => {
+		const test = await setUp();
+		must(await test.container.services.conductorImport.preview());
+		must(await test.container.services.settings.set("message_send_key", "enter"));
+		const before = await countRows(test);
+
+		const outcome = await test.container.services.conductorImport.run();
+
+		expect(outcome.ok).toBe(false);
+		expect(await countRows(test)).toEqual(before);
+		expect(test.container.services.settings.get("message_send_key")).toBe("enter");
+		expect(test.memory.controls.secrets.size).toBe(0);
+	});
+
+	it("a cancel while the dry run reads drops its copy when the read ends", async () => {
+		const test = await setUp();
+		const reading = test.container.services.conductorImport.preview();
+		must(await test.container.services.conductorImport.cancel());
+		const read = await reading;
+
+		expect(read.ok).toBe(false);
+		expect(test.memory.controls.conductorDatabases.size).toBe(1);
+		expect(test.container.services.conductorImport.store.getState().phase).toBe("idle");
 	});
 
 	it("removes its copy when the import ends and when it is cancelled", async () => {

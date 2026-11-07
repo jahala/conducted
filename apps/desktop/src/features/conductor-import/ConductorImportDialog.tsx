@@ -35,6 +35,8 @@ const KIND_LABEL: Readonly<Record<ImportKind, string>> = {
 
 const KINDS = Object.keys(KIND_LABEL) as ImportKind[];
 
+const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
 /** How many items of this preview come over, in all. */
 const toImport = (preview: ImportPreview): number =>
 	KINDS.reduce((total, kind) => total + preview.kinds[kind].toImport, 0);
@@ -237,8 +239,10 @@ export function ConductorImportDialog({ onClose, onImported }: ConductorImportDi
 					) : null}
 					{state.phase === "imported" && state.imported !== null ? (
 						<p role="status" className="text-sm text-fg">
-							Imported {state.imported.repos} projects, {state.imported.workspaces} workspaces and{" "}
-							{state.imported.chats} chats. Chats continue from each agent's own transcript.
+							Imported {count(state.imported.repos, "project")},{" "}
+							{count(state.imported.workspaces, "workspace")} and{" "}
+							{count(state.imported.chats, "chat")}. Chats continue from each agent's own
+							transcript.
 						</p>
 					) : null}
 					{preview !== null ? (

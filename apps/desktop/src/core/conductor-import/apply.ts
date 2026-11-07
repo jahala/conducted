@@ -6,7 +6,8 @@
  * Behaviour: docs/plans/migrate-from-conductor.md, safety rules 3 (all or nothing; Keychain entries
  * the import made are removed on rollback), 4 (counted and sampled after; a count that differs
  * fails the import) and 6 (values never in an error).
- * Must handle: a row Conducted gained since the dry run (a setting, a variable, a project) makes
+ * Must handle: a `.conducted` folder the import had to make goes back with its file; a row
+ * Conducted gained since the dry run (a setting, a variable, a project) makes
  * its insert write nothing or clash, which the count check or the database turns into a failure,
  * and the whole import rolls back; a settings file that appeared since the dry run is never
  * overwritten; workspace ports are chosen inside the port service's queue, so a workspace created
@@ -33,7 +34,7 @@ export interface ApplyDeps {
 	repositoriesOn: (db: Database) => Repositories;
 	conductorImport: Pick<ConductorImport, "moveSecrets">;
 	keychain: Pick<Keychain, "delete">;
-	fs: Pick<FileSystem, "exists" | "trash">;
+	fs: Pick<FileSystem, "exists" | "mkdirp" | "trash">;
 	/** Writes one new settings file through the settings service, which owns the format. */
 	writeSettingsFile: (file: SettingsFileWrite) => Promise<Result<void>>;
 	/** Picks `count` workspace ports and runs `use` with them inside the port service's queue. */
@@ -68,10 +69,11 @@ export async function applyImportPlan(
 		if (!moved.ok) return err(moved.error);
 		written.push(...moved.value);
 	}
+	/** Files and folders the import made, in the order it made them. */
 	const files: string[] = [];
 	const undo = async (cause: { code: string; message: string }): Promise<Result<never>> => {
 		const failures: string[] = [];
-		for (const path of files) {
+		for (const path of [...files].reverse()) {
 			const trashed = await deps.fs.trash(path);
 			if (!trashed.ok) failures.push(path);
 		}
@@ -89,9 +91,15 @@ export async function applyImportPlan(
 		if (await deps.fs.exists(file.path)) {
 			return undo(appError("import_changed", `${file.path} appeared since the dry run.`));
 		}
+		const folder = file.path.slice(0, file.path.lastIndexOf("/"));
+		if (!(await deps.fs.exists(folder))) {
+			const madeFolder = await deps.fs.mkdirp(folder);
+			if (!madeFolder.ok) return undo(madeFolder.error);
+			files.push(folder);
+		}
 		const made = await deps.writeSettingsFile(file);
 		// A write that failed after the file appeared still leaves a file to take back.
-		if (!made.ok || (await deps.fs.exists(file.path))) files.push(file.path);
+		if (await deps.fs.exists(file.path)) files.push(file.path);
 		if (!made.ok) return undo(made.error);
 	}
 	const stored = await deps.withPorts(plan.rows.workspaces.length, (ports) =>
@@ -210,6 +218,16 @@ async function writeRows(
 	for (const step of steps) {
 		const done = await step();
 		if (!done.ok) return done;
+		// Each statement adds or changes one row. None means Conducted gained that row since the
+		// dry run (a setting or a variable the user just set), and the import never replaces it.
+		if (done.value !== 1) {
+			return err(
+				appError(
+					"import_changed",
+					"Conducted changed since the dry run, so the import stopped before replacing anything. Run the dry run again.",
+				),
+			);
+		}
 	}
 	return ok(undefined);
 }

@@ -85,7 +85,7 @@ describe("APP-17 the import from Conductor, on screen", () => {
 
 		fireEvent.click(dialog.getByRole("button", { name: "Import" }));
 
-		expect(await dialog.findByText(/Imported 1 projects, 1 workspaces and 1 chats/)).toBeTruthy();
+		expect(await dialog.findByText(/Imported 1 project, 1 workspace and 1 chat\./)).toBeTruthy();
 		expect(
 			mounted.container.services.workspace.store.getState().workspacesById["w-oslo"],
 		).toBeTruthy();

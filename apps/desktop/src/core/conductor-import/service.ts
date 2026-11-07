@@ -5,7 +5,8 @@
  * user goes ahead, reloads the stores that show the imported rows, and removes the copy when the
  * import ends, is cancelled or fails, and at every start.
  * Behaviour: docs/plans/migrate-from-conductor.md (safety rules 1 to 7, "Where it lives").
- * Must handle: a dry run or an import while one runs is refused, never started twice; the import
+ * Must handle: a dry run or an import while one runs is refused, never started twice; a cancel
+ * while the dry run reads drops its copy once the read ends; the import
  * writes only the plan the user saw, and a plan is used once; any failure leaves Conducted as it
  * was (apply.ts) and drops the copy, so the next try starts from a fresh dry run; the copy left by
  * a crash is removed at the next start; nothing of Conductor's is written: its database is copied
@@ -92,6 +93,8 @@ export class ConductorImportService {
 	readonly #deps: ConductorImportServiceDeps;
 	#plan: { copyPath: string; plan: ImportPlan } | null = null;
 	#working = false;
+	/** Set when the user cancels while a dry run is still reading; the dry run then drops its copy. */
+	#cancelled = false;
 
 	constructor(deps: ConductorImportServiceDeps) {
 		this.#deps = deps;
@@ -126,10 +129,16 @@ export class ConductorImportService {
 	async preview(): Promise<Result<ImportPreview>> {
 		if (this.#working) return err(busy());
 		this.#working = true;
+		this.#cancelled = false;
 		this.store.setState({ phase: "planning", preview: null, imported: null, error: null });
 		try {
 			await this.#dropCopy();
 			const planned = await this.#planNow();
+			if (this.#cancelled) {
+				await this.#dropCopy();
+				this.store.setState({ phase: "idle", preview: null });
+				return err(appError("import_cancelled", "The dry run was cancelled."));
+			}
 			if (!planned.ok) {
 				await this.#dropCopy();
 				this.store.setState({ phase: "failed", error: planned.error });
@@ -189,7 +198,14 @@ export class ConductorImportService {
 
 	/** Drops the dry run and its copy. */
 	async cancel(): Promise<Result<void>> {
-		if (this.#working) return err(busy());
+		if (this.#working) {
+			// A dry run still reading drops its copy when it finishes; an import runs to its end.
+			if (this.store.getState().phase === "planning") {
+				this.#cancelled = true;
+				return ok(undefined);
+			}
+			return err(busy());
+		}
 		this.#plan = null;
 		const dropped = await this.#dropCopy();
 		this.store.setState({ phase: "idle", preview: null, error: dropped.ok ? null : dropped.error });
