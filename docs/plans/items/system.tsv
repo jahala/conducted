@@ -2933,7 +2933,7 @@ NAV-17	rule	114 (comment): "every other link goes to the command dispatcher" is 
 NAV-17	rule	App/EnabledSettingNotice.tsx, app/SurfaceLayer.tsx, app/zen-mode.ts, app/deep-link-routes.ts, ui/theme-variants.ts, features/diagnostics/*, features/updates/*, features/onboarding/*: all placeholders that throw notImplemented with a backlog id; headers match (they claim only what they will do). No callers except the route and sidebar slots that wrap them in NotBuiltYet (moved by the ui hardening).	docs/reports/slice-2	missing
 APP-16	rule	core hardening: RefreshBranchSync (notImplemented("GIT-03")), removeWorktree (WS-05), computeGitHeader (GIT-04), fuzzyMatch/rankFuzzy (APP-15), runDataLifetimeJob and its five steps (DATA-02): placeholders already tracked in the backlog.	docs/reports/slice-2	covered
 APP-16	rule	WS-01 core hardening: BranchNameIsTaken returns false when show-ref cannot run; change to Result<boolean> with nextFreeName.	docs/reports/slice-2	covered
-APP-16	rule	core hardening: Ignores abort, so the lock timer of a contended wait lives 10 s. Give ShellGitRunnerDeps.sleep a cancel path ((ms, signal)) and pass an abortable timer.	docs/reports/slice-2	missing
+APP-16	rule	core hardening: Ignores abort, so the lock timer of a contended wait lives 10 s. Give ShellGitRunnerDeps.sleep a cancel path ((ms, signal)) and pass an abortable timer.	docs/reports/slice-2	covered
 APP-16	rule	PR-01 core hardening: Only the tests call them.	docs/reports/slice-2	covered
 APP-16	rule	core hardening: The composition root (apps/desktop/src/main.tsx lines 62-69) passes its own short list and never uses ours.	docs/reports/slice-2	covered
 APP-16	rule	PRJ-04 core hardening: 655 calls tomlCodec.stringify unguarded; it can throw.	docs/reports/slice-2	covered

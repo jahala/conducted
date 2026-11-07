@@ -83,14 +83,16 @@ const makeRunner = (
 	const logs: { level: "warn" | "info"; message: string }[] = [];
 	const sleeps: number[] = [];
 	const warmWaits: (() => void)[] = [];
+	const warmSignals: (AbortSignal | undefined)[] = [];
 	const locks = new KeyedMutex();
 	const runner = new ShellGitRunner({
 		shell,
 		locks,
 		programsBin: "/data/bin",
 		programPath,
-		sleep: (ms) => {
+		sleep: (ms, signal) => {
 			if (ms === LOCK_WARM_TIMEOUT_MS) {
+				warmSignals.push(signal);
 				return new Promise<void>((resolve) => {
 					warmWaits.push(resolve);
 				});
@@ -102,7 +104,7 @@ const makeRunner = (
 			logs.push({ level, message });
 		},
 	});
-	return { runner, logs, sleeps, locks, warmWaits };
+	return { runner, logs, sleeps, locks, warmWaits, warmSignals };
 };
 
 describe("GIT-01 isGitLockError", () => {
@@ -521,6 +523,24 @@ describe("GIT-01 ShellGitRunner", () => {
 		await runner.withWorktreeLock("/w", async () => undefined);
 		await runner.withWorktreeAndRepoLocks("/w", "/r", async () => undefined);
 		expect(warmWaits).toHaveLength(0);
+	});
+
+	it("cancels the warm-up timer once the waited-on lock is taken", async () => {
+		const shell = makeShell(async () => ok(out(0)));
+		const { runner, logs, warmSignals } = makeRunner(shell.shell);
+		const gate = deferred();
+		const first = runner.withWorktreeLock("/w", () => gate.promise);
+		const second = runner.withWorktreeLock("/w", async () => undefined);
+
+		await flush();
+		expect(warmSignals).toHaveLength(1);
+		expect(warmSignals[0]?.aborted).toBe(false);
+
+		gate.resolve();
+		await first;
+		await second;
+		expect(warmSignals[0]?.aborted).toBe(true);
+		expect(logs).not.toContainEqual({ level: "warn", message: LOCK_WARM_TIMEOUT_MESSAGE });
 	});
 
 	it("logs a warning when a lock is waited on for 10 seconds and still runs the action", async () => {

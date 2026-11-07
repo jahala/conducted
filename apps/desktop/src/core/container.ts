@@ -276,7 +276,23 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const { platform, clock, ids } = inputs;
 	const repositoryDeps = { clock, ids };
 	const repositories = createRepositories(platform.db, repositoryDeps);
-	const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+	// An aborted signal clears the timer, so a lock wait that ends leaves no 10 s timer behind.
+	const sleep = (ms: number, signal?: AbortSignal) =>
+		new Promise<void>((resolve) => {
+			if (signal?.aborted === true) {
+				resolve();
+				return;
+			}
+			const timer = setTimeout(resolve, ms);
+			signal?.addEventListener(
+				"abort",
+				() => {
+					clearTimeout(timer);
+					resolve();
+				},
+				{ once: true },
+			);
+		});
 	const log = (level: "warn" | "info", message: string) => platform.app.writeLog(level, message);
 	const gitRunner = new ShellGitRunner({
 		shell: platform.shell,
