@@ -1064,12 +1064,18 @@ mod tests {
             .save_with_key(folder.path(), &TEST_KEY)
             .expect("save history");
 
+        // The limit caps the history kept; the file adds the encryption's fixed overhead: the
+        // magic, the nonce and the AES-GCM tag.
+        let overhead = (ENTRY_MAGIC.len() + NONCE_BYTES + ring::aead::AES_256_GCM.tag_len()) as u64;
         let saved = fs::metadata(folder.entry("pty-limited"))
             .expect("the entry")
             .len();
-        assert!(saved <= 1024 * 1024, "the entry holds {saved} bytes");
         assert!(
-            saved > 1024 * 1024 - 2 * line.len() as u64,
+            saved <= 1024 * 1024 + overhead,
+            "the entry holds {saved} bytes"
+        );
+        assert!(
+            saved > 1024 * 1024 + overhead - 2 * line.len() as u64,
             "the entry holds {saved} bytes"
         );
     }
