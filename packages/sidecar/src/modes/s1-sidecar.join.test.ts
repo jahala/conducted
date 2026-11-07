@@ -101,6 +101,28 @@ async function workspaceFolder(): Promise<string> {
 const MAIN = fileURLToPath(new URL("../main.ts", import.meta.url));
 const BIN_DIR = fileURLToPath(new URL("../../../../bin", import.meta.url));
 
+/**
+ * The app's bin folder and the agent binaries folder, with a ready managed copy of Claude Code and
+ * Codex, as the program manager leaves them after a successful download (PLAT-28).
+ */
+async function managedPrograms(folder: string): Promise<{
+	binDir: string;
+	agentBinariesDir: string;
+}> {
+	const binDir = path.join(folder, "app-bin");
+	const agentBinariesDir = path.join(folder, "agent-binaries");
+	await mkdir(binDir, { recursive: true });
+	for (const name of ["claude", "codex"]) {
+		const version = path.join(agentBinariesDir, name, "1.0.0");
+		await mkdir(version, { recursive: true });
+		const program = path.join(version, name);
+		await writeFile(program, "#!/bin/sh\nexit 0\n");
+		await chmod(program, 0o755);
+		await symlink(program, path.join(binDir, name));
+	}
+	return { binDir, agentBinariesDir };
+}
+
 function workspaceFor(folder: string): WorkspaceContext {
 	return {
 		workspaceId: "workspace-1" as WorkspaceId,
@@ -205,8 +227,10 @@ async function harness(
 		skillPluginDir?: string;
 		/** Cursor's SDK, installed in the agent binaries folder the way the program manager leaves it. */
 		cursorSdk?: FakeCursorSdk;
-		/** The app's bin and managed programs folders, when a test lays out managed copies. */
+		/** The app's bin and managed programs folders, when a test lays out its own copies. */
 		programs?: { binDir: string; agentBinariesDir: string };
+		/** False lays out no managed copy, so the tests can check what the app does without one. */
+		managedPrograms?: boolean;
 		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
 		claude?: TalkingClaude;
 		/** User message texts in Claude's transcript, by uuid (RC-03). */
@@ -231,12 +255,14 @@ async function harness(
 		env: { PATH: "/usr/bin", HOME: home },
 		providerSecrets: {},
 	};
-	const agentBinariesDir =
-		options.programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
+	const programs =
+		options.programs ??
+		(options.managedPrograms === false ? undefined : await managedPrograms(folder));
+	const agentBinariesDir = programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
 	const cursorFiles = cursorSdkFiles(agentBinariesDir, process.arch);
 	const host = composeSidecar(
 		{
-			binDir: options.programs?.binDir ?? BIN_DIR,
+			binDir: programs?.binDir ?? BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
 			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
@@ -891,6 +917,21 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			ok: false,
 			error: "Unauthorized",
 		});
+	});
+
+	test("D088 a managed agent with no managed copy fails with its name and never runs the PATH copy", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder, { managedPrograms: false });
+
+		const sent = await h.handlers.sendMessage(sendParams(folder, baseConfig()));
+
+		expect("ok" in sent && sent.ok).toBe(false);
+		if ("ok" in sent && !sent.ok) {
+			expect(sent.error.code).toBe("agent_not_installed");
+			expect(sent.error.message).toContain("Claude Code");
+			expect(sent.error.message).toContain("Retry");
+		}
+		expect(h.seen.claudeOptions).toEqual([]);
 	});
 
 	test("PLAT-28 PLAT-35 a Codex chat with no chosen program starts the managed copy, with the bin folder first on PATH", async () => {
@@ -1569,8 +1610,9 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		try {
 			const before = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
 			expect(before.agents.find((install) => install.agent === "claude")).toMatchObject({
-				path: "/usr/bin/claude",
-				source: "login_path",
+				installed: true,
+				source: "managed",
+				version: "1.0.0",
 			});
 
 			await h.host.handlers.notifications.setAgentPrograms({

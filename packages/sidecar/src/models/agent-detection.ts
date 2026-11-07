@@ -24,7 +24,9 @@
  * runner. The app's managed copies and the executable paths in Settings arrive through
  * findManagedProgram and executablePath, because their folders are the composition root's data;
  * the paths are the ones the app last sent with setAgentPrograms (models/agent-programs.ts), and a
- * chosen path wins over the managed and PATH copies, as in a chat's start.
+ * chosen path wins over the managed copy, as in a chat's start. A managed agent with no managed
+ * copy is reported not installed rather than as a copy on PATH (D088); an agent the app does not
+ * manage (an ACP agent) is still found on PATH.
  * Our design choice: only the newest detection run may replace the cached list, so an older answer
  * that arrives late cannot undo a newer one.
  */
@@ -43,6 +45,7 @@ import {
 } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { ProbeCommand } from "../runners/deps.ts";
+import { isManagedAgentProgram } from "../runners/managed-programs.ts";
 import { type RunnerRegistry, type RunnerSelector, selectorKey } from "../runners/registry.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
 
@@ -288,7 +291,8 @@ export class DefaultAgentDetector implements AgentDetector {
 				if (path === undefined) {
 					return ok({
 						outcome: "failed",
-						message: "Claude Code was not found, so its sign-in could not be checked.",
+						message:
+							"Claude Code is not installed, so its sign-in could not be checked. Retry its download in Settings > Advanced.",
 					});
 				}
 				this.claudeAuth = undefined;
@@ -392,8 +396,9 @@ export class DefaultAgentDetector implements AgentDetector {
 		} | null>,
 		env: Readonly<Record<string, string>>,
 	): Promise<ProgramFound | { warning: string } | null> {
-		// The order a chat's start uses (launch-env.ts, resolveAgentProgram): the user's path, the
-		// managed copy, then the PATH copy, so the list shows the program a chat runs.
+		// The order a chat's start uses (launch-env.ts, resolveAgentProgram): the user's path, then
+		// the managed copy. Only an agent the app does not manage is found on PATH, so the list
+		// shows the program a chat would run.
 		const configured = this.deps.executablePath?.(selector);
 		if (configured !== undefined && configured !== "") {
 			const probed = await this.probeVersion(configured, env);
@@ -419,6 +424,9 @@ export class DefaultAgentDetector implements AgentDetector {
 				...(managed.version === "" ? {} : { version: managed.version }),
 			};
 		}
+		// A managed agent has no PATH copy to fall back to (D088): reporting one would show a
+		// program the app never runs.
+		if (isManagedAgentProgram(selector.agent)) return null;
 
 		const found = await detect(env);
 		if (found === null) return null;

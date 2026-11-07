@@ -117,11 +117,12 @@ describe("SIDE-15 agent detection", () => {
 	test("agentInstallsChanged fires only when the answer differs from the last call", async () => {
 		let available = false;
 		const changes: AgentInstall[][] = [];
-		const detect: Detect = async () =>
-			available ? { path: "/opt/claude", version: "1.2.3" } : null;
 		const subject = detector({
-			detect,
 			onChanged: (agents) => changes.push(agents),
+			deps: {
+				findManagedProgram: async () =>
+					available ? { path: "/opt/claude", version: "1.2.3" } : null,
+			},
 		});
 
 		await subject.detectAll();
@@ -138,14 +139,14 @@ describe("SIDE-15 agent detection", () => {
 			agent: "claude",
 			installed: true,
 			path: "/opt/claude",
-			source: "login_path",
+			source: "managed",
 			version: "1.2.3",
 		});
 	});
 
-	test("a version probe that returned no version reports installed true without a version", async () => {
+	test("a managed copy whose folder has no version reports installed true without a version", async () => {
 		const agents = await detector({
-			detect: async () => ({ path: "/opt/claude", version: "" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "" }) },
 		}).detectAll();
 		expect(agents[0]).toMatchObject({ installed: true, path: "/opt/claude" });
 		expect(agents[0]?.version).toBeUndefined();
@@ -158,15 +159,19 @@ describe("SIDE-15 agent detection", () => {
 			releaseFirst = resolve;
 		});
 		const changes: AgentInstall[][] = [];
-		const detect: Detect = async () => {
-			call += 1;
-			if (call === 1) {
-				await first;
-				return { path: "/old/claude", version: "1.0.0" };
-			}
-			return { path: "/new/claude", version: "2.0.0" };
-		};
-		const subject = detector({ detect, onChanged: (agents) => changes.push(agents) });
+		const subject = detector({
+			onChanged: (agents) => changes.push(agents),
+			deps: {
+				findManagedProgram: async () => {
+					call += 1;
+					if (call === 1) {
+						await first;
+						return { path: "/old/claude", version: "1.0.0" };
+					}
+					return { path: "/new/claude", version: "2.0.0" };
+				},
+			},
+		});
 
 		const older = subject.detectAll();
 		const newer = subject.detectAll();
@@ -190,7 +195,7 @@ describe("SIDE-15 agent detection", () => {
 			});
 		};
 		const agents = await detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 			probe,
 		}).detectAll();
 
@@ -222,9 +227,11 @@ describe("SIDE-15 agent detection", () => {
 			return ok({ stdout: "1.2.3\n", stderr: "", exitCode: 0 });
 		};
 		const subject = detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
 			probe,
-			deps: { clock: { now: () => now } },
+			deps: {
+				findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+				clock: { now: () => now },
+			},
 		});
 
 		await subject.detectAll();
@@ -297,6 +304,34 @@ describe("SIDE-15 agent detection", () => {
 		expect(detected).toBe(false);
 	});
 
+	test("D088 a managed agent with no managed copy is not installed and is never probed on PATH", async () => {
+		let detected = false;
+		const agents = await detector({
+			detect: async () => {
+				detected = true;
+				return { path: "/usr/bin/claude", version: "1.0.0" };
+			},
+			deps: { findManagedProgram: async () => null },
+		}).detectAll();
+
+		expect(detected).toBe(false);
+		expect(agents[0]).toEqual({ agent: "claude", installed: false });
+	});
+
+	test("D088 an agent the app does not manage is still found on the login-shell PATH", async () => {
+		const agents = await detector({
+			detect: async () => ({ path: "/usr/bin/opencode", version: "1.18.18" }),
+			deps: { findManagedProgram: async () => null },
+			selector: { agent: "acp", acpAgent: "opencode" },
+		}).detectAll();
+
+		expect(agents[0]).toMatchObject({
+			installed: true,
+			path: "/usr/bin/opencode",
+			source: "login_path",
+		});
+	});
+
 	test("PLAT-28 a program path chosen in Settings wins over the managed copy, as the runner starts it", async () => {
 		const probe: ProbeCommand = async (_command, args) =>
 			args[0] === "--version"
@@ -325,8 +360,10 @@ describe("SIDE-15 agent detection", () => {
 			cancelLogin: async () => err(appError("not_used", "not used")),
 		};
 		const agents = await detector({
-			detect: async () => ({ path: "/opt/codex", version: "0.154.0" }),
-			deps: { codex },
+			deps: {
+				codex,
+				findManagedProgram: async () => ({ path: "/opt/codex", version: "0.154.0" }),
+			},
 			selector: { agent: "codex" },
 		}).detectAll();
 
@@ -345,8 +382,10 @@ describe("SIDE-15 agent detection", () => {
 			cancelLogin: async () => err(appError("not_used", "not used")),
 		};
 		const codexAgents = await detector({
-			detect: async () => ({ path: "/opt/codex", version: "0.154.0" }),
-			deps: { codex },
+			deps: {
+				codex,
+				findManagedProgram: async () => ({ path: "/opt/codex", version: "0.154.0" }),
+			},
 			selector: { agent: "codex" },
 		}).detectAll();
 
@@ -357,7 +396,7 @@ describe("SIDE-15 agent detection", () => {
 				exitCode: 0,
 			});
 		const claudeAgents = await detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 			probe,
 		}).detectAll();
 
@@ -367,8 +406,10 @@ describe("SIDE-15 agent detection", () => {
 
 	test("a Cursor API key from Settings reports the agent as signed in", async () => {
 		const agents = await detector({
-			detect: async () => ({ path: "/opt/cursor-agent", version: "1.0.0" }),
-			deps: { cursorApiKey: () => "key-from-settings" },
+			deps: {
+				cursorApiKey: () => "key-from-settings",
+				findManagedProgram: async () => ({ path: "/opt/cursor-agent", version: "1.0.0" }),
+			},
 			selector: { agent: "cursor" },
 		}).detectAll();
 
@@ -388,9 +429,9 @@ describe("SIDE-15 agent detection", () => {
 });
 
 describe("SIDE-15 detection calls the runner as a method", () => {
-	test("SIDE-15 a class runner whose detect() reads this is reported installed", async () => {
+	test("SIDE-15 a class runner whose detect() reads this is reported installed for an agent found on PATH", async () => {
 		class ClassRunner {
-			readonly agent: AgentKind = "claude";
+			readonly agent: AgentKind = "acp";
 			readonly capabilities = fakeRunner("claude", async () => null).capabilities;
 			private readonly deps = { path: "/usr/local/bin/claude" };
 			async detect() {
@@ -409,11 +450,11 @@ describe("SIDE-15 detection calls the runner as a method", () => {
 		const runner = new ClassRunner() as unknown as Runner;
 		const agents = await detector({
 			deps: {
-				runners: new MapRunnerRegistry([{ selector: { agent: "claude" }, runner }]),
+				runners: new MapRunnerRegistry([{ selector: { agent: "acp" }, runner }]),
 			},
 		}).detectAll();
 
-		expect(agents[0]).toMatchObject({ agent: "claude", installed: true });
+		expect(agents[0]).toMatchObject({ agent: "acp", installed: true });
 	});
 });
 
@@ -633,7 +674,7 @@ describe("SIDE-15 sign-in flows", () => {
 
 	test("a Claude finish without a pasted code keeps the flow open", async () => {
 		const subject = detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 		});
 		const started = await subject.startLogin("claude");
 		expect(started.ok).toBe(true);
@@ -653,7 +694,7 @@ describe("SIDE-15 sign-in flows", () => {
 				exitCode: 0,
 			});
 		const subject = detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 			probe,
 		});
 		const started = await subject.startLogin("claude");
@@ -674,7 +715,7 @@ describe("SIDE-15 sign-in flows", () => {
 			});
 		};
 		const subject = detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 			probe,
 		});
 
@@ -696,7 +737,7 @@ describe("SIDE-15 sign-in flows", () => {
 				exitCode: 0,
 			});
 		const subject = detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 			probe,
 		});
 		const started = await subject.startLogin("claude");
@@ -713,7 +754,7 @@ describe("SIDE-15 sign-in flows", () => {
 
 	test("a Claude finish that cannot check the sign-in fails instead of pretending", async () => {
 		const subject = detector({
-			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			deps: { findManagedProgram: async () => ({ path: "/opt/claude", version: "1.2.3" }) },
 		});
 		const started = await subject.startLogin("claude");
 		expect(started.ok).toBe(true);
