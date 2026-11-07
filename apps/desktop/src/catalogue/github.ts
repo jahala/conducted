@@ -45,6 +45,67 @@ export interface ScriptedPr {
 	createdAt: number;
 	/** Review comments on the diff, one thread each. */
 	reviewComments?: ScriptedReviewComment[];
+	/** The head commit's checks, in place of the ones the kind implies. */
+	checks?: ScriptedCheck[];
+	/** The head commit's deployments, newest first. */
+	deployments?: ScriptedDeployment[];
+}
+
+/** A check on the head commit: a workflow job, or an outside service's status. */
+export type ScriptedCheck =
+	| {
+			kind: "run";
+			name: string;
+			workflow: string;
+			/** GitHub's run status and conclusion, as its GraphQL names them. */
+			status: "QUEUED" | "IN_PROGRESS" | "COMPLETED" | "WAITING";
+			conclusion: "SUCCESS" | "FAILURE" | "CANCELLED" | "SKIPPED" | null;
+			minutes: number;
+	  }
+	| { kind: "status"; context: string; state: "SUCCESS" | "PENDING" | "FAILURE"; url: string };
+
+export interface ScriptedDeployment {
+	environment: string;
+	/** GitHub's deployment status: SUCCESS, FAILURE, IN_PROGRESS, PENDING or INACTIVE. */
+	state: string;
+	url: string;
+	/** Milliseconds since the epoch. */
+	at: number;
+}
+
+const iso = (ms: number): string => new Date(ms).toISOString();
+
+function checkNode(
+	check: ScriptedCheck,
+	startedAt: number,
+	index: number,
+): Record<string, unknown> {
+	if (check.kind === "status") {
+		return { context: check.context, state: check.state, targetUrl: check.url };
+	}
+	return {
+		name: check.name,
+		status: check.status,
+		conclusion: check.conclusion,
+		detailsUrl: `https://github.com/acme/atlas/actions/runs/1029384756/job/${5_000 + index}`,
+		startedAt: check.status === "QUEUED" || check.status === "WAITING" ? null : iso(startedAt),
+		completedAt: check.status === "COMPLETED" ? iso(startedAt + check.minutes * 60_000) : null,
+		checkSuite: { workflowRun: { workflow: { name: check.workflow } } },
+	};
+}
+
+function deploymentNode(deployment: ScriptedDeployment): Record<string, unknown> {
+	return {
+		environment: deployment.environment,
+		createdAt: iso(deployment.at),
+		updatedAt: iso(deployment.at),
+		latestStatus: {
+			state: deployment.state,
+			environmentUrl: deployment.url,
+			createdAt: iso(deployment.at),
+			updatedAt: iso(deployment.at),
+		},
+	};
 }
 
 export interface ScriptedReviewComment {
@@ -88,8 +149,6 @@ function reviewThreadNodes(comments: readonly ScriptedReviewComment[]): unknown[
 		},
 	}));
 }
-
-const iso = (ms: number): string => new Date(ms).toISOString();
 
 /** A check run on the pull request's head commit. */
 const checkRun = (
@@ -194,8 +253,15 @@ function pullRequestNode(pr: ScriptedPr): Record<string, unknown> {
 			? null
 			: {
 					target: {
-						statusCheckRollup: { contexts: { nodes: checks } },
-						deployments: { nodes: [] },
+						statusCheckRollup: {
+							contexts: {
+								nodes:
+									pr.checks === undefined
+										? checks
+										: pr.checks.map((check, index) => checkNode(check, at, index)),
+							},
+						},
+						deployments: { nodes: (pr.deployments ?? []).map(deploymentNode) },
 					},
 				},
 	};
