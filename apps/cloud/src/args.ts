@@ -2,6 +2,7 @@
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * Owns: the request bodies the routes accept, and the checks each one gets before it reaches the
  * sandbox.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the host seam's git, shell and file calls and
@@ -54,6 +55,27 @@ export type ExecBody = z.infer<typeof zExecBody>;
 
 export const zPreviewBody = z.object({ port: z.number().int().min(1).max(65_535) }).strict();
 export type PreviewBody = z.infer<typeof zPreviewBody>;
+
+/**
+ * One SSH public key, one line. The Worker installs it as root's authorized key in the sandbox;
+ * a private key, a second key on another line and free text are all refused before the sandbox is
+ * touched.
+ */
+export const SSH_PUBLIC_KEY =
+	/^(?:ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com) [A-Za-z0-9+/]+={0,2}(?: [^\r\n]*)?$/;
+
+export const zSshKeyBody = z
+	.object({
+		publicKey: z
+			.string()
+			.min(1)
+			.max(4_096)
+			.refine((key) => SSH_PUBLIC_KEY.test(key), {
+				message: "The SSH key must be one public key on one line.",
+			}),
+	})
+	.strict();
+export type SshKeyBody = z.infer<typeof zSshKeyBody>;
 
 export const zFileBody = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("read"), path: absolutePath }).strict(),

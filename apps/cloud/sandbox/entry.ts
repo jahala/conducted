@@ -2,10 +2,13 @@
  * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * Owns: the container's main process. It sets the sidecar's folders and the sandbox flag, starts
  * the compiled sidecar, reads its `SOCKET_PATH=` handshake, and relays each WebSocket on the
- * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens. It also reads
- * each relayed sidecar line for the turn end and asks the Worker to save the workspace (D105).
+ * sandbox port to that Unix socket. It also starts sshd on loopback and gives the Worker's
+ * authenticated `/ssh` WebSocket to the sandbox's SSH port (D119). `GET /health` answers once the
+ * sidecar listens. It also reads each relayed sidecar line for the turn end and asks the Worker to
+ * save the workspace (D105).
  * Behaviour: cloud-and-remote.md Part 1 ("The sidecar runs inside the sandbox unchanged") and the
  * CLOUD-02 spike's bridge, which showed the same relay working in a Cloudflare sandbox
  * (cloud-spike-2026-11-06.md); claude-runner.md 1.3 says a cloud sandbox adds
@@ -16,7 +19,8 @@
  * (the WebSocket closes with it); a port that is not a number (exit 64 with a message); a
  * termination signal (forward SIGTERM to the sidecar and wait for it, so its socket is removed); a
  * turn-end backup that fails (logged, and the next turn end tries again); a tunnel request that
- * names a bad or reserved port (refused); a tunnel whose target refuses (the WebSocket closes).
+ * names a bad or reserved port (refused); a tunnel whose target refuses (the WebSocket closes);
+ * sshd failing to start (logged, the sidecar and the rest of the container still run).
  * Our design choice: the same three handshake lines the Rust shell uses locally, with the port
  * fixed by the image (`IMAGE.port`, overridable for a test or a local run). The relay carries bytes
  * unchanged and reads them only to find the `liveState: idle` line. A container started without
@@ -24,7 +28,7 @@
  * Test first: `sandboxEnvironment` puts `CONDUCTED_BIN_DIR` first on PATH and sets
  * `CLAUDE_CODE_SANDBOXED=1`.
  */
-import { mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
 import { turnChangeOf } from "../src/relay.ts";
 import { IMAGE } from "./image.ts";
 import {
@@ -34,6 +38,7 @@ import {
 	processName,
 	socketInode,
 } from "./ports.ts";
+import { SSH_PORT, SSHD_CONFIG, SSHD_CONFIG_PATH, sshdArguments } from "./ssh.ts";
 import { TurnEndTracker } from "./turn-end.ts";
 
 export interface SandboxDirs {
@@ -98,6 +103,23 @@ export function parseSandboxPort(value: string | undefined): number | null {
 	return Number.isInteger(port) && port >= 0 && port <= 65_535 ? port : null;
 }
 
+/**
+ * Starts sshd in the foreground with the loopback-only, key-only config. A container that cannot
+ * start it still runs the sidecar; the Worker's `/ssh` route then closes its WebSocket.
+ */
+function startSshd(): ReturnType<typeof Bun.spawn> | null {
+	try {
+		mkdirSync("/run/sshd", { recursive: true });
+		writeFileSync(SSHD_CONFIG_PATH, SSHD_CONFIG);
+		const child = Bun.spawn(sshdArguments(), { stdout: "inherit", stderr: "inherit" });
+		console.log(`entry: sshd is listening on 127.0.0.1:${SSH_PORT}`);
+		return child;
+	} catch (cause) {
+		console.error(`entry: sshd did not start: ${String(cause)}`);
+		return null;
+	}
+}
+
 if (import.meta.main) {
 	run();
 }
@@ -112,6 +134,7 @@ function run(): void {
 	for (const folder of [dirs.outboxRoot, dirs.completionsDir, dirs.cursorStoreDir, dirs.logDir]) {
 		mkdirSync(folder, { recursive: true });
 	}
+	const sshd = startSshd();
 
 	const bootedAt = Date.now();
 	const program = process.env.CONDUCTED_SIDECAR_BIN ?? IMAGE.sidecarProgram;
@@ -352,6 +375,18 @@ function run(): void {
 				}
 				return new Response("expected a WebSocket", { status: 426 });
 			}
+			// The SSH door (CLOUD-12). The Worker authenticates the tunnel and only this entry
+			// route reaches port 22, so no public forward can name it.
+			if (url.pathname === "/ssh") {
+				if (
+					upgradeServer.upgrade(request, {
+						data: { kind: "tunnel", port: SSH_PORT, socket: null, pending: [] },
+					})
+				) {
+					return undefined;
+				}
+				return new Response("expected a WebSocket", { status: 426 });
+			}
 			if (url.pathname === "/rpc") {
 				if (socketPath === null) return new Response("sidecar not ready", { status: 503 });
 				if (
@@ -452,6 +487,7 @@ function run(): void {
 	const shutdown = async (): Promise<void> => {
 		if (stopping) return;
 		stopping = true;
+		if (sshd !== null && sshd.exitCode === null) sshd.kill("SIGTERM");
 		if (sidecar.exitCode === null) sidecar.kill("SIGTERM");
 		await sidecar.exited;
 		server.stop(true);

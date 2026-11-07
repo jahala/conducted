@@ -5,6 +5,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * @feature CLOUD-17 Cloud settings page
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
  * desktop's pairing check (`/pair`), reads and writes the Mac's personal cloud settings at
@@ -34,6 +35,7 @@ import {
 	zFileBody,
 	zGitBody,
 	zPreviewBody,
+	zSshKeyBody,
 } from "./args.ts";
 import { pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
@@ -180,6 +182,15 @@ export default {
 					const port = forwardablePort(url.searchParams.get("port"));
 					if (port === null) return new Response("Bad tunnel port", { status: 400 });
 					return workspace.fetch(request);
+				}
+				case "ssh":
+					// The SSH response holds a WebSocket, which RPC cannot serialize; the Durable
+					// Object's own fetch answers it, as it does the relay and the terminal.
+					return workspace.fetch(request);
+				case "ssh-key": {
+					const body = await bodyOf(request, zSshKeyBody);
+					if (body === null) return new Response(INVALID_BODY, { status: 400 });
+					return Response.json(await workspace.installSshKey(body.publicKey));
 				}
 				case "preview-url": {
 					const body = await bodyOf(request, zPreviewBody);

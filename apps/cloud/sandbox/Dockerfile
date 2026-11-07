@@ -17,17 +17,24 @@ ENV CONDUCTED_APP_VERSION=0.2.1
 ENV CONDUCTED_LOG_LEVEL=info
 ENV PATH=/opt/conducted/bin:$PATH
 
-# Git (the version the app pins), ripgrep (the agents' search) and the base tools the releases need.
-# Debian trixie pins, read from the base image on 2026-11-07.
+# Git (the version the app pins), ripgrep (the agents' search), sshd for CLOUD-12 and the base
+# tools the releases need. Debian trixie pins, read from the base image on 2026-11-07.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		bash \
 		ca-certificates \
 		curl \
 		git=1:2.47.3-0+deb13u1 \
+		openssh-client \
+		openssh-server \
 		procps \
 		ripgrep=14.1.1-1+b4 \
 	&& rm -rf /var/lib/apt/lists/*
+
+# CLOUD-12: host keys for sshd. The entry starts sshd on loopback only; the Worker installs the
+# Mac's public key in /root/.ssh/authorized_keys at each start.
+RUN ssh-keygen -A \
+	&& mkdir -p /root/.ssh /run/sshd
 
 # The two folders the managed-program layout needs: the links and our scripts, and the copies.
 RUN mkdir -p /opt/conducted/bin /opt/conducted/agent-binaries
