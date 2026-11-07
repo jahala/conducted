@@ -7,8 +7,8 @@ import { idleLiveState } from "@conducted/protocol";
 import { appError, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { useClosedSessions, useSessions } from "./hooks.ts";
 import type { Session } from "./model.ts";
@@ -17,7 +17,13 @@ import type { SessionsState } from "./services/sessions.ts";
 const workspaceId = "w1" as WorkspaceId;
 
 const session = (id: string, closedAt: number | null): Session =>
-	({ id: id as SessionId, workspaceId, title: id, closedAt }) as Session;
+	({
+		id: id as SessionId,
+		workspaceId,
+		title: id,
+		closedAt,
+		config: { agent: "claude", model: "", effort: "high", fastMode: false } as Session["config"],
+	}) as Session;
 
 const baseState = (overrides: Partial<SessionsState> = {}): SessionsState => ({
 	loaded: true,
@@ -33,8 +39,19 @@ const baseState = (overrides: Partial<SessionsState> = {}): SessionsState => ({
 	...overrides,
 });
 
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	test.close();
+});
+
 function render<T>(state: SessionsState, hook: () => T) {
-	const store = createStore<SessionsState>(() => state);
+	const store = test.container.services.sessions.store;
+	store.setState(state, true);
 	let renders = 0;
 	const view = renderHook(
 		() => {
@@ -43,9 +60,7 @@ function render<T>(state: SessionsState, hook: () => T) {
 		},
 		{
 			wrapper: ({ children }: { children: ReactNode }) => (
-				<ServicesProvider container={{ services: { sessions: { store } } } as never}>
-					{children}
-				</ServicesProvider>
+				<ServicesProvider container={test.container}>{children}</ServicesProvider>
 			),
 		},
 	);

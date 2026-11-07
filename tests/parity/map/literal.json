@@ -1,0 +1,2123 @@
+{
+	"literal:M18192": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M212284": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212345": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212405": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212464": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212522": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212582": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212644": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212767": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212832": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212958": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213020": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213144": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213207": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213265": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213327": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213511": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213691": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213754": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213823": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214014": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214268": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214515": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214638": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214761": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214821": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214883": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214942": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215007": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215066": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215377": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215439": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215562": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215871": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M216867": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M216993": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217051": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217173": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217233": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217784": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217842": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217970": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218034": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218098": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218162": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218222": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218347": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218474": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218534": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218656": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218715": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218774": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218835": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M223549": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M224894": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M225011": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M227608": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M271945": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M272041": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M320106": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
+	},
+	"literal:M320119": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
+	},
+	"literal:M320133": {
+		"status": "matched",
+		"state": "new-workspace",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > form > footer > button:nth-of-type(1) > span > span:nth-of-type(2)",
+		"by": "seed"
+	},
+	"literal:M320146": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
+	},
+	"literal:M320163": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
+	},
+	"literal:M320179": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
+	},
+	"literal:M321953": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
+	},
+	"literal:M345281": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"literal:M345301": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"literal:M345323": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"literal:M345346": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"literal:M346428": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(18) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:M347948": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"literal:M433895": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M586780": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M643934": {
+		"status": "matched",
+		"state": "pr-ready",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
+	},
+	"literal:M643972": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M667863": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M795341": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M919743": {
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > div > span",
+		"by": "seed"
+	},
+	"literal:M958089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1077722": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1086777": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1373821": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1419600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1520540": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044531": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044552": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044572": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044601": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2127772": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128258": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128298": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128475": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128654": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128823": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2136907": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2277052": {
+		"status": "matched",
+		"state": "chat-markdown",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(3) > a > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:M2298484": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2325013": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2329048": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "kbd",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(4) > kbd:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:M2375276": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2515566": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2515610": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2516003": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2656909": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2685005": {
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(1) > button > span:nth-of-type(3)",
+		"by": "seed"
+	},
+	"literal:M2685029": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-map 6. Settings"
+	},
+	"literal:M3099729": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3100221": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3236681": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3236722": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3736277": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3777807": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Shortcuts"
+	},
+	"literal:M3809603": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Terminal, run and files"
+	},
+	"literal:M3809609": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Terminal, run and files"
+	},
+	"literal:M3815626": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
+	},
+	"literal:M3815658": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Terminal, run and files"
+	},
+	"literal:M3833560": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R108074": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(14) > span:nth-of-type(2)",
+		"by": "seed"
+	},
+	"literal:R495352": {
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(3) > button:nth-of-type(1) > span > span",
+		"by": "seed"
+	},
+	"literal:R495687": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R496045": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R496563": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R496750": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R496935": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R497089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R497465": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R498265": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R498455": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R498591": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R498754": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R498926": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R499098": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R499293": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R499400": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R499635": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R499764": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R499858": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500118": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500245": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500355": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500461": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500605": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500771": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R500939": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R501124": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R710800": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R715089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R853678": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R1361690": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2141251": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2141279": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2149903": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2180430": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2180468": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2182206": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2195770": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2195902": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2195969": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2202503": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R2215964": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2216204": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2216274": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2216298": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2223970": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2224794": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2226671": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R2236069": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2271909": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2271954": {
+		"status": "matched",
+		"state": "git-checks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(3)",
+		"by": "seed"
+	},
+	"literal:R2517578": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2517763": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2518339": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2557248": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"literal:R2644212": {
+		"status": "matched",
+		"state": "chat-markdown",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section > h2",
+		"by": "seed"
+	},
+	"literal:R2644422": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2734987": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "aria-label",
+		"role": "listbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3)",
+		"by": "seed"
+	},
+	"literal:R2763995": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2764012": {
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(2)",
+		"by": "seed"
+	},
+	"literal:R2826600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2826688": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2826700": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2827004": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2827190": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2972645": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"literal:R3081534": {
+		"status": "matched",
+		"state": "composer-draft",
+		"via": "aria-label",
+		"role": "ul",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > ul",
+		"by": "seed"
+	},
+	"literal:R3081756": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3083063": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3119108": {
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"literal:R3122139": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122276": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122529": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122801": {
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "text",
+		"role": "dt",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(2) > dt",
+		"by": "seed"
+	},
+	"literal:R3123099": {
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > p:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R3123193": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3167503": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3352836": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3352892": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3396439": {
+		"status": "matched",
+		"state": "settings-account",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div > div > fieldset > button > span",
+		"by": "seed"
+	},
+	"literal:R3408782": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3409124": {
+		"status": "matched",
+		"state": "settings-account",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > button > span",
+		"by": "seed"
+	},
+	"literal:R3418027": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3420339": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3424646": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3444964": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3458066": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3465496": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3465826": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3468980": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3470217": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3471013": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3477303": {
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
+		"by": "seed"
+	},
+	"literal:R3494596": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3501304": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3896817": {
+		"status": "matched",
+		"state": "chat-plan-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button:nth-of-type(2) > span > span",
+		"by": "seed"
+	},
+	"literal:R3896824": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3896839": {
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(15) > button > span",
+		"by": "seed"
+	},
+	"literal:R3897624": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4011805": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"literal:R4381706": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Terminal, run and files"
+	},
+	"literal:R4950293": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4986695": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4988948": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4997852": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5023567": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5531377": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Workspaces"
+	},
+	"literal:R5534203": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Workspaces"
+	},
+	"literal:R5545346": {
+		"status": "matched",
+		"state": "sidebar",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button > span",
+		"by": "seed"
+	},
+	"literal:R5545591": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R5558100": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R5558580": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R5558634": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R5601737": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"literal:R5646000": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5655678": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5655738": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5664567": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5664589": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5664683": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5664700": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5673483": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5673831": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R6636483": {
+		"status": "matched",
+		"state": "chat-approval",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(4) > span",
+		"by": "seed"
+	},
+	"literal:R7864999": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R7998295": {
+		"status": "matched",
+		"state": "chat-approval",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(1) > span",
+		"by": "seed"
+	},
+	"literal:R8034448": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8057713": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8137322": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R8150453": {
+		"status": "matched",
+		"state": "chat-question",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
+	},
+	"literal:R8418352": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8684721": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8718221": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8768165": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8768197": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8798002": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8798014": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8816971": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8820980": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8830530": {
+		"status": "matched",
+		"state": "chat-approval",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"literal:R8830609": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8830720": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8830802": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8830857": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8830911": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8830959": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R8852793": {
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(4) > p",
+		"by": "seed"
+	},
+	"literal:R8877958": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8878057": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8906865": {
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div:nth-of-type(4) > button:nth-of-type(3)",
+		"by": "seed"
+	},
+	"literal:R8907820": {
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div:nth-of-type(3) > div > button:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R8909467": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8909486": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8911246": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8914823": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8914848": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9234615": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9235510": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9245336": {
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
+	},
+	"literal:R9294532": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R9294586": {
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"composer-editor\"] > span",
+		"by": "seed"
+	},
+	"literal:R9324600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9324615": {
+		"status": "matched",
+		"state": "chat-working",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(1) > div > button",
+		"by": "seed"
+	},
+	"literal:R9325309": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9328642": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9352425": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9352645": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9367029": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9367052": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9367074": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9367102": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9367137": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9367168": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9368492": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9378722": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9381975": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9387065": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R9482757": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"literal:R9536630": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Chat view"
+	},
+	"literal:R9559666": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9588439": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9588564": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9588756": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9591015": {
+		"status": "matched",
+		"state": "chat-working",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(1) > div > button > span",
+		"by": "seed"
+	},
+	"literal:R9744963": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R9745476": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R9755407": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R9984405": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10013192": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10029987": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10076553": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10089377": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10218572": {
+		"status": "matched",
+		"state": "first-run-home",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > header > div > button:nth-of-type(1) > span",
+		"by": "seed"
+	},
+	"literal:R10218594": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10218617": {
+		"status": "matched",
+		"state": "home-archived",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > header > div > button:nth-of-type(2) > span",
+		"by": "seed"
+	},
+	"literal:R10222441": {
+		"status": "matched",
+		"state": "first-run-home",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > header > div > button:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R10222950": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10222980": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10223000": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10223032": {
+		"status": "matched",
+		"state": "first-run-home",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > header > div > button:nth-of-type(2) > span",
+		"by": "seed"
+	},
+	"literal:R10224116": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10227903": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228149": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"Working...\" (aria-label) in sidebar.",
+		"by": "hand"
+	},
+	"literal:R10228299": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228381": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228429": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228473": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228517": {
+		"status": "matched",
+		"state": "git-checks",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R10228554": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10245473": {
+		"status": "matched",
+		"state": "sidebar",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(3) > a > span:nth-of-type(2) > span > span:nth-of-type(3)",
+		"by": "seed"
+	},
+	"literal:R10361135": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"literal:R10470389": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10476438": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10477343": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10495167": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"Add project\" (text) in command-palette.",
+		"by": "hand"
+	},
+	"literal:R10574968": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10576510": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10694047": {
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div:nth-of-type(2) > div > button > span",
+		"by": "seed"
+	},
+	"literal:R10902737": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"Try again\" (text) in settings-agents-error.",
+		"by": "hand"
+	},
+	"literal:R11034934": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"literal:R11088872": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"literal:R11285199": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Repository"
+	},
+	"literal:R11342763": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"added\" (text) in chat-finished.",
+		"by": "hand"
+	},
+	"literal:R11345973": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
+	},
+	"literal:R11346070": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11346111": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11346152": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"Search settings\" (aria-label) in settings-general.",
+		"by": "hand"
+	},
+	"literal:R11351405": {
+		"status": "matched",
+		"state": "home-archived",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(1) > span:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
+	},
+	"literal:R11374229": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11374674": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11375161": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11375549": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11375732": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(6) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11376118": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(8) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11376885": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(11) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11378588": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11379238": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11379842": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(6) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11381205": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(11) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11381448": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(12) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11381672": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(13) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11382152": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(6) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11382700": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(6) > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11382892": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(6) > div:nth-of-type(2) > div:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11384431": {
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
+	},
+	"literal:R11510134": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer",
+		"note": "Checked by hand: the wording differs. Ours reads \"New section...\" (text) in sidebar.",
+		"by": "hand"
+	},
+	"literal:R11521402": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R11521421": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"literal:R11652846": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"literal:R11653021": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"literal:R11653153": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"literal:R11654231": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"literal:R11655766": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"literal:R11708982": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11713772": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	}
+}

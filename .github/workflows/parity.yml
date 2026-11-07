@@ -1,0 +1,105 @@
+name: Parity
+
+# The parity harness (docs/plans/parity-harness.md): draws every catalogue state in Chromium, checks
+# each Conductor control, text, layout and flow against ours, and uploads the gap report. The
+# instrument job proves the harness finds three known misses on the commit before #345.
+#
+# It also runs on drafts: it only reports, it runs on GitHub's hosted runners, and a browser run may
+# not run on the owner's Mac.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "apps/desktop/**"
+      - "packages/**"
+      - "scripts/parity/**"
+      - "scripts/catalogue/**"
+      - "tests/parity/**"
+      - "docs/decisions.md"
+      - ".github/workflows/parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parity-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # report: gaps are listed and do not fail the PR; broken data or a failed instrument check does.
+  # enforce: any gap fails the PR. Switch once the goal's step 5 has worked the gaps down to zero.
+  PARITY_MODE: report
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright-core install --with-deps chromium
+      - name: Dump every catalogue state
+        run: bun scripts/parity/dump.ts --out "$RUNNER_TEMP/parity" --commit "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Run the flows
+        run: bun scripts/parity/flows.ts --out "$RUNNER_TEMP/parity"
+      - name: Check
+        run: bun scripts/parity/check.ts "$RUNNER_TEMP/parity/dump.json" --flows "$RUNNER_TEMP/parity/flows.json" --out "$RUNNER_TEMP/parity"
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/parity/report.md" ]; then
+            sed -n '1,/^## Gaps by screen/p' "$RUNNER_TEMP/parity/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: parity-report
+          path: ${{ runner.temp }}/parity/
+          retention-days: 14
+
+  instrument:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BEFORE_345: 29e65165e39c1d389b99621b3f6b1c048b38950a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright-core install --with-deps chromium
+      - name: Check out the commit before #345 beside this one
+        run: git worktree add --detach "$RUNNER_TEMP/before-345" "$BEFORE_345"
+      - name: Install it
+        working-directory: ${{ runner.temp }}/before-345
+        run: pnpm install --frozen-lockfile
+      - name: Dump its catalogue with this harness
+        run: bun scripts/parity/dump.ts --app "$RUNNER_TEMP/before-345/apps/desktop" --out "$RUNNER_TEMP/instrument" --commit "$BEFORE_345"
+      - name: Check it with this commit's spec and map
+        continue-on-error: true
+        run: bun scripts/parity/check.ts "$RUNNER_TEMP/instrument/dump.json" --out "$RUNNER_TEMP/instrument"
+      - name: The three known misses are found
+        run: bun scripts/parity/instrument.ts "$RUNNER_TEMP/instrument/report.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: parity-instrument
+          path: ${{ runner.temp }}/instrument/
+          retention-days: 14

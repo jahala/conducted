@@ -1,0 +1,392 @@
+{
+	"sidecar_call:codexGoalClear": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexGoalGet": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexGoalSet": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:getShellEnv": {
+		"status": "matched",
+		"ours": "getShellEnv",
+		"by": "seed"
+	},
+	"sidecar_call:message": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:queryError": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexMcpConsentDeliveryFailed": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:sessionEventNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:deliverSessionEvent": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:sessionStatusNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:sessionStateNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:fastModeUnavailableNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:shellEnvCaptureNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:exitPlanMode": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:askUserQuestion": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexMcpElicitation": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexPermissionApproval": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:toolApproval": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:getDiff": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:getDiffComments": {
+		"status": "matched",
+		"ours": "getDiffComments",
+		"by": "seed"
+	},
+	"sidecar_call:diffComment": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:getTerminalOutput": {
+		"status": "matched",
+		"ours": "getTerminalOutput",
+		"by": "seed"
+	},
+	"sidecar_call:enterPlanModeNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:checkpointCreated": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:frontendRelay": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:keepAwake": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlState": {
+		"status": "matched",
+		"ours": "remoteControlState",
+		"by": "seed"
+	},
+	"sidecar_call:remoteControlPairedDevicesChanged": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:query": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:steer": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:cancel": {
+		"status": "matched",
+		"ours": "cancel",
+		"by": "seed"
+	},
+	"sidecar_call:updatePermissionMode": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setClaudeEditAutoAccept": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:resetGenerator": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setVerboseLogging": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setInternalUser": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setAppLoggerUrl": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setPostHogDistinctId": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setExternalLoggingDisabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setModelCatalog": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:claudeAuth": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexAuth": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexCloudAuthStart": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexCloudAuthFinish": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:cursorCloudAuthStart": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:cursorCloudAuthFinish": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:cursorCloudAuthCancel": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:fetchAvailableMCP": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:fetchSlashCommands": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:fetchPreWorkspaceCompletions": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:listAcpModels": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:fetchAcpSessionConfigOptions": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:syncAcpSessionModel": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:setAcpSessionConfigOption": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:listCodexModels": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:warmAgent": {
+		"status": "matched",
+		"ours": "warmAgent",
+		"by": "seed"
+	},
+	"sidecar_call:warmShellEnv": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:persistedSessionEvent": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlChanges": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlStart": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlStop": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlStatus": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlCreatePairingOffer": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlClearPairingOffer": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlListPairedDevices": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:remoteControlRemovePairedDevice": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexRollback": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:codexCompact": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:contextUsage": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:acpOneShotPrompt": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:cursorOneShotPrompt": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:getSessionStatus": {
+		"status": "matched",
+		"ours": "getSessionStatus",
+		"by": "seed"
+	},
+	"sidecar_call:answerUserQuestion": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:startAgentationProxy": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:listLocalhostPorts": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:getHarnessVersions": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:harnessVersionsNotification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_call:crashTest": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

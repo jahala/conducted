@@ -306,7 +306,7 @@ AGENT-02	rule	The Claude process gets the launch environment variables	claude-ru
 AGENT-02	rule	A session store mirrors Claude's transcript with an eager flush	claude-runner 1.2	covered
 AGENT-02	rule	Resume and session id rules decide whether a start is new, resumed or forked	claude-runner 1.2	covered
 AGENT-02	rule	The chosen model is mapped to the wire name from the model list the runner reports	claude-runner 1.2	covered
-AGENT-16	rule	Thinking can be disabled, adaptive, or enabled with a budget, with summarised display; our effort has no off value	claude-runner 1.2	partly
+AGENT-16	rule	Thinking can be disabled, adaptive, or enabled with a budget, with summarised display	claude-runner 1.2	covered
 AGENT-16	rule	Effort none is omitted, ultra becomes max, others pass as is; ours offers only low to max, not ultracode or ultra	claude-runner 1.2	partly
 AGENT-04	rule	The Claude process always starts in bypass permission mode and the mode is switched live	claude-runner 1.2	covered
 SIDE-09	prompt	The system prompt uses the Claude preset plus the progress tracker paragraph	claude-runner 1.2	covered

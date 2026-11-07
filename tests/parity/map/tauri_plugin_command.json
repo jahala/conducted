@@ -1,0 +1,757 @@
+{
+	"tauri_plugin_command:resources|close": {
+		"status": "matched",
+		"ours": "resources|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:image|new": {
+		"status": "matched",
+		"ours": "image|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:image|from_bytes": {
+		"status": "matched",
+		"ours": "image|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:image|from_path": {
+		"status": "matched",
+		"ours": "image|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:image|rgba": {
+		"status": "matched",
+		"ours": "image|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:image|size": {
+		"status": "matched",
+		"ours": "image|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:app|version": {
+		"status": "matched",
+		"ours": "app|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:app|name": {
+		"status": "matched",
+		"ours": "app|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:app|identifier": {
+		"status": "matched",
+		"ours": "app|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:event|unlisten": {
+		"status": "matched",
+		"ours": "event|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:event|listen": {
+		"status": "matched",
+		"ours": "event|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:event|emit": {
+		"status": "matched",
+		"ours": "event|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:event|emit_to": {
+		"status": "matched",
+		"ours": "event|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|get_all_windows": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|create": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|scale_factor": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|inner_position": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|outer_position": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|inner_size": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|outer_size": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_fullscreen": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_minimized": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_maximized": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_focused": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_decorated": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_resizable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_maximizable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_minimizable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_closable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_visible": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|title": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|theme": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_always_on_top": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|center": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|request_user_attention": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_resizable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_enabled": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|is_enabled": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_maximizable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_minimizable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_closable": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_title": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|maximize": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|unmaximize": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|toggle_maximize": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|minimize": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|unminimize": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|show": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|hide": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|close": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|destroy": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_decorations": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_shadow": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_effects": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_always_on_top": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_always_on_bottom": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_content_protected": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_size": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_min_size": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_max_size": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_size_constraints": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_position": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_fullscreen": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_focus": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_icon": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_skip_taskbar": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_cursor_grab": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_cursor_visible": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_cursor_icon": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_background_color": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_cursor_position": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_ignore_cursor_events": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|start_dragging": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|start_resize_dragging": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_badge_count": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_badge_label": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_overlay_icon": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_progress_bar": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_visible_on_all_workspaces": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_title_bar_style": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|set_theme": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|cursor_position": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:path|resolve_directory": {
+		"status": "matched",
+		"ours": "path|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:path|normalize": {
+		"status": "matched",
+		"ours": "path|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:clipboard-manager|write_text": {
+		"status": "matched",
+		"ours": "clipboard-manager|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:clipboard-manager|read_text": {
+		"status": "matched",
+		"ours": "clipboard-manager|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:clipboard-manager|write_html": {
+		"status": "matched",
+		"ours": "clipboard-manager|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|read": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|seek": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|fstat": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|ftruncate": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|write": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|open": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|copy_file": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|mkdir": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|read_dir": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|read_file": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|read_text_file": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|remove": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|rename": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|stat": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|write_file": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|write_text_file": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|exists": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|unwatch": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:fs|watch": {
+		"status": "matched",
+		"ours": "fs|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:shell|stdin_write": {
+		"status": "matched",
+		"ours": "shell|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:shell|kill": {
+		"status": "matched",
+		"ours": "shell|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:shell|spawn": {
+		"status": "matched",
+		"ours": "shell|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:shell|execute": {
+		"status": "matched",
+		"ours": "shell|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:shell|open": {
+		"status": "matched",
+		"ours": "shell|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:sql|load": {
+		"status": "matched",
+		"ours": "sql|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:sql|execute": {
+		"status": "matched",
+		"ours": "sql|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:sql|select": {
+		"status": "matched",
+		"ours": "sql|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:sql|close": {
+		"status": "matched",
+		"ours": "sql|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:http|fetch": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:http|fetch_cancel": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:http|fetch_send": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:http|fetch_read_body": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:notification|is_permission_granted": {
+		"status": "matched",
+		"ours": "notification|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:opener|open_url": {
+		"status": "matched",
+		"ours": "opener|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:opener|open_path": {
+		"status": "matched",
+		"ours": "opener|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:opener|reveal_item_in_dir": {
+		"status": "matched",
+		"ours": "opener|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:os|hostname": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:process|exit": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:process|restart": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_plugin_command:updater|download": {
+		"status": "matched",
+		"ours": "updater|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:updater|install": {
+		"status": "matched",
+		"ours": "updater|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:updater|download_and_install": {
+		"status": "matched",
+		"ours": "updater|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:updater|check": {
+		"status": "matched",
+		"ours": "updater|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:deep-link|get_current": {
+		"status": "matched",
+		"ours": "deep-link|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:dialog|open": {
+		"status": "matched",
+		"ours": "dialog|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:dialog|save": {
+		"status": "matched",
+		"ours": "dialog|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:dialog|confirm": {
+		"status": "matched",
+		"ours": "dialog|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|get_all_webviews": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|create_webview": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|webview_position": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|webview_size": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|webview_close": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|set_webview_size": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|set_webview_position": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|set_webview_focus": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|webview_hide": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|webview_show": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|set_webview_zoom": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|reparent": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|clear_all_browsing_data": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|set_webview_background_color": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:webview|create_webview_window": {
+		"status": "matched",
+		"ours": "webview|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|monitor_from_point": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	},
+	"tauri_plugin_command:window|current_monitor": {
+		"status": "matched",
+		"ours": "window|*",
+		"by": "seed"
+	}
+}

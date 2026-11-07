@@ -1,0 +1,147 @@
+{
+	"table:settings": {
+		"status": "matched",
+		"ours": "settings",
+		"by": "seed"
+	},
+	"table:env_vars": {
+		"status": "matched",
+		"ours": "env_vars",
+		"by": "seed"
+	},
+	"table:identity_associations": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:repos": {
+		"status": "matched",
+		"ours": "repos",
+		"by": "seed"
+	},
+	"table:workspaces": {
+		"status": "matched",
+		"ours": "workspaces",
+		"by": "seed"
+	},
+	"table:symlinks_pending_deletion": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:session_messages_outbox": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:session_pending_messages_state": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:session_pending_messages": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:session_assets_outbox": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:attachments": {
+		"status": "matched",
+		"ours": "attachments",
+		"by": "seed"
+	},
+	"table:client_cache_session_state": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:session_messages": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:client_cache_session_segments": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:session_events": {
+		"status": "matched",
+		"ours": "session_events",
+		"by": "seed"
+	},
+	"table:session_state": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:diff_comments": {
+		"status": "matched",
+		"ours": "diff_comments",
+		"by": "seed"
+	},
+	"table:session_messages_outbox_state": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:sessions": {
+		"status": "matched",
+		"ours": "sessions",
+		"by": "seed"
+	},
+	"table:terminal_sessions": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:port_forwards": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:favorite_models": {
+		"status": "matched",
+		"ours": "favorite_models",
+		"by": "seed"
+	},
+	"table:navigation_sections": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:navigation_section_memberships": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:_sqlx_migrations": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:identity_acceptances": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:local_workspace_deletion_tombstones": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:local_workspace_revision_counter": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"table:migration_rollbacks": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

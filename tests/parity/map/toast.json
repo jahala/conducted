@@ -1,0 +1,1270 @@
+{
+	"toast:M367652": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:M389857": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:M390047": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:M394092": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:M408967": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M409156": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M462115": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:M2099774": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M2100103": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3139338": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3139996": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3243420": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3244635": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3581318": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3581736": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3582162": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3582639": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3636992": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3686044": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:M3686824": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:M3691270": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:M3735892": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:M3743541": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:M3750302": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3753291": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3756589": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:M3825227": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R140842": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R227819": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R236876": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R252371": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R629044": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R675642": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R677318": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R677447": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R1714656": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R1717306": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R2035043": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R2213309": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R2489534": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R2489876": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R2504857": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R2504925": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R2505067": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R2505156": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R2506351": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R2520921": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R2976926": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R2977083": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R2984332": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R2984388": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R2985423": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R2994853": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R3020329": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R3992715": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Git, review and files"
+	},
+	"toast:R4998666": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R5000520": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5007891": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5432175": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5443582": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5443642": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5453992": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5493916": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5493957": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R5545832": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5545905": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5547610": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5554252": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5555455": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5555506": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5555688": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5555745": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5557313": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5563508": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5563556": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R5643180": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R5643247": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R8137573": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R8156106": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R8191557": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R8192988": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R8679526": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8680643": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8684256": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8684358": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8684476": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8701195": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8730441": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Chat and tool cards"
+	},
+	"toast:R8889053": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8889231": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R8920359": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R9088088": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9088384": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9100673": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9284738": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9291600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9292765": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9294783": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9296109": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9299261": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9299441": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9299633": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9299687": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9300528": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9300822": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9310207": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9312315": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9357302": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9357937": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9360051": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9360203": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9360437": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9390844": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9392485": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9392792": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9405672": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9405805": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9406094": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Chat view"
+	},
+	"toast:R9510796": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9513466": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9513542": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R9549716": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Chat view"
+	},
+	"toast:R9549768": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Chat view"
+	},
+	"toast:R9626762": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R9754440": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R9948837": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R9953202": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10074815": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10074989": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10075328": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10075377": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10085340": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10085400": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10105621": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10110444": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10111109": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10395535": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10395595": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10477591": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R10522795": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R10572663": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10572819": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10573129": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10581997": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10582102": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R10588207": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R10694452": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings"
+	},
+	"toast:R10871822": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"toast:R10892009": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10902670": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R10918731": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"toast:R10923050": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"toast:R10925387": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"toast:R10925446": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"toast:R10954108": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"toast:R10954503": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"toast:R10966069": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R10998780": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11014233": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11015771": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11050680": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11050766": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11086629": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11087057": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11088975": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11089075": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11089522": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11090181": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11090230": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11090392": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11090450": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"toast:R11117343": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"toast:R11117511": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"toast:R11120183": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"toast:R11126591": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"toast:R11128301": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"toast:R11146597": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11150870": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11153716": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11162731": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11184900": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11190917": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11191010": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11203171": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11203233": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11204862": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11216327": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11216449": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11248595": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11249174": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11262540": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11265782": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11290713": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11290828": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11291063": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11298129": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11326426": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11326469": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11334530": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11392647": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11404745": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11405085": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11429681": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11429745": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11431112": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11472551": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11482621": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11482877": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11500137": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11511925": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R11512041": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R11512106": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
+	},
+	"toast:R11561701": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11583093": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"toast:R11608299": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11608457": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11632289": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11632434": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11632825": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11633100": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11633632": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11633876": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11634162": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11634668": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11634917": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11635178": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11637313": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11637490": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11637609": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11638410": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11639651": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11639957": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11640060": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11640519": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11640585": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11641905": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Platform"
+	},
+	"toast:R11647565": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11652358": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"toast:R11660192": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls App shell"
+	},
+	"toast:R11660369": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls App shell"
+	},
+	"toast:R11660524": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls App shell"
+	},
+	"toast:R11699632": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11739982": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11752107": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11931729": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11940912": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11940961": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11948548": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R11948601": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R12017623": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R12056127": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R12096061": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"toast:R12119091": {
+		"status": "matched",
+		"state": "startup-failed",
+		"via": "text",
+		"role": "heading",
+		"selector": "div > div > div:nth-of-type(2) > section > h2",
+		"by": "seed"
+	}
+}

@@ -1,8 +1,8 @@
 import { appError, type RepoId } from "@conducted/shared";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { useRepos } from "./hooks.ts";
 import type { Repo } from "./model.ts";
@@ -21,13 +21,21 @@ const repo = (id: string, name: string): Repo => ({
 	updatedAt: 1,
 });
 
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	test.close();
+});
+
 function renderRepos(state: RepoState) {
-	const store = createStore<RepoState>(() => state);
+	test.container.services.repo.store.setState(state);
 	return renderHook(() => useRepos(), {
 		wrapper: ({ children }: { children: ReactNode }) => (
-			<ServicesProvider container={{ services: { repo: { store } } } as never}>
-				{children}
-			</ServicesProvider>
+			<ServicesProvider container={test.container}>{children}</ServicesProvider>
 		),
 	});
 }

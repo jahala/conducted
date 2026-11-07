@@ -196,11 +196,15 @@ describe("AGENT-06 Codex session", () => {
 		const outcome = await session.runTurn(turnInput(), callbacks());
 
 		expect(outcome).toEqual({ kind: "success" });
-		expect(client.methods().slice(0, 2)).toEqual(["thread/start", "turn/start"]);
-		const start = client.requests[0]?.params as { cwd: string; model: string };
+		expect(client.methods().slice(0, 3)).toEqual([
+			"configRequirements/read",
+			"thread/start",
+			"turn/start",
+		]);
+		const start = client.requests[1]?.params as { cwd: string; model: string };
 		expect(start.cwd).toBe("/workspace");
 		expect(start.model).toBe("gpt-5");
-		const turn = client.requests[1]?.params as {
+		const turn = client.requests[2]?.params as {
 			threadId: string;
 			input: { type: string; text: string; text_elements: unknown[] }[];
 		};
@@ -297,7 +301,11 @@ describe("AGENT-06 Codex session", () => {
 		const fallbackSession = makeSession(fallingBack, { resume: "thread-old" });
 
 		expect(await fallbackSession.runTurn(turnInput(), callbacks())).toEqual({ kind: "success" });
-		expect(fallingBack.methods().slice(0, 2)).toEqual(["thread/resume", "thread/start"]);
+		expect(fallingBack.methods().slice(0, 3)).toEqual([
+			"configRequirements/read",
+			"thread/resume",
+			"thread/start",
+		]);
 
 		const resuming = new FakeClient();
 		resuming.answers.set("thread/resume", () =>
@@ -308,7 +316,7 @@ describe("AGENT-06 Codex session", () => {
 
 		expect(await resumedSession.runTurn(turnInput(), callbacks())).toEqual({ kind: "success" });
 		expect(resuming.methods()).not.toContain("thread/start");
-		const resumed = resuming.requests[0]?.params as { threadId: string };
+		const resumed = resuming.requests[1]?.params as { threadId: string };
 		expect(resumed.threadId).toBe("thread-old");
 	});
 
@@ -322,7 +330,7 @@ describe("AGENT-06 Codex session", () => {
 		const outcome = await session.runTurn(turnInput(), callbacks());
 
 		expect(outcome.kind).toBe("error");
-		expect(client.methods()).toEqual(["thread/resume"]);
+		expect(client.methods()).toEqual(["configRequirements/read", "thread/resume"]);
 	});
 
 	test("applyConfig keeps live changes and asks for a restart when the thread shape changes", async () => {
@@ -481,7 +489,8 @@ describe("AGENT-06 Codex session", () => {
 		const recovered = await session.runTurn(turnInput("two"), callbacks());
 		expect(recovered).toEqual({ kind: "success" });
 		expect(connections).toBe(2);
-		expect(second.methods()[0]).toBe("thread/resume");
+		// A new app server reports its own requirements before the thread resumes on it.
+		expect(second.methods().slice(0, 2)).toEqual(["configRequirements/read", "thread/resume"]);
 	});
 });
 
@@ -586,6 +595,49 @@ describe("AGENT-16 Codex thread options", () => {
 		});
 	});
 
+	test("the managed requirements are read before the thread and narrow its policy and sandbox", async () => {
+		const client = new FakeClient();
+		client.answers.set("configRequirements/read", () =>
+			ok({
+				requirements: {
+					allowedApprovalPolicies: ["untrusted", "on-request"],
+					allowedSandboxModes: ["read-only", "workspace-write"],
+				},
+			}),
+		);
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+
+		expect(await makeSession(client).runTurn(turnInput(), callbacks())).toEqual({
+			kind: "success",
+		});
+
+		expect(client.methods().slice(0, 2)).toEqual(["configRequirements/read", "thread/start"]);
+		expect(paramsOf(client, "thread/start")).toMatchObject({
+			approvalPolicy: "on-request",
+			sandbox: "workspace-write",
+		});
+		expect(paramsOf(client, "turn/start")).toMatchObject({ approvalPolicy: "on-request" });
+	});
+
+	test("a Codex that cannot read managed requirements starts with the requested policy and sandbox", async () => {
+		const client = new FakeClient();
+		client.answers.set("configRequirements/read", () =>
+			err(appError("codex_rpc_error", "Method not found")),
+		);
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+
+		expect(await makeSession(client).runTurn(turnInput(), callbacks())).toEqual({
+			kind: "success",
+		});
+
+		expect(paramsOf(client, "thread/start")).toMatchObject({
+			approvalPolicy: "never",
+			sandbox: "danger-full-access",
+		});
+	});
+
 	test("a personality change re-opens the thread with the new tone", async () => {
 		const client = new FakeClient();
 		answerThreadStart(client);
@@ -632,8 +684,12 @@ describe("AGENT-14 Codex /compact", () => {
 		});
 
 		expect(outcome).toEqual({ kind: "success" });
-		expect(client.methods()).toEqual(["thread/start", "thread/compact/start"]);
-		expect(client.requests[1]?.params).toEqual({ threadId: "thread-1" });
+		expect(client.methods()).toEqual([
+			"configRequirements/read",
+			"thread/start",
+			"thread/compact/start",
+		]);
+		expect(client.requests[2]?.params).toEqual({ threadId: "thread-1" });
 		expect(messages.flatMap((message) => message.items)).toEqual([
 			{ kind: "notice", notice: "compacted", text: "Chat history compacted" },
 		]);

@@ -357,6 +357,9 @@ function toModelInfo(model: SdkModelInfo): ModelInfo {
 		effortAxis: "effort",
 		liveEffortChange: efforts.length > 0,
 		supportsFastMode: model.supportsFastMode ?? false,
+		...(model.supportsAdaptiveThinking === undefined
+			? {}
+			: { adaptiveThinking: model.supportsAdaptiveThinking }),
 	};
 }
 

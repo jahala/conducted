@@ -1,0 +1,437 @@
+{
+	"sidecar_rpc_method:S193879": {
+		"status": "matched",
+		"ours": "cancel",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S193897": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S193913": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S193940": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S193965": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194012": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194061": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194110": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194161": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194212": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194254": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194298": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194363": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194394": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194426": {
+		"status": "matched",
+		"ours": "warmAgent",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S194451": {
+		"status": "matched",
+		"ours": "getShellEnv",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S194481": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194514": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194545": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194577": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194613": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194645": {
+		"status": "matched",
+		"ours": "getSessionStatus",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S194685": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194729": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194773": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194821": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194865": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194899": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S194965": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195012": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195072": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195110": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195151": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195198": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195242": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195284": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195330": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195402": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195472": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195542": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195623": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195639": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195687": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195743": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195778": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195820": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195858": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195897": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195922": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S195971": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196032": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196070": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196120": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196177": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196197": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196224": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196267": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196312": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196355": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196401": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196459": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196500": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196550": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196599": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196667": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196692": {
+		"status": "matched",
+		"ours": "remoteControlState",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S196736": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196821": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196867": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196899": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196937": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S196983": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S197037": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S197068": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S197089": {
+		"status": "matched",
+		"ours": "getDiffComments",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S197127": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S197156": {
+		"status": "matched",
+		"ours": "getTerminalOutput",
+		"by": "seed"
+	},
+	"sidecar_rpc_method:S197198": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S982464": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S982482": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S988506": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S3657346": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S3658037": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S4668000": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S4914911": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S9075729": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_rpc_method:S11289804": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

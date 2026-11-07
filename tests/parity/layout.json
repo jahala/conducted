@@ -1,0 +1,160 @@
+{
+	"tolerance": { "style": 0.5, "box": 1, "weight": 0 },
+	"entries": [
+		{
+			"id": "tool-call-row",
+			"what": "A tool call's collapsed row in the chat",
+			"evidence": "ui-dimensions.md 5, Tool call row (collapsed), R@8747084",
+			"state": "chat-working",
+			"locator": { "css": "button[aria-expanded]", "hasText": "redis" },
+			"expect": {
+				"padding-top": 6,
+				"padding-bottom": 6,
+				"padding-left": 8,
+				"padding-right": 8,
+				"margin-left": -8,
+				"column-gap": 8,
+				"border-top-left-radius": 4,
+				"border-top-width": 0,
+				"height": 32
+			},
+			"checked": "The height is INFERRED in ui-dimensions.md. The row's classes at R@8747084 are py-1.5 and px-2 with a text-sm title on a 20px line, so 6 + 20 + 6 = 32px."
+		},
+		{
+			"id": "sidebar-width",
+			"what": "The left sidebar at its default width",
+			"evidence": "ui-dimensions.md 3, Left sidebar default width, M@433255",
+			"state": "sidebar",
+			"locator": { "css": "aside:has(nav[aria-label=\"Main\"])" },
+			"expect": { "width": 256 }
+		},
+		{
+			"id": "sidebar-nav-block",
+			"what": "The sidebar's Home, Create and Search block",
+			"evidence": "ui-dimensions.md 4, Sidebar nav block, R@10407150",
+			"state": "sidebar",
+			"locator": { "css": "nav[aria-label=\"Main\"]" },
+			"expect": {
+				"padding-top": 6,
+				"padding-left": 6,
+				"row-gap": 2,
+				"border-bottom-width": 1
+			}
+		},
+		{
+			"id": "sidebar-nav-row",
+			"what": "The sidebar's Home row",
+			"evidence": "ui-dimensions.md 4, Sidebar nav row, R@10407551",
+			"state": "sidebar",
+			"locator": { "css": "nav[aria-label=\"Main\"] a", "hasText": "Home" },
+			"expect": {
+				"padding-top": 6,
+				"padding-bottom": 6,
+				"padding-left": 6,
+				"padding-right": 6,
+				"column-gap": 8,
+				"border-top-left-radius": 6
+			}
+		},
+		{
+			"id": "workspace-row",
+			"what": "A workspace row in the sidebar",
+			"evidence": "ui-dimensions.md 4, Workspace row, R@10438956",
+			"state": "sidebar",
+			"locator": { "css": "a", "hasText": "rate-limit" },
+			"expect": {
+				"padding-top": 8,
+				"padding-bottom": 8,
+				"padding-right": 6,
+				"border-top-left-radius": 6
+			}
+		},
+		{
+			"id": "composer-box",
+			"what": "The composer's box",
+			"evidence": "ui-dimensions.md 5, Composer box, R@9315568",
+			"state": "composer-empty",
+			"locator": { "css": "div.rounded-xl:has([data-testid=\"composer-editor\"])" },
+			"expect": {
+				"padding-top": 16,
+				"padding-right": 16,
+				"padding-bottom": 12,
+				"padding-left": 18,
+				"border-top-left-radius": 12,
+				"border-top-width": 1
+			}
+		},
+		{
+			"id": "send-button",
+			"what": "The composer's send button",
+			"evidence": "ui-dimensions.md 5, Send and stop button, R@8912900",
+			"state": "composer-draft",
+			"locator": { "css": "[data-testid=\"composer-send-button\"]" },
+			"expect": { "width": 24, "height": 24, "border-top-left-radius": 4 }
+		},
+		{
+			"id": "palette-input",
+			"what": "The command palette's search input",
+			"evidence": "ui-dimensions.md 4, Command palette input, R@2740717",
+			"state": "command-palette",
+			"locator": { "css": "[cmdk-input]" },
+			"expect": { "height": 44, "font-size": 14 }
+		},
+		{
+			"id": "menu-item",
+			"what": "A menu item",
+			"evidence": "ui-dimensions.md 4, Menu item, R@2175774",
+			"state": "git-scope-menu",
+			"locator": { "css": "[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox]" },
+			"expect": {
+				"padding-top": 6,
+				"padding-bottom": 6,
+				"padding-left": 8,
+				"padding-right": 8,
+				"column-gap": 8,
+				"border-top-left-radius": 6,
+				"font-size": 14
+			}
+		},
+		{
+			"id": "settings-nav-width",
+			"what": "The settings navigation column",
+			"evidence": "ui-dimensions.md 3, Settings view, R@11776249",
+			"state": "settings-general",
+			"locator": { "css": "aside:has(nav[aria-label=\"Settings\"])" },
+			"expect": { "width": 256 }
+		},
+		{
+			"id": "settings-nav-item",
+			"what": "A settings navigation item",
+			"evidence": "ui-dimensions.md 4, Settings nav item, R@11772346",
+			"state": "settings-general",
+			"locator": { "css": "nav[aria-label=\"Settings\"] button", "hasText": "General" },
+			"expect": {
+				"padding-top": 6,
+				"padding-bottom": 6,
+				"padding-left": 8,
+				"padding-right": 8,
+				"column-gap": 12,
+				"border-top-left-radius": 6,
+				"font-size": 14
+			}
+		},
+		{
+			"id": "switch",
+			"what": "A switch",
+			"evidence": "ui-dimensions.md 6.2, Switch, R@5430049",
+			"state": "settings-general",
+			"locator": { "css": "[role=switch]" },
+			"expect": { "width": 40, "height": 20 }
+		},
+		{
+			"id": "git-panel-tab",
+			"what": "The git panel's Changes tab",
+			"evidence": "ui-dimensions.md 3, Git panel tab bar, R@2554131",
+			"state": "git-changes",
+			"locator": { "css": "[role=tab]", "hasText": "Changes" },
+			"expect": { "height": 28 }
+		}
+	]
+}

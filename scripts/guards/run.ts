@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { checkConductorCode } from "./conductor-code.ts";
 import { checkDataModel } from "./data-model.ts";
 import { checkDocs } from "./docs.ts";
+import { checkHeaderClaims } from "./header-claims.ts";
 import type { Problem } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
@@ -36,6 +37,7 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["data-model", checkDataModel],
 	["migrations", checkMigrations],
 	["headers", checkHeaders],
+	["header-claims", checkHeaderClaims],
 	["markers", checkMarkers],
 	["versions", checkVersions],
 	["test-scripts", checkTestScripts],

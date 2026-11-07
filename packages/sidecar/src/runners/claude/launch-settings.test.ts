@@ -47,10 +47,38 @@ describe("AGENT-16 Claude effort and thinking options", () => {
 	});
 
 	test("effort none disables thinking and every other level is adaptive and summarised", () => {
-		expect(claudeThinkingOption("none")).toEqual({ type: "disabled" });
+		expect(claudeThinkingOption("none", true)).toEqual({ type: "disabled" });
 		for (const level of ["low", "medium", "high", "xhigh", "max", "ultra", "ultracode"] as const) {
-			expect(claudeThinkingOption(level)).toEqual({ type: "adaptive", display: "summarized" });
+			expect(claudeThinkingOption(level, true)).toEqual({
+				type: "adaptive",
+				display: "summarized",
+			});
 		}
+	});
+
+	test("a model without adaptive thinking gets Conductor's token budget for the effort", () => {
+		const budgets = { low: 1024, medium: 8192, high: 16_000, xhigh: 63_999, max: 63_999 };
+		for (const [level, budgetTokens] of Object.entries(budgets)) {
+			expect(claudeThinkingOption(level as keyof typeof budgets, false)).toEqual({
+				type: "enabled",
+				budgetTokens,
+				display: "summarized",
+			});
+		}
+		// Ultra is sent as max, so it thinks with max's budget.
+		expect(claudeThinkingOption("ultra", false)).toEqual({
+			type: "enabled",
+			budgetTokens: 63_999,
+			display: "summarized",
+		});
+		expect(claudeThinkingOption("none", false)).toEqual({ type: "disabled" });
+	});
+
+	test("a model the catalog does not describe keeps adaptive thinking", () => {
+		expect(claudeThinkingOption("high", undefined)).toEqual({
+			type: "adaptive",
+			display: "summarized",
+		});
 	});
 });
 

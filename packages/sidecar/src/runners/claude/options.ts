@@ -11,7 +11,8 @@
  *    own id has a transcript on disk resumes that transcript, so a fork request for it is ignored;
  *    a fork or rewind for an id with no transcript yet passes resume, sessionId, resumeSessionAt
  *    and forkSession true
- *  - model, effort, thinking: model id from the config; effort and thinking from launch-settings.ts
+ *  - model, effort, thinking: model id from the config; effort and thinking from launch-settings.ts,
+ *    thinking by whether the catalog says the model thinks adaptively
  *  - settings, extraArgs: output style, fast mode and ultracode from launch-settings.ts, and the
  *    Chrome flag
  *  - permissionMode: always "bypassPermissions" at start, then set live (permissions.ts)
@@ -56,6 +57,8 @@ export interface ClaudeOptionsInput {
 	viaRuntime: boolean;
 	/** True when ~/.claude/projects/<cwd>/<sessionId>.jsonl exists and holds a conversation. */
 	hasTranscript: boolean;
+	/** Whether the model thinks adaptively, from the model catalog. Missing: the catalog does not say. */
+	adaptiveThinking?: boolean;
 	/** The app's bundled skill plugin, when the build has one (AGENT-18). */
 	plugins?: Options["plugins"];
 	// The callbacks and servers below are built by claude-session.ts and passed in whole.
@@ -78,7 +81,7 @@ export function buildClaudeOptions(input: ClaudeOptionsInput): Options {
 		env: { ...input.start.env, ...CLAUDE_LAUNCH_ENV },
 		model: config.model,
 		effort: claudeEffortOption(config.effort),
-		thinking: claudeThinkingOption(config.effort),
+		thinking: claudeThinkingOption(config.effort, input.adaptiveThinking),
 		settings: claudeSettingsOption(config),
 		extraArgs: claudeExtraArguments(config),
 		// The process starts bypassing checks and the real mode is switched live (permissions.ts).

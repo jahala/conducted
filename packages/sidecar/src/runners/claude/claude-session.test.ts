@@ -13,6 +13,7 @@ import type {
 	AgentMessage,
 	Interaction,
 	InteractionAnswer,
+	ModelInfo,
 	RemoteControlStatus,
 	SessionConfig,
 	WorkspaceContext,
@@ -28,7 +29,7 @@ import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./cla
 import { INTERRUPT_GRACE_MS, SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
 import { ClaudePermissionHandler, type PermissionHandlerDeps } from "./permission-handler.ts";
 import { REMOTE_TEXT_ATTEMPTS, REMOTE_TEXT_RETRY_MS } from "./remote-control.ts";
-import type { ClaudeTranslator } from "./translate.ts";
+import { ClaudeTranslator } from "./translate.ts";
 import type { Scheduler } from "./turn-tracker.ts";
 
 interface FakeScheduler extends Scheduler {
@@ -263,6 +264,23 @@ function taskStarted(taskId: string, description: string, taskType = "local_bash
 		uuid: "task-uuid",
 		session_id: "s1",
 	} as unknown as SDKMessage;
+}
+
+/** A catalog entry as the model catalog hands it to a chat's start (SIDE-14). */
+function catalogModel(id: string, adaptiveThinking: boolean): ModelInfo {
+	return {
+		id,
+		label: id,
+		status: "picker",
+		isNew: false,
+		isDefault: false,
+		efforts: ["low", "medium", "high", "xhigh", "max"],
+		defaultEffort: "high",
+		effortAxis: "effort",
+		liveEffortChange: true,
+		supportsFastMode: false,
+		adaptiveThinking,
+	};
 }
 
 function config(): SessionConfig {
@@ -532,6 +550,35 @@ describe("AGENT-02 Claude session", () => {
 		});
 		expect(script.prompts).toHaveLength(1);
 		expect(script.prompts[0]?.message).toMatchObject({ role: "user", content: "hi" });
+		await session.dispose();
+	});
+
+	test("an API error turn shows one error and ends with an error outcome", async () => {
+		const text = "API Error: 500 Internal server error";
+		const { query } = scriptedQuery((user, s) => {
+			s.emit(init());
+			s.emit({
+				...(assistantMessage(text) as object),
+				error: "server_error",
+			} as unknown as SDKMessage);
+			s.emit({
+				...(resultMessage(String(user.uuid)) as object),
+				is_error: true,
+				result: text,
+				stop_reason: null,
+			} as unknown as SDKMessage);
+		});
+		// The real translator, so the error items are the ones the app receives.
+		const realTranslator = new ClaudeTranslator({ logger: fakeLogger() });
+		const session = new ClaudeSession(makeDeps({ query, translator: realTranslator }), start());
+		const messages: AgentMessage[] = [];
+
+		const outcome = await session.runTurn(turnInput(), callbacks(messages));
+
+		expect(outcome).toEqual({ kind: "error", message: text, retryable: false });
+		const errors = messages.flatMap((message) => message.items).filter((i) => i.kind === "error");
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({ kind: "error", message: text });
 		await session.dispose();
 	});
 
@@ -1186,6 +1233,68 @@ describe("AGENT-02 Claude session", () => {
 
 			expect(result).toBe("applied");
 			expect(script.actions.flags).toEqual([{ effortLevel: "low" }]);
+			await session.dispose();
+		});
+
+		test("AGENT-16 a model without adaptive thinking starts with a thinking budget", async () => {
+			const { query, script } = scriptedQuery();
+			const looked: string[] = [];
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				lookUpModel: async (model) => {
+					looked.push(model);
+					return catalogModel(model, false);
+				},
+			});
+			await session.warm();
+
+			expect(looked).toEqual(["claude-sonnet-5"]);
+			expect(script.options?.thinking).toEqual({
+				type: "enabled",
+				budgetTokens: 16_000,
+				display: "summarized",
+			});
+			await session.dispose();
+		});
+
+		test("AGENT-16 an effort change on a model without adaptive thinking restarts for its new budget", async () => {
+			const { query, script } = scriptedQuery();
+			script.models = [
+				{
+					value: "claude-sonnet-5",
+					displayName: "Sonnet",
+					description: "",
+					supportsEffort: true,
+					supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+				},
+			];
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				lookUpModel: async (model) => catalogModel(model, false),
+			});
+			await session.warm();
+
+			const result = await session.applyConfig({ ...config(), effort: "low" });
+
+			expect(result).toBe("restart");
+			expect(script.actions.flags).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("AGENT-16 a live model change to one without adaptive thinking restarts", async () => {
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				lookUpModel: async (model) => catalogModel(model, model === "claude-adaptive"),
+			});
+			await session.applyConfig({ ...config(), model: "claude-adaptive" });
+			await session.warm();
+			expect(script.options?.thinking).toEqual({ type: "adaptive", display: "summarized" });
+
+			const result = await session.applyConfig({ ...config(), model: "claude-sonnet-5" });
+
+			expect(result).toBe("restart");
+			expect(script.actions.models).toHaveLength(0);
 			await session.dispose();
 		});
 

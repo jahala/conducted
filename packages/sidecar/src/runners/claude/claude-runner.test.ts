@@ -239,6 +239,7 @@ describe("AGENT-02 Claude runner", () => {
 				supportsEffort: true,
 				supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
 				supportsFastMode: true,
+				supportsAdaptiveThinking: true,
 			},
 			{
 				value: "claude-b",
@@ -247,7 +248,9 @@ describe("AGENT-02 Claude runner", () => {
 				supportsEffort: false,
 				supportedEffortLevels: [],
 				supportsFastMode: false,
+				supportsAdaptiveThinking: false,
 			},
+			{ value: "claude-c", displayName: "Claude C", description: "" },
 		];
 		const runner = new ClaudeRunner(
 			makeDeps({
@@ -270,13 +273,17 @@ describe("AGENT-02 Claude runner", () => {
 			defaultEffort: "high",
 			supportsFastMode: true,
 			liveEffortChange: true,
+			adaptiveThinking: true,
 		});
 		expect(listed[1]).toMatchObject({
 			id: "claude-b",
 			efforts: [],
 			supportsFastMode: false,
 			liveEffortChange: false,
+			adaptiveThinking: false,
 		});
+		// A model the SDK says nothing about has no adaptive flag, never a guessed one.
+		expect(listed[2]).not.toHaveProperty("adaptiveThinking");
 		expect(signal?.aborted).toBe(true);
 	});
 

@@ -14,6 +14,9 @@
  * - Writes `.context/shots/ours/<state-id>-<light|dark>.png` and `.context/shots/ours/index.json`.
  *   A PNG left from an earlier run whose state no longer exists is moved to the Trash.
  *
+ * The parity harness (scripts/parity/dump.ts) starts the server and lists the states with the same
+ * functions, for this checkout or for an older one.
+ *
  * Usage: bun scripts/catalogue/shots.ts [state-id ...]
  * With state ids it captures only those, and index.json lists only those.
  */
@@ -32,7 +35,7 @@ type Theme = (typeof THEMES)[number];
 /** Catches a server that never starts or a page that hangs. It is not a way to wait. */
 const HANG_MS = 60_000;
 
-interface StateRow {
+export interface StateRow {
 	id: string;
 	group: string;
 	title: string;
@@ -45,12 +48,18 @@ interface Capture {
 	error: string | null;
 }
 
-/** Starts the catalogue server in its own process group and resolves with the index address. */
-function startServer(): { child: ChildProcess; url: Promise<string> } {
+/**
+ * Starts the catalogue server of the desktop app in `desktop` (this checkout's by default) in its own
+ * process group, and resolves with the index address.
+ */
+export function startServer(desktop: string = DESKTOP): {
+	child: ChildProcess;
+	url: Promise<string>;
+} {
 	const child = spawn(
 		"node",
-		[join(DESKTOP, "node_modules/vite/bin/vite.js"), "--config", "vite.catalogue.config.ts"],
-		{ cwd: DESKTOP, detached: true, stdio: ["ignore", "pipe", "pipe"] },
+		[join(desktop, "node_modules/vite/bin/vite.js"), "--config", "vite.catalogue.config.ts"],
+		{ cwd: desktop, detached: true, stdio: ["ignore", "pipe", "pipe"] },
 	);
 	const url = new Promise<string>((resolveUrl, reject) => {
 		let printed = "";
@@ -77,7 +86,7 @@ function startServer(): { child: ChildProcess; url: Promise<string> } {
 }
 
 /** Stops the server's whole process group and waits for it to exit. */
-async function stopServer(child: ChildProcess): Promise<void> {
+export async function stopServer(child: ChildProcess): Promise<void> {
 	if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
 	const exited = new Promise<void>((done) => child.once("exit", () => done()));
 	process.kill(-child.pid, "SIGTERM");
@@ -88,7 +97,7 @@ async function stopServer(child: ChildProcess): Promise<void> {
 	clearTimeout(timer);
 }
 
-async function listStates(browser: Browser, url: string): Promise<StateRow[]> {
+export async function listStates(browser: Browser, url: string): Promise<StateRow[]> {
 	const page = await browser.newPage();
 	try {
 		await page.goto(url);

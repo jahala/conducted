@@ -14,7 +14,10 @@
  *    limits and overload
  *  - user with tool_result blocks: tool_result items, output cut by truncateOutput
  *  - result: a usage item (usage.ts); is_error results also produce an error item with the
- *    result text and retryable true for rate-limit and overload errors
+ *    result text and retryable true for rate-limit and overload errors, unless the turn's own
+ *    assistant message already reported the error. An API error arrives twice, as an assistant
+ *    message with `error` and as a result with `is_error` and the same text (the SDK's types); the
+ *    assistant's item is kept, because its error code tells a sign-in error from the rest
  *  - system compact_boundary and a successful compact: notice "compacted"; system status
  *    "compacting": notice "info" with "Compacting..."; system init: notice "session_started"
  *    once per process; rate_limit_event with status other than "allowed": notice "rate_limit"
@@ -65,6 +68,8 @@ export interface ClaudeTranslatorState {
 	lastReportedCostUsd: number;
 	/** True after the first system init message of this process was translated. */
 	sessionStartedReported: boolean;
+	/** True when an assistant message of the main agent reported an error since the last result. */
+	turnErrorShown: boolean;
 }
 
 type SystemMessage = Extract<SDKMessage, { type: "system" }>;
@@ -92,6 +97,7 @@ export class ClaudeTranslator {
 		droppedToolUses: new Set(),
 		lastReportedCostUsd: 0,
 		sessionStartedReported: false,
+		turnErrorShown: false,
 	};
 
 	constructor(protected readonly deps: { logger: Logger }) {}
@@ -125,6 +131,8 @@ export class ClaudeTranslator {
 	private assistant(message: SDKAssistantMessage): AgentMessage[] {
 		const parentToolUseId = message.parent_tool_use_id ?? undefined;
 		if (message.error !== undefined) {
+			// A sub-agent's error is not the main turn's, so only the main agent's hides the result's.
+			if (parentToolUseId === undefined) this.state.turnErrorShown = true;
 			const text = contentToText(message.message.content).trim();
 			return [this.agentMessage(message, [this.assistantError(message.error, text)])];
 		}
@@ -199,13 +207,15 @@ export class ClaudeTranslator {
 		if (typeof message.total_cost_usd === "number") {
 			this.state.lastReportedCostUsd = message.total_cost_usd;
 		}
-		if (message.is_error) {
-			const text = resultErrorText(message);
+		const errorShown = this.state.turnErrorShown;
+		this.state.turnErrorShown = false;
+		if (message.is_error && !errorShown) {
+			const error = resultError(message);
 			items.push({
 				kind: "error",
-				code: errorCodeFromText(text, "agent_error"),
-				message: text,
-				retryable: resultErrorRetryable(message, text),
+				code: errorCodeFromText(error.message, "agent_error"),
+				message: error.message,
+				retryable: error.retryable,
 			});
 		}
 		return [this.agentMessage(message, items)];
@@ -287,6 +297,7 @@ export class ClaudeTranslator {
 	private resetProcessState(): void {
 		this.state.droppedToolUses.clear();
 		this.state.lastReportedCostUsd = 0;
+		this.state.turnErrorShown = false;
 	}
 
 	private assistantError(error: string, text: string): Extract<AgentItem, { kind: "error" }> {
@@ -348,6 +359,12 @@ function assistantErrorText(error: string): string {
 		default:
 			return `Claude reported an error: ${error}.`;
 	}
+}
+
+/** The text of an is_error result and whether trying again may help. The turn tracker uses it too. */
+export function resultError(message: SDKResultMessage): { message: string; retryable: boolean } {
+	const text = resultErrorText(message);
+	return { message: text, retryable: resultErrorRetryable(message, text) };
 }
 
 function resultErrorText(message: SDKResultMessage): string {

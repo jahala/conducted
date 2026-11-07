@@ -1,0 +1,67 @@
+{
+	"sidecar_tool_name:S1920840": {
+		"status": "matched",
+		"ours": "AskUserQuestion",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1923930": {
+		"status": "matched",
+		"ours": "GetWorkspaceDiff",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1925419": {
+		"status": "matched",
+		"ours": "GetDiffComments",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1926561": {
+		"status": "matched",
+		"ours": "DiffComment",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1927562": {
+		"status": "matched",
+		"ours": "GetTerminalOutput",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1928941": {
+		"status": "matched",
+		"ours": "UpdateProgress",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1929461": {
+		"status": "matched",
+		"ours": "SetTargetBranch",
+		"by": "seed"
+	},
+	"sidecar_tool_name:S1930565": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_tool_name:S1932580": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_tool_name:S1933040": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_tool_name:S1933611": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_tool_name:S1934250": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"sidecar_tool_name:S1934826": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

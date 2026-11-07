@@ -907,6 +907,20 @@ describe("SIDE-03 cancel, reset and status", () => {
 	});
 });
 
+describe("AGENT-16 a chat's start looks its model up in the catalog", () => {
+	test("AGENT-16 the start options look a model up in the agent's catalog, read with the chat's launch", async () => {
+		const listed = { ...model("sonnet", true), adaptiveThinking: false };
+		const runner = new FakeRunner("claude", {}, [listed]);
+		const h = harness({ runners: [runner] });
+		await h.manager.sendMessage(sendParams());
+
+		const lookUp = runner.started[0]?.lookUpModel;
+		if (lookUp === undefined) throw new Error("The agent's start got no model lookup");
+		expect(await lookUp("sonnet")).toEqual(listed);
+		expect(await lookUp("not-offered")).toBeUndefined();
+	});
+});
+
 describe("AGENT-15 work the agent starts by itself", () => {
 	test("AGENT-15 a report while a turn of ours starts leaves that turn current and stores nothing", async () => {
 		const h = harness();

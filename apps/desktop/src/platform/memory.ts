@@ -863,6 +863,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			return ok(undefined);
 		},
 		send: async (line) => {
+			// As sidecar_send does, first: the newline that ends the line is added on the way out.
+			if (line.includes("\n") || line.includes("\r")) {
+				return err(appError("sidecar_bad_line", "A sidecar line must not contain a newline."));
+			}
 			if (!sidecarStarted) {
 				return err(appError("sidecar_not_started", "The sidecar has not been started."));
 			}

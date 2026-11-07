@@ -286,6 +286,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"sidecar",
+		"line-with-newline",
+		"a line that holds a newline is refused",
+		"send() of a line with a newline in it returns Err with code sidecar_bad_line: the Rust command adds the line's newline itself and refuses one inside it.",
+		"os",
+	),
+	c(
+		"sidecar",
 		"line-roundtrip",
 		"a line sent comes back from a loopback child",
 		"Every line the sidecar sends reaches every onLine listener in order; a listener that unsubscribed hears nothing more.",
@@ -1313,6 +1320,12 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(!result.ok, "send before start returned Ok");
 	},
 
+	"sidecar.line-with-newline": async (ctx) => {
+		expectOk(ctx, await ctx.platform.sidecar.ensureStarted(), "ensureStarted");
+		const error = expectErr(ctx, await ctx.platform.sidecar.send('{"jsonrpc":"2.0"}\n'), "send");
+		ctx.assert(error.code === "sidecar_bad_line", `send refused the line with ${error.code}`);
+	},
+
 	"sidecar.line-roundtrip": async (ctx) => {
 		expectOk(ctx, await ctx.platform.sidecar.ensureStarted(), "ensureStarted");
 		// With controls the outside world sends the line; without them the loopback child echoes it.
@@ -1889,6 +1902,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"pty.kill": ["pty.spawn", "pty.handle.onExit", "pty.handle.kill", "pty.handle.write"],
 	"sidecar.ensure-started-twice": ["sidecar.ensureStarted"],
 	"sidecar.send-before-start": ["sidecar.send"],
+	"sidecar.line-with-newline": ["sidecar.ensureStarted", "sidecar.send"],
 	"sidecar.line-roundtrip": ["sidecar.ensureStarted", "sidecar.onLine"],
 	"sidecar.restart-signal": ["sidecar.ensureStarted", "sidecar.onRestart"],
 	"keychain.roundtrip": ["keychain.get", "keychain.set", "keychain.delete"],

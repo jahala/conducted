@@ -2,25 +2,27 @@ import type { ModelInfo, SessionConfig } from "@conducted/protocol";
 import { ok, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
-import type { Actions } from "../../core/api.ts";
-import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Session } from "../../core/model.ts";
-import type { AgentCatalogState } from "../../core/services/agent-catalog.ts";
-import type { FavoriteModel, FavoriteModelsState } from "../../core/services/favorite-models.ts";
-import type { SessionsState } from "../../core/services/sessions.ts";
-import type { SettingsState } from "../../core/services/settings.ts";
+import type { FavoriteModel } from "../../core/services/favorite-models.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { Toaster, toast } from "../../ui/Toast.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
+
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
 
 afterEach(() => {
 	cleanup();
 	toast.dismiss();
 	vi.restoreAllMocks();
+	test.close();
 });
 
 const sessionId = "chat-1" as SessionId;
@@ -100,7 +102,9 @@ const harness = (options: HarnessOptions = {}) => {
 			defaultEffort: "high",
 		}),
 	];
-	const sessions = createStore<SessionsState>(() => ({
+	const { services, actions } = test.container;
+	const sessions = services.sessions.store;
+	sessions.setState({
 		loaded: true,
 		sessions: { [sessionId]: session },
 		byWorkspace: { [workspaceId]: [sessionId] },
@@ -111,53 +115,43 @@ const harness = (options: HarnessOptions = {}) => {
 		sending: {},
 		openInteractions: {},
 		viewingSessionId: null,
-	}));
+	});
 	const loadModelsLater = {
 		calls: [] as { resolve: (models: ModelInfo[]) => void }[],
 	};
-	const agentCatalog = {
-		store: createStore<AgentCatalogState>(() => ({
-			installs: {
-				state: "ready",
-				data: [
-					{
-						agent: "claude",
-						installed: true,
-						authenticated: true,
-					},
-					{
-						agent: "codex",
-						installed: true,
-						authenticated: true,
-					},
-					{
-						agent: "cursor",
-						installed: true,
-						authenticated: true,
-					},
-				],
-			},
-			models: { claude: { state: "ready", data: modelList } },
-			slashCommands: {},
-		})),
-		loadModels: vi.fn(async () => {
-			if (options.lateModels !== true) return ok(options.loadedModels ?? modelList);
-			return new Promise<ReturnType<typeof ok<ModelInfo[]>>>((resolve) => {
-				loadModelsLater.calls.push({ resolve: (models) => resolve(ok(models)) });
-			});
-		}),
-	};
-	const favoriteModels = {
-		store: createStore<FavoriteModelsState>(() => ({
-			loaded: true,
-			favorites: options.favorites ?? [],
-		})),
-		start: vi.fn(async () => ok(undefined)),
-		add: vi.fn(async () => ok(favorite("1", {}))),
-		remove: vi.fn(async () => ok(undefined)),
-		reorder: vi.fn(async () => ok(undefined)),
-	};
-	const settings = createStore<SettingsState>(() => ({
+	services.agentCatalog.store.setState({
+		installs: {
+			state: "ready",
+			data: [
+				{
+					agent: "claude",
+					installed: true,
+					authenticated: true,
+				},
+				{
+					agent: "codex",
+					installed: true,
+					authenticated: true,
+				},
+				{
+					agent: "cursor",
+					installed: true,
+					authenticated: true,
+				},
+			],
+		},
+		models: { claude: { state: "ready", data: modelList } },
+		slashCommands: {},
+	});
+	vi.spyOn(services.agentCatalog, "loadModels").mockImplementation(async () => {
+		if (options.lateModels !== true) return ok(options.loadedModels ?? modelList);
+		return new Promise<ReturnType<typeof ok<ModelInfo[]>>>((resolve) => {
+			loadModelsLater.calls.push({ resolve: (models) => resolve(ok(models)) });
+		});
+	});
+	const favoriteModels = services.favoriteModels;
+	favoriteModels.store.setState({ loaded: true, favorites: options.favorites ?? [] });
+	services.settings.store.setState({
 		loaded: true,
 		values: {
 			visible_provider_models: "",
@@ -165,35 +159,15 @@ const harness = (options: HarnessOptions = {}) => {
 		},
 		dropped: [],
 		warnings: [],
-	}));
+	});
 	const updateConfig = vi.fn(async () => ok(undefined));
 	const create = vi.fn(async () => ok(session));
-	const actions = {
-		sessions: { updateConfig, create },
-	} as unknown as Actions;
-	const platform = {
-		app: { writeLog: vi.fn(), onDeepLink: () => () => {}, onDeepLinkRejected: () => () => {} },
-		menu: {
-			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
-			onCommand: () => () => {},
-		},
-	};
-	const container = {
-		platform,
-		services: {
-			commands: { isEnabled: vi.fn(() => true), run: vi.fn(async () => ok(undefined)) },
-			sessions: { store: sessions },
-			agentCatalog,
-			favoriteModels,
-			settings: {
-				store: settings,
-				get: <T,>(key: string) => (settings.getState().values[key] ?? "") as unknown as T,
-			},
-		},
-		actions,
-	} as unknown as Container;
+	vi.spyOn(actions.sessions, "updateConfig").mockImplementation(updateConfig);
+	vi.spyOn(actions.sessions, "create").mockImplementation(create);
+	services.commands.isEnabled = () => true;
+	services.commands.run = async () => ok(undefined);
 	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={container}>
+		<ServicesProvider container={test.container}>
 			<CommandDispatcher>{children}</CommandDispatcher>
 		</ServicesProvider>
 	);

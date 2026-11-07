@@ -6,8 +6,9 @@
  * on `createOutboxStorage` over a real folder and compares the answers.
  * Contract test: memory-storage.test.ts
  * Must handle: a write that fails on demand (`failWrites` and `failCode`), a directory sync that
- * fails after the file landed (`failCode` "outbox_dir_sync_failed"), and a hook that runs before a
- * file goes to the Trash (`beforeTrash`).
+ * fails after the file landed (`failCode` "outbox_dir_sync_failed"), a hook that runs before a
+ * file is written (`beforeWrite`, which a test uses to make a write as slow as a disk's), and a
+ * hook that runs before a file goes to the Trash (`beforeTrash`).
  * Test first: memory-storage.test.ts, "write, read back, list and trash behave like the real folder".
  */
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
@@ -20,6 +21,7 @@ export class MemoryStorage implements OutboxStorage {
 	cleanCalls = 0;
 	failWrites = 0;
 	failCode = "outbox_write_failed";
+	beforeWrite: ((text: string) => Promise<void>) | null = null;
 	beforeTrash: (() => Promise<void>) | null = null;
 
 	async list(): Promise<Result<string[], AppError>> {
@@ -31,6 +33,7 @@ export class MemoryStorage implements OutboxStorage {
 	}
 
 	async writeAtomic(fileName: string, text: string): Promise<Result<void, AppError>> {
+		if (this.beforeWrite !== null) await this.beforeWrite(text);
 		this.writes.push({ fileName, text });
 		if (this.failWrites > 0) {
 			this.failWrites -= 1;

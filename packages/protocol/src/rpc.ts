@@ -81,6 +81,11 @@ export const zModelInfo = z.object({
 	/** The effort can change during a live chat without restarting the agent. */
 	liveEffortChange: z.boolean(),
 	supportsFastMode: z.boolean(),
+	/**
+	 * Claude: the model supports adaptive thinking, as the Agent SDK reports it
+	 * (`supportsAdaptiveThinking`). Missing when the agent does not say.
+	 */
+	adaptiveThinking: z.boolean().optional(),
 	contextWindowTokens: z.number().int().positive().optional(),
 });
 
