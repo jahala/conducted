@@ -300,6 +300,9 @@ export const RadioIcon = (p: P) => (
 	/>
 );
 export const LaptopIcon = (p: P) => <Icon d="M3.5 4h9v6.5h-9zM1.5 12.5h13" {...p} />;
+export const CloudIcon = (p: P) => (
+	<Icon d="M4.7 12.5h6.8a2.7 2.7 0 0 0 .2-5.4 4 4 0 0 0-7.8-.6 3 3 0 0 0 .8 6z" {...p} />
+);
 export const BicepsIcon = (p: P) => (
 	<Icon
 		d="M3 13.5c2.5 0 7 .5 9.5-1.5s.5-6-2-5.5c-1 .2-1.5 1-2 2M3 13.5V7.5l2.5-5 2 1-1 3.5"

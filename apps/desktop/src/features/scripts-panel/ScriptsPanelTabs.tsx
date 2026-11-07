@@ -1,9 +1,10 @@
 /**
  * @feature RUN-01 Scripts panel tab strip
  * Owns: the tab buttons of the scripts panel and the collapse button. Fixed tabs Setup, Run and
- * Ports; one tab per terminal; a "new terminal" button.
+ * Ports; one tab per terminal, with its host in a cloud workspace; a "new terminal" button.
  * Behaviour: ui-map.md 3.7 (tabs; "New terminal", "Close terminal", "Maximum N terminals
- * allowed"; Cmd+J "Toggle terminal panel").
+ * allowed"; Cmd+J "Toggle terminal panel"; a cloud workspace's terminal tabs carry a cloud or
+ * laptop host icon, CLOUD-09).
  * Must handle: a status dot on Setup (running, failed) and Run (running), the limit disabling "new
  * terminal" with the reason as its title, many terminals (the strip scrolls), middle-click closing
  * a terminal tab, and the Ports tab being hidden until a port is detected or its scan fails (Our
@@ -13,7 +14,13 @@
 import type { TerminalId } from "@conducted/shared";
 import { cn } from "../../ui/cn.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
+import {
+	ChevronDownIcon,
+	ChevronRightIcon,
+	CloudIcon,
+	LaptopIcon,
+	PlusIcon,
+} from "../../ui/icons.tsx";
 
 export type ScriptsPanelTabId =
 	| { kind: "setup" }
@@ -23,7 +30,13 @@ export type ScriptsPanelTabId =
 
 export interface ScriptsPanelTabsProps {
 	active: ScriptsPanelTabId;
-	terminals: { id: TerminalId; title: string; ended: boolean }[];
+	terminals: {
+		id: TerminalId;
+		title: string;
+		ended: boolean;
+		/** Where the terminal runs; a cloud workspace shows it beside the title (CLOUD-09). */
+		hostKind?: "local" | "cloud";
+	}[];
 	setupStatus: "idle" | "running" | "failed" | "completed";
 	runActive: boolean;
 	showPorts: boolean;
@@ -68,7 +81,12 @@ export function ScriptsPanelTabs({
 }: ScriptsPanelTabsProps) {
 	const atLimit = terminals.length >= terminalLimit;
 	const reason = `Maximum ${terminalLimit} terminals allowed`;
-	const tab = (id: ScriptsPanelTabId, label: string, status?: "running" | "failed") => (
+	const tab = (
+		id: ScriptsPanelTabId,
+		label: string,
+		status?: "running" | "failed",
+		hostKind?: "local" | "cloud",
+	) => (
 		<button
 			key={id.kind === "terminal" ? id.terminalId : id.kind}
 			type="button"
@@ -85,6 +103,19 @@ export function ScriptsPanelTabs({
 					: "border-transparent text-fg-muted hover:text-fg",
 			)}
 		>
+			{hostKind === undefined ? null : (
+				<span
+					data-host={hostKind}
+					className="flex shrink-0 items-center text-fg-muted"
+					aria-hidden="true"
+				>
+					{hostKind === "cloud" ? (
+						<CloudIcon className="size-3" />
+					) : (
+						<LaptopIcon className="size-3" />
+					)}
+				</span>
+			)}
 			{label}
 			{status === undefined ? null : <StatusDot tone={status} />}
 		</button>
@@ -115,7 +146,12 @@ export function ScriptsPanelTabs({
 				{tab({ kind: "run" }, "Run", runActive ? "running" : undefined)}
 				{showPorts ? tab({ kind: "ports" }, "Ports") : null}
 				{terminals.map((terminal) =>
-					tab({ kind: "terminal", terminalId: terminal.id }, terminal.title, undefined),
+					tab(
+						{ kind: "terminal", terminalId: terminal.id },
+						terminal.title,
+						undefined,
+						terminal.hostKind,
+					),
 				)}
 			</div>
 			<IconButton

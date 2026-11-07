@@ -67,6 +67,28 @@ describe("RUN-01 scripts panel tab strip", () => {
 		expect(screen.getByRole("tab", { name: "Ports" })).toBeTruthy();
 	});
 
+	it("shows each terminal's host icon in a cloud workspace", () => {
+		const { container, rerender } = render(
+			<ScriptsPanelTabs
+				{...props}
+				terminals={[{ id: "t1" as TerminalId, title: "Terminal 1", ended: false }]}
+			/>,
+		);
+		expect(container.querySelector('[data-host="cloud"]')).toBeNull();
+
+		rerender(
+			<ScriptsPanelTabs
+				{...props}
+				terminals={[
+					{ id: "t1" as TerminalId, title: "Terminal 1", ended: false, hostKind: "cloud" },
+					{ id: "t2" as TerminalId, title: "Terminal 2", ended: false, hostKind: "local" },
+				]}
+			/>,
+		);
+		expect(container.querySelectorAll('[data-host="cloud"]')).toHaveLength(1);
+		expect(container.querySelectorAll('[data-host="local"]')).toHaveLength(1);
+	});
+
 	it("toggles the panel from the collapse control", () => {
 		const onToggleCollapsed = vi.fn();
 		const { rerender } = render(

@@ -4,7 +4,8 @@
  * the agent works or waits for the user, else the unread dot, before the title. An idle chat tab has
  * no icon (Conductor's renderApp chat tab).
  * Behaviour: ui-map.md 3.2 (chat tab: status icon, title, unread dot, fixed width; terminal tab
- * 'Terminal N'; comment tab 'Comment by <author>'; PR tab 'PR #N'; browser tab shows the URL host),
+ * 'Terminal N' with its cloud or laptop host icon in a cloud workspace (CLOUD-09); comment tab
+ * 'Comment by <author>'; PR tab 'PR #N'; browser tab shows the URL host),
  * ui-dimensions.md (tab 40px tall, chat 176px wide, other tabs 128px, 2px accent underline when
  * active, close button 20px).
  * Our design choice: the tab is one focusable element with role "tab"; the close button sits beside
@@ -19,8 +20,10 @@ import { cn } from "../../ui/cn.ts";
 import {
 	ChatIcon,
 	CloseIcon,
+	CloudIcon,
 	FileIcon,
 	GlobeIcon,
+	LaptopIcon,
 	PullRequestIcon,
 	TerminalIcon,
 } from "../../ui/icons.tsx";
@@ -56,6 +59,20 @@ function TabIcon({ tab }: { tab: TabDescriptor }) {
 		case "session":
 			return sessionMark(tab);
 		case "terminal":
+			if (tab.hostKind === "cloud") {
+				return (
+					<span data-host="cloud" className="contents">
+						<CloudIcon />
+					</span>
+				);
+			}
+			if (tab.hostKind === "local") {
+				return (
+					<span data-host="local" className="contents">
+						<LaptopIcon />
+					</span>
+				);
+			}
 			return <TerminalIcon />;
 		case "file":
 			return <FileIcon />;
