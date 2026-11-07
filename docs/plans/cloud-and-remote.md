@@ -124,3 +124,4 @@ Verdict against the kill criterion: path A works without reverse-engineering a p
 2. Run the Remote Control spike (small, local, needs a claude.ai subscription). Done: path A passed (D074).
 3. Run the cloud spike on a test Cloudflare account. Done: it passed (D075).
 4. Build the parts the spikes confirm. Remote Control is built (RC-02 to RC-04): a per-chat switch in a Claude chat's composer, messages and approvals from claude.ai, and its settings page. The host seam is built (CLOUD-01); the other cloud rows (CLOUD-03 to CLOUD-18) are next.
+5. Keep work across sandbox restarts (CLOUD-06). Done: the sandbox saves `/workspace` and the agents' transcript folders to R2 at each turn end, and a start of a stopped sandbox restores them (D104).
