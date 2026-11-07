@@ -4788,10 +4788,12 @@
 		"by": "hand"
 	},
 	"text:R10976147": {
-		"status": "decided",
-		"decision": "D110",
-		"note": "Conductor's cloud-workspace SSH key setting (`ssh_key_path`); our Worker sandbox is reached by the tunnel with the pairing token, so there is no SSH key to reset (D110).",
-		"by": "hand"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Settings",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"text:R10977415": {
 		"status": "matched",
