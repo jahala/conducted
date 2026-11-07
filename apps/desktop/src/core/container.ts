@@ -57,6 +57,7 @@ import {
 	spotlighterScript,
 } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
+import { type CloudDeployService, createCloudDeploy } from "./cloud/deploy.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
 import { createHostRoutedSidecar } from "./cloud/router.ts";
@@ -166,6 +167,7 @@ export interface Services {
 	mcp: McpService;
 	linear: LinearService;
 	cloudPairing: CloudPairingService;
+	cloudDeploy: CloudDeployService;
 	git: GitService;
 	graphite: GraphiteService;
 	gitCache: GitCache;
@@ -921,6 +923,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 	});
 	const cloudPairing = createCloudPairing(platform.cloud);
+	const cloudDeploy = createCloudDeploy({ cloud: platform.cloud, fs: platform.fs });
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,
@@ -1107,6 +1110,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		mcp,
 		linear,
 		cloudPairing,
+		cloudDeploy,
 		git,
 		graphite,
 		gitCache,

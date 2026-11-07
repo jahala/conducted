@@ -783,6 +783,8 @@ pub fn run() {
             cloud::cloud_pairing,
             cloud::cloud_pair,
             cloud::cloud_unpair,
+            cloud::cloud_deploy,
+            cloud::cloud_uninstall,
             cloud::cloud_request,
             cloud::cloud_relay_open,
             cloud::cloud_relay_send,

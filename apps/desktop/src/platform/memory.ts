@@ -37,10 +37,13 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployInput,
+	CloudDeployResult,
 	CloudPairing,
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
+	CloudUninstallInput,
 	Database,
 	Dialogs,
 	FileDropEvent,
@@ -83,6 +86,11 @@ export type CloudScript = (
 	request: CloudRequest,
 ) => Promise<Result<CloudResponse>> | Result<CloudResponse> | null;
 
+/** A scripted answer to a deploy, or null to let the next script answer. */
+export type CloudDeployScript = (
+	input: CloudDeployInput,
+) => Promise<Result<CloudDeployResult>> | Result<CloudDeployResult> | null;
+
 export interface MemoryPlatformOptions {
 	clock: Clock;
 	ids: IdSource;
@@ -106,6 +114,12 @@ export interface MemoryPlatformControls {
 	scriptShell(script: ShellScript): void;
 	/** Adds a cloud answer. Later scripts are tried first. */
 	scriptCloud(script: CloudScript): void;
+	/** Adds a deploy answer. Later scripts are tried first. */
+	scriptCloudDeploy(script: CloudDeployScript): void;
+	/** Every deploy the app asked for, in order. */
+	readonly cloudDeploys: readonly CloudDeployInput[];
+	/** Every uninstall the app asked for, in order. */
+	readonly cloudUninstalls: readonly CloudUninstallInput[];
 	/** Every cloud request made, in order. */
 	readonly cloudRequests: readonly CloudRequest[];
 	/** Every line the app sent to a cloud relay, in order. */
@@ -1139,6 +1153,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const cloudScripts: CloudScript[] = [];
+	const cloudDeployScripts: CloudDeployScript[] = [];
+	const cloudDeploys: CloudDeployInput[] = [];
+	const cloudUninstalls: CloudUninstallInput[] = [];
 	const cloudRequests: CloudRequest[] = [];
 	const cloudSent: { relayId: string; line: string }[] = [];
 	let cloudPairing: CloudPairing = {
@@ -1165,6 +1182,22 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		unpair: async () => {
 			cloudPairing = { paired: false, url: null };
+			return ok(undefined);
+		},
+		deploy: async (input) => {
+			cloudDeploys.push(input);
+			let answer: Result<CloudDeployResult> | null = null;
+			for (const script of cloudDeployScripts) {
+				answer = await script(input);
+				if (answer !== null) break;
+			}
+			const result = answer ?? ok({ url: `https://${input.workerName}.example.workers.dev` });
+			// The real deploy writes the pairing in Rust; the stand-in keeps the same two facts.
+			if (result.ok) cloudPairing = { paired: true, url: result.value.url };
+			return result;
+		},
+		uninstall: async (input) => {
+			cloudUninstalls.push(input);
 			return ok(undefined);
 		},
 		request: async (request) => {
@@ -1254,6 +1287,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		scriptCloud: (script) => {
 			cloudScripts.unshift(script);
+		},
+		scriptCloudDeploy: (script) => {
+			cloudDeployScripts.unshift(script);
+		},
+		get cloudDeploys() {
+			return cloudDeploys;
+		},
+		get cloudUninstalls() {
+			return cloudUninstalls;
 		},
 		get cloudRequests() {
 			return cloudRequests;

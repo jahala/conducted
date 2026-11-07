@@ -772,6 +772,26 @@ export interface CloudPairInput {
 	token: string;
 }
 
+/**
+ * What a deploy needs (CLOUD-08). The names come from the Worker's own `wrangler.jsonc`, so
+ * there is one home for them.
+ */
+export interface CloudDeployInput {
+	/** The folder that holds `wrangler.jsonc` and the sandbox `Dockerfile`. */
+	sourceDir: string;
+	workerName: string;
+	bucketName: string;
+	containerApp: string;
+}
+
+/** What a completed deploy leaves: the Worker's URL, now paired with this Mac. */
+export interface CloudDeployResult {
+	url: string;
+}
+
+/** What an uninstall needs: the same names a deploy used. */
+export type CloudUninstallInput = CloudDeployInput;
+
 /** The line transport to the sidecar inside one workspace's sandbox (CLOUD-03). */
 export interface CloudRelay {
 	readonly id: string;
@@ -798,6 +818,17 @@ export interface Cloud {
 	pair(input: CloudPairInput): Promise<Result<CloudPairing>>;
 	/** Removes the saved pairing. A Mac that is not paired succeeds. */
 	unpair(): Promise<Result<void>>;
+	/**
+	 * Deploys the Worker, its container application and its R2 bucket to the user's own Cloudflare
+	 * account with their `wrangler` login, sets the pairing token as a Worker secret, and pairs
+	 * this Mac (CLOUD-08). The token is made in Rust and never reaches the web view.
+	 */
+	deploy(input: CloudDeployInput): Promise<Result<CloudDeployResult>>;
+	/**
+	 * Deletes what the deploy made, in the order that stops billing: the Worker, its container
+	 * application and images, then the R2 bucket. It also removes this Mac's pairing (CLOUD-08).
+	 */
+	uninstall(input: CloudUninstallInput): Promise<Result<void>>;
 	request(request: CloudRequest): Promise<Result<CloudResponse>>;
 	/**
 	 * Opens one line stream into the workspace's Durable Object. `channel` selects the sidecar

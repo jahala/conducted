@@ -35,7 +35,7 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
-import type { CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -707,6 +707,10 @@ export interface Actions {
 		pair: Act<[input: CloudPairInput], CloudPairing>;
 		/** Removes this Mac's pairing with its Worker. */
 		unpair: Act<[], void>;
+		/** Deploys the Worker from `sourceDir` to the user's account and pairs this Mac (CLOUD-08). */
+		deploy: Act<[sourceDir: string], CloudDeployResult>;
+		/** Deletes the Worker, its container application and its bucket, and unpairs (CLOUD-08). */
+		uninstall: Act<[sourceDir: string], void>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
