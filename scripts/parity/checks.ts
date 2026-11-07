@@ -40,14 +40,18 @@ export interface Finding {
 	text?: string;
 	/** Check a's gaps: how the gap is closed (docs/plans/parity-harness.md section 2). */
 	class?: GapClass;
-	/** A feature gap's backlog row, when the map names one. */
+	/** A gap's backlog row, when the map names one. */
 	backlog?: string;
+	/** The row's checklist item that owns the gap, when the map names one. */
+	item?: string;
 }
 
 export interface Inputs {
 	specs: Map<Inventory, SpecFile>;
 	maps: Map<Inventory, MapFile>;
 	decisions: Set<string>;
+	/** The rows of docs/plans/backlog.md, each with the texts of its items in docs/plans/items/. */
+	items: Map<string, Set<string>>;
 	/** Every state the catalogue of the checked app has, or null with no dump (state names go unchecked). */
 	states: Set<string> | null;
 	oursOnly: OursOnly[];
@@ -135,6 +139,50 @@ export function checkCompleteness(inputs: Inputs): Finding[] {
 	return findings;
 }
 
+/** A gap's owner must exist: its row in the backlog, and its item under that row. */
+function ownerProblems(
+	mapped: Extract<MapEntry, { status: "gap" }>,
+	inputs: Inputs,
+	base: { check: "a"; inventory: string; id: string; text: string },
+): Finding[] {
+	if (mapped.backlog === undefined) {
+		if (mapped.item === undefined) return [];
+		return [
+			{
+				...base,
+				severity: "broken",
+				code: "unknown-owner",
+				screen: "Harness",
+				detail: "the map names an item but no backlog row",
+			},
+		];
+	}
+	const texts = inputs.items.get(mapped.backlog);
+	if (texts === undefined) {
+		return [
+			{
+				...base,
+				severity: "broken",
+				code: "unknown-owner",
+				screen: "Harness",
+				detail: `the map names ${mapped.backlog}, which docs/plans/backlog.md does not define`,
+			},
+		];
+	}
+	if (mapped.item !== undefined && !texts.has(mapped.item)) {
+		return [
+			{
+				...base,
+				severity: "broken",
+				code: "unknown-owner",
+				screen: "Harness",
+				detail: `the map names an item of ${mapped.backlog} that docs/plans/items/ does not hold: ${mapped.item}`,
+			},
+		];
+	}
+	return [];
+}
+
 function entryProblems(
 	inventory: Inventory,
 	mapped: MapEntry,
@@ -142,19 +190,19 @@ function entryProblems(
 	base: { check: "a"; inventory: string; id: string; text: string },
 ): Finding[] {
 	if (mapped.status === "gap") {
-		return [
-			{
-				...base,
-				severity: "gap",
-				code: `gap-${mapped.reason}`,
-				screen: mapped.screen,
-				class: gapClass(mapped),
-				...(mapped.backlog === undefined ? {} : { backlog: mapped.backlog }),
-				detail:
-					mapped.note ??
-					(mapped.reason === "unshown" ? "no catalogue state shows it" : "not in our UI"),
-			},
-		];
+		const gap: Finding = {
+			...base,
+			severity: "gap",
+			code: `gap-${mapped.reason}`,
+			screen: mapped.screen,
+			class: gapClass(mapped),
+			...(mapped.backlog === undefined ? {} : { backlog: mapped.backlog }),
+			...(mapped.item === undefined ? {} : { item: mapped.item }),
+			detail:
+				mapped.note ??
+				(mapped.reason === "unshown" ? "no catalogue state shows it" : "not in our UI"),
+		};
+		return [gap, ...ownerProblems(mapped, inputs, base)];
 	}
 	if (mapped.status === "decided") {
 		if (inputs.decisions.has(mapped.decision)) return [];

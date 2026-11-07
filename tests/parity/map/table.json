@@ -27,27 +27,42 @@
 	"table:symlinks_pending_deletion": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "WS-05",
+		"item": "Table symlinks_pending_deletion; its purpose is unknown, maybe deleting worktrees that contain symlinks.",
+		"owner": "rule:name"
 	},
 	"table:session_messages_outbox": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-04",
+		"item": "Table session_messages_outbox for queued follow-up messages.",
+		"owner": "rule:name"
 	},
 	"table:session_pending_messages_state": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-04",
+		"owner": "hand",
+		"note": "The follow-up queue."
 	},
 	"table:session_pending_messages": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-04",
+		"owner": "hand",
+		"note": "The follow-up queue."
 	},
 	"table:session_assets_outbox": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-04",
+		"item": "Table session_assets_outbox for queued attachments.",
+		"owner": "rule:name"
 	},
 	"table:attachments": {
 		"status": "matched",
@@ -57,17 +72,26 @@
 	"table:client_cache_session_state": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "DATA-07",
+		"owner": "hand",
+		"note": "The cache for a fast restart."
 	},
 	"table:session_messages": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "DATA-01",
+		"item": "Main tables: repos, workspaces, sessions, session_events and others (session_messages is dropped by D006).",
+		"owner": "rule:name"
 	},
 	"table:client_cache_session_segments": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "DATA-07",
+		"owner": "hand",
+		"note": "The cache for a fast restart."
 	},
 	"table:session_events": {
 		"status": "matched",
@@ -77,7 +101,10 @@
 	"table:session_state": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Table session_state.",
+		"owner": "rule:name"
 	},
 	"table:diff_comments": {
 		"status": "matched",
@@ -87,7 +114,10 @@
 	"table:session_messages_outbox_state": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-04",
+		"item": "Table session_messages_outbox_state for queue pause state.",
+		"owner": "rule:name"
 	},
 	"table:sessions": {
 		"status": "matched",
@@ -97,12 +127,18 @@
 	"table:terminal_sessions": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-08",
+		"item": "Terminal rows keep the replay sequences and screen modes (rehydrate_sequences, alternate_screen, bracketed_paste) for a faithful restore.",
+		"owner": "rule:cite"
 	},
 	"table:port_forwards": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"item": "Table port_forwards.",
+		"owner": "rule:name"
 	},
 	"table:favorite_models": {
 		"status": "matched",
@@ -112,12 +148,18 @@
 	"table:navigation_sections": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "NAV-04",
+		"item": "Table navigation_sections.",
+		"owner": "rule:name"
 	},
 	"table:navigation_section_memberships": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "NAV-04",
+		"item": "Table navigation_section_memberships.",
+		"owner": "rule:name"
 	},
 	"table:_sqlx_migrations": {
 		"status": "gap",
@@ -142,6 +184,9 @@
 	"table:migration_rollbacks": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-17",
+		"item": "Each migration registers its undo SQL (Conductor keeps it in a migration_rollbacks table); applied migrations stay locked, the undo SQL is a new file beside each one.",
+		"owner": "rule:name"
 	}
 }

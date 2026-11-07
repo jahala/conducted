@@ -162,7 +162,9 @@
 	"route:R1714453": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"owner": "rule:neighbour"
 	},
 	"route:R1715305": {
 		"status": "matched",
@@ -179,7 +181,8 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03"
+		"backlog": "PRJ-03",
+		"owner": "rule:neighbour"
 	},
 	"route:R2049956": {
 		"status": "matched",
@@ -189,23 +192,31 @@
 	"route:R2960849": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"item": "Repo settings routes '/settings/repos/$repoId/$page'",
+		"owner": "rule:quote"
 	},
 	"route:R2960925": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"route:R2961215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"route:R2983757": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03"
+		"backlog": "WS-01",
+		"owner": "rule:neighbour"
 	},
 	"route:R2986285": {
 		"status": "decided",
@@ -238,7 +249,9 @@
 	"route:R9542870": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"owner": "rule:neighbour"
 	},
 	"route:R10181173": {
 		"status": "gap",
@@ -403,12 +416,17 @@
 	"route:R11785462": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"route:R11785714": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"item": "Repo settings routes '/settings/repos/$repoId/$page'",
+		"owner": "rule:quote"
 	},
 	"route:R11785937": {
 		"status": "gap",
@@ -456,7 +474,10 @@
 	"route:R11786604": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-06",
+		"item": "Slash '/mcp', '/agents', '/hooks', '/memory', '/permissions', '/plugins' open the embedded terminal",
+		"owner": "rule:quote"
 	},
 	"route:R11786662": {
 		"status": "gap",
@@ -472,12 +493,16 @@
 	"route:R11786789": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-06",
+		"owner": "rule:neighbour"
 	},
 	"route:R11786851": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-06",
+		"owner": "rule:neighbour"
 	},
 	"route:R11929822": {
 		"status": "decided",

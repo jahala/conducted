@@ -2,22 +2,34 @@
 	"toast:M367652": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "DATA-05",
+		"item": "If writing the git exclude entry for the local settings file fails, warn that the file may be committed, and keep the file.",
+		"owner": "rule:cite"
 	},
 	"toast:M389857": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "DATA-05",
+		"item": "An invalid settings file blocks saving a setting and the user is told why (\"Can't save setting because your settings file is invalid\").",
+		"owner": "rule:quote"
 	},
 	"toast:M390047": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "DATA-05",
+		"item": "Saving a setting can fail with \"Failed to save setting\".",
+		"owner": "rule:quote"
 	},
 	"toast:M394092": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "DATA-05",
+		"item": "Loading settings can fail with \"Failed to load settings\"; the app keeps defaults and says so.",
+		"owner": "rule:quote"
 	},
 	"toast:M408967": {
 		"status": "decided",
@@ -33,7 +45,10 @@
 	"toast:M462115": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "DATA-05",
+		"item": "Editing a shared repository setting in the app is refused with \"Shared repository settings are read-only in Conductor. Edit the settings file directly.\"",
+		"owner": "rule:quote"
 	},
 	"toast:M2099774": {
 		"status": "gap",
@@ -58,12 +73,18 @@
 	"toast:M3243420": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PLAT-12",
+		"item": "If the microphone is denied, dictation shows \"Microphone access denied.\"",
+		"owner": "rule:quote"
 	},
 	"toast:M3244635": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PLAT-12",
+		"item": "If on-device speech-to-text cannot start, show \"Failed to initialize speech-to-text.\"",
+		"owner": "rule:quote"
 	},
 	"toast:M3581318": {
 		"status": "gap",
@@ -93,27 +114,42 @@
 	"toast:M3686044": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "GIT-06",
+		"item": "A pull that finds nothing new shows \"Pulled latest changes. You're up to date!\"",
+		"owner": "rule:quote"
 	},
 	"toast:M3686824": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-04",
+		"item": "Resolving a review thread shows \"Comment resolved on GitHub\".",
+		"owner": "rule:quote"
 	},
 	"toast:M3691270": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "GIT-09",
+		"item": "Renaming a branch while none is checked out shows \"Please check out a branch before renaming\" instead of the raw git error.",
+		"owner": "rule:cite"
 	},
 	"toast:M3735892": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-03",
+		"item": "Sending the setup failure to the agent can fail with \"Failed to attach setup context\".",
+		"owner": "rule:quote"
 	},
 	"toast:M3743541": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-03",
+		"item": "A failing setup script shows \"Setup script failed. Check the setup tab for logs.\"",
+		"owner": "rule:quote"
 	},
 	"toast:M3750302": {
 		"status": "gap",
@@ -129,7 +165,10 @@
 	"toast:M3756589": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-15",
+		"item": "After a cloud workspace restart, show \"Restarted workspace\".",
+		"owner": "rule:quote"
 	},
 	"toast:M3825227": {
 		"status": "gap",
@@ -144,7 +183,10 @@
 	"toast:R227819": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PLAT-20",
+		"item": "Attaching a file can fail with \"Failed to attach file\".",
+		"owner": "rule:cite"
 	},
 	"toast:R236876": {
 		"status": "gap",
@@ -159,32 +201,50 @@
 	"toast:R629044": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "GIT-16",
+		"item": "Git cannot run until the Xcode license is accepted: show \"Xcode license is not accepted\" for 15 seconds.",
+		"owner": "rule:cite"
 	},
 	"toast:R675642": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-29",
+		"item": "A chat image has a menu with \"Save image\": a save dialog, then \"Image saved\".",
+		"owner": "rule:cite"
 	},
 	"toast:R677318": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-29",
+		"item": "A chat image has a menu with \"Copy image\": shows \"Copied image to clipboard\".",
+		"owner": "rule:cite"
 	},
 	"toast:R677447": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-29",
+		"item": "A chat image has a menu with \"Copy image\": shows \"Copied image to clipboard\".",
+		"owner": "rule:cite"
 	},
 	"toast:R1714656": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "Creating a workspace can fail with \"Failed to create workspace\".",
+		"owner": "rule:cite"
 	},
 	"toast:R1717306": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Copying an image can fail: \"Failed to copy to clipboard\".",
+		"owner": "rule:quote"
 	},
 	"toast:R2035043": {
 		"status": "gap",
@@ -194,42 +254,64 @@
 	"toast:R2213309": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "GIT-17",
+		"item": "After a PR is merged, \"Continue\" creates a new branch from the target, keeps the chats and stays in the same workspace.",
+		"owner": "rule:cite"
 	},
 	"toast:R2489534": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-11",
+		"item": "Opening a file outside the synced cloud workspace shows \"File is outside the synced workspace\".",
+		"owner": "rule:cite"
 	},
 	"toast:R2489876": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-12",
+		"item": "Opening a cloud workspace remotely works only in VS Code, Cursor and Zed: \"Remote open is only supported for VS Code, Cursor, and Zed\".",
+		"owner": "rule:cite"
 	},
 	"toast:R2504857": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"owner": "rule:neighbour"
 	},
 	"toast:R2504925": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"owner": "rule:neighbour"
 	},
 	"toast:R2505067": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in another app: a path the app cannot open shows \"This app can't open this path\".",
+		"owner": "rule:cite"
 	},
 	"toast:R2505156": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in another app: preparing the file can fail with \"Failed to prepare file to open\".",
+		"owner": "rule:cite"
 	},
 	"toast:R2506351": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in another app: a file type with no default app shows \"No default app configured\".",
+		"owner": "rule:cite"
 	},
 	"toast:R2520921": {
 		"status": "gap",
@@ -239,39 +321,55 @@
 	"toast:R2976926": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "WS-03",
+		"owner": "rule:neighbour"
 	},
 	"toast:R2977083": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "WS-03",
+		"item": "A failing setup script can be sent to the chat; attaching the logs can fail with \"Failed to attach setup logs\".",
+		"owner": "rule:cite"
 	},
 	"toast:R2984332": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03"
+		"backlog": "WS-01",
+		"owner": "rule:neighbour"
 	},
 	"toast:R2984388": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03"
+		"backlog": "WS-01",
+		"owner": "rule:neighbour"
 	},
 	"toast:R2985423": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "WS-03",
+		"item": "Setup: 'Setup script failed' with a 'fix it?' prompt sent to the chat",
+		"owner": "rule:quote"
 	},
 	"toast:R2994853": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CHAT-02",
+		"item": "Sending a message can fail with \"Couldn't send message\".",
+		"owner": "rule:cite"
 	},
 	"toast:R3020329": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-07",
+		"item": "Dropping a folder into the composer is refused with \"Folders can't be uploaded\".",
+		"owner": "rule:cite"
 	},
 	"toast:R3992715": {
 		"status": "gap",
@@ -281,7 +379,10 @@
 	"toast:R4998666": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "Opening a local terminal in a workspace that is not ready shows \"Workspace is not ready for local terminals.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R5000520": {
 		"status": "gap",
@@ -296,26 +397,31 @@
 	"toast:R5432175": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-03"
+		"screen": "Unplaced"
 	},
 	"toast:R5443582": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-10",
+		"item": "Forwarding a port needs a valid number: \"Enter a valid port (1-65535)\".",
+		"owner": "rule:cite"
 	},
 	"toast:R5443642": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-10",
+		"item": "Port 22 cannot be forwarded: \"Port 22 is reserved for SSH and cannot be forwarded here\".",
+		"owner": "rule:cite"
 	},
 	"toast:R5453992": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-10",
+		"item": "Forwarding ports shows the notice \"Forwarding ports\" while the forward is being set up.",
+		"owner": "rule:cite"
 	},
 	"toast:R5493916": {
 		"status": "gap",
@@ -330,22 +436,34 @@
 	"toast:R5545832": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Deleting, reordering or moving a workspace between sections can fail with a short error.",
+		"owner": "rule:cite"
 	},
 	"toast:R5545905": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Deleting, reordering or moving a workspace between sections can fail with a short error.",
+		"owner": "rule:cite"
 	},
 	"toast:R5547610": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-01",
+		"item": "If adding a new workspace to the chosen section fails, say so and tell the user to move it from the sidebar; the workspace still opens.",
+		"owner": "rule:cite"
 	},
 	"toast:R5554252": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-11",
+		"item": "Starting a backlog workspace with no ready repository shows \"No ready repository. Pick one to start this workspace.\"; removing a repository keeps its drafts (migration 0008) and the row's \"Switch repo\" picker gives one a repository.",
+		"owner": "rule:cite"
 	},
 	"toast:R5555455": {
 		"status": "gap",
@@ -376,12 +494,17 @@
 	"toast:R5563508": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CLOUD-12",
+		"item": "A cloud workspace has a copyable SSH command; \"Copied SSH command\" confirms it.",
+		"owner": "rule:cite"
 	},
 	"toast:R5563556": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CLOUD-12",
+		"owner": "rule:neighbour"
 	},
 	"toast:R5643180": {
 		"status": "gap",
@@ -402,47 +525,51 @@
 	"toast:R8156106": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-10",
+		"item": "If an answer or approval cannot be delivered, the card comes back with \"Could not send answers. Try again.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R8191557": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-09",
+		"item": "Saving a prompt snippet can fail: \"Couldn't save snippet\".",
+		"owner": "rule:cite"
 	},
 	"toast:R8192988": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-09",
+		"item": "Deleting a prompt snippet can fail: \"Couldn't delete snippet\".",
+		"owner": "rule:cite"
 	},
 	"toast:R8679526": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"toast:R8680643": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"toast:R8684256": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"toast:R8684358": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"toast:R8684476": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"toast:R8701195": {
 		"status": "gap",
@@ -452,7 +579,10 @@
 	"toast:R8730441": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-29",
+		"item": "A chat image has a menu with \"Save image\": a save dialog, then \"Image saved\".",
+		"owner": "rule:cite"
 	},
 	"toast:R8889053": {
 		"status": "gap",
@@ -468,57 +598,89 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "PLAT-12"
+		"backlog": "PLAT-12",
+		"item": "If recording fails while dictating, show \"Speech recording failed.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9088088": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-17",
+		"item": "Loading saved ACP model options can fail: \"Couldn't load saved model options\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9088384": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-17",
+		"item": "When only some saved ACP options fail to load: \"Some saved model options could not be loaded. Choose those options again.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9100673": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CLOUD-18",
+		"item": "Updating the credentials of a cloud agent can fail with \"Couldn't update agent credentials\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9284738": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-07",
+		"item": "Using an attachment before it is available shows \"Attachments not available\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9291600": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-04",
+		"item": "Attaching terminal output can fail with \"Failed to attach terminal output\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9292765": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PLAT-20",
+		"item": "Copying attachments into the workspace can fail with \"Couldn't copy attachments into this workspace\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9294783": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-07",
+		"item": "Sending while an attachment is still being copied or shrunk is refused with \"Wait for attachments to finish processing.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9296109": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-10",
+		"item": "Using the goal bar or /goal on a chat that cannot do goals shows \"Codex goals are not available in this chat.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9299261": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-06",
+		"item": "A typed slash command the agent or workspace does not offer shows \"This command isn't available in this workspace.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9299441": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-06",
+		"item": "Typing /plan for an agent without plan mode shows \"Plan mode is not available in this chat.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9299633": {
 		"status": "gap",
@@ -528,7 +690,10 @@
 	"toast:R9299687": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-10",
+		"item": "Setting a goal with empty text shows \"Enter a goal first.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9300528": {
 		"status": "gap",
@@ -538,12 +703,18 @@
 	"toast:R9300822": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-04",
+		"item": "Attaching terminal output when no terminal exists shows \"No terminal output available for this workspace\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9310207": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Saving a PR as context for the chat can fail with \"Failed to save PR context\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9312315": {
 		"status": "gap",
@@ -553,27 +724,42 @@
 	"toast:R9357302": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-04",
+		"item": "Deleting a queued message can fail: \"Failed to delete queued message\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9357937": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-04",
+		"item": "Reordering queued messages can fail: \"Failed to reorder queued messages\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9360051": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-04",
+		"item": "Resuming a paused queue can fail: \"Failed to resume queue\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9360203": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-04",
+		"item": "Retrying a queued message can fail: \"Failed to retry message\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9360437": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-04",
+		"item": "Sending a queued message as a steer can fail: \"Failed to steer queued message\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9390844": {
 		"status": "gap",
@@ -593,22 +779,33 @@
 	"toast:R9405672": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-26",
+		"item": "A new chat can pull in earlier chats of the workspace, listed by last user message and saved as a transcript file.",
+		"owner": "rule:cite"
 	},
 	"toast:R9405805": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-26",
+		"item": "A new chat can pull in earlier chats of the workspace, listed by last user message and saved as a transcript file.",
+		"owner": "rule:cite"
 	},
 	"toast:R9406094": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-26",
+		"item": "Attaching a plan to a new chat can fail: \"Failed to attach plan\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9510796": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-06",
+		"owner": "rule:neighbour"
 	},
 	"toast:R9513466": {
 		"status": "decided",
@@ -619,7 +816,9 @@
 	"toast:R9513542": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-06",
+		"owner": "rule:neighbour"
 	},
 	"toast:R9549716": {
 		"status": "gap",
@@ -634,22 +833,34 @@
 	"toast:R9626762": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Showing a downloaded cloud file can fail with \"Could not open Downloads. Try again.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R9754440": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-11",
+		"item": "The file view shows each conflict with three choices: current, incoming or both, and saves the file.",
+		"owner": "rule:cite"
 	},
 	"toast:R9948837": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Opening the editor can fail with \"Failed to open editor\".",
+		"owner": "rule:cite"
 	},
 	"toast:R9953202": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "If a file changed on disk while the user has unsaved edits, ask to keep or discard before saving.",
+		"owner": "rule:cite"
 	},
 	"toast:R10074815": {
 		"status": "gap",
@@ -674,17 +885,25 @@
 	"toast:R10085340": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"owner": "rule:neighbour"
 	},
 	"toast:R10085400": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "Terminal settings that cannot load show \"Failed to load terminal settings.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R10105621": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-11",
+		"item": "A preview of a cloud workspace without its local mirror shows \"Couldn't open preview: local workspace mirror is unavailable.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R10110444": {
 		"status": "gap",
@@ -711,56 +930,72 @@
 	"toast:R10477591": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"item": "Deleting, reordering or moving a workspace between sections can fail with a short error.",
+		"owner": "rule:cite"
 	},
 	"toast:R10522795": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"item": "Deleting, reordering or moving a workspace between sections can fail with a short error.",
+		"owner": "rule:cite"
 	},
 	"toast:R10572663": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-03"
+		"screen": "Unplaced"
 	},
 	"toast:R10572819": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-03"
+		"screen": "Unplaced"
 	},
 	"toast:R10573129": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-03"
+		"screen": "Unplaced"
 	},
 	"toast:R10581997": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "APP-03"
+		"backlog": "APP-03",
+		"owner": "rule:neighbour"
 	},
 	"toast:R10582102": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Copying the app logs for support shows \"App logs copied\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10588207": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "If first-run onboarding cannot finish, show \"Couldn't finish setup. Please try again.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R10694452": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Updating environment variable files can fail with \"Failed to update env files\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10871822": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"item": "Saving environment variables can fail with \"Couldn't update your environment variables\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10892009": {
 		"status": "decided",
@@ -777,42 +1012,65 @@
 	"toast:R10918731": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "After a Codex login with the ChatGPT plan, show \"Codex now uses your ChatGPT plan\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10923050": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "CLOUD-17",
+		"item": "Cloud settings that cannot be reached show \"Conductor could not connect to cloud settings. Try again.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R10925387": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "The Codex device-code login shows a verification code that can be copied: \"Copied Codex verification code.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R10925446": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"owner": "rule:neighbour"
 	},
 	"toast:R10954108": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "The Agents page lets the user save a provider API key and shows \"API key saved\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10954503": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "The Agents page lets the user remove a provider API key and shows \"API key removed\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10966069": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"item": "The user can move the app's data folder; success shows \"Conductor root path changed successfully\".",
+		"owner": "rule:cite"
 	},
 	"toast:R10998780": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-03",
+		"item": "The Agents page can import a provider API key from the environment: \"API key imported from env\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11014233": {
 		"status": "gap",
@@ -827,12 +1085,17 @@
 	"toast:R11050680": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "PR-01",
+		"item": "Refreshing GitHub data can fail with \"Couldn't refresh GitHub\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11050766": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "PR-01",
+		"owner": "rule:neighbour"
 	},
 	"toast:R11086629": {
 		"status": "gap",
@@ -892,12 +1155,18 @@
 	"toast:R11120183": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "PLAT-24",
+		"item": "If System Settings cannot open, tell the user to grant Full Disk Access under Privacy & Security.",
+		"owner": "rule:cite"
 	},
 	"toast:R11126591": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "CLOUD-17",
+		"item": "Changing the cloud git identity can fail with \"Couldn't update Git identity\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11128301": {
 		"status": "gap",
@@ -908,19 +1177,22 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-17",
+		"item": "Changing the local port range for cloud forwarding can fail with \"Couldn't update the local port range\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11150870": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-17",
+		"item": "Changing the port forwarding strategy can fail with \"Couldn't update the forwarding strategy\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11153716": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"screen": "Unplaced"
 	},
 	"toast:R11162731": {
 		"status": "decided",
@@ -988,27 +1260,42 @@
 	"toast:R11262540": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-16",
+		"item": "Changing the Claude output style shows \"Claude output style updated. New chats will use it; existing chats won't change.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11265782": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"item": "Turning Spotlight testing on or off can fail with \"Failed to update spotlight testing\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11290713": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PRJ-05",
+		"item": "An icon upload that is not a PNG, JPEG, GIF, WebP or SVG shows \"Choose a PNG, JPEG, GIF, WebP, or SVG image\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11290828": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PRJ-05",
+		"item": "An icon larger than 10 MB shows \"Image is too large. Choose one under 10MB.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11291063": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PRJ-05",
+		"item": "An icon that cannot be set shows \"Failed to set the icon. Try a different image.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11298129": {
 		"status": "gap",
@@ -1034,17 +1321,26 @@
 	"toast:R11392647": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "APP-06",
+		"item": "Checking for an update while one check is running shows \"An update check is already in progress.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11404745": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-15",
+		"item": "Reverting a single file in a per-turn changes view shows \"Reverting to a turn is not supported yet.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11405085": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-09",
+		"item": "Discarding changes to one file writes a small revert note into the chat so the agent knows.",
+		"owner": "rule:cite"
 	},
 	"toast:R11429681": {
 		"status": "gap",
@@ -1064,37 +1360,57 @@
 	"toast:R11472551": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-02",
+		"item": "Creating from a pull request that is not in the loaded list shows \"Could not load that pull request\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11482621": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-09",
+		"item": "Creating a workspace from an issue that gives no branch name shows \"Cannot create workspace from this issue\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11482877": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-02",
+		"item": "Creating a workspace from a PR or issue with no repository chosen shows \"No repository selected\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11500137": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-11",
+		"item": "\"Added to backlog\" confirms a workspace saved without a worktree.",
+		"owner": "rule:cite"
 	},
 	"toast:R11511925": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"item": "Creating or editing a section can fail with a short error, and the section list stays as it was.",
+		"owner": "rule:cite"
 	},
 	"toast:R11512041": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"owner": "rule:neighbour"
 	},
 	"toast:R11512106": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"item": "Creating or editing a section can fail with a short error, and the section list stays as it was.",
+		"owner": "rule:cite"
 	},
 	"toast:R11561701": {
 		"status": "decided",
@@ -1105,7 +1421,10 @@
 	"toast:R11583093": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-03",
+		"item": "The Agents page asks for all required Bedrock fields: \"Enter all required Bedrock fields.\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11608299": {
 		"status": "gap",
@@ -1120,7 +1439,10 @@
 	"toast:R11632289": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PLAT-16",
+		"item": "A deep link that opens a URL in the browser tab shows \"Invalid browser URL\" when the URL is not http or https.",
+		"owner": "rule:cite"
 	},
 	"toast:R11632434": {
 		"status": "gap",
@@ -1130,7 +1452,10 @@
 	"toast:R11632825": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A browser deep link that fails to open the tab shows \"Couldn't open browser tab\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11633100": {
 		"status": "gap",
@@ -1145,12 +1470,18 @@
 	"toast:R11633876": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A deep link that turns on a setting only works for allowed keys; others show \"Setting cannot be enabled by link\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11634162": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A deep link that turns on a setting can fail: \"Failed to enable setting\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11634668": {
 		"status": "gap",
@@ -1165,27 +1496,41 @@
 	"toast:R11635178": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PR-09",
+		"owner": "rule:neighbour"
 	},
 	"toast:R11637313": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A plan deep link that names an unknown repository shows \"Repository not found\" and falls back to the first repository.",
+		"owner": "rule:cite"
 	},
 	"toast:R11637490": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A plan deep link with data that cannot be decoded shows \"Invalid plan data\", and an empty plan shows \"Empty plan\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11637609": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A plan deep link with data that cannot be decoded shows \"Invalid plan data\", and an empty plan shows \"Empty plan\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11638410": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A deep link that cannot open its workspace shows \"Couldn't open workspace\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11639651": {
 		"status": "gap",
@@ -1215,17 +1560,25 @@
 	"toast:R11641905": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PLAT-16",
+		"item": "A link that is not a valid deep link shows \"Invalid deep link\".",
+		"owner": "rule:cite"
 	},
 	"toast:R11647565": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"toast:R11652358": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "APP-09",
+		"item": "After a feedback message is sent from the app, with optional recent logs, show \"Thank you for your feedback!\"",
+		"owner": "rule:cite"
 	},
 	"toast:R11660192": {
 		"status": "gap",
@@ -1245,7 +1598,10 @@
 	"toast:R11699632": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "Terminal text selected by the user can be sent to the chat as a file named terminal-selection plus the time.",
+		"owner": "rule:cite"
 	},
 	"toast:R11739982": {
 		"status": "gap",
@@ -1303,7 +1659,10 @@
 	"toast:R12096061": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-06",
+		"item": "When no update is found, show \"You're up to date!\"",
+		"owner": "rule:cite"
 	},
 	"toast:R12119091": {
 		"status": "matched",

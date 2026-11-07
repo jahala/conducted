@@ -2,7 +2,10 @@
 	"tooltip:M1432993": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"item": "'This message could not be displayed.'",
+		"owner": "rule:quote"
 	},
 	"tooltip:M2690256": {
 		"status": "gap",
@@ -22,20 +25,17 @@
 	"tooltip:R5588285": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5591578": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5592527": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5608488": {
 		"status": "decided",
@@ -46,7 +46,10 @@
 	"tooltip:R8048058": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-24",
+		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
+		"owner": "rule:quote"
 	},
 	"tooltip:R8414164": {
 		"status": "gap",
@@ -56,7 +59,9 @@
 	"tooltip:R8800031": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-12",
+		"owner": "rule:neighbour"
 	},
 	"tooltip:R8821619": {
 		"status": "matched",
@@ -94,12 +99,17 @@
 	"tooltip:R9525824": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Turn footer 'Copy final message' and 'Copy summary'",
+		"owner": "rule:quote"
 	},
 	"tooltip:R9535913": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-27",
+		"owner": "rule:neighbour"
 	},
 	"tooltip:R9587964": {
 		"status": "matched",
@@ -120,7 +130,10 @@
 	"tooltip:R10033594": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "'Request review'",
+		"owner": "rule:quote"
 	},
 	"tooltip:R10720405": {
 		"status": "gap",

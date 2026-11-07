@@ -18,14 +18,12 @@
 	"test_id:R2987806": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-16"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"test_id:R5587249": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"test_id:R8915522": {
 		"status": "matched",
@@ -81,7 +79,9 @@
 	"test_id:R10434951": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"test_id:R10441458": {
 		"status": "gap",

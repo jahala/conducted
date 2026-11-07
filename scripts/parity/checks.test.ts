@@ -49,6 +49,7 @@ function inputs(overrides: Partial<Inputs> = {}): Inputs {
 			],
 		]),
 		decisions: new Set(["D004"]),
+		items: new Map([["PRJ-01", new Set(["Add a project from a folder"])]]),
 		states: new Set(["sidebar", "composer-model-picker"]),
 		oursOnly: [],
 		strayMaps: [],
@@ -119,6 +120,32 @@ describe("check a, map completeness", () => {
 			.map((f) => f.code)
 			.sort();
 		expect(codes).toEqual(["unknown-decision", "unknown-id", "unknown-state"]);
+	});
+
+	test("a gap's owner must name a backlog row, and an item that row holds", () => {
+		const gap = { status: "gap", reason: "missing", screen: "S" } as const;
+		const owners = (entry: MapFile[string]) =>
+			checkCompleteness(
+				inputs({
+					maps: new Map<Inventory, MapFile>([["label", { "label:R4": entry }]]),
+				}),
+			).filter((finding) => finding.id === "label:R4");
+		const owned = owners({ ...gap, backlog: "PRJ-01", item: "Add a project from a folder" });
+		expect(owned.map((finding) => finding.severity)).toEqual(["gap"]);
+		expect(owned[0]).toMatchObject({ backlog: "PRJ-01", item: "Add a project from a folder" });
+		expect(owners({ ...gap, backlog: "PRJ-01" }).map((finding) => finding.severity)).toEqual([
+			"gap",
+		]);
+		for (const wrong of [
+			{ ...gap, backlog: "PRJ-99" },
+			{ ...gap, backlog: "PRJ-01", item: "Something no item says" },
+			{ ...gap, item: "Add a project from a folder" },
+		]) {
+			expect(owners(wrong).map((finding) => finding.code)).toEqual([
+				"gap-missing",
+				"unknown-owner",
+			]);
+		}
 	});
 
 	test("an ours-only entry with neither a decision nor the owner's keep ruling is broken", () => {

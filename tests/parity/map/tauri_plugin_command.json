@@ -577,22 +577,34 @@
 	"tauri_plugin_command:http|fetch": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side."
 	},
 	"tauri_plugin_command:http|fetch_cancel": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side."
 	},
 	"tauri_plugin_command:http|fetch_send": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side."
 	},
 	"tauri_plugin_command:http|fetch_read_body": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side."
 	},
 	"tauri_plugin_command:notification|is_permission_granted": {
 		"status": "matched",
@@ -617,17 +629,26 @@
 	"tauri_plugin_command:os|hostname": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-32",
+		"owner": "hand",
+		"note": "A system fact."
 	},
 	"tauri_plugin_command:process|exit": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-15",
+		"owner": "hand",
+		"note": "Quit the app."
 	},
 	"tauri_plugin_command:process|restart": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-13",
+		"owner": "hand",
+		"note": "Restart after an update."
 	},
 	"tauri_plugin_command:updater|download": {
 		"status": "matched",

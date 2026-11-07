@@ -46,7 +46,20 @@ Every entry that is not matched falls in one of four classes. The report counts 
   - By hand (`"by": "hand"`) for a whole bundle region whose component a person read and found to be one left-out feature, such as the Internal settings page, the profile and activity page, the sharing dialog or the hosted sandbox's details. Only missing UI entries are decided this way: a string our UI source also holds is something of ours, so it stays a gap.
 - **b. Unshown.** Our UI source holds the string but no catalogue state draws it (`"reason": "unshown"`). It closes when a catalogue state draws the screen it is on, or when the map names an existing state that already draws it.
 - **c. Wording or placement.** One of our screens does the same job in other words or in another place. A person marks it `"class": "wording"` with a note naming our string, and closes it by changing our screen to Conductor's wording, so the next seed matches it. Our product name stands for Conductor's: the harness reads "Conductor" as "Conducted" when it compares (D012).
-- **d. Feature.** Everything else that is missing: a control, message or behaviour we lack. `"backlog"` names its row in `docs/plans/backlog.md`, or `"new"` when none owns it; the gap report lists them by screen.
+- **d. Feature.** Everything else that is missing: a control, message or behaviour we lack. Its owner (below) names the row that builds it; the gap report lists them by screen.
+
+### Owning a gap
+
+A gap of any class names who closes it: `"backlog"` is the row of `docs/plans/backlog.md` that builds or draws it, and `"item"` is that row's checklist item in `docs/plans/items/`, by its exact text. `"owner"` says how the owner was found. Owned is still a gap, so nothing pretends to be built: the report's "Gaps by class" table counts each class as owned by a row and item, by a row only, or with no owner. Check a fails as broken when a map names a row the backlog lacks, an item that row does not hold, or an item with no row.
+
+`bun scripts/parity/owners.ts` writes the owners. Like the spec builder, it reads the inventories in the main checkout's `.context/`, and its output is committed. It tries, in order:
+
+1. `rule:cite`: the item's research column cites the entry: `inventory text R@N`, `inventory label #N` (rows counted from 0), `inventory:toast row N` (counted from 1), or `inventory:rpc|sidecar|sql|tool <name>`.
+2. `rule:quote`: the item quotes the entry's text, or a quote of at least 14 characters holds it. A one-word quote ("Resolve", "You") is the weakest evidence here.
+3. `rule:name`: a backend name of six characters or more appears as a whole word in the item.
+4. `rule:neighbour`, row only: a UI entry takes the row when every item-owned gap within 1,000 characters in the same bundle file has that one row. Measured on the item-owned gaps, leaving each out in turn: within 500 characters 84% of 206 agree, 1,000 85% of 258, 2,000 83% of 282, 5,000 76% of 272.
+
+The first item in file order wins (`ui.tsv`, then `system.tsv`). An owner a person wrote, `"owner": "hand"`, is never overwritten; backend names are owned by hand when the name alone says which row runs it. An entry deliberately out is decided instead (D004, D018, D025, D029, D035, D086), and an entry with no item and no clear row stays without an owner, listed in the gap report.
 
 ## 3. The checks
 
@@ -108,6 +121,7 @@ First runs on #347, 7 November 2026. The full gap list is `docs/reports/parity-g
 
 - Step 5's first pass (#363), from run 42330292848's dump of e996940e: 1,007 matched, 847 decided, 771 unshown, 6 wording, 1,183 feature gaps; 64 catalogue states; 514 distinct strings of ours unaccounted for, listed for the owner in the gap report; all 7 drivable flows pass. The instrument check passed on every run.
 - Step 5's second pass (#366), from run 42333992371's dump of 3871650d, with the spec rebuilt (3,821 entries): 1,018 matched, 847 decided, 770 unshown, 6 wording, 1,180 feature gaps; 68 catalogue states; 507 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
+- Step 5's third pass (#372), from run 42347440362's dump of 6816ddba: 1,073 matched, 865 decided, 718 unshown, 0 wording, 1,165 feature gaps. Of the 1,883 gaps, 709 are owned by a backlog row and its item, 298 by a row only, and 876 have no owner (section 2, "Owning a gap"). 81 catalogue states; 536 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
 
 Not checked yet:
 

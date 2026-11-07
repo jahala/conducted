@@ -1,12 +1,13 @@
 /**
  * @feature catalogue States of the settings pages
  * Owns: every settings page, the personal ones and atlas's repository pages, with the cast's two
- * projects in the navigation.
+ * projects in the navigation; the selects whose options are wording (themes, sounds, effort levels,
+ * output styles), each open; and the Agents page's provider dialog with the Bedrock access-key form.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { seedCast } from "../cast.ts";
-import { shows } from "../dom.ts";
+import { click, find, shows } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
 
 const page = (id: string, title: string, page: string, text: string): CatalogueState => ({
@@ -47,6 +48,42 @@ const agentsWhile = (mode: "hold" | "fail"): CatalogueState => ({
 	},
 });
 
+/**
+ * Opens a select by keyboard and waits for its popup. A select keeps its options in a hidden native
+ * list, so only the open popup draws them, and a pointer release where the press began is ignored.
+ */
+async function openSelect(document: Document, name: string): Promise<void> {
+	const trigger = await find(document, "button", name);
+	trigger.focus();
+	trigger.dispatchEvent(
+		new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+	);
+}
+
+async function choose(document: Document, select: string, option: string): Promise<void> {
+	await openSelect(document, select);
+	const item = await find(document, "[role=option]", option);
+	item.focus();
+	item.dispatchEvent(
+		new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+	);
+}
+
+/** A settings page with one registry setting's select open. */
+const selectOpen = (id: string, title: string, page: string, control: string): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		return {
+			route: `/settings/${page}`,
+			after: ({ document }) => openSelect(document, control),
+			ready: (document) => document.querySelector("[role=listbox]") !== null,
+		};
+	},
+});
+
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
 	page(
@@ -67,6 +104,71 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-remote-control", "Remote control", "remote-control", "Remote control"),
 	page("settings-experimental", "Experimental", "experimental", "Experimental"),
 	page("settings-advanced", "Advanced", "advanced", "Advanced"),
+	selectOpen(
+		"settings-general-sound-menu",
+		"General, the completion sound menu open",
+		"general",
+		"Completion sound",
+	),
+	selectOpen(
+		"settings-appearance-code-theme-menu",
+		"Appearance, the code theme menu open",
+		"appearance",
+		"Code theme",
+	),
+	selectOpen(
+		"settings-appearance-colors-menu",
+		"Appearance, the accessible colours menu open",
+		"appearance",
+		"Accessible colors",
+	),
+	selectOpen(
+		"settings-appearance-markdown-menu",
+		"Appearance, the Markdown style menu open",
+		"appearance",
+		"Markdown Style",
+	),
+	selectOpen(
+		"settings-models-style-menu",
+		"Default models, the Claude output style menu open",
+		"default-models",
+		"Claude output style",
+	),
+	selectOpen(
+		"settings-models-effort-menu",
+		"Default models, the Claude effort level menu open",
+		"default-models",
+		"Claude effort level",
+	),
+	selectOpen(
+		"settings-models-codex-thinking-menu",
+		"Default models, the Codex thinking level menu open",
+		"default-models",
+		"Codex thinking level",
+	),
+	selectOpen(
+		"settings-models-personality-menu",
+		"Default models, the Codex personality menu open",
+		"default-models",
+		"Codex personality",
+	),
+	{
+		id: "settings-agents-bedrock",
+		group: "Settings",
+		title: "Agents: Claude Code's providers dialog, Amazon Bedrock with AWS access keys",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/agents",
+				after: async ({ document }) => {
+					await click(document, "button", "API key");
+					await choose(document, "Provider", "Amazon Bedrock");
+					await choose(document, "Bedrock credentials", "AWS access keys");
+				},
+				ready: (document) => shows(document, "Secret access key"),
+			};
+		},
+	},
 	repoPage("settings-repo-scripts", "atlas: Scripts", "scripts", "Setup script"),
 	repoPage("settings-repo-actions", "atlas: Actions", "actions", "Actions"),
 	repoPage("settings-repo-prompts", "atlas: Prompts", "prompts", "Prompts"),

@@ -92,8 +92,15 @@ export type MapEntry =
 			 * "wording" when one of our screens does the same job in other words or in another place.
 			 */
 			class?: GapClass;
-			/** A feature gap's backlog row in docs/plans/backlog.md, or "new" when none owns it yet. */
+			/** The row of docs/plans/backlog.md that owns building or drawing it. */
 			backlog?: string;
+			/**
+			 * The checklist item of that row in docs/plans/items/, by its exact text. A gap with a row and an
+			 * item is owned: the work is planned, not done.
+			 */
+			item?: string;
+			/** How the owner was found: a rule of scripts/parity/owners.ts, or "hand". */
+			owner?: string;
 			note?: string;
 			/** "hand" when a person checked it; the seeder then keeps it. */
 			by?: "hand";
@@ -228,4 +235,45 @@ export function strayMapFiles(dir: string = MAP_DIR): string[] {
 /** The decision ids `docs/decisions.md` defines. */
 export function decisionIds(decisions: string): Set<string> {
 	return new Set([...decisions.matchAll(/^## (D\d{3})\./gm)].map((match) => match[1] ?? ""));
+}
+
+/** The backlog row ids `docs/plans/backlog.md` defines. */
+export function backlogIds(backlog: string): Set<string> {
+	return new Set([...backlog.matchAll(/^\| *([A-Z]+-\d{2}) *\|/gm)].map((match) => match[1] ?? ""));
+}
+
+/** One checklist item of docs/plans/items/ (README there): its row id, our words and where it came from. */
+export interface Item {
+	id: string;
+	kind: string;
+	item: string;
+	research: string;
+	status: string;
+}
+
+export function parseItems(tsv: string): Item[] {
+	return tsv
+		.split("\n")
+		.slice(1)
+		.filter((line) => line.trim() !== "")
+		.map((line) => {
+			const [id = "", kind = "", item = "", research = "", status = ""] = line.split("\t");
+			return { id, kind, item, research, status };
+		});
+}
+
+export function readItems(root: string = ROOT): Item[] {
+	return ["ui", "system"].flatMap((name) =>
+		parseItems(readFileSync(join(root, `docs/plans/items/${name}.tsv`), "utf8")),
+	);
+}
+
+/**
+ * Every backlog row to the texts of its items, for checking that a map's owner exists. An item whose
+ * id the backlog lacks is left out: the issue sync already fails on it.
+ */
+export function ownerIndex(backlog: string, items: Item[]): Map<string, Set<string>> {
+	const index = new Map<string, Set<string>>([...backlogIds(backlog)].map((id) => [id, new Set()]));
+	for (const item of items) index.get(item.id)?.add(item.item);
+	return index;
 }
