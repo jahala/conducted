@@ -96,8 +96,6 @@ const COLUMNS = `id, workspace_id, remote_port, local_port, protocol, label, aut
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const PORT_FORWARDS_SQL = {
-	listForWorkspace: `SELECT ${COLUMNS} FROM port_forwards WHERE workspace_id = $1
-		ORDER BY remote_port, id`,
 	listAll: `SELECT ${COLUMNS} FROM port_forwards ORDER BY workspace_id, remote_port, id`,
 	get: `SELECT ${COLUMNS} FROM port_forwards WHERE id = $1`,
 	listLocalPorts: "SELECT local_port FROM port_forwards",
@@ -116,8 +114,6 @@ export const PORT_FORWARDS_SQL = {
 } as const;
 
 export interface PortForwardRepository {
-	/** PORT_FORWARDS_SQL.listForWorkspace. */
-	list(workspaceId: WorkspaceId): Promise<Result<PortForward[]>>;
 	/** PORT_FORWARDS_SQL.listAll, for the startup sweep and the service's store. */
 	listAll(): Promise<Result<PortForward[]>>;
 	get(id: string): Promise<Result<PortForward | null>>;
@@ -147,8 +143,6 @@ export function createPortForwardRepository(
 		return rows.ok ? collectResults(rows.value.map(portForwardFromRow)) : err(rows.error);
 	};
 	return {
-		list: (workspaceId) =>
-			read(PORT_FORWARDS_SQL.listForWorkspace, [workspaceId], "Listing port forwards"),
 		listAll: () => read(PORT_FORWARDS_SQL.listAll, [], "Listing port forwards"),
 		get: async (id) => {
 			const rows = await selectRows<PortForwardRow>(

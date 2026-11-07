@@ -15,6 +15,13 @@ import { createRepositories, type Repositories } from "../db/repositories.ts";
 import { sampleRepo } from "../db/test-fixtures.ts";
 import { PortForwardsService } from "./port-forwards.ts";
 
+/** The forwards of one workspace, read through the repository's one list. */
+async function forwardsOf(repos: Repositories, workspaceId: string) {
+	const all = await repos.portForwards.listAll();
+	if (!all.ok) return all;
+	return ok(all.value.filter((row) => row.workspaceId === workspaceId));
+}
+
 let store: ReturnType<typeof openTestDatabase>;
 let repositories: Repositories;
 let platform: ReturnType<typeof cloudMemoryPlatform>;
@@ -90,7 +97,7 @@ describe("CLOUD-10 forwarding service", () => {
 		expect(added.value.localPort).toBe(3000);
 		const running = await platform.platform.portForward.list();
 		expect(running.ok && running.value.map((entry) => entry.forwardId)).toContain(added.value.id);
-		const rows = await repositories.portForwards.list(ws.id);
+		const rows = await forwardsOf(repositories, ws.id);
 		expect(rows.ok && rows.value.length).toBe(1);
 	});
 
@@ -109,7 +116,7 @@ describe("CLOUD-10 forwarding service", () => {
 		await service.setForwarding(ws.id, false);
 		const running = await platform.platform.portForward.list();
 		expect(running.ok && running.value).toEqual([]);
-		const rows = await repositories.portForwards.list(ws.id);
+		const rows = await forwardsOf(repositories, ws.id);
 		expect(rows.ok && rows.value.length).toBe(1);
 	});
 
@@ -118,7 +125,7 @@ describe("CLOUD-10 forwarding service", () => {
 		await service.setForwarding(ws.id, true);
 		await service.add(ws.id, 3000);
 		await service.pauseWorkspace(ws.id);
-		const rows = await repositories.portForwards.list(ws.id);
+		const rows = await forwardsOf(repositories, ws.id);
 		expect(rows.ok && rows.value).toEqual([]);
 		expect(service.view(ws.id).forwards).toEqual([]);
 		expect(service.view(ws.id).forwardingEnabled).toBe(false);
@@ -147,7 +154,7 @@ describe("CLOUD-10 forwarding service", () => {
 			{ port: 3000, processName: "node" },
 			{ port: 5173, processName: "vite" },
 		]);
-		const rows = await repositories.portForwards.list(ws.id);
+		const rows = await forwardsOf(repositories, ws.id);
 		expect(rows.ok && rows.value.filter((row) => row.autoDetected).length).toBe(2);
 
 		platform.controls.scriptCloud((request) =>
@@ -159,7 +166,7 @@ describe("CLOUD-10 forwarding service", () => {
 				: null,
 		);
 		await service.refreshDiscovery(ws.id);
-		const after = await repositories.portForwards.list(ws.id);
+		const after = await forwardsOf(repositories, ws.id);
 		expect(after.ok && after.value.map((row) => row.remotePort)).toEqual([3000]);
 	});
 
