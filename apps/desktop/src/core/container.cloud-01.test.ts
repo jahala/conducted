@@ -3,11 +3,12 @@
  * @feature CLOUD-01 Host interface: each workspace reaches git, shell, files, terminals and its sidecar through a local or cloud host
  * Owns: the composition-root proof that a workspace's git, shell, file, terminal and chat calls
  * check its host first: a local workspace's calls run on the Mac as before, and a cloud
- * workspace's calls stop at the placeholder of the row that owns that cloud door, with nothing run
- * on the Mac in its place.
+ * workspace's git, file and chat calls reach the Worker and its relay while its terminals still
+ * stop at CLOUD-09, with nothing run on the Mac in its place.
  * Behaviour: services-map.md 1.2 (shell, file and git calls take a host and check it before use),
  * frontend.md 3c (the query options carry the host).
- * Test first: a cloud workspace's calls stop at the host check, and nothing runs on the Mac.
+ * Test first: a cloud workspace's git, file and chat calls reach the Worker, and nothing runs on
+ * the Mac in their place.
  */
 import type { Host, SessionConfig } from "@conducted/protocol";
 import { NotImplemented, ok } from "@conducted/shared";
@@ -118,7 +119,7 @@ describe("CLOUD-01 the host seam in the real container", () => {
 		}
 	});
 
-	it("a cloud workspace's calls stop at the host check, and nothing runs on the Mac", async () => {
+	it("a cloud workspace's git, file, shell and chat calls reach the Worker, and terminals stop at CLOUD-09", async () => {
 		const test = createTestContainer();
 		try {
 			const sends = captureSends(test);
@@ -126,30 +127,88 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			const workspace = await readyWorkspace(test, CLOUD);
 			expect(workspace.host).toEqual(CLOUD);
 			const services = test.container.services;
+			const cloud = test.memory.controls;
+			cloud.scriptCloud((request) => {
+				if (request.path === "/w/vm-1/git") {
+					return ok({
+						status: 200,
+						body: JSON.stringify({ exitCode: 0, stdout: "", stderr: "" }),
+					});
+				}
+				if (request.path === "/w/vm-1/exec") {
+					return ok({
+						status: 200,
+						body: JSON.stringify({ exitCode: 0, stdout: "", stderr: "" }),
+					});
+				}
+				if (request.path === "/w/vm-1/files") {
+					const body = request.body as { operation?: string; path?: string };
+					switch (body.operation) {
+						case "read":
+							return ok({ status: 200, body: JSON.stringify({ text: "hello\n" }) });
+						case "exists":
+							return ok({ status: 200, body: JSON.stringify({ exists: true }) });
+						case "stat":
+							return ok({
+								status: 200,
+								body: JSON.stringify({
+									stat: {
+										path: body.path ?? "/",
+										isDirectory: false,
+										isSymlink: false,
+										size: 6,
+										modifiedAt: 0,
+									},
+								}),
+							});
+						case "readDir":
+							return ok({ status: 200, body: JSON.stringify({ entries: [] }) });
+						default:
+							return ok({ status: 200, body: "{}" });
+					}
+				}
+				return null;
+			});
 
-			// Git, shell and files go through the user's Worker, and a chat through its relay
-			// (CLOUD-03); terminals and run commands through the cloud runtime (CLOUD-09).
-			expect(await stoppedAt(() => services.git.refresh(workspace.id, "full"))).toBe("CLOUD-03");
+			// Git, files and a chat go through the user's Worker and its relay (CLOUD-03);
+			// terminals still stop at the cloud runtime's row (CLOUD-09).
+			expect((await services.git.refresh(workspace.id, "full")).ok).toBe(true);
+			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/git")).toBe(true);
+
+			const file = await services.workspaceFiles.readFile(workspace.id, "README.md");
+			expect(file.ok && file.value.text).toBe("hello\n");
 			expect(
-				await stoppedAt(() => services.workspaceFiles.readFile(workspace.id, "README.md")),
-			).toBe("CLOUD-03");
+				cloud.cloudRequests.some(
+					(request) =>
+						request.path === "/w/vm-1/files" &&
+						(request.body as { operation?: string }).operation === "read",
+				),
+			).toBe(true);
+
 			expect(await stoppedAt(() => services.terminals.create(workspace.id))).toBe("CLOUD-09");
 			expect(await stoppedAt(() => services.terminals.runCommand(workspace.id, "echo hi"))).toBe(
 				"CLOUD-09",
 			);
+
 			const session = must(await services.sessions.create(workspace.id, CONFIG));
-			expect(await stoppedAt(() => services.sessions.send(session.id, "hello", [], "auto"))).toBe(
-				"CLOUD-03",
+			const sending = services.sessions.send(session.id, "hello", [], "auto");
+			const line = await waitForSent(cloud, "sendMessage");
+			const parsed = JSON.parse(line.line) as {
+				id: number;
+				params: {
+					workspace: { host: unknown };
+					launch: { providerKeys: Record<string, { value: string }> };
+				};
+			};
+			expect(parsed.params.workspace.host).toEqual(CLOUD);
+			// A key the Keychain does not hold is absent, and no key reaches the sandbox anyway
+			// (CLOUD-05 swaps the placeholder; router.test.ts holds the non-empty case).
+			expect(parsed.params.launch.providerKeys).toEqual({});
+			cloud.emitCloudLine(
+				line.relayId,
+				JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } }),
 			);
-			// The workspace's own lifecycle touches its folder too.
-			expect(await stoppedAt(() => services.workspace.retrySetup(workspace.id))).toBe("CLOUD-03");
-			expect(await stoppedAt(() => services.workspace.openIn(workspace.id, "Finder"))).toBe(
-				"CLOUD-03",
-			);
-			expect(
-				await stoppedAt(() => services.workspace.archive(workspace.id, { deleteBranch: false })),
-			).toBe("CLOUD-03");
-			expect(await stoppedAt(() => services.workspace.remove(workspace.id))).toBe("CLOUD-03");
+			expect((await sending).ok).toBe(true);
 
 			expect(ranIn(test, workspace.path)).toBe(0);
 			expect(test.memory.controls.ptySpawns).toEqual([]);
@@ -160,3 +219,16 @@ describe("CLOUD-01 the host seam in the real container", () => {
 		}
 	});
 });
+
+/** Waits for the app to send `method` on a cloud relay; the bound is a hang guard, not a delay. */
+async function waitForSent(
+	controls: { readonly cloudSent: readonly { relayId: string; line: string }[] },
+	method: string,
+): Promise<{ relayId: string; line: string }> {
+	for (let attempt = 0; attempt < 500; attempt++) {
+		const found = controls.cloudSent.find((sent) => sent.line.includes(`"${method}"`));
+		if (found !== undefined) return found;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error(`the app never sent ${method} on a cloud relay`);
+}

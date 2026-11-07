@@ -32,7 +32,7 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import { type AgentLaunch, idleLiveState } from "@conducted/protocol";
+import { type AgentLaunch, type Host, idleLiveState } from "@conducted/protocol";
 import {
 	type AcpAgent,
 	type AgentKind,
@@ -57,6 +57,10 @@ import {
 	spotlighterScript,
 } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
+import { createHostedPlatform } from "./cloud/host-runtime.ts";
+import { createCloudHosts } from "./cloud/hosts.ts";
+import { createHostRoutedSidecar } from "./cloud/router.ts";
+import { type CloudTransport, createCloudTransport } from "./cloud/transport.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
@@ -274,7 +278,14 @@ function cursorBecameReady(
 
 /** Builds everything. Does no I/O. */
 export function createContainer(inputs: ContainerInputs): Container {
-	const { platform, clock, ids } = inputs;
+	const { clock, ids } = inputs;
+	const rawPlatform = inputs.platform;
+	// A cloud workspace's folder belongs to its sandbox: the shell and file calls for it go to the
+	// Worker, and every other folder still reaches the Mac (CLOUD-03). The rows arrive with the
+	// workspace service below, so the reader is set there and this one stays empty until then.
+	let hostedFolders: () => Iterable<{ path: string; host: Host }> = () => [];
+	const cloudHosts = createCloudHosts(() => hostedFolders());
+	const platform = createHostedPlatform(rawPlatform, cloudHosts);
 	const repositoryDeps = { clock, ids };
 	const repositories = createRepositories(platform.db, repositoryDeps);
 	// An aborted signal clears the timer, so a lock wait that ends leaves no 10 s timer behind.
@@ -310,9 +321,23 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const writeDiagnosticsReport = inputs.writeDiagnosticsReport;
 
 	// ---- sidecar side: built first, with closures into services that come later ----
+	// The local tunnel is made below, once the handlers exist. Until then and for every Mac
+	// workspace, this answers; a cloud workspace's calls are routed to its sandbox (CLOUD-03).
+	let localTunnel: SidecarTunnel | null = null;
+	const localClient: SidecarClient = {
+		request: (method, params) =>
+			localTunnel === null
+				? Promise.resolve(err(appError("sidecar_not_started", "The sidecar is not connected.")))
+				: localTunnel.request(method, params),
+		notify: (method, params) =>
+			localTunnel === null
+				? Promise.resolve(err(appError("sidecar_not_started", "The sidecar is not connected.")))
+				: localTunnel.notify(method, params),
+	};
+	let routed: SidecarClient = localClient;
 	const client: SidecarClient = {
-		request: (method, params) => tunnel.request(method, params),
-		notify: (method, params) => tunnel.notify(method, params),
+		request: (method, params) => routed.request(method, params),
+		notify: (method, params) => routed.notify(method, params),
 	};
 	const contextWindows = new ContextWindowService({
 		repository: () => repositories.modelContextWindows,
@@ -410,17 +435,77 @@ export function createContainer(inputs: ContainerInputs): Container {
 			},
 		},
 	};
-	const tunnel = new SidecarTunnel({
-		transport: platform.sidecar,
-		requestHandlers: createSidecarRequestHandlers(handlerPorts),
-		notificationHandlers: createSidecarNotificationHandlers(handlerPorts),
-		log: (level, message, data) => platform.app.writeLog(level, message, data),
-		setTimer: (callback, ms) => {
+	const sidecarRequests = createSidecarRequestHandlers(handlerPorts);
+	const sidecarNotifications = createSidecarNotificationHandlers(handlerPorts);
+	const tunnelDeps = {
+		requestHandlers: sidecarRequests,
+		notificationHandlers: sidecarNotifications,
+		log: (level: "error" | "warn" | "info" | "debug", message: string, data?: unknown) =>
+			platform.app.writeLog(level, message, data),
+		setTimer: (callback: () => void, ms: number) => {
 			const handle = setTimeout(callback, ms);
 			return () => clearTimeout(handle);
 		},
 		clock,
 		random: Math.random,
+	};
+	const tunnel = new SidecarTunnel({ transport: platform.sidecar, ...tunnelDeps });
+	localTunnel = tunnel;
+	// One cloud tunnel per Worker and sandbox, opened on the first cloud chat call.
+	const cloudTunnels = new Map<string, SidecarTunnel>();
+	const cloudTransports: CloudTransport[] = [];
+	const clientOf = (sidecar: SidecarTunnel): SidecarClient => ({
+		request: (method, params) => sidecar.request(method, params),
+		notify: (method, params) => sidecar.notify(method, params),
+	});
+	const tunnelForHost = (host: Extract<Host, { kind: "cloud" }>): SidecarClient => {
+		const key = `${host.url}|${host.vmId}`;
+		const existing = cloudTunnels.get(key);
+		if (existing !== undefined) return clientOf(existing);
+		const transport = createCloudTransport(platform.cloud, host);
+		const cloudTunnel = new SidecarTunnel({ transport, ...tunnelDeps });
+		cloudTransports.push(transport);
+		cloudTunnels.set(key, cloudTunnel);
+		void cloudTunnel.start().then((started) => {
+			if (!started.ok) {
+				log("warn", `The cloud Workspace did not answer: ${started.error.message}`);
+			}
+		});
+		return clientOf(cloudTunnel);
+	};
+	/** The cloud host a call names, or null for the local sidecar. */
+	const hostOfCall = (
+		_method: string,
+		params: unknown,
+	): Extract<Host, { kind: "cloud" }> | null => {
+		if (typeof params !== "object" || params === null) return null;
+		const record = params as Record<string, unknown>;
+		const context = record.workspace;
+		if (typeof context === "object" && context !== null) {
+			const host = (context as { host?: Host }).host;
+			if (host?.kind === "cloud") return host;
+		}
+		const sessionId = record.sessionId;
+		if (typeof sessionId === "string") {
+			const session = sessions.store.getState().sessions[sessionId as SessionId];
+			const hosted =
+				session === undefined
+					? undefined
+					: workspace.store.getState().workspacesById[session.workspaceId];
+			if (hosted?.host.kind === "cloud") return hosted.host;
+		}
+		const path =
+			typeof record.workspacePath === "string"
+				? record.workspacePath
+				: typeof record.cwd === "string"
+					? record.cwd
+					: null;
+		return path === null ? null : cloudHosts(path);
+	};
+	routed = createHostRoutedSidecar({
+		local: localClient,
+		tunnelFor: tunnelForHost,
+		hostOf: hostOfCall,
 	});
 	const resume = new SessionResume({
 		sidecar: client,
@@ -794,6 +879,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 		gitCache,
 	});
+	// The workspace store is the one list of cloud folders; the adapters read it when a call runs.
+	hostedFolders = () => Object.values(workspace.store.getState().workspacesById);
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
 	const mcp = new McpService({
@@ -1360,6 +1447,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		// Events the sidecar sent before the tunnel closes are written first, so none is lost.
 		await step("chat event writes", () => ingest.idle());
 		await step("the sidecar connection", () => tunnel.stop());
+		await step("cloud connections", async () => {
+			for (const cloudTunnel of cloudTunnels.values()) cloudTunnel.stop();
+			for (const transport of cloudTransports) await transport.close();
+		});
 	};
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:
@@ -1395,7 +1486,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	};
 
 	return {
-		platform,
+		platform: rawPlatform,
 		services,
 		actions,
 		lookups,

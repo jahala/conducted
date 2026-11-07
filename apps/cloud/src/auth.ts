@@ -6,8 +6,7 @@
  * route; a request without it gets 401 and starts nothing).
  * Must handle: a missing or empty configured token refuses every request; the comparison does not
  * short-circuit on a matching prefix.
- * Test first: no header, a wrong token and a token with the right bytes but no Bearer prefix all
- * get 401.
+ * Test first: a request without the pairing token is refused with 401.
  */
 
 /** The exact header form a client sends. The token is never logged. */
