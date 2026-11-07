@@ -50,6 +50,7 @@ import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useWorkspaceDraft } from "../composer/draft-sources.ts";
 import { statusText } from "../workspace/status-text.ts";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { WorkspaceActionsMenu } from "../workspace/WorkspaceActionsMenu.tsx";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
@@ -144,6 +145,7 @@ export function WorkspaceRow({
 	);
 	const [hovered, setHovered] = useState(false);
 	const readShortcut = useLiveShortcut("sidebar.toggleRead");
+	const branchPrefix = useBranchPrefix();
 
 	const openDraft = () => {
 		if (draft === null) return;
@@ -218,7 +220,7 @@ export function WorkspaceRow({
 								unread ? "font-semibold text-fg" : "font-book text-sidebar-fg-muted",
 							)}
 						>
-							{workspaceName(workspace)}
+							{workspaceName(workspace, branchPrefix)}
 						</span>
 						<span className="flex-1" />
 						<UnreadDot unread={unread} />

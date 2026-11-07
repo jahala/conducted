@@ -26,6 +26,8 @@ vi.mock("../composer/draft-sources.ts", () => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
+	useSetting: () => "",
+	useGitHubAccess: () => ({ state: "loading" }),
 	useSessions: () => hooks.sessions,
 	useGitState: () => hooks.git,
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
@@ -139,7 +141,7 @@ describe("NAV-03 WorkspaceRow", () => {
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
 		// Conductor marks the selected row by its fill only; the name keeps weight 450 (@10427352).
-		const name = within(link).getByText("fix-login");
+		const name = within(link).getByText("Fix login");
 		expect(name.className).toContain("font-book");
 		expect(name.className).not.toContain("font-medium");
 	});

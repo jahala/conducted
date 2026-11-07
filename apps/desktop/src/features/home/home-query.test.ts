@@ -67,6 +67,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, search: "AUTH" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 	});
@@ -77,6 +78,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, search: "cafe" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items).toHaveLength(1);
 	});
@@ -90,6 +92,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, search: "login" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 	});
@@ -103,6 +106,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, search: "login" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 	});
@@ -116,6 +120,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app"), repo("svc-1", { name: "api-service" })],
 			filters: { ...FILTERS, search: "api" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 	});
@@ -129,6 +134,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(first.items).toHaveLength(HOME_PAGE_SIZE);
 		expect(first.total).toBe(60);
@@ -140,6 +146,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 2,
+			branchPrefix: "",
 		});
 		expect(second.items).toHaveLength(60);
 		expect(second.hasMore).toBe(false);
@@ -151,6 +158,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 9,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 		expect(page.hasMore).toBe(false);
@@ -166,6 +174,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(active.items.map((row) => row.id)).toEqual(["active"]);
 
@@ -174,6 +183,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, archive: "archived" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
 	});
@@ -185,6 +195,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(active.items).toEqual([]);
 
@@ -193,6 +204,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, archive: "archived" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
 	});
@@ -206,6 +218,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app"), repo("api")],
 			filters: { ...FILTERS, projects: ["api" as RepoId] },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id)).toEqual(["two"]);
 	});
@@ -216,6 +229,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.pinned.map((row) => row.id)).toEqual(["pinned"]);
 		expect(page.items.map((row) => row.id)).toEqual(["plain"]);
@@ -233,6 +247,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(updated.items.map((row) => row.id)).toEqual(["b", "c", "a"]);
 
@@ -241,6 +256,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, sortBy: "created" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(created.items.map((row) => row.id)).toEqual(["c", "b", "a"]);
 	});
@@ -251,6 +267,7 @@ describe("NAV-05 home-query", () => {
 			repos: [repo("app")],
 			filters: { ...FILTERS, archive: "all" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(page.items.map((row) => row.id).sort()).toEqual(["active", "old"]);
 	});
@@ -267,6 +284,7 @@ describe("NAV-05 home-query", () => {
 			repos,
 			filters: { ...FILTERS, sortBy: "name" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(byName.items.map((row) => row.id)).toEqual(["a", "b", "c"]);
 		const byRepo = queryHome({
@@ -274,6 +292,7 @@ describe("NAV-05 home-query", () => {
 			repos,
 			filters: { ...FILTERS, sortBy: "repository" },
 			pageCount: 1,
+			branchPrefix: "",
 		});
 		expect(byRepo.items.map((row) => row.id)).toEqual(["c", "a", "b"]);
 	});
