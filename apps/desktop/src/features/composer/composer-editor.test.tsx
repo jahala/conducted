@@ -36,6 +36,17 @@ const type = (editor: Editor, text: string) => {
 };
 
 describe("COMP-01 ComposerEditor", () => {
+	it("takes the keyboard focus when it opens, as Conductor's composer does", async () => {
+		const { editor } = await mountEditor();
+		await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
+	});
+
+	it("leaves the focus alone while it is disabled", async () => {
+		render(<ComposerEditor sessionId={sessionId} disabled onSubmit={vi.fn()} />);
+		await waitFor(() => expect(screen.getByLabelText("composer")).toBeTruthy());
+		expect(document.activeElement).toBe(document.body);
+	});
+
 	it("shows the placeholder and carries the screen reader name 'composer'", async () => {
 		render(<ComposerEditor sessionId={sessionId} disabled={false} onSubmit={vi.fn()} />);
 		// Conductor's placeholder for a chat's composer.
