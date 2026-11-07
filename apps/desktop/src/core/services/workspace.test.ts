@@ -101,7 +101,6 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
 		kanbanStatus: "in_progress",
 		port: 55_000,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,
@@ -195,9 +194,6 @@ function makeBacklogRepository(rows: BacklogWorkspace[]) {
 			return ok(entry);
 		},
 		async update() {
-			return ok(undefined);
-		},
-		async setSection() {
 			return ok(undefined);
 		},
 		async delete(id: WorkspaceId): Promise<Result<void>> {
@@ -294,9 +290,6 @@ function makeHarness(
 			const row = rows.find((candidate) => candidate.id === id);
 			return ok(row === undefined ? null : { ...row });
 		},
-		async getByPath(path: string) {
-			return ok(rows.find((row) => row.path === path) ?? null);
-		},
 		async getSetupLogPath() {
 			return options.setupLogPathError === true
 				? err(appError("db.failed", "The setup log path could not be read."))
@@ -333,7 +326,6 @@ function makeHarness(
 				kanbanStatus: "in_progress",
 				port: input.port,
 				pinnedAt: null,
-				notes: null,
 				linkedPaths: [...input.linkedPaths],
 				prNumber: null,
 				prTitle: null,
@@ -377,16 +369,10 @@ function makeHarness(
 		async setPinned() {
 			return ok(undefined);
 		},
-		async setNotes() {
-			return ok(undefined);
-		},
 		async setLinkedPaths() {
 			return ok(undefined);
 		},
 		async setPullRequest() {
-			return ok(undefined);
-		},
-		async clearPullRequest() {
 			return ok(undefined);
 		},
 		async setSetupLogPath() {

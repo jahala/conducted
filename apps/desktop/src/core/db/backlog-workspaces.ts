@@ -104,14 +104,8 @@ const COLUMNS =
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const BACKLOG_WORKSPACES_SQL = {
 	list: `SELECT ${COLUMNS} FROM backlog_workspaces ORDER BY created_at, id`,
-	listByRepo: `SELECT ${COLUMNS} FROM backlog_workspaces WHERE repo_id = $1 ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM backlog_workspaces WHERE id = $1`,
 	insert: `INSERT INTO backlog_workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-	/** Rewrites what the user can edit on an entry: name, prompt, attachments, config, time, id. */
-	update: `UPDATE backlog_workspaces
-		SET display_name = $1, prompt = $2, attachment_paths = $3, config = $4, updated_at = $5
-		WHERE id = $6`,
-	setSection: "UPDATE backlog_workspaces SET section_id = $1, updated_at = $2 WHERE id = $3",
 	/** Gives an entry a repository, for one whose repository was removed (WS-11). */
 	setRepo: "UPDATE backlog_workspaces SET repo_id = $1, updated_at = $2 WHERE id = $3",
 	delete: "DELETE FROM backlog_workspaces WHERE id = $1",
@@ -126,25 +120,13 @@ export type NewBacklogWorkspace = Pick<
 	"displayName" | "prompt" | "attachmentPaths" | "config" | "sectionId"
 > & { repoId: RepoId };
 
-/** What the user can change on a saved entry. */
-export type BacklogWorkspacePatch = Pick<
-	BacklogWorkspace,
-	"displayName" | "prompt" | "attachmentPaths" | "config"
->;
-
 export interface BacklogWorkspaceRepository {
 	/** BACKLOG_WORKSPACES_SQL.list: every entry, oldest first. */
 	list(): Promise<Result<BacklogWorkspace[]>>;
-	/** BACKLOG_WORKSPACES_SQL.listByRepo. */
-	listByRepo(repoId: RepoId): Promise<Result<BacklogWorkspace[]>>;
 	/** BACKLOG_WORKSPACES_SQL.get. A missing entry is `ok(null)`. */
 	get(id: WorkspaceId): Promise<Result<BacklogWorkspace | null>>;
 	/** BACKLOG_WORKSPACES_SQL.insert with a new id and both times from the dependencies. */
 	create(input: NewBacklogWorkspace): Promise<Result<BacklogWorkspace>>;
-	/** BACKLOG_WORKSPACES_SQL.update. A missing entry returns the error code `db.not_found`. */
-	update(id: WorkspaceId, patch: BacklogWorkspacePatch): Promise<Result<void>>;
-	/** BACKLOG_WORKSPACES_SQL.setSection. `null` takes the entry out of its section. */
-	setSection(id: WorkspaceId, sectionId: SectionId | null): Promise<Result<void>>;
 	/** BACKLOG_WORKSPACES_SQL.setRepo. A missing entry returns the error code `db.not_found`. */
 	setRepo(id: WorkspaceId, repoId: RepoId): Promise<Result<void>>;
 	/** BACKLOG_WORKSPACES_SQL.delete. Runs when the entry starts or the user deletes it. */
@@ -181,12 +163,6 @@ export function createBacklogWorkspaceRepository(
 	};
 	return {
 		list: () => list(BACKLOG_WORKSPACES_SQL.list, [], "Listing backlog workspaces"),
-		listByRepo: (repoId) =>
-			list(
-				BACKLOG_WORKSPACES_SQL.listByRepo,
-				[repoId],
-				"Listing a repository's backlog workspaces",
-			),
 		get: (id) => find(BACKLOG_WORKSPACES_SQL.get, [id], "Reading a backlog workspace"),
 		create: async (input) => {
 			const at = now();
@@ -211,28 +187,6 @@ export function createBacklogWorkspaceRepository(
 			);
 			return written.ok ? ok(entry) : err(written.error);
 		},
-		update: async (id, patch) => {
-			const attachmentPaths = stringifyJson(
-				patch.attachmentPaths,
-				"backlog_workspaces.attachment_paths",
-			);
-			if (!attachmentPaths.ok) return err(attachmentPaths.error);
-			const config = stringifyJson(patch.config, "backlog_workspaces.config");
-			if (!config.ok) return err(config.error);
-			return executeExisting(
-				db,
-				BACKLOG_WORKSPACES_SQL.update,
-				[patch.displayName, patch.prompt, attachmentPaths.value, config.value, now(), id],
-				"Updating a backlog workspace",
-			);
-		},
-		setSection: (id, sectionId) =>
-			executeExisting(
-				db,
-				BACKLOG_WORKSPACES_SQL.setSection,
-				[sectionId, now(), id],
-				"Moving a backlog workspace",
-			),
 		setRepo: (id, repoId) =>
 			executeExisting(
 				db,

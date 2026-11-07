@@ -119,11 +119,6 @@ function makeRepos(): FakeRepos {
 			rows.push(repo);
 			return ok(repo);
 		},
-		async setName(id, name) {
-			const repo = find(id);
-			if (repo !== undefined) repo.name = name;
-			return ok(undefined);
-		},
 		async setDefaultBranch(id, branch) {
 			const repo = find(id);
 			if (repo !== undefined) repo.defaultBranch = branch;

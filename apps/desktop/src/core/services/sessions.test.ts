@@ -264,7 +264,9 @@ describe("CHAT-01 sessions service", () => {
 
 		expect(must(await repositories.sessions.get(created.id))).toBeNull();
 		expect(must(await repositories.sessionEvents.listFrom(created.id, 0, 10))).toEqual([]);
-		expect(must(await repositories.liveStates.get(created.id))).toBeNull();
+		expect(
+			must(await repositories.liveStates.listAll()).find((row) => row.sessionId === created.id),
+		).toBeUndefined();
 		const state = service.store.getState();
 		expect(state.sessions[created.id]).toBeUndefined();
 		expect(state.byWorkspace[workspaceId]).toEqual([]);

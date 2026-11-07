@@ -60,7 +60,6 @@ export interface WorkspaceRow {
 	kanban_status: KanbanStatus;
 	port: number;
 	pinned_at: number | null;
-	notes: string | null;
 	linked_paths: string;
 	pr_number: number | null;
 	pr_title: string | null;
@@ -132,7 +131,6 @@ export function workspaceFromRow(row: WorkspaceRow): Result<Workspace> {
 			kanbanStatus: row.kanban_status,
 			port: row.port,
 			pinnedAt: row.pinned_at,
-			notes: row.notes,
 			linkedPaths: linkedPaths.value,
 			prNumber: row.pr_number,
 			prTitle: row.pr_title,
@@ -168,7 +166,6 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 			workspace.kanbanStatus,
 			workspace.port,
 			workspace.pinnedAt,
-			workspace.notes,
 			linkedPaths.value,
 			workspace.prNumber,
 			workspace.prTitle,
@@ -187,7 +184,7 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 }
 
 const COLUMNS = `id, repo_id, directory_name, path, branch, branch_is_placeholder, display_name,
-	target_branch, state, kanban_status, port, pinned_at, notes, linked_paths, pr_number, pr_title,
+	target_branch, state, kanban_status, port, pinned_at, linked_paths, pr_number, pr_title,
 	pr_description, archive_commit, setup_log_path, archived_at, active_session_id, files_copied,
 	host_kind, host_url, host_vm_id, last_activity_at, created_at, updated_at`;
 
@@ -198,13 +195,12 @@ export const WORKSPACES_SQL = {
 	listByState: `SELECT ${COLUMNS} FROM workspaces WHERE host_kind = 'local' AND state = $1
 		ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM workspaces WHERE id = $1`,
-	getByPath: `SELECT ${COLUMNS} FROM workspaces WHERE path = $1`,
 	getSetupLogPath: "SELECT setup_log_path FROM workspaces WHERE id = $1",
 	listDirectoryNames: `SELECT directory_name FROM workspaces
 		WHERE repo_id = $1 AND host_kind = 'local'`,
 	listPorts: "SELECT port FROM workspaces WHERE host_kind = 'local'",
 	insert: `INSERT INTO workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)`,
+		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
 	transitionState: "UPDATE workspaces SET state = $1, updated_at = $2 WHERE id = $3 AND state = $4",
 	markArchived: `UPDATE workspaces SET state = 'archived', archive_commit = $1, archived_at = $2,
 		updated_at = $2 WHERE id = $3 AND state = 'archiving'`,
@@ -214,12 +210,9 @@ export const WORKSPACES_SQL = {
 		WHERE id = $4`,
 	setTargetBranch: "UPDATE workspaces SET target_branch = $1, updated_at = $2 WHERE id = $3",
 	setPinned: "UPDATE workspaces SET pinned_at = $1, updated_at = $2 WHERE id = $3",
-	setNotes: "UPDATE workspaces SET notes = $1, updated_at = $2 WHERE id = $3",
 	setLinkedPaths: "UPDATE workspaces SET linked_paths = $1, updated_at = $2 WHERE id = $3",
 	setPullRequest: `UPDATE workspaces SET pr_number = $1, pr_title = $2, pr_description = $3,
 		updated_at = $4 WHERE id = $5`,
-	clearPullRequest: `UPDATE workspaces SET pr_number = NULL, pr_title = NULL,
-		pr_description = NULL, updated_at = $1 WHERE id = $2`,
 	setSetupLogPath: "UPDATE workspaces SET setup_log_path = $1, updated_at = $2 WHERE id = $3",
 	setActiveSession: "UPDATE workspaces SET active_session_id = $1 WHERE id = $2",
 	setFilesCopied: "UPDATE workspaces SET files_copied = $1, updated_at = $2 WHERE id = $3",
@@ -257,8 +250,6 @@ export interface WorkspaceRepository {
 	listByState(state: WorkspaceState): Promise<Result<Workspace[]>>;
 	/** WORKSPACES_SQL.get. A missing workspace is `ok(null)`. */
 	get(id: WorkspaceId): Promise<Result<Workspace | null>>;
-	/** WORKSPACES_SQL.getByPath. */
-	getByPath(path: string): Promise<Result<Workspace | null>>;
 	/** WORKSPACES_SQL.getSetupLogPath. `ok(null)` when the workspace is missing or has no log. */
 	getSetupLogPath(id: WorkspaceId): Promise<Result<string | null>>;
 	/** WORKSPACES_SQL.listDirectoryNames, local rows only, so the name generator avoids them. */
@@ -300,8 +291,6 @@ export interface WorkspaceRepository {
 	setTargetBranch(id: WorkspaceId, targetBranch: string): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setPinned. `null` unpins. A missing workspace is `db.not_found`. */
 	setPinned(id: WorkspaceId, pinnedAt: number | null): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setNotes. A missing workspace is `db.not_found`. */
-	setNotes(id: WorkspaceId, notes: string | null): Promise<Result<void>>;
 	/**
 	 * WORKSPACES_SQL.setLinkedPaths. The list is written as a JSON array. A missing workspace is
 	 * `db.not_found`.
@@ -312,8 +301,6 @@ export interface WorkspaceRepository {
 		id: WorkspaceId,
 		pr: { number: number; title: string | null; description: string | null },
 	): Promise<Result<void>>;
-	/** WORKSPACES_SQL.clearPullRequest. A missing workspace is `db.not_found`. */
-	clearPullRequest(id: WorkspaceId): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setSetupLogPath. A missing workspace is `db.not_found`. */
 	setSetupLogPath(id: WorkspaceId, path: string | null): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setActiveSession: the chat tab to reopen after a restart. */
@@ -356,7 +343,6 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 		listByRepo: (repoId) => list(WORKSPACES_SQL.listByRepo, [repoId]),
 		listByState: (state) => list(WORKSPACES_SQL.listByState, [state]),
 		get: (id) => find(WORKSPACES_SQL.get, [id], "Reading a workspace"),
-		getByPath: (path) => find(WORKSPACES_SQL.getByPath, [path], "Reading a workspace by folder"),
 		getSetupLogPath: async (id) => {
 			const rows = await selectRows<{ setup_log_path: string | null }>(
 				db,
@@ -401,7 +387,6 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 					kanbanStatus: "in_progress",
 					port: input.port,
 					pinnedAt: null,
-					notes: null,
 					linkedPaths: [...input.linkedPaths],
 					prNumber: null,
 					prTitle: null,
@@ -469,8 +454,6 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 			),
 		setPinned: (id, pinnedAt) =>
 			executeExisting(db, WORKSPACES_SQL.setPinned, [pinnedAt, now(), id], "Pinning a workspace"),
-		setNotes: (id, notes) =>
-			executeExisting(db, WORKSPACES_SQL.setNotes, [notes, now(), id], "Changing workspace notes"),
 		setLinkedPaths: async (id, paths) => {
 			const json = stringifyJson(paths, "workspaces.linked_paths");
 			if (!json.ok) return err(json.error);
@@ -488,8 +471,6 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 				[pr.number, pr.title, pr.description, now(), id],
 				"Saving a pull request",
 			),
-		clearPullRequest: (id) =>
-			executeExisting(db, WORKSPACES_SQL.clearPullRequest, [now(), id], "Clearing a pull request"),
 		setSetupLogPath: (id, path) =>
 			executeExisting(
 				db,

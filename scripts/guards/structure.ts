@@ -20,7 +20,12 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { basename, join } from "node:path";
-import type { Node, SourceFile } from "typescript/unstable/ast";
+import type {
+	FunctionDeclaration,
+	InterfaceDeclaration,
+	Node,
+	SourceFile,
+} from "typescript/unstable/ast";
 import { SyntaxKind } from "typescript/unstable/ast";
 import {
 	isCallExpression,
@@ -478,10 +483,71 @@ interface Candidate {
 	name: string;
 	node: Node;
 	file: string;
+	/** The object-literal property a repository method's calls resolve to. */
+	referenceNode?: Node;
+	/** A method declared in an exported `*Repository` interface: no production caller is a defect. */
+	repositoryMethod?: boolean;
 }
 
 /** Wrappers whose result is a component: `memo(...)`, `forwardRef(...)`, `lazy(...)`. */
 const COMPONENT_WRAPPERS = new Set(["memo", "forwardRef", "lazy"]);
+
+/** The object literal a repository factory returns. */
+function returnedObject(fn: Node): Node | undefined {
+	for (const node of walkNodes(fn)) {
+		if (node.kind !== SyntaxKind.ReturnStatement) continue;
+		const expression = (node as { expression?: Node }).expression;
+		if (expression?.kind === SyntaxKind.ObjectLiteralExpression) return expression;
+	}
+	return undefined;
+}
+
+/** The methods an exported `*Repository` interface declares, with their factory properties. */
+function repositoryMethodCandidates(
+	sourceFile: SourceFile,
+	declaration: InterfaceDeclaration,
+	file: string,
+): Candidate[] {
+	const interfaceName = declaration.name.text;
+	const factory = sourceFile.statements.find((statement) => {
+		if (!isFunctionDeclaration(statement)) return false;
+		const fn = statement as unknown as FunctionDeclaration;
+		if (!(fn.modifierFlags & ModifierFlags.Export)) return false;
+		const type = fn.type;
+		if (type === undefined) return false;
+		return sourceFile.text.slice(type.getStart(sourceFile), type.getEnd()) === interfaceName;
+	});
+	const object = factory === undefined ? undefined : returnedObject(factory as unknown as Node);
+	const properties = new Map<string, Node>();
+	if (object !== undefined) {
+		for (const property of (object as unknown as { properties?: readonly Node[] }).properties ??
+			[]) {
+			if (
+				property.kind !== SyntaxKind.PropertyAssignment &&
+				property.kind !== SyntaxKind.MethodDeclaration
+			)
+				continue;
+			const name = (property as unknown as { name?: Node }).name;
+			if (name !== undefined && name.kind === SyntaxKind.Identifier)
+				properties.set((name as unknown as { text: string }).text, name);
+		}
+	}
+	const found: Candidate[] = [];
+	for (const member of declaration.members) {
+		if (member.kind !== SyntaxKind.MethodSignature) continue;
+		const name = (member as unknown as { name?: Node }).name;
+		if (name === undefined || name.kind !== SyntaxKind.Identifier) continue;
+		const methodName = (name as unknown as { text: string }).text;
+		found.push({
+			name: methodName,
+			node: member,
+			referenceNode: properties.get(methodName),
+			file,
+			repositoryMethod: true,
+		});
+	}
+	return found;
+}
 
 /** The exported functions, classes and components of one source file. */
 function exportedCandidates(sourceFile: SourceFile, file: string): Candidate[] {
@@ -490,6 +556,14 @@ function exportedCandidates(sourceFile: SourceFile, file: string): Candidate[] {
 		if (isFunctionDeclaration(statement) || isClassDeclaration(statement)) {
 			if (statement.modifierFlags & ModifierFlags.Export && statement.name) {
 				found.push({ name: statement.name.text, node: statement.name, file });
+			}
+		} else if (statement.kind === SyntaxKind.InterfaceDeclaration) {
+			const declaration = statement as unknown as InterfaceDeclaration;
+			if (
+				declaration.modifierFlags & ModifierFlags.Export &&
+				declaration.name.text.endsWith("Repository")
+			) {
+				found.push(...repositoryMethodCandidates(sourceFile, declaration, file));
 			}
 		} else if (isVariableStatement(statement) && statement.modifierFlags & ModifierFlags.Export) {
 			for (const declaration of statement.declarationList.declarations) {
@@ -521,6 +595,30 @@ function isLinkNode(node: Node): boolean {
 	);
 }
 
+/** A declaration of the method (interface member or factory property) is not a use. */
+function isImplementation(node: Node): boolean {
+	const parent = node.parent;
+	if (parent === undefined) return false;
+	return (
+		parent.kind === SyntaxKind.PropertyAssignment ||
+		parent.kind === SyntaxKind.MethodDeclaration ||
+		parent.kind === SyntaxKind.MethodSignature ||
+		parent.kind === SyntaxKind.PropertySignature ||
+		parent.kind === SyntaxKind.PropertyDeclaration
+	);
+}
+
+/** A repository method waiting for a screen may name its backlog row in `// unwired: <ID>`. */
+function hasUnwiredMarker(
+	sourceFile: SourceFile,
+	node: Node,
+	status: Map<string, string>,
+): boolean {
+	const leading = sourceFile.text.slice(node.getFullStart(), node.getStart(sourceFile));
+	const marker = new RegExp(`//\\s*unwired:\\s*(${FEATURE_ID})`).exec(leading)?.[1];
+	return marker !== undefined && status.has(marker);
+}
+
 /** The feature a source file belongs to, from its `@feature` header tag. */
 const fileFeature = (source: string): string | null =>
 	new RegExp(`@feature\\s+(${FEATURE_ID})`).exec(source.slice(0, 4000))?.[1] ?? null;
@@ -542,9 +640,10 @@ async function scanProjectExports(
 		const featureStatus = status.get(fileFeature(sourceFile.text) ?? "");
 		if (featureStatus === "stub" || featureStatus === "planned") continue;
 		for (const candidate of exportedCandidates(sourceFile, file)) {
+			const anchor = candidate.referenceNode ?? candidate.node;
 			const entries = await project.checker.getReferencedSymbolsForNode(
-				candidate.node,
-				candidate.node.getStart(sourceFile),
+				anchor,
+				anchor.getStart(sourceFile),
 			);
 			let production = 0;
 			let tests = 0;
@@ -556,15 +655,22 @@ async function scanProjectExports(
 					seen.add(key);
 					const node = await handle.resolve();
 					if (node === undefined || isLinkNode(node)) continue;
+					if (candidate.repositoryMethod === true && isImplementation(node)) continue;
 					const sameSpot =
 						normal(handle.path) === normal(sourceFile.path) &&
-						node.getStart() === candidate.node.getStart(sourceFile);
+						node.getStart() === anchor.getStart(sourceFile);
 					if (sameSpot) continue;
 					if (isTestPath(normal(handle.path))) tests += 1;
 					else production += 1;
 				}
 			}
-			if (production === 0 && tests > 0) found.push({ file, name: candidate.name });
+			if (production === 0) {
+				if (candidate.repositoryMethod === true) {
+					if (tests > 0 && !hasUnwiredMarker(sourceFile, candidate.node, status)) {
+						found.push({ file, name: candidate.name });
+					}
+				} else if (tests > 0) found.push({ file, name: candidate.name });
+			}
 		}
 	}
 	return found;

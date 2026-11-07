@@ -17,7 +17,7 @@ import { interruptedTurnEvent } from "./repair.ts";
 import { repoFromRow, repoToParams } from "./repos.ts";
 import { createRepositories } from "./repositories.ts";
 import { collectResults, parseJsonColumn, parseStringList, stringifyJson } from "./row-codec.ts";
-import { sectionFromRow, sectionMemberToParams, sectionToParams } from "./sections.ts";
+import { sectionFromRow, sectionToParams } from "./sections.ts";
 import { sessionEventFromRow, sessionEventToParams } from "./session-events.ts";
 import { liveStateFromRow, liveStateToParams } from "./session-live-state.ts";
 import { sessionFromRow, sessionToParams } from "./sessions.ts";
@@ -116,7 +116,6 @@ describe("workspaces", () => {
 		"kanban_status",
 		"port",
 		"pinned_at",
-		"notes",
 		"linked_paths",
 		"pr_number",
 		"pr_title",
@@ -138,7 +137,7 @@ describe("workspaces", () => {
 		const params = workspaceToParams(sampleWorkspace);
 		expect(params.ok).toBe(true);
 		if (!params.ok) return;
-		expect(params.value[13]).toBe('["/code/other","/code/shared"]');
+		expect(params.value[12]).toBe('["/code/other","/code/shared"]');
 		const row = rowFrom<Parameters<typeof workspaceFromRow>[0]>(columns, params.value);
 		const { setupLogPath: _ignored, ...model } = sampleWorkspace;
 		expect(workspaceFromRow(row)).toEqual({ ok: true, value: model });
@@ -394,7 +393,7 @@ describe("attachments", () => {
 });
 
 describe("terminals", () => {
-	it("round-trips and keeps the size as columns only", () => {
+	it("round-trips a terminal and keeps its screen state out of the model", () => {
 		const params = terminalToParams(sampleTerminal);
 		const row = rowFrom<Parameters<typeof terminalFromRow>[0]>(
 			[
@@ -404,8 +403,6 @@ describe("terminals", () => {
 				"kind",
 				"title",
 				"cwd",
-				"cols",
-				"rows",
 				"start_command",
 				"screen_state",
 				"started_at",
@@ -414,9 +411,8 @@ describe("terminals", () => {
 			],
 			params,
 		);
-		const { cols: _c, rows: _r, screenState: _s, ...model } = sampleTerminal;
+		const { screenState: _s, ...model } = sampleTerminal;
 		expect(terminalFromRow(row)).toEqual(model);
-		expect(row.cols).toBe(120);
 	});
 });
 
@@ -448,7 +444,6 @@ describe("sections", () => {
 
 	it("builds insert parameters with the created time", () => {
 		expect(sectionToParams(sampleSection, 77)).toEqual(["sec-1", "Review", "eyes", 1, 1, 77]);
-		expect(sectionMemberToParams(sampleSection.id, workspaceId, 3)).toEqual(["sec-1", "ws-1", 3]);
 	});
 });
 

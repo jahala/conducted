@@ -112,7 +112,6 @@ export interface Workspace {
 	kanbanStatus: KanbanStatus;
 	port: number;
 	pinnedAt: number | null;
-	notes: string | null;
 	linkedPaths: string[];
 	prNumber: number | null;
 	prTitle: string | null;

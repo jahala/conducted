@@ -67,7 +67,7 @@ describe("REV-12 review comment state in the repository", () => {
 		] as const;
 		for (const state of states) {
 			now += 1;
-			expect(await repositories.diffComments.setState(comment.id, state)).toEqual(ok(undefined));
+			raw.prepare("UPDATE diff_comments SET state = ? WHERE id = ?").run(state, comment.id);
 			expect(must(await repositories.diffComments.get(comment.id))).toMatchObject({ state });
 		}
 	});
@@ -75,11 +75,23 @@ describe("REV-12 review comment state in the repository", () => {
 	it("marks every open pending comment ready in one step", async () => {
 		const pending = must(await add("Pending"));
 		const resolved = must(await add("Resolved"));
-		const outdated = must(await add("Outdated"));
 		const reviewed = must(await add("Reviewed"));
 		must(await repositories.diffComments.setResolved(resolved.id, true));
-		must(await repositories.diffComments.setOutdated(outdated.id, true));
-		must(await repositories.diffComments.setState(reviewed.id, "reviewed"));
+		raw.prepare("UPDATE diff_comments SET state = ? WHERE id = ?").run("reviewed", reviewed.id);
+		// GitHub marks a comment outdated on a later sync; the sync is the one writer of that flag.
+		must(
+			await repositories.diffComments.syncRemote(sampleWorkspace.id, [
+				{
+					...sampleComment,
+					id: "github-outdated" as CommentId,
+					body: "Outdated",
+					outdated: true,
+					state: "pending",
+				},
+			]),
+		);
+		const outdated = must(await repositories.diffComments.get("github-outdated" as CommentId));
+		if (outdated === null) throw new Error("the synced comment was not stored");
 
 		expect(await repositories.diffComments.markReadyForReview(sampleWorkspace.id)).toEqual({
 			ok: true,
@@ -90,49 +102,6 @@ describe("REV-12 review comment state in the repository", () => {
 		expect(must(await repositories.diffComments.get(resolved.id))?.state).toBe("pending");
 		expect(must(await repositories.diffComments.get(outdated.id))?.state).toBe("pending");
 		expect(must(await repositories.diffComments.get(reviewed.id))?.state).toBe("reviewed");
-	});
-
-	it("supersedes a workspace's comments together and leaves another workspace alone", async () => {
-		raw.prepare(WORKSPACES_SQL.insert).run(
-			bind(
-				must(
-					workspaceToParams({
-						...sampleWorkspace,
-						id: "ws-2" as WorkspaceId,
-						directoryName: "lisbon",
-						path: "/code/workspaces/lisbon",
-					}),
-				),
-			),
-		);
-		const here = must(await add("Here"));
-		const elsewhere = must(
-			await repositories.diffComments.add({
-				workspaceId: "ws-2" as WorkspaceId,
-				filePath: "src/other.ts",
-				line: 1,
-				endLine: null,
-				body: "Elsewhere",
-				author: { kind: "user", name: null, avatarUrl: null },
-				side: "additions",
-				threadId: null,
-				replyToId: null,
-				suggestion: null,
-				suggestionBaseCode: null,
-			}),
-		);
-
-		expect(await repositories.diffComments.supersedeWorkspace(sampleWorkspace.id)).toEqual({
-			ok: true,
-			value: 1,
-		});
-
-		expect(must(await repositories.diffComments.get(here.id))?.state).toBe("superseded");
-		expect(must(await repositories.diffComments.get(elsewhere.id))?.state).toBe("pending");
-		expect(await repositories.diffComments.supersedeWorkspace(sampleWorkspace.id)).toEqual({
-			ok: true,
-			value: 0,
-		});
 	});
 });
 
@@ -162,7 +131,7 @@ describe("REV-12 GitHub comments keep a hidden or reviewed state", () => {
 			body: "Edited on GitHub",
 		});
 
-		must(await repositories.diffComments.setState(hidden.id, "reviewed"));
+		raw.prepare("UPDATE diff_comments SET state = ? WHERE id = ?").run("reviewed", hidden.id);
 		must(
 			await repositories.diffComments.syncRemote(sampleWorkspace.id, [
 				{ ...hidden, body: "Edited again" },
@@ -178,7 +147,7 @@ describe("REV-12 GitHub comments keep a hidden or reviewed state", () => {
 		const first = { ...sampleComment, state: "pending" as const, body: "First" };
 		const second = { ...sampleComment, id: "c-2" as CommentId, body: "Second" };
 		must(await repositories.diffComments.syncRemote(sampleWorkspace.id, [first, second]));
-		must(await repositories.diffComments.setState(first.id, "superseded"));
+		raw.prepare("UPDATE diff_comments SET state = ? WHERE id = ?").run("superseded", first.id);
 
 		must(
 			await repositories.diffComments.syncRemote(sampleWorkspace.id, [

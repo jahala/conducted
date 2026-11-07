@@ -126,7 +126,7 @@ describe("DATA-08 provider keys repository", () => {
 				keychainRef: "keychain-2",
 			}),
 		);
-		const listed = must(await repositories.providerKeys.list());
+		const listed = must(await repositories.providerKeys.listForAgent("claude", null));
 		expect(listed).toHaveLength(1);
 		expect(listed[0]).toMatchObject({ keychainRef: "keychain-2", updatedAt: 3000 });
 	});
@@ -159,6 +159,6 @@ describe("DATA-08 provider keys repository", () => {
 		must(await repositories.providerKeys.set(name, { source: "this_mac" }));
 		must(await repositories.providerKeys.delete(name));
 		expect(must(await repositories.providerKeys.get(name))).toBeNull();
-		expect(must(await repositories.providerKeys.list())).toHaveLength(0);
+		expect(must(await repositories.providerKeys.listForAgent("cursor", null))).toHaveLength(0);
 	});
 });

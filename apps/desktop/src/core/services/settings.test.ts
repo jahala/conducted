@@ -103,14 +103,8 @@ const fakeSettings = (): SettingsRepository & { rows: Map<string, unknown> } => 
 	});
 	return {
 		rows,
-		async get(key) {
-			return ok(rows.has(key) ? asSetting(key) : null);
-		},
 		async list() {
 			return ok([...rows.keys()].sort().map(asSetting));
-		},
-		async listByPrefix(prefix) {
-			return ok([...rows.keys()].filter((key) => key.startsWith(prefix)).map(asSetting));
 		},
 		async set(key, value) {
 			rows.set(key, value);
@@ -119,16 +113,6 @@ const fakeSettings = (): SettingsRepository & { rows: Map<string, unknown> } => 
 		async delete(key) {
 			rows.delete(key);
 			return ok(undefined);
-		},
-		async deleteByPrefix(prefix) {
-			let count = 0;
-			for (const key of [...rows.keys()]) {
-				if (key.startsWith(prefix)) {
-					rows.delete(key);
-					count += 1;
-				}
-			}
-			return ok(count);
 		},
 	};
 };

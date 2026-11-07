@@ -63,7 +63,6 @@ export const FAVORITE_MODELS_SQL = {
 	get: "SELECT id, config, position FROM favorite_models WHERE id = $1",
 	nextPosition: "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM favorite_models",
 	insert: "INSERT INTO favorite_models (id, config, position) VALUES ($1, $2, $3)",
-	setConfig: "UPDATE favorite_models SET config = $1 WHERE id = $2",
 	/** `$1` is a JSON list of favorite ids in their new order. */
 	reorder: `UPDATE favorite_models
 		SET position = (SELECT CAST(j.key AS INTEGER) FROM json_each($1) j WHERE j.value = favorite_models.id)
@@ -76,8 +75,6 @@ export interface FavoriteModelRepository {
 	list(): Promise<Result<FavoriteModel[]>>;
 	/** FAVORITE_MODELS_SQL.nextPosition then FAVORITE_MODELS_SQL.insert, in one transaction. */
 	add(config: FavoriteModelConfig): Promise<Result<FavoriteModel>>;
-	/** FAVORITE_MODELS_SQL.setConfig. `ok(false)` when the favorite is gone. */
-	setConfig(id: string, config: FavoriteModelConfig): Promise<Result<boolean>>;
 	/** FAVORITE_MODELS_SQL.reorder with the ids in their new order. */
 	reorder(orderedIds: readonly string[]): Promise<Result<void>>;
 	/** FAVORITE_MODELS_SQL.delete. */
@@ -122,17 +119,6 @@ export function createFavoriteModelRepository(
 				);
 				return written.ok ? ok(model) : err(written.error);
 			}),
-		setConfig: async (id, config) => {
-			const json = stringifyJson(config, "favorite_models.config");
-			if (!json.ok) return err(json.error);
-			const written = await executeStatement(
-				db,
-				FAVORITE_MODELS_SQL.setConfig,
-				[json.value, id],
-				"Changing a favorite model",
-			);
-			return written.ok ? ok(written.value > 0) : err(written.error);
-		},
 		reorder: async (orderedIds) => {
 			const json = stringifyJson(orderedIds, "favorite_models.ids");
 			if (!json.ok) return err(json.error);

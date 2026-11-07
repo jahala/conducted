@@ -97,9 +97,6 @@ export const SESSION_EVENTS_SQL = {
 		ORDER BY idx LIMIT $3`,
 	listByTurn: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND turn_id = $2
 		ORDER BY idx`,
-	listUserMessages: `SELECT ${COLUMNS} FROM session_events
-		WHERE session_id = $1 AND type = 'user_message' ORDER BY idx`,
-	getByEventId: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND event_id = $2`,
 	lastIdx: "SELECT MAX(idx) AS last_idx FROM session_events WHERE session_id = $1",
 	/**
 	 * Marks every live event from the first user message of the given turn onward. Events that are
@@ -150,10 +147,6 @@ export interface SessionEventRepository {
 	): Promise<Result<StoredSessionEvent[]>>;
 	/** SESSION_EVENTS_SQL.listByTurn, in idx order. */
 	listByTurn(sessionId: SessionId, turnId: TurnId): Promise<Result<StoredSessionEvent[]>>;
-	/** SESSION_EVENTS_SQL.listUserMessages, for the "revert to here" menu. */
-	listUserMessages(sessionId: SessionId): Promise<Result<StoredSessionEvent[]>>;
-	/** SESSION_EVENTS_SQL.getByEventId. A missing event is `ok(null)`. */
-	getByEventId(sessionId: SessionId, eventId: EventId): Promise<Result<StoredSessionEvent | null>>;
 	/** SESSION_EVENTS_SQL.lastIdx. `ok(null)` for a chat with no events. */
 	lastIdx(sessionId: SessionId): Promise<Result<number | null>>;
 	/**
@@ -208,19 +201,6 @@ export function createSessionEventRepository(
 			),
 		listByTurn: (sessionId, turnId) =>
 			list(SESSION_EVENTS_SQL.listByTurn, [sessionId, turnId], "Listing a turn's events"),
-		listUserMessages: (sessionId) =>
-			list(SESSION_EVENTS_SQL.listUserMessages, [sessionId], "Listing user messages"),
-		getByEventId: async (sessionId, eventId) => {
-			const rows = await selectRows<SessionEventRow>(
-				db,
-				SESSION_EVENTS_SQL.getByEventId,
-				[sessionId, eventId],
-				"Reading a chat event",
-			);
-			if (!rows.ok) return err(rows.error);
-			const row = rows.value[0];
-			return row === undefined ? ok(null) : sessionEventFromRow(row);
-		},
 		lastIdx: async (sessionId) => {
 			const rows = await selectRows<{ last_idx: number | null }>(
 				db,
