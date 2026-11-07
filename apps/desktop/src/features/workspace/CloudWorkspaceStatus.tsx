@@ -1,33 +1,56 @@
 /**
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
- * Owns: the cloud part of the workspace header: the "Conductor Cloud" badge, the sandbox's status,
- * its CPU, memory and disk meters, the "Low disk" warning, the workspace's agent cost, and the
- * Restart button that reports "Restarted workspace".
- * Behaviour: ui-map.md 3.1 (the cloud header's badge, Status, CPU, Memory, Disk, "Low disk",
- * "Agent cost" and Restart) and the inventory's toast "Restarted workspace". Conductor gets the
- * status and meters from its hosted backend's `remoteState`; ours come from the sandbox through
- * the Worker (D116). The cost is the sum of the usage each agent turn reported (CHAT-14), shown
- * only while "Show agent cost" is on, as Conductor does.
+ * Owns: a cloud workspace's header control and its popover: the trigger is the workspace's
+ * identity (status icon, display name, "Low disk"), and the popover holds the name with the
+ * app's rename and workspace-actions controls, a separator, then the labelled rows Environment,
+ * Status, CPU, Memory, Disk and Agent cost, with Restart.
+ * Behaviour: ui-map.md 3.1 and Conductor's cloud header (renderApp `a2o`, `NPi`, `Xgo`, `Zgo`),
+ * read for structure only (D001): the trigger is one button, `aria-label` "<name> · <status>"
+ * plus " · Low disk space" when low; the popover is 320px wide, scrolls, and starts with the
+ * identity. The Environment row says "Cloudflare" because our cloud is the user's own Cloudflare
+ * account, not Conductor's brand. Conductor gets its status and meters from its hosted backend;
+ * ours come from the sandbox through the Worker (D116). The cost is the sum of the usage each
+ * agent turn reported (CHAT-14), shown only while "Show agent cost" is on.
  * Must handle: a local workspace (nothing); a stopped sandbox (no meters); the first reading (CPU
- * has no percentage yet); a Worker failure (the status says "Unavailable" with the error on hover);
- * a restart in flight (the button is disabled and says "Starting..."); a failed restart (its own
- * toast, never "Restarted workspace"); a nearly full disk ("Low disk" and the space left).
- * Our design choice: the strip is compact enough for the header row and each meter carries its
- * full value in its tooltip. Conductor shows these in a hover card; the checklist asks for the
- * header itself, so the values are visible without opening one (D116).
- * Test first: a running workspace shows its badge, status and meters, and Restart reports
- * "Restarted workspace".
+ * has no percentage yet); a Worker failure ("Unavailable" with the error on hover); a restart in
+ * flight (the button is disabled and says "Starting..."); a failed restart (its own toast, never
+ * "Restarted workspace"); a nearly full disk ("Low disk" on the trigger and the space left in the
+ * Disk row); an archived workspace (no rename, restart disabled).
+ * Our design choice: the identity uses the app's rename dialog and the workspace actions menu it
+ * already has. Conductor's repository, created, setup and workspace-id rows are left out because
+ * they belong to other features and are not in this checklist. The low-disk warning box below the
+ * rows is left out; the trigger's "Low disk" and the Disk row carry the warning.
+ * Test first: the trigger opens a popover with the identity and the labelled rows, and Restart
+ * reports "Restarted workspace".
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { useState } from "react";
+import { type MouseEvent, type ReactNode, useState } from "react";
 import type { CloudWorkspaceView } from "../../core/api.ts";
 import { useActions, useCloudWorkspace, useSetting, useWorkspace } from "../../core/hooks.ts";
-import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
-import { CloudIcon, RefreshIcon } from "../../ui/icons.tsx";
+import { IconButton } from "../../ui/IconButton.tsx";
+import {
+	AlertCircleIcon,
+	CircleIcon,
+	CloudIcon,
+	CoinIcon,
+	CpuIcon,
+	DatabaseIcon,
+	HardDriveIcon,
+	InfoIcon,
+	MoreHorizontalIcon,
+	PencilIcon,
+	RefreshIcon,
+} from "../../ui/icons.tsx";
+import { Popover } from "../../ui/Popover.tsx";
+import { Separator } from "../../ui/Separator.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toastError, workspaceToast } from "../../ui/Toast.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
+import { useBranchPrefix } from "./use-branch-prefix.ts";
+import { WorkspaceActionsMenu } from "./WorkspaceActionsMenu.tsx";
+import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
+import { workspaceName } from "./workspace-name.ts";
 
 /** Conductor's low-disk mark: 512 MiB left or less (`Zmo` in renderApp). */
 export const LOW_DISK_BYTES = 512 * 1024 ** 2;
@@ -58,6 +81,20 @@ export function formatCost(usd: number): string {
 	return `$${usd.toFixed(2)}`;
 }
 
+type StatusState = "live" | "loading" | "failed" | "done";
+
+function statusState(view: CloudWorkspaceView, restarting: boolean): StatusState {
+	if (restarting) return "loading";
+	switch (view.status) {
+		case "running":
+			return "live";
+		case "stopped":
+			return "done";
+		default:
+			return view.error === null ? "done" : "failed";
+	}
+}
+
 function statusWord(view: CloudWorkspaceView, restarting: boolean): string {
 	if (restarting) return "Starting";
 	switch (view.status) {
@@ -70,16 +107,45 @@ function statusWord(view: CloudWorkspaceView, restarting: boolean): string {
 	}
 }
 
-function statusDot(view: CloudWorkspaceView, restarting: boolean): string {
-	if (restarting) return "bg-status-progress";
-	switch (view.status) {
-		case "running":
-			return "bg-success";
-		case "stopped":
-			return "bg-fg-subtle";
-		default:
-			return view.error === null ? "bg-fg-subtle" : "bg-danger";
-	}
+/** Conductor's `pH` in our icons: a spinner, an alert, a live dot, or a muted circle. */
+function CloudStatusIcon({ state }: { state: StatusState }) {
+	return (
+		<span className="flex size-3.5 shrink-0 items-center justify-center">
+			{state === "loading" ? (
+				<Spinner label="Connecting" size="sm" />
+			) : state === "failed" ? (
+				<AlertCircleIcon className="size-3.5 text-danger" />
+			) : state === "live" ? (
+				<span aria-hidden="true" className="size-2 rounded-full bg-success" />
+			) : (
+				<CircleIcon className="size-3.5 text-fg-subtle" />
+			)}
+		</span>
+	);
+}
+
+/** One labelled row of the popover (`zL` in Conductor): icon, muted label, value at the right. */
+function DetailRow({
+	icon,
+	label,
+	children,
+	trailing,
+	valueClass = "ml-auto min-w-0 truncate text-right text-fg",
+}: {
+	icon: ReactNode;
+	label: string;
+	children: ReactNode;
+	trailing?: ReactNode;
+	valueClass?: string;
+}) {
+	return (
+		<div className="flex min-w-0 items-center gap-2 text-xs">
+			<span className="flex size-4 shrink-0 items-center justify-center text-fg-muted">{icon}</span>
+			<span className="shrink-0 text-fg-muted">{label}</span>
+			<span className={valueClass}>{children}</span>
+			{trailing}
+		</div>
+	);
 }
 
 export interface CloudWorkspaceStatusProps {
@@ -95,15 +161,28 @@ export function CloudWorkspaceStatus({
 	const workspace = useWorkspace(workspaceId);
 	const view = useCloudWorkspace(workspaceId);
 	const actions = useActions();
+	const branchPrefix = useBranchPrefix();
 	const showCost = useSetting<boolean>("experimental_show_agent_cost") === true;
 	const [restarting, setRestarting] = useState(false);
+	const [renaming, setRenaming] = useState(false);
 
 	if (workspace.state !== "ready" || workspace.data.host.kind !== "cloud") return null;
+
+	const data = workspace.data;
+	const name = workspaceName(data, branchPrefix);
+	const archived = data.state === "archived" || data.state === "archiving";
+	const state = statusState(view, restarting);
+	const word = statusWord(view, restarting);
+	const { cpu, memory, disk } = view.resources;
+	const lowDisk = disk !== null && disk.availableBytes <= LOW_DISK_BYTES;
+	const cost =
+		showCost && view.agentCostUsd !== null && view.agentCostUsd > 0 ? view.agentCostUsd : null;
+	const ariaLabel = `${name || "Workspace"} · ${word}${lowDisk ? " · Low disk space" : ""}`;
 
 	const restart = () => {
 		if (restarting || restartDisabled) return;
 		setRestarting(true);
-		void actions.workspaces.restart(workspaceId).then(async (result) => {
+		void actions.workspaces.restart(workspaceId).then((result) => {
 			setRestarting(false);
 			if (!result.ok) {
 				toastError("Couldn't restart the workspace", result.error);
@@ -113,87 +192,160 @@ export function CloudWorkspaceStatus({
 		});
 	};
 
-	const { cpu, memory, disk } = view.resources;
-	const lowDisk = disk !== null && disk.availableBytes <= LOW_DISK_BYTES;
-	const cost =
-		showCost && view.agentCostUsd !== null && view.agentCostUsd > 0 ? view.agentCostUsd : null;
-	const word = statusWord(view, restarting);
+	const openActionsMenu = (event: MouseEvent<HTMLButtonElement>) => {
+		const rect = event.currentTarget.getBoundingClientRect();
+		event.currentTarget.dispatchEvent(
+			new MouseEvent("contextmenu", {
+				bubbles: true,
+				cancelable: true,
+				clientX: rect.left,
+				clientY: rect.top,
+			}),
+		);
+	};
+
+	const trigger = (
+		<button
+			type="button"
+			aria-label={ariaLabel}
+			className="mx-1 flex h-6 min-w-0 items-center rounded-sm px-1.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+		>
+			<CloudStatusIcon state={state} />
+			<span className="ml-1.5 min-w-0 max-w-64 truncate text-sm font-medium">{name}</span>
+			{lowDisk ? (
+				<span className="ml-1.5 shrink-0 text-xs font-medium text-warning">Low disk</span>
+			) : null}
+		</button>
+	);
 
 	return (
-		<div className="flex min-w-0 shrink items-center gap-2">
-			<span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-2xs text-fg-muted">
-				<CloudIcon className="size-3" />
-				Conductor Cloud
-			</span>
-			<span
-				className="inline-flex shrink-0 items-center gap-1 text-xs text-fg-muted"
-				title={view.error ?? undefined}
+		<>
+			<Popover
+				trigger={trigger}
+				align="start"
+				side="bottom"
+				className="w-80 max-h-[560px] overflow-y-auto"
 			>
-				<span
-					aria-hidden="true"
-					className={`size-1.5 rounded-full ${statusDot(view, restarting)}`}
-				/>
-				{word}
-			</span>
-			{cpu === null ? null : (
-				<Tooltip
-					content={
-						cpu.capacityCores === null
-							? "The instance's CPU limit is unknown."
-							: `${formatCores(cpu.capacityCores)} · ${cpu.usedPercent === null ? "measuring" : `${formatPercent(cpu.usedPercent)} used`}`
-					}
-				>
-					<span className="shrink-0 text-xs text-fg-subtle">
-						CPU {cpu.usedPercent === null ? "—" : formatPercent(cpu.usedPercent)}
-					</span>
-				</Tooltip>
-			)}
-			{memory === null ? null : (
-				<Tooltip
-					content={`${formatBytes(memory.totalBytes)} · ${formatPercent(memory.usedPercent)} used`}
-				>
-					<span className="shrink-0 text-xs text-fg-subtle">
-						Memory {formatPercent(memory.usedPercent)}
-					</span>
-				</Tooltip>
-			)}
-			{disk === null ? null : (
-				<Tooltip
-					content={`${formatBytes(disk.totalBytes)} · ${formatPercent(disk.usedPercent)} used`}
-				>
-					<span
-						className={
-							lowDisk ? "shrink-0 text-xs text-warning" : "shrink-0 text-xs text-fg-subtle"
-						}
-					>
-						{disk.availableBytes === 0
-							? "Disk full"
-							: lowDisk
-								? `Disk ${formatBytes(disk.availableBytes)} left`
-								: `Disk ${formatPercent(disk.usedPercent)}`}
-					</span>
-				</Tooltip>
-			)}
-			{lowDisk ? <Badge tone="warning">Low disk</Badge> : null}
-			{cost === null ? null : (
-				<span className="shrink-0 text-xs text-fg-subtle">Agent cost {formatCost(cost)}</span>
-			)}
-			<Button
-				variant="ghost"
-				size="xs"
-				className="shrink-0 text-fg-muted hover:text-fg"
-				disabled={restarting || restartDisabled}
-				title={restarting ? "Starting workspace" : "Restart workspace"}
-				aria-label={restarting ? "Starting workspace" : "Restart workspace"}
-				onClick={restart}
-			>
-				{restarting ? (
-					<Spinner label="Starting workspace" size="sm" />
-				) : (
-					<RefreshIcon className="size-3" />
-				)}
-				<span>{restarting ? "Starting..." : "Restart"}</span>
-			</Button>
-		</div>
+				<div className="flex flex-col gap-3">
+					<div className="flex items-center gap-1">
+						<div className="min-w-0 flex-1 break-words text-sm font-medium leading-snug">
+							{name}
+						</div>
+						{archived ? null : (
+							<IconButton
+								label="Rename workspace"
+								size="xs"
+								icon={<PencilIcon className="size-3" />}
+								onClick={() => setRenaming(true)}
+							/>
+						)}
+						<WorkspaceActionsMenu workspaceId={workspaceId}>
+							<button
+								type="button"
+								aria-label="Workspace actions"
+								title="Workspace actions"
+								className="flex size-6 shrink-0 items-center justify-center rounded-sm text-fg-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+								onClick={openActionsMenu}
+							>
+								<MoreHorizontalIcon className="size-3.5" />
+							</button>
+						</WorkspaceActionsMenu>
+					</div>
+
+					<Separator />
+
+					<div className="flex flex-col gap-2">
+						<DetailRow icon={<CloudIcon className="size-3.5" />} label="Environment">
+							<span className="text-fg-muted">Cloudflare</span>
+						</DetailRow>
+						<DetailRow
+							icon={<CircleIcon className="size-3.5" />}
+							label="Status"
+							valueClass="ml-auto flex min-w-0 items-center gap-1"
+						>
+							<Button
+								variant="ghost"
+								size="xs"
+								className="shrink-0 text-fg-muted hover:text-fg"
+								disabled={restarting || restartDisabled}
+								title={restarting ? "Starting workspace" : "Restart workspace"}
+								aria-label={restarting ? "Starting workspace" : "Restart workspace"}
+								onClick={restart}
+							>
+								{restarting ? (
+									<Spinner label="Starting workspace" size="sm" />
+								) : (
+									<RefreshIcon className="size-3" />
+								)}
+								<span>{restarting ? "Starting..." : "Restart"}</span>
+							</Button>
+							{restarting ? null : (
+								<span className="inline-flex min-w-0 items-center gap-1.5">
+									<CloudStatusIcon state={state} />
+									<span className="min-w-0 truncate">{word}</span>
+								</span>
+							)}
+						</DetailRow>
+
+						{cpu === null ? null : (
+							<DetailRow icon={<CpuIcon className="size-3.5" />} label="CPU">
+								<span className="text-fg-muted">
+									{cpu.capacityCores === null ? "Unknown" : formatCores(cpu.capacityCores)}
+								</span>
+								{cpu.usedPercent === null ? null : ` · ${formatPercent(cpu.usedPercent)} used`}
+							</DetailRow>
+						)}
+						{memory === null ? null : (
+							<DetailRow icon={<DatabaseIcon className="size-3.5" />} label="Memory">
+								<span className="text-fg-muted">{formatBytes(memory.totalBytes)}</span>
+								{` · ${formatPercent(memory.usedPercent)} used`}
+							</DetailRow>
+						)}
+						{disk === null ? null : (
+							<DetailRow icon={<HardDriveIcon className="size-3.5" />} label="Disk">
+								{disk.availableBytes === 0 ? (
+									<>
+										<span className="text-fg-muted">{formatBytes(disk.totalBytes)}</span>
+										<span className="text-danger"> · Full</span>
+									</>
+								) : lowDisk ? (
+									<span className="tabular-nums text-danger">
+										{formatBytes(disk.availableBytes)} left
+									</span>
+								) : (
+									<>
+										<span className="text-fg-muted">{formatBytes(disk.totalBytes)}</span>
+										{` · ${formatPercent(disk.usedPercent)} used`}
+									</>
+								)}
+							</DetailRow>
+						)}
+						{cost === null ? null : (
+							<DetailRow
+								icon={<CoinIcon className="size-3.5" />}
+								label="Agent cost"
+								trailing={
+									<Tooltip content="Estimated at API rates. Your actual bill may differ.">
+										<button
+											type="button"
+											aria-label="About agent cost"
+											className="ml-1 flex size-4 shrink-0 items-center justify-center text-fg-subtle hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+										>
+											<InfoIcon className="size-3" />
+										</button>
+									</Tooltip>
+								}
+							>
+								{formatCost(cost)}
+							</DetailRow>
+						)}
+					</div>
+				</div>
+			</Popover>
+
+			{renaming ? (
+				<WorkspaceRenameDialog workspaceId={workspaceId} open onOpenChange={setRenaming} />
+			) : null}
+		</>
 	);
 }

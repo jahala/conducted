@@ -75,6 +75,8 @@ async function renderCloud(
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, {
 		repoId: repo.id,
+		directoryName: "fix-login",
+		branch: "fix-login",
 		host: { kind: "cloud", url: "https://cloud.example.dev", vmId: "oslo" },
 	});
 	must(await test.container.services.settings.set("experimental_show_agent_cost", true));
@@ -139,26 +141,57 @@ describe("CLOUD-15 formats", () => {
 });
 
 describe("CLOUD-15 cloud workspace header", () => {
-	it("shows the badge, status, CPU, memory, disk and agent cost", async () => {
+	it("opens a popover with the identity and the labelled rows", async () => {
 		const { test } = await renderCloud();
 		try {
-			expect(await screen.findByText("Conductor Cloud")).toBeTruthy();
-			expect(await screen.findByText("Running")).toBeTruthy();
-			expect(await screen.findByText(/CPU 40\.0%/)).toBeTruthy();
-			expect(await screen.findByText(/Memory 25\.0%/)).toBeTruthy();
-			expect(await screen.findByText(/Disk 50\.0%/)).toBeTruthy();
-			expect(await screen.findByText("Agent cost $0.75")).toBeTruthy();
-			expect(screen.getByRole("button", { name: /Restart/ })).toBeTruthy();
+			const trigger = await screen.findByRole("button", { name: "Fix login · Running" });
+			expect(screen.queryByText("Conductor Cloud")).toBeNull();
+			fireEvent.click(trigger);
+			expect((await screen.findAllByText("Fix login")).length).toBeGreaterThan(0);
+			expect(screen.getByRole("button", { name: "Rename workspace" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Workspace actions" })).toBeTruthy();
+			expect(screen.getByText("Environment")).toBeTruthy();
+			expect(screen.getByText("Cloudflare")).toBeTruthy();
+			expect(screen.getByText("Status")).toBeTruthy();
+			expect(screen.getByText("Running")).toBeTruthy();
+			expect(screen.getByText("CPU")).toBeTruthy();
+			expect(screen.getByText(/0\.3 cores/)).toBeTruthy();
+			expect(screen.getByText(/40\.0% used/)).toBeTruthy();
+			expect(screen.getByText("Memory")).toBeTruthy();
+			expect(screen.getByText(/1 GB/)).toBeTruthy();
+			expect(screen.getByText(/25\.0% used/)).toBeTruthy();
+			expect(screen.getByText("Disk")).toBeTruthy();
+			expect(screen.getByText(/4 GB/)).toBeTruthy();
+			expect(screen.getByText(/50\.0% used/)).toBeTruthy();
+			expect(screen.getByText("Agent cost")).toBeTruthy();
+			expect(screen.getByText("$0.75")).toBeTruthy();
+			expect(screen.getByRole("button", { name: "About agent cost" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();
 		}
 	});
 
-	it("shows 'Low disk' and the space left when the sandbox is nearly full", async () => {
+	it("opens the app's workspace actions menu from the popover", async () => {
+		const { test } = await renderCloud();
+		try {
+			fireEvent.click(await screen.findByRole("button", { name: "Fix login · Running" }));
+			fireEvent.click(await screen.findByRole("button", { name: "Workspace actions" }));
+			expect(await screen.findByRole("menuitem", { name: /Pin/ })).toBeTruthy();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("shows 'Low disk' on the trigger and the space left in the Disk row", async () => {
 		const { test } = await renderCloud(512 * MIB);
 		try {
+			const trigger = await screen.findByRole("button", {
+				name: "Fix login · Running · Low disk space",
+			});
 			expect(await screen.findByText("Low disk")).toBeTruthy();
+			fireEvent.click(trigger);
 			expect(await screen.findByText(/512 MB left/)).toBeTruthy();
 		} finally {
 			await test.container.stop();
@@ -166,11 +199,11 @@ describe("CLOUD-15 cloud workspace header", () => {
 		}
 	});
 
-	it("restarts the workspace and says 'Restarted workspace'", async () => {
+	it("restarts the workspace from the Status row and says 'Restarted workspace'", async () => {
 		const { test } = await renderCloud();
 		try {
-			expect(await screen.findByText("Running")).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: /Restart/ }));
+			fireEvent.click(await screen.findByRole("button", { name: "Fix login · Running" }));
+			fireEvent.click(await screen.findByRole("button", { name: /Restart/ }));
 			expect(await screen.findByText("Restarted workspace")).toBeTruthy();
 		} finally {
 			await test.container.stop();
@@ -181,10 +214,23 @@ describe("CLOUD-15 cloud workspace header", () => {
 	it("shows the failure instead of claiming a restart", async () => {
 		const { test } = await renderCloud(2 * GIB, false);
 		try {
-			expect(await screen.findByText("Running")).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: /Restart/ }));
+			fireEvent.click(await screen.findByRole("button", { name: "Fix login · Running" }));
+			fireEvent.click(await screen.findByRole("button", { name: /Restart/ }));
 			expect(await screen.findByText("Couldn't restart the workspace")).toBeTruthy();
 			expect(screen.queryByText("Restarted workspace")).toBeNull();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("hides the cost row while Show agent cost is off", async () => {
+		const { test } = await renderCloud();
+		try {
+			must(await test.container.services.settings.set("experimental_show_agent_cost", false));
+			fireEvent.click(await screen.findByRole("button", { name: "Fix login · Running" }));
+			expect(await screen.findByText("Environment")).toBeTruthy();
+			expect(screen.queryByText("Agent cost")).toBeNull();
 		} finally {
 			await test.container.stop();
 			test.close();
