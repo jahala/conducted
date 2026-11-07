@@ -163,12 +163,12 @@
 		"owner": "rule:quote"
 	},
 	"toast:M3743541": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-03",
-		"item": "A failing setup script shows \"Setup script failed. Check the setup tab for logs.\"",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "setup-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:M3750302": {
 		"status": "gap",
@@ -187,7 +187,7 @@
 	},
 	"toast:M3756589": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-15",
 		"item": "After a cloud workspace restart, show \"Restarted workspace\".",
@@ -397,12 +397,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R2985423": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03",
-		"item": "Setup: 'Setup script failed' with a 'fix it?' prompt sent to the chat",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "setup-failed",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R2994853": {
 		"status": "gap",
@@ -1195,7 +1195,7 @@
 	},
 	"toast:R10923050": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: Agents",
 		"backlog": "CLOUD-17",
 		"item": "Cloud settings that cannot be reached show \"Conductor could not connect to cloud settings. Try again.\"",
@@ -1365,7 +1365,7 @@
 	},
 	"toast:R11126591": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "CLOUD-17",
 		"item": "Changing the cloud git identity can fail with \"Couldn't update Git identity\".",
@@ -1666,12 +1666,12 @@
 		"by": "hand"
 	},
 	"toast:R11632289": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PLAT-16",
-		"item": "A deep link that opens a URL in the browser tab shows \"Invalid browser URL\" when the URL is not http or https.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-refused",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11632434": {
 		"status": "gap",
@@ -1683,12 +1683,12 @@
 		"by": "hand"
 	},
 	"toast:R11632825": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A browser deep link that fails to open the tab shows \"Couldn't open browser tab\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-gone",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11633100": {
 		"status": "decided",
@@ -1703,12 +1703,12 @@
 		"by": "hand"
 	},
 	"toast:R11633876": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A deep link that turns on a setting only works for allowed keys; others show \"Setting cannot be enabled by link\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-refused",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11634162": {
 		"status": "gap",
@@ -1742,36 +1742,36 @@
 		"owner": "rule:cite"
 	},
 	"toast:R11637313": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A plan deep link that names an unknown repository shows \"Repository not found\" and falls back to the first repository.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-plans",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11637490": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A plan deep link with data that cannot be decoded shows \"Invalid plan data\", and an empty plan shows \"Empty plan\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-plans",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11637609": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A plan deep link with data that cannot be decoded shows \"Invalid plan data\", and an empty plan shows \"Empty plan\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-plans",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11638410": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A deep link that cannot open its workspace shows \"Couldn't open workspace\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-gone",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11639651": {
 		"status": "decided",
@@ -1804,12 +1804,12 @@
 		"by": "hand"
 	},
 	"toast:R11641905": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Platform",
-		"backlog": "PLAT-16",
-		"item": "A link that is not a valid deep link shows \"Invalid deep link\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "deep-link-gone",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11647565": {
 		"status": "gap",
