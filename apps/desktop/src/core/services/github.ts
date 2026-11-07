@@ -60,7 +60,8 @@
  * `gh` result updates the health store; only the newest access check writes the access state; a
  * response the app cannot parse is an error, not an empty list; a context file is reported as
  * written only after the file was written; a poll skips an offline, unlinked or remote-less
- * workspace and leaves its last entry alone; a failed budget probe pauses polling and is reported
+ * workspace and leaves its last entry alone, and an offline workspace with no entry yet gets an
+ * offline one; a failed budget probe pauses polling and is reported
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
  * is retried without and remembered per remote host, each stack entry carries the restack flag
@@ -2256,6 +2257,14 @@ export class GithubService {
 			hasRemote: remoteUrl.ok && remoteUrl.value.trim().length > 0,
 			offline: this.#githubIsOffline(),
 		});
+		// Offline before the first answer: say so, or the header would wait for it forever. A
+		// workspace that has an entry keeps it, so its pull request stays on screen.
+		if (skip === "offline" && this.store.getState().byWorkspace[key] === undefined) {
+			return {
+				kind: "settled",
+				entry: { pullRequest: null, unavailable: "offline", fetchedAt: now },
+			};
+		}
 		if (skip !== null) return { kind: "skip" };
 
 		const remembered = this.#noPrUntil.get(key);
