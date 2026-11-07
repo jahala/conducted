@@ -104,8 +104,8 @@ export function SettingRow({
 			<div
 				data-stacked={stacked ? "true" : undefined}
 				className={cn(
-					"flex gap-8",
-					stacked ? "flex-col items-stretch gap-3" : "items-center justify-between",
+					"flex",
+					stacked ? "flex-col items-stretch gap-3" : "items-center justify-between gap-8",
 				)}
 			>
 				<div className="flex min-w-0 flex-col">

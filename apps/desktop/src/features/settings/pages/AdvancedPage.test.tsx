@@ -68,6 +68,47 @@ describe("SET-02 AdvancedPage", () => {
 		expect(await screen.findByText(warning)).toBeTruthy();
 	});
 
+	it("lays out each executable path under its text, with Conductor's placeholder and folder button", async () => {
+		const mounted = await mountPage();
+		const pickFile = vi
+			.spyOn(mounted.container.actions.app, "pickFile")
+			.mockResolvedValue(ok("/opt/tools/claude"));
+		// The picked program exists on the in-memory disk, so the path check lets it through.
+		expect((await mounted.container.platform.fs.writeTextAtomic("/opt/tools/claude", "")).ok).toBe(
+			true,
+		);
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		const input = screen.getByLabelText("Claude Code executable path");
+		expect(input.getAttribute("placeholder")).toBe("/usr/local/bin/claude");
+		expect(screen.getByLabelText("Codex executable path").getAttribute("placeholder")).toBe(
+			"/usr/local/bin/codex",
+		);
+		const row = input.closest("[data-setting-key]");
+		expect(row?.querySelector("[data-stacked='true']")).not.toBeNull();
+
+		const browse = row?.querySelector('button[title="Browse for executable"]');
+		if (!(browse instanceof HTMLButtonElement)) throw new Error("no folder button");
+		fireEvent.click(browse);
+
+		await waitFor(() =>
+			expect(set).toHaveBeenCalledWith("claude_executable_path", "/opt/tools/claude"),
+		);
+		expect(pickFile).toHaveBeenCalledWith("Select Claude Code executable");
+	});
+
+	it("resets a custom program path to the bundled program", async () => {
+		const mounted = await mountPage();
+		await act(async () => {
+			await mounted.container.actions.settings.set("codex_executable_path", "/opt/bin/codex");
+		});
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		fireEvent.click(await screen.findByRole("button", { name: "Reset to bundled Codex" }));
+
+		await waitFor(() => expect(set).toHaveBeenCalledWith("codex_executable_path", ""));
+	});
+
 	it("re-downloads an installed agent program from the Agent binaries section", async () => {
 		const mounted = await mountPage();
 		const redownload = vi.spyOn(mounted.container.platform.programs, "redownload");
