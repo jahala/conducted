@@ -28,7 +28,7 @@
  */
 
 import type { AppError, Clock, IdSource, ManagedProgram } from "@conducted/shared";
-import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
+import { err, messageOf, ok, type Result } from "@conducted/shared";
 import { globToRegExp } from "./glob.ts";
 import type {
 	AppInfo,
@@ -67,6 +67,7 @@ import type {
 	Unsubscribe,
 	Updater,
 } from "./platform.ts";
+import { platformError } from "./platform.ts";
 import { stripTerminalEscapes } from "./terminal-escapes.ts";
 
 /** A scripted answer for a shell command. Return null when the script does not know the command. */
@@ -454,11 +455,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const outOfScope = (path: string): AppError | null => {
 		if (options.enforceFileScope !== true) return null;
 		if (!path.startsWith("/")) {
-			return appError("fs_relative_path", `Path must be absolute: ${path}`);
+			return platformError("fs_relative_path", `Path must be absolute: ${path}`);
 		}
 		const roots = [...defaultFileRoots(paths), ...registeredRoots];
 		if (roots.some((root) => isWithinRoot(path, root))) return null;
-		return appError(
+		return platformError(
 			"fs_out_of_scope",
 			`Path is outside the folders this window may reach: ${path}`,
 		);
@@ -466,7 +467,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const registerRoot = async (path: string): Promise<Result<void>> => {
 		if (!path.startsWith("/")) {
-			return err(appError("fs_relative_path", `Path must be absolute: ${path}`));
+			return err(platformError("fs_relative_path", `Path must be absolute: ${path}`));
 		}
 		const root = normalizePath(path);
 		if (!registeredRoots.includes(root)) registeredRoots.push(root);
@@ -479,11 +480,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const target = normalizePath(path);
 		for (const ancestor of ancestors(target)) {
 			if (files.has(ancestor)) {
-				return err(appError("fs_not_a_directory", `${ancestor} is a file, not a folder.`));
+				return err(platformError("fs_not_a_directory", `${ancestor} is a file, not a folder.`));
 			}
 		}
 		if (directories.has(target)) {
-			return err(appError("fs_is_a_directory", `${target} is a folder.`));
+			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
 		}
 		addParentFolders(target);
 		files.set(target, text);
@@ -497,7 +498,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const target = normalizePath(path);
 		const text = files.get(target);
 		return text === undefined
-			? err(appError("fs_not_found", `${target} does not exist.`))
+			? err(platformError("fs_not_found", `${target} does not exist.`))
 			: ok(text);
 	};
 
@@ -513,7 +514,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const target = normalizePath(path);
 		if (files.has(target)) return ok(statForFile(target));
 		if (directories.has(target)) return ok(statForFolder(target));
-		return err(appError("fs_not_found", `${target} does not exist.`));
+		return err(platformError("fs_not_found", `${target} does not exist.`));
 	};
 
 	const mkdirp = async (path: string): Promise<Result<void>> => {
@@ -522,7 +523,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const target = normalizePath(path);
 		for (const folder of [...ancestors(target), target]) {
 			if (files.has(folder)) {
-				return err(appError("fs_not_a_directory", `${folder} is a file, not a folder.`));
+				return err(platformError("fs_not_a_directory", `${folder} is a file, not a folder.`));
 			}
 		}
 		for (const folder of ancestors(target)) {
@@ -539,7 +540,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (refused !== null) return err(refused);
 		const folder = normalizePath(path);
 		if (!directories.has(folder)) {
-			return err(appError("fs_not_found", `${folder} is not a folder.`));
+			return err(platformError("fs_not_found", `${folder} is not a folder.`));
 		}
 		const entries: FileStat[] = [];
 		for (const file of files.keys()) {
@@ -577,7 +578,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			}
 			return ok(undefined);
 		}
-		return err(appError("fs_not_found", `${target} does not exist.`));
+		return err(platformError("fs_not_found", `${target} does not exist.`));
 	};
 
 	const listTree = async (root: string): Promise<Result<TreeEntry[]>> => {
@@ -627,10 +628,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (paging.cursor !== null) {
 			start = /^\d+$/.test(paging.cursor) ? Number.parseInt(paging.cursor, 10) : -1;
 			if (start < 0)
-				return err(appError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
+				return err(platformError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
 		}
 		if (start > entries.length) {
-			return err(appError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
+			return err(platformError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
 		}
 		const limit = Math.min(Math.max(Math.floor(paging.limit), 1), MAX_ARTIFACT_PAGE);
 		const page = entries.slice(start, start + limit);
@@ -670,7 +671,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			expression = new RegExp(pattern, grepOptions.caseSensitive ? "" : "i");
 		} catch (error) {
 			const message = messageOf(error);
-			return err(appError("invalid_pattern", `Invalid pattern: ${message}`));
+			return err(platformError("search_bad_pattern", `Invalid pattern: ${message}`));
 		}
 		const base = normalizePath(root);
 		const matches: { path: string; line: number; column: number; preview: string }[] = [];
@@ -734,7 +735,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (ptyHistoryFailure === null) {
 			ptyHistory.set(state.terminalId, new TextEncoder().encode(state.output));
 		} else {
-			state.historyError = appError("history_write_failed", ptyHistoryFailure);
+			state.historyError = platformError("history_save_failed", ptyHistoryFailure);
 		}
 		for (const listener of [...state.exitListeners]) {
 			listener({ code, historyError: state.historyError });
@@ -773,7 +774,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			},
 			onData: (listener) => listen(state.dataListeners, listener),
 			ack: async () =>
-				ptyAckFailure === null ? ok(undefined) : err(appError("pty_ack_failed", ptyAckFailure)),
+				ptyAckFailure === null
+					? ok(undefined)
+					: err(platformError("pty_ack_failed", ptyAckFailure)),
 			onExit: (listener) => {
 				if (state.exited) {
 					queueMicrotask(() => listener(state.exitCode, state.historyError));
@@ -813,7 +816,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			const answer = script(command);
 			if (answer !== null) return answer;
 		}
-		return err(appError("shell_unscripted", `No answer was scripted for ${command.program}.`));
+		return err(platformError("shell_unscripted", `No answer was scripted for ${command.program}.`));
 	};
 
 	const shell: Shell = {
@@ -843,14 +846,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				done,
 				cancel: async () => {
 					// Rust reports a cancelled run as this error, not as an exit code (shell.rs).
-					settle(err(appError("shell_cancelled", "The command was cancelled.")));
+					settle(err(platformError("shell_cancelled", "The command was cancelled.")));
 				},
 			};
 			return running;
 		},
 		loginEnv: async (cwd) => {
 			if (cwd !== undefined && !cwd.startsWith("/")) {
-				throw appError("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
+				throw platformError("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
 			}
 			return { shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin", zdotdir: null };
 		},
@@ -867,10 +870,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		send: async (line) => {
 			// As sidecar_send does, first: the newline that ends the line is added on the way out.
 			if (line.includes("\n") || line.includes("\r")) {
-				return err(appError("sidecar_bad_line", "A sidecar line must not contain a newline."));
+				return err(platformError("sidecar_bad_line", "A sidecar line must not contain a newline."));
 			}
 			if (!sidecarStarted) {
-				return err(appError("sidecar_not_started", "The sidecar has not been started."));
+				return err(platformError("sidecar_not_started", "The sidecar has not been started."));
 			}
 			sidecarSent.push(line);
 			return ok(undefined);
@@ -999,7 +1002,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		openFullDiskAccessSettings: async () =>
 			fullDiskAccessOpenFailure === null
 				? ok(undefined)
-				: err(appError("full_disk_access_open_failed", fullDiskAccessOpenFailure)),
+				: err(platformError("full_disk_access_open_failed", fullDiskAccessOpenFailure)),
 	};
 
 	const materialize = async (
@@ -1008,7 +1011,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	): Promise<Result<MaterializedFile>> => {
 		const text = files.get(normalizePath(sourcePath));
 		if (text === undefined) {
-			return err(appError("fs_not_found", `${sourcePath} does not exist.`));
+			return err(
+				platformError("attachment_missing", `Attachment source does not exist: ${sourcePath}`),
+			);
 		}
 		const written = await writeTextAtomic(destinationPath, text);
 		if (!written.ok) return written;
@@ -1095,11 +1100,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const http: Http = {
 		fetch: async () =>
-			err(appError("http_unscripted", "No HTTP answer was scripted for this request.")),
+			err(platformError("http_unscripted", "No HTTP answer was scripted for this request.")),
 		download: () => ({
 			id: ids.uuid(),
 			done: Promise.resolve(
-				err(appError("http_unscripted", "No HTTP answer was scripted for this request.")),
+				err(platformError("http_unscripted", "No HTTP answer was scripted for this request.")),
 			),
 			cancel: async () => {},
 		}),

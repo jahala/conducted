@@ -214,6 +214,37 @@ describe("PLAT-01 in-memory Platform", () => {
 		}
 	});
 
+	it("answers a missing attachment source with attachment_missing, as attachments.rs does", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			const result = await memory.platform.attachments.materialize(
+				"/missing/photo.png",
+				"/dest/photo.png",
+				{ resizeImage: false },
+			);
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.code).toBe("attachment_missing");
+		} finally {
+			db.close();
+		}
+	});
+
+	it("answers a bad grep pattern with search_bad_pattern, as file_search.rs does", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			const result = await memory.platform.fileSearch.grep("/r", "(", {
+				caseSensitive: false,
+				wholeWord: false,
+				regex: true,
+				limit: 10,
+			});
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.code).toBe("search_bad_pattern");
+		} finally {
+			db.close();
+		}
+	});
+
 	it("rejects a listArtifacts cursor it did not hand out", async () => {
 		const { db, memory } = freshPlatform();
 		try {
