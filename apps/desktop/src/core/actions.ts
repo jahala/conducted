@@ -252,16 +252,8 @@ export function createActions(
 		cloud: {
 			pair: (input) => services.cloudPairing.pair(input),
 			unpair: () => services.cloudPairing.unpair(),
-			deploy: async () => {
-				const result = await services.cloudDeploy.deploy();
-				if (result.ok) await services.cloudPairing.start();
-				return result;
-			},
-			uninstall: async () => {
-				const result = await services.cloudDeploy.uninstall();
-				if (result.ok) await services.cloudPairing.start();
-				return result;
-			},
+			deploy: () => services.cloudDeploy.deploy(),
+			uninstall: () => services.cloudDeploy.uninstall(),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

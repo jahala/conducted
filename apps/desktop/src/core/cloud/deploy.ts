@@ -25,7 +25,14 @@ export interface CloudDeployService {
 	uninstall(): Promise<Result<void>>;
 }
 
-export function createCloudDeploy(cloud: Pick<Cloud, "deploy" | "uninstall">): CloudDeployService {
+/**
+ * `refreshPairing` re-reads the pairing the shell just wrote or removed, so the Connections page shows
+ * it at once. It is the pairing service's `start`, passed in from the composition root.
+ */
+export function createCloudDeploy(
+	cloud: Pick<Cloud, "deploy" | "uninstall">,
+	refreshPairing: () => Promise<Result<void>>,
+): CloudDeployService {
 	let running: Promise<Result<CloudDeployResult>> | null = null;
 	return {
 		get deploying() {
@@ -33,11 +40,21 @@ export function createCloudDeploy(cloud: Pick<Cloud, "deploy" | "uninstall">): C
 		},
 		deploy: () => {
 			if (running !== null) return running;
-			running = cloud.deploy().finally(() => {
-				running = null;
-			});
+			running = cloud
+				.deploy()
+				.then(async (result) => {
+					if (result.ok) await refreshPairing();
+					return result;
+				})
+				.finally(() => {
+					running = null;
+				});
 			return running;
 		},
-		uninstall: () => cloud.uninstall(),
+		uninstall: async () => {
+			const result = await cloud.uninstall();
+			if (result.ok) await refreshPairing();
+			return result;
+		},
 	};
 }

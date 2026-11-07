@@ -41,7 +41,6 @@
 		"targets": "all",
 		"resources": {
 			"../../../bin/*": "bin/",
-			"resources/cloud": "cloud/",
 			"programs/release-feed.json": "programs/release-feed.json",
 			"conducted-skill/.claude-plugin/plugin.json": "conducted-skill/.claude-plugin/plugin.json",
 			"conducted-skill/skills/conducted/SKILL.md": "conducted-skill/skills/conducted/SKILL.md"
