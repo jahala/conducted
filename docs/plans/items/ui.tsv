@@ -1111,3 +1111,9 @@ APP-04	control	Conductor shows "Search repositories" (aria_label, Unplaced); our
 APP-04	message	Conductor shows "Recent repos" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@1897964	missing
 CHAT-24	message	Conductor shows "Failed to render diagram" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@8047788	missing
 CHAT-22	message	Conductor shows "Couldn’t load visualization" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@9498978	missing
+AGENT-19	control	'Amp' row in the Big terminal 'New tab preset' radio list (bundle @10676910), with `amp` shown as its command	other-runners 9; inventory label #402	missing
+AGENT-19	action	Choosing the 'Amp' row saves `amp` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #402	missing
+AGENT-20	control	'Copilot' row in the Big terminal 'New tab preset' radio list (bundle @10676977), with `copilot --allow-all` shown as its command	other-runners 9; inventory label #403	missing
+AGENT-20	action	Choosing the 'Copilot' row saves `copilot --allow-all` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #403	missing
+AGENT-21	control	'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command	other-runners 9; inventory label #404	missing
+AGENT-21	action	Choosing the 'Gemini' row saves `gemini -y` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #404	missing
