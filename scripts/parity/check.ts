@@ -5,10 +5,11 @@
  * Behaviour: docs/plans/parity-harness.md sections 3 and 5. The mode comes from `--mode`, else the
  * workflow's `PARITY_MODE`, else `report`.
  * Must handle: no dump (`--no-dump`) runs checks a and e only and says so in the report; a flows file
- * that is missing when asked for is a broken finding, never a silent pass.
+ * that is missing when asked for is a broken finding, never a silent pass; so is a live log
+ * (`--live`, the stage 2 run's `live.json`, scripts/conductor-reference/live.ts) that is missing.
  *
- * Usage: bun scripts/parity/check.ts (<dump.json> | --no-dump) [--flows <flows.json>] [--out <dir>]
- *   [--mode report|enforce]
+ * Usage: bun scripts/parity/check.ts (<dump.json> | --no-dump) [--flows <flows.json>]
+ *   [--live <live.json>] [--out <dir>] [--mode report|enforce]
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -17,9 +18,11 @@ import {
 	checkBackend,
 	checkCompleteness,
 	checkLayout,
+	checkLive,
 	checkText,
 	type Finding,
 	type Inputs,
+	type LiveEntry,
 } from "./checks.ts";
 import type { LayoutSpec } from "./dump.ts";
 import {
@@ -42,6 +45,8 @@ import { researchScreens } from "./screens.ts";
 interface Options {
 	dump: string | null;
 	flows: string | null;
+	/** The live run's log: every call Conductor's frontend made on our backend, and its outcome. */
+	live: string | null;
 	out: string;
 	mode: Report["mode"];
 }
@@ -51,6 +56,7 @@ export function parseArgs(argv: string[], env: Record<string, string | undefined
 	const options: Options = {
 		dump: null,
 		flows: null,
+		live: null,
 		out: join(ROOT, ".context/parity"),
 		mode: fromEnv === "enforce" ? "enforce" : "report",
 	};
@@ -63,6 +69,7 @@ export function parseArgs(argv: string[], env: Record<string, string | undefined
 			return next;
 		};
 		if (arg === "--flows") options.flows = resolve(value());
+		else if (arg === "--live") options.live = resolve(value());
 		else if (arg === "--out") options.out = resolve(value());
 		else if (arg === "--mode") {
 			const mode = value();
@@ -143,6 +150,19 @@ function main(options: Options): number {
 		}
 	}
 	findings.push(...checkBackend(inputs, ourNames(ROOT)));
+	if (options.live !== null) {
+		if (existsSync(options.live))
+			findings.push(...checkLive(inputs, readJson<{ summary: LiveEntry[] }>(options.live)));
+		else {
+			findings.push({
+				check: "e",
+				severity: "broken",
+				code: "live-missing",
+				screen: "Harness",
+				detail: `${options.live} does not exist: the live run did not finish`,
+			});
+		}
+	}
 
 	const report: Report = {
 		commit: dump?.commit ?? "HEAD (no dump: checks a and e only)",

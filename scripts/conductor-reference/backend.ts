@@ -92,7 +92,11 @@ export interface ReferenceMapping<State = unknown> {
  * an error, the same as a call with no handler.
  */
 export class Declined extends Error {
-	constructor(readonly detail: string) {
+	/** `error`: what the page gets instead of the message, such as the live host's refusal. */
+	constructor(
+		readonly detail: string,
+		readonly error?: unknown,
+	) {
 		super(`The reference has no answer for ${detail}.`);
 	}
 }

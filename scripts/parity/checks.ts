@@ -548,3 +548,79 @@ export function checkBackend(inputs: Inputs, ours: Record<BackendInventory, stri
 	}
 	return findings;
 }
+
+/**
+ * One name in the live run's log (`live.json`, `summary`): how often Conductor's frontend called it on
+ * our backend, and what answered. Written by scripts/conductor-reference/live.ts.
+ */
+export interface LiveEntry {
+	inventory: string;
+	name: string;
+	/** By outcome: answered, failed (ours answered with an error), refused, decided, translator. */
+	counts: Record<string, number>;
+	details: string[];
+	via: string[];
+	decisions: string[];
+}
+
+/**
+ * Check e's live input: a name Conductor's frontend called that our backend refused, or that the
+ * translator answered without our backend, is a gap even when the lists match. An answer under a
+ * decision needs a decision the logs have; a name the spec does not list means the spec is behind
+ * the frontend.
+ */
+export function checkLive(inputs: Inputs, live: { summary: LiveEntry[] }): Finding[] {
+	const findings: Finding[] = [];
+	for (const entry of live.summary) {
+		const id = `${entry.inventory}:${entry.name}`;
+		const listed = inputs.specs
+			.get(entry.inventory as Inventory)
+			?.entries.some((specEntry) => specEntry.id === id);
+		const base = {
+			check: "e" as const,
+			screen: BACKEND_SCREEN,
+			inventory: entry.inventory,
+			id,
+			text: entry.name,
+		};
+		if (listed !== true) {
+			findings.push({
+				...base,
+				severity: "broken",
+				code: "live-unlisted",
+				detail: "Conductor's frontend called it in the live run, and the spec does not list it",
+			});
+			continue;
+		}
+		const total = Object.values(entry.counts).reduce((sum, count) => sum + count, 0);
+		const refused = entry.counts.refused ?? 0;
+		const reasons = entry.details.length > 0 ? `: ${entry.details.join("; ")}` : "";
+		if (refused > 0) {
+			findings.push({
+				...base,
+				severity: "gap",
+				code: "backend-live-refused",
+				detail: `our backend refused ${refused} of ${total} calls in the live run${reasons}`,
+			});
+		}
+		const alone = entry.counts.translator ?? 0;
+		if (alone > 0) {
+			findings.push({
+				...base,
+				severity: "gap",
+				code: "backend-live-translator",
+				detail: `the translator answered ${alone} of ${total} calls without our backend`,
+			});
+		}
+		for (const decision of entry.decisions) {
+			if (inputs.decisions.has(decision)) continue;
+			findings.push({
+				...base,
+				severity: "broken",
+				code: "live-unknown-decision",
+				detail: `answered under ${decision}, which the decision logs do not have`,
+			});
+		}
+	}
+	return findings;
+}

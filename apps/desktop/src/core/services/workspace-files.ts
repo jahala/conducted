@@ -85,6 +85,11 @@ export interface WorkspaceFilesServiceDeps {
 	git: Pick<GitRunner, "runChecked">;
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
+	/**
+	 * Checks the search door before a workspace's own files are searched (CLOUD-11). A cloud
+	 * workspace's search belongs to its Worker, not the Mac.
+	 */
+	searchOn: (workspaceId: WorkspaceId) => Promise<Result<void>>;
 	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
 	opener: Pick<Opener, "revealInFinder" | "openWith">;
 }
@@ -370,6 +375,8 @@ export class WorkspaceFilesService {
 
 	/** Backs `useFileTree`. The platform lists the whole tree; the tab shows depth 1 until expanded. */
 	async tree(workspaceId: WorkspaceId): Promise<Result<FileEntry[]>> {
+		const search = await this.#deps.searchOn(workspaceId);
+		if (!search.ok) return search;
 		const root = await this.#rootOf(workspaceId);
 		if (!root.ok) return root;
 		const listed = await this.#deps.search.listTree(root.value);
@@ -385,6 +392,8 @@ export class WorkspaceFilesService {
 		const trimmed = query.trim();
 		const count = Math.max(0, Math.floor(limit));
 		if (trimmed.length < 2 || count === 0) return ok([]);
+		const search = await this.#deps.searchOn(workspaceId);
+		if (!search.ok) return search;
 		const root = await this.#rootOf(workspaceId);
 		if (!root.ok) return root;
 		const found = await this.#deps.search.fuzzyMatch(root.value, trimmed, count);
@@ -413,6 +422,8 @@ export class WorkspaceFilesService {
 	): Promise<Result<GrepMatch[]>> {
 		const trimmed = query.trim();
 		if (trimmed.length < 2) return ok([]);
+		const search = await this.#deps.searchOn(workspaceId);
+		if (!search.ok) return search;
 		const root = await this.#rootOf(workspaceId);
 		if (!root.ok) return root;
 		const found = await this.#deps.search.grep(root.value, trimmed, {

@@ -4,6 +4,7 @@ import {
 	checkBackend,
 	checkCompleteness,
 	checkLayout,
+	checkLive,
 	checkText,
 	type Inputs,
 	isSample,
@@ -326,5 +327,80 @@ describe("check e, backend lists", () => {
 		expect(
 			checkBackend(kept, ours({ table: ["repos", "sessions", "backlog_workspaces"] })),
 		).toEqual([]);
+	});
+});
+
+describe("check e with the live log (--live)", () => {
+	const commands = spec("tauri_command", [
+		["tauri_command:get_db_uri", "get_db_uri"],
+		["tauri_command:execute_shell_command", "execute_shell_command"],
+		["tauri_command:get_keychain_setting", "get_keychain_setting"],
+		["tauri_command:is_cef_runtime", "is_cef_runtime"],
+	]);
+	const base = inputs({
+		specs: new Map([["tauri_command", commands]]),
+		maps: new Map<Inventory, MapFile>([
+			[
+				"tauri_command",
+				{
+					"tauri_command:execute_shell_command": {
+						status: "matched",
+						ours: "shell_run",
+						by: "hand",
+					},
+				},
+			],
+		]),
+	});
+	const entry = (name: string, counts: Record<string, number>, extra: object = {}) => ({
+		inventory: "tauri_command",
+		name,
+		counts,
+		details: [],
+		via: [],
+		decisions: [],
+		...extra,
+	});
+
+	test("a call our backend refused is a gap even when the lists match", () => {
+		const findings = checkLive(base, {
+			summary: [
+				entry("execute_shell_command", { answered: 40, refused: 2 }, { details: ["shell: a | b"] }),
+			],
+		});
+		expect(findings.map((f) => [f.check, f.severity, f.code, f.id])).toEqual([
+			["e", "gap", "backend-live-refused", "tauri_command:execute_shell_command"],
+		]);
+		expect(findings[0]?.detail).toContain("refused 2 of 42 calls");
+		expect(findings[0]?.detail).toContain("shell: a | b");
+	});
+
+	test("an answer the translator gave without our backend is a gap too", () => {
+		const findings = checkLive(base, { summary: [entry("is_cef_runtime", { translator: 3 })] });
+		expect(findings.map((f) => f.code)).toEqual(["backend-live-translator"]);
+	});
+
+	test("answers by ours, our errors and answers under a known decision are no gap", () => {
+		expect(
+			checkLive(base, {
+				summary: [
+					entry("execute_shell_command", { answered: 5, failed: 1 }),
+					entry("get_keychain_setting", { decided: 4 }, { decisions: ["D004"] }),
+				],
+			}),
+		).toEqual([]);
+	});
+
+	test("a decision the logs do not have is broken, and so is a name the spec does not list", () => {
+		const findings = checkLive(base, {
+			summary: [
+				entry("get_keychain_setting", { decided: 1 }, { decisions: ["D999"] }),
+				entry("crash_rust", { refused: 1 }),
+			],
+		});
+		expect(findings.map((f) => [f.severity, f.code])).toEqual([
+			["broken", "live-unknown-decision"],
+			["broken", "live-unlisted"],
+		]);
 	});
 });

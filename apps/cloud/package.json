@@ -1,0 +1,25 @@
+{
+	"name": "@conducted/cloud",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"description": "The Worker and Durable Object a user deploys to their own Cloudflare account (CLOUD-03).",
+	"scripts": {
+		"typecheck": "tsc -p .",
+		"test": "vitest run",
+		"types": "wrangler types --env-interface Env src/worker-configuration.d.ts",
+		"deploy": "wrangler deploy"
+	},
+	"dependencies": {
+		"@cloudflare/sandbox": "1.0.3",
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "1.6.0",
+		"@cloudflare/workers-types": "5.20261107.1",
+		"typescript": "^5.9.3",
+		"vitest": "^5.1.0",
+		"wrangler": "4.158.0"
+	},
+	"license": "MIT"
+}

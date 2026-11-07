@@ -50,6 +50,8 @@ image = { version = "0.25.10", default-features = false, features = ["bmp", "gif
 nucleo-matcher = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "system-proxy", "charset", "http2"] }
 futures-util = "0.3"
+# The Rust shell owns the cloud WebSocket because the web view cannot set its headers (CLOUD-03).
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }

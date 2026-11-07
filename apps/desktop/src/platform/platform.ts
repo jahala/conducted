@@ -6,8 +6,9 @@
  * checked against the real one by a shared contract test (PLAT-01).
  *
  * Research: services-map.md 1.1 (Conductor's `vn()` Platform object), native-and-sidecar-map.md A2
- * (the Rust commands behind each group). Cloud groups are left out. Keeping the Mac awake has no
- * door of its own: PLAT-21 runs `caffeinate` through `shell.start`.
+ * (the Rust commands behind each group). The `cloud` group is the Rust shell's side of a cloud
+ * workspace's connection (CLOUD-03). Keeping the Mac awake has no door of its own: PLAT-21 runs
+ * `caffeinate` through `shell.start`.
  */
 import type { AppError, ManagedProgram, Result } from "@conducted/shared";
 
@@ -503,6 +504,48 @@ export interface HttpDownload {
 	cancel(): Promise<void>;
 }
 
+// ---------------------------------------------------------------- cloud
+
+/** One request to the user's Worker. The Rust shell adds the pairing token from the Keychain. */
+export interface CloudRequest {
+	/** The Worker's base URL, for example "https://conducted.example.workers.dev". */
+	url: string;
+	method: "GET" | "POST";
+	/** The route inside that Worker, for example "/w/oslo/git". */
+	path: string;
+	body?: unknown;
+	timeoutMs?: number;
+}
+
+/** The Worker's answer, whatever its status, so the caller can read the Worker's own error. */
+export interface CloudResponse {
+	status: number;
+	body: string;
+}
+
+/** The line transport to the sidecar inside one workspace's sandbox (CLOUD-03). */
+export interface CloudRelay {
+	readonly id: string;
+	/** Sends one line; a line with a newline is refused. */
+	send(line: string): Promise<Result<void>>;
+	onLine(listener: (line: string) => void): Unsubscribe;
+	/** Fires once when the Worker or the network ends the relay. */
+	onClosed(listener: (reason: string) => void): Unsubscribe;
+	/** Closes the relay. A relay the Worker already ended is a no-op. */
+	close(): Promise<void>;
+}
+
+/**
+ * cloud.rs: the Rust shell owns the cloud connection because the web view cannot set a WebSocket
+ * header (CLOUD-03). The pairing token never reaches the web view.
+ */
+export interface Cloud {
+	/** True when the Keychain holds a pairing token. */
+	paired(): Promise<Result<boolean>>;
+	request(request: CloudRequest): Promise<Result<CloudResponse>>;
+	openRelay(input: { url: string; vmId: string }): Promise<Result<CloudRelay>>;
+}
+
 /** http.rs: requests go through the system proxy settings and a URL allow-list. */
 export interface Http {
 	fetch(request: HttpRequest): Promise<Result<HttpResponse>>;
@@ -538,4 +581,5 @@ export interface Platform {
 	attachments: AttachmentFiles;
 	programs: Programs;
 	http: Http;
+	cloud: Cloud;
 }
