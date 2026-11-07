@@ -168,7 +168,7 @@ describe("REV-01 git header", () => {
 
 	it("opens the PR status details from the chip", async () => {
 		render(<GitHeader model={mergeModel} onAction={vi.fn()} />);
-		fireEvent.click(screen.getByRole("button", { name: "PR status details" }));
+		fireEvent.click(screen.getByRole("button", { name: "View PR status" }));
 		expect(await screen.findByRole("group", { name: "PR status details" })).toBeTruthy();
 	});
 });

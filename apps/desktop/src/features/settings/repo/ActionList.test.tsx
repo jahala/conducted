@@ -32,15 +32,15 @@ describe("SET-07 ActionList", () => {
 		renderList([item()]);
 		const row = screen.getByRole("listitem", { name: "Dev server" });
 
-		expect(within(row).getByRole("button", { name: "Hide" })).toBeTruthy();
-		expect(within(row).queryByRole("button", { name: "Delete" })).toBeNull();
+		expect(within(row).getByRole("button", { name: "Hide action" })).toBeTruthy();
+		expect(within(row).queryByRole("button", { name: "Delete action" })).toBeNull();
 	});
 
 	it("offers Delete on a personal action", () => {
 		renderList([item({ source: "personal", id: "docs", label: "Docs" })]);
 		const row = screen.getByRole("listitem", { name: "Docs" });
 
-		expect(within(row).getByRole("button", { name: "Delete" })).toBeTruthy();
+		expect(within(row).getByRole("button", { name: "Delete action" })).toBeTruthy();
 	});
 
 	it("offers Reset only when this Mac changed a shared action", () => {
@@ -67,7 +67,7 @@ describe("SET-07 ActionList", () => {
 		const row = screen.getByRole("listitem", { name: "Dev server" });
 
 		expect(within(row).getByText("Default")).toBeTruthy();
-		fireEvent.click(within(row).getByRole("button", { name: "Hide" }));
+		fireEvent.click(within(row).getByRole("button", { name: "Hide action" }));
 		expect(onToggleHidden).toHaveBeenCalledWith("dev-server", true);
 	});
 
@@ -75,7 +75,7 @@ describe("SET-07 ActionList", () => {
 		renderList([item({ hidden: true })]);
 		const row = screen.getByRole("listitem", { name: "Dev server" });
 
-		expect(within(row).getByRole("button", { name: "Show" })).toBeTruthy();
+		expect(within(row).getByRole("button", { name: "Show action" })).toBeTruthy();
 		expect(within(row).getByText("Hidden")).toBeTruthy();
 	});
 });

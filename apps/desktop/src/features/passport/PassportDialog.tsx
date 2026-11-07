@@ -4,7 +4,7 @@
  * a way to open a workspace.
  * Behaviour: ui-map.md 4 (Passport: dialog with a world map, 'CITIES VISITED', '[NOT VISITED]',
  * '[ARCHIVED]', '[CLICK TO OPEN]'; each workspace is named after a place, so the map plots them),
- * 5.2 (the dialog is titled 'Conductor Passport').
+ * 5.2 (the dialog is titled 'Conducted Passport').
  * Our design choice: the palette command `app.openPassport` opens it, and the overlay host mounts it.
  * A place with several workspaces opens the first one that is not archived. An archived place is
  * listed and labelled, and says where to unarchive it because this dialog cannot open it.
@@ -54,7 +54,7 @@ export function PassportDialog({ open, onOpenChange }: OverlayProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				title="Conductor Passport"
+				title="Conducted Passport"
 				description="Every place a workspace has visited on this Mac."
 				size="3xl"
 			>

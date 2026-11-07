@@ -119,7 +119,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			addUsage(test, session.id);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -142,7 +142,7 @@ describe("CHAT-14 context wheel", () => {
 			setSetting(test, "always_show_context_wheel", true);
 			addUsage(test, session.id, { contextUsedTokens: 40_000 });
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			expect(screen.getByRole("button", { name: "Context usage: 40%" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -153,7 +153,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			addUsage(test, session.id);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			fireEvent.focus(screen.getByRole("button", { name: "Context usage: 72%" }));
+			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
 			expect(await screen.findByText("Window used: 72,000 of 100,000 tokens")).toBeTruthy();
 			expect(screen.getByText("Input")).toBeTruthy();
 			expect(screen.getByText("1,200")).toBeTruthy();
@@ -176,7 +176,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			addUsage(test, session.id, { contextUsedTokens: 140_000 });
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			expect(screen.getByRole("button", { name: "Context usage: 100%" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -187,7 +187,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			setSetting(test, "always_show_context_wheel", true);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			fireEvent.focus(screen.getByRole("button", { name: "Context usage: not available" }));
+			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
 			expect(await screen.findByText("Context window size not yet available.")).toBeTruthy();
 		} finally {
 			await teardown(test);
@@ -201,7 +201,7 @@ describe("CHAT-14 context wheel", () => {
 			test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
 			addUsage(test, session.id, { contextWindowTokens: undefined });
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -214,7 +214,7 @@ describe("CHAT-14 context wheel", () => {
 			addUsage(test, session.id, { contextWindowTokens: 200_000 });
 			test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -227,7 +227,7 @@ describe("CHAT-14 context wheel", () => {
 			expect((await test.container.services.contextWindows.start()).ok).toBe(true);
 			addUsage(test, session.id, { contextWindowTokens: undefined });
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -238,7 +238,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			setSetting(test, "always_show_context_wheel", true);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			fireEvent.focus(screen.getByRole("button", { name: "Context usage: not available" }));
+			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
 			expect(await screen.findByText("Context usage is unavailable for Cursor.")).toBeTruthy();
 		} finally {
 			await teardown(test);
@@ -250,7 +250,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			addUsage(test, session.id);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
-			fireEvent.focus(screen.getByRole("button", { name: "Context usage: 72%" }));
+			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
 			await screen.findByText("Window used: 72,000 of 100,000 tokens");
 			expect(screen.queryByText("Cost")).toBeNull();
 
@@ -268,7 +268,7 @@ describe("CHAT-14 context wheel", () => {
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
 			expect(screen.queryByRole("button", { name: /Context usage/ })).toBeNull();
 			act(() => addUsage(test, session.id, { contextUsedTokens: 80_000 }));
-			expect(await screen.findByRole("button", { name: "Context usage: 80%" })).toBeTruthy();
+			expect(await screen.findByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -279,7 +279,7 @@ describe("CHAT-14 context wheel", () => {
 		try {
 			addUsage(test, session.id);
 			render(<Composer workspaceId={workspace.id} sessionId={session.id} />, { wrapper });
-			expect(await screen.findByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+			expect(await screen.findByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}

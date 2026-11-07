@@ -60,7 +60,7 @@ describe("REV-07 shortcuts", () => {
 		const test = await mountWorkspaceApp();
 		try {
 			fireEvent.keyDown(document, { key: "p", metaKey: true });
-			expect(await screen.findByRole("textbox", { name: "Search files by name" })).toBeTruthy();
+			expect(await screen.findByRole("textbox", { name: "Search files..." })).toBeTruthy();
 		} finally {
 			test.close();
 		}
@@ -70,7 +70,7 @@ describe("REV-07 shortcuts", () => {
 		const test = await mountWorkspaceApp();
 		try {
 			fireEvent.keyDown(document, { key: "f", metaKey: true, shiftKey: true });
-			expect(await screen.findByRole("searchbox", { name: "Search file contents" })).toBeTruthy();
+			expect(await screen.findByRole("searchbox", { name: "Search in files..." })).toBeTruthy();
 		} finally {
 			test.close();
 		}

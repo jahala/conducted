@@ -195,6 +195,10 @@ export function createActions(
 			resolveConflicts: (workspaceId, path, choices, seenText) =>
 				services.workspaceFiles.resolveConflicts(workspaceId, path, choices, seenText),
 			reveal: (workspaceId, path) => services.workspaceFiles.reveal(workspaceId, path),
+			revealPath: (path) =>
+				settle("reveal_failed", "Finder could not show the file.", () =>
+					platform.opener.revealInFinder(path),
+				),
 			openInApp: (workspaceId, path, appName) =>
 				services.workspaceFiles.openInApp(workspaceId, path, appName),
 		},
