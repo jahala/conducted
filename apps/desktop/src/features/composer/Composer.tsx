@@ -15,6 +15,9 @@
  * composer actions' menu; wide ones show the MCP status button directly. The ACP options are ours
  * and sit after the model picker. Remote Control (RC-02, ours) is a "+" item and, while on, a chip
  * after the mode chips, as Conductor shows "Auto-accept edits" (D098).
+ * While a plan waits for review, the placeholder reads Conductor's "Enter your plan adjustments
+ * here..." and sending answers the plan as not approved with the text as its feedback (CHAT-12,
+ * renderApp @9294541, @9299794; D098).
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
@@ -58,7 +61,13 @@
  */
 
 import type { SlashCommand } from "@conducted/protocol";
-import type { AppError, SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
+import type {
+	AppError,
+	InteractionId,
+	SessionId,
+	TerminalId,
+	WorkspaceId,
+} from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -246,8 +255,16 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
 	const queueByDefault = followUp === "queue";
 	const buttonState: SendButtonState = working ? (queueByDefault ? "queue" : "steer") : "send";
+	// While the agent waits on a plan, the composer takes the user's adjustments (CHAT-12).
+	const planInteractionId = useStore(services.sessions.store, (state) => {
+		const open = state.openInteractions[sessionId];
+		return open !== undefined && open.interaction.kind === "plan_approval" && !open.timedOut
+			? open.interactionId
+			: null;
+	});
 	const empty = text.trim().length === 0;
-	const disabled = busy || (goalMode ? empty : empty && attachments.length === 0);
+	const textOnly = goalMode || planInteractionId !== null;
+	const disabled = busy || (textOnly ? empty : empty && attachments.length === 0);
 
 	const runCommand = useRunCommandHandlers();
 	const slashCommands = useRef<readonly SlashCommand[]>([]);
@@ -574,10 +591,40 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		}
 	};
 
+	/**
+	 * Conductor's plan feedback: text sent while a plan waits answers it as not approved, with the
+	 * text as the adjustments (renderApp @9299794). Attachments stay in the draft for the next message.
+	 */
+	const sendPlanFeedback = async (current: Editor, interactionId: InteractionId) => {
+		const feedback = current.getText().trim();
+		if (feedback.length === 0) return;
+		setBusy(true);
+		try {
+			const result = await actions.sessions.answer(sessionId, interactionId, {
+				kind: "plan_approval",
+				approved: false,
+				feedback,
+			});
+			if (!result.ok) {
+				toastError("Couldn't send the plan adjustments", result.error);
+				return;
+			}
+			current.commands.setContent("", { emitUpdate: true });
+			setText("");
+			current.commands.focus();
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
 		if (goalMode) {
 			await saveGoal(editor);
+			return;
+		}
+		if (planInteractionId !== null) {
+			await sendPlanFeedback(editor, planInteractionId);
 			return;
 		}
 		const body = editor.getText();
@@ -640,7 +687,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 						onEditorReady={setEditor}
 						extensions={extensions}
 						onFocusChange={setFocused}
-						{...(goalMode ? { placeholder: "Set a goal" } : {})}
+						{...(goalMode
+							? { placeholder: "Set a goal" }
+							: planInteractionId !== null
+								? { placeholder: "Enter your plan adjustments here..." }
+								: {})}
 					/>
 				</div>
 				{focused || focusShortcut === null ? null : (
