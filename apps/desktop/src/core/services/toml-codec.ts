@@ -89,7 +89,13 @@ export const tomlCodec: TomlCodec = {
 			return invalid(cause, "The settings file is not valid TOML.");
 		}
 	},
-	stringify: (value) => stringify(value),
+	stringify(value): Result<string> {
+		try {
+			return ok(stringify(value));
+		} catch (cause) {
+			return invalid(cause, "The settings could not be written as TOML.");
+		}
+	},
 	patch(text, value): Result<string> {
 		try {
 			return ok(patch(text, value));

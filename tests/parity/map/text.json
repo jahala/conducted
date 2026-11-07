@@ -344,7 +344,11 @@
 	"text:R2086010": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"item": "'View chat history' button and chat tab menu mounting (moved from CHAT-01 by the step-3 audit).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2093609": {
 		"status": "matched",
@@ -1058,7 +1062,11 @@
 	"text:R5017572": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5018396": {
 		"status": "gap",
@@ -1267,18 +1275,16 @@
 		"by": "hand"
 	},
 	"text:R5509774": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"by": "hand",
-		"note": "Not owned: no backlog row covers this component."
+		"status": "decided",
+		"decision": "D004",
+		"note": "Workspace access level (Read/Write) in Conductor's shared-workspace permissions; team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"text:R5509816": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"by": "hand",
-		"note": "Not owned: no backlog row covers this component."
+		"status": "decided",
+		"decision": "D004",
+		"note": "Workspace access level (Read/Write) in Conductor's shared-workspace permissions; team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"text:R5512152": {
 		"status": "decided",
@@ -1293,11 +1299,10 @@
 		"by": "rule:team-wording"
 	},
 	"text:R5512389": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"by": "hand",
-		"note": "Not owned: no backlog row covers this component."
+		"status": "decided",
+		"decision": "D004",
+		"note": "'Keep editing' in the 'Discard access changes?' dialog of Conductor's shared-workspace permissions; team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"text:R5525229": {
 		"status": "decided",
@@ -2132,7 +2137,11 @@
 	"text:R8843206": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "REV-09",
+		"item": "File-change summary with 'Open diff' under a turn",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8855401": {
 		"status": "gap",
@@ -2283,7 +2292,11 @@
 	"text:R8916905": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-03",
+		"item": "Chip 'Auto-accept edits' (tooltip 'Disable auto-accept edits')",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8917278": {
 		"status": "gap",
@@ -2380,7 +2393,11 @@
 	"text:R9261443": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-12",
+		"item": "Plan bar 'Approve' (Cmd+Shift+Enter, 'Execute plan in current chat')",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9268515": {
 		"status": "gap",
@@ -2408,7 +2425,11 @@
 	"text:R9307562": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-08",
+		"item": "Palette search result for an agent shows the 'Agent' kind label",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9383052": {
 		"status": "gap",
@@ -3214,11 +3235,10 @@
 		"by": "seed"
 	},
 	"text:R10221548": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"by": "hand",
-		"note": "Not owned: no backlog row covers this component."
+		"status": "decided",
+		"decision": "D004",
+		"note": "Workspace access level ('Anyone', or 'By <person>') in Conductor's shared-workspace permissions; team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"text:R10247990": {
 		"status": "gap",
@@ -4040,7 +4060,11 @@
 	"text:R10695776": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Variables table: Name, Value, 'Locally overwritten', 'Not set'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10699838": {
 		"status": "gap",
@@ -4053,7 +4077,11 @@
 	"text:R10701209": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Variables table: Name, Value, 'Locally overwritten', 'Not set'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10705286": {
 		"status": "matched",
@@ -4074,7 +4102,11 @@
 	"text:R10715045": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Variables table: Name, Value, 'Locally overwritten', 'Not set'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10715128": {
 		"status": "matched",
@@ -4306,7 +4338,11 @@
 	"text:R10778993": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "MCP servers page has an 'Installed' and a 'Recommended' tab",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10784516": {
 		"status": "decided",
@@ -4754,9 +4790,10 @@
 	"text:R10976147": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"by": "hand",
-		"note": "Not owned: no backlog row covers this component."
+		"screen": "Settings",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"text:R10977415": {
 		"status": "matched",
@@ -4835,7 +4872,11 @@
 	"text:R11023334": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Action row: Reset to the shared version",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11023365": {
 		"status": "gap",
@@ -6050,7 +6091,11 @@
 	"text:R11709231": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "Experimental page description ends 'Expect breaking changes.'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11716261": {
 		"status": "gap",

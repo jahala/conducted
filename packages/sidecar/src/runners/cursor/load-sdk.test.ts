@@ -34,10 +34,21 @@ function notFound(specifier: string): Error {
 	});
 }
 
-function loader(importModule: (entry: string) => Promise<unknown>, files = cursorSdkFiles(ROOT)) {
+function loader(
+	importModule: (entry: string) => Promise<unknown>,
+	options: {
+		files?: ReturnType<typeof cursorSdkFiles>;
+		cpu?: string;
+		platform?: string;
+	} = {},
+) {
+	const cpu = options.cpu ?? "arm64";
+	const platform = options.platform ?? "darwin";
+	const files = options.files ?? cursorSdkFiles(ROOT, cpu, platform);
 	return createCursorSdkLoader({
 		agentBinariesDir: ROOT,
-		cpu: "arm64",
+		cpu,
+		platform,
 		readText: files.readText,
 		importModule,
 	});
@@ -50,6 +61,7 @@ describe("AGENT-09 Cursor SDK loader", () => {
 		let imported = 0;
 		const subject = createCursorSdkLoader({
 			agentBinariesDir: empty,
+			platform: "darwin",
 			cpu: "arm64",
 			readText: readTextIfPresent,
 			importModule: async () => {
@@ -163,7 +175,8 @@ describe("AGENT-09 Cursor SDK loader", () => {
 		const loaded = await createCursorSdkLoader({
 			agentBinariesDir: ROOT,
 			cpu: "x64",
-			readText: cursorSdkFiles(ROOT, "arm64").readText,
+			platform: "darwin",
+			readText: cursorSdkFiles(ROOT, "arm64", "darwin").readText,
 			importModule: async () => sdk.module(),
 		}).load();
 		expect(loaded.ok).toBe(false);
@@ -172,10 +185,26 @@ describe("AGENT-09 Cursor SDK loader", () => {
 		expect(loaded.error.message).toContain("@cursor/sdk-darwin-x64");
 	});
 
+	test("AGENT-09 in the sandbox the loader picks the Linux native package", async () => {
+		const sdk = new FakeCursorSdk();
+		const loaded = await loader(async () => sdk.module(), {
+			cpu: "x64",
+			platform: "linux",
+			files: cursorSdkFiles(ROOT, "x64", "linux"),
+		}).load();
+		expect(loaded.ok).toBe(true);
+		if (!loaded.ok) return;
+		const native = path.join(ROOT, "cursor", "current", "node_modules", "@cursor", "sdk-linux-x64");
+		expect(loaded.value.env).toEqual({
+			CURSOR_RIPGREP_PATH: path.join(native, "bin", "rg"),
+			CURSOR_TREE_SITTER_VENDOR_DIR: path.join(native, "vendor"),
+		});
+	});
+
 	test("AGENT-09 a package.json that cannot be read is an error, not a missing SDK", async () => {
 		const failure = appError("read_failed", "Permission denied");
 		const located = await loader(async () => ({}), {
-			readText: async () => err(failure),
+			files: { readText: async () => err(failure) },
 		}).locate();
 		expect(located.ok).toBe(false);
 		if (located.ok) return;

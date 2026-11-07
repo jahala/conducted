@@ -4,6 +4,9 @@
  *    feature with `@feature`.
  *  - markers: no TODO or FIXME comments, no `todo!`/`unimplemented!` in Rust, and no `rm` in
  *    scripts (scripts move files to the Trash).
+ *  - our-name: no product string names Conductor. Our screens and messages use Conductor's words
+ *    where we do its job (D020), with our own name, Conducted, in place of theirs (D002). Comments
+ *    and tests may name Conductor, because they describe what we match.
  */
 import { type Problem, placeholdersIn, read, rel, walk } from "./lib.ts";
 
@@ -69,6 +72,40 @@ export function checkMarkers(root: string): Problem[] {
 			if (at !== -1)
 				problems.push({ guard: "markers", message: `${file}:${at + 1} ${marker.message}` });
 		}
+	}
+	return problems;
+}
+
+/** Product code: the app, the sidecar, the cloud Worker and the Rust shell, without tests. */
+const PRODUCT =
+	/^(apps\/desktop\/src|apps\/desktop\/src-tauri\/src|packages\/[^/]+\/src|apps\/cloud\/(src|sandbox))\/.+\.(ts|tsx|rs)$/;
+const PRODUCT_EXEMPT = /\.test\.tsx?$|\.d\.ts$|\/test\/|\/test-support\/|\/catalogue\//;
+
+/** `text` with every comment blanked, keeping its line breaks so line numbers stay true. */
+function withoutComments(text: string): string {
+	const blank = (match: string) => match.replace(/[^\n]/g, " ");
+	return text
+		.replace(/\/\*[\s\S]*?\*\//g, blank)
+		.replace(
+			/(^|[\s;{}(),])\/\/.*$/gm,
+			(match, before: string) => before + blank(match.slice(before.length)),
+		);
+}
+
+export function checkOurName(root: string): Problem[] {
+	const problems: Problem[] = [];
+	for (const path of walk(root, root, PRODUCT)) {
+		const file = rel(root, path);
+		if (PRODUCT_EXEMPT.test(file)) continue;
+		const lines = withoutComments(read(path)).split("\n");
+		lines.forEach((line, index) => {
+			if (/\bConductor\b/.test(line)) {
+				problems.push({
+					guard: "our-name",
+					message: `${file}:${index + 1} names Conductor in a product string; our app is Conducted`,
+				});
+			}
+		});
 	}
 	return problems;
 }
