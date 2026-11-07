@@ -10,6 +10,7 @@ import type { AppError, Result, SessionId, ToolUseId, WorkspaceId } from "@condu
 import { appError, err, ok } from "@conducted/shared";
 import { createLogger } from "../../logging/logger.ts";
 import { FakeChild, type JsonRpcMessage } from "../../test-support/fake-child.ts";
+import { managedProgramFinder } from "../../test-support/managed-programs.ts";
 import type { ProbeCommand } from "../deps.ts";
 import type { TurnCallbacks } from "../runner.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "./app-server-client.ts";
@@ -48,6 +49,7 @@ function makeRunner(options: {
 			if (options.findExecutable === undefined) return `/fake/${name}`;
 			return options.findExecutable(name);
 		},
+		findManagedProgram: managedProgramFinder({ codex: "/fake/codex" }),
 		spawn: options.spawn ?? (async () => err(appError("spawn_failed", "not used"))),
 		random: () => 0,
 		sleep: async () => {},

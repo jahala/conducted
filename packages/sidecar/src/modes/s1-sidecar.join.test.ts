@@ -35,7 +35,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,6 +72,7 @@ import { cursorSdkFiles, FakeCursorRun, FakeCursorSdk } from "../test-support/cu
 import { DEFAULT_APP_REPLIES, FakeApp } from "../test-support/fake-app.ts";
 import { FakeChild, type JsonRpcMessage } from "../test-support/fake-child.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
+import { layOutManagedPrograms } from "../test-support/managed-programs.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { appToolsMcpEntry, BRIDGE_TOKEN_ENV } from "../tools/mcp-launch.ts";
@@ -100,28 +101,6 @@ async function workspaceFolder(): Promise<string> {
 
 const MAIN = fileURLToPath(new URL("../main.ts", import.meta.url));
 const BIN_DIR = fileURLToPath(new URL("../../../../bin", import.meta.url));
-
-/**
- * The app's bin folder and the agent binaries folder, with a ready managed copy of Claude Code and
- * Codex, as the program manager leaves them after a successful download (PLAT-28).
- */
-async function managedPrograms(folder: string): Promise<{
-	binDir: string;
-	agentBinariesDir: string;
-}> {
-	const binDir = path.join(folder, "app-bin");
-	const agentBinariesDir = path.join(folder, "agent-binaries");
-	await mkdir(binDir, { recursive: true });
-	for (const name of ["claude", "codex"]) {
-		const version = path.join(agentBinariesDir, name, "1.0.0");
-		await mkdir(version, { recursive: true });
-		const program = path.join(version, name);
-		await writeFile(program, "#!/bin/sh\nexit 0\n");
-		await chmod(program, 0o755);
-		await symlink(program, path.join(binDir, name));
-	}
-	return { binDir, agentBinariesDir };
-}
 
 function workspaceFor(folder: string): WorkspaceContext {
 	return {
@@ -259,7 +238,7 @@ async function harness(
 	};
 	const programs =
 		options.programs ??
-		(options.managedPrograms === false ? undefined : await managedPrograms(folder));
+		(options.managedPrograms === false ? undefined : await layOutManagedPrograms(folder));
 	const agentBinariesDir = programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
 	const cursorFiles = cursorSdkFiles(agentBinariesDir, process.arch);
 	const host = composeSidecar(
@@ -990,15 +969,10 @@ describe("s1-sidecar join the batch through the composition root", () => {
 
 	test("PLAT-28 PLAT-35 a Codex chat with no chosen program starts the managed copy, with the bin folder first on PATH", async () => {
 		const folder = await workspaceFolder();
-		const binDir = path.join(folder, "app-bin");
-		const agentBinariesDir = path.join(folder, "agent-binaries");
-		const version = path.join(agentBinariesDir, "codex", "0.164.0");
-		await mkdir(binDir, { recursive: true });
-		await mkdir(version, { recursive: true });
-		const managed = path.join(version, "codex");
-		await writeFile(managed, "#!/bin/sh\nexit 0\n");
-		await chmod(managed, 0o755);
-		await symlink(managed, path.join(binDir, "codex"));
+		const { binDir, agentBinariesDir } = await layOutManagedPrograms(folder, ["codex"], {
+			version: "0.164.0",
+		});
+		const managed = path.join(agentBinariesDir, "codex", "0.164.0", "codex");
 		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
 		const spawned = h.seen.nextCodexSpawn();
 
@@ -1668,15 +1642,10 @@ describe("s1-sidecar join the batch through the composition root", () => {
 
 	test("PLAT-28 SIDE-21 model, slash command and MCP lists with no chosen program run the managed copy, as a chat's start does", async () => {
 		const folder = await workspaceFolder();
-		const binDir = path.join(folder, "app-bin");
-		const agentBinariesDir = path.join(folder, "agent-binaries");
-		const version = path.join(agentBinariesDir, "claude", "2.1.0");
-		await mkdir(binDir, { recursive: true });
-		await mkdir(version, { recursive: true });
-		const managed = path.join(version, "claude");
-		await writeFile(managed, "#!/bin/sh\nexit 0\n");
-		await chmod(managed, 0o755);
-		await symlink(managed, path.join(binDir, "claude"));
+		const { binDir, agentBinariesDir } = await layOutManagedPrograms(folder, ["claude"], {
+			version: "2.1.0",
+		});
+		const managed = path.join(agentBinariesDir, "claude", "2.1.0", "claude");
 		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
 		const launch: AgentLaunch = { env: {}, providerKeys: {} };
 		try {
