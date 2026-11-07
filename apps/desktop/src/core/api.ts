@@ -35,7 +35,7 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
-import type { CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -701,12 +701,18 @@ export interface Actions {
 		setGitHubToken: Act<[token: string | null]>;
 		/** Stores the personal Linear API key (D035), or removes it with null. */
 		setLinearKey: Act<[key: string | null]>;
+		/** Asks Linear again whether the stored key works: the Linear row's Refresh. */
+		recheckLinear: Act;
 	};
 	cloud: {
 		/** Checks the URL and token with the Worker, then keeps them in the Keychain (CLOUD-07). */
 		pair: Act<[input: CloudPairInput], CloudPairing>;
 		/** Removes this Mac's pairing with its Worker. */
 		unpair: Act<[], void>;
+		/** Deploys the app's bundled Worker to the user's account and pairs this Mac (CLOUD-08). */
+		deploy: Act<[], CloudDeployResult>;
+		/** Deletes the Worker, its container application and its bucket, and unpairs (CLOUD-08). */
+		uninstall: Act<[], void>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;

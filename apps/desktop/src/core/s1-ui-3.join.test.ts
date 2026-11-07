@@ -241,23 +241,23 @@ describe("s1-ui-3 join SET-08 config sync", () => {
 	});
 });
 
-describe("s1-ui-3 join SET-11 suggested variable names", () => {
-	it("offers proxy names in the Environment form and fills only the name", async () => {
+describe("s1-ui-3 join SET-11 documented variable names", () => {
+	it("offers the unset proxy names in the Environment table and fills only the name", async () => {
 		const test = testContainer();
 		await test.container.services.settings.start();
 		must(await test.container.services.settings.setEnvVar("HTTPS_PROXY", "value", "global"));
 
 		renderInside(test, h(EnvironmentPage));
-		await screen.findByText("HTTPS_PROXY", { selector: "td" });
-		fireEvent.change(screen.getByLabelText("Name"), { target: { value: "prox" } });
+		await screen.findByText("HTTPS_PROXY");
+		fireEvent.click(screen.getByRole("button", { name: /Show documented variables/ }));
 
-		expect(screen.queryByRole("button", { name: /HTTPS_PROXY/ })).toBeNull();
-		fireEvent.click(screen.getByRole("button", { name: /HTTP_PROXY/ }));
+		expect(screen.queryByRole("button", { name: "Set HTTPS_PROXY" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Set HTTP_PROXY" }));
 
 		await waitFor(() =>
 			expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("HTTP_PROXY"),
 		);
-		expect((screen.getByLabelText("Value") as HTMLInputElement).value).toBe("");
+		expect((screen.getByLabelText("Value") as HTMLTextAreaElement).value).toBe("");
 	});
 });
 

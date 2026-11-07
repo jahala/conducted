@@ -248,10 +248,13 @@ export function createActions(
 		accounts: {
 			setGitHubToken: (token) => services.github.setToken(token),
 			setLinearKey: (key) => services.linear.setApiKey(key),
+			recheckLinear: () => services.linear.recheckAccess(),
 		},
 		cloud: {
 			pair: (input) => services.cloudPairing.pair(input),
 			unpair: () => services.cloudPairing.unpair(),
+			deploy: () => services.cloudDeploy.deploy(),
+			uninstall: () => services.cloudDeploy.uninstall(),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

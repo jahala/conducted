@@ -121,6 +121,9 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - Review model: Conductor's picker, holding the review effort and fast mode, lists Claude Code's models only, since a review chat starts from the default chat config, whose agent is Claude Code.
 - The Default models rows Conductor keeps inside its pickers and ours cannot reach: the Codex thinking level for reviews right after Review model, the default Codex thinking level after Codex personality, and "Models shown in the picker" last.
 - "Clear" for a shortcut: a ghost button after Reset on the Keyboard shortcuts row, since Conductor's row has no way to unbind a shortcut.
+- Importing a dotenv file into the variables: a banner above the Environment table. Conductor's env files load their variables when an agent starts; ours are a list to import from, so the import needs its own control.
+- Removing a variable asks first ("Remove variable?"), since its value leaves the Keychain for good; Conductor's Delete removes it at once.
+- Four documented variables of ours (the AWS access key pair, CODEX_ACCESS_TOKEN and OPENAI_API_KEY): after Conductor's eighteen behind "Show documented variables (N)", because our provider forms store keys under those names.
 
 ## The owner's rules
 

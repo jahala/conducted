@@ -8,6 +8,10 @@ describe("SET-02 settings pages", () => {
 			ok: true,
 			value: { kind: "repo", repoId: "abc", page: "scripts" },
 		});
+		// Conductor's repository sections include Environment and Git; Prompts are on Actions.
+		expect(parseSettingsPage("repo:abc:environment").ok).toBe(true);
+		expect(parseSettingsPage("repo:abc:git").ok).toBe(true);
+		expect(parseSettingsPage("repo:abc:prompts").ok).toBe(false);
 	});
 
 	it("rejects an unknown page instead of falling back to General", () => {

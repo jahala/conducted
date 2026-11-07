@@ -127,6 +127,31 @@ describe("SET-03 agent names and paths", () => {
 		expect(shown.textContent).toContain("…");
 	});
 
+	// Conductor's facts table (renderApp uFa @10931600): a fixed table whose label column is 128 px
+	// on a faint muted fill, with 8 px by 12 px cells, one row per fact.
+	it("lays out the facts as Conductor's dense table with a 128 px label column", () => {
+		renderCard(install({ authenticated: true }));
+
+		const table = screen.getByRole("table");
+		expect(table.className).toContain("table-fixed");
+		const label = screen.getByRole("rowheader", { name: "Version" });
+		expect(label.className).toContain("w-32");
+		expect(label.className).toContain("py-2");
+		expect(screen.getByRole("cell", { name: "2.0.0" }).className).toContain("py-2");
+	});
+
+	// Conductor's Refresh (renderApp Mci @10933400): a small ghost button with a turning-arrows icon
+	// that spins and is disabled while the check runs.
+	it("shows Refresh with its icon, spinning and disabled while a refresh runs", () => {
+		renderCard(install(), { refreshing: true });
+
+		const refresh = screen.getByRole("button", { name: "Refresh" });
+		expect((refresh as HTMLButtonElement).disabled).toBe(true);
+		const icon = refresh.querySelector("svg");
+		expect(icon).not.toBeNull();
+		expect(icon?.getAttribute("class") ?? "").toContain("animate-spin");
+	});
+
 	it("maps the install source and sign-in method to Conductor's state words", () => {
 		// The app's own copy gets no badge; "Recommended" was ours (D098).
 		expect(agentState(install({ source: "managed" }))).toBeNull();

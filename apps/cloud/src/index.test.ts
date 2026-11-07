@@ -31,6 +31,8 @@ describe("CLOUD-03 the Worker's front door", () => {
 		expect((await get("/w/ws1/state", { authorization: "Bearer wrong" })).status).toBe(401);
 		expect((await get("/w/ws1/state", { authorization: "test-pairing-token" })).status).toBe(401);
 		expect((await post("/w/ws1/start", {}, {})).status).toBe(401);
+		expect((await post("/w/ws1/stop", {}, {})).status).toBe(401);
+		expect((await post("/w/ws1/remove", {}, {})).status).toBe(401);
 		expect((await post("/w/ws1/git", { args: [], cwd: "/workspace" }, {})).status).toBe(401);
 	});
 
@@ -99,6 +101,25 @@ describe("CLOUD-03 the Worker's front door", () => {
 		const path = new URL(url).pathname;
 		const other = path.replace("preview-ws", "preview-other");
 		expect((await SELF.fetch(`${BASE}${other}`, { headers: {} })).status).toBe(403);
+	});
+
+	it("stops a workspace that has no sandbox running without starting one", async () => {
+		const response = await post("/w/stop-test/stop", {});
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			running: false,
+			ran: false,
+			saved: [],
+			skipped: [],
+		});
+	});
+
+	it("removes a workspace's stored state and tolerates a second removal", async () => {
+		const first = await post("/w/remove-test/remove", {});
+		expect(first.status).toBe(200);
+		expect(await first.json()).toEqual({ deletedBackups: 0 });
+		const second = await post("/w/remove-test/remove", {});
+		expect(second.status).toBe(200);
 	});
 
 	it("answers state from the workspace's Durable Object", async () => {

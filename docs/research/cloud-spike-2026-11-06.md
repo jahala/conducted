@@ -391,3 +391,48 @@ Everything the run created was deleted: the Worker `conducted-dev-c09-1408` (the
 `wrangler containers list` and `containers images list` held no `conducted` entry, the bucket list
 held no `conducted-cloud-backups`, and the local `apps/cloud/sandbox/build/` folder and the run's
 `/tmp` files were trashed.
+
+## Follow-up: the deploy flow (CLOUD-08, 2026-11-07)
+
+The app carries its deploy inputs as Tauri resources: `scripts/cloud/prepare-deploy.ts` builds the
+sandbox image inputs, bundles the Worker with `wrangler deploy --dry-run` against a config with no
+containers, and writes `worker.js`, `deploy.json`, the sandbox `Dockerfile` and `build/` to
+`apps/desktop/src-tauri/resources/cloud` (183 MB). One live deploy and uninstall ran through the
+Rust `deploy_worker` and `uninstall_worker` from `tests/cloud_deploy_live.rs`, with the repository's
+pinned wrangler 4.158.0 and the owner's Docker:
+
+| Check | Result |
+| --- | --- |
+| deploy, under `conducted-dev-c08-153711` | 73,581 ms |
+| the Worker's own `/pair` with the made token | answered 200, `conducted-cloud` |
+| uninstall | 14,089 ms |
+| the Worker URL after the uninstall | no longer answers the pairing check |
+| `containers list --json` for `<name>-sandbox` | gone |
+| `containers images list --json`, images named `<name>-…` | none |
+| `r2 bucket list` for `<name>` | gone |
+
+The deploy uploads the pre-bundled Worker (`no_bundle: true`) and builds the sandbox image from the
+bundled Dockerfile; the bucket name is the Worker name and the container application is
+`<worker>-sandbox`. Everything the run made was deleted by its own uninstall, and the final lists
+held no `conducted-dev-c08` entry. The local Docker image the build left,
+`registry.cloudflare.com/…/conducted-dev-c08-153711-workspace-sandbox:wrangler-mw6kh6io`, was
+removed by its id `a6914abad2f6`.
+
+Two command facts the run needed:
+
+- wrangler 4.128.0 (the copy on this Mac's PATH) refuses the sandbox's `durable_object` container
+  config: it accepts `scheduling_policy` only `regional`, `moon` or `default`. wrangler 4.158.0,
+  the version the repository pins, accepts it. The app therefore refuses a wrangler older than
+  4.158 and says to run `npm install -g wrangler@latest`.
+- `wrangler r2 bucket list` has no `--json` flag; it prints one `name:           <bucket>` line per
+  bucket. `wrangler containers list --json` and `containers images list --json` answer arrays whose
+  entries carry `id`/`name` and `name`/`tags`. The uninstall reads those.
+
+Cloudflare's docs (read 2026-11-07) make Docker necessary for our policy: under
+`durable_object`, a registry image must be a digest-pinned Cloudflare-managed-registry reference
+(`registry.cloudflare.com/<ACCOUNT_ID>/<REPOSITORY>@sha256:<DIGEST>`), and Docker Hub, ECR and GAR
+are refused. The deprecated `default` policy accepts those registries without Docker but fixes one
+image and instance type in the config. Sources:
+https://developers.cloudflare.com/containers/guides/image-management/,
+https://developers.cloudflare.com/containers/configuration/scheduling-policy/,
+https://developers.cloudflare.com/containers/guides/deploy/.
