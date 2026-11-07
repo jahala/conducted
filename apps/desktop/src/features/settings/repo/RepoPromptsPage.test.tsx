@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
-import { RepoPromptsPage } from "./RepoPromptsPage.tsx";
+import { RepoPromptSettings } from "./RepoPromptsPage.tsx";
 
 let test: TestContainer | undefined;
 
@@ -47,19 +47,25 @@ async function renderPage(initial: RepoConfig) {
 		.mockResolvedValue(ok(undefined));
 	render(
 		<ServicesProvider container={test.container}>
-			<RepoPromptsPage repoId={repo.id} />
+			<RepoPromptSettings repoId={repo.id} />
 		</ServicesProvider>,
 	);
-	await screen.findByLabelText("Review");
+	await screen.findByText("Code review preferences");
 	return { updateConfig };
 }
 
-describe("SET-07 RepoPromptsPage", () => {
+/** Opens one of Conductor's closed rows and gives its field. */
+function openField(label: string): HTMLTextAreaElement {
+	fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
+	return screen.getByLabelText(`${label} prompt`) as HTMLTextAreaElement;
+}
+
+describe("SET-07 RepoPromptSettings", () => {
 	it("stores null, not an empty string, when the Review field is cleared", async () => {
 		const initial = config();
 		const { updateConfig } = await renderPage(initial);
 
-		const review = screen.getByLabelText("Review");
+		const review = openField("Code review preferences");
 		fireEvent.change(review, { target: { value: "" } });
 		fireEvent.blur(review);
 
@@ -78,13 +84,14 @@ describe("SET-07 RepoPromptsPage", () => {
 		const initial = config();
 		const { updateConfig } = await renderPage(initial);
 
-		fireEvent.change(screen.getByLabelText("Create PR"), {
+		fireEvent.change(openField("Create PR preferences"), {
 			target: { value: "Write a short description." },
 		});
-		fireEvent.change(screen.getByLabelText("Review"), {
+		const review = openField("Code review preferences");
+		fireEvent.change(review, {
 			target: { value: "Check the tests first." },
 		});
-		fireEvent.blur(screen.getByLabelText("Review"));
+		fireEvent.blur(review);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
 		expect(updateConfig.mock.calls[0]?.[1]?.prompts).toMatchObject({
@@ -98,35 +105,40 @@ describe("SET-07 RepoPromptsPage", () => {
 		const initial = config();
 		const { updateConfig } = await renderPage(initial);
 
-		const resetButtons = screen.getAllByRole("button", { name: "Reset" });
-		const reviewReset = resetButtons[1];
-		if (reviewReset === undefined) throw new Error("Review reset button was not found.");
-		fireEvent.click(reviewReset);
+		const review = openField("Code review preferences");
+		fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
 		expect(updateConfig.mock.calls[0]?.[1]?.prompts.codeReview).toBeNull();
-		expect((screen.getByLabelText("Review") as HTMLTextAreaElement).value).toBe("");
+		expect(review.value).toBe("");
 	});
 
-	it("shows a field for every prompt the app sends", async () => {
+	// Conductor's rows, in its order, closed until opened; a row holding text says "Customized".
+	it("shows a row for every prompt the app sends, in Conductor's order and words", async () => {
 		await renderPage(config());
 
-		for (const label of [
+		const labels = [
+			"Code review preferences",
+			"Create PR preferences",
+			"Fix errors preferences",
+			"Resolve conflicts preferences",
+			"Branch rename preferences",
 			"General preferences",
-			"Review",
-			"Create PR",
-			"Fix errors",
-			"Resolve conflicts",
-			"Rename branch",
-		]) {
-			expect(screen.getByLabelText(label)).toBeTruthy();
+		];
+		const rows = screen.getAllByRole("button", { name: /preferences/ });
+		expect(rows.map((row) => row.querySelector(".font-medium")?.textContent)).toEqual(labels);
+		expect(screen.queryByLabelText("Code review preferences prompt")).toBeNull();
+		expect(rows[0]?.textContent).toContain("Customized");
+		expect(rows[1]?.textContent).not.toContain("Customized");
+		for (const label of labels) {
+			expect(openField(label)).toBeTruthy();
 		}
 	});
 
 	it("warns when the instructions are very long", async () => {
 		await renderPage(config());
 
-		fireEvent.change(screen.getByLabelText("Review"), {
+		fireEvent.change(openField("Code review preferences"), {
 			target: { value: "a".repeat(4_001) },
 		});
 

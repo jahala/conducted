@@ -62,9 +62,9 @@
  *   stack_blocked         ready to merge, but its stack is not: a      Stack needs a rebase /      none
  *                         draft, a lower PR not ready, or a branch     #N is still a draft /
  *                         not on the head below it                     #N isn't ready to merge
- *   ready_to_merge        mergeable, checks pass, no review needed     Ready to merge              Merge (label from the merge
- *                                                                                                  method: squash, rebase or
- *                                                                                                  merge commit), or "Merge
+ *   ready_to_merge        mergeable, checks pass, no review needed     Ready to merge              Merge (its tooltip names a
+ *                                                                                                  squash or a rebase, as
+ *                                                                                                  Conductor's does), or "Merge
  *                                                                                                  stack" with the tooltip
  *                                                                                                  "Merge N PRs from bottom to
  *                                                                                                  top" when the stack merge
@@ -202,15 +202,26 @@ function checkCount(count: number): string {
 }
 
 /** GitHub's button text for each merge method. */
-function mergeLabel(method: PullRequest["mergeMethod"]): string {
+/**
+ * Conductor's GitHub Merge button names a squash or a rebase in its tooltip; a merge commit needs no
+ * words beyond "Merge" (renderApp Main _j.mergeMethodTooltip).
+ */
+function mergeMethodTooltip(method: PullRequest["mergeMethod"]): string | undefined {
 	switch (method) {
 		case "squash":
 			return "Squash and merge";
 		case "rebase":
 			return "Rebase and merge";
 		case "merge":
-			return "Create a merge commit";
+			return undefined;
 	}
+}
+
+function githubMergeAction(method: PullRequest["mergeMethod"]): GitHeaderAction {
+	const tooltip = mergeMethodTooltip(method);
+	return tooltip === undefined
+		? action("merge", "Merge")
+		: { ...action("merge", "Merge"), tooltip };
 }
 
 /**
@@ -532,7 +543,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 							tooltip: `Merge ${stackCount} PRs from bottom to top`,
 							count: stackCount,
 						}
-					: action("merge", mergeLabel(active.mergeMethod));
+					: githubMergeAction(active.mergeMethod);
 		return {
 			kind: "ready_to_merge",
 			title: "Ready to merge",

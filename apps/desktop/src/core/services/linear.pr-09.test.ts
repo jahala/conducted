@@ -242,6 +242,47 @@ describe("PR-09 Linear access", () => {
 		expect(test.service.store.getState().connection).toBe("connected");
 	});
 
+	// The Account page's Linear row has Conductor's Refresh (renderApp YVe beside Manage/Connect).
+	it("asks Linear again on Refresh after a rejected key, and shows the accepted account", async () => {
+		const test = harness({
+			key: "lin_api_good",
+			answers: [
+				ok({ status: 401, json: { message: "Unauthorized" } }),
+				data({ viewer: { id: "user-1", name: "Ada", organization: null } }),
+			],
+		});
+		await test.service.checkAccess();
+		expect(test.service.store.getState().connection).toBe("key_rejected");
+
+		const refreshed = await test.service.recheckAccess();
+
+		expect(refreshed).toEqual(ok(undefined));
+		expect(test.calls).toHaveLength(2);
+		expect(test.service.store.getState().connection).toBe("connected");
+		expect(test.service.store.getState().account).toEqual({ name: "Ada", organization: null });
+	});
+
+	it("treats no key and a rejected key as answers on Refresh, and a failed request as an error", async () => {
+		const none = harness();
+		expect(await none.service.recheckAccess()).toEqual(ok(undefined));
+		expect(none.service.store.getState().connection).toBe("not_connected");
+
+		const rejected = harness({
+			key: "lin_api_bad",
+			answers: [ok({ status: 401, json: { message: "Unauthorized" } })],
+		});
+		expect(await rejected.service.recheckAccess()).toEqual(ok(undefined));
+		expect(rejected.service.store.getState().connection).toBe("key_rejected");
+
+		const offline = harness({
+			key: "lin_api_good",
+			answers: [err(appError("http_failed", "The network is down."))],
+		});
+		const failed = await offline.service.recheckAccess();
+		expect(failed.ok).toBe(false);
+		expect(!failed.ok && failed.error.code).toBe("http_failed");
+	});
+
 	it("removes the key when the Account page disconnects", async () => {
 		const test = harness({ key: "lin_api_good" });
 		const removed = await test.service.setApiKey(null);
