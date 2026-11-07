@@ -127,6 +127,24 @@ export const EyeIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A pointer clicking, with rays: run an action. */
+export const MousePointerClickIcon = (p: P) => (
+	<Icon
+		d="M6.5 6.5l6.5 2.25-2.75 1.25-1.25 2.75zM3 1.75l.6 1.85M1.75 3l1.85.6M6 1.75l-.9 1.7M1.75 6l1.7-.9"
+		{...p}
+	/>
+);
+/** An eye struck through: hide what is shown. */
+export const EyeOffIcon = (p: P) => (
+	<Icon
+		d="M6.6 3.7A6.9 6.9 0 0 1 8 3.5C12 3.5 14.5 8 14.5 8a12.4 12.4 0 0 1-1.6 2.2M4.2 4.7C2.5 5.9 1.5 8 1.5 8S4 12.5 8 12.5a6.6 6.6 0 0 0 3.4-.9M6.6 6.6a2 2 0 0 0 2.8 2.8M2 2l12 12"
+		{...p}
+	/>
+);
+/** A bin with a lid: delete. */
+export const TrashIcon = (p: P) => (
+	<Icon d="M2.5 4h11M6 4V2.5h4V4M3.75 4l.75 9.5h7l.75-9.5M6.5 6.75v4M9.5 6.75v4" {...p} />
+);
 export const CheckCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
 );
@@ -303,6 +321,17 @@ export const DatabaseIcon = (p: P) => (
 	/>
 );
 export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
+export const ArrowDownIcon = (p: P) => <Icon d="M8 3v10M4 9l4 4 4-4" {...p} />;
+/**
+ * A pull request with its arrow pointing into the head branch: the agent's and the pull request's
+ * actions in the git panel header (Conductor's "git-pull-request-arrow").
+ */
+export const GitPullRequestArrowIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v7.75M11.5 11.5a1.25 1.25 0 1 0 0-.01zM9.5 5.5l-1.5-1.5 1.5-1.5M8 4h2.5a1 1 0 0 1 1 1v5.25"
+		{...p}
+	/>
+);
 export const UndoIcon = (p: P) => (
 	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />
 );

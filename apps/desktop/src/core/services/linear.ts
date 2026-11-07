@@ -439,7 +439,24 @@ export class LinearService {
 
 	/** Reads the viewer, so the Account page can tell a working key from a rejected one. */
 	async checkAccess(): Promise<Result<LinearAccount>> {
-		const response = await this.#graphql(VIEWER_QUERY, {});
+		return this.#readViewer(false);
+	}
+
+	/**
+	 * Backs `Actions.accounts.recheckLinear`, the Linear row's Refresh: asks Linear again with the
+	 * stored key, even one rejected before. No key and a rejected key are answers the page shows;
+	 * only a request that failed is an error.
+	 */
+	async recheckAccess(): Promise<Result<void>> {
+		const checked = await this.#readViewer(true);
+		if (checked.ok) return ok(undefined);
+		const { code } = checked.error;
+		if (code === "linear_not_connected" || code === "linear_key_rejected") return ok(undefined);
+		return err(checked.error);
+	}
+
+	async #readViewer(askAgain: boolean): Promise<Result<LinearAccount>> {
+		const response = await this.#graphql(VIEWER_QUERY, {}, askAgain);
 		if (!response.ok) return response;
 		const viewer = isRecord(response.value.viewer) ? response.value.viewer : null;
 		if (viewer === null) return invalidResponse("the viewer is missing");
@@ -642,9 +659,11 @@ export class LinearService {
 	async #graphql(
 		query: string,
 		variables: Record<string, unknown>,
+		askAgain = false,
 	): Promise<Result<Record<string, unknown>>> {
 		const state = this.store.getState();
-		if (state.connection === "key_rejected") return err(keyRejectedError());
+		// A rejected key is not sent again, except when the user asks for a fresh check.
+		if (state.connection === "key_rejected" && !askAgain) return err(keyRejectedError());
 		const ticket = this.#connectionWrites.begin("connection");
 		const key = await this.#readKey();
 		if (!key.ok) {
