@@ -10,9 +10,11 @@
  * "Target branch" and its picker; right, the folder name in small muted text when it differs from
  * the branch, the Open in button with no label, and "Toggle right sidebar". Conductor's header has
  * no workspace name, rename button or actions menu: those live on the sidebar row (D098).
- * Our design choice: Follow, avatars and cloud status are cloud features and are left out. The
- * branch is renamed through the shared name dialog. The header starts after <TitleBarInset> and is
- * a window drag region owned by the layout. The branch menu advertises and handles its C and R keys.
+ * Our design choice: Follow and avatars are organisation features and are left out; a cloud
+ * workspace's status, resource meters, agent cost and Restart are CLOUD-15's strip
+ * (CloudWorkspaceStatus), shown beside the branch. The branch is renamed through the shared name
+ * dialog. The header starts after <TitleBarInset> and is a window drag region owned by the layout.
+ * The branch menu advertises and handles its C and R keys.
  * Must handle: Loading and error (small inline states, the rest of the screen stays); placeholder
  * branch name (shown muted until the first message renames it); a long name truncates; archived
  * workspace (no Open in, and the target branch says it cannot change); the toggle button reflects
@@ -43,6 +45,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { TargetBranchPicker } from "../git-panel/changes/TargetBranchPicker.tsx";
 import { OpenInMenu } from "../open-in/OpenInMenu.tsx";
 import { RepoIconAvatar } from "../sidebar/RepoIcon.tsx";
+import { CloudWorkspaceStatus } from "./CloudWorkspaceStatus.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { useBranchPrefix } from "./use-branch-prefix.ts";
 import type { RightPanelControls } from "./WorkspaceLayout.tsx";
@@ -150,6 +153,10 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 					archived={archived}
 				/>
 			</div>
+
+			{data?.host.kind === "cloud" ? (
+				<CloudWorkspaceStatus workspaceId={workspaceId} restartDisabled={data.state !== "ready"} />
+			) : null}
 
 			<div className="ml-auto flex min-w-0 items-center gap-3">
 				{data === null || archived || data.directoryName === branch ? null : (

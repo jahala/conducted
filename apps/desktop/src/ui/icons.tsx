@@ -272,6 +272,9 @@ export const PaletteIcon = (p: P) => (
 export const KeyboardIcon = (p: P) => (
 	<Icon d="M2 4.5h12v7H2zM4.5 7h.01M7 7h.01M9.5 7h.01M12 7h.01M5 9.5h6" {...p} />
 );
+export const CloudIcon = (p: P) => (
+	<Icon d="M4.8 12h6.4a2.6 2.6 0 0 0 .3-5.18A3.5 3.5 0 0 0 5.1 5.8 2.8 2.8 0 0 0 4.8 12z" {...p} />
+);
 export const CpuIcon = (p: P) => (
 	<Icon
 		d="M4.5 4.5h7v7h-7zM6.5 6.5h3v3h-3zM6 2v2.5M10 2v2.5M6 11.5V14M10 11.5V14M2 6h2.5M2 10h2.5M11.5 6H14M11.5 10H14"
