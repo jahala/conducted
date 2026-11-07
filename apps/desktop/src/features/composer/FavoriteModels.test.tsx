@@ -48,14 +48,25 @@ const harness = async (initial: readonly FavoriteModel[] = []) => {
 };
 
 describe("COMP-02 favourite models list", () => {
-	it("refuses a sixth favourite with a message", async () => {
+	it("lists the default model first, as loadout 1, with no edit controls", async () => {
+		const { wrapper } = await harness([favorite("a", "m1", 0)]);
+		render(<FavoriteModels onPick={() => {}} editing />, { wrapper });
+		const rows = screen.getAllByRole("button", { name: /^Select / });
+		expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
+			"Select Claude Code · default",
+			"Select Claude Code · m1",
+		]);
+		expect(screen.queryByRole("button", { name: "Remove Claude Code · default" })).toBeNull();
+		expect(screen.getByRole("button", { name: "Remove Claude Code · m1" })).toBeTruthy();
+	});
+
+	it("refuses a fifth favourite with a message", async () => {
 		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
 		const { service, wrapper } = await harness([
 			favorite("a", "m1", 0),
 			favorite("b", "m2", 1),
 			favorite("c", "m3", 2),
 			favorite("d", "m4", 3),
-			favorite("e", "m5", 4),
 		]);
 		// "Add models" shows under three favourites or in edit mode, as Conductor shows it under three.
 		render(<FavoriteModels config={choice("m6")} onPick={() => {}} editing />, { wrapper });
@@ -64,11 +75,11 @@ describe("COMP-02 favourite models list", () => {
 			expect(toastSpy).toHaveBeenCalledWith(
 				"Couldn't add the favourite",
 				expect.objectContaining({
-					description: "You can save up to five favourite models. Remove one first.",
+					description: "The loadout holds the default model and four more. Remove one first.",
 				}),
 			),
 		);
-		expect(service.store.getState().favorites).toHaveLength(5);
+		expect(service.store.getState().favorites).toHaveLength(4);
 	});
 
 	it("marks an unavailable favourite disabled and explains when picked", async () => {

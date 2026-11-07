@@ -99,10 +99,10 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			newChat(
 				world,
 				async ({ app, document }) => {
-					// Four favourites, as on the owner's capture of Conductor's menu.
+					// Four loadout rows, as on the owner's capture of Conductor's menu: the default model,
+					// then three favourites.
 					const favorites = app.container.services.favoriteModels;
 					for (const [agent, model] of [
-						["claude", "default"],
 						["claude", "sonnet"],
 						["codex", "gpt-5.5"],
 						["claude", "haiku"],

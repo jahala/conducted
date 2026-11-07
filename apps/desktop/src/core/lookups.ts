@@ -221,6 +221,27 @@ export function parseEffortSetting(key: string, value: string): Result<Effort> {
 }
 
 /**
+ * The default model from settings: the model, effort and fast mode a new chat starts with, and the
+ * first model of the loadout (the picker's Cmd+Ctrl+1 and the Loadout page's DEFAULT slot). New
+ * chats start with Claude Code, so the default is a Claude Code model.
+ */
+export function defaultModelChoice(
+	setting: <T>(key: string) => T,
+): Result<Pick<SessionConfig, "agent" | "model" | "effort" | "fastMode">> {
+	const model = setting<string>("default_model");
+	// An empty setting means "Model default"; the fallback has one home with the create form's.
+	const effortSetting = setting<string>("default_claude_effort_level") || NEW_CHAT_EFFORT_FALLBACK;
+	const effort = parseEffortSetting("default_claude_effort_level", effortSetting);
+	if (!effort.ok) return effort;
+	return ok({
+		agent: "claude",
+		model: model.length > 0 ? model : NEW_CHAT_MODEL_FALLBACK,
+		effort: effort.value,
+		fastMode: setting<boolean>("default_fast_mode"),
+	});
+}
+
+/**
  * The config a new chat starts with: the default model and effort from settings, plan mode and
  * tool approvals from settings, the workspace's linked folders as additional directories, and the
  * chat options the settings offer (AGENT-16): Claude's output style and Chrome switch, Codex's
@@ -238,18 +259,12 @@ export function defaultSessionConfig(
 ): Result<SessionConfig> {
 	const workspace = lookups.workspace(workspaceId);
 	if (!workspace.ok) return workspace;
-	const model = setting<string>("default_model");
-	// An empty setting means "Model default"; the fallback has one home with the create form's.
-	const effortSetting = setting<string>("default_claude_effort_level") || NEW_CHAT_EFFORT_FALLBACK;
-	const effort = parseEffortSetting("default_claude_effort_level", effortSetting);
-	if (!effort.ok) return effort;
+	const chosen = defaultModelChoice(setting);
+	if (!chosen.ok) return chosen;
 	const options = chatOptionSettings(setting);
 	if (!options.ok) return options;
 	return ok({
-		agent: "claude",
-		model: model.length > 0 ? model : NEW_CHAT_MODEL_FALLBACK,
-		effort: effort.value,
-		fastMode: setting<boolean>("default_fast_mode"),
+		...chosen.value,
 		planMode: setting<boolean>("default_plan_mode"),
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
 		additionalDirectories: workspace.value.linkedPaths,
