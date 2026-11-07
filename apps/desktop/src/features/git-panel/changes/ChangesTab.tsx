@@ -4,7 +4,8 @@
  * file list, and the empty states. Clicking a file opens a file tab in diff mode.
  * Behaviour: ui-map.md 3.6, "Changes" paragraph; services-map.md 3.3 (what the list is made of)
  * and 3.4.1 (the diff scopes).
- * Data: useChangedFiles(workspaceId, scope), useGitState (conflicts, rebase underway),
+ * Data: useChangedFiles(workspaceId, scope), and for the branch's changes useChangedFiles of the
+ * uncommitted scope to mark those files "U" as Conductor does, useGitState (conflicts, rebase underway),
  * useStack (the stacked pull requests), the Graphite stack of the branch git reports (a prop
  * from the git panel), useSetting("github_stacked_prs_enabled"), useWorkspace and
  * useRepoConfig (the trunk is the target branch without its remote), useActions().git.discardFile
@@ -39,7 +40,7 @@
  * Test first: with three ChangedFile rows and the filter "src/a", only the matching row renders.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../../core/api.ts";
 import { useServices } from "../../../core/context.tsx";
@@ -179,6 +180,8 @@ function StackSection({
 	);
 }
 
+const UNCOMMITTED_SCOPE: DiffScope = { kind: "uncommitted" };
+
 export function ChangesTab({
 	workspaceId,
 	scope,
@@ -187,6 +190,18 @@ export function ChangesTab({
 	graphiteStack: graphite,
 }: ChangesTabProps) {
 	const files = useChangedFiles(workspaceId, scope);
+	// Conductor marks a branch file that also has uncommitted changes with "U", from a second read
+	// of the working tree's changes. Another scope reads nothing more: the same scope is the same
+	// query.
+	const marksUncommitted = scope.kind === "branch" || scope.kind === "target";
+	const uncommitted = useChangedFiles(workspaceId, marksUncommitted ? UNCOMMITTED_SCOPE : scope);
+	const uncommittedPaths = useMemo(
+		() =>
+			marksUncommitted && uncommitted.state === "ready"
+				? new Set(uncommitted.data.map((file) => file.path))
+				: undefined,
+		[marksUncommitted, uncommitted],
+	);
 	const git = useGitState(workspaceId);
 	const commits = useBranchCommits(workspaceId);
 	const stacksEnabled = useSetting<boolean>("github_stacked_prs_enabled");
@@ -325,6 +340,7 @@ export function ChangesTab({
 					onToggleFolder={toggleFolder}
 					collapsedFolders={collapsedFolders}
 					onDiscard={scope.kind === "commit" || scope.kind === "range" ? undefined : discard}
+					uncommittedPaths={uncommittedPaths}
 				/>
 				{git.state === "ready" && git.data.untrackedFilesTruncated && includesWorkingTree ? (
 					<ChangesEmpty reason="untracked_truncated" />

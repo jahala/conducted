@@ -81,6 +81,7 @@ Each row changes one measured value so the pair meets 4.5:1 for text or 3:1 for 
 | `link`                                                  | #a4847f                  | #8d6964               | Link text, 3.40 on canvas                                                                          |
 | `info`                                                  | #0da2e7                  | #0c9adc               | A mark at 2.86 on canvas                                                                           |
 | `status-progress`                                       | #e0bb00                  | #a28700               | Status icon, 1.78 on the sidebar                                                                   |
+| `git-modified`                                          | #ffdc2e / #ffea80        | #a28700 / #ffea80     | A modified file's mark in the changes list, 1.35 on canvas in light                                |
 | `status-review`                                         | #16a249                  | #169e47               | 2.87 on the sidebar hover tint                                                                     |
 | `status-done`                                           | #cca694                  | #a2827d               | Status icon, 2.13 on the sidebar                                                                   |
 | `status-canceled`                                       | #a5a09c                  | #8f8884               | Status icon, 2.48 on the sidebar. It is now close to backlog grey; its icon shape tells them apart |

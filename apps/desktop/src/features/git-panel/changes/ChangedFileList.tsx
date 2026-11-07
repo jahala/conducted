@@ -31,6 +31,8 @@ export interface ChangedFileListProps {
 	collapsedFolders: ReadonlySet<string>;
 	onDiscard?: (path: string) => void;
 	onCopyPath?: (path: string, kind: "absolute" | "relative") => void;
+	/** Paths that also have uncommitted changes; their rows show Conductor's "U". */
+	uncommittedPaths?: ReadonlySet<string>;
 }
 
 const filePaths = (nodes: readonly ChangedTreeNode[]): string[] =>
@@ -46,6 +48,7 @@ export function ChangedFileList({
 	collapsedFolders,
 	onDiscard,
 	onCopyPath,
+	uncommittedPaths,
 }: ChangedFileListProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [scrollTop, setScrollTop] = useState(0);
@@ -162,6 +165,7 @@ export function ChangedFileList({
 								file={node.file}
 								depth={node.depth}
 								selected={path === selectedPath}
+								uncommitted={uncommittedPaths?.has(path) === true}
 								onOpen={() => openFromRow(path)}
 								onToggleViewed={
 									onToggleViewed === undefined

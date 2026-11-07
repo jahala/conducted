@@ -1,7 +1,9 @@
 /**
  * @feature REV-01 Changed file row
- * Owns: one file in the Changes list. File icon, name and folder, status letter, added and removed
- * line counts, a conflict badge, and the optional Viewed checkbox.
+ * Owns: one file in the Changes list. Name and folder, then at the right Conductor's cluster (renderApp,
+ * the changes row): "U" when the file also has uncommitted changes, the added and removed line
+ * counts, and the status as a coloured square (plus for added, dot for modified, minus for deleted,
+ * arrow for renamed). A conflict badge and the optional Viewed checkbox.
  * Behaviour: ui-map.md 3.6, Changes paragraph. Row menu: "Copy path", "Copy relative path",
  * "Discard changes", from the file row menu the All files tab shares (files/FileRowMenu.tsx).
  * Must handle: renamed files (show old path and new path), binary files (no line counts, a
@@ -11,27 +13,30 @@
  * file.
  * Test first: clicking the Viewed checkbox calls onToggleViewed and does not call onOpen.
  */
+import type { ComponentType, SVGProps } from "react";
 import type { ChangedFile } from "../../../core/api.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
+import {
+	SquareArrowRightIcon,
+	SquareDotIcon,
+	SquareMinusIcon,
+	SquarePlusIcon,
+} from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
 import { FileRowMenu } from "../files/FileRowMenu.tsx";
 import { changesRowIndent } from "./ChangedFolderRow.tsx";
 
-const statusLetter: Record<ChangedFile["status"], string> = {
-	added: "A",
-	modified: "M",
-	deleted: "D",
-	renamed: "R",
-	copied: "C",
-};
-
-const statusClass: Record<ChangedFile["status"], string> = {
-	added: "text-git-added",
-	modified: "text-fg-muted",
-	deleted: "text-git-removed",
-	renamed: "text-info",
-	copied: "text-info",
+/** Conductor's file status marks (renderApp, the changes row's status icon): a coloured square. */
+const statusMark: Record<
+	ChangedFile["status"],
+	{ Icon: ComponentType<SVGProps<SVGSVGElement>>; colour: string }
+> = {
+	added: { Icon: SquarePlusIcon, colour: "text-git-added" },
+	modified: { Icon: SquareDotIcon, colour: "text-git-modified" },
+	deleted: { Icon: SquareMinusIcon, colour: "text-git-removed" },
+	renamed: { Icon: SquareArrowRightIcon, colour: "text-info" },
+	copied: { Icon: SquareArrowRightIcon, colour: "text-info" },
 };
 
 function splitPath(path: string): { folder: string; name: string } {
@@ -46,6 +51,8 @@ export interface ChangedFileRowProps {
 	/** Indent level in folder view, 0 in flat view. */
 	depth: number;
 	selected: boolean;
+	/** The file also has changes not committed yet; Conductor marks it "U". */
+	uncommitted?: boolean;
 	onOpen: () => void;
 	/** When absent the row shows no Viewed checkbox (REV-02 owns the store). */
 	onToggleViewed?: (viewed: boolean) => void;
@@ -58,12 +65,14 @@ export function ChangedFileRow({
 	file,
 	depth,
 	selected,
+	uncommitted = false,
 	onOpen,
 	onToggleViewed,
 	onDiscard,
 	onCopyPath,
 }: ChangedFileRowProps) {
 	const { folder, name } = splitPath(file.path);
+	const mark = statusMark[file.status];
 	const hasMenu = onDiscard !== undefined || onCopyPath !== undefined;
 
 	const label = (
@@ -126,21 +135,23 @@ export function ChangedFileRow({
 			) : (
 				openButton
 			)}
-			<span
-				className={`w-3 shrink-0 text-center font-mono text-xs ${statusClass[file.status]}`}
-				title={file.status}
-			>
-				<span className="sr-only">{file.status}</span>
-				{statusLetter[file.status]}
-			</span>
+			{uncommitted ? (
+				<span className="shrink-0 text-xs font-medium text-fg" title="Uncommitted">
+					U
+				</span>
+			) : null}
 			{file.binary || (file.linesAdded === 0 && file.linesRemoved === 0) ? null : (
-				<span className="flex shrink-0 items-center gap-1.5 font-mono text-xs">
+				<span className="flex shrink-0 items-center gap-1 font-mono text-2xs">
 					{file.linesAdded > 0 ? <span className="text-git-added">+{file.linesAdded}</span> : null}
 					{file.linesRemoved > 0 ? (
 						<span className="text-git-removed">-{file.linesRemoved}</span>
 					) : null}
 				</span>
 			)}
+			<span className={`flex shrink-0 ${mark.colour}`} title={file.status}>
+				<span className="sr-only">{file.status}</span>
+				<mark.Icon className="size-3" />
+			</span>
 		</div>
 	);
 }
