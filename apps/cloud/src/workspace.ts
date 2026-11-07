@@ -2,6 +2,7 @@
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
  * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
@@ -323,6 +324,29 @@ export class Workspace extends DurableObject<Env> {
 		});
 	}
 
+	/**
+	 * The TCP ports listening in the sandbox, read from /proc by the entry. A port forward's
+	 * discovery uses this; starting a stopped sandbox is the caller's choice, so a read does not
+	 * bill a container nobody asked for.
+	 */
+	async listeningPorts(): Promise<{ ports: number[] }> {
+		await this.ensureSetUp();
+		const response = await this.requireContainer()
+			.getTcpPort(SIDECAR_PORT)
+			.fetch("http://container/ports", { signal: AbortSignal.timeout(5_000) });
+		if (!response.ok) {
+			throw new Error(`The sandbox could not list its ports: ${response.status}`);
+		}
+		const body = (await response.json()) as { ports?: unknown };
+		const ports = Array.isArray(body.ports)
+			? body.ports.filter(
+					(port): port is number =>
+						typeof port === "number" && port > 0 && port <= 65_535 && port !== 22,
+				)
+			: [];
+		return { ports: [...new Set(ports)].sort((left, right) => left - right) };
+	}
+
 	/** Polls the bridge's health endpoint until it answers or the deadline passes. */
 	private async waitForSidecar(began: number): Promise<unknown> {
 		const container = this.requireContainer();
@@ -530,6 +554,7 @@ export class Workspace extends DurableObject<Env> {
 		// because their Response holds a WebSocket or a stream that RPC cannot serialize.
 		const path = new URL(request.url).pathname;
 		if (path.endsWith("/terminal")) return this.terminal(request);
+		if (path.endsWith("/tunnel")) return this.tunnel(request);
 		const preview = PREVIEW_IN_WORKSPACE.exec(path);
 		if (preview !== null) {
 			return this.preview(request, Number(preview[1]), preview[2] ?? "/");
@@ -618,6 +643,31 @@ export class Workspace extends DurableObject<Env> {
 			session.disconnect();
 		});
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/**
+	 * The port-forward tunnel. The Rust shell keeps a local listener and opens one WebSocket per
+	 * accepted connection; this hands the upgrade to the sandbox entry, which connects it to the
+	 * requested loopback port (CLOUD-10, D109).
+	 */
+	async tunnel(request: Request): Promise<Response> {
+		if (this.container === undefined) {
+			return new Response("This workspace has no sandbox configured", { status: 503 });
+		}
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return new Response("Expected a WebSocket", { status: 426 });
+		}
+		const raw = new URL(request.url).searchParams.get("port");
+		if (raw === null || !/^\d{1,5}$/.test(raw)) {
+			return new Response("Bad tunnel port", { status: 400 });
+		}
+		const port = Number(raw);
+		if (port < 1 || port > 65_535 || port === 22) {
+			return new Response("Bad tunnel port", { status: 400 });
+		}
+		await this.ensureSetUp();
+		const target = new URL(`http://container/tunnel?port=${port}`);
+		return this.requireContainer().getTcpPort(SIDECAR_PORT).fetch(new Request(target, request));
 	}
 
 	/**

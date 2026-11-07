@@ -1,6 +1,7 @@
 /**
  * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * @feature CLOUD-06 Keep work across sandbox restarts
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: the container's main process. It sets the sidecar's folders and the sandbox flag, starts
  * the compiled sidecar, reads its `SOCKET_PATH=` handshake, and relays each WebSocket on the
  * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens. It also reads
@@ -14,7 +15,8 @@
  * WebSocket that arrives before the handshake (503, not a made-up socket); a socket that closes
  * (the WebSocket closes with it); a port that is not a number (exit 64 with a message); a
  * termination signal (forward SIGTERM to the sidecar and wait for it, so its socket is removed); a
- * turn-end backup that fails (logged, and the next turn end tries again).
+ * turn-end backup that fails (logged, and the next turn end tries again); a tunnel request that
+ * names a bad or reserved port (refused); a tunnel whose target refuses (the WebSocket closes).
  * Our design choice: the same three handshake lines the Rust shell uses locally, with the port
  * fixed by the image (`IMAGE.port`, overridable for a test or a local run). The relay carries bytes
  * unchanged and reads them only to find the `liveState: idle` line. A container started without
@@ -22,7 +24,7 @@
  * Test first: `sandboxEnvironment` puts `CONDUCTED_BIN_DIR` first on PATH and sets
  * `CLAUDE_CODE_SANDBOXED=1`.
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { turnChangeOf } from "../src/relay.ts";
 import { IMAGE } from "./image.ts";
 import { TurnEndTracker } from "./turn-end.ts";
@@ -186,12 +188,66 @@ function run(): void {
 	}
 
 	interface Link {
+		kind: "rpc";
 		socket: import("bun").Socket<undefined> | null;
 		/** Bytes not yet accepted by the socket, written on "drain". */
 		pending: Uint8Array[];
 		/** The sidecar's text not yet split into lines, for the turn-end hook. */
 		line: string;
 		decoder: TextDecoder;
+	}
+
+	/** One port-forward connection: a WebSocket paired with a loopback TCP socket (CLOUD-10). */
+	interface TunnelLink {
+		kind: "tunnel";
+		port: number;
+		socket: import("bun").Socket<undefined> | null;
+		pending: Uint8Array[];
+	}
+
+	type Connection = Link | TunnelLink;
+
+	/** The TCP ports listening inside the container, from /proc. Read-only, so it starts nothing. */
+	function listeningPorts(): number[] {
+		const ports = new Set<number>();
+		for (const file of ["/proc/net/tcp", "/proc/net/tcp6"]) {
+			let text: string;
+			try {
+				text = readFileSync(file, "utf8");
+			} catch {
+				continue;
+			}
+			for (const line of text.split("\n").slice(1)) {
+				const columns = line.trim().split(/\s+/);
+				if (columns.length < 4 || columns[3] !== "0A") continue;
+				const hex = columns[1]?.split(":")[1];
+				if (hex === undefined) continue;
+				const port = Number.parseInt(hex, 16);
+				if (Number.isInteger(port) && port > 0 && port <= 65_535) ports.add(port);
+			}
+		}
+		return [...ports].sort((left, right) => left - right);
+	}
+
+	/** The port a tunnel asks for, or null when it is not one a forward may use. */
+	function tunnelPort(raw: string | null): number | null {
+		if (raw === null || !/^\d{1,5}$/.test(raw)) return null;
+		const port = Number(raw);
+		return port >= 1 && port <= 65_535 && port !== 22 ? port : null;
+	}
+
+	function flushTunnel(link: TunnelLink): void {
+		const socket = link.socket;
+		if (socket === null) return;
+		while (link.pending.length > 0) {
+			const chunk = link.pending[0] as Uint8Array;
+			const written = socket.write(chunk);
+			if (written < chunk.byteLength) {
+				link.pending[0] = chunk.subarray(Math.max(written, 0));
+				return;
+			}
+			link.pending.shift();
+		}
 	}
 
 	/** Reads the sidecar's lines for a turn end; the bytes go on to the app unchanged. */
@@ -220,7 +276,7 @@ function run(): void {
 		}
 	}
 
-	const server = Bun.serve<Link>({
+	const server = Bun.serve<Connection>({
 		hostname: "0.0.0.0",
 		port,
 		fetch(request, upgradeServer) {
@@ -234,11 +290,32 @@ function run(): void {
 							sidecarMs: (sidecarReadyAt ?? 0) - bootedAt,
 						});
 			}
+			if (url.pathname === "/ports") {
+				return Response.json({ ports: listeningPorts() });
+			}
+			if (url.pathname === "/tunnel") {
+				const port = tunnelPort(url.searchParams.get("port"));
+				if (port === null) return new Response("Bad tunnel port", { status: 400 });
+				if (
+					upgradeServer.upgrade(request, {
+						data: { kind: "tunnel", port, socket: null, pending: [] },
+					})
+				) {
+					return undefined;
+				}
+				return new Response("expected a WebSocket", { status: 426 });
+			}
 			if (url.pathname === "/rpc") {
 				if (socketPath === null) return new Response("sidecar not ready", { status: 503 });
 				if (
 					upgradeServer.upgrade(request, {
-						data: { socket: null, pending: [], line: "", decoder: new TextDecoder() },
+						data: {
+							kind: "rpc",
+							socket: null,
+							pending: [],
+							line: "",
+							decoder: new TextDecoder(),
+						},
 					})
 				) {
 					return undefined;
@@ -250,6 +327,33 @@ function run(): void {
 		websocket: {
 			async open(ws) {
 				const link = ws.data;
+				if (link.kind === "tunnel") {
+					try {
+						link.socket = await Bun.connect({
+							hostname: "127.0.0.1",
+							port: link.port,
+							socket: {
+								data(_socket, data) {
+									ws.sendBinary(data);
+								},
+								close() {
+									ws.close(1011, "the forwarded port closed");
+								},
+								error(_socket, error) {
+									console.error(`entry: tunnel socket error: ${String(error)}`);
+								},
+								drain() {
+									flushTunnel(link);
+								},
+							},
+						});
+						flushTunnel(link);
+					} catch (cause) {
+						console.error(`entry: could not reach port ${link.port}: ${String(cause)}`);
+						ws.close(1011, "the forwarded port is not running");
+					}
+					return;
+				}
 				const path = socketPath;
 				if (path === null) {
 					ws.close(1011, "sidecar not ready");
@@ -283,6 +387,11 @@ function run(): void {
 			},
 			message(ws, message) {
 				const bytes = typeof message === "string" ? new TextEncoder().encode(message) : message;
+				if (ws.data.kind === "tunnel") {
+					ws.data.pending.push(bytes);
+					flushTunnel(ws.data);
+					return;
+				}
 				ws.data.pending.push(bytes);
 				flush(ws.data);
 			},

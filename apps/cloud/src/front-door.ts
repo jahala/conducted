@@ -2,6 +2,7 @@
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: the checks every request passes after the unauthenticated preview path and before a
  * Durable Object is touched: the pairing token, the pairing check, the route, the workspace name,
  * the method, and the WebSocket upgrade for the relay and terminal streams.
@@ -11,7 +12,7 @@
  * name after the token check.
  * Must handle: 401 before any Durable Object for a missing or wrong token; 404 for an unknown
  * route; 400 for a bad workspace name; 405 for the wrong method with an `allow` header; 426 for a
- * relay or terminal request that is not a WebSocket.
+ * relay, terminal or tunnel request that is not a WebSocket.
  * Our design choice: the front door is its own module so the Worker and the relay integration
  * test's Worker share the same checks, and the test needs no copy of them.
  * Test first: an unknown route refuses a request without the pairing token.
@@ -26,8 +27,10 @@ export type CloudAction =
 	| "exec"
 	| "files"
 	| "state"
+	| "ports"
 	| "rpc"
 	| "terminal"
+	| "tunnel"
 	| "preview-url";
 
 export interface CloudRoute {
@@ -38,12 +41,14 @@ export interface CloudRoute {
 /** What an authenticated request is: a route, the pairing check, or the answer that refuses it. */
 export type FrontDoor = { route: CloudRoute } | { pair: true } | { refusal: Response };
 
-const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|rpc|terminal|preview-url)$/;
+const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|ports|rpc|terminal|tunnel|preview-url)$/;
 
 const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	state: "GET",
+	ports: "GET",
 	rpc: "GET",
 	terminal: "GET",
+	tunnel: "GET",
 	"preview-url": "POST",
 	start: "POST",
 	git: "POST",
@@ -52,7 +57,7 @@ const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 };
 
 /** The streams that must arrive as a WebSocket, never a plain GET. */
-const STREAMS: ReadonlySet<CloudAction> = new Set(["rpc", "terminal"]);
+const STREAMS: ReadonlySet<CloudAction> = new Set(["rpc", "terminal", "tunnel"]);
 
 /**
  * The route a request may reach, or the response that refuses it. A refusal is a finished answer:

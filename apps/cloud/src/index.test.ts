@@ -1,5 +1,6 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Tests the Worker's front door inside Cloudflare's local runtime: the pairing token is checked
  * before any Durable Object, and each route answers the right refusal for a bad name, method or
  * body. The state route reads a real Durable Object's storage without a container.
@@ -60,6 +61,18 @@ describe("CLOUD-03 the Worker's front door", () => {
 
 	it("refuses a terminal request that is not a WebSocket", async () => {
 		expect((await get("/w/ws1/terminal")).status).toBe(426);
+	});
+
+	it("refuses a tunnel request that is not a WebSocket, or names a bad port", async () => {
+		expect((await get("/w/ws1/tunnel?port=3000")).status).toBe(426);
+		const upgrade = { ...AUTH, upgrade: "websocket" };
+		expect((await get("/w/ws1/tunnel?port=22", upgrade)).status).toBe(400);
+		expect((await get("/w/ws1/tunnel", upgrade)).status).toBe(400);
+		expect((await get("/w/ws1/tunnel?port=nope", upgrade)).status).toBe(400);
+	});
+
+	it("checks the tunnel route's token before any Durable Object", async () => {
+		expect((await get("/w/ws1/tunnel?port=3000", {})).status).toBe(401);
 	});
 
 	it("makes a preview URL that carries an unguessable token", async () => {
