@@ -85,6 +85,7 @@ Use these before writing your own. A second copy is a finding in review.
 - Services hold state in zustand stores owned by the service, created by `core/container.ts`. There is no module-level mutable state.
 - The sidecar keeps per-chat state inside its session manager, keyed by session id. A restart loses it by design: chats resume from the agent's own transcript and the UI's database.
 - Time, ids, the Platform and the shell environment are passed in from the composition roots (`apps/desktop/src/core/container.ts`, `packages/sidecar/src/modes/sidecar-mode.ts`).
+- One home per fact. A stored value that can be read or derived from another row is not stored again; a copy that must exist names its reason and the code that keeps it in step. No guard holds this yet: the per-PR audits check it, and docs/reports/audits/system-2026-11-07.md lists the copies that exist today (#395).
 - Only the newest async result changes state. The sidecar's run guard drops results from cancelled or superseded turns. UI services drop query results whose request id is no longer the latest.
 
 ## Calls that cost money
