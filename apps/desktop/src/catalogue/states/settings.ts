@@ -312,7 +312,7 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			await seedCast(world);
 			return {
 				route: "/settings/user/git",
-				after: ({ document }) => click(document, "switch", "Delete branch on archive"),
+				after: ({ document }) => click(document, "[role=switch]", "Delete branch on archive"),
 				ready: (document) => shows(document, "Warning: archived workspaces will be unrecoverable"),
 			};
 		},
