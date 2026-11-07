@@ -424,6 +424,12 @@ Context: the agent's own session id (Codex's thread id, an ACP session id, Claud
 Chosen: when the agent's session id first becomes known, or changes, the session manager sends one `agentSessionId` notification (`sessionId`, `agentSessionId`). The app stores it in `sessions.agent_session_id` and passes it back as `resume` when it starts the chat's agent again.
 Why: the id is a fact about the chat, not about each message, so it travels once; the stored events stay in our neutral format; and the user sees no difference, since resume works the same way.
 
+## D091. The sidecar sends a turn's events before an approval request it causes (2026-11-07)
+
+Context: the sidecar comparison (docs/reports/sidecar-diff-2026-11-07.md) ran Conductor's sidecar beside ours. For Claude tool approvals both send the tool call first. For Codex approvals Conductor's order changed from run to run, which is timing, not a rule. In plan mode Conductor sends the plan approval just before its own ExitPlanMode tool event. Matching that needs a rule for one tool, and sending ours without waiting put the approval ahead of the plan's own text.
+Chosen: ours flushes a turn's events before every approval request (#361), plan mode included.
+Why: the user sees the plan's text before the card that asks to approve it; one rule for every approval is easier to keep correct than a special case for one tool, and the visible difference is an ordering of a few milliseconds.
+
 ## D092. A workspace's host is a value, checked where its folder is handed out (2026-11-07)
 
 Proposed by the CLOUD-01 PR; not yet ruled on by the owner.
@@ -437,3 +443,9 @@ Chosen:
 - There is no local host object. It would only pass calls on to the Platform. When CLOUD-03 builds the cloud doors, the check becomes the place that picks them.
 
 Why: the smallest seam that the cloud rows can build on, with no change to what a local workspace does. Every existing test passes with only `host: { kind: "local" }` added to its fixtures.
+
+## D093. The harness spec commits Conductor's on-screen wording and identifiers (2026-11-07)
+
+Context: the parity harness (#347) runs on GitHub, so its spec must be in the repository. D002 forbids copying Conductor's code, prompt text and assets.
+Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
+Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.

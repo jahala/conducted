@@ -214,3 +214,31 @@ Chosen: these 24 rows stay open, each for the reason named.
 - APP-16 (`planned`): it gathers the hardening findings on done features. The slice-3 hardening did not start today. Its inputs are in docs/reports/day-2026-11-06.md, "Findings by area", and in D071, D084 and D078.
 - CLOUD-01 and CLOUD-03 to CLOUD-18 (`planned`): the cloud spike passed (D075), and the rows are built through the loop, starting with CLOUD-01, the host seam. None started today, because the spike, Remote Control and the priority-3 rows came first in the goal's order.
   Why: each reason is a dependency or the goal's own order and time rule. No row is held for a missing input from the owner.
+
+## D094. The night of 6 to 7 November runs audits and fixers on DeepSeek when the Claude slot is taken (2026-11-07)
+
+Context: the owner's rule for the night was "run one claude agent at a time max", and DeepSeek builders run outside it (D077). The loop asks for a Sonnet audit and an Opus fixer per batch, while the one Claude slot held the parity, harness and comparison work.
+Chosen: step 2's audit and fixer, the hardening issues (#348, #349, #350, #352), PLAT-36, SIDE-25 and the LATER sweep (#351) ran on DeepSeek V4.1 Flash. The lead read every diff, compared test and assertion counts where tests changed, and merged only on green CI.
+Why: the owner's cap comes first; the lead's review and CI carry the quality check the Claude audit would have given.
+
+## D095. Overnight order: the parity harness before stage 2 (2026-11-07)
+
+Context: the goal put Conductor's frontend on our backend (stage 2) before the harness. Stage 2 needs Conductor's frontend loaded in a window, which is a browser run, and the owner's ruling says "Browser and screenshot runs on this Mac wait for 08:00", which is also when the goal ends.
+Chosen: stage 1's code (the stand-in, the server, the guard and the run script) was built overnight; its first run, stage 2 and the paired screenshots (3c) wait for the morning. The harness, which runs on GitHub, was built first.
+Why: the work that could run at night ran; nothing broke the quiet rule.
+
+## D096. Conductor's frontend and sidecar run only sealed, on this Mac (2026-11-07)
+
+Context: the owner said "Go: run Conductor's own frontend on this Mac only, from the git-ignored folder, network cut off, never committed, pushed or shipped; a check fails if any of it reaches our app or repo", and later "yes" to running Conductor's sidecar beside ours under the same boundaries.
+Chosen: Conductor's frontend runs from `.context/` through a stand-in on 127.0.0.1 with every other origin refused. Its sidecar runs in place under `sandbox-exec` with a fresh temporary home, no IP traffic beyond loopback, no writes in the owner's home and fake agent programs only. Their outputs stay in `.context/`. The `conductor-code` guard fails on any copy of Conductor's code in the repository, by SHA-256 fingerprints.
+Why: the owner's rulings; the comparison reads Conductor's behaviour without taking anything of it into the product.
+
+## D097. Why each open backlog row is still open on the morning of 7 November (2026-11-07)
+
+Context: the goal asks that no row is `stub` or `planned` without a decision saying why. At 05:45, 247 of 264 rows are done. Replaces D085's list.
+Chosen: these 17 rows stay open, each for the reason named.
+
+- APP-16 (`planned`): 34 of its 37 follow-ups are done or closed with evidence (#367). Three are left: the workspace header's folder chip (a look for the owner, beside Conductor's "Open in" chip), `TerminalView.test.tsx` faking hooks instead of the real container, and the Codex visualization frames, whose content security policy change needs a browser check, which waits for 08:00.
+- CLOUD-03 and CLOUD-09 (`stub`): CLOUD-01's host seam (#370, D092) stops cloud git, shell, files and chats at `notImplemented("CLOUD-03")` and cloud terminals and runs at `notImplemented("CLOUD-09")`. They are the next cloud rows to build; CLOUD-03 deploys a Worker and a Durable Object to the owner's Cloudflare account, which no night step could finish and test before 08:00.
+- CLOUD-04 to CLOUD-08 and CLOUD-10 to CLOUD-18 (`planned`): the cloud spike passed (D075) and they are built in order after CLOUD-03, through the loop. None could start: the time rule starts no step after 06:00.
+  Why: each reason is a dependency, the quiet rule or the goal's time rule. No row waits on a missing input from the owner except the folder chip's look.
