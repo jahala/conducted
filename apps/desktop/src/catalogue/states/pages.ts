@@ -60,18 +60,13 @@ export const PAGE_STATES: CatalogueState[] = [
 	},
 	...(
 		[
-			["home-projects-menu", "Home with the project filter open", "In all projects", "[role=menu]"],
-			[
-				"home-archive-menu",
-				"Home with the archive filter open",
-				"Archived workspaces",
-				"[role=listbox]",
-			],
-			["home-sort-menu", "Home with the sort menu open", "Sort workspaces", "[role=listbox]"],
-			["home-display-menu", "Home with the Display menu open", "Display", "[role=menu]"],
+			["home-projects-menu", "Home with the project filter open", "In all projects", "menu"],
+			["home-archive-menu", "Home with the archive filter open", "Archived workspaces", "select"],
+			["home-sort-menu", "Home with the sort menu open", "Sort workspaces", "select"],
+			["home-display-menu", "Home with the Display menu open", "Display", "menu"],
 		] as const
 	).map(
-		([id, title, control, open]): CatalogueState => ({
+		([id, title, control, kind]): CatalogueState => ({
 			id,
 			group: "Pages",
 			title,
@@ -79,9 +74,22 @@ export const PAGE_STATES: CatalogueState[] = [
 				await seedCast(world);
 				return {
 					route: "/all-workspaces",
-					after: ({ document }) => click(document, "button", control),
+					after: async ({ document }) => {
+						if (kind === "menu") {
+							await click(document, "button", control);
+							return;
+						}
+						// A select opens from the keyboard the same way every time; a scripted pointer press
+						// left the sort select closed on GitHub's runner.
+						const trigger = await find(document, "button", control);
+						trigger.focus();
+						trigger.dispatchEvent(
+							new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+						);
+					},
 					// A select keeps its options in a hidden native list, so wait for the open popup itself.
-					ready: (document) => document.querySelector(open) !== null,
+					ready: (document) =>
+						document.querySelector(kind === "menu" ? "[role=menu]" : "[role=listbox]") !== null,
 				};
 			},
 		}),
