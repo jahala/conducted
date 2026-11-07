@@ -1,8 +1,9 @@
 /**
  * @feature catalogue States of the pull request tab
  * Owns: arbor's open pull request in its center tab (title, number, description, activity,
- * checks, review and merge), the number's right-click menu, the Edit PR title dialog, and a draft
- * pull request with no description.
+ * checks, review and merge), the number's right-click menu, the Edit PR title dialog, a draft
+ * pull request with no description, reviewers in every review state, and the merge button of a
+ * repository that only allows rebasing.
  * Behaviour: ui-map.md 3.2 ("Tab content: PR"), 5.2 (the "Edit PR title" dialog), 7.2 ("No
  * description"); features/pr/PrTab.tsx.
  * Test first: not applicable; the screenshot run opens every state.
@@ -61,6 +62,34 @@ export const PR_TAB_STATES: CatalogueState[] = [
 			git: prOf("draft", { body: "" }),
 			search: PR_TAB,
 			ready: (document) => shows(document, "No description"),
+		}),
+	},
+	{
+		id: "pr-tab-reviews",
+		group: "Pull request tab",
+		title:
+			"Pull request tab: reviewers who asked for changes, commented, were dismissed or are awaited",
+		seed: arborScene({
+			git: prOf("changes_requested", {
+				reviews: [
+					{ login: "lee", state: "CHANGES_REQUESTED" },
+					{ login: "ana", state: "COMMENTED" },
+					{ login: "kim", state: "DISMISSED" },
+				],
+				requestedReviewers: ["jo"],
+			}),
+			search: PR_TAB,
+			ready: (document) => shows(document, "Awaiting review"),
+		}),
+	},
+	{
+		id: "pr-tab-rebase-only",
+		group: "Pull request tab",
+		title: "Pull request tab: ready to merge in a repository that only allows rebasing",
+		seed: arborScene({
+			git: { ...prOf("ready"), mergeMethods: { squash: false, rebase: true, merge: false } },
+			search: PR_TAB,
+			ready: (document) => shows(document, "Rebase and merge"),
 		}),
 	},
 ];

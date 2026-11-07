@@ -4,7 +4,7 @@
  * projects in the navigation; the selects whose options are wording (themes, sounds, effort levels,
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix; the Advanced page asking before it changes the root
- * folder; atlas's Add action dialog; and the Agents page's provider dialog with the Bedrock
+ * folder; the Environment page's documented variables; atlas's Add action dialog; and the Agents page's provider dialog with the Bedrock
  * access-key form.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
@@ -236,6 +236,20 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: `/settings/repos/${cast.atlas.id}/actions`,
 				after: ({ document }) => click(document, "button", "Add"),
 				ready: (document) => document.querySelector('input[placeholder="My action"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-environment-documented",
+		group: "Settings",
+		title: "Environment, the documented variables shown",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/environment",
+				after: ({ document }) =>
+					click(document, "button", "Show documented variables", { prefix: true }),
+				ready: (document) => shows(document, "Routes HTTP requests through a proxy."),
 			};
 		},
 	},

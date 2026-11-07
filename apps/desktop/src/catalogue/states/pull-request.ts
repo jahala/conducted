@@ -4,7 +4,7 @@
  * pull request waits in the merge queue, after it was closed, while GitHub has not said whether it
  * can merge (with and without checks), when this Mac is offline or GitHub refuses the sign-in, on a
  * detached HEAD, when the branch and its remote have both moved on (and when the remote was
- * force-pushed), and with commits to push.
+ * force-pushed), with commits to push, and with auto-merge on while checks run.
  * Behaviour: ui-map.md 3.6, table "Header status chip and action"; core/status/git-header.ts
  * decides each case from what git and GitHub answer.
  * Test first: not applicable; the screenshot run opens every state.
@@ -12,6 +12,7 @@
 
 import type { GitWorld } from "../cast.ts";
 import { shows } from "../dom.ts";
+import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, HOUR } from "../time.ts";
 import { arborScene, COMMITTED_ONLY, prOf } from "./git.ts";
@@ -115,4 +116,18 @@ export const PR_HEADER_STATES: CatalogueState[] = [
 		},
 		"Ahead by 2 commits",
 	),
+	{
+		id: "pr-auto-merge",
+		group: "Pull request header",
+		title: "Auto-merge on while the checks run",
+		seed: async (world) => {
+			await setSetting(world, "automerge_enabled", true);
+			// The scripted checks are not required ones, so the header counts them only when asked to.
+			await setSetting(world, "treat_optional_checks_as_blocking", true);
+			return arborScene({
+				git: prOf("open", { autoMerge: true }),
+				ready: (document) => shows(document, "Disable auto-merge"),
+			})(world);
+		},
+	},
 ];

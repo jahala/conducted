@@ -53,6 +53,15 @@ export interface ScriptedPr {
 	deployments?: ScriptedDeployment[];
 	/** The description, when not the login fix's own. */
 	body?: string;
+	/** Each reviewer's latest review, in place of the ones the kind implies. */
+	reviews?: {
+		login: string;
+		state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "DISMISSED";
+	}[];
+	/** Reviewers asked for a review who have not given one. */
+	requestedReviewers?: string[];
+	/** Auto-merge is on: GitHub merges once the checks pass. */
+	autoMerge?: boolean;
 }
 
 /** A check on the head commit: a workflow job, or an outside service's status. */
@@ -240,20 +249,30 @@ function pullRequestNode(pr: ScriptedPr): Record<string, unknown> {
 		author: { login: "sam", avatarUrl: "" },
 		viewerDidAuthor: true,
 		viewerLatestReview: null,
-		reviewRequests: { nodes: [] },
+		reviewRequests: {
+			nodes: (pr.requestedReviewers ?? []).map((login) => ({
+				requestedReviewer: { login, avatarUrl: "" },
+			})),
+		},
 		latestReviews: {
 			nodes:
-				approved || pr.kind === "changes_requested"
-					? [
-							{
-								author: { login: "lee", avatarUrl: "" },
-								state: approved ? "APPROVED" : "CHANGES_REQUESTED",
-								submittedAt: iso(at + 7_200_000),
-							},
-						]
-					: [],
+				pr.reviews !== undefined
+					? pr.reviews.map((review, index) => ({
+							author: { login: review.login, avatarUrl: "" },
+							state: review.state,
+							submittedAt: iso(at + (index + 1) * 3_600_000),
+						}))
+					: approved || pr.kind === "changes_requested"
+						? [
+								{
+									author: { login: "lee", avatarUrl: "" },
+									state: approved ? "APPROVED" : "CHANGES_REQUESTED",
+									submittedAt: iso(at + 7_200_000),
+								},
+							]
+						: [],
 		},
-		autoMergeRequest: null,
+		autoMergeRequest: pr.autoMerge === true ? { enabledAt: iso(at + 3_600_000) } : null,
 		mergeQueueEntry: pr.kind === "queued" ? { state: "QUEUED", position: 2 } : null,
 		headRef: merged
 			? null
@@ -335,6 +354,8 @@ export interface ScriptedGitHub {
 	stacks?: readonly ScriptedStack[];
 	/** The repository's open issues, newest first. */
 	issues?: readonly ScriptedIssue[];
+	/** The merge methods the repository allows; all three unless given. */
+	mergeMethods?: { squash: boolean; rebase: boolean; merge: boolean };
 }
 
 /**
@@ -346,6 +367,7 @@ export function scriptGitHub({
 	failure,
 	stacks = [],
 	issues = [],
+	mergeMethods = { squash: true, rebase: true, merge: true },
 }: ScriptedGitHub = {}): ShellScript {
 	return (command) => {
 		if (command.program !== "gh") return null;
@@ -444,9 +466,9 @@ export function scriptGitHub({
 			}
 			const repository: Record<string, unknown> = {
 				viewerPermission: "WRITE",
-				squashMergeAllowed: true,
-				rebaseMergeAllowed: true,
-				mergeCommitAllowed: true,
+				squashMergeAllowed: mergeMethods.squash,
+				rebaseMergeAllowed: mergeMethods.rebase,
+				mergeCommitAllowed: mergeMethods.merge,
 			};
 			for (const arg of args) {
 				const match = /^headRefName(\d+)=(.*)$/.exec(arg);

@@ -603,6 +603,8 @@ export interface GitWorld {
 	stacks?: ScriptedStack[];
 	/** atlas's open issues on GitHub. */
 	issues?: ScriptedIssue[];
+	/** The merge methods atlas allows on GitHub; all three unless given. */
+	mergeMethods?: { squash: boolean; rebase: boolean; merge: boolean };
 	/**
 	 * What `gt state` prints in atlas's clone, as Graphite's JSON of branches; without it, `gt` is
 	 * not installed.
@@ -695,6 +697,7 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 			failure: options.github,
 			stacks: options.stacks,
 			issues: options.issues,
+			mergeMethods: options.mergeMethods,
 		}),
 	);
 	const graphiteState = options.graphiteState;
