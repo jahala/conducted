@@ -1,6 +1,6 @@
 # Overnight report, 6 to 7 November 2026
 
-The night ran from 22:00 to 08:00. __PR_COUNT__ pull requests merged (#345 to __LAST_PR__). The backlog is at __DONE__ of 264 features done, with no stubs and no placeholders left in the code. Six of the goal's eight steps are done or done as far as quiet hours allow. What waits for the morning is the first run of Conductor's own frontend on our data, which is a browser run.
+The night ran from 22:00 to 08:00. 19 pull requests merged (#345 to #370), and 23 issues closed. The backlog is at 247 of 264 features done, and the only two placeholders in the code are CLOUD-01's named stops for the next cloud rows. Every step ran as far as the goal's rules allowed. What waits for the morning is the first run of Conductor's own frontend on our data, which is a browser run.
 
 ## What needs Jan
 
@@ -22,28 +22,28 @@ The night ran from 22:00 to 08:00. __PR_COUNT__ pull requests merged (#345 to __
 
 ## Steps
 
-| Step | PRs | Result |
-|---|---|---|
-| 1. ui/parity merged | #345 | Three rounds of screen parity, CI green, shots read beside the captures |
-| 2. Step 2 rows | #354 | REV-13, APP-06, PR-10, RUN-05 done; issues closed |
-| 3a. Stage 1 | #346 | Stand-in, server, guard and run script built; first run at 08:00 (browser) |
-| 3b, 3c. Stage 2 and paired shots | | Wait for browser runs (D095) |
-| 3d. Sidecar against Conductor's | #359, #361 | Ran sealed; five bugs found and fixed, plus the line-framing bug |
-| 4. Parity harness | #347 | Built; finds all three known misses on the old commit |
-| 5. Gaps worked down | #363, #366 | See the counts below |
-| 6. Hardening | #357, #358, #360, #362, #364, #367, #369 | Issues #348 to #352 done; APP-16's follow-ups mostly done |
-| 7. PLAT-36, SIDE-25, CLOUD-01 | #365, #368, __CLOUD_PR__ | __CLOUD_RESULT__ |
-| 8. Stubs and this report | this PR | `pnpm stubs` passes; open rows have D085 and D097 |
+| Step                             | PRs                                      | Result                                                                          |
+| -------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
+| 1. ui/parity merged              | #345                                     | Three rounds of screen parity, CI green, shots read beside the captures         |
+| 2. Step 2 rows                   | #354                                     | REV-13, APP-06, PR-10, RUN-05 done; issues closed                               |
+| 3a. Stage 1                      | #346                                     | Stand-in, server, guard and run script built; first run at 08:00 (browser)      |
+| 3b, 3c. Stage 2 and paired shots |                                          | Wait for browser runs (D095)                                                    |
+| 3d. Sidecar against Conductor's  | #359, #361                               | Ran sealed; five bugs found and fixed, plus the line-framing bug                |
+| 4. Parity harness                | #347                                     | Built; finds all three known misses on the old commit                           |
+| 5. Gaps worked down              | #363, #366                               | See the counts below                                                            |
+| 6. Hardening                     | #357, #358, #360, #362, #364, #367, #369 | Issues #348 to #352 done; APP-16's follow-ups mostly done                       |
+| 7. PLAT-36, SIDE-25, CLOUD-01    | #365, #368, #370                         | All three done; CLOUD-01's host seam stops cloud calls at CLOUD-03 and CLOUD-09 |
+| 8. Stubs and this report         | this PR                                  | `pnpm stubs` passes; open rows have D085 and D097                               |
 
 ## The parity harness's counts
 
-| | First run | Now |
-|---|---:|---:|
-| Matched | 703 | 1,018 |
-| Decided | 57 | 847 |
-| Shown nowhere yet (in our code, no screen draws it) | 891 | 770 |
-| Wording that differs | not sorted | 6 |
-| A feature or behaviour we lack | 2,163, not sorted | 1,180 |
+|                                                     |         First run |   Now |
+| --------------------------------------------------- | ----------------: | ----: |
+| Matched                                             |               703 | 1,018 |
+| Decided                                             |                57 |   847 |
+| Shown nowhere yet (in our code, no screen draws it) |               891 |   770 |
+| Wording that differs                                |        not sorted |     6 |
+| A feature or behaviour we lack                      | 2,163, not sorted | 1,180 |
 
 All seven flows the catalogue can drive pass. Our strings with no Conductor counterpart fell from 1,209 to 507 (264 of them are the shortcut page's accessible names).
 
@@ -81,16 +81,18 @@ All seven flows the catalogue can drive pass. Our strings with no Conductor coun
 ## Decisions
 
 Product log:
+
 - D086: non-wording strings are out of the parity spec.
 - D087: encrypted scrollback.
 - D088: the app's own program copies only.
 - D089: Claude's model list.
 - D090: the agent session id notification.
 - D091: events before approvals.
-- __D092__.
+- D092: the host seam.
 - D093: the harness spec.
 
 Process log:
+
 - D094: DeepSeek audits and fixers under the one-Claude rule.
 - D095: the harness before stage 2.
 - D096: Conductor's code runs only sealed.
@@ -98,8 +100,8 @@ Process log:
 
 ## Spend
 
-DeepSeek went from 16.36 to __BALANCE__ US dollars (__SPEND__). Claude agents ran on the subscription, one at a time after 22:00.
+DeepSeek went from 16.36 to 13.49 US dollars (2.87 spent). Claude agents ran on the subscription, one at a time after 22:00.
 
 ## Stale branches
 
-The local `node/*` and `quarantine/*` pleach branches hold merged work. `spike/cloud` is pushed, and its write-up is on main.
+The local `node/*` and `quarantine/*` pleach branches, and `harden/h351-0` to `-3` (cherry-picked into #369), hold merged work. `spike/cloud` is pushed, and its write-up is on main.
