@@ -202,8 +202,8 @@ pub fn route_url(base: &reqwest::Url, path: &str) -> CommandResult<reqwest::Url>
 /// The WebSocket URLs a workspace's Durable Object answers: the sidecar relay and a terminal.
 pub const RELAY_CHANNELS: [&str; 2] = ["rpc", "terminal"];
 
-/// The WebSocket URL for one workspace's relay or terminal stream.
-pub fn relay_url(base: &reqwest::Url, vm_id: &str, channel: &str) -> CommandResult<reqwest::Url> {
+/// Whether a workspace's sandbox id has the shape the Worker accepts.
+fn checked_vm_id(vm_id: &str) -> CommandResult<()> {
     if vm_id.is_empty()
         || vm_id.len() > 63
         || !vm_id.chars().all(|character| {
@@ -217,6 +217,12 @@ pub fn relay_url(base: &reqwest::Url, vm_id: &str, channel: &str) -> CommandResu
             "A workspace id is lowercase letters, digits and dashes, and no longer than 63 characters.",
         ));
     }
+    Ok(())
+}
+
+/// The WebSocket URL for one workspace's relay or terminal stream.
+pub fn relay_url(base: &reqwest::Url, vm_id: &str, channel: &str) -> CommandResult<reqwest::Url> {
+    checked_vm_id(vm_id)?;
     if !RELAY_CHANNELS.contains(&channel) {
         return Err(refused(
             "cloud_bad_channel",
@@ -231,6 +237,27 @@ pub fn relay_url(base: &reqwest::Url, vm_id: &str, channel: &str) -> CommandResu
             "The relay URL could not be made secure.",
         )
     })?;
+    Ok(url)
+}
+
+/// The WebSocket URL of one remote port's tunnel, which the Rust shell pipes a local listener into
+/// (CLOUD-10). The Worker's tunnel route sits beside the relay and terminal routes.
+pub fn tunnel_url(base: &reqwest::Url, vm_id: &str, port: u16) -> CommandResult<reqwest::Url> {
+    checked_vm_id(vm_id)?;
+    if port == 22 {
+        return Err(refused(
+            "port_forward_reserved",
+            "Port 22 is reserved for SSH and cannot be forwarded here.",
+        ));
+    }
+    let mut url = route_url(base, &format!("/w/{vm_id}/tunnel"))?;
+    url.set_scheme("wss").map_err(|_| {
+        refused(
+            "cloud_url_not_allowed",
+            "The tunnel URL could not be made secure.",
+        )
+    })?;
+    url.set_query(Some(&format!("port={port}")));
     Ok(url)
 }
 
@@ -332,7 +359,7 @@ pub async fn pairing_token() -> CommandResult<String> {
     Ok(token)
 }
 
-fn bearer(token: &str) -> CommandResult<HeaderValue> {
+pub(crate) fn bearer(token: &str) -> CommandResult<HeaderValue> {
     HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| {
         refused(
             "cloud_token_unreadable",
