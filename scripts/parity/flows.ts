@@ -299,7 +299,20 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 					.filter((line) => !line.startsWith("answered "))
 					.slice(-3);
 				const why = logged.length === 0 ? "" : `; the catalogue logged: ${logged.join("; ")}`;
-				result.steps.push({ step: step.step, ok: false, detail: `${message}${why}` });
+				// What the app said tells a hang from an error it showed.
+				const toasts = await page
+					.locator("[data-sonner-toast]")
+					.allInnerTexts()
+					.catch(() => [] as string[]);
+				const said =
+					toasts.length === 0
+						? ""
+						: `; toasts: ${toasts.map((text) => text.replace(/\s+/g, " ")).join(" | ")}`;
+				result.steps.push({
+					step: step.step,
+					ok: false,
+					detail: `${message}${why}; at ${at}${said}`,
+				});
 				break;
 			}
 		}

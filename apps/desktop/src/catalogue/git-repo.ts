@@ -255,6 +255,8 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 				return out("", 128, `fatal: path '${path}' does not exist\n`);
 			return out(file.before);
 		}
+		// The rename the first message's branch name asks for (GIT-13).
+		if (verb === "branch" && args[1] === "-m") return out("");
 		if (verb === "branch" && args[1]?.startsWith("--format")) {
 			return out(`${repo.branch}\nmain\n`);
 		}
