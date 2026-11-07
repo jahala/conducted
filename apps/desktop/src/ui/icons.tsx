@@ -112,6 +112,10 @@ export const EyeIcon = (p: P) => (
 export const CheckCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
 );
+/** A drag handle: two columns of three dots. */
+export const GripVerticalIcon = (p: P) => (
+	<Icon d="M6 4h.01M6 8h.01M6 12h.01M10 4h.01M10 8h.01M10 12h.01" strokeWidth="2" {...p} />
+);
 /** The git panel's file status marks: a rounded square with a plus, dot, minus or arrow. */
 const SQUARE =
 	"M4 2.5h8A1.5 1.5 0 0 1 13.5 4v8a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V4A1.5 1.5 0 0 1 4 2.5z";

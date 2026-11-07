@@ -114,6 +114,9 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - The MCP servers block and "Search providers" on Agents: the search at the right of the agent tabs, the servers under the tabs, as Conductor's providers page lists its parts.
 - The onboarding agent check and first project: under the step list, above Continue, while their step is current, in Conductor's left column.
 - Create project's description and "Creates folder" line: in Conductor's places, worded for our flow, which creates the folder first and offers the GitHub repository after.
+- The chat history's search field: at the top of Conductor's closed-chats popover, for a workspace with many closed chats.
+- The Loadout slot's choices (model, effort, fast mode, Remove): a menu on the slot, where Conductor opens its chat-bound model picker; the first slot takes Claude Code models only, since new chats start with Claude Code. Pi's models: a column after OpenCode.
+- The Default models rows Conductor keeps inside its pickers: the review effort, thinking and fast mode right after Review model, the default Codex thinking level after Codex personality, and "Models shown in the picker" last.
 
 ## The owner's rules
 

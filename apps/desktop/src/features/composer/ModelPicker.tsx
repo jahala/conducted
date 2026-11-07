@@ -69,7 +69,7 @@ const AGENT_CHOICES: readonly Choice[] = [
 	{ agent: "acp", acpAgent: "pi" },
 ];
 
-const EFFORT_LABELS: Record<Effort, string> = {
+export const EFFORT_LABELS: Record<Effort, string> = {
 	none: "None",
 	low: "Low",
 	medium: "Medium",
