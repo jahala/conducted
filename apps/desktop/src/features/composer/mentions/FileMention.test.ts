@@ -1,5 +1,6 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
+import { createElement, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { composerBaseKit } from "../composer-extensions.ts";
 import {
@@ -36,6 +37,14 @@ const mount = (
 const type = (editor: Editor, text: string) => {
 	editor.commands.insertContent(text);
 };
+
+/** Destroys the editor from inside a React commit, as TipTap's destroy timer can do. */
+function DestroyEditorOnCommit({ editor }: { editor: Editor }) {
+	useLayoutEffect(() => {
+		editor.destroy();
+	}, [editor]);
+	return null;
+}
 
 const mentionNodes = (editor: Editor) => {
 	const json = editor.getJSON();
@@ -99,6 +108,27 @@ describe("COMP-04 FileMention", () => {
 		type(editor, "@zzzz");
 		expect(await screen.findByText("No files found")).toBeTruthy();
 		expect(screen.getByRole("listbox", { name: "Suggestions" })).toBeTruthy();
+	});
+
+	it("tears the popup down outside the commit that destroys the editor", async () => {
+		const editor = mount(() => files);
+		type(editor, "@rea");
+		await screen.findByRole("listbox", { name: "Suggestions" });
+		const errors: string[] = [];
+		const reported = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			errors.push(args.map(String).join(" "));
+		});
+		try {
+			// TipTap destroys the editor on a short timer, which can land while any React root is
+			// committing. Unmounting the popup's root from inside that commit leaves React's work
+			// pending past the end of the test, where a scheduler callback reads a window that is
+			// gone.
+			render(createElement(DestroyEditorOnCommit, { editor }));
+			expect(errors.join("\n")).not.toContain("synchronously unmount a root");
+		} finally {
+			reported.mockRestore();
+		}
+		editors.splice(editors.indexOf(editor), 1);
 	});
 
 	it("asks for a fresh file list each time the trigger opens", () => {
