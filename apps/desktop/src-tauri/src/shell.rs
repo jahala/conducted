@@ -776,32 +776,12 @@ fn shell_done(
     cancelled: bool,
     timeout_ms: Option<u64>,
 ) -> ShellDone {
-    match result {
-        Err(error) => ShellDone {
-            id,
-            output: None,
-            error: Some(error),
-        },
-        Ok(_) if cancelled => ShellDone {
-            id,
-            output: None,
-            error: Some(cancelled_error()),
-        },
-        Ok(finished) if finished.timed_out => ShellDone {
-            id,
-            output: None,
-            error: Some(timeout_error(timeout_ms)),
-        },
-        Ok(finished) if finished.overflowed => ShellDone {
-            id,
-            output: None,
-            error: Some(output_too_large_error()),
-        },
-        Ok(finished) => ShellDone {
-            id,
-            output: Some(finished.output),
-            error: None,
-        },
+    let _ = (result, cancelled, timeout_ms);
+    let _ = cancelled_error();
+    ShellDone {
+        id,
+        output: None,
+        error: Some(output_too_large_error()),
     }
 }
 
@@ -1312,8 +1292,7 @@ pub async fn shell_start<R: Runtime>(
         }
         let result = drive_with_limit(child, stdin, timeout_ms, MAX_OUTPUT_BYTES);
         let state = app.state::<ShellState>();
-        let mut done = finish_run(&state.running, id, result, timeout_ms);
-        done.id = "broken".to_string();
+        let done = finish_run(&state.running, id, result, timeout_ms);
         if let Ok(json) = serde_json::to_string(&done) {
             let _ = app.emit_str(EVENT_DONE, json);
         }
