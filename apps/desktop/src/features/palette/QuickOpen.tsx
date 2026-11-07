@@ -94,8 +94,8 @@ function QuickOpenBody({
 					autoFocus
 					id={fieldId}
 					type="text"
-					aria-label="Search files by name"
-					placeholder="Search files by name"
+					aria-label="Search files..."
+					placeholder="Search files..."
 					value={query}
 					onChange={(event) => {
 						setQuery(event.target.value);

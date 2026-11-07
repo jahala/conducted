@@ -1,11 +1,13 @@
 import { appError, err, ok, type Result } from "@conducted/shared";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
+import { createElement, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
 	PrMentionItem,
 	PrMentionSearchResult,
 } from "../../../core/services/mention-search.ts";
+import { settleEditorTeardown } from "../../../test/composer-teardown.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import { createPrMention, type PrMentionDeps } from "./PrMention.ts";
 
@@ -43,6 +45,14 @@ const type = (editor: Editor, text: string) => {
 	editor.commands.insertContent(text);
 };
 
+/** Destroys the editor from inside a React commit, as TipTap's destroy timer can do. */
+function DestroyEditorOnCommit({ editor }: { editor: Editor }) {
+	useLayoutEffect(() => {
+		editor.destroy();
+	}, [editor]);
+	return null;
+}
+
 const chips = (editor: Editor) => {
 	const json = editor.getJSON();
 	const nodes: { token?: string; label?: string }[] = [];
@@ -67,11 +77,31 @@ const depsWith = (overrides: Partial<PrMentionDeps>): PrMentionDeps => ({
 	...overrides,
 });
 
-afterEach(() => {
+afterEach(async () => {
 	for (const editor of editors.splice(0)) editor.destroy();
+	// A trigger popup unmounts its root in a microtask after the editor is destroyed. Let it run
+	// inside act, or it reaches React's scheduler after this file's window is gone.
+	await settleEditorTeardown(null);
 });
 
 describe("COMP-05 PrMention", () => {
+	it("tears the popup down outside the commit that destroys the editor", async () => {
+		const editor = mount(depsWith({}));
+		type(editor, "#12");
+		await screen.findByRole("listbox", { name: "Suggestions" });
+		const errors: string[] = [];
+		const reported = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			errors.push(args.map(String).join(" "));
+		});
+		try {
+			render(createElement(DestroyEditorOnCommit, { editor }));
+			expect(errors.join("\n")).not.toContain("synchronously unmount a root");
+		} finally {
+			reported.mockRestore();
+		}
+		editors.splice(editors.indexOf(editor), 1);
+	});
+
 	it("offers PR 12 for '#12' and inserts a chip with its number, title and token", async () => {
 		const search = vi.fn(async () => ok({ items: [pullRequest] }));
 		const attach = vi.fn(async () => ok(".context/pull-requests/12.md"));

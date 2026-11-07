@@ -138,11 +138,11 @@ describe("REV-08 FileTab", () => {
 				{ wrapper: wrapper(test.container, client) },
 			);
 			await typeInEditor(" edited");
-			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 
 			pressCmd("e");
 			await waitFor(() => expect(document.querySelector(".cm-editor")).toBeNull());
-			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 			pressCmd("e");
 
 			await waitFor(() =>
@@ -219,7 +219,7 @@ describe("REV-08 FileTab", () => {
 			});
 			await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The disk is full."));
 			expect(screen.queryByRole("status", { name: "Saving file" })).toBeNull();
-			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 		} finally {
 			client.clear();
 			test.close();

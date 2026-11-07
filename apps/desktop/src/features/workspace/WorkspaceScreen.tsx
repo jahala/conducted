@@ -2,7 +2,8 @@
  * @feature NAV-10 Workspace screen
  * Owns: assembling the workspace route: header, centre content, Git panel and Scripts panel inside the
  * workspace layout, and passing the URL search state down. It also opens PR-10's "Link pull request"
- * dialog from the `pr.link` command while a workspace is open.
+ * dialog from the `pr.link` command while a workspace is open, and toggles a cloud workspace's
+ * port forwarding from Cmd+Y (CLOUD-10).
  * Behaviour: ui-map.md 3 (the workspace screen), 3.1 (header), 3.2 (tab strip and content), 3.6 (right panel
  * top), 3.7 (right panel bottom).
  * Our design choice: every region is its own <NotBuiltYet>, keyed by the workspace id, so a failing region
@@ -20,10 +21,12 @@ import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, usePortForwards, useWorkspace } from "../../core/hooks.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { GitPanel } from "../git-panel/GitPanel.tsx";
 import { LinkPullRequestDialog } from "../pr/LinkPullRequestDialog.tsx";
+import { forwardingToast } from "../scripts-panel/ports/forwarding-toast.ts";
 import { ScriptsPanel } from "../scripts-panel/ScriptsPanel.tsx";
 import { SplitPanes } from "./SplitPanes.tsx";
 import { WorkspaceGate } from "./WorkspaceGate.tsx";
@@ -44,9 +47,29 @@ export function WorkspaceScreen({
 	search,
 	onSearchChange,
 }: WorkspaceScreenProps) {
-	const workspaceFiles = useServices().services.workspaceFiles;
+	const services = useServices().services;
+	const workspaceFiles = services.workspaceFiles;
 	const actions = useActions();
+	const workspace = useWorkspace(workspaceId);
+	const forwarding = usePortForwards(workspaceId);
 	const [linkingPullRequest, setLinkingPullRequest] = useState(false);
+	useCommandHandler("workspace.togglePortForwarding", "area", () => {
+		if (workspace.state !== "ready" || workspace.data.host.kind !== "cloud") return false;
+		const enabling = !forwarding.forwardingEnabled;
+		void actions.portForwards.setForwarding(workspaceId, enabling).then((result) => {
+			if (!result.ok) {
+				toastError("Couldn't change port forwarding", result.error);
+				return;
+			}
+			// Conductor acknowledges the switch with what is now reachable (renderApp, Cmd+Y).
+			if (!enabling) return;
+			const message = forwardingToast(services.portForwards.view(workspaceId));
+			if (message !== null) {
+				toast.success(message.title, { description: message.description });
+			}
+		});
+		return true;
+	});
 	useCommandHandler("pr.link", "area", () => {
 		setLinkingPullRequest(true);
 	});

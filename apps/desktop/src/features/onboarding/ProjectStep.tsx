@@ -28,7 +28,7 @@ export function ProjectStep({ onFinish }: ProjectStepProps) {
 			setBusy(true);
 			setError(null);
 			try {
-				const picked = await actions.app.pickFolder("Add a project");
+				const picked = await actions.app.pickFolder("Select project directory");
 				if (!picked.ok) {
 					setError(picked.error.message);
 					return;

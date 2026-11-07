@@ -299,7 +299,7 @@ describe("s1-ui join", () => {
 			await waitFor(() =>
 				expect(document.querySelector(".cm-content")?.textContent).toBe("draft me with edits"),
 			);
-			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();

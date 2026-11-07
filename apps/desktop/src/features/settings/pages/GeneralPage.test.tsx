@@ -25,7 +25,7 @@ describe("SET-02 GeneralPage", () => {
 
 		const trigger = screen.getByRole("combobox", { name: "Send messages with" });
 		fireEvent.keyDown(trigger, { key: "Enter" });
-		const option = await screen.findByRole("option", { name: "Cmd+Enter" });
+		const option = await screen.findByRole("option", { name: "⌘ Enter" });
 		fireEvent.keyDown(option, { key: "Enter" });
 
 		await waitFor(() => expect(set).toHaveBeenCalledTimes(1));

@@ -1,18 +1,33 @@
 /**
  * @feature COMP-04 Suggestion popup
  * Owns: The floating list that the '@', '#' and '/' triggers share: rows, the selected row, loading
- * and empty states, and the caret position it opens from.
+ * and empty states, the caret position it opens from, and the shared way a trigger takes its root
+ * down.
  * Behaviour: ui-map.md 3.5 (the three triggers), 5.1 ('No results found').
  * Our design choice: the popup is controlled. The trigger extension owns the query, the rows and
  * the selection, and the popup only draws them and reports a clicked row. It opens below the caret
  * and flips above it when the list would not fit in the window.
  * Must handle: a loading state; an empty list with a reason; a notice above the rows, for a source
  * that is still loading or failed while other rows can be offered; rows announced as options in a
- * listbox; the selected row marked with aria-selected; a click on a row; a caret anchor.
+ * listbox; the selected row marked with aria-selected; a click on a row; a caret anchor; a root
+ * taken down while another root is committing (see closeSuggestionRoot).
  * Test first: Given three items and selectedIndex 1, the second row has aria-selected true;
  * clicking a row calls onPick with it.
  */
 import { useLayoutEffect, useRef, useState } from "react";
+import type { Root } from "react-dom/client";
+
+/**
+ * Takes a trigger's popup off the page at once, then unmounts its React root after the commit that
+ * may be running now. The editor is destroyed from a timer (TipTap's scheduleDestroy), which can
+ * land while another root is committing; unmounting this root inside that commit leaves React's
+ * work queued past the commit, and that work reads a window that may already be gone (a test's
+ * teardown). A microtask runs after the commit that is running now, so the root unmounts on its own.
+ */
+export function closeSuggestionRoot(root: Root, host: HTMLElement | null): void {
+	host?.remove();
+	queueMicrotask(() => root.unmount());
+}
 
 export interface SuggestionRow {
 	id: string;

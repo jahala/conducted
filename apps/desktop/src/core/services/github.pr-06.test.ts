@@ -310,7 +310,7 @@ describe("PR-06 the base move shares the write runner", () => {
 
 		expect(!result.ok && result.error.code).toBe("github_failed");
 		expect(!result.ok && result.error.message).toBe(
-			"GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.",
+			"Reconnect GitHub in Settings to keep pushing changes.",
 		);
 		expect(commandArgs(git)).toContainEqual(["pr", "edit", "12", "--base", "develop"]);
 	});

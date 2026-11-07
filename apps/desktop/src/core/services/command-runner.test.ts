@@ -153,7 +153,7 @@ describe("NAV-07 createCommandHandlers", () => {
 		const handler = handlers["project.add"];
 		expect(handler).toBeDefined();
 		expect(await handler?.()).toEqual({ ok: true, value: undefined });
-		expect(pickFolder).toHaveBeenCalledWith("Add a project");
+		expect(pickFolder).toHaveBeenCalledWith("Select project directory");
 		expect(addLocal).toHaveBeenCalledWith("/code/app");
 	});
 

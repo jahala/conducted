@@ -193,7 +193,7 @@ describe("SET-03 AgentsPage", () => {
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("ABCD-1234")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy Codex verification code" }));
 		expect(await screen.findByText("Copied Codex verification code.")).toBeTruthy();
 
 		signedIn = true;

@@ -38,7 +38,7 @@ import {
 	type PrMentionItem,
 	type PrMentionSearchResult,
 } from "../../../core/services/mention-search.ts";
-import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import { closeSuggestionRoot, SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
 import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 export interface PrMentionDeps {
@@ -348,8 +348,8 @@ class PrMentionPopupView {
 		const host = this.#host;
 		this.#root = null;
 		this.#host = null;
-		if (root !== null) root.unmount();
-		host?.remove();
+		if (root === null) return;
+		closeSuggestionRoot(root, host);
 	}
 }
 

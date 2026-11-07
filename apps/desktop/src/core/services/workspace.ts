@@ -86,6 +86,9 @@
  * CLOUD-01: setup, the first-message branch rename, archive, unarchive, delete and Open in check
  * the workspace's host before they touch its folder (core/host.ts). Creating a workspace makes a
  * worktree on this Mac, so it stores the local host.
+ * CLOUD-10: archive and delete stop the workspace's port forwards first, since its sandbox sleeps
+ * (D110). Every path that archives or deletes one does this: the menu, archive-on-merge and a
+ * repository removal.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
  * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix;
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
@@ -685,6 +688,11 @@ export interface WorkspaceServiceDeps {
 	 * the ports already listening on this Mac are both respected.
 	 */
 	ports?: { allocateForNewWorkspace(): Promise<Result<number>> };
+	/**
+	 * CLOUD-10: stops a workspace's port forwards before it is archived or deleted. The
+	 * composition root passes PortForwardsService.
+	 */
+	portForwards?: { pauseWorkspace(workspaceId: WorkspaceId): Promise<Result<void>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
 	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
 	/** Reads a pull request's head from GitHub, for a workspace created from a PR (WS-02). */
@@ -1382,6 +1390,8 @@ export class WorkspaceService {
 		id: WorkspaceId,
 		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
 	): Promise<Result<void>> {
+		// CLOUD-10: the sandbox sleeps with the archive, so its forwards stop first (D110).
+		await this.#deps.portForwards?.pauseWorkspace(id);
 		const found = await this.#deps.repos.workspaces.get(id);
 		if (!found.ok) return found;
 		const workspace = found.value;
@@ -1947,6 +1957,8 @@ export class WorkspaceService {
 	 * data files go next, then the chats and the row. A step that fails leaves the rest for a retry.
 	 */
 	async #removeNow(id: WorkspaceId, processesStopped: boolean): Promise<Result<void>> {
+		// CLOUD-10: deleting a workspace stops its forwards first (D110).
+		await this.#deps.portForwards?.pauseWorkspace(id);
 		const found = await this.#deps.repos.workspaces.get(id);
 		if (!found.ok) return found;
 		const workspace = found.value;

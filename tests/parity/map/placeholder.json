@@ -114,7 +114,7 @@
 		"class": "wording",
 		"backlog": "REV-07",
 		"owner": "hand",
-		"note": "Our quick-open field reads 'Search files by name' (features/palette/QuickOpen.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R5652247": {
 		"status": "gap",
@@ -123,7 +123,7 @@
 		"class": "wording",
 		"backlog": "REV-07",
 		"owner": "hand",
-		"note": "Our search-in-files field reads 'Search file contents' (features/palette/SearchInFiles.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R5664306": {
 		"status": "gap",
@@ -163,7 +163,7 @@
 		"class": "wording",
 		"backlog": "AGENT-08",
 		"owner": "hand",
-		"note": "Our MCP form's unset select reads 'Choose...' (features/chat/interactions/McpFormCard.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R9000620": {
 		"status": "decided",
@@ -327,7 +327,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our action name field reads 'Dev server' (scripts-panel/run/AddActionDialog.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R11117637": {
 		"status": "gap",

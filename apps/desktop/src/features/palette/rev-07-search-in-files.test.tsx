@@ -71,7 +71,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "retry" },
 			});
 			const retryGroup = await screen.findByRole("region", { name: "src/retry.ts" });
@@ -91,7 +91,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "retry" },
 			});
 			await screen.findByRole("button", { name: "src/retry.ts:2" });
@@ -113,7 +113,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "Retry" },
 			});
 			await screen.findByRole("region", { name: "src/retry.ts" });
@@ -136,7 +136,7 @@ describe("REV-07 SearchInFiles", () => {
 				workspace.id,
 			);
 			fireEvent.click(screen.getByRole("button", { name: "Regular expression" }));
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "([a" },
 			});
 			const alert = await screen.findByRole("alert");
@@ -155,7 +155,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "r" },
 			});
 			expect(screen.getByText("Type at least 2 characters to search.")).toBeTruthy();
@@ -173,7 +173,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "retry" },
 			});
 			const row = await screen.findByRole("button", { name: "src/retry.ts:1" });
@@ -199,7 +199,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "needle" },
 			});
 			const group = await screen.findByRole("region", { name: "src/many.ts" });
@@ -220,7 +220,7 @@ describe("REV-07 SearchInFiles", () => {
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "needle" },
 			});
 			expect(await screen.findByText("Refine your search.")).toBeTruthy();
@@ -245,7 +245,7 @@ describe("REV-07 SearchInFiles", () => {
 				workspace.id,
 			);
 			fireEvent.click(screen.getByRole("button", { name: "Regular expression" }));
-			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search in files..." }), {
 				target: { value: "(?i)retry" },
 			});
 			const row = await screen.findByRole("button", { name: "src/flags.ts:1" });
