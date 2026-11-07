@@ -93,24 +93,22 @@ test("builds the gh release command that uploads the disk image, the archive and
 	);
 });
 
-test("lists every release step in order, each with its undo line", () => {
+test("uses the changelog section as the release body, and marks a pre-release", () => {
+	const command = ghReleaseCommand("0.2.2", ["/out/Conducted.dmg"], {
+		notesFile: "/tmp/notes.md",
+		prerelease: true,
+	});
+	expect(command).toContain("--notes-file '/tmp/notes.md'");
+	expect(command).not.toContain("--notes v0.2.2");
+	expect(command).toContain("--prerelease");
+});
+
+test("lists every local release step in order, each with its undo line", () => {
 	const plan = releasePlan("0.2.0");
 
-	expect(plan.map((step) => step.id)).toEqual([
-		"check",
-		"bump",
-		"build",
-		"updaterArchive",
-		"updaterFeed",
-		"commit",
-	]);
+	expect(plan.map((step) => step.id)).toEqual(["check", "bump", "changelog", "commit"]);
 	for (const step of plan) expect(step.undo.length).toBeGreaterThan(0);
 	expect(plan.filter((step) => step.readOnly).map((step) => step.id)).toEqual(["check"]);
-	const archive = plan.find((step) => step.id === "updaterArchive");
-	expect(archive?.say).toContain("signed");
-	expect(archive?.undo).toContain("trash");
-	const feed = plan.find((step) => step.id === "updaterFeed");
-	expect(feed?.say).toContain("latest.json");
-	expect(feed?.undo).toContain("trash");
-	expect(plan.find((step) => step.id === "build")?.say).toContain("updater key");
+	expect(plan.find((step) => step.id === "changelog")?.say).toContain("CHANGELOG.md");
+	expect(plan.find((step) => step.id === "changelog")?.undo).toContain("git checkout");
 });
