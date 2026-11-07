@@ -1,6 +1,6 @@
 // @vitest-environment node
 import type { DatabaseSync } from "node:sqlite";
-import type { RepoId, WorkspaceId } from "@conducted/shared";
+import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openTestDatabase } from "../../test/sqlite.ts";
 import { type BacklogWorkspaceRow, backlogWorkspaceFromRow } from "./backlog-workspaces.ts";
@@ -41,13 +41,13 @@ const seedRepo = (): void => {
 	raw.prepare(REPOS_SQL.insert).run(bind(repoToParams(sampleRepo)));
 };
 
-const newEntry = () => ({
+const newEntry = (sectionId: SectionId | null = null) => ({
 	repoId: sampleRepo.id,
 	displayName: "Later",
 	prompt: "Add a retry to the uploader",
 	attachmentPaths: ["/tmp/a.png"],
 	config: sampleSession.config,
-	sectionId: null,
+	sectionId,
 });
 
 const createEntry = async () => must(await repositories.backlogWorkspaces.create(newEntry()));
@@ -103,10 +103,16 @@ describe("DATA-08 backlog workspaces repository", () => {
 		});
 		expect(must(await repositories.backlogWorkspaces.get(created.id))).toEqual(created);
 		expect(must(await repositories.backlogWorkspaces.list())).toEqual([created]);
-		expect(must(await repositories.backlogWorkspaces.listByRepo(sampleRepo.id))).toEqual([created]);
-		expect(must(await repositories.backlogWorkspaces.listByRepo("other" as RepoId))).toHaveLength(
-			0,
-		);
+		expect(
+			must(await repositories.backlogWorkspaces.list()).filter(
+				(entry) => entry.repoId === sampleRepo.id,
+			),
+		).toEqual([created]);
+		expect(
+			must(await repositories.backlogWorkspaces.list()).filter(
+				(entry) => entry.repoId === ("other" as RepoId),
+			),
+		).toHaveLength(0);
 		expect(must(await repositories.backlogWorkspaces.get("missing" as WorkspaceId))).toBeNull();
 	});
 
@@ -122,40 +128,14 @@ describe("DATA-08 backlog workspaces repository", () => {
 		]);
 	});
 
-	it("updates every editable field and moves updated_at", async () => {
+	it("clears an entry's section link when the section is deleted", async () => {
 		seedRepo();
-		const created = await createEntry();
-		now = 4000;
-		must(
-			await repositories.backlogWorkspaces.update(created.id, {
-				displayName: null,
-				prompt: "Changed",
-				attachmentPaths: ["/tmp/b.pdf"],
-				config: { ...sampleSession.config, model: "opus" },
-			}),
-		);
-		const updated = must(await repositories.backlogWorkspaces.get(created.id));
-		expect(updated).not.toBeNull();
-		expect(updated).toMatchObject({
-			displayName: null,
-			prompt: "Changed",
-			attachmentPaths: ["/tmp/b.pdf"],
-			createdAt: 1000,
-			updatedAt: 4000,
-		});
-		expect(updated?.config.model).toBe("opus");
-	});
-
-	it("moves an entry to a section, and deleting the section clears the link", async () => {
-		seedRepo();
-		const created = await createEntry();
 		const section = must(await repositories.sections.create({ name: "Later", emoji: null }));
-		must(await repositories.backlogWorkspaces.setSection(created.id, section.id));
+		const created = must(await repositories.backlogWorkspaces.create(newEntry(section.id)));
 		expect(must(await repositories.backlogWorkspaces.get(created.id))?.sectionId).toBe(section.id);
 		must(await repositories.sections.delete(section.id));
 		expect(must(await repositories.backlogWorkspaces.get(created.id))?.sectionId).toBeNull();
 	});
-
 	it("keeps an entry with no repository when its repo is removed, and deletes one on its own", async () => {
 		seedRepo();
 		const created = await createEntry();
@@ -189,21 +169,5 @@ describe("DATA-08 backlog workspaces repository", () => {
 			sampleRepo.id,
 		);
 		expect(missing.ok).toBe(false);
-	});
-
-	it("reports a missing entry from update and setSection", async () => {
-		const missing = "missing" as WorkspaceId;
-		expect(
-			await repositories.backlogWorkspaces.update(missing, {
-				displayName: null,
-				prompt: "p",
-				attachmentPaths: [],
-				config: sampleSession.config,
-			}),
-		).toMatchObject({ ok: false, error: { code: "db.not_found" } });
-		expect(await repositories.backlogWorkspaces.setSection(missing, null)).toMatchObject({
-			ok: false,
-			error: { code: "db.not_found" },
-		});
 	});
 });

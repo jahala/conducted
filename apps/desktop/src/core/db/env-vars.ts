@@ -59,8 +59,6 @@ export const ENV_VARS_SQL = {
 	/** Global and repo rows together, for building the environment of one repo. */
 	listForRepo: `SELECT name, scope, repo_id, keychain_ref FROM env_vars
 		WHERE scope = 'global' OR repo_id = $1 ORDER BY name, scope`,
-	get: `SELECT name, scope, repo_id, keychain_ref FROM env_vars
-		WHERE name = $1 AND scope = $2 AND repo_id IS $3`,
 	/** Step 1 of an upsert. Zero rows affected means step 2 has to insert. */
 	upsertUpdate: `UPDATE env_vars SET keychain_ref = $1
 		WHERE name = $2 AND scope = $3 AND repo_id IS $4`,
@@ -79,8 +77,6 @@ export interface EnvVarRepository {
 	listByRepo(repoId: RepoId): Promise<Result<EnvVar[]>>;
 	/** ENV_VARS_SQL.listForRepo: global rows and the repo's rows; the caller lets repo rows win. */
 	listForRepo(repoId: RepoId): Promise<Result<EnvVar[]>>;
-	/** ENV_VARS_SQL.get. A missing variable is `ok(null)`. */
-	get(name: string, scope: EnvVar["scope"], repoId: RepoId | null): Promise<Result<EnvVar | null>>;
 	/** ENV_VARS_SQL.upsertUpdate then ENV_VARS_SQL.upsertInsert, in one transaction. */
 	set(envVar: EnvVar): Promise<Result<void>>;
 	/** ENV_VARS_SQL.delete. The caller removes the Keychain entry. */
@@ -102,17 +98,6 @@ export function createEnvVarRepository(db: Database, _deps: RepositoryDeps): Env
 			list(ENV_VARS_SQL.listByRepo, [repoId], "Listing a repository's environment variables"),
 		listForRepo: (repoId) =>
 			list(ENV_VARS_SQL.listForRepo, [repoId], "Listing environment variables for a repository"),
-		get: async (name, scope, repoId) => {
-			const rows = await selectRows<EnvVarRow>(
-				db,
-				ENV_VARS_SQL.get,
-				[name, scope, repoId],
-				"Reading an environment variable",
-			);
-			if (!rows.ok) return err(rows.error);
-			const row = rows.value[0];
-			return row === undefined ? ok(null) : ok(envVarFromRow(row));
-		},
 		set: async (envVar) => {
 			const params = envVarToParams(envVar);
 			if (!params.ok) return err(params.error);

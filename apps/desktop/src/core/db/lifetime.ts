@@ -96,9 +96,10 @@ const KEEP_FINAL_TEXT_EVENT = `(
 export const LIFETIME_SQL = {
 	/**
 	 * Cuts tool results longer than `$1` characters, sets `compacted_at` to `$2` and sets
-	 * `truncated` so the card says so. Only agent events received before `$3` are cut, at most `$4`
-	 * per call. A cut result is exactly `$1` long, so it is not picked again and repeated calls end
-	 * with zero rows changed.
+	 * `truncated` so the card says so. Only agent events received before `$3` and not already cut
+	 * (`compacted_at IS NULL`, the one home of that fact) are cut, at most `$4` per call. A cut
+	 * result is exactly `$1` long, so repeated calls end with zero rows changed, and a marker from
+	 * an earlier run is never rewritten.
 	 */
 	cutToolOutputs: `UPDATE session_events
 		SET content = json_set(content, '$.message.items', (
@@ -112,7 +113,8 @@ export const LIFETIME_SQL = {
 			compacted_at = $2
 		WHERE rowid IN (
 			SELECT e.rowid FROM session_events e
-			WHERE e.type = 'agent' AND e.received_at < $3 AND length(e.content) > $1
+			WHERE e.type = 'agent' AND e.received_at < $3 AND e.compacted_at IS NULL
+				AND length(e.content) > $1
 				AND EXISTS (SELECT 1 FROM json_each(e.content, '$.message.items') AS i
 					WHERE json_extract(i.value, '$.kind') = 'tool_result'
 						AND length(json_extract(i.value, '$.output')) > $1)
@@ -121,13 +123,14 @@ export const LIFETIME_SQL = {
 	/**
 	 * Turns not yet compacted whose workspace was archived before `$1` (the archive time is the
 	 * workspace's archived_at, set by migration 0002; updated_at moves with every later edit), at
-	 * most `$2`. A workspace with no archived_at is left alone. Each row feeds the three compact
-	 * statements below.
+	 * most `$2`. A workspace with no archived_at is left alone. `compacted_at` on the turn_ended
+	 * event is the one home of "this turn is compacted", as it is for a cut tool output. Each row
+	 * feeds the three compact statements below.
 	 */
 	findCompactableTurns: `SELECT t.session_id, t.turn_id FROM session_events t
 		JOIN sessions s ON s.id = t.session_id
 		JOIN workspaces w ON w.id = s.workspace_id
-		WHERE t.type = 'turn_ended' AND json_extract(t.content, '$.compacted') IS NULL
+		WHERE t.type = 'turn_ended' AND t.compacted_at IS NULL
 			AND w.state = 'archived' AND w.archived_at < $1
 		ORDER BY t.session_id, t.idx LIMIT $2`,
 	/** Compact step 1 (`$1` session, `$2` turn): the last event with text keeps only text and usage. */
@@ -143,10 +146,14 @@ export const LIFETIME_SQL = {
 	compactDropOtherAgentEvents: `DELETE FROM session_events
 		WHERE session_id = $1 AND turn_id = $2 AND type = 'agent'
 			AND idx IS NOT ${KEEP_FINAL_TEXT_EVENT}`,
-	/** Compact step 3 (`$1` session, `$2` turn): marks the turn so screens show "details removed". */
+	/**
+	 * Compact step 3 (`$1` time, `$2` session, `$3` turn): marks the turn so it is not found again
+	 * and screens show "details removed". The marker is `compacted_at`, the same column a cut tool
+	 * output uses.
+	 */
 	compactMarkTurnEnded: `UPDATE session_events
-		SET content = json_set(content, '$.compacted', json('true'))
-		WHERE session_id = $1 AND turn_id = $2 AND type = 'turn_ended'`,
+		SET compacted_at = $1
+		WHERE session_id = $2 AND turn_id = $3 AND type = 'turn_ended'`,
 
 	/** Draft attachments created before `$1`, oldest first, at most `$2`. */
 	listExpiredDraftAttachments: `SELECT id, path FROM attachments
@@ -428,7 +435,7 @@ const cutToolOutputs: LifetimeStep = {
 const compactArchivedChats: LifetimeStep = {
 	id: "compact-archived-chats",
 	description:
-		"Our design choice: for chats of workspaces archived longer than the compact limit, keep user_message events, turn_ended events, checkpoint events and the last text agent event of each turn (text and usage items only). Drop every other agent event and mark the turn with compacted=true on its turn_ended event, so screens can show 'details removed'.",
+		"Our design choice: for chats of workspaces archived longer than the compact limit, keep user_message events, turn_ended events, checkpoint events and the last text agent event of each turn (text and usage items only). Drop every other agent event and mark the turn's turn_ended event with compacted_at, so it is not compacted again and screens can show 'details removed'.",
 	run: async ({ db, clock, limits }) => {
 		const cutoff = ageCutoff(clock.now(), limits.archivedChatCompactAfterDays);
 		let rowsChanged = 0;
@@ -442,7 +449,7 @@ const compactArchivedChats: LifetimeStep = {
 			if (!turns.ok) return turns;
 			if (turns.value.length === 0) break;
 			for (const turn of turns.value) {
-				const compacted = await compactTurn(db, turn.session_id, turn.turn_id);
+				const compacted = await compactTurn(db, turn.session_id, turn.turn_id, clock.now());
 				if (!compacted.ok) return compacted;
 				rowsChanged += compacted.value;
 			}
@@ -457,6 +464,7 @@ async function compactTurn(
 	db: Database,
 	sessionId: string,
 	turnId: string,
+	at: number,
 ): Promise<Result<number>> {
 	return inTransaction(db, "Compacting an archived chat", async (tx) => {
 		const stripped = await executeStatement(
@@ -476,7 +484,7 @@ async function compactTurn(
 		const marked = await executeStatement(
 			tx,
 			LIFETIME_SQL.compactMarkTurnEnded,
-			[sessionId, turnId],
+			[at, sessionId, turnId],
 			"Marking a turn compacted",
 		);
 		if (!marked.ok) return marked;

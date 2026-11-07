@@ -22,7 +22,6 @@ function workspace(id: string, createdAt: number): Workspace {
 		kanbanStatus: "in_progress",
 		port: 0,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,

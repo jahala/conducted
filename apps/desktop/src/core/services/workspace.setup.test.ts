@@ -55,7 +55,6 @@ const workspace = (overrides: Partial<Workspace> = {}): Workspace => ({
 	kanbanStatus: "in_progress",
 	port: 55_000,
 	pinnedAt: null,
-	notes: null,
 	linkedPaths: [],
 	prNumber: null,
 	prTitle: null,
@@ -103,9 +102,6 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 		async get(id: WorkspaceId) {
 			return ok(rows.find((row) => row.id === id) ?? null);
 		},
-		async getByPath(path: string) {
-			return ok(rows.find((row) => row.path === path) ?? null);
-		},
 		async getSetupLogPath(id: WorkspaceId) {
 			return ok(options.logPaths?.[id] ?? null);
 		},
@@ -142,16 +138,10 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 		async setPinned() {
 			return ok(undefined);
 		},
-		async setNotes() {
-			return ok(undefined);
-		},
 		async setLinkedPaths() {
 			return ok(undefined);
 		},
 		async setPullRequest() {
-			return ok(undefined);
-		},
-		async clearPullRequest() {
 			return ok(undefined);
 		},
 		async setSetupLogPath(_id: WorkspaceId, path: string | null) {

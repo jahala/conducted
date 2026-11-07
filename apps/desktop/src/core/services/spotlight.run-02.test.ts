@@ -57,7 +57,6 @@ const baseWorkspace = (id: WorkspaceId = WORKSPACE_ID, path = WORKSPACE_PATH): W
 	kanbanStatus: "in_progress",
 	port: 55_010,
 	pinnedAt: null,
-	notes: null,
 	linkedPaths: [],
 	prNumber: null,
 	prTitle: null,

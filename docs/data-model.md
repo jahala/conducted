@@ -37,10 +37,12 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | `model_context_windows` | The context window an agent last reported for one model. agent is the agent kind, or 'acp:<agent>' for an ACP agent; model is the model id the chat was started with. | one row per agent and model, replaced by the next report for that model; the table grows only with the number of models used. | 0006_model_context_windows.sql |
 <!-- /generated:tables -->
 
-The generated rows quote each migration's comment. Two comments in `0001_init.sql` are out of date, and an applied migration is never edited, so the corrections live here:
+The generated rows quote each migration's comment. Some comments in earlier migrations are out of date, and an applied migration is never edited, so the corrections live here:
 
 - `session_events`: its row above quotes "Both limits are settings". That is wrong. The 30-day tool-output cut and the 90-day archived-chat compaction have fixed limits, `DEFAULT_LIFETIME_LIMITS` in `apps/desktop/src/core/db/lifetime.ts`, which `core/container.ts` passes unchanged; no setting changes them (DATA-02). `scripts/guards/lifetime-limits.ts` fails when a settings key takes one over.
 - `settings`: its row above quotes "fixed set of keys". That is wrong. The table holds the settings registry's keys and one internal bookkeeping key, `data_lifetime_last_run_at`, which stores when the data-lifetime job last ran (DATA-02). `scripts/guards/settings-keys.ts` fails on a `_KEY` constant in `core/db` that this file does not name.
+- `workspaces` no longer has a `notes` column, and `terminals` no longer has `cols` or `rows`. Nothing read them, so migration 0011 dropped them.
+- `session_events.compacted_at` is the one marker for "this event was compacted": the daily tool-output cut sets it on an agent event, and the archived-chat compaction sets it on a turn's `turn_ended` event. Migration 0011 moved the older JSON `$.compacted` flags into it and removed the flag.
 
 ## Stores outside the database
 

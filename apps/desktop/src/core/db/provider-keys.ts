@@ -77,7 +77,6 @@ const COLUMNS = "agent, acp_agent, provider, env_var, source, keychain_ref, upda
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const PROVIDER_KEYS_SQL = {
-	list: `SELECT ${COLUMNS} FROM provider_keys ORDER BY agent, acp_agent, provider, env_var`,
 	listForAgent: `SELECT ${COLUMNS} FROM provider_keys WHERE agent = $1 AND acp_agent = $2
 		ORDER BY provider, env_var`,
 	get: `SELECT ${COLUMNS} FROM provider_keys
@@ -91,8 +90,6 @@ export const PROVIDER_KEYS_SQL = {
 } as const;
 
 export interface ProviderKeyRepository {
-	/** PROVIDER_KEYS_SQL.list. */
-	list(): Promise<Result<ProviderKey[]>>;
 	/** PROVIDER_KEYS_SQL.listForAgent. `acpAgent` null means an agent that is not an ACP agent. */
 	listForAgent(agent: AgentKind, acpAgent: AcpAgent | null): Promise<Result<ProviderKey[]>>;
 	/** PROVIDER_KEYS_SQL.get. A key that is not set is `ok(null)`. */
@@ -120,7 +117,6 @@ export function createProviderKeyRepository(
 		return rows.ok ? ok(rows.value.map(providerKeyFromRow)) : err(rows.error);
 	};
 	return {
-		list: () => list(PROVIDER_KEYS_SQL.list, [], "Listing provider keys"),
 		listForAgent: (agent, acpAgent) =>
 			list(
 				PROVIDER_KEYS_SQL.listForAgent,

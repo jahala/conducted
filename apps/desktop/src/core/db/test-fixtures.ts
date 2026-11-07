@@ -72,7 +72,6 @@ export const sampleWorkspace: Workspace & { setupLogPath: string | null } = {
 	kanbanStatus: "in_progress",
 	port: 55100,
 	pinnedAt: 1500,
-	notes: "remember the migration",
 	linkedPaths: ["/code/other", "/code/shared"],
 	prNumber: 12,
 	prTitle: "Add repositories",
@@ -188,11 +187,7 @@ export const sampleAttachment: Attachment & { messageId: string | null; createdA
 	createdAt: 1000,
 };
 
-export const sampleTerminal: Terminal & {
-	cols: number;
-	rows: number;
-	screenState: string | null;
-} = {
+export const sampleTerminal: Terminal & { screenState: string | null } = {
 	id: "term-1" as TerminalId,
 	workspaceId,
 	repoId: null,
@@ -204,8 +199,6 @@ export const sampleTerminal: Terminal & {
 	startedAt: 1000,
 	endedAt: null,
 	exitCode: null,
-	cols: 120,
-	rows: 30,
 };
 
 export const sampleSection: Section = {

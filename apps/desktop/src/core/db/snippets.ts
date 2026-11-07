@@ -49,8 +49,6 @@ const COLUMNS = "id, name, keyword, prompt, created_at, updated_at";
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SNIPPETS_SQL = {
 	list: `SELECT ${COLUMNS} FROM snippets ORDER BY name COLLATE NOCASE, id`,
-	get: `SELECT ${COLUMNS} FROM snippets WHERE id = $1`,
-	getByKeyword: `SELECT ${COLUMNS} FROM snippets WHERE keyword = $1`,
 	insert: `INSERT INTO snippets (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6)`,
 	update: "UPDATE snippets SET name = $1, keyword = $2, prompt = $3, updated_at = $4 WHERE id = $5",
 	delete: "DELETE FROM snippets WHERE id = $1",
@@ -62,10 +60,6 @@ export type SnippetFields = Pick<Snippet, "name" | "keyword" | "prompt">;
 export interface SnippetRepository {
 	/** SNIPPETS_SQL.list: by name, ignoring case. */
 	list(): Promise<Result<Snippet[]>>;
-	/** SNIPPETS_SQL.get. A missing snippet is `ok(null)`. */
-	get(id: SnippetId): Promise<Result<Snippet | null>>;
-	/** SNIPPETS_SQL.getByKeyword. Used to expand a typed keyword. A missing one is `ok(null)`. */
-	getByKeyword(keyword: string): Promise<Result<Snippet | null>>;
 	/** SNIPPETS_SQL.insert with a new id and both times. A duplicate keyword is `db.conflict`. */
 	create(input: SnippetFields): Promise<Result<Snippet>>;
 	/** SNIPPETS_SQL.update. A missing snippet is `db.not_found`; a duplicate keyword `db.conflict`. */
@@ -84,21 +78,8 @@ export function createSnippetRepository(db: Database, deps: RepositoryDeps): Sni
 		const rows = await selectRows<SnippetRow>(db, sql, params, what);
 		return rows.ok ? ok(rows.value.map(snippetFromRow)) : err(rows.error);
 	};
-	const find = async (
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<Snippet | null>> => {
-		const rows = await selectRows<SnippetRow>(db, sql, params, what);
-		if (!rows.ok) return err(rows.error);
-		const row = rows.value[0];
-		return ok(row === undefined ? null : snippetFromRow(row));
-	};
 	return {
 		list: () => list(SNIPPETS_SQL.list, [], "Listing snippets"),
-		get: (id) => find(SNIPPETS_SQL.get, [id], "Reading a snippet"),
-		getByKeyword: (keyword) =>
-			find(SNIPPETS_SQL.getByKeyword, [keyword], "Reading a snippet by keyword"),
 		create: async (input) => {
 			const at = now();
 			const snippet: Snippet = {

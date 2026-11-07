@@ -12,8 +12,7 @@
  * superseded comment is never updated or deleted, hidden or brought back; only a hidden comment
  * is brought back, and it returns to pending; comments sent to a chat are marked reviewed in one
  * statement; a setter on a missing comment returns `db.not_found`; threads are resolved together;
- * every pending open comment can be made ready, and a workspace's comments can be superseded, in
- * one statement; the sync delete only touches
+ * every pending open comment can be made ready in one statement; the sync delete only touches
  * author_kind 'github' rows and receives the ids to keep as a JSON list (no giant IN clause);
  * replies point to their parent by reply_to_id.
  * Test first: diffCommentToParams then diffCommentFromRow gives back the same comment.
@@ -121,13 +120,7 @@ const VALUES =
 export const DIFF_COMMENTS_SQL = {
 	listByWorkspace: `SELECT ${COLUMNS} FROM diff_comments WHERE workspace_id = $1
 		ORDER BY file_path, COALESCE(line, 0), created_at, id`,
-	listByFile: `SELECT ${COLUMNS} FROM diff_comments WHERE workspace_id = $1 AND file_path = $2
-		ORDER BY COALESCE(line, 0), created_at, id`,
-	listByThread: `SELECT ${COLUMNS} FROM diff_comments WHERE workspace_id = $1 AND thread_id = $2
-		ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM diff_comments WHERE id = $1`,
-	countOpen: `SELECT COUNT(*) AS total FROM diff_comments
-		WHERE workspace_id = $1 AND resolved = 0 AND outdated = 0`,
 	insert: `INSERT INTO diff_comments (${COLUMNS}) VALUES (${VALUES})`,
 	/**
 	 * Sync from GitHub. A comment that exists keeps its local `resolved` flag, so a resolve done
@@ -154,7 +147,6 @@ export const DIFF_COMMENTS_SQL = {
 	setBody: `UPDATE diff_comments SET body = $1, suggestion = $2, suggestion_base_code = $3,
 		updated_at = $4 WHERE id = $5`,
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
-	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
 	/** Hides a comment. A superseded comment stays frozen. */
 	hide: `UPDATE diff_comments SET state = 'hidden', updated_at = $1
 		WHERE id = $2 AND state <> 'superseded'`,
@@ -167,13 +159,8 @@ export const DIFF_COMMENTS_SQL = {
 	/** Every pending, open comment of the workspace becomes ready for review. */
 	markReadyForReview: `UPDATE diff_comments SET state = 'ready_for_review', updated_at = $1
 		WHERE workspace_id = $2 AND state = 'pending' AND resolved = 0 AND outdated = 0`,
-	/** Every comment of the workspace becomes superseded, so an older review freezes as one. */
-	supersedeWorkspace: `UPDATE diff_comments SET state = 'superseded', updated_at = $1
-		WHERE workspace_id = $2 AND state <> 'superseded'`,
 	setThreadResolved: `UPDATE diff_comments SET resolved = $1, updated_at = $2
 		WHERE workspace_id = $3 AND thread_id = $4`,
-	setOutdated: "UPDATE diff_comments SET outdated = $1, updated_at = $2 WHERE id = $3",
-	setRemoteUrl: "UPDATE diff_comments SET remote_url = $1, updated_at = $2 WHERE id = $3",
 	delete: "DELETE FROM diff_comments WHERE id = $1",
 	/**
 	 * `$2` is a JSON list of GitHub comment ids that still exist; all other GitHub rows go, except
@@ -203,14 +190,8 @@ export type NewDiffComment = Pick<
 export interface DiffCommentRepository {
 	/** DIFF_COMMENTS_SQL.listByWorkspace, ordered by file and line. */
 	listByWorkspace(workspaceId: WorkspaceId): Promise<Result<DiffComment[]>>;
-	/** DIFF_COMMENTS_SQL.listByFile. */
-	listByFile(workspaceId: WorkspaceId, filePath: string): Promise<Result<DiffComment[]>>;
-	/** DIFF_COMMENTS_SQL.listByThread, oldest first. */
-	listByThread(workspaceId: WorkspaceId, threadId: string): Promise<Result<DiffComment[]>>;
 	/** DIFF_COMMENTS_SQL.get. A missing comment is `ok(null)`. */
 	get(id: CommentId): Promise<Result<DiffComment | null>>;
-	/** DIFF_COMMENTS_SQL.countOpen: comments neither resolved nor outdated. */
-	countOpen(workspaceId: WorkspaceId): Promise<Result<number>>;
 	/** DIFF_COMMENTS_SQL.insert with resolved=false, outdated=false and state "pending". */
 	add(input: NewDiffComment): Promise<Result<DiffComment>>;
 	/**
@@ -227,8 +208,6 @@ export interface DiffCommentRepository {
 	): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setResolved. */
 	setResolved(id: CommentId, resolved: boolean): Promise<Result<void>>;
-	/** DIFF_COMMENTS_SQL.setState: hide, mark ready, reviewed or superseded (REV-12). */
-	setState(id: CommentId, state: ReviewCommentState): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.hide. False when the comment is superseded or missing. */
 	hide(id: CommentId): Promise<Result<boolean>>;
 	/** DIFF_COMMENTS_SQL.unhide. False when the comment was not hidden. */
@@ -237,18 +216,12 @@ export interface DiffCommentRepository {
 	markReviewed(ids: readonly CommentId[]): Promise<Result<number>>;
 	/** DIFF_COMMENTS_SQL.markReadyForReview: pending, open comments become ready. */
 	markReadyForReview(workspaceId: WorkspaceId): Promise<Result<number>>;
-	/** DIFF_COMMENTS_SQL.supersedeWorkspace: every comment of the workspace is superseded. */
-	supersedeWorkspace(workspaceId: WorkspaceId): Promise<Result<number>>;
 	/** DIFF_COMMENTS_SQL.setThreadResolved. Resolves or reopens the whole thread. */
 	setThreadResolved(
 		workspaceId: WorkspaceId,
 		threadId: string,
 		resolved: boolean,
 	): Promise<Result<void>>;
-	/** DIFF_COMMENTS_SQL.setOutdated, when the commented line changed. */
-	setOutdated(id: CommentId, outdated: boolean): Promise<Result<void>>;
-	/** DIFF_COMMENTS_SQL.setRemoteUrl, after the comment is posted to GitHub. */
-	setRemoteUrl(id: CommentId, url: string | null): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.delete. */
 	delete(id: CommentId): Promise<Result<void>>;
 }
@@ -269,10 +242,6 @@ export function createDiffCommentRepository(
 	return {
 		listByWorkspace: (workspaceId) =>
 			list(DIFF_COMMENTS_SQL.listByWorkspace, [workspaceId], "Listing review comments"),
-		listByFile: (workspaceId, filePath) =>
-			list(DIFF_COMMENTS_SQL.listByFile, [workspaceId, filePath], "Listing a file's comments"),
-		listByThread: (workspaceId, threadId) =>
-			list(DIFF_COMMENTS_SQL.listByThread, [workspaceId, threadId], "Listing a comment thread"),
 		get: async (id) => {
 			const rows = await selectRows<DiffCommentRow>(
 				db,
@@ -283,15 +252,6 @@ export function createDiffCommentRepository(
 			if (!rows.ok) return err(rows.error);
 			const row = rows.value[0];
 			return row === undefined ? ok(null) : ok(diffCommentFromRow(row));
-		},
-		countOpen: async (workspaceId) => {
-			const rows = await selectRows<{ total: number }>(
-				db,
-				DIFF_COMMENTS_SQL.countOpen,
-				[workspaceId],
-				"Counting open review comments",
-			);
-			return rows.ok ? ok(rows.value[0]?.total ?? 0) : err(rows.error);
 		},
 		add: async (input) =>
 			inTransaction(db, "Adding a review comment", async (tx) => {
@@ -372,13 +332,6 @@ export function createDiffCommentRepository(
 				[toFlag(resolved), now(), id],
 				"Resolving a review comment",
 			),
-		setState: (id, state) =>
-			executeExisting(
-				db,
-				DIFF_COMMENTS_SQL.setState,
-				[state, now(), id],
-				"Changing a review comment's state",
-			),
 		hide: async (id) => {
 			const hidden = await executeStatement(
 				db,
@@ -417,35 +370,12 @@ export function createDiffCommentRepository(
 			);
 			return marked.ok ? ok(marked.value) : err(marked.error);
 		},
-		supersedeWorkspace: async (workspaceId) => {
-			const superseded = await executeStatement(
-				db,
-				DIFF_COMMENTS_SQL.supersedeWorkspace,
-				[now(), workspaceId],
-				"Superseding review comments",
-			);
-			return superseded.ok ? ok(superseded.value) : err(superseded.error);
-		},
 		setThreadResolved: (workspaceId, threadId, resolved) =>
 			executeVoid(
 				db,
 				DIFF_COMMENTS_SQL.setThreadResolved,
 				[toFlag(resolved), now(), workspaceId, threadId],
 				"Resolving a comment thread",
-			),
-		setOutdated: (id, outdated) =>
-			executeExisting(
-				db,
-				DIFF_COMMENTS_SQL.setOutdated,
-				[toFlag(outdated), now(), id],
-				"Marking a comment outdated",
-			),
-		setRemoteUrl: (id, url) =>
-			executeExisting(
-				db,
-				DIFF_COMMENTS_SQL.setRemoteUrl,
-				[url, now(), id],
-				"Saving a comment link",
 			),
 		delete: (id) => executeVoid(db, DIFF_COMMENTS_SQL.delete, [id], "Removing a review comment"),
 	};
