@@ -473,3 +473,27 @@ registry image `conducted-dev-c10-1536-workspace-sandbox:wrangler-mw6kgk19`
 `wrangler containers list`, `containers images list` and `r2 bucket list` hold no
 `conducted-dev-c10` entry, and `docker images` holds none. The token and run files under `/tmp`
 and the `apps/cloud/sandbox/build/` folder were trashed.
+
+## Follow-up: the mirror's file route and terminal (CLOUD-11, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, through a temporary
+ignored Rust test (`apps/desktop/src-tauri/tests/cloud_c11_live.rs`). It exercises the Worker paths
+CLOUD-11's mirror, Local terminal and Local run variant read from, not the Mac's own PTY: a text
+file, a binary file and a file over 2 MiB through `/files`, and a command through the `/terminal`
+stream a run script uses in the sandbox.
+
+- **Deploy:** **32,552 ms** to build and upload the image and Worker (wrangler 4.158).
+- **Cold start:** `POST /w/c11live183155/start` answered after **176,532 ms** across three tries,
+  not one. The first request after a deploy pulls the new image and is cut off by Cloudflare's
+  100-second request window. The second and third found the container running. The test now
+  retries up to three times.
+- **Files:** **1,017 ms** for the whole block: a text write, a binary `writeBytes`, a 3 MiB text
+  write, a `readBytes` whose bytes matched byte for byte, and a `list` that carried
+  `/workspace/big.txt`.
+- **Terminal:** **259 ms** for `/bin/bash -l -c 'echo TERMOK && pwd'` over the terminal WebSocket,
+  with `TERMOK` and `/workspace` in the output and exit 0.
+- **Uninstall:** **13,599 ms**. Final `wrangler containers list`, `containers images list` and
+  `r2 bucket list` held no `conducted-dev-c11t` entry, the Worker URL answers 404, and the local
+  Docker image was removed by its id `8bfd6ad75467`. Both run names, `conducted-dev-c11t-182835`
+  (the first try, cut at the 100-second start) and `conducted-dev-c11t-183155` (the pass), were
+  deleted.

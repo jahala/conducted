@@ -635,6 +635,8 @@ Why: the tunnel reuses the connection the Worker already authenticates and the R
 
 ## D111. The local mirror syncs over the Worker's file routes and is text-first (2026-11-07)
 
+Finished by CLOUD-11's second part: binary and large files, the Mac terminal and run variant on the mirror, attachments, and the preview message are built in D120. The text-first limits below record what the first part built.
+
 Context: CLOUD-11 builds the local mirror of a cloud workspace and its file sync. Conductor's sync is a Rust crate pair (`file_sync_client`, `file_sync_core`) with its own `/files/sync/` endpoints (native-and-sidecar-map A10, services-map 5B.10.1). D018 replaced Conductor's native sync commands with the Host interface, and D101 already gives a cloud workspace's file calls to its Worker's `/files` route. The brief's checklists are Conductor's inventory; this decision records what CLOUD-11 built, what it deliberately did not build, and why.
 
 Chosen:
@@ -736,3 +738,29 @@ Chosen:
 - **A Cursor chat still cannot run in a cloud workspace.** The sandbox image has no Cursor SDK, and the sidecar's loader names only the macOS native package (`@cursor/sdk-darwin-<cpu>`), so `cursor_sdk_missing` is the answer there. Adding the Linux SDK is a separate change for AGENT-09 and CLOUD-04; the host row waits for it.
 
 Why: the only subscription-sign-in mechanism in the reference is Conductor's hosted credential store, which this app does not have, and the Claude half of it is forbidden by Anthropic's own terms. Building the allowed end-user sign-in would open the sandbox's network and put the subscription token inside it, both of which the plan reserves. The Cursor host is the small, allowed, self-hosted piece, and it matches the credential swap CLOUD-05 already does for the other two model APIs.
+
+## D120. CLOUD-11's second part: binary files, the mirror's terminals, attachments and the limits a self-hosted Worker keeps (2026-11-07)
+
+Context: the first part of CLOUD-11 (D111) built a text-only, one-way mirror and recorded the gaps issue #253 left open: binary files and files over 2 MiB, a push signal, a snapshot for a stopped sandbox, a Mac terminal in the mirror, an action's Local variant there, the preview message, attachments, and the optional service dependencies. This row records what the second part built, the contract changes it made, and the two gaps that remain because a self-hosted Cloudflare Worker cannot do them.
+
+Chosen:
+
+- **Binary files and files over 2 MiB are mirrored.** The Worker's `/files` route gains `readBytes` and `writeBytes`, each carrying one base64 string, and the Sandbox SDK's own `readFile`/`writeFile` take and return those bytes. The mirror reads every file with `readBytes` and decides text or binary by decoding it as UTF-8 (`fatal: true`) and refusing a NUL byte. Text is written with the existing atomic text door; binary is written with a new `writeBytes` door. The 2 MiB app-side cut is gone: the only bounds are the Worker's memory for one base64 answer, the local read's `MAX_READ_BYTES` (64 MiB), and the list's 20,000-entry cap. A file over any of them is named in `baseline.json` as skipped, so a failed file is visible rather than silently truncated.
+- **A Mac terminal runs in the mirror.** A terminal row now says which host it runs on (`terminals.host_kind`, migration 0016; `Terminal.hostKind`). In a cloud workspace the scripts panel's New terminal is a menu with "Cloud terminal" and "Local terminal"; the Local one starts a PTY on this Mac in the mirror, with the Mac's program shims, and refuses with "Local terminal unavailable" when the mirror folder is not there. The terminal tab shows the host it runs on.
+- **An action's Local variant runs in the mirror.** The refusal that CLOUD-09 put in `run-scripts.ts` now applies only when the mirror is unavailable. When it exists, the action runs on this Mac with `CONDUCTED_WORKSPACE_PATH` set to the mirror, its port scan reads the mirror's processes, and its terminal row says `local`.
+- **A chat attachment in a cloud workspace is uploaded into the sandbox.** `materializeForSend` takes the workspace's host; for a cloud workspace it sends the staged file through `uploadFile` to `.context/attachments/<id>/<name>` in the sandbox and records the sandbox path on the row, instead of writing to a Mac folder. Text and binary attachments take the same text/binary branch as the mirror. Conductor materialises attachments before a send through `files/write-stream` (services-map.md 5A.6.2); this is the same step over the Worker's JSON route.
+- **The preview message is Conductor's.** Opening a preview of a Local variant whose mirror is not on disk shows "Couldn't open preview: local workspace mirror is unavailable." and opens nothing, as Conductor's preview opener does.
+- **The file service's three cloud dependencies are required.** `WorkspaceFilesService` now requires `searchRootOf`, `cloudOpen` and `hostKindOf`, as issue #397's audit asked. The composition root always supplied them; an optional field with a local fallback was a second path nothing used.
+
+Contract changes, each in its own commit or with the change that needs it:
+
+1. `terminals.host_kind` (migration 0016), `Terminal.hostKind`, and the optional `hostKind` on `Actions.terminals.create`.
+2. `FileSystem.readBytes` and `FileSystem.writeBytes`, the Tauri commands `fs_read_bytes` and `fs_write_bytes_atomic`, and the Worker's `readBytes`/`writeBytes` file operations. A binary transfer needs a local binary door; the text door cannot carry arbitrary bytes.
+3. The Worker file body's two new operations, and `ComposerService.materializeForSend`'s host argument (internal to the services, not the screen API).
+
+Left out, and why:
+
+- **No push signal.** The Worker has no file-change topic and the sandbox has no watcher that reports to its Durable Object. A self-hosted Worker could push over a relay channel, but the research describes Conductor's own service (`file-sync:changed` topics and generation cursors), not a Worker design, and a correct watcher is a new runtime, not a change to the mirror. The sync keeps the five-second poll D111 recorded.
+- **No snapshot for a stopped sandbox.** D105's spike found no Sandbox SDK API that lists or deletes container snapshots, and they expire after 30 days, so a snapshot cannot meet the "delete everything" rule. The Worker's file routes also need a running sandbox. A stopped workspace therefore keeps its last mirror and reports the failed sync, as D111 said.
+
+Live verification: `conducted-dev-c11t-183155` on the owner's account (a first try, `conducted-dev-c11t-182835`, was cut at the cold start and is also deleted). The deploy took 32.6 s; the first start after a deploy outlasted Cloudflare's 100-second request window, so the test retries and the three tries took 176.5 s; the text, binary and 3 MiB files took 1.0 s and the terminal command 259 ms; the uninstall took 13.6 s. Every list held no `conducted-dev-c11t` entry afterwards and the local Docker image was removed by id. Numbers and method: docs/research/cloud-spike-2026-11-06.md.
