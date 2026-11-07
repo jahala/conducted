@@ -260,7 +260,7 @@ describe("PR-11 GitHub issue list", () => {
 		const result = await service.listIssues(remoteUrl, "");
 
 		expect(!result.ok && result.error.code).toBe("github_failed");
-		if (!result.ok) expect(result.error.message).toContain("gh auth login");
+		if (!result.ok) expect(result.error.message).toContain("Reconnect GitHub in Settings");
 		expect(service.store.getState().health.status).toBe("broken");
 	});
 });

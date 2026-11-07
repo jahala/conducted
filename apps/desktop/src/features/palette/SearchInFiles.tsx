@@ -119,8 +119,8 @@ function SearchBody({
 					// biome-ignore lint/a11y/noAutofocus: the dialog exists to take the typed query.
 					autoFocus
 					type="search"
-					aria-label="Search file contents"
-					placeholder="Search file contents"
+					aria-label="Search in files..."
+					placeholder="Search in files..."
 					value={query}
 					onChange={(event) => setQuery(event.target.value)}
 					className="h-11 w-full bg-transparent pl-11 pr-3 text-sm text-fg placeholder:text-fg-subtle focus-visible:outline-none"

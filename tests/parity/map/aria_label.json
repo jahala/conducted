@@ -117,7 +117,7 @@
 		"class": "wording",
 		"backlog": "CHAT-06",
 		"owner": "hand",
-		"note": "Our message menu (UserMessage.tsx) has no accessible name."
+		"note": "Same job, different control: our message actions are a right-click menu on the message bubble, so there is no visible trigger to name. Conductor's 'Show message actions' names an icon button; building that button is a UI change, not wording."
 	},
 	"aria_label:R3015261": {
 		"status": "decided",
@@ -381,7 +381,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our setting row offers a 'Reset to shared settings' link (SettingRow.tsx)."
+		"note": "Same job, different control: our row shows its one override action as a link named 'Reset to shared settings'. Conductor groups row actions behind a menu button named 'Setting actions'. Building that menu is a UI change, not wording."
 	},
 	"aria_label:R8717346": {
 		"status": "gap",
@@ -403,7 +403,7 @@
 		"class": "wording",
 		"backlog": "CHAT-14",
 		"owner": "hand",
-		"note": "Our context button is labelled 'Context usage: N%' (ContextWheel.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R8880898": {
 		"status": "matched",
@@ -444,7 +444,7 @@
 		"class": "wording",
 		"backlog": "COMP-02",
 		"owner": "hand",
-		"note": "Our model picker's fast-mode row reads 'Fast' (ModelPicker.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R9226139": {
 		"status": "gap",
@@ -581,7 +581,7 @@
 		"class": "wording",
 		"backlog": "REV-08",
 		"owner": "hand",
-		"note": "Our file tab reads 'Unsaved edits' (FileTabHeader.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R9637821": {
 		"status": "gap",
@@ -702,7 +702,7 @@
 		"class": "wording",
 		"backlog": "NAV-01",
 		"owner": "hand",
-		"note": "Our control is labelled 'Toggle left sidebar' (app/ShellControls.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R10292173": {
 		"status": "gap",
@@ -711,7 +711,7 @@
 		"class": "wording",
 		"backlog": "NAV-01",
 		"owner": "hand",
-		"note": "Our sidebar ResizeHandle (ui/resizable.tsx) has no accessible name."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R10295355": {
 		"status": "gap",
@@ -922,7 +922,7 @@
 		"class": "wording",
 		"backlog": "SET-03",
 		"owner": "hand",
-		"note": "Our button reads 'Copy code' (AgentLoginDialog.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R10948284": {
 		"status": "gap",
@@ -947,7 +947,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our action row button reads 'Show' (ActionList.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R11023000": {
 		"status": "gap",
@@ -956,7 +956,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our action row button reads 'Hide' (ActionList.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R11023468": {
 		"status": "gap",
@@ -965,7 +965,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our action row button reads 'Delete' (ActionList.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R11029463": {
 		"status": "matched",

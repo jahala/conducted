@@ -162,7 +162,7 @@ export function createCommandHandlers(
 	const pickFolder = ports.pickFolder;
 	if (pickFolder !== undefined) {
 		handlers["project.add"] = async () => {
-			const folder = await pickFolder("Add a project");
+			const folder = await pickFolder("Select project directory");
 			if (folder === null) return ok(undefined);
 			const added = await services.repo.addLocal(folder);
 			return added.ok ? ok(undefined) : added;

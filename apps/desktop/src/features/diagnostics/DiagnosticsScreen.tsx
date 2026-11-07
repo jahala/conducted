@@ -189,8 +189,7 @@ export function DiagnosticsScreen() {
 				<header className="flex flex-col gap-2">
 					<h1 className="text-xl font-medium text-fg">Diagnostics</h1>
 					<p className="text-sm text-fg-muted">
-						Gather details about Conducted, your Mac and its shell to help diagnose a problem.
-						Environment values are hashed unless they are safe to share.
+						Capture information about your environment to help diagnose issues.
 					</p>
 				</header>
 

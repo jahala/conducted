@@ -2652,7 +2652,7 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Ours reads \"Other…\" on the question card.",
+		"note": "This is Conductor's model-usage chart legend. Our question card's 'Other…' placeholder matches Conductor's own question card placeholder.",
 		"by": "hand",
 		"backlog": "CHAT-10",
 		"item": "Question 'Other...' free text (key 0)",
@@ -3100,7 +3100,7 @@
 		"item": "General: 'Send messages with' (Enter, Cmd+Enter, Custom)",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours reads \"Cmd+Enter\" in the send-key option."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"label:R11118427": {
 		"status": "gap",

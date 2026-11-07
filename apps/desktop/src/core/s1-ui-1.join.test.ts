@@ -342,7 +342,7 @@ describe("s1-ui-1 join", () => {
 				),
 			);
 
-			expect(await screen.findByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+			expect(await screen.findByRole("button", { name: "Context usage" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();

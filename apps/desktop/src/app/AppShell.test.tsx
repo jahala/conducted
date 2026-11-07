@@ -62,7 +62,7 @@ describe("NAV-01 app shell", () => {
 		await openApp("/", { settings: { left_panel_visible: false } });
 
 		expect(
-			await screen.findByRole("button", { name: "Toggle left sidebar", expanded: false }),
+			await screen.findByRole("button", { name: "Toggle sidebar", expanded: false }),
 		).toBeTruthy();
 	});
 
@@ -108,9 +108,7 @@ describe("NAV-01 app shell", () => {
 
 	it("shows the user when the sidebar layout cannot be saved", async () => {
 		await openApp("/", { failSettingsWrites: "The settings file is read-only" });
-		fireEvent.click(
-			await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true }),
-		);
+		fireEvent.click(await screen.findByRole("button", { name: "Toggle sidebar", expanded: true }));
 
 		expect(await screen.findByText("Couldn't save the sidebar layout")).toBeTruthy();
 		expect(screen.getByText("The settings file is read-only")).toBeTruthy();
@@ -118,9 +116,7 @@ describe("NAV-01 app shell", () => {
 
 	it("saves the sidebar state when the user hides it", async () => {
 		const { shell } = await openApp("/");
-		fireEvent.click(
-			await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true }),
-		);
+		fireEvent.click(await screen.findByRole("button", { name: "Toggle sidebar", expanded: true }));
 
 		await waitFor(() =>
 			expect(shell.settingsWrites).toContainEqual({ key: "left_panel_visible", value: false }),
@@ -221,20 +217,16 @@ describe("NAV-01 saved sidebar state at launch", () => {
 			await openUnstartedApp(test);
 
 			expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
-			expect(
-				screen.queryByRole("button", { name: "Toggle left sidebar", expanded: true }),
-			).toBeNull();
+			expect(screen.queryByRole("button", { name: "Toggle sidebar", expanded: true })).toBeNull();
 
 			await act(async () => {
 				await test.container.services.settings.start();
 			});
 
 			expect(
-				await screen.findByRole("button", { name: "Toggle left sidebar", expanded: false }),
+				await screen.findByRole("button", { name: "Toggle sidebar", expanded: false }),
 			).toBeTruthy();
-			expect(
-				screen.queryByRole("button", { name: "Toggle left sidebar", expanded: true }),
-			).toBeNull();
+			expect(screen.queryByRole("button", { name: "Toggle sidebar", expanded: true })).toBeNull();
 			expect(shellInset()).toBe("var(--shell-controls-width)");
 		} finally {
 			cleanup();
@@ -255,7 +247,7 @@ describe("NAV-01 saved sidebar state at launch", () => {
 			});
 
 			expect(
-				await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true }),
+				await screen.findByRole("button", { name: "Toggle sidebar", expanded: true }),
 			).toBeTruthy();
 			expect(shellInset()).toBe("0px");
 		} finally {
@@ -273,7 +265,7 @@ describe("NAV-01 saved sidebar state at launch", () => {
 			await act(async () => {
 				await test.container.services.settings.start();
 			});
-			await screen.findByRole("button", { name: "Toggle left sidebar", expanded: false });
+			await screen.findByRole("button", { name: "Toggle sidebar", expanded: false });
 
 			const rows = await test.database.select<{ key: string; value: string }>(
 				"SELECT key, value FROM settings ORDER BY key",

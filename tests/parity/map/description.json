@@ -6,7 +6,7 @@
 		"class": "wording",
 		"backlog": "PR-01",
 		"owner": "hand",
-		"note": "Our error reads 'GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.' (core/services/github.ts)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"description:M952385": {
 		"status": "gap",
@@ -15,7 +15,7 @@
 		"class": "wording",
 		"backlog": "PR-01",
 		"owner": "hand",
-		"note": "Our error reads 'GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.' (core/services/github.ts)."
+		"note": "Our app shows one sign-in message for both the `gh` CLI and a saved token, and takes Conductor's generic expired-sign-in wording (description:M948441). This PAT-specific line belongs to Conductor's token broker, which D029 replaces."
 	},
 	"description:M1183257": {
 		"status": "decided",
@@ -100,7 +100,7 @@
 		"class": "wording",
 		"backlog": "NAV-14",
 		"owner": "hand",
-		"note": "Our command is titled 'Show uncommitted changes' with no description (core/registries/commands.ts)."
+		"note": "Our command's title already reads 'Show uncommitted changes'; Conductor's description has no home because our command registry shows no descriptions."
 	},
 	"description:M3847184": {
 		"status": "gap",
@@ -165,7 +165,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our settings save failure reads 'Failed to save setting' (core/services/settings.ts)."
+		"note": "This is Conductor's synced-user-setting failure. Our settings are local, and a failed save already shows Conductor's 'Failed to save setting' toast (toast:M390047)."
 	},
 	"description:R2668060": {
 		"status": "gap",
@@ -565,7 +565,7 @@
 		"class": "wording",
 		"backlog": "COMP-06",
 		"owner": "hand",
-		"note": "Our slash command reads 'Restart the agent process to pick up config changes' (SlashCommandExtension.ts)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"description:R8846351": {
 		"status": "matched",
@@ -582,7 +582,7 @@
 		"class": "wording",
 		"backlog": "COMP-06",
 		"owner": "hand",
-		"note": "Our slash command reads 'Choose Codex's personality for this session' (SlashCommandExtension.ts)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"description:R8846651": {
 		"status": "gap",
@@ -1741,7 +1741,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our Scripts page has 'Setup script' and 'Archive script' headings (RepoScriptsPage.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"description:R11302999": {
 		"status": "gap",
@@ -1750,7 +1750,7 @@
 		"class": "wording",
 		"backlog": "RUN-06",
 		"owner": "hand",
-		"note": "Our row is 'Big terminal mode' (settings registry)."
+		"note": "Conductor's description belongs to its Terminal settings panel. Our switch row keeps the research's description for that setting. Different control."
 	},
 	"description:R11303228": {
 		"status": "decided",
@@ -1777,7 +1777,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our repo Prompts page holds the Review, Create PR and Resolve conflicts instructions (RepoPromptsPage.tsx)."
+		"note": "This is Conductor's organization Prompts panel (D004, D025). Our repository prompt instructions are a different job."
 	},
 	"description:R11304246": {
 		"status": "decided",
@@ -1974,7 +1974,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our Actions page has the heading 'Actions' (RepoActionsPage.tsx)."
+		"note": "Our Actions page description already reads this; the next seed matches it when a catalogue state draws it."
 	},
 	"description:R11709825": {
 		"status": "matched",
@@ -2003,7 +2003,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our error reads 'Couldn't load the repository settings' (RepoMiscPage.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"description:R12095963": {
 		"status": "gap",

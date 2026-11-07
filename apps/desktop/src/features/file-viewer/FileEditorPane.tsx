@@ -36,7 +36,7 @@ import { EditorSurface } from "./editor/EditorSurface.tsx";
 import { FindReplaceBar } from "./editor/FindReplaceBar.tsx";
 import { buildPattern, findMatches, replaceMatches } from "./editor/find-matches.ts";
 import { FileTabState } from "./FileTabState.tsx";
-import { useOpenElsewhere } from "./use-open-elsewhere.ts";
+import { useOpenElsewhere } from "./use-open-elsewhere.tsx";
 
 export interface FileEditorPaneProps {
 	workspaceId: WorkspaceId;

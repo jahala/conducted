@@ -523,11 +523,12 @@ describe("RUN-06 terminal view", () => {
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
-		expect(screen.getByText("Open this terminal link?")).toBeTruthy();
-		expect(screen.getByText("https://example.com")).toBeTruthy();
+		expect(screen.getByText("Open link?")).toBeTruthy();
+		expect(screen.getByText(/Open this terminal link\?/)).toBeTruthy();
+		expect(screen.getByText(/https:\/\/example\.com/)).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Open" }));
 		expect(state.openUrl).toHaveBeenCalledWith("https://example.com");
-		await waitFor(() => expect(screen.queryByText("Open this terminal link?")).toBeNull());
+		await waitFor(() => expect(screen.queryByText("Open link?")).toBeNull());
 	});
 
 	it("shows a load error when the terminal cannot be found", () => {

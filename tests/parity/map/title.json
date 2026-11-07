@@ -1383,7 +1383,7 @@
 		"item": "Sidebar footer 'Add project...' button and menu",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours uses the folder-dialog title \"Add a project\"."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R1892068": {
 		"status": "gap",
@@ -1612,7 +1612,7 @@
 		"item": "'Empty CSV' and 'Preview not available'",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours reads \"Preview not available\" in the file preview."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R3989871": {
 		"status": "gap",
@@ -1646,7 +1646,7 @@
 		"item": "Confirm 'Open this terminal link?' with Cancel and Open",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours reads \"Open this terminal link?\" in the terminal link confirm."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R4405982": {
 		"status": "gap",
@@ -1694,7 +1694,7 @@
 		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours uses the folder-dialog title \"Select working directories\"."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R8048580": {
 		"status": "gap",
@@ -2106,7 +2106,7 @@
 		"item": "The user can move the app's data folder; success shows \"Conductor root path changed successfully\".",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours reads \"Select Conducted root directory\" (D012)."
+		"note": "Our title already reads 'Select Conducted root directory' (D012); a native folder dialog has no catalogue state to draw it."
 	},
 	"title:R10970126": {
 		"status": "gap",
@@ -3275,7 +3275,7 @@
 		"item": "Experimental: 'Big terminal mode' with preset and custom commands",
 		"owner": "hand",
 		"class": "wording",
-		"note": "Ours reads \"Big terminal mode\" in Experimental settings."
+		"note": "Conductor's 'Big terminal settings' is the title of its Terminal settings panel. Ours is the switch row, whose label is Conductor's 'Big terminal mode' (ui-map 6). Different control."
 	},
 	"title:R11303199": {
 		"status": "decided",

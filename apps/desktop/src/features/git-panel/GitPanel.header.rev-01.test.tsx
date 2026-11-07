@@ -202,7 +202,7 @@ describe("REV-01 git panel header over the real container", () => {
 			expect(screen.queryByText("Uncommitted changes")).toBeNull();
 			expect(screen.queryByText("No changes")).toBeNull();
 			expect(screen.queryByText(/Ahead by/)).toBeNull();
-			expect(screen.queryByRole("button", { name: "PR status details" })).toBeNull();
+			expect(screen.queryByRole("button", { name: "View PR status" })).toBeNull();
 			expect(screen.queryByRole("button", { name: "Commit and push" })).toBeNull();
 			expect(screen.queryByRole("button", { name: "Push" })).toBeNull();
 		} finally {
@@ -225,7 +225,7 @@ describe("REV-01 git panel header over the real container", () => {
 
 			const button = await screen.findByRole("button", { name: "Create PR" });
 			expect(button.getAttribute("data-variant")).toBe("outline");
-			expect(screen.queryByRole("button", { name: "PR status details" })).toBeNull();
+			expect(screen.queryByRole("button", { name: "View PR status" })).toBeNull();
 
 			fireEvent.click(button);
 			await waitFor(() => expect(create).toHaveBeenCalledWith(workspace.id, { draft: false }));

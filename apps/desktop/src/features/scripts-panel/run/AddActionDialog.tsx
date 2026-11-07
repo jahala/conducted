@@ -159,7 +159,7 @@ export function AddActionDialog({
 							id={nameId}
 							value={draft.name}
 							autoFocus
-							placeholder="Dev server"
+							placeholder="My action"
 							aria-invalid={clash || undefined}
 							error={clash ? `An action called "${draft.name.trim()}" already exists.` : undefined}
 							onChange={(event) => set({ name: event.target.value })}
