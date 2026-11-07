@@ -1,7 +1,7 @@
 /**
  * @feature catalogue States of the settings pages
- * Owns: the General, Agents, Account, Environment and Advanced pages, with the cast's two projects in the
- * navigation.
+ * Owns: every settings page, the personal ones and atlas's repository pages, with the cast's two
+ * projects in the navigation.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -16,6 +16,20 @@ const page = (id: string, title: string, page: string, text: string): CatalogueS
 	seed: async (world) => {
 		await seedCast(world);
 		return { route: `/settings/${page}`, ready: (document) => shows(document, text) };
+	},
+});
+
+/** One of atlas's repository settings pages. */
+const repoPage = (id: string, title: string, page: string, text: string): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		return {
+			route: `/settings/repos/${cast.atlas.id}/${page}`,
+			ready: (document) => shows(document, text),
+		};
 	},
 });
 
@@ -44,6 +58,17 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	agentsWhile("hold"),
 	agentsWhile("fail"),
 	page("settings-account", "Account", "account", "Account"),
+	page("settings-appearance", "Appearance", "appearance", "Appearance"),
+	page("settings-key-bindings", "Keyboard shortcuts", "key-bindings", "Keyboard shortcuts"),
+	page("settings-default-models", "Default models", "default-models", "Default models"),
+	page("settings-git", "Git", "git", "Branch name prefix"),
+	page("settings-connections", "Connections", "connections", "Connections"),
 	page("settings-environment", "Environment", "environment", "Environment"),
+	page("settings-remote-control", "Remote control", "remote-control", "Remote control"),
+	page("settings-experimental", "Experimental", "experimental", "Experimental"),
 	page("settings-advanced", "Advanced", "advanced", "Advanced"),
+	repoPage("settings-repo-scripts", "atlas: Scripts", "scripts", "Setup script"),
+	repoPage("settings-repo-actions", "atlas: Actions", "actions", "Actions"),
+	repoPage("settings-repo-prompts", "atlas: Prompts", "prompts", "Prompts"),
+	repoPage("settings-repo-misc", "atlas: Misc", "misc", "Misc"),
 ];
