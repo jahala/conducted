@@ -22,7 +22,7 @@ import { createRoot, type Root } from "react-dom/client";
 import type { Snippet } from "../../../core/model.ts";
 import { filterSnippets } from "../snippet-model.ts";
 import { inlineTextContent } from "../text-content.ts";
-import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import { closeSuggestionRoot, SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
 import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 export const SNIPPET_TRIGGER = "§";
@@ -199,8 +199,8 @@ class SnippetPopupView {
 		const host = this.#host;
 		this.#root = null;
 		this.#host = null;
-		if (root !== null) root.unmount();
-		host?.remove();
+		if (root === null) return;
+		closeSuggestionRoot(root, host);
 	}
 }
 
