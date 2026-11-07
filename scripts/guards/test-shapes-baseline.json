@@ -102,7 +102,7 @@
 		"apps/desktop/src/features/workspace/TabStrip.nav-10.test.tsx": 4,
 		"apps/desktop/src/features/workspace/WorkspaceActionsMenu.nav-10.test.tsx": 2,
 		"apps/desktop/src/features/workspace/WorkspaceGate.nav-10.test.tsx": 1,
-		"apps/desktop/src/features/workspace/WorkspaceHeader.nav-10.test.tsx": 2,
+		"apps/desktop/src/features/workspace/WorkspaceHeader.nav-10.test.tsx": 1,
 		"apps/desktop/src/features/workspace/WorkspaceScreen.nav-10.test.tsx": 3,
 		"apps/desktop/src/features/workspace/useNewTab.nav-10.test.tsx": 2,
 		"apps/desktop/src/features/workspace/workspace.test.tsx": 1

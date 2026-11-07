@@ -58,8 +58,9 @@ export async function rightClick(
 	document: Document,
 	selector: string,
 	name: string,
+	options: { prefix?: boolean } = {},
 ): Promise<void> {
-	const element = await find(document, selector, name);
+	const element = await find(document, selector, name, options);
 	const box = element.getBoundingClientRect();
 	const init = {
 		bubbles: true,

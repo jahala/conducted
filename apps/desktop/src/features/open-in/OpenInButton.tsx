@@ -3,10 +3,12 @@
  * Owns: the split button of the Open in control. The main part opens the default app, the arrow
  * opens the menu.
  * Behaviour: ui-map.md 3.10 (Cmd+O opens in the default app, Cmd+Shift+O opens the menu).
+ * Measured in Conductor 0.92.1: the workspace header's button shows the default app's icon with no
+ * label (yC with showLabel false, renderApp @5520960); its name is in the tooltip.
  * Must handle: a missing default app (the label reads "Open in"), an open in flight (spinner and a
  * disabled button while `busy`; the one-open-at-a-time guard is OpenInMenu's single flight), the
- * label and icon of the default app, a disabled reason, and the keyboard focus ring from the
- * shared button.
+ * icon of the default app with its name as the button's name, a disabled reason, and the keyboard
+ * focus ring from the shared button.
  * Test first: clicking the main part calls onOpenDefault once, even if clicked twice while busy.
  */
 import { Button } from "../../ui/Button.tsx";
@@ -47,17 +49,11 @@ export function OpenInButton({
 				className="rounded-r-none"
 				loading={busy}
 				disabled={disabled}
-				title={disabledReason ?? undefined}
+				aria-label={defaultApp === null ? "Open in" : `Open in ${defaultApp.label}`}
+				title={disabledReason ?? (defaultApp === null ? undefined : `Open in ${defaultApp.label}`)}
 				onClick={openDefault}
 			>
-				{defaultApp === null ? (
-					"Open in"
-				) : (
-					<>
-						<OpenInAppIcon category={defaultApp.category} />
-						<span className="max-w-32 truncate">{defaultApp.label}</span>
-					</>
-				)}
+				{defaultApp === null ? "Open in" : <OpenInAppIcon category={defaultApp.category} />}
 			</Button>
 			<MenuTrigger asChild>
 				<Button

@@ -1,7 +1,7 @@
 /**
  * @feature WS-08 OpenInMenu
  * Owns: tests for the workspace header's Open in control: its default app, menu order, fallback,
- * archived state, failure toast, default setting and its two shortcuts.
+ * archived state, failure toast, default setting, its two shortcuts and its Copy path item.
  * Behaviour: ui-map.md 3.10; services-map.md 4.2.3.
  * Test first: with Cursor and Finder installed and Cursor last used, the button label is Cursor
  * and the menu lists Cursor first.
@@ -79,7 +79,8 @@ describe("WS-08 OpenInMenu", () => {
 
 		expect(await screen.findByRole("button", { name: /Cursor/ })).toBeTruthy();
 		const menu = await openMenu();
-		expect(menuLabels(menu)).toEqual(["Cursor", "Finder"]);
+		// The apps come first, then Conductor's "Copy path" (D098).
+		expect(menuLabels(menu)).toEqual(["Cursor", "Finder", "Copy path"]);
 	});
 
 	it("WS-08 opens the default app and remembers it as the most recent", async () => {
@@ -119,7 +120,7 @@ describe("WS-08 OpenInMenu", () => {
 
 		expect(await screen.findByRole("button", { name: /Finder/ })).toBeTruthy();
 		const menu = await openMenu();
-		expect(menuLabels(menu)).toEqual(["Finder", "Zed"]);
+		expect(menuLabels(menu)).toEqual(["Finder", "Zed", "Copy path"]);
 		expect(screen.getAllByRole("button", { name: "Set as default" })).toHaveLength(1);
 	});
 
@@ -129,7 +130,7 @@ describe("WS-08 OpenInMenu", () => {
 
 		await screen.findByRole("button", { name: /Finder/ });
 		const menu = await openMenu();
-		expect(menuLabels(menu)).toEqual(["Finder"]);
+		expect(menuLabels(menu)).toEqual(["Finder", "Copy path"]);
 	});
 
 	it("WS-08 disables the control with a reason for an archived workspace", async () => {
@@ -199,5 +200,16 @@ describe("WS-08 OpenInMenu", () => {
 
 		expect(await screen.findByRole("menu")).toBeTruthy();
 		expect(openIn).not.toHaveBeenCalled();
+	});
+	it("WS-08 copies the workspace folder path from the menu's last item", async () => {
+		const { workspace } = await setup();
+		if (test === undefined) throw new Error("Create the test container first.");
+		const copied = vi.spyOn(test.container.platform.clipboard, "writeText");
+		renderMenu(workspace.id);
+
+		await screen.findByRole("button", { name: /Cursor|Finder/ });
+		const menu = await openMenu();
+		fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy path" }));
+		await waitFor(() => expect(copied).toHaveBeenCalledWith(workspace.path));
 	});
 });

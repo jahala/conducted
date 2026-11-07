@@ -1,12 +1,14 @@
 /**
  * @feature NAV-10 Workspace actions menu
- * Owns: The dropdown menu behind the header's 'Workspace actions' button.
+ * Owns: The right-click menu of a workspace's sidebar row.
  * Behaviour: ui-map.md 3.1 ('Workspace actions' menu: mark as read or unread, pin or unpin, set
- * status, move to section, rename, copy link, link a pull request, archive or unarchive), 3.10
- * ('Link pull request' dialog).
- * Our design choice: One list for the header. Cloud items (follow, reassign, share) are left out.
- * Shortcut hints come from the command registry. The sidebar's right-click surface belongs to
- * NAV-03's workspace row, which is not wired yet.
+ * status, move to section, rename, copy link, link a pull request, archive or unarchive; the same
+ * menu is the sidebar row's, renderApp @5558200-5563900), 3.10 ('Link pull request' dialog).
+ * Conductor's workspace header holds no workspace name, rename button or actions menu (nPi,
+ * renderApp @5518193): renaming the workspace and its actions live on the sidebar row (D098).
+ * Our design choice: Cloud items (follow, reassign, share) are left out. Shortcut hints come from
+ * the command registry. The items mount only while the menu is open, so a long sidebar pays for
+ * one row's hooks, not every row's.
  * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); unarchive that needs a
  * new branch name (a small dialog asks for one); a restore that lost uncommitted changes (the
  * warning from `runUnarchive`); mark as read or unread follows the chats' unread
@@ -17,7 +19,7 @@
 
 import type { Result, WorkspaceId } from "@conducted/shared";
 import { messageOf, ok } from "@conducted/shared";
-import type { ReactNode } from "react";
+import type { ReactElement } from "react";
 import { useState } from "react";
 import { useStore } from "zustand";
 import { useRunCommandHandlers } from "../../app/command-dispatcher.ts";
@@ -26,17 +28,15 @@ import { useActions, useLiveShortcut, useSessions, useWorkspace } from "../../co
 import type { KanbanStatus, Section } from "../../core/model.ts";
 import { buildDeepLink } from "../../core/services/notifications.ts";
 import {
-	Menu,
-	MenuContent,
-	MenuItem,
-	MenuRadioGroup,
-	MenuRadioItem,
-	MenuSeparator,
-	MenuSub,
-	MenuSubContent,
-	MenuSubTrigger,
-	MenuTrigger,
-} from "../../ui/Menu.tsx";
+	ContextMenu,
+	ContextMenuItem,
+	ContextMenuRadioGroup,
+	ContextMenuRadioItem,
+	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
+} from "../../ui/ContextMenu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
 import { SectionDialog } from "../sidebar/SectionDialog.tsx";
@@ -46,11 +46,78 @@ import { runUnarchive } from "./workspace-actions.ts";
 
 export interface WorkspaceActionsMenuProps {
 	workspaceId: WorkspaceId;
-	/** The button that opens the menu. */
-	children: ReactNode;
+	/** The row that opens the menu on right click. */
+	children: ReactElement;
 }
 
 export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActionsMenuProps) {
+	const [renaming, setRenaming] = useState(false);
+	const [newSection, setNewSection] = useState(false);
+	const [branchPrompt, setBranchPrompt] = useState(false);
+
+	return (
+		<>
+			<ContextMenu
+				items={
+					<WorkspaceActionItems
+						workspaceId={workspaceId}
+						onRename={() => setRenaming(true)}
+						onNewSection={() => setNewSection(true)}
+						onNeedsBranchName={() => setBranchPrompt(true)}
+					/>
+				}
+			>
+				{children}
+			</ContextMenu>
+			{renaming ? (
+				<WorkspaceRenameDialog workspaceId={workspaceId} open onOpenChange={setRenaming} />
+			) : null}
+			{branchPrompt ? (
+				<UnarchiveBranchDialog workspaceId={workspaceId} onOpenChange={setBranchPrompt} />
+			) : null}
+			{newSection ? <SectionDialog open onOpenChange={setNewSection} section={null} /> : null}
+		</>
+	);
+}
+
+function UnarchiveBranchDialog({
+	workspaceId,
+	onOpenChange,
+}: {
+	workspaceId: WorkspaceId;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const actions = useActions();
+	const workspace = useWorkspace(workspaceId);
+	const branch = workspace.state === "ready" ? workspace.data.branch : "";
+	return (
+		<RenameDialog
+			open
+			onOpenChange={onOpenChange}
+			title="Unarchive workspace"
+			initialName={branch}
+			fieldLabel="Branch name"
+			submitLabel="Unarchive"
+			onSubmit={(name) =>
+				runUnarchive(actions, workspaceId, { branchName: name, clearChats: false })
+			}
+		/>
+	);
+}
+
+interface WorkspaceActionItemsProps {
+	workspaceId: WorkspaceId;
+	onRename: () => void;
+	onNewSection: () => void;
+	onNeedsBranchName: () => void;
+}
+
+function WorkspaceActionItems({
+	workspaceId,
+	onRename,
+	onNewSection,
+	onNeedsBranchName,
+}: WorkspaceActionItemsProps) {
 	const actions = useActions();
 	const runCommand = useRunCommandHandlers();
 	const workspace = useWorkspace(workspaceId);
@@ -61,9 +128,6 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const copyLinkShortcut = useLiveShortcut("workspace.copyLink");
 	const linkPullRequestShortcut = useLiveShortcut("pr.link");
 	const archiveShortcut = useLiveShortcut("workspace.archive");
-	const [renaming, setRenaming] = useState(false);
-	const [newSection, setNewSection] = useState(false);
-	const [branchPrompt, setBranchPrompt] = useState(false);
 
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const archived = data?.state === "archived";
@@ -95,7 +159,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const startUnarchive = () =>
 		void runUnarchive(actions, workspaceId, { branchName: null, clearChats: false }).then(
 			(result) => {
-				if (result.ok && result.value.needsBranchName) setBranchPrompt(true);
+				if (result.ok && result.value.needsBranchName) onNeedsBranchName();
 			},
 		);
 
@@ -108,114 +172,96 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 
 	return (
 		<>
-			<Menu>
-				<MenuTrigger asChild>{children}</MenuTrigger>
-				<MenuContent aria-label="Workspace actions">
-					<MenuItem
-						shortcut={readShortcut ?? undefined}
-						onSelect={() =>
-							void run(
-								unread
-									? "Couldn't mark the workspace as read"
-									: "Couldn't mark the workspace as unread",
-								() =>
-									unread
-										? actions.workspaces.markRead(workspaceId)
-										: actions.workspaces.markUnread(workspaceId),
-							)
-						}
-					>
-						{unread ? "Mark as read" : "Mark as unread"}
-					</MenuItem>
-					<MenuItem
-						shortcut={pinShortcut ?? undefined}
-						onSelect={() =>
-							void run(pinned ? "Couldn't unpin the workspace" : "Couldn't pin the workspace", () =>
-								actions.workspaces.setPinned(workspaceId, !pinned),
-							)
-						}
-					>
-						{pinned ? "Unpin" : "Pin"}
-					</MenuItem>
-					<MenuSub>
-						<MenuSubTrigger>Set status</MenuSubTrigger>
-						<MenuSubContent aria-label="Set status">
-							<MenuRadioGroup value={data?.kanbanStatus ?? ""}>
-								{KANBAN_STATUSES.map((status) => (
-									<MenuRadioItem key={status} value={status} onSelect={() => setStatus(status)}>
-										{KANBAN_COLUMNS[status].label}
-									</MenuRadioItem>
-								))}
-							</MenuRadioGroup>
-						</MenuSubContent>
-					</MenuSub>
-					<MenuSub>
-						<MenuSubTrigger>Move to section</MenuSubTrigger>
-						<MenuSubContent aria-label="Move to section">
-							{sections.length === 0 ? (
-								<MenuItem disabled>No sections yet</MenuItem>
-							) : (
-								sections.map((section) => (
-									<MenuItem key={section.id} onSelect={() => moveTo(section)}>
-										{section.name}
-									</MenuItem>
-								))
-							)}
-							<MenuSeparator />
-							<MenuItem onSelect={() => setNewSection(true)}>New section...</MenuItem>
-						</MenuSubContent>
-					</MenuSub>
-					<MenuSeparator />
-					{archived ? (
-						<MenuItem onSelect={startUnarchive}>Unarchive</MenuItem>
-					) : (
-						<>
-							<MenuItem onSelect={() => setRenaming(true)}>Rename</MenuItem>
-							<MenuItem
-								shortcut={copyLinkShortcut ?? undefined}
-								onSelect={() =>
-									void run("Couldn't copy the link", () =>
-										actions.app.copyText(buildDeepLink(workspaceId, null)),
-									)
-								}
-							>
-								Copy link
-							</MenuItem>
-							<MenuItem
-								shortcut={linkPullRequestShortcut ?? undefined}
-								onSelect={() => void run("Couldn't link the pull request", linkPullRequest)}
-							>
-								Link pull request
-							</MenuItem>
-							<MenuSeparator />
-							<MenuItem
-								destructive
-								shortcut={archiveShortcut ?? undefined}
-								onSelect={() =>
-									void run("Couldn't archive the workspace", () =>
-										actions.workspaces.archive(workspaceId, { deleteBranch: false }),
-									)
-								}
-							>
-								Archive
-							</MenuItem>
-						</>
-					)}
-				</MenuContent>
-			</Menu>
-			<WorkspaceRenameDialog workspaceId={workspaceId} open={renaming} onOpenChange={setRenaming} />
-			<RenameDialog
-				open={branchPrompt}
-				onOpenChange={setBranchPrompt}
-				title="Unarchive workspace"
-				initialName={data?.branch ?? ""}
-				fieldLabel="Branch name"
-				submitLabel="Unarchive"
-				onSubmit={(name) =>
-					runUnarchive(actions, workspaceId, { branchName: name, clearChats: false })
+			<ContextMenuItem
+				shortcut={readShortcut ?? undefined}
+				onSelect={() =>
+					void run(
+						unread
+							? "Couldn't mark the workspace as read"
+							: "Couldn't mark the workspace as unread",
+						() =>
+							unread
+								? actions.workspaces.markRead(workspaceId)
+								: actions.workspaces.markUnread(workspaceId),
+					)
 				}
-			/>
-			<SectionDialog open={newSection} onOpenChange={setNewSection} section={null} />
+			>
+				{unread ? "Mark as read" : "Mark as unread"}
+			</ContextMenuItem>
+			<ContextMenuItem
+				shortcut={pinShortcut ?? undefined}
+				onSelect={() =>
+					void run(pinned ? "Couldn't unpin the workspace" : "Couldn't pin the workspace", () =>
+						actions.workspaces.setPinned(workspaceId, !pinned),
+					)
+				}
+			>
+				{pinned ? "Unpin" : "Pin"}
+			</ContextMenuItem>
+			<ContextMenuSub>
+				<ContextMenuSubTrigger>Set status</ContextMenuSubTrigger>
+				<ContextMenuSubContent aria-label="Set status">
+					<ContextMenuRadioGroup value={data?.kanbanStatus ?? ""}>
+						{KANBAN_STATUSES.map((status) => (
+							<ContextMenuRadioItem key={status} value={status} onSelect={() => setStatus(status)}>
+								{KANBAN_COLUMNS[status].label}
+							</ContextMenuRadioItem>
+						))}
+					</ContextMenuRadioGroup>
+				</ContextMenuSubContent>
+			</ContextMenuSub>
+			<ContextMenuSub>
+				<ContextMenuSubTrigger>Move to section</ContextMenuSubTrigger>
+				<ContextMenuSubContent aria-label="Move to section">
+					{sections.length === 0 ? (
+						<ContextMenuItem disabled>No sections yet</ContextMenuItem>
+					) : (
+						sections.map((section) => (
+							<ContextMenuItem key={section.id} onSelect={() => moveTo(section)}>
+								{section.name}
+							</ContextMenuItem>
+						))
+					)}
+					<ContextMenuSeparator />
+					<ContextMenuItem onSelect={onNewSection}>New section...</ContextMenuItem>
+				</ContextMenuSubContent>
+			</ContextMenuSub>
+			<ContextMenuSeparator />
+			{archived ? (
+				<ContextMenuItem onSelect={startUnarchive}>Unarchive</ContextMenuItem>
+			) : (
+				<>
+					<ContextMenuItem onSelect={onRename}>Rename</ContextMenuItem>
+					<ContextMenuItem
+						shortcut={copyLinkShortcut ?? undefined}
+						onSelect={() =>
+							void run("Couldn't copy the link", () =>
+								actions.app.copyText(buildDeepLink(workspaceId, null)),
+							)
+						}
+					>
+						Copy link
+					</ContextMenuItem>
+					<ContextMenuItem
+						shortcut={linkPullRequestShortcut ?? undefined}
+						onSelect={() => void run("Couldn't link the pull request", linkPullRequest)}
+					>
+						Link pull request
+					</ContextMenuItem>
+					<ContextMenuSeparator />
+					<ContextMenuItem
+						destructive
+						shortcut={archiveShortcut ?? undefined}
+						onSelect={() =>
+							void run("Couldn't archive the workspace", () =>
+								actions.workspaces.archive(workspaceId, { deleteBranch: false }),
+							)
+						}
+					>
+						Archive
+					</ContextMenuItem>
+				</>
+			)}
 		</>
 	);
 }

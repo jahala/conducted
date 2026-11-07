@@ -23,8 +23,8 @@
  * screen for clean workspaces (Conductor shows it only through a display option).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
  * list can refresh every row's "5m" with one timer. Status words come from
- * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
- * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
+ * status-text.ts. Right-clicking the row opens NAV-10's Workspace actions menu, as in Conductor.
+ * The Draft badge needs the pull request state and is left out until its owner is built. The "Archive workspace" badge
  * waits for the state that WS-09 gives it; archived workspaces are never listed here. Hovering a
  * row and pressing the live `sidebar.toggleRead` binding toggles its read state, even when nothing
  * is focused; P waits for NAV-04.
@@ -52,6 +52,7 @@ import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useWorkspaceDraft } from "../composer/draft-sources.ts";
 import { statusText } from "../workspace/status-text.ts";
+import { WorkspaceActionsMenu } from "../workspace/WorkspaceActionsMenu.tsx";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
@@ -188,70 +189,76 @@ export function WorkspaceRow({
 	});
 
 	return (
-		<Link
-			to="/repository/$repositoryId/workspace/$workspaceId"
-			params={{ repositoryId: repo.id, workspaceId: workspace.id }}
-			aria-current={selected ? "page" : undefined}
-			onMouseEnter={() => setHovered(true)}
-			onMouseLeave={() => setHovered(false)}
-			className={cn(
-				"group relative flex min-w-0 items-start gap-1.5 rounded-md py-2 pr-1.5 text-sm text-sidebar-fg transition-colors hover:bg-hover",
-				INDENT_CLASS[indent],
-				selected && "bg-hover",
-			)}
-		>
-			{showRepo ? (
-				<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
-					<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
-				</span>
-			) : null}
-			<span
-				{...(statusWords === ""
-					? {}
-					: { role: "img", "aria-label": statusWords, title: statusWords })}
-				className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+		<WorkspaceActionsMenu workspaceId={workspace.id}>
+			<Link
+				to="/repository/$repositoryId/workspace/$workspaceId"
+				params={{ repositoryId: repo.id, workspaceId: workspace.id }}
+				aria-current={selected ? "page" : undefined}
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+				className={cn(
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md py-2 pr-1.5 text-sm text-sidebar-fg transition-colors hover:bg-hover",
+					INDENT_CLASS[indent],
+					selected && "bg-hover",
+				)}
 			>
-				<WorkspaceStatusIcon status={status} decorative />
-			</span>
-			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="flex h-5 min-w-0 items-center gap-1.5">
-					<span
-						className={cn(
-							"min-w-0 truncate",
-							unread ? "font-semibold text-fg" : "font-book text-sidebar-fg-muted",
-						)}
-					>
-						{workspaceName(workspace)}
+				{showRepo ? (
+					<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
+						<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
 					</span>
-					<span className="flex-1" />
-					<UnreadDot unread={unread} />
-					<DraftMarker place="workspace-row" draft={draft?.draft ?? null} onOpenDraft={openDraft} />
-					{counts !== null ? (
-						<span className="flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-2xs font-medium group-hover:hidden">
-							<span className="text-git-added">+{compactCount(counts.added)}</span>
-							{counts.removed > 0 ? (
-								<span className="text-git-removed">-{compactCount(counts.removed)}</span>
-							) : null}
-						</span>
-					) : (
-						<time
-							dateTime={new Date(workspace.lastActivityAt).toISOString()}
-							title={new Date(workspace.lastActivityAt).toLocaleString()}
-							className="shrink-0 whitespace-nowrap px-1 py-0.5 text-3xs text-sidebar-fg-muted group-hover:hidden"
-						>
-							{relativeTime(workspace.lastActivityAt, now)}
-						</time>
-					)}
-					{shortcutIndex === null || liveShortcut === null ? null : (
-						<span
-							aria-hidden="true"
-							className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
-						>
-							<Kbd>{liveShortcut}</Kbd>
-						</span>
-					)}
+				) : null}
+				<span
+					{...(statusWords === ""
+						? {}
+						: { role: "img", "aria-label": statusWords, title: statusWords })}
+					className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+				>
+					<WorkspaceStatusIcon status={status} decorative />
 				</span>
-			</span>
-		</Link>
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span className="flex h-5 min-w-0 items-center gap-1.5">
+						<span
+							className={cn(
+								"min-w-0 truncate",
+								unread ? "font-semibold text-fg" : "font-book text-sidebar-fg-muted",
+							)}
+						>
+							{workspaceName(workspace)}
+						</span>
+						<span className="flex-1" />
+						<UnreadDot unread={unread} />
+						<DraftMarker
+							place="workspace-row"
+							draft={draft?.draft ?? null}
+							onOpenDraft={openDraft}
+						/>
+						{counts !== null ? (
+							<span className="flex shrink-0 items-center gap-1 px-1 py-0.5 font-mono text-2xs font-medium group-hover:hidden">
+								<span className="text-git-added">+{compactCount(counts.added)}</span>
+								{counts.removed > 0 ? (
+									<span className="text-git-removed">-{compactCount(counts.removed)}</span>
+								) : null}
+							</span>
+						) : (
+							<time
+								dateTime={new Date(workspace.lastActivityAt).toISOString()}
+								title={new Date(workspace.lastActivityAt).toLocaleString()}
+								className="shrink-0 whitespace-nowrap px-1 py-0.5 text-3xs text-sidebar-fg-muted group-hover:hidden"
+							>
+								{relativeTime(workspace.lastActivityAt, now)}
+							</time>
+						)}
+						{shortcutIndex === null || liveShortcut === null ? null : (
+							<span
+								aria-hidden="true"
+								className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
+							>
+								<Kbd>{liveShortcut}</Kbd>
+							</span>
+						)}
+					</span>
+				</span>
+			</Link>
+		</WorkspaceActionsMenu>
 	);
 }

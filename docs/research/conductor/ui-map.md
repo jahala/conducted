@@ -98,15 +98,17 @@ Search params of the workspace route (validated by zod `Kae`): `activeTabType` (
 
 ### 3.1 Workspace header (top of center panel)
 
-Left to right, for a local workspace (`nPi`, VERIFIED @5518193):
-- Breadcrumb: repo icon and name, branch, target branch picker ("Target branch").
-- Workspace name with "Rename workspace" and "Workspace actions" menu.
+Left to right, for a local workspace (`ePi` and `nPi`, VERIFIED @5513500-5521500, read again 2026-11-07):
+- Breadcrumb: the repo's icon and name (a menu: "Repository settings", "Open on GitHub"), a chevron, then the branch (`u0o`): a click renames it in place; right click offers "Copy" (`C`) and "Rename" (`R`).
+- An ellipsis button (`Kpo`) whose popover holds "Target branch" and the branch picker.
 - Follow button ("Follow workspace" or "Unfollow workspace", cloud orgs only).
 - Avatars of creator and watchers.
 - Cloud badge and status for cloud workspaces: "Conductor Cloud", Status, CPU, Memory, Disk, "Low disk", "Agent cost", Restart. VERIFIED @5611925-5623840.
-- Directory name chip and "Open in..." app button (`yC`).
+- The directory name as small muted text, only when it differs from the branch, then the "Open in..." button (`yC` with no label: the default app's icon and a menu arrow). Its menu lists the apps and ends with "Copy path".
 - When the right panel is closed, PR and git action buttons move into the header.
 - Right edge: "Toggle right sidebar".
+
+The local header has no workspace name, "Rename workspace" button or "Workspace actions" button. Those sit in the cloud workspace's hover card (`NPi`, @5625630) and, for every workspace, in the sidebar row's right-click menu below.
 
 "Workspace actions" menu (also the sidebar row menu, VERIFIED @5558200-5563900):
 - Mark as read or Mark as unread (`R`).

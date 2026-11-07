@@ -232,11 +232,6 @@
 		"note": "Onboarding: the agent and project steps."
 	},
 	{
-		"text": "Target branch: origin/main",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "The workspace header's target-branch control."
-	},
-	{
 		"text": "The local ports workspaces draw from. Cloud port forwarding is not part of this app.",
 		"state": "settings-connections",
 		"keep": "ui-parity-report.md (kept for the owner)",

@@ -825,9 +825,9 @@ describe("s1-ui join PR-10 link from the workspace actions menu", () => {
 
 			await openApp(test.container, `/repository/${repo.id}/workspace/${workspace.id}`);
 
-			const trigger = await screen.findByRole("button", { name: "Workspace actions" });
-			trigger.focus();
-			fireEvent.keyDown(trigger, { key: "Enter" });
+			// The Workspace actions menu is the sidebar row's right-click menu, as in Conductor (D098).
+			const row = await screen.findByRole("link", { name: /feature\/link/ });
+			fireEvent.contextMenu(row);
 			fireEvent.click(await screen.findByRole("menuitem", { name: "Link pull request" }));
 
 			fireEvent.change(await screen.findByLabelText("PR URL or number"), {
