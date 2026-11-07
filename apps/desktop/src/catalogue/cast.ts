@@ -7,11 +7,13 @@
  * Behaviour: ui-map.md 3.8 (workspace status: working, needs permission, needs answer, needs plan review,
  * idle, archived).
  * Must handle: a chat that is working gets its running turn after the app starts (see live.ts); the
- * waiting chats get the interaction request and the live state that shows it.
+ * waiting chats get the interaction request and the live state that shows it; and the Mac is paired
+ * with a Worker (the memory Platform's default), so its personal cloud settings answer the Git
+ * page's Git identity row (D113).
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
 import type { Interaction } from "@conducted/protocol";
-import type { ToolUseId } from "@conducted/shared";
+import { ok, type ToolUseId } from "@conducted/shared";
 import type { Repo, Session, Workspace } from "../core/model.ts";
 import type { StartedApp } from "../main.tsx";
 import type { ShellScript } from "../platform/memory.ts";
@@ -259,6 +261,21 @@ export async function seedCast(world: World, git: GitWorld = {}): Promise<Cast> 
 			"Upgrade the service to Node 24 and fix whatever breaks.",
 			"Done. Node 24 is in `.node-version` and the Dockerfile, and the one failing test used a removed `url.parse` call. The pull request is open.",
 		).events,
+	);
+
+	// The catalogue's Mac is paired with a Worker, so answer the personal cloud settings that Worker
+	// holds. Without an answer the Git page shows the unreachable error in place of the Git identity
+	// row a paired Mac has (D113).
+	world.memory.controls.scriptCloud((request) =>
+		request.path === "/settings" && request.method === "GET"
+			? ok({
+					status: 200,
+					body: JSON.stringify({
+						gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
+						envVars: {},
+					}),
+				})
+			: null,
 	);
 
 	const cast = { atlas, relay, arbor, beacon, canyon, delta, ember, fjord, grove, chats };
