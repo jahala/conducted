@@ -721,6 +721,8 @@ export interface Actions {
 	};
 	settings: {
 		set: Act<[key: string, value: unknown]>;
+		/** Removes a stored setting so its registry default (or the layer above) applies again. */
+		reset: Act<[key: string]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
 		/**

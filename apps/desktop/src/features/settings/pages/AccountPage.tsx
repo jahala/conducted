@@ -72,7 +72,13 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 
 	const checkAgain = async () => {
 		const result = await actions.app.recheckGitHubAccess();
-		if (!result.ok) toastError("Couldn't check GitHub access", result.error);
+		if (!result.ok) {
+			toastError("Couldn't check GitHub access", result.error);
+			return;
+		}
+		if (services.github.store.getState().access.status !== "ok") {
+			toast.error("GitHub isn't connected yet. Finish the sign-in and try again.");
+		}
 	};
 
 	/** The Linear row's Refresh: asks Linear again whether the stored key works. */
@@ -266,8 +272,12 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 
 			<Dialog open={githubOpen} onOpenChange={setGithubOpen}>
 				<DialogContent
-					title="GitHub"
-					description="Choose how Conducted authenticates GitHub operations on your machine."
+					title={signedIn ? "GitHub" : "Connect GitHub"}
+					description={
+						signedIn
+							? "Choose how Conducted authenticates GitHub operations on your machine."
+							: "This action needs GitHub access. Sign in with the GitHub CLI to continue."
+					}
 				>
 					<div className="flex flex-col gap-3">
 						{access.state === "loading" ? <Skeleton className="h-5 w-64" /> : null}
@@ -322,11 +332,16 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 								{access.data.scopes.length > 0 ? ` (${access.data.scopes.join(", ")})` : ""}.
 							</p>
 						) : null}
-						<div className="flex">
+						<div className="flex items-center justify-between">
 							<Button variant="ghost" size="sm" onClick={() => void checkAgain()}>
 								<RefreshIcon className="size-3.5" />
 								Check again
 							</Button>
+							{signedIn ? null : (
+								<Button variant="ghost" size="sm" onClick={() => setGithubOpen(false)}>
+									Other sign-in options
+								</Button>
+							)}
 						</div>
 						<RegistrySettingRowByKey
 							settingKey="gh_auth_method"

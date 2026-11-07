@@ -6,7 +6,8 @@
  * Access row with its status and the button that opens the macOS Privacy & Security pane.
  * Behaviour: ui-map.md 6, "General" table and "Control values" (send key, follow-up behaviour,
  * completion sound, "Full disk access permissions"). Registry rows come from SET-01, so the page
- * and search read one table.
+ * and search read one table. The send-key row carries Conductor's two failure toasts (renderApp
+ * @11117343).
  * Must handle: a save that fails (the failure is shown under the row and the stored value stays);
  * a Full Disk Access check that is loading, says no access, or fails; System Settings that cannot
  * open (the row tells the user to grant the permission by hand); "Test" while "No sound" is chosen
@@ -14,14 +15,25 @@
  * Test first: changing "Send messages with" calls settings.set with the new value once.
  */
 import { useState } from "react";
+import { useStore } from "zustand";
+import { useServices } from "../../../core/context.tsx";
 import { useActions, useFullDiskAccess, useSetting } from "../../../core/hooks.ts";
-import { settingsForPage } from "../../../core/registries/settings.ts";
+import {
+	getSettingDef,
+	pageDescriptionOf,
+	settingsForPage,
+} from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Callout } from "../../../ui/Callout.tsx";
 import { VolumeIcon } from "../../../ui/icons.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { ResetCalloutDismissals } from "../ResetCalloutDismissals.tsx";
-import { RegistrySettingRows } from "../SettingRow.tsx";
+import {
+	RegistrySettingRows,
+	SettingControl,
+	SettingRow,
+	useSettingSaves,
+} from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 import { SyncAgentConfigsRow } from "../SyncAgentConfigsDialog.tsx";
 
@@ -103,6 +115,48 @@ function FullDiskAccessRow() {
 	);
 }
 
+/**
+ * Conductor's "Send messages with" row has its own failure messages, a toast for a failed change
+ * and another for a failed reset, instead of the generic row error (renderApp @11117343).
+ */
+function SendKeyRow({ focusSettingKey }: { focusSettingKey: string | null }) {
+	const def = getSettingDef("message_send_key");
+	const value = useSetting<string>("message_send_key");
+	const actions = useActions();
+	const { services } = useServices();
+	const saves = useSettingSaves();
+	const configured = useStore(
+		services.settings.store,
+		(state) => state.values.message_send_key !== undefined,
+	);
+	if (def === undefined) return null;
+
+	const save = async (next: unknown): Promise<boolean> => {
+		const result = await actions.settings.set(def.key, next);
+		if (!result.ok) toastError("Failed to update message send key", result.error);
+		return result.ok;
+	};
+	const reset = async () => {
+		const result = await actions.settings.set(def.key, "enter");
+		if (!result.ok) toastError("Failed to reset message send key", result.error);
+	};
+
+	return (
+		<SettingRow
+			settingKey={def.key}
+			title={def.title}
+			description={pageDescriptionOf(def)}
+			detail={def.detail ?? null}
+			disabledReason={null}
+			highlighted={focusSettingKey === def.key}
+			saveError={saves.errorOf(def.key)}
+			{...(configured ? { onReset: () => void reset() } : {})}
+		>
+			<SettingControl def={def} value={value} onChange={save} />
+		</SettingRow>
+	);
+}
+
 const GENERAL_KEYS = settingsForPage("general").map((def) => def.key);
 const SOUND_AT = GENERAL_KEYS.indexOf("sound_type") + 1;
 const GENERAL_UP_TO_SOUND = GENERAL_KEYS.slice(0, SOUND_AT);
@@ -138,10 +192,11 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			focusSettingKey={focusSettingKey}
 		>
 			{/* Conductor's order: full disk access sits right after the completion sound. */}
+			<SendKeyRow focusSettingKey={focusSettingKey} />
 			<RegistrySettingRows
 				page="general"
 				focusSettingKey={focusSettingKey}
-				exclude={GENERAL_AFTER_SOUND}
+				exclude={[...GENERAL_AFTER_SOUND, "message_send_key"]}
 				extraFor={(def, value) =>
 					def.key === "sound_type" ? (
 						<TestSoundButton soundId={typeof value === "string" ? value : "default"} />
@@ -152,7 +207,7 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			<RegistrySettingRows
 				page="general"
 				focusSettingKey={focusSettingKey}
-				exclude={GENERAL_UP_TO_SOUND}
+				exclude={[...GENERAL_UP_TO_SOUND, "message_send_key"]}
 			/>
 			{/* Conductor lists Sync agent configs last on General, after the registry rows. */}
 			<SyncAgentConfigsRow />
