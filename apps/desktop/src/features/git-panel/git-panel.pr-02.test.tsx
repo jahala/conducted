@@ -57,7 +57,7 @@ vi.mock("../../core/status/git-header.ts", () => ({
 		kind: "changes",
 		title: "Changes",
 		tone: "attention",
-		action: { id: "create_pr", label: "Create PR", waitingNote: null },
+		action: { id: "create_pr", label: "Create PR" },
 	}),
 }));
 

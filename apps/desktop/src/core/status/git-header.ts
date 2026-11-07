@@ -137,8 +137,6 @@ export type GitHeaderTone = "neutral" | "busy" | "attention" | "danger" | "succe
 export interface GitHeaderAction {
 	id: GitHeaderActionId;
 	label: string;
-	/** Shown instead of a button when the viewer cannot act, e.g. "Waiting for a reviewer". */
-	waitingNote: string | null;
 	/** The button's tooltip, when it says more than the label ("Merge 3 PRs from bottom to top"). */
 	tooltip?: string;
 	/** A number the button shows next to its label: the pull requests a stack merge takes. */
@@ -176,12 +174,8 @@ export interface GitHeaderInputs {
 	stack: { mergeCount: number; blockedReason: string | null } | null;
 }
 
-function action(
-	id: GitHeaderActionId,
-	label: string,
-	waitingNote: string | null = null,
-): GitHeaderAction {
-	return { id, label, waitingNote };
+function action(id: GitHeaderActionId, label: string): GitHeaderAction {
+	return { id, label };
 }
 
 function commitCount(count: number): string {
@@ -450,7 +444,8 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			kind: "review_required",
 			title: "PR review required",
 			tone: "attention",
-			action: action("approve", "Approve", canApprove ? null : "Waiting for a reviewer"),
+			// A viewer who cannot approve gets no action and no note, as in Conductor (D098).
+			action: canApprove ? action("approve", "Approve") : null,
 		};
 	}
 

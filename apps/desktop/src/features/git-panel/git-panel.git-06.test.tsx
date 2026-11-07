@@ -49,7 +49,7 @@ vi.mock("../../core/status/git-header.ts", () => ({
 		kind: "behind",
 		title: "Behind by 2 commits",
 		tone: "attention",
-		action: { id: "pull", label: "Pull latest", waitingNote: null },
+		action: { id: "pull", label: "Pull latest" },
 	}),
 }));
 

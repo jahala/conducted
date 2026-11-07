@@ -134,9 +134,7 @@ export function GitHeader({
 				</Popover>
 			</div>
 
-			{model.action !== null && model.action.waitingNote !== null ? (
-				<span className="shrink-0 text-xs text-fg-muted">{model.action.waitingNote}</span>
-			) : model.action !== null ? (
+			{model.action !== null ? (
 				<ActionTooltip content={model.action.tooltip}>
 					<Button
 						size="sm"

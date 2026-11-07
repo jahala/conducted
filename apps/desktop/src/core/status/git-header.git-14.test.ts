@@ -86,7 +86,7 @@ describe("GIT-14 local-git forge header", () => {
 					}),
 				}),
 			);
-			expect(review.action?.waitingNote === null).toBe(can.remoteRequests);
+			expect(review.action !== null).toBe(can.remoteRequests);
 		}
 		expect(capabilitiesFor("github")).toEqual({
 			remoteRequests: true,
