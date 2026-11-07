@@ -4458,10 +4458,9 @@
 		"screen": "Unplaced"
 	},
 	"text:R11709231": {
-		"status": "decided",
-		"decision": "D025",
-		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
-		"by": "hand"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
 	},
 	"text:R11716261": {
 		"status": "gap",

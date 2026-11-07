@@ -19,7 +19,7 @@ export function ExperimentalPage({ focusSettingKey = null }: { focusSettingKey?:
 	return (
 		<SettingsPageFrame
 			title="Experimental"
-			description="Features that are still changing. They may move or behave differently."
+			description="Expect breaking changes."
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
