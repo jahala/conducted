@@ -109,7 +109,10 @@ impl TestApp {
                 cmd: command.to_string(),
                 callback: CallbackFn(0),
                 error: CallbackFn(1),
-                url: "http://tauri.localhost"
+                // The app is macOS-only, where this is the local app origin. The
+                // `http://tauri.localhost` form the Tauri example uses is a remote origin on
+                // macOS, which would ask the ACL for a capability the app does not have.
+                url: "tauri://localhost"
                     .parse()
                     .expect("the test URL parses"),
                 body: InvokeBody::Json(body),
