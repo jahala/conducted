@@ -103,6 +103,7 @@ const makeLookups = (
 				sending: {},
 				openInteractions: {},
 				viewingSessionId: null,
+				lastViewedSessionId: null,
 			})),
 	});
 };

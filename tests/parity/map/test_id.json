@@ -1,7 +1,7 @@
 {
 	"test_id:R2597888": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "testid",
 		"role": "div",
 		"selector": "[data-testid=\"virtuoso-scroller\"]",
@@ -9,7 +9,7 @@
 	},
 	"test_id:R2608648": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "testid",
 		"role": "div",
 		"selector": "[data-testid=\"virtuoso-item-list\"]",
@@ -33,7 +33,7 @@
 	},
 	"test_id:R8915522": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "testid",
 		"role": "button",
 		"selector": "[data-testid=\"composer-send-button\"]",
@@ -41,7 +41,7 @@
 	},
 	"test_id:R9050252": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "testid",
 		"role": "textbox",
 		"selector": "[data-testid=\"composer-input\"]",
@@ -112,7 +112,7 @@
 	},
 	"test_id:R10441458": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "testid",
 		"role": "link",
 		"selector": "[data-testid=\"left-sidebar-workspace-item\"]",
@@ -120,7 +120,7 @@
 	},
 	"test_id:R10441716": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "testid",
 		"role": "span",
 		"selector": "[data-testid=\"workspace-leading-visual\"]",

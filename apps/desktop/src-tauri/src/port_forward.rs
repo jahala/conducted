@@ -1,7 +1,10 @@
 //! @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+//! @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
 //!
 //! Owns: the local TCP listeners that carry a cloud workspace's ports to the Mac, the free-port
-//! search, and the events that report a forward's state.
+//! search, and the events that report a forward's state. CLOUD-12 adds the SSH listener: the same
+//! local listener, but its WebSocket targets the Worker's `/w/<name>/ssh` route and always reaches
+//! the sandbox's loopback port 22 (D119).
 //!
 //! Behaviour: docs/research/conductor/services-map.md 5A.3.3 (port forwarding for cloud
 //! workspaces: the table, the allocation strategy, the port range and the error page when the
@@ -23,6 +26,8 @@
 //!   their WebSocket is part of the same task tree.
 //! - `find_available_local_port` never returns a port below 1024, port 22, an excluded port, or
 //!   one another process holds.
+//! - `start_ssh_forward` is the only way port 22 is reached, and it names the Worker's `/ssh`
+//!   route rather than a public tunnel port. `start_port_forward` still refuses port 22.
 //!
 //! Our design choice: one WebSocket per connection keeps a stuck connection from stalling the
 //! others; the tunnel route is `/w/<name>/tunnel?port=<n>` on the Worker. D110 records this,
@@ -181,6 +186,37 @@ pub async fn start_port_forward(
     checked_port(remote_port)?;
     let base = cloud::checked_worker_url(&url)?;
     let tunnel = cloud::tunnel_url(&base, &vm_id, remote_port)?;
+    start_listener(&app, &state, forward_id, local_port, remote_port, tunnel).await
+}
+
+/// Starts the local listener the SSH config names. It is the same local TCP door as a port
+/// forward, but the WebSocket is the Worker's `/w/<name>/ssh` route, which reaches only the
+/// sandbox's loopback SSH port (CLOUD-12, D119). The public forward and common ports stay refused.
+#[tauri::command]
+pub async fn start_ssh_forward(
+    app: AppHandle,
+    state: State<'_, PortForwardState>,
+    forward_id: String,
+    url: String,
+    vm_id: String,
+    local_port: u16,
+) -> CommandResult<PortForwardEntry> {
+    checked_port(local_port)?;
+    let base = cloud::checked_worker_url(&url)?;
+    let tunnel = cloud::ssh_tunnel_url(&base, &vm_id)?;
+    start_listener(&app, &state, forward_id, local_port, SSH_PORT, tunnel).await
+}
+
+/// Binds `local_port`, spawns its accept loop against `tunnel`, and records it. A bind failure is
+/// the caller's retry signal; nothing is inserted until the port is open.
+async fn start_listener(
+    app: &AppHandle,
+    state: &PortForwardState,
+    forward_id: String,
+    local_port: u16,
+    remote_port: u16,
+    tunnel: reqwest::Url,
+) -> CommandResult<PortForwardEntry> {
     let token = cloud::pairing_token().await?;
     let listener = TcpListener::bind(("127.0.0.1", local_port))
         .await

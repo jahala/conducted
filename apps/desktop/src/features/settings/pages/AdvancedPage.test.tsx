@@ -256,6 +256,67 @@ describe("SET-02 AdvancedPage", () => {
 		expect(install).toHaveBeenCalledWith("gh");
 	});
 
+	describe("CLOUD-12 SSH private key path", () => {
+		it("shows Conductor's placeholder and no reset while the auto key is used", async () => {
+			await mountPage();
+			const input = screen.getByLabelText("SSH private key path");
+			expect(input.getAttribute("placeholder")).toBe("~/.ssh/id_ed25519");
+			expect(screen.queryByRole("button", { name: "Reset to auto-generated key" })).toBeNull();
+		});
+
+		it("resets a custom key back to the auto-generated one", async () => {
+			const mounted = await mountPage();
+			await act(async () => {
+				await mounted.container.actions.settings.set("ssh_key_path", "/keys/custom");
+			});
+			const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+			fireEvent.click(await screen.findByRole("button", { name: "Reset to auto-generated key" }));
+
+			await waitFor(() => expect(set).toHaveBeenCalledWith("ssh_key_path", ""));
+		});
+
+		it("refuses a custom key with no .pub file in Conductor's words", async () => {
+			const mounted = await mountPage();
+			const set = vi.spyOn(mounted.container.actions.settings, "set");
+			const input = screen.getByLabelText("SSH private key path");
+			fireEvent.change(input, { target: { value: "/keys/missing" } });
+			fireEvent.blur(input);
+
+			expect(
+				await screen.findByText("Custom SSH public key not found at /keys/missing.pub"),
+			).toBeTruthy();
+			expect(set).not.toHaveBeenCalled();
+		});
+
+		it("browses with Conductor's titles and saves an existing key pair", async () => {
+			const mounted = await mountPage();
+			expect((await mounted.container.platform.fs.writeTextAtomic("/keys/custom", "")).ok).toBe(
+				true,
+			);
+			expect(
+				(
+					await mounted.container.platform.fs.writeTextAtomic(
+						"/keys/custom.pub",
+						"ssh-ed25519 AAAACUSTOM conducted\n",
+					)
+				).ok,
+			).toBe(true);
+			const pickFile = vi
+				.spyOn(mounted.container.actions.app, "pickFile")
+				.mockResolvedValue(ok("/keys/custom"));
+			const set = vi.spyOn(mounted.container.actions.settings, "set");
+			const row = screen.getByLabelText("SSH private key path").closest("[data-setting-key]");
+			const browse = row?.querySelector('button[title="Browse for SSH key"]');
+			if (!(browse instanceof HTMLButtonElement)) throw new Error("no SSH key browser");
+
+			fireEvent.click(browse);
+
+			await waitFor(() => expect(set).toHaveBeenCalledWith("ssh_key_path", "/keys/custom"));
+			expect(pickFile).toHaveBeenCalledWith("Select SSH private key");
+		});
+	});
+
 	it("asks before changing the root folder and saves the new path", async () => {
 		const mounted = await mountPage();
 		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/tmp/new-root"));

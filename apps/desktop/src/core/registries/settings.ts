@@ -1545,6 +1545,18 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
+	{
+		key: "ssh_key_path",
+		page: "advanced",
+		scopes: ["user"],
+		title: "SSH private key path",
+		description:
+			"Use your own SSH key for cloud workspace access. Leave empty to auto-generate a key.",
+		searchTerms: ["ssh", "key", "cloud", "workspace", "path", "private"],
+		feature: "CLOUD-12",
+		type: "string",
+		default: "",
+	},
 	// CLOUD-14. The research's key has the "internal" prefix but the row is a user control on
 	// Advanced ("Remote execution MCP"), so it is kept. On unless stored as "false".
 	{

@@ -474,6 +474,44 @@ registry image `conducted-dev-c10-1536-workspace-sandbox:wrangler-mw6kgk19`
 `conducted-dev-c10` entry, and `docker images` holds none. The token and run files under `/tmp`
 and the `apps/cloud/sandbox/build/` folder were trashed.
 
+## Follow-up: SSH into a cloud workspace (CLOUD-12, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, Worker
+`conducted-dev-c12s-1794076306` and R2 bucket of the same name. The driver installed the Mac's
+public key through the Worker's new `/ssh-key` route, then a small Bun listener (standing in for
+`port_forward.rs`'s `start_ssh_forward`, which the same run's Rust tests cover) bound a loopback
+port and opened one WebSocket per connection to `/w/<name>/ssh`. `ssh -i <temp key> -p <local>`
+ran one command in the sandbox.
+
+- **Deploy:** **85.44 s** to build and push the image and upload the Worker, **2.36 s** to publish
+  the triggers. The later Worker-only deploys took **6.23 s** upload and **1.98 s** triggers.
+- **Cold start:** `POST /w/<name>/ssh-key` answered **200** in **7,626 ms**: the container started,
+  the key was written and the response returned.
+- **Warm start:** the same call answered **200** in **92.6 ms**; `GET /state` reported
+  `running: true`, `turnActive: false`.
+- **SSH:** one `ssh` connection over the local listener ran `echo c12-ssh-ok`, `hostname`, `pwd`
+  and `ls /workspace` in **517 ms** end to end. The output was `c12-ssh-ok`, the container
+  hostname, `/root`, and an empty `/workspace`.
+- **Editor open:** not run. This Mac has no VS Code, Cursor or Zed in `/Applications`, so there
+  was no editor to open. The three commands (`code`/`cursor --remote ssh-remote+<host>`,
+  `zed ssh://<host><path>`) and Conductor's refusal for any other app are covered by
+  `open_with.rs` tests.
+- **A running Durable Object keeps its code across a Worker deploy.** The first SSH test after a
+  Worker-only fix still ran the old object and timed out during banner exchange; a new workspace
+  name (a new Durable Object and sandbox) worked at once. This is Cloudflare's documented
+  behaviour, not an app bug, but a live tester should use a new workspace name after a Worker
+  change.
+
+Everything the run created was deleted: Worker `conducted-dev-c12s-1794076306` (its URL now
+answers 404), container application `conducted-dev-c12s-1794076306-sandbox`
+(`1729825855554f7a9abd4c1148ddf65b`), registry image
+`conducted-dev-c12s-1794076306-workspace-sandbox:wrangler-mw6qpwtc`
+(`sha256:7081512c5c66c4fc05844d848b489ac736c09918cb7d1e4d3c71e5c00468352d`), R2 bucket
+`conducted-dev-c12s-1794076306-backups`, and the local Docker image by id `7081512c5c66`. Final
+`wrangler containers list`, `containers images list` and `r2 bucket list` hold no
+`conducted-dev-c12s` entry, and `docker images` holds none. The temp keys, listener, configs and
+the `apps/cloud/sandbox/build/` output were trashed.
+
 ## Follow-up: the mirror's file route and terminal (CLOUD-11, 2026-11-07)
 
 Run on the owner's account with the product image, one `basic` instance, through a temporary

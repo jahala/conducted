@@ -370,6 +370,7 @@ export const COMMANDS = {
 	notificationTakePending: "notification_take_pending",
 	revealInFinder: "reveal_in_finder",
 	openWith: "open_with",
+	openRemote: "open_remote", // CLOUD-12
 	installedApps: "installed_apps",
 	appIcon: "app_icon",
 	speechAvailable: "speech_available",
@@ -406,6 +407,7 @@ export const COMMANDS = {
 	cloudRelayClose: "cloud_relay_close", // CLOUD-03
 	portForwardFindPort: "find_available_local_port", // CLOUD-10
 	portForwardStart: "start_port_forward", // CLOUD-10
+	portForwardStartSsh: "start_ssh_forward", // CLOUD-12
 	portForwardStop: "stop_port_forward", // CLOUD-10
 	portForwardList: "list_port_forwards", // CLOUD-10
 } as const;
@@ -1129,6 +1131,12 @@ export function createTauriOpener(bindings: TauriBindings = realTauriBindings): 
 			if (!result.ok) throw result.error;
 		},
 		openWith: (appName, path) => invokeResult<void>(bindings, COMMANDS.openWith, { appName, path }),
+		openRemote: (input) =>
+			invokeResult<void>(bindings, COMMANDS.openRemote, {
+				appName: input.appName,
+				host: input.host,
+				path: input.path,
+			}),
 		installedApps: async () => {
 			const result = await invokeResult<string[]>(bindings, COMMANDS.installedApps);
 			if (!result.ok) throw result.error;
@@ -1435,9 +1443,9 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 }
 
 /**
- * `find_available_local_port`, `start_port_forward`, `stop_port_forward`,
- * `list_port_forwards`, and the `port-forward-event` event (CLOUD-10). The pairing token and the
- * socket live in Rust; the screen only names the workspace and the ports.
+ * `find_available_local_port`, `start_port_forward`, `start_ssh_forward`, `stop_port_forward`,
+ * `list_port_forwards`, and the `port-forward-event` event (CLOUD-10, CLOUD-12). The pairing token
+ * and the socket live in Rust; the screen only names the workspace and the ports.
  */
 export function createTauriPortForward(bindings: TauriBindings): PortForwarding {
 	return {
@@ -1455,6 +1463,13 @@ export function createTauriPortForward(bindings: TauriBindings): PortForwarding 
 				vmId: input.vmId,
 				localPort: input.localPort,
 				remotePort: input.remotePort,
+			}),
+		startSsh: (input) =>
+			invokeResult<PortForwardInfo>(bindings, COMMANDS.portForwardStartSsh, {
+				forwardId: input.forwardId,
+				url: input.url,
+				vmId: input.vmId,
+				localPort: input.localPort,
 			}),
 		stop: (forwardId) => invokeResult<void>(bindings, COMMANDS.portForwardStop, { forwardId }),
 		list: () => invokeResult<PortForwardInfo[]>(bindings, COMMANDS.portForwardList),

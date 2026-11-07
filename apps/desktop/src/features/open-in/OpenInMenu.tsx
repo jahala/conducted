@@ -1,9 +1,12 @@
 /**
  * @feature WS-08 OpenInMenu
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * Owns: the "Open in" control in the workspace header: a button that opens the workspace folder in
  * the last used app, and a menu of the installed Finder, editors, terminals, IDEs and git tools,
  * ending with "Copy path". Conductor keeps copying the folder path in this menu, after the apps
  * (wWn, renderApp @2508600); there is no separate folder chip (D098).
+ * A cloud workspace's menu is "Open via SSH": only VS Code, Cursor and Zed, plus "Copy SSH
+ * command" (CLOUD-12). Its default app falls back to the first of those three.
  * Behaviour: ui-map.md 3.10 ("Open in" app menu; Cmd+O opens in the default app, Cmd+Shift+O opens
  * the menu); the order of recently used apps and the default app are settings (open_in_mru_order,
  * default_open_in in services-map.md 4.2.3).
@@ -26,10 +29,15 @@ import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { CopyIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuLabel } from "../../ui/Menu.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { OpenInButton } from "./OpenInButton.tsx";
 import { OpenInItem } from "./OpenInItem.tsx";
-import { type OpenInApp, openInFailureTitle } from "./open-in-apps.ts";
+import {
+	defaultOpenInApp,
+	type OpenInApp,
+	openInFailureTitle,
+	remoteOpenInApps,
+} from "./open-in-apps.ts";
 import { useOpenInApps, useOpenInChoices } from "./use-open-in-apps.ts";
 
 export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
@@ -40,8 +48,12 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	// One open at a time: a second click or Cmd+O while an app is opening joins the first.
 	const flight = useRef(createSingleFlight<"open">()).current;
 
-	const { apps, defaultApp, storedDefault, recentNames, listFailed } = useOpenInApps();
-	const { remember, setDefault } = useOpenInChoices(recentNames);
+	const all = useOpenInApps();
+	const { remember, setDefault } = useOpenInChoices(all.recentNames);
+	const cloud = workspace.state === "ready" && workspace.data.host.kind === "cloud";
+	const apps = cloud ? remoteOpenInApps(all.apps) : all.apps;
+	const defaultApp = cloud ? defaultOpenInApp(apps, all.storedDefault) : all.defaultApp;
+	const { storedDefault, listFailed } = all;
 
 	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const disabledReason =
@@ -83,6 +95,29 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 		});
 	};
 
+	/** Copy SSH command (CLOUD-12): opens the door, then puts Conductor's `ssh <name>` on the clipboard. */
+	const copySsh = useCallback(() => {
+		if (workspace.state !== "ready") return;
+		void (async () => {
+			try {
+				const command = await actions.workspaces.copySshCommand(workspaceId);
+				if (!command.ok) {
+					toastError("Failed to copy SSH command", command.error);
+					return;
+				}
+				const copied = await actions.app.copyText(command.value);
+				if (!copied.ok) {
+					toastError("Failed to copy SSH command", copied.error);
+					return;
+				}
+				toast.success("Copied SSH command");
+				setMenuOpen(false);
+			} catch (caught) {
+				toastError("Failed to copy SSH command", { message: String(caught) });
+			}
+		})();
+	}, [actions, workspace, workspaceId]);
+
 	const openDefault = useCallback(() => {
 		if (defaultApp === null) {
 			setMenuOpen(true);
@@ -106,10 +141,21 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 		return true;
 	});
 
+	useCommandHandler("workspace.openRemoteInApp", "base", () => {
+		if (disabledReason !== null || !cloud) return false;
+		if (storedDefault === "" || defaultApp === null) {
+			setMenuOpen(true);
+			return true;
+		}
+		void open(defaultApp);
+		return true;
+	});
+
 	return (
 		<Menu open={menuOpen} onOpenChange={setMenuOpen}>
 			<OpenInButton
 				defaultApp={defaultApp}
+				remote={cloud}
 				busy={busy}
 				disabledReason={disabledReason}
 				onOpenDefault={openDefault}
@@ -123,6 +169,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 				onOpen={(chosen) => void open(chosen)}
 				onSetDefault={setDefault}
 				onCopyPath={copyPath}
+				onCopySsh={cloud ? copySsh : undefined}
 			/>
 		</Menu>
 	);
@@ -139,6 +186,7 @@ export function OpenInMenuContent({
 	onOpen,
 	onSetDefault,
 	onCopyPath,
+	onCopySsh,
 }: {
 	apps: readonly OpenInApp[];
 	defaultApp: OpenInApp | null;
@@ -146,6 +194,8 @@ export function OpenInMenuContent({
 	onOpen: (app: OpenInApp) => void;
 	onSetDefault: (app: OpenInApp) => void;
 	onCopyPath: () => void;
+	/** Present on a cloud workspace: the "Copy SSH command" item (CLOUD-12). */
+	onCopySsh?: () => void;
 }) {
 	return (
 		<MenuContent align="end" aria-label="Open in">
@@ -159,6 +209,11 @@ export function OpenInMenuContent({
 				/>
 			))}
 			{listFailed ? <MenuLabel>Could not list the apps on this Mac.</MenuLabel> : null}
+			{onCopySsh === undefined ? null : (
+				<MenuItem icon={<CopyIcon />} onSelect={onCopySsh}>
+					Copy SSH command
+				</MenuItem>
+			)}
 			<MenuItem icon={<CopyIcon />} onSelect={onCopyPath}>
 				Copy path
 			</MenuItem>

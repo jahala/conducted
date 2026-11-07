@@ -2198,6 +2198,10 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"dialogs.pickSavePath":
 		"Same shape as pickFolder; add it with the first caller that needs a save dialog.",
 	"opener.openUrl": "Opens the default browser; nothing a stand-in can show.",
+	"opener.openRemote":
+		"Starts VS Code, Cursor or Zed on an SSH host; nothing a stand-in can show. The Rust open_with tests own its commands (CLOUD-12).",
+	"portForward.startSsh":
+		"Pipes a local listener to a Worker's /ssh WebSocket, which needs a paired Worker; the Rust port_forward tests own the shared accept and pipe path (CLOUD-12).",
 	"opener.revealInFinder": "Opens Finder; nothing a stand-in can show.",
 	"opener.openWith": "Starts another app; the Rust open_with tests own it.",
 	"clipboard.writeImage":

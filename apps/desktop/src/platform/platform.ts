@@ -156,6 +156,11 @@ export const PLATFORM_ERROR_CODES = [
 	"path_override_prune_failed",
 	"path_override_shim_failed",
 	"path_override_unknown_program",
+	"port_forward_bind_failed",
+	"port_forward_failed",
+	"port_forward_invalid",
+	"port_forward_no_port",
+	"port_forward_reserved",
 	"program_bin_dir_failed",
 	"program_bin_shim_failed",
 	"program_checksum_mismatch",
@@ -171,11 +176,6 @@ export const PLATFORM_ERROR_CODES = [
 	"program_status_not_sent",
 	"program_unpack_failed",
 	"program_version_not_pinned",
-	"port_forward_bind_failed",
-	"port_forward_failed",
-	"port_forward_invalid",
-	"port_forward_no_port",
-	"port_forward_reserved",
 	"pty_ack_failed",
 	"pty_bad_cwd",
 	"pty_bad_size",
@@ -184,6 +184,8 @@ export const PLATFORM_ERROR_CODES = [
 	"pty_spawn_failed",
 	"pty_write_failed",
 	"recording_failed",
+	"remote_open_failed",
+	"remote_open_unsupported",
 	"resource_usage_failed",
 	"search_bad_pattern",
 	"search_bad_root",
@@ -498,6 +500,12 @@ export interface Opener {
 	revealInFinder(path: string): Promise<void>;
 	/** Opens a folder or file in another app, e.g. "Cursor", "Visual Studio Code", "Ghostty". */
 	openWith(appName: string, path: string): Promise<Result<void>>;
+	/**
+	 * Opens a cloud workspace's folder over SSH in VS Code, Cursor or Zed (CLOUD-12). `host` is
+	 * the `Host` name in the SSH config, without the suffix. Another app is refused with
+	 * Conductor's "Remote open is only supported for VS Code, Cursor, and Zed".
+	 */
+	openRemote(input: { appName: string; host: string; path: string }): Promise<Result<void>>;
 	installedApps(): Promise<string[]>;
 	/**
 	 * A known app's own icon as a PNG data URL, read once and cached by the Rust shell. Null when
@@ -888,6 +896,17 @@ export interface PortForwarding {
 		vmId: string;
 		localPort: number;
 		remotePort: number;
+	}): Promise<Result<PortForwardInfo>>;
+	/**
+	 * Binds the local listener the SSH config names (CLOUD-12). Its WebSocket is the Worker's
+	 * authenticated `/w/<name>/ssh` route, which reaches only the sandbox's loopback port 22, so
+	 * this is the one forward allowed to name SSH.
+	 */
+	startSsh(input: {
+		forwardId: string;
+		url: string;
+		vmId: string;
+		localPort: number;
 	}): Promise<Result<PortForwardInfo>>;
 	stop(forwardId: string): Promise<Result<void>>;
 	list(): Promise<Result<PortForwardInfo[]>>;

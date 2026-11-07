@@ -141,6 +141,8 @@ export interface MemoryPlatformControls {
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
 	queuePtyExit(code: number | null): void;
+	/** Keeps the next PTY spawned with a `command` running until it is killed. */
+	holdNextPty(): void;
 	/** Makes every terminal's `ack` fail with this message; null makes them succeed again. */
 	failPtyAcks(message: string | null): void;
 	/** Makes saving a terminal's history fail with this message when it ends; null undoes it. */
@@ -163,6 +165,8 @@ export interface MemoryPlatformControls {
 	failFullDiskAccessCheck(message: string | null): void;
 	/** Makes `system.openFullDiskAccessSettings` fail with this message; null restores success. */
 	failOpenFullDiskAccessSettings(message: string | null): void;
+	/** Every remote editor open the app asked for, in order (CLOUD-12). */
+	readonly remoteOpens: readonly { appName: string; host: string; path: string }[];
 	/** Every command given to `shell.run` and `shell.start`, in order. */
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
@@ -434,6 +438,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const ptySpawns: PtySpawn[] = [];
 	let processes: MemoryProcess[] = [];
 	let holdNextStart = false;
+	let holdNextPty = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
 	let fullDiskAccess = true;
@@ -892,7 +897,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 					bracketedPaste: false,
 				}),
 		};
-		if (spawnOptions.command !== undefined) {
+		if (spawnOptions.command !== undefined && holdNextPty) {
+			holdNextPty = false;
+		} else if (spawnOptions.command !== undefined) {
 			const queued = ptyExitCodes.shift();
 			queueMicrotask(() => finishPty(state, queued === undefined ? 0 : queued));
 		}
@@ -1017,10 +1024,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		confirm: async () => takeAnswer("confirm")?.confirm ?? false,
 	};
 
+	const remoteOpens: { appName: string; host: string; path: string }[] = [];
 	const opener: Opener = {
 		openUrl: async () => {},
 		revealInFinder: async () => {},
 		openWith: async () => ok(undefined),
+		openRemote: async (input) => {
+			remoteOpens.push(input);
+			return ok(undefined);
+		},
 		installedApps: async () => [],
 		// The in-memory Mac has no app bundles, so no app has an icon to read.
 		appIcon: async () => ok(null),
@@ -1357,6 +1369,16 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			emitForward({ forwardId: input.forwardId, kind: "started", message: null });
 			return ok(info);
 		},
+		startSsh: async (input) => {
+			const info: PortForwardInfo = {
+				forwardId: input.forwardId,
+				localPort: input.localPort,
+				remotePort: 22,
+			};
+			runningForwards.set(input.forwardId, info);
+			emitForward({ forwardId: input.forwardId, kind: "started", message: null });
+			return ok(info);
+		},
 		stop: async (forwardId) => {
 			if (runningForwards.delete(forwardId)) {
 				emitForward({ forwardId, kind: "stopped", message: null });
@@ -1416,6 +1438,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		get cloudRequests() {
 			return cloudRequests;
 		},
+		get remoteOpens() {
+			return remoteOpens;
+		},
 		get cloudSent() {
 			return cloudSent;
 		},
@@ -1447,6 +1472,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		queuePtyExit: (code) => {
 			ptyExitCodes.push(code);
+		},
+		holdNextPty: () => {
+			holdNextPty = true;
 		},
 		failPtyAcks: (message) => {
 			ptyAckFailure = message;
