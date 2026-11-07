@@ -27,5 +27,8 @@
 	},
 	"exports": {
 		"Workspace": { "type": "durable-object", "storage": "sqlite" }
-	}
+	},
+	// CLOUD-06: each workspace's latest backup of /workspace and the agents' transcript folders.
+	// The user's deploy creates this bucket; deleting the Worker must delete it too.
+	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "conducted-cloud-backups" }]
 }

@@ -1,30 +1,48 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
+ * @feature CLOUD-06 Keep work across sandbox restarts
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
- * the host seam runs, the WebSocket relay to the sidecar, and the alarm that keeps a running turn
- * alive while it lets an idle sandbox sleep.
+ * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
+ * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (one Durable Object per workspace holds state,
  * keep-alive and the relay) and its spike result (warm 2.3 to 8.8 s, cold 14.5 s, about 0.02 US
  * dollars an active hour on `basic`; work in a running sandbox keeps going while the desktop is
- * away). Method and numbers: docs/research/cloud-spike-2026-11-06.md.
+ * away; a restart with an R2 backup of `/workspace` and `/root/.claude` got the uncommitted work
+ * and the resumable transcript back). Method and numbers:
+ * docs/research/cloud-spike-2026-11-06.md, with the CLOUD-06 follow-up.
  * Must handle: starting the container on the first call that needs it; a sandbox that is already
  * running is reused; commands run one at a time per workspace through a serial queue; a turn that
  * outlives the desktop's connection keeps the container awake through an alarm that touches its
  * health endpoint, and an idle sandbox is left to the inactivity timeout; a stopped sandbox is
- * never started just to answer a read (the spike's backup bug).
+ * never started just to answer a read or save a backup (the spike's backup bug); a start restores
+ * the latest backups only when it started a stopped container.
  * Our design choice: turn state comes from the relay itself, not a second signalling channel: a
  * `sendMessage` request starts a turn and the sidecar's `liveState` notification ends it. The
- * spike named this gap and left it open.
+ * spike named this gap and left it open. The sandbox entry sees the same notification and asks for
+ * the backup over an internal hostname (D104).
  * Our design choice: a cloud "trash" removes the file, because a sandbox has no macOS Trash.
- * Test first: an idle turn leaves no alarm, a working turn sets one, and the alarm clears itself
- * when the turn is over.
+ * Test first: a stopped sandbox saves no backup and is not started.
  */
 
 import { DurableObject } from "cloudflare:workers";
-import { Files } from "@cloudflare/sandbox";
+import {
+	DirectoryBackup,
+	type DirectoryBackupGatewayBinding,
+	type DirectoryBackupRecord,
+	Files,
+} from "@cloudflare/sandbox";
 import type { ExecBody, FileBody } from "./args.ts";
+import {
+	BACKUP_BINDING,
+	BACKUP_PREFIX,
+	type BackupLedger,
+	type BackupSummary,
+	restoreWorkspace,
+	saveWorkspace,
+	turnEndUrl,
+} from "./backup.ts";
 import type { Env } from "./env.ts";
-import { textOf, turnSignalOf } from "./relay.ts";
+import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
 
 /** The port the sandbox image's bridge listens on. */
 export const SIDECAR_PORT = 8080;
@@ -78,6 +96,16 @@ export interface WorkspaceState {
 	alarmAt: number | null;
 	/** The container size this workspace asks for. */
 	instance: string;
+	/** The latest saved backup of each directory. */
+	backups: BackupSummary[];
+}
+
+/** What a turn-end backup did. */
+export interface BackupReport {
+	/** False when the sandbox was stopped, so nothing was saved and nothing started. */
+	ran: boolean;
+	saved: BackupSummary[];
+	skipped: string[];
 }
 
 interface StartReport {
@@ -104,6 +132,7 @@ export interface CloudFileStat {
 
 const STORAGE_TURN_ACTIVE = "turnActive";
 const STORAGE_STARTED_AT = "startedAt";
+const STORAGE_BACKUPS = "backups";
 
 export class Workspace extends DurableObject<Env> {
 	private readonly container: Container | undefined;
@@ -112,6 +141,10 @@ export class Workspace extends DurableObject<Env> {
 	/** The in-flight setup, shared by every call that needs the container. */
 	private setup: Promise<void> | null = null;
 	private files: Files | null = null;
+	/** The R2 directory backup, built once the sandbox is known. */
+	private backup: DirectoryBackup | null = null;
+	/** The in-flight restore of a sandbox this workspace started. */
+	private restore: Promise<void> | null = null;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -148,16 +181,23 @@ export class Workspace extends DurableObject<Env> {
 	private async setUp(): Promise<void> {
 		const container = this.requireContainer();
 		if (!container.running) {
+			const env: Record<string, string> = { ...CONTAINER_ENV };
+			const name = this.ctx.id.name;
+			// The callback the entry calls when the last running chat goes idle (D104).
+			if (name !== undefined) env.CONDUCTED_TURN_END_URL = turnEndUrl(name);
 			container.start({
 				image: container.images.sandbox,
 				instance: this.env.INSTANCE_TYPE,
 				enableInternet: false,
-				env: { ...CONTAINER_ENV },
+				env,
 			});
+			this.restore = null;
 			await this.ctx.storage.put(STORAGE_STARTED_AT, Date.now());
 		}
 		try {
 			await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS);
+			// The backup route must be registered before the catch-all takes every hostname.
+			await this.backupStore().intercept();
 			const outbound = (this.ctx.exports as unknown as { Outbound: LoopbackExport }).Outbound({
 				props: {},
 			});
@@ -167,6 +207,31 @@ export class Workspace extends DurableObject<Env> {
 			await container.destroy();
 			throw error;
 		}
+	}
+
+	/** The R2 directory backup helper, built once the sandbox is known. */
+	private backupStore(): DirectoryBackup {
+		if (this.backup === null) {
+			const gateway = (
+				this.ctx.exports as unknown as { DirectoryBackupGateway: DirectoryBackupGatewayBinding }
+			).DirectoryBackupGateway;
+			this.backup = new DirectoryBackup(this.requireContainer(), gateway, {
+				binding: BACKUP_BINDING,
+				prefix: BACKUP_PREFIX,
+			});
+		}
+		return this.backup;
+	}
+
+	/** The stored backup records, as the backup module reads and writes them. */
+	private backupLedger(): BackupLedger {
+		return {
+			read: async () =>
+				(await this.ctx.storage.get<DirectoryBackupRecord[]>(STORAGE_BACKUPS)) ?? [],
+			write: async (records) => {
+				await this.ctx.storage.put(STORAGE_BACKUPS, [...records]);
+			},
+		};
 	}
 
 	/** The file operations helper, built once the sandbox is known. */
@@ -179,11 +244,17 @@ export class Workspace extends DurableObject<Env> {
 	async state(): Promise<WorkspaceState> {
 		const turnActive = (await this.ctx.storage.get<boolean>(STORAGE_TURN_ACTIVE)) ?? false;
 		const alarmAt = await this.ctx.storage.getAlarm();
+		const records = (await this.ctx.storage.get<DirectoryBackupRecord[]>(STORAGE_BACKUPS)) ?? [];
 		return {
 			running: this.container?.running ?? false,
 			turnActive,
 			alarmAt,
 			instance: this.env.INSTANCE_TYPE,
+			backups: records.map((record) => ({
+				id: record.id,
+				dir: record.dir,
+				size: record.size,
+			})),
 		};
 	}
 
@@ -195,8 +266,47 @@ export class Workspace extends DurableObject<Env> {
 		const began = Date.now();
 		const started = !this.requireContainer().running;
 		await this.ensureSetUp();
+		if (this.restore !== null) {
+			await this.restore;
+		} else if (started) {
+			await this.ensureRestored();
+		}
 		const health = await this.waitForSidecar(began);
 		return { started, readyMs: Date.now() - began, health, instance: this.env.INSTANCE_TYPE };
+	}
+
+	/**
+	 * Puts the latest saved backup of every directory back into the sandbox this call started. A
+	 * failure is handed to the caller: the work did not come back, and the user must not be told it
+	 * did. Running it again settles a restore that was cut off.
+	 */
+	private ensureRestored(): Promise<void> {
+		if (this.restore === null) {
+			this.restore = this.exclusive(async () => {
+				if (this.container === undefined || !this.container.running) return;
+				await restoreWorkspace(this.backupStore(), this.backupLedger());
+			}).catch((error: unknown) => {
+				this.restore = null;
+				throw error;
+			});
+		}
+		return this.restore;
+	}
+
+	/**
+	 * Saves the workspace and the agents' transcripts after a turn ends. The sandbox entry calls
+	 * this through the outbound handler. A stopped sandbox is left stopped: starting it here would
+	 * save the bare image and bill a container nobody asked for (the spike's backup bug).
+	 */
+	async backupAtTurnEnd(): Promise<BackupReport> {
+		return this.exclusive(async () => {
+			if (this.container === undefined || !this.container.running) {
+				return { ran: false, saved: [], skipped: [] };
+			}
+			if (this.setup === null) await this.setUp();
+			const result = await saveWorkspace(this.backupStore(), this.backupLedger());
+			return { ran: true, saved: result.saved, skipped: result.skipped };
+		});
 	}
 
 	/** Polls the bridge's health endpoint until it answers or the deadline passes. */
@@ -365,13 +475,25 @@ export class Workspace extends DurableObject<Env> {
 	/**
 	 * Notes what a relayed frame says about a turn and starts or stops the keep-alive alarm.
 	 * The relay calls this for frames in both directions; anything that is not a turn signal is
-	 * ignored. It returns the state it left behind, which the state route also reads.
+	 * ignored. A frame may hold several newline-separated messages (the sidecar writes NDJSON and
+	 * the socket may coalesce writes), so every line is read in order. It returns the state it left
+	 * behind, which the state route also reads.
 	 */
 	async noteTurn(
 		frame: string | ArrayBuffer,
 	): Promise<{ turnActive: boolean; alarmAt: number | null }> {
 		const text = textOf(frame);
-		const signal = text === null ? null : turnSignalOf(text);
+		if (text !== null) {
+			for (const line of text.split("\n")) {
+				if (line.trim() === "") continue;
+				await this.applyTurnSignal(turnSignalOf(line));
+			}
+		}
+		const turnActive = (await this.ctx.storage.get<boolean>(STORAGE_TURN_ACTIVE)) ?? false;
+		return { turnActive, alarmAt: await this.ctx.storage.getAlarm() };
+	}
+
+	private async applyTurnSignal(signal: TurnSignal | null): Promise<void> {
 		if (signal === "working") {
 			const wasActive = (await this.ctx.storage.get<boolean>(STORAGE_TURN_ACTIVE)) ?? false;
 			if (!wasActive) {
@@ -382,8 +504,6 @@ export class Workspace extends DurableObject<Env> {
 			await this.ctx.storage.put(STORAGE_TURN_ACTIVE, false);
 			await this.ctx.storage.deleteAlarm();
 		}
-		const turnActive = (await this.ctx.storage.get<boolean>(STORAGE_TURN_ACTIVE)) ?? false;
-		return { turnActive, alarmAt: await this.ctx.storage.getAlarm() };
 	}
 
 	/**
