@@ -108,7 +108,11 @@ function main(options: Options): number {
 	const inputs: Inputs = {
 		specs,
 		maps,
-		decisions: decisionIds(readFileSync(join(ROOT, "docs/decisions.md"), "utf8")),
+		// The product log and the process log share one numbering (docs/process/decisions.md).
+		decisions: new Set([
+			...decisionIds(readFileSync(join(ROOT, "docs/decisions.md"), "utf8")),
+			...decisionIds(readFileSync(join(ROOT, "docs/process/decisions.md"), "utf8")),
+		]),
 		states,
 		oursOnly: readJson<OursOnly[]>(join(DATA, "ours-only.json")),
 		strayMaps: strayMapFiles(),
