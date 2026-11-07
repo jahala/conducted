@@ -1,0 +1,54 @@
+name: CodeQL
+
+# Scans the TypeScript and the Rust for known vulnerability patterns on every ready pull request,
+# on each push to main, and once a week. Results appear under Security > Code scanning.
+# Draft PRs run nothing, as in ci.yml: marking one ready runs the scan.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    # Weekly, Monday 03:37 UTC. A non-round minute keeps it clear of other scheduled work.
+    - cron: "37 3 * * 1"
+
+# CodeQL uploads its results to the repository's code scanning alerts; that is the only write the
+# scan needs. A public repository's checkout needs no contents permission.
+permissions:
+  security-events: write
+
+# A newer push cancels the older scan of the same pull request. A push to main never cancels the
+# scan of the commit before it.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Analyze (${{ matrix.language }})
+    # The app is macOS-only, but Rust is scanned from its source in build mode `none`, so the scan
+    # needs no build and no macOS runner.
+    runs-on: ubuntu-latest
+    # A hung scan would otherwise run for GitHub's default of six hours.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: rust
+            build-mode: none
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # ratchet:github/codeql-action/init@v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # ratchet:github/codeql-action/analyze@v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"
