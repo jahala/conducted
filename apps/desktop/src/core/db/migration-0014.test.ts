@@ -82,7 +82,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		expect(first.ok).toBe(true);
 		const second = await repositories.portForwards.add({
@@ -92,7 +91,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		expect(second.ok).toBe(false);
 	});
@@ -106,7 +104,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		const again = await repositories.portForwards.add({
 			workspaceId: ws.id,
@@ -115,7 +112,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		expect(again.ok).toBe(false);
 	});
@@ -130,7 +126,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		await repositories.portForwards.add({
 			workspaceId: lisbon.id,
@@ -139,7 +134,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		store.raw.prepare("UPDATE workspaces SET state = 'archived' WHERE id = ?").run(oslo.id);
 
@@ -159,7 +153,6 @@ describe("CLOUD-10 migration 0014", () => {
 			label: null,
 			autoDetected: false,
 			enabled: true,
-			position: 0,
 		});
 		store.raw.prepare("DELETE FROM workspaces WHERE id = ?").run(ws.id);
 		const all = await repositories.portForwards.listAll();

@@ -133,12 +133,6 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0014_port_forwards.sql"),
             kind: MigrationKind::Up,
         },
-        Migration {
-            version: 15,
-            description: "port_forward_position",
-            sql: include_str!("../migrations/0015_port_forward_position.sql"),
-            kind: MigrationKind::Up,
-        },
     ]
 }
 
