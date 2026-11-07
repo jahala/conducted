@@ -314,6 +314,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | APP-14 | Missing design tokens: terminal colours, links, contrast modes               | D/styles.css, D/ui                | ui-map 8                       | 2   | done    | APP-05                                     |
 | APP-15 | One shared fuzzy matcher                                                     | D/core                            | ui-map 6, 8                    | 2   | done    |                                            |
 | APP-16 | Follow-ups the hardening found on done first-slice features and across areas | D, S, R                           | docs/reports/slice-2.md        | 2   | planned |                                            |
+| APP-17 | Import from Conductor: a read-only dry run, then one all-or-nothing import   | D/features/settings, R            | migrate-from-conductor.md      | 2   | planned | DATA-01, SET-04                            |
 
 ## Planned: cloud workspaces and Remote Control (CLOUD, RC)
 
