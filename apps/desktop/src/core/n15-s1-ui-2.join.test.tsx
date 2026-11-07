@@ -122,20 +122,24 @@ describe("n15-s1-ui-2 join", () => {
 	it("NAV-06 opens the dashboard from the sidebar and moves a card from its status menu", async () => {
 		const test = await start();
 		must(await test.container.services.settings.set("dashboard_enabled", true));
-		const workspace = await seedWorkspace(test.container, { branch: "oslo" });
+		const workspace = await seedWorkspace(test.container, {
+			branch: "oslo",
+			branchIsPlaceholder: false,
+		});
 		const router = await openApp(test.container, "/all-workspaces");
 
 		fireEvent.click(await screen.findByRole("link", { name: /Dashboard/ }));
 		await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
 		const inProgress = await screen.findByRole("region", { name: "In progress" });
-		expect(await within(inProgress).findByText("oslo")).toBeTruthy();
+		// A workspace is named in words, as Conductor names it.
+		expect(await within(inProgress).findByText("Oslo")).toBeTruthy();
 		fireEvent.keyDown(within(inProgress).getByRole("button", { name: "Status: In progress" }), {
 			key: "Enter",
 		});
 		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Done" }));
 
 		expect(
-			await within(screen.getByRole("region", { name: "Done" })).findByText("oslo"),
+			await within(screen.getByRole("region", { name: "Done" })).findByText("Oslo"),
 		).toBeTruthy();
 		await waitFor(() =>
 			expect(
@@ -255,6 +259,10 @@ describe("n15-s1-ui-2 join", () => {
 			attachmentPaths: [],
 		});
 		const router = await openApp(test.container, "/all-workspaces");
+		// With no workspace open, Conductor's project groups start closed: open the workspace's.
+		const create = await screen.findByRole("link", { name: /^Create workspace in / });
+		const group = create.closest("[role=region], section") as HTMLElement;
+		fireEvent.click(within(group).getByRole("button", { expanded: false }));
 
 		fireEvent.click(await screen.findByRole("button", { name: "Open draft" }));
 

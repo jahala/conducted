@@ -808,6 +808,7 @@ describe("s1-ui join PR-10 link from the workspace actions menu", () => {
 				repoId: repo.id,
 				path: "/code/workspaces/join-pr-10-menu",
 				branch: "feature/link",
+				branchIsPlaceholder: false,
 			});
 			test.memory.controls.scriptShell((command) => {
 				if (command.program === "git" && command.args.includes("get-url")) {
@@ -826,7 +827,7 @@ describe("s1-ui join PR-10 link from the workspace actions menu", () => {
 			await openApp(test.container, `/repository/${repo.id}/workspace/${workspace.id}`);
 
 			// The Workspace actions menu is the sidebar row's right-click menu, as in Conductor (D098).
-			const row = await screen.findByRole("link", { name: /feature\/link/ });
+			const row = await screen.findByRole("link", { name: /feature\/link/i });
 			fireEvent.contextMenu(row);
 			fireEvent.click(await screen.findByRole("menuitem", { name: "Link pull request" }));
 
