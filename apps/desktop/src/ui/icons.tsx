@@ -127,6 +127,17 @@ export const EyeIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** An eye struck through: hide what is shown. */
+export const EyeOffIcon = (p: P) => (
+	<Icon
+		d="M6.6 3.7A6.9 6.9 0 0 1 8 3.5C12 3.5 14.5 8 14.5 8a12.4 12.4 0 0 1-1.6 2.2M4.2 4.7C2.5 5.9 1.5 8 1.5 8S4 12.5 8 12.5a6.6 6.6 0 0 0 3.4-.9M6.6 6.6a2 2 0 0 0 2.8 2.8M2 2l12 12"
+		{...p}
+	/>
+);
+/** A bin with a lid: delete. */
+export const TrashIcon = (p: P) => (
+	<Icon d="M2.5 4h11M6 4V2.5h4V4M3.75 4l.75 9.5h7l.75-9.5M6.5 6.75v4M9.5 6.75v4" {...p} />
+);
 export const CheckCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
 );
