@@ -1,32 +1,32 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
-import { createStore } from "zustand/vanilla";
-import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { SettingsState } from "../../core/services/settings.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { SendButton, type SendButtonProps } from "./SendButton.tsx";
 
-afterEach(cleanup);
+let test: TestContainer;
 
-/**
- * The tooltip only reads the saved key bindings, so the container holds just the settings store.
- * (`createTestContainer` needs a node environment and cannot be used under jsdom.)
- * `keybindings` is the saved `keybinding_overrides_v1` text.
- */
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
+
+/** `keybindings` is the saved `keybinding_overrides_v1` text. */
 const wrapperWith = (keybindings = "") => {
-	const settings = createStore<SettingsState>(() => ({
+	test.container.services.settings.store.setState({
 		loaded: true,
 		values: { keybinding_overrides_v1: keybindings },
 		dropped: [],
 		warnings: [],
-	}));
-	const container = {
-		services: { settings: { store: settings, get: () => keybindings } },
-	} as unknown as Container;
+	});
 	return ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={container}>{children}</ServicesProvider>
+		<ServicesProvider container={test.container}>{children}</ServicesProvider>
 	);
 };
 

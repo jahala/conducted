@@ -4,15 +4,15 @@
  * and a working sign-in).
  * Test first: with no GitHub remote the hook reports the tab unavailable and makes no request.
  */
+import { ok } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
-import type { Container } from "../container.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { ServicesProvider } from "../context.tsx";
 import type { IssueView, PullRequestSummary, Repo } from "../model.ts";
-import type { GithubAccess } from "../services/github.ts";
+import type { GithubAccess, GithubService } from "../services/github.ts";
 import { useIssues, usePullRequestList } from "./github.ts";
 
 const repoId = "repo-1" as Repo["id"];
@@ -50,12 +50,23 @@ const pullRequest: PullRequestSummary = {
 	updatedAt: Date.parse("2026-11-05T09:00:00Z"),
 };
 
-function containerWith(options: {
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
+
+function wrapperWith(options: {
 	remoteUrl?: string | null;
 	access?: GithubAccess;
-	listIssues?: ReturnType<typeof vi.fn>;
-	listPullRequests?: ReturnType<typeof vi.fn>;
-}): Container {
+	listIssues?: GithubService["listIssues"];
+	listPullRequests?: GithubService["listPullRequests"];
+}) {
 	const repo: Repo = {
 		id: repoId,
 		name: "repo",
@@ -68,39 +79,36 @@ function containerWith(options: {
 		createdAt: 0,
 		updatedAt: 0,
 	};
-	return {
-		services: {
-			repo: {
-				store: createStore(() => ({ reposById: { [repoId]: repo } })),
-			},
-			github: {
-				store: createStore(() => ({ access: options.access ?? readyAccess })),
-				listIssues: options.listIssues ?? vi.fn(async () => ({ ok: true, value: [issue] })),
-				listPullRequests:
-					options.listPullRequests ?? vi.fn(async () => ({ ok: true, value: [pullRequest] })),
-			},
-			linear: {
-				store: createStore(() => ({ connection: "unknown", myIssues: [], account: null })),
-				search: vi.fn(),
-			},
-		},
-	} as unknown as Container;
+	test.container.services.repo.store.setState({ reposById: { [repoId]: repo } });
+	test.container.services.github.store.setState({ access: options.access ?? readyAccess });
+	vi.spyOn(test.container.services.github, "listIssues").mockImplementation(
+		options.listIssues ?? vi.fn(async () => ok([issue])),
+	);
+	vi.spyOn(test.container.services.github, "listPullRequests").mockImplementation(
+		options.listPullRequests ?? vi.fn(async () => ok([pullRequest])),
+	);
+	test.container.services.linear.store.setState({
+		connection: "unknown",
+		myIssues: [],
+		account: null,
+	});
+	return wrapper();
 }
 
-const wrapper = (container: Container) => {
+const wrapper = () => {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	return ({ children }: { children: ReactNode }) => (
 		<QueryClientProvider client={client}>
-			<ServicesProvider container={container}>{children}</ServicesProvider>
+			<ServicesProvider container={test.container}>{children}</ServicesProvider>
 		</QueryClientProvider>
 	);
 };
 
 describe("PR-11 useIssues", () => {
 	it("loads the repository's GitHub issues, filtered by the query", async () => {
-		const listIssues = vi.fn(async () => ({ ok: true, value: [issue] }));
+		const listIssues = vi.fn(async () => ok([issue]));
 		const { result } = renderHook(() => useIssues(repoId, "github", "list"), {
-			wrapper: wrapper(containerWith({ listIssues })),
+			wrapper: wrapperWith({ listIssues }),
 		});
 
 		await waitFor(() => expect(result.current.state).toBe("ready"));
@@ -111,7 +119,7 @@ describe("PR-11 useIssues", () => {
 	it("reports the tab unavailable and makes no request without a GitHub remote", () => {
 		const listIssues = vi.fn();
 		const { result } = renderHook(() => useIssues(repoId, "github", ""), {
-			wrapper: wrapper(containerWith({ remoteUrl: null, listIssues })),
+			wrapper: wrapperWith({ remoteUrl: null, listIssues }),
 		});
 
 		expect(result.current.state).toBe("error");
@@ -124,7 +132,7 @@ describe("PR-11 useIssues", () => {
 	it("reports the tab unavailable when GitHub access is not working", () => {
 		const listIssues = vi.fn();
 		const { result } = renderHook(() => useIssues(repoId, "github", ""), {
-			wrapper: wrapper(containerWith({ access: { status: "signed_out" }, listIssues })),
+			wrapper: wrapperWith({ access: { status: "signed_out" }, listIssues }),
 		});
 
 		expect(result.current.state).toBe("error");
@@ -134,9 +142,9 @@ describe("PR-11 useIssues", () => {
 
 describe("PR-11 usePullRequestList", () => {
 	it("loads the repository's open pull requests, filtered by the query", async () => {
-		const listPullRequests = vi.fn(async () => ({ ok: true, value: [pullRequest] }));
+		const listPullRequests = vi.fn(async () => ok([pullRequest]));
 		const { result } = renderHook(() => usePullRequestList(repoId, "list"), {
-			wrapper: wrapper(containerWith({ listPullRequests })),
+			wrapper: wrapperWith({ listPullRequests }),
 		});
 
 		await waitFor(() => expect(result.current.state).toBe("ready"));
@@ -147,7 +155,7 @@ describe("PR-11 usePullRequestList", () => {
 	it("makes no request without a GitHub remote", () => {
 		const listPullRequests = vi.fn();
 		const { result } = renderHook(() => usePullRequestList(repoId, ""), {
-			wrapper: wrapper(containerWith({ remoteUrl: null, listPullRequests })),
+			wrapper: wrapperWith({ remoteUrl: null, listPullRequests }),
 		});
 
 		expect(result.current.state).toBe("error");

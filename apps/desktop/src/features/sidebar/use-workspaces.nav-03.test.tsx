@@ -1,13 +1,11 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
-import { createStore } from "zustand/vanilla";
-import type { Container } from "../../core/container.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { useWorkspaces } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
-import type { WorkspaceState } from "../../core/services/workspace.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 
 function workspace(id: string, createdAt: number): Workspace {
 	return {
@@ -38,23 +36,32 @@ function workspace(id: string, createdAt: number): Workspace {
 	};
 }
 
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
+
 function setup() {
-	const store = createStore<WorkspaceState>(() => ({
+	const store = test.container.services.workspace.store;
+	store.setState({
 		loaded: false,
 		backlogLoaded: false,
 		backlogById: {},
 		workspacesById: {},
 		setup: {},
 		archiving: {},
-	}));
-	const container = { services: { workspace: { store } } } as unknown as Container;
+	});
 	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={container}>{children}</ServicesProvider>
+		<ServicesProvider container={test.container}>{children}</ServicesProvider>
 	);
 	return { store, wrapper };
 }
-
-afterEach(cleanup);
 
 describe("NAV-03 useWorkspaces", () => {
 	it("is loading until the workspace store has loaded", () => {

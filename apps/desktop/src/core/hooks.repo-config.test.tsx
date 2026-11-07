@@ -1,8 +1,8 @@
 import { appError, ok, type RepoId } from "@conducted/shared";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { useRepoConfig } from "./hooks.ts";
 import type { RepoConfig } from "./model.ts";
@@ -30,13 +30,23 @@ const config: RepoConfig = {
 	},
 };
 
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	test.close();
+});
+
 function renderConfig(state: RepoState, loadConfig = vi.fn(async () => ok(config))) {
-	const store = createStore<RepoState>(() => state);
+	const service = test.container.services.repo;
+	service.store.setState(state);
+	vi.spyOn(service, "loadConfig").mockImplementation(loadConfig);
 	return renderHook(() => useRepoConfig(repoId), {
 		wrapper: ({ children }: { children: ReactNode }) => (
-			<ServicesProvider container={{ services: { repo: { store, loadConfig } } } as never}>
-				{children}
-			</ServicesProvider>
+			<ServicesProvider container={test.container}>{children}</ServicesProvider>
 		),
 	});
 }

@@ -2,13 +2,13 @@ import { appError, err, ok, type SessionId } from "@conducted/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Draft } from "../../core/api.ts";
 import { draftFile } from "../../core/app-paths.ts";
-import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { ComposerService, type ComposerServiceDeps } from "../../core/services/composer.ts";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { useDraftSync } from "./use-draft-sync.ts";
 
@@ -111,6 +111,16 @@ const fakeEditor = (): FakeEditor => {
 	return editor;
 };
 
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	test.close();
+});
+
 const harness = () => {
 	const fake = fakeFs();
 	const callbacks = new Map<number, () => void>();
@@ -125,16 +135,12 @@ const harness = () => {
 		},
 	};
 	const composer = new ComposerService(deps);
-	const container = {
-		services: { composer },
-		actions: {
-			sessions: {
-				saveDraft: (sessionId: SessionId, draft: Draft) => composer.saveDraft(sessionId, draft),
-			},
-		},
-	} as unknown as Container;
+	test.container.services.composer = composer;
+	vi.spyOn(test.container.actions.sessions, "saveDraft").mockImplementation(
+		(sessionId, draft: Draft) => composer.saveDraft(sessionId, draft),
+	);
 	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={container}>{children}</ServicesProvider>
+		<ServicesProvider container={test.container}>{children}</ServicesProvider>
 	);
 	const flush = () => {
 		const pending = [...callbacks.values()];
