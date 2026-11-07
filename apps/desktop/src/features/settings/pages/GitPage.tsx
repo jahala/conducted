@@ -8,15 +8,23 @@
  * "Preview: <prefix>tokyo", and "None"), then the rename, archive, merge and stack rows. Rows come
  * from the settings registry (SET-01). Conductor's "Remote origin" is a repository setting, so it is
  * not on this page.
+ * "Open pull requests in" has its 180 px picker under the title; "Delete branch on archive" links
+ * "configure it on GitHub" to GitHub's page and warns in red while it is on.
  * Must handle: a GitHub username prefix while `gh` is signed out (the radio names no login); a save
  * that fails (the row shows the message and the stored value stays).
  * Test first: previews a custom branch prefix ("feature/" previews "feature/tokyo").
  */
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useGitHubAccess, useSetting } from "../../../core/hooks.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { Input } from "../../../ui/Input.tsx";
-import { RegistrySettingRowByKey, SettingRow, useSettingSaves } from "../SettingRow.tsx";
+import { ExternalLink } from "../../chat/ExternalLink.tsx";
+import {
+	RegistrySettingRowByKey,
+	type RowLayout,
+	SettingRow,
+	useSettingSaves,
+} from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 /** The registry rows of the page, in Conductor's order, around the branch prefix radios. */
@@ -30,6 +38,41 @@ const AFTER_PREFIX = [
 	"treat_optional_checks_as_blocking",
 	"github_stacked_prs_enabled",
 ] as const;
+
+/** GitHub's page on deleting a pull request's branch after its merge, which Conductor links to. */
+const GITHUB_BRANCH_DELETION_URL =
+	"https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-the-automatic-deletion-of-branches";
+
+/** Rows laid out as Conductor's git tab has them, where its page component differs. */
+const LAYOUTS: Readonly<Record<string, RowLayout>> = {
+	// The picker sits under its title, 180 px wide.
+	pull_request_open_target: { stacked: true, selectClassName: "w-[180px]" },
+	// Two lines, the second linking to GitHub's own branch deletion setting.
+	delete_branch_on_archive: {
+		description: (
+			<>
+				<p>Delete the local branch when archiving a workspace.</p>
+				<p>
+					To delete the remote branch,{" "}
+					<ExternalLink
+						url={GITHUB_BRANCH_DELETION_URL}
+						title="configure it on GitHub"
+						className="underline hover:text-fg"
+					>
+						configure it on GitHub
+					</ExternalLink>
+					.
+				</p>
+			</>
+		),
+	},
+};
+
+/** Conductor warns under the switch while archiving deletes the branch. */
+const extraFor = (key: string, value: unknown): ReactNode =>
+	key === "delete_branch_on_archive" && value === true ? (
+		<p className="mt-1 text-xs text-danger">Warning: archived workspaces will be unrecoverable</p>
+	) : null;
 
 function BranchPrefixRow({ focusSettingKey }: { focusSettingKey: string | null }) {
 	const key = "branch_prefix_type";
@@ -111,7 +154,13 @@ function BranchPrefixRow({ focusSettingKey }: { focusSettingKey: string | null }
 export function GitPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
 	const row = (key: string) => (
-		<RegistrySettingRowByKey key={key} settingKey={key} focusSettingKey={focusSettingKey} />
+		<RegistrySettingRowByKey
+			key={key}
+			settingKey={key}
+			focusSettingKey={focusSettingKey}
+			extraFor={(def, value) => extraFor(def.key, value)}
+			{...(LAYOUTS[key] === undefined ? {} : { layout: LAYOUTS[key] })}
+		/>
 	);
 	return (
 		<SettingsPageFrame title="Git" description={null} {...load} focusSettingKey={focusSettingKey}>

@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { ok } from "@conducted/shared";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { ExperimentalPage } from "./ExperimentalPage.tsx";
@@ -30,6 +31,27 @@ describe("SET-02 ExperimentalPage", () => {
 		);
 		expect(keys[0]).toBe("experimental_auto_permission_mode");
 		expect(keys.at(-1)).toBe("graphite_disabled");
+	});
+
+	it("links Auto permission mode to Claude's page about auto mode", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		const openUrl = vi
+			.spyOn(test.container.actions.app, "openUrl")
+			.mockResolvedValue(ok(undefined));
+		render(
+			<ServicesProvider container={test.container}>
+				<ExperimentalPage />
+			</ServicesProvider>,
+		);
+		const row = document.querySelector('[data-setting-key="experimental_auto_permission_mode"]');
+		if (!(row instanceof HTMLElement)) throw new Error("no Auto permission mode row");
+
+		fireEvent.click(within(row).getByRole("link", { name: "Learn more" }));
+
+		await waitFor(() =>
+			expect(openUrl).toHaveBeenCalledWith("https://code.claude.com/docs/en/glossary#auto-mode"),
+		);
 	});
 
 	it("shows the restart note after sidebar transparency is turned on", async () => {

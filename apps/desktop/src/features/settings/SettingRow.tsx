@@ -60,7 +60,8 @@ function withDisabled(children: ReactNode, disabled: boolean): ReactNode {
 export interface SettingRowProps {
 	settingKey: string;
 	title: string;
-	description: string | null;
+	/** Plain text, or text with a link (Conductor's "configure it on GitHub", "Learn more"). */
+	description: ReactNode | null;
 	/** A small hint under the description. */
 	detail?: string | null;
 	/** "warning" draws the detail in the warning colour. */
@@ -101,6 +102,7 @@ export function SettingRow({
 			)}
 		>
 			<div
+				data-stacked={stacked ? "true" : undefined}
 				className={cn(
 					"flex gap-8",
 					stacked ? "flex-col items-stretch gap-3" : "items-center justify-between",
@@ -111,9 +113,9 @@ export function SettingRow({
 						<p className="text-sm font-medium text-fg">{title}</p>
 					</div>
 					{description ? (
-						<p id={descriptionId} className="mt-0.5 text-sm text-fg-muted">
+						<div id={descriptionId} className="mt-0.5 text-sm text-fg-muted">
 							{description}
-						</p>
+						</div>
 					) : null}
 					{detail ? (
 						<p
@@ -299,11 +301,13 @@ export function SettingControl({
 	def,
 	value,
 	disabled = false,
+	selectClassName = "w-[186px]",
 	onChange,
 }: {
 	def: SettingDef;
 	value: unknown;
 	disabled?: boolean;
+	selectClassName?: string;
 	onChange: SaveField<SettingValue>;
 }) {
 	if (def.type === "bool") {
@@ -326,7 +330,7 @@ export function SettingControl({
 				value={typeof value === "string" ? value : def.default}
 				options={def.options}
 				disabled={disabled}
-				className="w-[186px]"
+				className={selectClassName}
 				onValueChange={(next) => void onChange(next)}
 			/>
 		);
@@ -351,12 +355,23 @@ export function SettingControl({
 	);
 }
 
+/** How a page lays out one registry row where Conductor's page component differs from the plain row. */
+export interface RowLayout {
+	/** The description with its link, in place of the registry's plain text. */
+	description?: ReactNode;
+	/** The control under the text, as Conductor's "Open pull requests in" sits. */
+	stacked?: boolean;
+	/** The width class of a select, where Conductor's differs from the usual 186 px. */
+	selectClassName?: string;
+}
+
 function RegistrySettingRow({
 	def,
 	focusSettingKey,
 	beforeSave,
 	extraFor,
 	unavailableFor,
+	layoutFor,
 	saves,
 }: {
 	def: SettingDef;
@@ -364,8 +379,10 @@ function RegistrySettingRow({
 	beforeSave?: (def: SettingDef, value: SettingValue) => Promise<string | null> | string | null;
 	extraFor?: (def: SettingDef, value: SettingValue) => ReactNode;
 	unavailableFor?: (def: SettingDef) => ReactNode | null;
+	layoutFor?: (def: SettingDef) => RowLayout | null;
 	saves: ReturnType<typeof useSettingSaves>;
 }) {
+	const layout = layoutFor?.(def) ?? null;
 	const stored = useSetting<SettingValue>(def.key);
 	const unavailable = unavailableFor?.(def) ?? null;
 	// A switch whose feature cannot run reads off, whatever is stored (Conductor's Graphite row).
@@ -388,14 +405,22 @@ function RegistrySettingRow({
 		<SettingRow
 			settingKey={def.key}
 			title={def.title}
-			description={pageDescriptionOf(def)}
+			description={layout?.description ?? pageDescriptionOf(def)}
+			stacked={layout?.stacked === true}
 			detail={def.detail ?? null}
 			{...(def.detailTone === undefined ? {} : { detailTone: def.detailTone })}
 			disabledReason={unavailable}
 			highlighted={focusSettingKey === def.key}
 			saveError={localError ?? saves.errorOf(def.key)}
 		>
-			<SettingControl def={def} value={value} onChange={handleChange} />
+			<SettingControl
+				def={def}
+				value={value}
+				onChange={handleChange}
+				{...(layout?.selectClassName === undefined
+					? {}
+					: { selectClassName: layout.selectClassName })}
+			/>
 			{extraFor === undefined ? null : extraFor(def, value)}
 		</SettingRow>
 	);
@@ -409,6 +434,8 @@ export interface RegistrySettingRowsProps {
 	extraFor?: (def: SettingDef, value: SettingValue) => ReactNode;
 	/** Why a setting cannot change now (a program it needs is missing), or null when it can. */
 	unavailableFor?: (def: SettingDef) => ReactNode | null;
+	/** Where a row's layout follows Conductor's page component rather than the plain row. */
+	layoutFor?: (def: SettingDef) => RowLayout | null;
 }
 
 /** Every setting of one registry page, with its control and save state. */
@@ -419,6 +446,7 @@ export function RegistrySettingRows({
 	beforeSave,
 	extraFor,
 	unavailableFor,
+	layoutFor,
 }: RegistrySettingRowsProps) {
 	const saves = useSettingSaves();
 	return (
@@ -433,6 +461,7 @@ export function RegistrySettingRows({
 						beforeSave={beforeSave}
 						extraFor={extraFor}
 						unavailableFor={unavailableFor}
+						layoutFor={layoutFor}
 						saves={saves}
 					/>
 				))}
@@ -446,11 +475,13 @@ export function RegistrySettingRowByKey({
 	focusSettingKey = null,
 	beforeSave,
 	extraFor,
+	layout,
 }: {
 	settingKey: string;
 	focusSettingKey?: string | null;
 	beforeSave?: (def: SettingDef, value: SettingValue) => Promise<string | null> | string | null;
 	extraFor?: (def: SettingDef, value: SettingValue) => ReactNode;
+	layout?: RowLayout;
 }) {
 	const def = getSettingDef(settingKey);
 	const saves = useSettingSaves();
@@ -461,6 +492,7 @@ export function RegistrySettingRowByKey({
 			focusSettingKey={focusSettingKey}
 			beforeSave={beforeSave}
 			extraFor={extraFor}
+			layoutFor={layout === undefined ? undefined : () => layout}
 			saves={saves}
 		/>
 	);
