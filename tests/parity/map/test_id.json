@@ -40,13 +40,12 @@
 		"by": "seed"
 	},
 	"test_id:R9050252": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "COMP-01",
-		"owner": "hand",
-		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "testid",
+		"role": "textbox",
+		"selector": "[data-testid=\"composer-input\"]",
+		"by": "seed"
 	},
 	"test_id:R9473251": {
 		"status": "decided",
@@ -56,7 +55,7 @@
 	},
 	"test_id:R10139472": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Workspaces",
 		"class": "wording",
 		"backlog": "NAV-10",
@@ -112,31 +111,28 @@
 		"owner": "rule:cite"
 	},
 	"test_id:R10441458": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Sidebar",
-		"class": "wording",
-		"backlog": "NAV-03",
-		"owner": "hand",
-		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "testid",
+		"role": "link",
+		"selector": "[data-testid=\"left-sidebar-workspace-item\"]",
+		"by": "seed"
 	},
 	"test_id:R10441716": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Sidebar",
-		"class": "wording",
-		"backlog": "NAV-03",
-		"owner": "hand",
-		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "testid",
+		"role": "span",
+		"selector": "[data-testid=\"workspace-leading-visual\"]",
+		"by": "seed"
 	},
 	"test_id:R11550278": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "APP-02",
-		"owner": "hand",
-		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "onboarding",
+		"via": "testid",
+		"role": "div",
+		"selector": "[data-testid=\"onboarding-setup-scene\"]",
+		"by": "seed"
 	},
 	"test_id:R12001662": {
 		"status": "decided",
