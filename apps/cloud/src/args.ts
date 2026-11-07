@@ -63,3 +63,6 @@ export type FileBody = z.infer<typeof zFileBody>;
 
 /** The shape every route answers with when a body is not what it accepts. */
 export const INVALID_BODY = "Invalid request body";
+
+/** A workspace's name in a route: what a Durable Object name may be. */
+export const WORKSPACE_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;

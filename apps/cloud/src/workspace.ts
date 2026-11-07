@@ -21,7 +21,12 @@
  * spike named this gap and left it open. The sandbox entry sees the same notification and asks for
  * the backup over an internal hostname (D105).
  * Our design choice: a cloud "trash" removes the file, because a sandbox has no macOS Trash.
- * Test first: a stopped sandbox saves no backup and is not started.
+ * Test first: an idle turn leaves no alarm, a working turn sets one, and the alarm clears itself
+ * when the turn is over.
+ * @feature CLOUD-05 Secrets stay outside the sandbox: the container environment carries the
+ * scrubbed git settings and the GH_TOKEN placeholder from sandbox-git-env.ts; no model key is in
+ * it. The Worker's outbound handler swaps the real credentials in (D104).
+ * CLOUD-06: a stopped sandbox saves no backup and is not started.
  */
 
 import { DurableObject } from "cloudflare:workers";
@@ -43,6 +48,7 @@ import {
 } from "./backup.ts";
 import type { Env } from "./env.ts";
 import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
+import { SANDBOX_GIT_ENV } from "./sandbox-git-env.ts";
 
 /** The port the sandbox image's bridge listens on. */
 export const SIDECAR_PORT = 8080;
@@ -57,9 +63,12 @@ export const CA_PATH = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 
 /**
  * The environment the bridge and the sidecar start with. No secret is in it: the Worker swaps the
- * real model key in at its outbound handler (the plan, "Secrets never enter the sandbox").
+ * real model key in at its outbound handler (the plan, "Secrets never enter the sandbox"), and
+ * `GH_TOKEN` is only the placeholder the handler replaces. The git scrub is CLOUD-05's
+ * (sandbox-git-env.ts).
  */
 export const CONTAINER_ENV: Readonly<Record<string, string>> = Object.freeze({
+	...SANDBOX_GIT_ENV,
 	HOME: "/root",
 	SHELL: "/bin/bash",
 	PATH: "/opt/conducted/bin:/usr/local/bin:/usr/bin:/bin",
