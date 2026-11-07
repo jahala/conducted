@@ -782,7 +782,7 @@ SET-06	control	Appearance: code theme	ui-map 6	covered
 SET-06	control	Appearance: mono font (Default or Custom)	ui-map 6	covered
 SET-06	control	Appearance: Markdown style (Default, Tufte)	ui-map 6	covered
 SET-06	control	Appearance: terminal font and size	ui-map 6	covered
-RUN-06	control	Appearance/Experimental: 'New tab preset' for the command in a new terminal tab	ui-map 6	covered
+RUN-06	control	'New tab preset' is a seven-row radio list (Claude, Codex, OpenCode, Amp, Copilot, Gemini, None), each row previewing its resolved command, with JSON custom rows and inline editing; ours is a free-text field with an empty default and no command preview (renderApp @10676679-10680741)	ui-map 6; other-runners 9; inventory label #399-405	missing
 SET-06	region	Appearance: live code preview	ui-map 6	covered
 SET-06	region	Appearance: terminal preview block	ui-map 6	partly
 COMP-02	control	Default models: 'Default model'	ui-map 6	covered
@@ -1334,3 +1334,9 @@ SET-07	message	Conductor shows "Repository removed successfully" (message, inven
 NAV-17	message	Conductor shows "No workspace selected" (message, inventory-controls Platform); ours has no counterpart yet (parity gap).	inventory toast M@11632434	missing
 PR-09	message	Conductor shows "No repository available" (message, inventory-controls Platform); ours has no counterpart yet (parity gap).	inventory toast M@11634917	missing
 NAV-09	message	Conductor shows "Failed to save keyboard shortcut" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@11739982	missing
+RUN-06	control	'Amp' row in the Big terminal 'New tab preset' radio list (bundle @10676910), with `amp` shown as its command	other-runners 9; inventory label #402	missing
+RUN-06	action	Choosing the 'Amp' row saves `amp` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #402	missing
+RUN-06	control	'Copilot' row in the Big terminal 'New tab preset' radio list (bundle @10676977), with `copilot --allow-all` shown as its command	other-runners 9; inventory label #403	missing
+RUN-06	action	Choosing the 'Copilot' row saves `copilot --allow-all` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #403	missing
+RUN-06	control	'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command	other-runners 9; inventory label #404	missing
+RUN-06	action	Choosing the 'Gemini' row saves `gemini -y` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #404	missing
