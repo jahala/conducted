@@ -56,6 +56,7 @@ export function createActions(
 		},
 		workspaces: {
 			create: (input) => services.workspace.create(input),
+			createFirst: (repoId) => services.workspace.createFirst(repoId),
 			archive: (id, options) => services.workspace.archive(id, options),
 			unarchive: (id, options) => services.workspace.unarchive(id, options),
 			remove: (id) => services.workspace.remove(id),
