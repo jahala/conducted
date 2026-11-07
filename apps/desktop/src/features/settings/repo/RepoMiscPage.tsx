@@ -13,10 +13,10 @@
  * (updateConfig, remove).
  * Children: FilesToCopyField, RemoveRepoDialog.
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; an
- * ordered list of preview URL templates, each validated with the workspace port variable, with add,
- * remove and move up or down; files to copy as patterns; and removal that also removes workspaces
- * (confirm with the count). The icon row shows the current avatar and opens the Change repository
- * icon picker (PRJ-05).
+ * ordered list of preview URL templates, each with an optional name and a URL validated with the
+ * workspace port variable, saved 500 ms after the last edit, with add, remove and move up or down;
+ * files to copy as patterns; and removal that also removes workspaces (confirm with the count). The
+ * icon row shows the current avatar and opens the Change repository icon picker (PRJ-05).
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
@@ -29,6 +29,7 @@ import {
 	useWorkspaces,
 } from "../../../core/hooks.ts";
 import type { RepoConfig } from "../../../core/model.ts";
+import { previewUrlsToText } from "../../../core/registries/settings.ts";
 import { expandPreviewUrl } from "../../../core/services/ports.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
@@ -44,10 +45,13 @@ import { FilesToCopyField } from "./FilesToCopyField.tsx";
 import { RemoveRepoDialog } from "./RemoveRepoDialog.tsx";
 
 const SAMPLE_PORT = 55_000;
+/** Conductor waits this long after the last edit before saving a preview URL. */
+const SAVE_DELAY_MS = 500;
 
 interface PreviewRow {
 	id: number;
-	value: string;
+	name: string;
+	url: string;
 	error: string | null;
 }
 
@@ -64,8 +68,8 @@ function previewUrlProblem(template: string): string | null {
 	}
 }
 
-function samePreviewUrls(left: readonly string[], right: readonly string[]): boolean {
-	return left.length === right.length && left.every((value, index) => value === right[index]);
+function emptyRow(id: number): PreviewRow {
+	return { id, name: "", url: "", error: null };
 }
 
 export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
@@ -75,20 +79,36 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const rootPath = useSetting<string>("conducted_root_path");
 	const actions = useActions();
 	const nextRowId = useRef(0);
+	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const lastSaved = useRef<string | null>(null);
+	const configRef = useRef<RepoConfig | null>(null);
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const [removing, setRemoving] = useState(false);
 	const [iconOpen, setIconOpen] = useState(false);
 	const readyConfig = config.state === "ready" ? config.data : null;
+	configRef.current = readyConfig;
 
 	useEffect(() => {
 		if (readyConfig === null) return;
-		const rows = readyConfig.previewUrls.map((value) => ({
+		const text = previewUrlsToText(readyConfig.previewUrls);
+		// A config update that this page just wrote must not replace newer edits.
+		if (lastSaved.current === text) return;
+		lastSaved.current = text;
+		const rows = readyConfig.previewUrls.map((entry) => ({
 			id: nextRowId.current++,
-			value,
+			name: entry.name,
+			url: entry.url,
 			error: null,
 		}));
-		setPreviewRows(rows.length > 0 ? rows : [{ id: nextRowId.current++, value: "", error: null }]);
+		setPreviewRows(rows.length > 0 ? rows : [emptyRow(nextRowId.current++)]);
 	}, [readyConfig]);
+
+	useEffect(
+		() => () => {
+			if (saveTimer.current !== null) clearTimeout(saveTimer.current);
+		},
+		[],
+	);
 
 	const save = async (next: RepoConfig): Promise<boolean> => {
 		const saved = await actions.projects.updateConfig(repoId, next);
@@ -99,45 +119,60 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		return true;
 	};
 
-	/** Validates every row; saves the non-empty ones in the order shown when all are valid. */
+	/** Validates every row; saves the non-empty entries in the order shown when all are valid. */
 	const savePreviewRows = (rows: PreviewRow[]): void => {
-		if (config.state !== "ready") return;
-		const problems = rows.map((row) => previewUrlProblem(row.value));
+		const problems = rows.map((row) => previewUrlProblem(row.url));
 		if (problems.some((problem) => problem !== null)) {
 			setPreviewRows(rows.map((row, index) => ({ ...row, error: problems[index] ?? null })));
 			return;
 		}
-		const previewUrls = rows.map((row) => row.value.trim()).filter((value) => value !== "");
-		if (samePreviewUrls(previewUrls, config.data.previewUrls)) return;
-		void save({ ...config.data, previewUrls });
+		const entries = rows
+			.map((row) => ({ name: row.name.trim(), url: row.url.trim() }))
+			.filter((entry) => entry.url !== "");
+		const text = previewUrlsToText(entries);
+		if (text === lastSaved.current) return;
+		const current = configRef.current;
+		if (current === null) return;
+		const previous = lastSaved.current;
+		lastSaved.current = text;
+		void save({ ...current, previewUrls: entries }).then((saved) => {
+			if (!saved) lastSaved.current = previous;
+		});
 	};
 
-	const changePreviewRow = (id: number, value: string): void => {
-		setPreviewRows((rows) =>
-			rows.map((row) => (row.id === id ? { ...row, value, error: null } : row)),
+	/** Conductor saves 500 ms after the last edit, not when a field loses focus. */
+	const schedulePreviewSave = (rows: PreviewRow[]): void => {
+		if (saveTimer.current !== null) clearTimeout(saveTimer.current);
+		saveTimer.current = setTimeout(() => {
+			saveTimer.current = null;
+			savePreviewRows(rows);
+		}, SAVE_DELAY_MS);
+	};
+
+	const changePreviewRow = (id: number, field: "name" | "url", value: string): void => {
+		const next = previewRows.map((row) =>
+			row.id === id ? { ...row, [field]: value, error: null } : row,
 		);
+		setPreviewRows(next);
+		schedulePreviewSave(next);
 	};
 
-	const blurPreviewRow = (id: number): void => {
-		const rows = previewRows.map((row) => (row.id === id ? { ...row, error: null } : row));
-		savePreviewRows(rows);
+	const blurPreviewRow = (): void => {
+		const problems = previewRows.map((row) => previewUrlProblem(row.url));
+		setPreviewRows(previewRows.map((row, index) => ({ ...row, error: problems[index] ?? null })));
 	};
 
 	const addPreviewRow = (): void => {
-		const next: PreviewRow[] = [
-			...previewRows,
-			{ id: nextRowId.current++, value: "", error: null },
-		];
+		const next = [...previewRows, emptyRow(nextRowId.current++)];
 		setPreviewRows(next);
-		savePreviewRows(next);
+		schedulePreviewSave(next);
 	};
 
 	const removePreviewRow = (id: number): void => {
 		const remaining = previewRows.filter((row) => row.id !== id);
-		const next: PreviewRow[] =
-			remaining.length > 0 ? remaining : [{ id: nextRowId.current++, value: "", error: null }];
+		const next = remaining.length > 0 ? remaining : [emptyRow(nextRowId.current++)];
 		setPreviewRows(next);
-		savePreviewRows(next);
+		schedulePreviewSave(next);
 	};
 
 	const movePreviewRow = (index: number, offset: number): void => {
@@ -149,7 +184,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		next[index] = other;
 		next[target] = current;
 		setPreviewRows(next);
-		savePreviewRows(next);
+		schedulePreviewSave(next);
 	};
 
 	const repoValue =
@@ -236,21 +271,39 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 											<p className="text-sm font-medium text-fg">Preview URLs</p>
 											<p className="text-sm text-fg-muted">
 												The terminal panel's Open URLs. The first URL is the default; additional
-												URLs appear in its menu. Use $CONDUCTED_PORT for the workspace port.
+												URLs appear in its menu. Use $CONDUCTED_PORT for the workspace port. Leave
+												blank to detect a URL from output.
 											</p>
 										</div>
 										<div className="flex flex-col gap-2">
 											{previewRows.map((row, index) => (
 												<div key={row.id} className="flex items-start gap-2">
+													<Input
+														aria-label={`Name ${index + 1}`}
+														value={row.name}
+														placeholder="Name"
+														className="w-32 shrink-0 text-xs"
+														autoCapitalize="off"
+														autoCorrect="off"
+														spellCheck={false}
+														onChange={(event) =>
+															changePreviewRow(row.id, "name", event.target.value)
+														}
+													/>
 													<div className="min-w-0 flex-1">
 														<Input
 															aria-label={`Preview URL ${index + 1}`}
-															value={row.value}
+															value={row.url}
 															placeholder="http://localhost:$CONDUCTED_PORT"
-															className="font-mono"
+															className="font-mono text-xs"
+															autoCapitalize="off"
+															autoCorrect="off"
+															spellCheck={false}
 															error={row.error ?? undefined}
-															onChange={(event) => changePreviewRow(row.id, event.target.value)}
-															onBlur={() => blurPreviewRow(row.id)}
+															onChange={(event) =>
+																changePreviewRow(row.id, "url", event.target.value)
+															}
+															onBlur={blurPreviewRow}
 														/>
 													</div>
 													{previewRows.length > 1 ? (
@@ -275,7 +328,11 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 														label="Remove preview URL"
 														size="sm"
 														icon={<TrashIcon className="size-3.5" />}
-														disabled={previewRows.length === 1 && row.value.trim() === ""}
+														disabled={
+															previewRows.length === 1 &&
+															row.name.trim() === "" &&
+															row.url.trim() === ""
+														}
 														onClick={() => removePreviewRow(row.id)}
 													/>
 												</div>
