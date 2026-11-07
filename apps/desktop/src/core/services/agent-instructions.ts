@@ -15,7 +15,7 @@
  * services-map.md 3.5 (commit and push is an agent instruction), 3.6.4 (reconcile messages, and
  * rebase or merge by `pull.rebase`), 3.7.1 (create PR steps), 3.7.6 (conflict resolution and CI
  * fixing go to the agent), ui-map.md 3.6 and 6 Actions (Review and Fix errors prompts).
- * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text for
+ * Must handle: a draft request ("Create draft PR") asks for `gh pr create --draft`; a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text for
  * Create PR, Commit and push and Reconcile (those two take it as an optional input), and replaces
  * it for Review, Resolve conflicts and Fix errors; the target branch and remote names are inserted
  * as given (they are quoted by the agent's own tools, not by us); a PR template, when the repo has
@@ -62,6 +62,8 @@ export const commitAndPushInstruction = (
 
 export const createPrInstruction = (
 	input: InstructionBase & {
+		/** Open it as a draft: the user chose "Create draft PR". */
+		draft: boolean;
 		prTemplatePath: string | null;
 		hasUncommittedChanges: boolean;
 		/** The `conducted://` link to the workspace, or null when the setting is off. */
@@ -91,11 +93,15 @@ export const createPrInstruction = (
 			`End the description with this link to the workspace: ${workspaceLink}. It opens the workspace in Conducted on this Mac, so it does not work for anyone else.`,
 		);
 	}
+	const create = input.draft
+		? `Open it as a draft pull request with \`gh pr create --base ${target} --draft\`.`
+		: `Open the pull request with \`gh pr create --base ${target}\`.`;
 	steps.push(
-		`Open the pull request with \`gh pr create --base ${target}\`. Keep the title under 80 characters and the description under five sentences.`,
+		`${create} Keep the title under 80 characters and the description under five sentences.`,
 	);
 
-	const intro = `Create a pull request for the branch \`${input.branch}\` into \`${remoteTarget}\`.`;
+	const kind = input.draft ? "a draft pull request" : "a pull request";
+	const intro = `Create ${kind} for the branch \`${input.branch}\` into \`${remoteTarget}\`.`;
 	const numbered = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
 	const forcePush =
 		"If the branch history was rewritten, update the remote with `git push --force-with-lease`, never a plain force push.";

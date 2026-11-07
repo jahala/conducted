@@ -2,14 +2,15 @@
  * @feature SET-02 General settings page
  * @feature PLAT-24 Full Disk Access row
  * Owns: the General page of Settings: how messages are sent, follow-up behaviour, notifications,
- * sound, the other everyday app settings the registry places on this page, and the Full Disk
+ * sound with Conductor's "Test" beside it (renderApp @11119167), the other everyday app settings the registry places on this page, and the Full Disk
  * Access row with its status and the button that opens the macOS Privacy & Security pane.
  * Behaviour: ui-map.md 6, "General" table and "Control values" (send key, follow-up behaviour,
  * completion sound, "Full disk access permissions"). Registry rows come from SET-01, so the page
  * and search read one table.
  * Must handle: a save that fails (the failure is shown under the row and the stored value stays);
  * a Full Disk Access check that is loading, says no access, or fails; System Settings that cannot
- * open (the row tells the user to grant the permission by hand).
+ * open (the row tells the user to grant the permission by hand); "Test" while "No sound" is chosen
+ * (off) and a sound that cannot play (a toast).
  * Test first: changing "Send messages with" calls settings.set with the new value once.
  */
 import { useState } from "react";
@@ -17,6 +18,7 @@ import { useActions, useFullDiskAccess, useSetting } from "../../../core/hooks.t
 import { settingsForPage } from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Callout } from "../../../ui/Callout.tsx";
+import { VolumeIcon } from "../../../ui/icons.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { ResetCalloutDismissals } from "../ResetCalloutDismissals.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
@@ -25,6 +27,30 @@ import { SyncAgentConfigsRow } from "../SyncAgentConfigsDialog.tsx";
 
 const DISMISSED_CALLOUTS_KEY = "dismissed_callouts";
 const CALLOUT_DISMISSALS_HINT_ID = "callout-dismissals-hint";
+
+/**
+ * Conductor's "Test" beside the completion sound: it plays the chosen sound now, and is off while
+ * "No sound" is chosen.
+ */
+function TestSoundButton({ soundId }: { soundId: string }) {
+	const actions = useActions();
+	return (
+		<Button
+			variant="ghost"
+			size="sm"
+			className="h-8 gap-1.5"
+			disabled={soundId === "none"}
+			onClick={() => {
+				void actions.app.testCompletionSound(soundId).then((result) => {
+					if (!result.ok) toastError("Couldn't play the completion sound", result.error);
+				});
+			}}
+		>
+			<VolumeIcon className="size-4" />
+			Test
+		</Button>
+	);
+}
 
 /** PLAT-24: the permission status and the button that opens System Settings at the right pane. */
 function FullDiskAccessRow() {
@@ -116,6 +142,11 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				page="general"
 				focusSettingKey={focusSettingKey}
 				exclude={GENERAL_AFTER_SOUND}
+				extraFor={(def, value) =>
+					def.key === "sound_type" ? (
+						<TestSoundButton soundId={typeof value === "string" ? value : "default"} />
+					) : null
+				}
 			/>
 			<FullDiskAccessRow />
 			<RegistrySettingRows

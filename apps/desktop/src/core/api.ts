@@ -302,6 +302,8 @@ export interface Queries {
 	useGitHubAccess(): Loadable<GitHubAccess>;
 	/** Names of the apps on this Mac that the "Open in" menu can use. */
 	useInstalledApps(): Loadable<string[]>;
+	/** An "Open in" app's own icon as a PNG data URL; null when the app has no icon file. */
+	useAppIcon(appName: string): Loadable<string | null>;
 	/** The MCP servers of one chat and their status. */
 	useMcpServers(sessionId: SessionId): Loadable<McpServerView[]>;
 	/** What the diagnostics screen shows about the app, the machine and the agents. */
@@ -515,8 +517,8 @@ export interface Actions {
 		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
 	};
 	pullRequests: {
-		/** Asks the agent to open the PR, with written instructions. */
-		create: Act<[workspaceId: WorkspaceId]>;
+		/** Asks the agent to open the PR, with written instructions; `draft` asks for a draft PR. */
+		create: Act<[workspaceId: WorkspaceId, options: { draft: boolean }]>;
 		markReady: Act<[workspaceId: WorkspaceId]>;
 		merge: Act<[workspaceId: WorkspaceId]>;
 		setAutoMerge: Act<[workspaceId: WorkspaceId, enabled: boolean]>;
@@ -659,6 +661,10 @@ export interface Actions {
 		 * repository's shared settings.toml (or a layer above it) applies again.
 		 */
 		resetForRepo: Act<[repoId: RepoId, key: string]>;
+		/** Where the user's settings file, or one project's local settings file, lives. */
+		filePath: Act<[file: "user" | { repoId: RepoId }], string>;
+		/** Opens that settings file in the named app, creating it empty when it is missing. */
+		openFile: Act<[file: "user" | { repoId: RepoId }, appName: string]>;
 	};
 	agents: {
 		login: Act<[agent: AgentKind, acpAgent?: AcpAgent], AgentLogin>;
@@ -710,6 +716,8 @@ export interface Actions {
 		openUrl: Act<[url: string]>;
 		/** Shows the system folder dialog. The result is null when the user cancels. */
 		pickFolder: Act<[title: string], string | null>;
+		/** Shows the system dialog for one file. The result is null when the user cancels. */
+		pickFile: Act<[title: string], string | null>;
 		recheckGitHubAccess: Act;
 		/** Writes the redacted diagnostics report to a file and starts a chat with it attached. */
 		createDiagnosticsChat: Act<[workspaceId: WorkspaceId]>;
@@ -717,6 +725,8 @@ export interface Actions {
 		sendFeedback: Act<[input: FeedbackInput]>;
 		openSidecarLogs: Act;
 		openFullDiskAccessSettings: Act;
+		/** Plays a completion sound now, for the General page's "Test". */
+		testCompletionSound: Act<[soundId: string]>;
 		/** Opens a terminal that runs the Xcode licence command, when git is blocked by it. */
 		runXcodeLicenseFix: Act;
 	};

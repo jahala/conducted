@@ -18,13 +18,19 @@
  */
 import { useState } from "react";
 import { useCommands } from "../../../core/hooks.ts";
-import { COMMAND_CATEGORIES } from "../../../core/registries/commands.ts";
+import { COMMAND_CATEGORIES, COMMANDS } from "../../../core/registries/commands.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
+import { SearchIcon } from "../../../ui/icons.tsx";
 import { ShortcutRecorder } from "../keyboard/ShortcutRecorder.tsx";
 import { ShortcutRow } from "../keyboard/ShortcutRow.tsx";
 import { matchingCommands, useKeybindingEditing } from "../keyboard/use-keybinding-editing.ts";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
+
+/** Commands whose shortcut the app keeps (Settings, Quit and the like): a lock, no pencil. */
+const FIXED_COMMANDS: ReadonlySet<string> = new Set(
+	COMMANDS.filter((command) => !command.configurable).map((command) => command.id),
+);
 
 export function KeyboardShortcutsPage({
 	focusSettingKey = null,
@@ -51,13 +57,15 @@ export function KeyboardShortcutsPage({
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
-			<div className="max-w-sm pb-4">
+			<div className="relative pb-6">
+				<SearchIcon className="pointer-events-none absolute top-4 left-3 size-4 -translate-y-1/2 text-fg-muted" />
 				<Input
 					type="search"
-					aria-label="Search commands"
-					placeholder="Search commands"
+					aria-label="Search keyboard shortcuts"
+					placeholder="Search keyboard shortcuts..."
 					value={filter}
 					onChange={(event) => setFilter(event.target.value)}
+					className="w-full pl-9"
 				/>
 			</div>
 
@@ -76,50 +84,59 @@ export function KeyboardShortcutsPage({
 					No commands match your search.
 				</p>
 			) : (
-				<div className="flex flex-col gap-5">
+				<div className="flex flex-col gap-8">
 					{COMMAND_CATEGORIES.map((category) => {
 						const entries = shown.filter((command) => command.category === category);
 						if (entries.length === 0) return null;
 						return (
-							<section key={category} className="flex flex-col">
-								<h2 className="pb-1 text-sm font-medium text-fg">{category}</h2>
-								{entries.map((command) => (
-									<div key={command.id}>
-										<ShortcutRow
-											command={command}
-											changedFromDefault={command.shortcut !== command.defaultShortcut}
-											conflictWith={conflict?.commandId === command.id ? conflict.otherTitle : null}
-											recording={recordingId === command.id}
-											onStartRecording={() => {
-												editing.dismiss();
-												setRecordingId(command.id);
-											}}
-											onClear={() => editing.clear(command.id)}
-											onReset={() => editing.reset(command.id)}
-										/>
-										{recordingId === command.id ? (
-											<div className="pb-2">
-												<ShortcutRecorder
-													onRecord={(combination) => record(command.id, combination)}
-													onCancel={() => setRecordingId(null)}
-												/>
-											</div>
-										) : null}
-										{conflict?.commandId === command.id ? (
-											<div className="flex flex-wrap items-center gap-2 pb-2">
-												<p className="text-xs text-fg-muted">
-													Use {conflict.combination} here and remove it from {conflict.otherTitle}?
-												</p>
-												<Button size="sm" variant="destructive" onClick={editing.replace}>
-													Replace
-												</Button>
-												<Button size="sm" variant="secondary" onClick={editing.cancelConflict}>
-													Cancel
-												</Button>
-											</div>
-										) : null}
-									</div>
-								))}
+							<section key={category} className="flex flex-col gap-2">
+								<h2 className="text-sm font-medium text-fg-muted">{category}</h2>
+								<div
+									data-shortcut-list
+									className="divide-y divide-border rounded-lg border border-border"
+								>
+									{entries.map((command) => (
+										<div key={command.id}>
+											<ShortcutRow
+												command={command}
+												fixed={FIXED_COMMANDS.has(command.id)}
+												changedFromDefault={command.shortcut !== command.defaultShortcut}
+												conflictWith={
+													conflict?.commandId === command.id ? conflict.otherTitle : null
+												}
+												recording={recordingId === command.id}
+												onStartRecording={() => {
+													editing.dismiss();
+													setRecordingId(command.id);
+												}}
+												onClear={() => editing.clear(command.id)}
+												onReset={() => editing.reset(command.id)}
+											/>
+											{recordingId === command.id ? (
+												<div className="px-4 pb-3">
+													<ShortcutRecorder
+														onRecord={(combination) => record(command.id, combination)}
+														onCancel={() => setRecordingId(null)}
+													/>
+												</div>
+											) : null}
+											{conflict?.commandId === command.id ? (
+												<div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+													<p className="text-xs text-fg-muted">
+														Use {conflict.combination} here and remove it from {conflict.otherTitle}
+														?
+													</p>
+													<Button size="sm" variant="destructive" onClick={editing.replace}>
+														Replace
+													</Button>
+													<Button size="sm" variant="secondary" onClick={editing.cancelConflict}>
+														Cancel
+													</Button>
+												</div>
+											) : null}
+										</div>
+									))}
+								</div>
 							</section>
 						);
 					})}

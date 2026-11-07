@@ -2558,8 +2558,8 @@ export class GithubService {
 		});
 	}
 
-	/** Backs `Actions.pullRequests.create`: asks the agent to open the PR. */
-	async create(workspaceId: WorkspaceId): Promise<Result<void>> {
+	/** Backs `Actions.pullRequests.create`: asks the agent to open the PR, as a draft if asked. */
+	async create(workspaceId: WorkspaceId, options: { draft: boolean }): Promise<Result<void>> {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
@@ -2578,6 +2578,7 @@ export class GithubService {
 
 		const includeLink = this.#deps.setting?.<boolean>("include_workspace_link_in_pr") ?? false;
 		const text = createPrInstruction({
+			draft: options.draft,
 			remote: found.remote,
 			targetBranch: target.value,
 			branch: found.branch,

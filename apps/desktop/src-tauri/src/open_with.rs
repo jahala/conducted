@@ -22,17 +22,29 @@
 //! - An app that was uninstalled since detection fails with `open_with_not_installed`.
 //! - Terminal apps open a new window in the folder. For a file path they open its parent folder.
 //! - `reveal_in_finder` selects the item in a Finder window (`open -R`).
+//! - `app_icon` reads a known app's own icon, as Conductor does for its Open in buttons: the
+//!   bundle's `CFBundleIconFile` (`plutil`), converted to a 64 px PNG by `sips` and kept in
+//!   `<app data>/app-icons/<label>.png`. The copy is reused until the app's icon file is newer, so
+//!   an app update brings its new icon. An app that is not installed, or whose bundle names no
+//!   `.icns` file (an asset-catalogue-only app), has no icon: `None`, and the UI draws the app's
+//!   kind instead, as Conductor does. A conversion that fails is an error, never an empty icon.
 //!
 //! Our design choice: the catalogue holds app labels only, taken from the research's list. The
 //! bundle names are not checked against real installs; a wrong name shows that app as missing.
-//! Conductor's app icons are not reused; the UI shows our own icons or the system icon for the app.
+//! Conductor's app icons are not reused (D002); Finder's icon is read from
+//! `/System/Library/CoreServices/Finder.app`, where macOS keeps it.
 //!
 //! Test first: with a temp folder standing in for `/Applications` that holds `Cursor.app` and
 //! `Ghostty.app`, `installed_apps_in` returns "Finder", "Cursor" and "Ghostty" in catalogue order.
+//! App icon test first: an app bundle whose Info.plist names an icon file gives a PNG data URL, and
+//! the cached copy is read again without converting.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use base64::Engine as _;
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::{CommandError, CommandResult};
 
@@ -219,6 +231,14 @@ fn application_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// The folders an app's icon is looked up in: the application folders, plus the one that holds
+/// Finder, which is never under `/Applications`.
+fn icon_bundle_dirs() -> Vec<PathBuf> {
+    let mut dirs = application_dirs();
+    dirs.push(PathBuf::from("/System/Library/CoreServices"));
+    dirs
+}
+
 /// Finds the bundle for `app` under the given folders, trying each accepted bundle name in turn.
 fn bundle_path(app: &KnownApp, application_dirs: &[&Path]) -> Option<PathBuf> {
     for dir in application_dirs {
@@ -359,6 +379,119 @@ fn run_open(action: &OpenAction) -> CommandResult<()> {
     })
 }
 
+/// The edge of the PNG an icon is cached as: the 16 px slot at 2x, with room for 32 px rows.
+const ICON_PIXELS: u32 = 64;
+
+/// The folder of cached icons inside the app data folder.
+const ICON_CACHE_DIR: &str = "app-icons";
+
+fn icon_failed(message: String) -> CommandError {
+    CommandError::Failed {
+        code: "app_icon_failed",
+        message,
+    }
+}
+
+/// The `.icns` file a bundle names in its Info.plist, or `None` when it names none or the file
+/// is not there. `plutil` reads both XML and binary property lists.
+fn icon_source(bundle: &Path) -> CommandResult<Option<PathBuf>> {
+    let info = bundle.join("Contents").join("Info.plist");
+    if !info.is_file() {
+        return Ok(None);
+    }
+    let output = Command::new("/usr/bin/plutil")
+        .args(["-extract", "CFBundleIconFile", "raw", "-o", "-"])
+        .arg(&info)
+        .output()
+        .map_err(|error| icon_failed(format!("Could not run plutil: {error}")))?;
+    // plutil exits 1 when the key is missing: the bundle names no icon file.
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let file = if Path::new(&name)
+        .extension()
+        .is_some_and(|ext| ext == "icns")
+    {
+        name
+    } else {
+        format!("{name}.icns")
+    };
+    let path = bundle.join("Contents").join("Resources").join(file);
+    Ok(path.is_file().then_some(path))
+}
+
+/// True when the cached PNG was written after the icon file last changed.
+fn cache_is_fresh(cached: &Path, source: &Path) -> CommandResult<bool> {
+    let cached_at = match fs::metadata(cached) {
+        Ok(metadata) => metadata.modified()?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(CommandError::Io(error)),
+    };
+    let source_at = fs::metadata(source)?.modified()?;
+    Ok(cached_at >= source_at)
+}
+
+/// Converts the icon file to a PNG next to the cache entry, then moves it into place, so a
+/// reader never sees half a file.
+fn convert_icon(source: &Path, cached: &Path) -> CommandResult<()> {
+    let partial = cached.with_extension("png.partial");
+    let output = Command::new("/usr/bin/sips")
+        .args(["-s", "format", "png", "-Z", &ICON_PIXELS.to_string()])
+        .arg(source)
+        .arg("--out")
+        .arg(&partial)
+        .output()
+        .map_err(|error| icon_failed(format!("Could not run sips: {error}")))?;
+    if !output.status.success() || !partial.is_file() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if partial.exists() {
+            fs::remove_file(&partial)?;
+        }
+        return Err(icon_failed(format!(
+            "Could not convert {}: {}",
+            source.display(),
+            if stderr.is_empty() {
+                output.status.to_string()
+            } else {
+                stderr
+            }
+        )));
+    }
+    fs::rename(&partial, cached)?;
+    Ok(())
+}
+
+/// Reads a known app's icon as a PNG data URL, converting and caching it on the first read.
+/// Pure over the folders it is given, so tests can pass temp folders.
+pub fn app_icon_in(
+    app_name: &str,
+    application_dirs: &[&Path],
+    cache_dir: &Path,
+) -> CommandResult<Option<String>> {
+    let app = KNOWN_APPS
+        .iter()
+        .find(|app| app.label == app_name)
+        .ok_or_else(|| unknown_app(app_name))?;
+    let Some(bundle) = bundle_path(app, application_dirs) else {
+        return Ok(None);
+    };
+    let Some(source) = icon_source(&bundle)? else {
+        return Ok(None);
+    };
+    fs::create_dir_all(cache_dir)?;
+    let cached = cache_dir.join(format!("{}.png", app.label));
+    if !cache_is_fresh(&cached, &source)? {
+        convert_icon(&source, &cached)?;
+    }
+    let bytes = fs::read(&cached)?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(Some(format!("data:image/png;base64,{encoded}")))
+}
+
 /// Selects a file or folder in a Finder window.
 #[tauri::command]
 pub async fn reveal_in_finder(path: String) -> CommandResult<()> {
@@ -372,6 +505,21 @@ pub async fn open_with(app_name: String, path: String) -> CommandResult<()> {
     let dir_refs: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
     let action = plan_open(&app_name, Path::new(&path), &dir_refs)?;
     run_open(&action)
+}
+
+/// A known app's own icon as a PNG data URL, or `None` when it has no icon file to read.
+#[tauri::command]
+pub async fn app_icon<R: Runtime>(
+    app: AppHandle<R>,
+    app_name: String,
+) -> CommandResult<Option<String>> {
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| icon_failed(format!("Could not find the app data folder: {error}")))?;
+    let dirs = icon_bundle_dirs();
+    let dir_refs: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
+    app_icon_in(&app_name, &dir_refs, &data.join(ICON_CACHE_DIR))
 }
 
 /// Lists the labels of the known apps that are installed.
@@ -603,6 +751,135 @@ mod tests {
             open_command(&folder_action).get_args().collect::<Vec<_>>(),
             vec![directory.as_os_str()]
         );
+    }
+
+    /// A bundle whose Info.plist names `icon_name` and holds a real `.icns` made by `sips` from a
+    /// one-colour PNG.
+    fn bundle_with_icon(folder: &TempDir, app: &str, icon_name: &str) -> PathBuf {
+        let bundle = folder.app(app);
+        let resources = bundle.join("Contents").join("Resources");
+        fs::create_dir_all(&resources).expect("create Resources");
+        fs::write(
+            bundle.join("Contents").join("Info.plist"),
+            format!(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>CFBundleIconFile</key><string>{icon_name}</string></dict></plist>\n"
+            ),
+        )
+        .expect("write Info.plist");
+        let png = folder.path().join(format!("{app}-source.png"));
+        image::RgbaImage::from_pixel(256, 256, image::Rgba([40, 120, 220, 255]))
+            .save(&png)
+            .expect("write source PNG");
+        let icns = resources.join(format!("{}.icns", icon_name.trim_end_matches(".icns")));
+        let status = Command::new("/usr/bin/sips")
+            .args(["-s", "format", "icns"])
+            .arg(&png)
+            .arg("--out")
+            .arg(&icns)
+            .output()
+            .expect("run sips");
+        assert!(status.status.success(), "sips made no icns: {status:?}");
+        bundle
+    }
+
+    fn decode_png(data_url: &str) -> image::DynamicImage {
+        let encoded = data_url
+            .strip_prefix("data:image/png;base64,")
+            .expect("a PNG data URL");
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .expect("valid base64");
+        image::load_from_memory_with_format(&bytes, image::ImageFormat::Png).expect("a PNG")
+    }
+
+    #[test]
+    fn plat_19_app_icon_reads_the_icon_file_the_bundle_names() {
+        let apps = TempDir::new();
+        let cache = TempDir::new();
+        bundle_with_icon(&apps, "Cursor", "Cursor");
+
+        let icon = app_icon_in("Cursor", &[apps.path()], cache.path())
+            .expect("read the icon")
+            .expect("Cursor has an icon");
+
+        let image = decode_png(&icon);
+        assert_eq!((image.width(), image.height()), (ICON_PIXELS, ICON_PIXELS));
+        assert!(cache.path().join("Cursor.png").is_file());
+    }
+
+    #[test]
+    fn plat_19_app_icon_accepts_an_icon_name_with_its_extension() {
+        let apps = TempDir::new();
+        let cache = TempDir::new();
+        bundle_with_icon(&apps, "Ghostty", "Ghostty.icns");
+
+        let icon = app_icon_in("Ghostty", &[apps.path()], cache.path()).expect("read the icon");
+
+        assert!(icon.is_some());
+    }
+
+    #[test]
+    fn plat_19_app_icon_reuses_the_cached_copy_until_the_icon_file_changes() {
+        let apps = TempDir::new();
+        let cache = TempDir::new();
+        let bundle = bundle_with_icon(&apps, "Zed", "Zed");
+        let icns = bundle.join("Contents").join("Resources").join("Zed.icns");
+        let cached = cache.path().join("Zed.png");
+        // A cached copy newer than the icon file is read as it is, with no conversion.
+        let marker = image::RgbaImage::from_pixel(3, 3, image::Rgba([0, 0, 0, 255]));
+        marker.save(&cached).expect("write cached copy");
+        let icon_changed = fs::metadata(&icns)
+            .and_then(|metadata| metadata.modified())
+            .expect("read the icon file's time");
+        fs::File::options()
+            .write(true)
+            .open(&cached)
+            .and_then(|file| file.set_modified(icon_changed + std::time::Duration::from_secs(60)))
+            .expect("date the cached copy after the icon file");
+
+        let icon = app_icon_in("Zed", &[apps.path()], cache.path())
+            .expect("read the icon")
+            .expect("Zed has an icon");
+
+        assert_eq!(decode_png(&icon).width(), 3);
+    }
+
+    #[test]
+    fn plat_19_app_icon_is_none_for_an_app_without_an_icon_file() {
+        let apps = TempDir::new();
+        let cache = TempDir::new();
+        folder_with_plain_bundle(&apps, "Warp");
+
+        assert_eq!(
+            app_icon_in("Warp", &[apps.path()], cache.path()).expect("read"),
+            None
+        );
+        assert_eq!(
+            app_icon_in("Cursor", &[apps.path()], cache.path()).expect("read"),
+            None,
+            "an app that is not installed has no icon"
+        );
+    }
+
+    fn folder_with_plain_bundle(folder: &TempDir, app: &str) {
+        let bundle = folder.app(app);
+        fs::create_dir_all(bundle.join("Contents")).expect("create Contents");
+        fs::write(
+            bundle.join("Contents").join("Info.plist"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\"><dict></dict></plist>\n",
+        )
+        .expect("write Info.plist");
+    }
+
+    #[test]
+    fn plat_19_app_icon_refuses_a_label_outside_the_catalogue() {
+        let apps = TempDir::new();
+        let cache = TempDir::new();
+
+        let error = app_icon_in("../../etc", &[apps.path()], cache.path())
+            .expect_err("an unknown app is refused");
+
+        assert_eq!(error_code(error), "open_with_unknown_app");
     }
 
     #[test]
