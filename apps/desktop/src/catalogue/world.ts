@@ -124,6 +124,8 @@ const MODELS: Record<string, ModelInfo[]> = {
 /** What the scripted sidecar answers when no state says otherwise. */
 const DEFAULT_ANSWERS: SidecarAnswers = {
 	getAgentInstalls: () => ({ agents: AGENT_INSTALLS }),
+	// The sidecar takes a message as a new turn; nothing replies unless a state delivers events.
+	sendMessage: () => ({ deliveredAs: "new_turn" }),
 	listModels: ({ agent }) => ({ models: MODELS[agent] ?? [] }),
 	listSlashCommands: () => ({
 		commands: [

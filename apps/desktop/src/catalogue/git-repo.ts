@@ -258,7 +258,11 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 		if (verb === "branch" && args[1]?.startsWith("--format")) {
 			return out(`${repo.branch}\nmain\n`);
 		}
-		if (verb === "for-each-ref") return out("origin/main\norigin/release\n");
+		// Only the remote's branches exist; a checkpoint prune listing its own refs finds none.
+		if (verb === "for-each-ref" && args.some((arg) => arg.startsWith("refs/remotes/"))) {
+			return out("origin/main\norigin/release\n");
+		}
+		if (verb === "for-each-ref") return out("");
 		if (verb === "config" && args[1] === "--get" && repo.upstream !== null) {
 			if (args[2] === `branch.${repo.branch}.remote`) return out("origin\n");
 			if (args[2] === `branch.${repo.branch}.merge`) return out(`refs/heads/${repo.branch}\n`);
