@@ -33,6 +33,7 @@ import {
 	RESERVED_PORT_MESSAGE,
 	SSH_PORT,
 } from "../cloud/port-allocation.ts";
+import { previewUrlFor } from "../cloud/previews.ts";
 import type { PortForward, PortForwardRepository } from "../db/port-forwards.ts";
 import type { Workspace } from "../model.ts";
 
@@ -514,41 +515,14 @@ export class PortForwardsService {
 		return ok(undefined);
 	}
 
-	/** The Worker's capability URL for one remote port's preview. */
+	/** The Worker's capability URL for one remote port's preview, through the one preview door. */
 	async previewUrl(workspaceId: WorkspaceId, remotePort: number): Promise<Result<string>> {
 		const workspace = await this.#workspace(workspaceId);
 		if (!workspace.ok) return workspace;
 		if (workspace.value.host.kind !== "cloud") {
 			return err(appError("port_forward_local", "Port forwarding is for cloud workspaces only."));
 		}
-		if (remotePort === SSH_PORT) {
-			return err(appError("port_forward_reserved", RESERVED_PORT_MESSAGE));
-		}
-		const host = workspace.value.host;
-		const response = await this.#deps.platform.cloud.request({
-			url: host.url,
-			method: "POST",
-			path: `/w/${host.vmId}/preview-url`,
-			body: { port: remotePort },
-		});
-		if (!response.ok) return err(response.error);
-		if (response.value.status !== 200) {
-			return err(
-				appError(
-					"port_forward_preview_failed",
-					`The sandbox answered ${response.value.status} when asked for a preview URL.`,
-				),
-			);
-		}
-		try {
-			const parsed = JSON.parse(response.value.body) as { url?: unknown };
-			if (typeof parsed.url === "string" && parsed.url !== "") return ok(parsed.url);
-		} catch {
-			// Fall through to the error below.
-		}
-		return err(
-			appError("port_forward_preview_failed", "The Worker did not answer with a preview URL."),
-		);
+		return previewUrlFor(this.#deps.platform.cloud, workspace.value.host, remotePort);
 	}
 
 	async #reconcile(workspace: Workspace, ports: readonly DetectedRemotePort[]): Promise<void> {
