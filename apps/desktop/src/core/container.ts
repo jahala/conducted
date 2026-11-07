@@ -58,6 +58,7 @@ import {
 } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
 import { type CloudDeployService, createCloudDeploy } from "./cloud/deploy.ts";
+import { FileSyncService } from "./cloud/file-sync.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
 import { createHostRoutedSidecar } from "./cloud/router.ts";
@@ -95,6 +96,7 @@ import { LocalCommandService } from "./services/local-command.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { PortForwardsService } from "./services/port-forwards.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
 import { ReviewService } from "./services/review.ts";
@@ -111,7 +113,7 @@ import {
 	terminalLimit,
 } from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
-import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
+import { expandHome, type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
 import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {
@@ -170,6 +172,7 @@ export interface Services {
 	linear: LinearService;
 	cloudPairing: CloudPairingService;
 	cloudDeploy: CloudDeployService;
+	cloudFileSync: FileSyncService;
 	git: GitService;
 	graphite: GraphiteService;
 	gitCache: GitCache;
@@ -185,6 +188,7 @@ export interface Services {
 	runScripts: RunScriptsService;
 	spotlight: SpotlightService;
 	ports: PortService;
+	portForwards: PortForwardsService;
 	terminals: TerminalsService;
 	notifications: NotificationService;
 	updates: UpdatesService;
@@ -547,6 +551,19 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspaces: () => workspace.store,
 		repos: () => repo.store,
 		sessions: () => sessions.store,
+	});
+	const cloudFileSync = new FileSyncService({
+		cloud: platform.cloud,
+		fs: platform.fs,
+		opener: platform.opener,
+		workspaceOf: (id) => lookups.workspace(id),
+		repoNameOf: (id) => {
+			const found = lookups.repoOf(id);
+			return found.ok ? ok(found.value.name) : found;
+		},
+		rootPath: () => expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+		setting,
+		now: () => clock.now(),
 	});
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
@@ -925,6 +942,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		ids,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
+	// Built before the workspace service so archive and delete can pause its forwards (CLOUD-10).
+	const portForwards = new PortForwardsService({
+		platform,
+		repos: repositories,
+		settings,
+	});
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		cloud: platform.cloud,
@@ -933,6 +956,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		portForwards,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
@@ -1083,9 +1107,27 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 		searchOn: async (id) => {
-			const found = lookups.workspaceOn(id, "search");
-			return found.ok ? ok(undefined) : found;
+			const found = lookups.workspace(id);
+			if (!found.ok) return found;
+			if (found.value.host.kind === "local") return ok(undefined);
+			return cloudFileSync.ensureMirror(id);
 		},
+		searchRootOf: async (id) => {
+			const found = lookups.workspace(id);
+			if (!found.ok) return found;
+			if (found.value.host.kind === "cloud") return cloudFileSync.mirrorPathOf(id);
+			const roots = lookups.allowedRoots(id);
+			if (!roots.ok) return roots;
+			const first = roots.value[0];
+			return first === undefined
+				? err(appError("workspace_path_missing", "That workspace has no folder on this Mac."))
+				: ok(first);
+		},
+		hostKindOf: (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? found.value.host.kind : "local";
+		},
+		cloudOpen: (id, path) => cloudFileSync.downloadFile(id, path),
 		opener: platform.opener,
 	});
 	const review = new ReviewService({
@@ -1163,6 +1205,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		linear,
 		cloudPairing,
 		cloudDeploy,
+		portForwards,
+		cloudFileSync,
 		git,
 		graphite,
 		gitCache,
@@ -1227,6 +1271,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
 		{ name: "linear access", phase: "services", fatal: false, run: () => linear.start() },
 		{ name: "cloud pairing", phase: "services", fatal: false, run: () => cloudPairing.start() },
+		{ name: "port forwards", phase: "services", fatal: false, run: () => portForwards.start() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
@@ -1509,6 +1554,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		});
 		await step("keep-awake", () => keepAwake.stop());
 		await step("notifications", () => notifications.stop());
+		await step("cloud file sync", () => cloudFileSync.dispose());
 		await step("agent programs", () => system.dispose());
 		await step("the repo service", () => repo.dispose());
 		await step("git polling", () => git.dispose());
@@ -1525,6 +1571,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 			for (const cloudTunnel of cloudTunnels.values()) cloudTunnel.stop();
 			for (const transport of cloudTransports) await transport.close();
 		});
+		// The local listeners are Rust's, but their timers and event listener are this service's.
+		await step("port forwards", () => portForwards.stop());
 	};
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:

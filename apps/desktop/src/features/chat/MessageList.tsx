@@ -104,7 +104,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 	const canRun = workspace.state === "ready" && workspace.data.state === "ready";
 	const draft = useDraft(sessionId);
 	const actions = useActions();
-	const expandAll = useSetting<boolean>("expand_tool_calls");
+	const expandAll = useSetting<boolean>("garry_mode");
 	const ownListRef = useRef<VirtuosoHandle>(null);
 	const listRef = parentListRef ?? ownListRef;
 	const [atBottom, setAtBottom] = useState(true);
@@ -112,7 +112,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 
 	useCommandHandler("chat.expandAllToolCalls", "area", () => {
 		void reportFailure(
-			actions.settings.set("expand_tool_calls", !expandAll),
+			actions.settings.set("garry_mode", !expandAll),
 			"Couldn't change the tool call setting",
 		);
 		return true;

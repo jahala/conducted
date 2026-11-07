@@ -169,6 +169,11 @@ export const PLATFORM_ERROR_CODES = [
 	"program_status_not_sent",
 	"program_unpack_failed",
 	"program_version_not_pinned",
+	"port_forward_bind_failed",
+	"port_forward_failed",
+	"port_forward_invalid",
+	"port_forward_no_port",
+	"port_forward_reserved",
 	"pty_ack_failed",
 	"pty_bad_cwd",
 	"pty_bad_size",
@@ -840,6 +845,46 @@ export interface Cloud {
 	}): Promise<Result<CloudRelay>>;
 }
 
+/** One running local listener that carries a cloud workspace's port to the Mac (CLOUD-10). */
+export interface PortForwardInfo {
+	forwardId: string;
+	localPort: number;
+	remotePort: number;
+}
+
+/** What a port forward reports. `kind` is "started", "stopped" or "error". */
+export interface PortForwardEvent {
+	forwardId: string;
+	kind: "started" | "stopped" | "error";
+	message: string | null;
+}
+
+/**
+ * port_forward.rs: the Rust shell owns the local TCP listeners, because the web view cannot open a
+ * socket and cannot set the tunnel's Authorization header (CLOUD-10). The pairing token stays in
+ * Rust, so a forward needs no token from the screen.
+ */
+export interface PortForwarding {
+	/** The first free loopback port at `preferredPort`, then inside the range. */
+	findAvailableLocalPort(input: {
+		preferredPort?: number;
+		excludedPorts?: number[];
+		rangeStart: number;
+		rangeEnd: number;
+	}): Promise<Result<number>>;
+	/** Binds the local port before returning, so a good answer means the Mac port is open. */
+	start(input: {
+		forwardId: string;
+		url: string;
+		vmId: string;
+		localPort: number;
+		remotePort: number;
+	}): Promise<Result<PortForwardInfo>>;
+	stop(forwardId: string): Promise<Result<void>>;
+	list(): Promise<Result<PortForwardInfo[]>>;
+	onEvent(listener: (event: PortForwardEvent) => void): Unsubscribe;
+}
+
 /** http.rs: requests go through the system proxy settings and a URL allow-list. */
 export interface Http {
 	fetch(request: HttpRequest): Promise<Result<HttpResponse>>;
@@ -876,4 +921,5 @@ export interface Platform {
 	programs: Programs;
 	http: Http;
 	cloud: Cloud;
+	portForward: PortForwarding;
 }

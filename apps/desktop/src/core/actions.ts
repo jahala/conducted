@@ -195,6 +195,10 @@ export function createActions(
 			resolveConflicts: (workspaceId, path, choices, seenText) =>
 				services.workspaceFiles.resolveConflicts(workspaceId, path, choices, seenText),
 			reveal: (workspaceId, path) => services.workspaceFiles.reveal(workspaceId, path),
+			revealPath: (path) =>
+				settle("reveal_failed", "Finder could not show the file.", () =>
+					platform.opener.revealInFinder(path),
+				),
 			openInApp: (workspaceId, path, appName) =>
 				services.workspaceFiles.openInApp(workspaceId, path, appName),
 		},
@@ -255,6 +259,19 @@ export function createActions(
 			unpair: () => services.cloudPairing.unpair(),
 			deploy: () => services.cloudDeploy.deploy(),
 			uninstall: () => services.cloudDeploy.uninstall(),
+		},
+		portForwards: {
+			setForwarding: (workspaceId, enabled) =>
+				services.portForwards.setForwarding(workspaceId, enabled),
+			setAutoForward: (workspaceId, enabled) =>
+				services.portForwards.setAutoForward(workspaceId, enabled),
+			add: (workspaceId, remotePort) => services.portForwards.add(workspaceId, remotePort),
+			remove: (forwardId) => services.portForwards.remove(forwardId),
+			toggle: (forwardId, enabled) => services.portForwards.toggle(forwardId, enabled),
+			pauseWorkspace: (workspaceId) => services.portForwards.pauseWorkspace(workspaceId),
+			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
+			previewUrl: (workspaceId, remotePort) =>
+				services.portForwards.previewUrl(workspaceId, remotePort),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

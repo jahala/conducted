@@ -85,6 +85,9 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	PortForwardEvent,
+	PortForwardInfo,
+	PortForwarding,
 	ProcessUsage,
 	ProgramStatus,
 	Programs,
@@ -399,6 +402,10 @@ export const COMMANDS = {
 	cloudRelayOpen: "cloud_relay_open", // CLOUD-03
 	cloudRelaySend: "cloud_relay_send", // CLOUD-03
 	cloudRelayClose: "cloud_relay_close", // CLOUD-03
+	portForwardFindPort: "find_available_local_port", // CLOUD-10
+	portForwardStart: "start_port_forward", // CLOUD-10
+	portForwardStop: "stop_port_forward", // CLOUD-10
+	portForwardList: "list_port_forwards", // CLOUD-10
 } as const;
 
 /** Events emitted by the Rust shell and by Tauri's own window. */
@@ -420,6 +427,7 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 	cloudLine: "cloud://line", // CLOUD-03
 	cloudClosed: "cloud://closed", // CLOUD-03
+	portForwardEvent: "port-forward-event", // CLOUD-10
 } as const;
 
 /** The answer of `deep_link_launch`: the links that launched the app, sorted by deep_link.rs. */
@@ -1415,6 +1423,34 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 	};
 }
 
+/**
+ * `find_available_local_port`, `start_port_forward`, `stop_port_forward`,
+ * `list_port_forwards`, and the `port-forward-event` event (CLOUD-10). The pairing token and the
+ * socket live in Rust; the screen only names the workspace and the ports.
+ */
+export function createTauriPortForward(bindings: TauriBindings): PortForwarding {
+	return {
+		findAvailableLocalPort: (input) =>
+			invokeResult<number>(bindings, COMMANDS.portForwardFindPort, {
+				preferredPort: input.preferredPort,
+				excludedPorts: input.excludedPorts ?? [],
+				rangeStart: input.rangeStart,
+				rangeEnd: input.rangeEnd,
+			}),
+		start: (input) =>
+			invokeResult<PortForwardInfo>(bindings, COMMANDS.portForwardStart, {
+				forwardId: input.forwardId,
+				url: input.url,
+				vmId: input.vmId,
+				localPort: input.localPort,
+				remotePort: input.remotePort,
+			}),
+		stop: (forwardId) => invokeResult<void>(bindings, COMMANDS.portForwardStop, { forwardId }),
+		list: () => invokeResult<PortForwardInfo[]>(bindings, COMMANDS.portForwardList),
+		onEvent: (listener) => onEvent<PortForwardEvent>(bindings, EVENTS.portForwardEvent, listener),
+	};
+}
+
 interface AppInfoPayload {
 	version: string;
 	channel: "dev" | "release";
@@ -1468,6 +1504,7 @@ export async function createTauriPlatform(
 		programs: createTauriPrograms(bindings),
 		http: createTauriHttp(bindings),
 		cloud: createTauriCloud(bindings),
+		portForward: createTauriPortForward(bindings),
 	};
 	return ok(platform);
 }

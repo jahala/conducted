@@ -66,7 +66,7 @@ const BUILTIN_COMMANDS: readonly SlashCommand[] = [
 	},
 	{
 		name: "restart",
-		description: "Restart the agent process to pick up config changes",
+		description: "Restart the agent process. Useful to pick up config changes.",
 		source: "builtin",
 		kind: "command",
 	},
@@ -78,7 +78,7 @@ const BUILTIN_COMMANDS: readonly SlashCommand[] = [
 	},
 	{
 		name: "personality",
-		description: "Choose Codex's personality for this session",
+		description: "Choose Codex's personality for this session and future ones",
 		source: "builtin",
 		kind: "command",
 	},

@@ -176,6 +176,22 @@ describe("CLOUD-01 the host seam in the real container", () => {
 							});
 						case "readDir":
 							return ok({ status: 200, body: JSON.stringify({ entries: [] }) });
+						case "list":
+							return ok({
+								status: 200,
+								body: JSON.stringify({
+									entries: [
+										{
+											path: `${workspace.path}/README.md`,
+											isDirectory: false,
+											isSymlink: false,
+											size: 6,
+											modifiedAt: 0,
+										},
+									],
+									truncated: false,
+								}),
+							});
 						default:
 							return ok({ status: 200, body: "{}" });
 					}
@@ -204,24 +220,23 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			).toHaveLength(2);
 			expect(cloud.ptySpawns).toHaveLength(0);
 
-			// The doors the cloud rows do not own stop at their own row, before anything reaches the
-			// Mac: file search at CLOUD-11 and Open in at CLOUD-12.
+			// File search reads the cloud workspace's local mirror (CLOUD-11), and nothing of it
+			// runs on the Mac. Open in still stops at its own row (CLOUD-12).
 			const shells = cloud.shellCalls.length;
 			const ptys = cloud.ptySpawns.length;
 			const filesOnDisk = new Map(cloud.files);
-			expect(await stoppedAt(() => services.workspaceFiles.tree(workspace.id))).toBe("CLOUD-11");
-			expect(
-				await stoppedAt(() => services.workspaceFiles.quickOpen(workspace.id, "read", 10)),
-			).toBe("CLOUD-11");
-			expect(
-				await stoppedAt(() =>
-					services.workspaceFiles.grep(workspace.id, "hello", {
-						caseSensitive: false,
-						wholeWord: false,
-						regex: false,
-					}),
-				),
-			).toBe("CLOUD-11");
+			const tree = must(await services.workspaceFiles.tree(workspace.id));
+			expect(tree.map((entry) => entry.path)).toEqual(["README.md"]);
+			const quick = must(await services.workspaceFiles.quickOpen(workspace.id, "read", 10));
+			expect(quick.map((entry) => entry.path)).toEqual(["README.md"]);
+			const matches = must(
+				await services.workspaceFiles.grep(workspace.id, "hello", {
+					caseSensitive: false,
+					wholeWord: false,
+					regex: false,
+				}),
+			);
+			expect(matches.map((match) => match.path)).toEqual(["README.md"]);
 			expect(await stoppedAt(() => services.workspace.openIn(workspace.id, "Finder"))).toBe(
 				"CLOUD-12",
 			);
@@ -269,7 +284,9 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			expect(services.workspace.store.getState().workspacesById[workspace.id]).toBeUndefined();
 			expect(cloud.shellCalls.length).toBe(shells);
 			expect(cloud.ptySpawns.length).toBe(ptys);
-			expect(new Map(cloud.files)).toEqual(filesOnDisk);
+			// The mirror is the only file the search may leave on the Mac.
+			const added = [...cloud.files.keys()].filter((path) => !filesOnDisk.has(path));
+			expect(added.filter((path) => !path.startsWith("/Users/conducted/")).length).toBe(0);
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();

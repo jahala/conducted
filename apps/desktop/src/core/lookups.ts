@@ -1,4 +1,5 @@
 /**
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature DATA-01 Lookups across service stores
  * Owns: answering "which folder, branch and remote belong to this workspace or chat" from the
  * service stores that are already in memory, so services do not each repeat the join.

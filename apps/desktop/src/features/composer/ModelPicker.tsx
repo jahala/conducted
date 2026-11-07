@@ -499,7 +499,11 @@ export function ModelMenu({
 					{effortName === null ? null : (
 						<span className="shrink-0 text-fg-muted">{effortName}</span>
 					)}
-					{config?.fastMode === true ? <span className="shrink-0 text-fg-muted">Fast</span> : null}
+					{config?.fastMode === true ? (
+						<span role="img" aria-label="Fast mode on" className="shrink-0 text-fg-muted">
+							Fast
+						</span>
+					) : null}
 					<ChevronDownIcon className="ml-0.5 size-3 shrink-0 text-fg-muted" />
 				</Button>
 			}

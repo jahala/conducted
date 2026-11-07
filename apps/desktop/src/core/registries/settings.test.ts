@@ -176,6 +176,11 @@ describe("SET-01 lookups", () => {
 		expect(defaultValueOf("file_include_globs")).toEqual([]);
 	});
 
+	it("keeps file sync for new cloud workspaces on the Advanced page, on by default", () => {
+		expect(getSettingDef("auto_sync_files_in_new_cloud_workspaces")?.page).toBe("advanced");
+		expect(defaultValueOf("auto_sync_files_in_new_cloud_workspaces")).toBe(true);
+	});
+
 	it("reports which settings are file backed", () => {
 		expect(isFileBacked(must("delete_branch_on_archive"))).toBe(true);
 		expect(isFileBacked(must("message_send_key"))).toBe(false);

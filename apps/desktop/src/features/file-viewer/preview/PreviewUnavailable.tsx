@@ -78,7 +78,7 @@ export function PreviewUnavailable({
 
 	return (
 		<EmptyState
-			title="Preview not available"
+			title="Preview unavailable. Open the file to try again."
 			body={detail}
 			action={
 				<div className="flex flex-col items-center gap-2">

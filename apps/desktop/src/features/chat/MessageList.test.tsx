@@ -224,7 +224,7 @@ describe("CHAT-06 message list", () => {
 		render(wrap(<MessageList sessionId={sessionId} workspaceId={workspaceId} />));
 		await screen.findByTestId("user-message");
 		expect(runCommandHandlers("chat.expandAllToolCalls")).toBe(true);
-		expect(state.setSetting).toHaveBeenCalledWith("expand_tool_calls", true);
+		expect(state.setSetting).toHaveBeenCalledWith("garry_mode", true);
 	});
 
 	it("tells the user when the Expand all tool calls setting could not be saved", async () => {
@@ -243,6 +243,6 @@ describe("CHAT-06 message list", () => {
 		render(wrap(<MessageList sessionId={sessionId} workspaceId={workspaceId} />));
 		await screen.findByTestId("user-message");
 		runCommandHandlers("chat.expandAllToolCalls");
-		expect(state.setSetting).toHaveBeenCalledWith("expand_tool_calls", false);
+		expect(state.setSetting).toHaveBeenCalledWith("garry_mode", false);
 	});
 });

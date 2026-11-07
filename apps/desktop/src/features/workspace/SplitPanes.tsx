@@ -204,7 +204,17 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		event.dataTransfer.setData(DRAG_TYPE, tab.ref);
 		event.dataTransfer.effectAllowed = "move";
 		if (typeof event.dataTransfer.setDragImage === "function") {
-			event.dataTransfer.setDragImage(event.currentTarget, 0, 0);
+			const ghost = document.createElement("div");
+			ghost.dataset.testid = "center-panel-drag-ghost";
+			ghost.textContent = tab.title;
+			ghost.className =
+				"rounded-md border border-border bg-surface px-2 py-1 text-sm text-fg shadow-dialog";
+			ghost.style.position = "fixed";
+			ghost.style.top = "-1000px";
+			ghost.style.left = "-1000px";
+			document.body.appendChild(ghost);
+			event.dataTransfer.setDragImage(ghost, 0, 0);
+			window.setTimeout(() => ghost.remove(), 0);
 		}
 	};
 

@@ -68,7 +68,7 @@ describe("NAV-13 passport dialog", () => {
 		await seedWorkspace(test.container, { repoId: repo.id, directoryName: "lisbon-v2" });
 		await mountRoot(test);
 
-		expect(await screen.findByText("Conductor Passport")).toBeTruthy();
+		expect(await screen.findByText("Conducted Passport")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Lisbon" })).toBeTruthy();
 		expect(screen.getByText("CITIES VISITED")).toBeTruthy();
 		expect(screen.getByText("[CLICK TO OPEN]")).toBeTruthy();
@@ -89,7 +89,7 @@ describe("NAV-13 passport dialog", () => {
 		await archiveWorkspace(test, oslo);
 		await mountRoot(test);
 
-		expect(await screen.findByText("Conductor Passport")).toBeTruthy();
+		expect(await screen.findByText("Conducted Passport")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Oslo, archived" })).toBeTruthy();
 
 		const places = screen.getByRole("list", { name: "Places" });
