@@ -73,12 +73,7 @@ describe("WS-07 linked paths", () => {
 		test.container.services.sessions.store.setState({ sessions: {}, byWorkspace: {} });
 		await test.container.actions.workspaces.setLinkedPaths(workspace.id, ["/code/shared"]);
 
-		const sent = await test.container.services.sessions.send(
-			created.value.id,
-			"hello",
-			[],
-			"auto",
-		);
+		const sent = await test.container.services.sessions.send(created.value.id, "hello", [], "auto");
 
 		if (!sent.ok) throw new Error(JSON.stringify(sent.error));
 		const send = calls.find((call) => call.method === "sendMessage");

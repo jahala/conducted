@@ -151,10 +151,7 @@ export interface SessionRepository {
 	/** SESSIONS_SQL.setForkResume: where a forked chat's first send resumes its agent. */
 	setForkResume(id: SessionId, nativeMessageId: string | null): Promise<Result<void>>;
 	/** SESSIONS_SQL.setContextUsage. Does not touch updated_at. */
-	setContextUsage(
-		id: SessionId,
-		usage: { usedTokens: number | null },
-	): Promise<Result<void>>;
+	setContextUsage(id: SessionId, usage: { usedTokens: number | null }): Promise<Result<void>>;
 	/** SESSIONS_SQL.recordUserMessage. Moves last_user_message_at forward only. */
 	recordUserMessage(id: SessionId, at: number): Promise<Result<void>>;
 	/** SESSIONS_SQL.incrementUnread. The addition happens in SQL, not in TypeScript. */
@@ -256,12 +253,7 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 				"Saving where a forked chat resumes",
 			),
 		setContextUsage: (id, usage) =>
-			executeVoid(
-				db,
-				SESSIONS_SQL.setContextUsage,
-				[usage.usedTokens, id],
-				"Saving context usage",
-			),
+			executeVoid(db, SESSIONS_SQL.setContextUsage, [usage.usedTokens, id], "Saving context usage"),
 		recordUserMessage: (id, at) =>
 			executeVoid(db, SESSIONS_SQL.recordUserMessage, [at, id], "Recording a user message"),
 		incrementUnread: (id) =>

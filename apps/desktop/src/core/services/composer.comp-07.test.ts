@@ -157,12 +157,14 @@ describe("COMP-07 attachments service", () => {
 		addFile(test, "/tmp/one.txt", "one");
 		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt"]));
 
-		const sent = must(await composer.materializeForSend(
-			session.id,
-			workspace.path,
-			"message-1",
-			composer.draftOf(session.id).attachmentPaths,
-		));
+		const sent = must(
+			await composer.materializeForSend(
+				session.id,
+				workspace.path,
+				"message-1",
+				composer.draftOf(session.id).attachmentPaths,
+			),
+		);
 
 		expect(sent).toHaveLength(1);
 		expect(sent[0]).toContain(`${workspace.path}/.context/attachments/`);
@@ -215,12 +217,14 @@ describe("COMP-07 attachments service", () => {
 		addFile(test, "/tmp/one.txt", "one");
 		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt"]));
 
-		must(await composer.materializeForSend(
-			session.id,
-			workspace.path,
-			"message-1",
-			composer.draftOf(session.id).attachmentPaths,
-		));
+		must(
+			await composer.materializeForSend(
+				session.id,
+				workspace.path,
+				"message-1",
+				composer.draftOf(session.id).attachmentPaths,
+			),
+		);
 
 		expect(test.memory.controls.files.has(staged[0] ?? "")).toBe(false);
 	});
