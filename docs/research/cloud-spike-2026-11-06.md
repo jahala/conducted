@@ -392,7 +392,7 @@ Everything the run created was deleted: the Worker `conducted-dev-c09-1408` (the
 held no `conducted-cloud-backups`, and the local `apps/cloud/sandbox/build/` folder and the run's
 `/tmp` files were trashed.
 
-## Follow-up: the deploy flow (CLOUD-08, 2026-11-08)
+## Follow-up: the deploy flow (CLOUD-08, 2026-11-07)
 
 The app carries its deploy inputs as Tauri resources: `scripts/cloud/prepare-deploy.ts` builds the
 sandbox image inputs, bundles the Worker with `wrangler deploy --dry-run` against a config with no
@@ -428,7 +428,7 @@ Two command facts the run needed:
   bucket. `wrangler containers list --json` and `containers images list --json` answer arrays whose
   entries carry `id`/`name` and `name`/`tags`. The uninstall reads those.
 
-Cloudflare's docs (read 2026-11-08) make Docker necessary for our policy: under
+Cloudflare's docs (read 2026-11-07) make Docker necessary for our policy: under
 `durable_object`, a registry image must be a digest-pinned Cloudflare-managed-registry reference
 (`registry.cloudflare.com/<ACCOUNT_ID>/<REPOSITORY>@sha256:<DIGEST>`), and Docker Hub, ECR and GAR
 are refused. The deprecated `default` policy accepts those registries without Docker but fixes one
