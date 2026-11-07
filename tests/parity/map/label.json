@@ -2671,9 +2671,10 @@
 		"by": "seed"
 	},
 	"label:R11166100": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"label:R11166546": {
 		"status": "gap",
@@ -2681,19 +2682,22 @@
 		"screen": "Unplaced"
 	},
 	"label:R11166702": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"label:R11166940": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"label:R11167171": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"label:R11206388": {
 		"status": "decided",
@@ -2732,9 +2736,10 @@
 		"by": "hand"
 	},
 	"label:R11252763": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Muse Code agent stays out.",
+		"by": "hand"
 	},
 	"label:R11316889": {
 		"status": "matched",
@@ -2750,14 +2755,16 @@
 		"screen": "Unplaced"
 	},
 	"label:R11337771": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"label:R11337856": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"label:R11339122": {
 		"status": "gap",
@@ -2765,9 +2772,10 @@
 		"screen": "Unplaced"
 	},
 	"label:R11342455": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"label:R11344212": {
 		"status": "matched",

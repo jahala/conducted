@@ -833,19 +833,22 @@
 		"backlog": "CLOUD-10"
 	},
 	"aria_label:R11167685": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"aria_label:R11184538": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"aria_label:R11189729": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"aria_label:R11201189": {
 		"status": "decided",
@@ -941,9 +944,10 @@
 		"by": "seed"
 	},
 	"aria_label:R11560462": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"aria_label:R11613952": {
 		"status": "gap",

@@ -1582,9 +1582,10 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11334566": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"description:R11400022": {
 		"status": "gap",

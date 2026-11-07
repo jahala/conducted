@@ -313,14 +313,16 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R11338494": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"placeholder:R11343051": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"placeholder:R11389948": {
 		"status": "gap",

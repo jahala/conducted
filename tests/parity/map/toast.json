@@ -923,14 +923,16 @@
 		"backlog": "CLOUD-10"
 	},
 	"toast:R11162731": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"toast:R11184900": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"toast:R11190917": {
 		"status": "decided",
@@ -973,9 +975,10 @@
 		"by": "hand"
 	},
 	"toast:R11248595": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Sharing a loadout through Conductor's service.",
+		"by": "hand"
 	},
 	"toast:R11249174": {
 		"status": "gap",
@@ -1023,9 +1026,10 @@
 		"screen": "Unplaced"
 	},
 	"toast:R11334530": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"toast:R11392647": {
 		"status": "gap",
@@ -1093,9 +1097,10 @@
 		"screen": "inventory-controls Composer"
 	},
 	"toast:R11561701": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"toast:R11583093": {
 		"status": "gap",

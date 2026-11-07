@@ -2459,14 +2459,16 @@
 		"screen": "Unplaced"
 	},
 	"title:R11167715": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"title:R11189763": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay: pairing a phone by QR code and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"title:R11193893": {
 		"status": "matched",
@@ -2974,9 +2976,10 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"title:R11343023": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"title:R11399995": {
 		"status": "gap",
@@ -3014,9 +3017,10 @@
 		"screen": "Unplaced"
 	},
 	"title:R11559291": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R11591831": {
 		"status": "gap",
