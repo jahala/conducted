@@ -4,6 +4,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
  * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
@@ -39,6 +40,7 @@ import {
 	type DirectoryBackupRecord,
 	Files,
 } from "@cloudflare/sandbox";
+import type { SandboxResources } from "../sandbox/resources.ts";
 import type { ExecBody, FileBody } from "./args.ts";
 import {
 	BACKUP_BINDING,
@@ -117,6 +119,8 @@ export interface WorkspaceState {
 	instance: string;
 	/** The latest saved backup of each directory. */
 	backups: BackupSummary[];
+	/** CPU, memory and disk while the sandbox runs; null when it is stopped or still starting. */
+	resources: SandboxResources | null;
 }
 
 /** What a turn-end backup did. */
@@ -277,7 +281,29 @@ export class Workspace extends DurableObject<Env> {
 				dir: record.dir,
 				size: record.size,
 			})),
+			resources: await this.readResources(),
 		};
+	}
+
+	/**
+	 * The running sandbox's CPU, memory and disk from the entry's `/resources` answer (CLOUD-15).
+	 * A stopped or not-yet-listening sandbox answers null: a state read must never start one.
+	 */
+	private async readResources(): Promise<SandboxResources | null> {
+		if (this.container === undefined || !this.container.running) return null;
+		try {
+			const response = await this.container
+				.getTcpPort(SIDECAR_PORT)
+				.fetch("http://container/resources", { signal: AbortSignal.timeout(2_000) });
+			if (!response.ok) {
+				await response.body?.cancel();
+				return null;
+			}
+			return (await response.json()) as SandboxResources;
+		} catch {
+			// The entry is still starting or the sandbox is going away; the reading is left out.
+			return null;
+		}
 	}
 
 	/**
@@ -295,6 +321,17 @@ export class Workspace extends DurableObject<Env> {
 		}
 		const health = await this.waitForSidecar(began);
 		return { started, readyMs: Date.now() - began, health, instance: this.env.INSTANCE_TYPE };
+	}
+
+	/**
+	 * Restarts the sandbox (CLOUD-15): saves the work and the transcripts to R2, stops the
+	 * container, starts a new one and restores the backups. The user sees the same workspace with
+	 * the same uncommitted work. A failed stop or start is the caller's error; the app must not say
+	 * "Restarted workspace" unless both finished.
+	 */
+	async restart(): Promise<StartReport> {
+		await this.stop();
+		return this.start();
 	}
 
 	/**

@@ -33,6 +33,7 @@ describe("CLOUD-03 the Worker's front door", () => {
 		expect((await get("/w/ws1/state", { authorization: "test-pairing-token" })).status).toBe(401);
 		expect((await post("/w/ws1/start", {}, {})).status).toBe(401);
 		expect((await post("/w/ws1/stop", {}, {})).status).toBe(401);
+		expect((await post("/w/ws1/restart", {}, {})).status).toBe(401);
 		expect((await post("/w/ws1/remove", {}, {})).status).toBe(401);
 		expect((await post("/w/ws1/git", { args: [], cwd: "/workspace" }, {})).status).toBe(401);
 	});
@@ -40,7 +41,7 @@ describe("CLOUD-03 the Worker's front door", () => {
 	it("answers an unknown route with 404 and a bad workspace name with 400", async () => {
 		expect((await get("/nope")).status).toBe(404);
 		expect((await get("/w/Bad_Name/state")).status).toBe(400);
-		expect((await get("/w/ws1/restart")).status).toBe(404);
+		expect((await get("/w/ws1/nope")).status).toBe(404);
 	});
 
 	it("refuses the wrong method and says which one is allowed", async () => {
@@ -145,6 +146,14 @@ describe("CLOUD-03 the Worker's front door", () => {
 			alarmAt: null,
 			instance: "basic",
 			backups: [],
+			resources: null,
 		});
+	});
+
+	it("routes a restart as a POST to the workspace", async () => {
+		// Without a container the restart cannot finish, so the wrong method proves the route exists.
+		const response = await get("/w/ws1/restart");
+		expect(response.status).toBe(405);
+		expect(response.headers.get("allow")).toBe("POST");
 	});
 });

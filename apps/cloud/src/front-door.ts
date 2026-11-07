@@ -4,6 +4,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * Owns: the checks every request passes after the unauthenticated preview path and before a
  * Durable Object is touched: the pairing token, the pairing check, the route, the workspace name,
  * the method, and the WebSocket upgrade for the relay and terminal streams.
@@ -25,6 +26,7 @@ import { isAuthorized, PAIR_PATH } from "./auth.ts";
 export type CloudAction =
 	| "start"
 	| "stop"
+	| "restart"
 	| "remove"
 	| "git"
 	| "exec"
@@ -45,7 +47,7 @@ export interface CloudRoute {
 export type FrontDoor = { route: CloudRoute } | { pair: true } | { refusal: Response };
 
 const ROUTE =
-	/^\/w\/([^/]+)\/(start|stop|remove|git|exec|files|state|ports|rpc|terminal|tunnel|preview-url)$/;
+	/^\/w\/([^/]+)\/(start|stop|restart|remove|git|exec|files|state|ports|rpc|terminal|tunnel|preview-url)$/;
 
 const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	state: "GET",
@@ -56,6 +58,7 @@ const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	"preview-url": "POST",
 	start: "POST",
 	stop: "POST",
+	restart: "POST",
 	remove: "POST",
 	git: "POST",
 	exec: "POST",

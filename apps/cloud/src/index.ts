@@ -5,6 +5,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
  * desktop's pairing check (`/pair`), and routes each workspace's git, shell, file, terminal,
  * preview and sidecar-relay calls to that workspace's Durable Object. Its outbound handler also
@@ -85,7 +86,7 @@ export default {
 		const url = new URL(request.url);
 		const preview = PREVIEW_PROXY.exec(url.pathname);
 		if (preview !== null) {
-			const [, name, token, rawPort, rest] = preview as unknown as [
+			const [, name, token, rawPort, _rest] = preview as unknown as [
 				string,
 				string,
 				string,
@@ -123,6 +124,8 @@ export default {
 					return Response.json(await workspace.start());
 				case "stop":
 					return Response.json(await workspace.stop());
+				case "restart":
+					return Response.json(await workspace.restart());
 				case "remove":
 					return Response.json(await workspace.remove());
 				case "git": {
