@@ -36,6 +36,7 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { FileSyncView } from "./cloud/file-sync.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type {
 	AgentConfigFile,
@@ -397,6 +398,8 @@ export interface Queries {
 	useCloudPairing(): Loadable<CloudPairing>;
 	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
 	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
+	/** A cloud workspace's file-sync state, for the scripts panel (CLOUD-11). */
+	useFileSyncStatus(workspaceId: WorkspaceId): FileSyncView;
 	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
 	useRepoTerminals(repoId: RepoId): Loadable<Terminal[]>;
 	/** The macOS version and CPU, for the old-system and wrong-build warnings. */
@@ -648,8 +651,13 @@ export interface Actions {
 		resolveConflicts: Act<
 			[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[], seenText: string]
 		>;
-		/** Shows a workspace file selected in a Finder window. */
-		reveal: Act<[workspaceId: WorkspaceId, path: string]>;
+		/**
+		 * Shows a workspace file selected in a Finder window. A cloud workspace's file is the
+		 * mirror's copy, or a download to Downloads (CLOUD-11); the result names the path shown.
+		 */
+		reveal: Act<[workspaceId: WorkspaceId, path: string], { path: string; downloaded: boolean }>;
+		/** Shows an absolute path in a Finder window, for a file already downloaded (CLOUD-11). */
+		revealPath: Act<[path: string]>;
 		/** Opens a workspace file in the named app, the one the "Open in" menu opens by default. */
 		openInApp: Act<[workspaceId: WorkspaceId, path: string, appName: string]>;
 	};

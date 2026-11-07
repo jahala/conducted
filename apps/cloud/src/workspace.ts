@@ -5,6 +5,7 @@
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-17 Cloud settings page
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
  * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
@@ -51,6 +52,7 @@ import {
 	turnEndUrl,
 } from "./backup.ts";
 import type { Env } from "./env.ts";
+import { walkFileTree } from "./file-list.ts";
 import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
 import { SANDBOX_GIT_ENV } from "./sandbox-git-env.ts";
 import { cloudSettingsEnv, readCloudSettings } from "./settings.ts";
@@ -540,6 +542,11 @@ export class Workspace extends DurableObject<Env> {
 					}
 					return { entries: stats };
 				}
+				case "list":
+					return walkFileTree(body.path, {
+						readDirectory: (path) => files.readDirectory(path),
+						stat: (path) => files.stat(path),
+					});
 				case "mkdirp":
 					await files.mkdir(body.path, { recursive: true });
 					return {};
