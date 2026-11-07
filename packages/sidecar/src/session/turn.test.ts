@@ -15,6 +15,11 @@ import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { until } from "../test-support/until.ts";
 import { LiveStateStore } from "./live-state.ts";
+import {
+	MEMORY_EXHAUSTED_MESSAGE,
+	type MemoryExhaustionProbe,
+	type MemoryIncident,
+} from "./memory-exhaustion.ts";
 import { RunGuard as Guard, type RunGuard, type RunNumber } from "./run-guard.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
 
@@ -161,6 +166,24 @@ class FakeAgentSession implements AgentSession {
 	}
 }
 
+class ProbeForTurn implements MemoryExhaustionProbe {
+	startCount: number | undefined;
+	failureCount: number | undefined;
+	incident: MemoryIncident | undefined;
+	countCalls = 0;
+	incidentCalls = 0;
+
+	async oomKillCount(): Promise<number | undefined> {
+		this.countCalls += 1;
+		return this.countCalls === 1 ? this.startCount : this.failureCount;
+	}
+
+	async recentIncident(): Promise<MemoryIncident | undefined> {
+		this.incidentCalls += 1;
+		return this.incident;
+	}
+}
+
 interface Harness {
 	turn: Turn;
 	agent: FakeAgentSession;
@@ -169,6 +192,7 @@ interface Harness {
 	liveState: LiveStateStore;
 	interactions: FakeInteractions;
 	runGuard: RunGuard;
+	memory: ProbeForTurn | undefined;
 	order: string[];
 	settledRuns: RunNumber[];
 	agentSessionIds: string[];
@@ -176,7 +200,12 @@ interface Harness {
 }
 
 function harness(
-	options: { startGate?: Promise<void>; runGuard?: RunGuard; liveState?: LiveStateStore } = {},
+	options: {
+		startGate?: Promise<void>;
+		runGuard?: RunGuard;
+		liveState?: LiveStateStore;
+		memory?: ProbeForTurn;
+	} = {},
 ): Harness {
 	const order: string[] = [];
 	const agent = new FakeAgentSession(sessionId);
@@ -213,6 +242,7 @@ function harness(
 		onAgentSessionId: (id) => agentSessionIds.push(id),
 		onTurnSettled: (run) => settledRuns.push(run),
 		onBackgroundTasks: (hasTasks) => backgroundFlags.push(hasTasks),
+		...(options.memory === undefined ? {} : { memory: options.memory }),
 	};
 	return {
 		turn: new Turn(deps, request()),
@@ -222,6 +252,7 @@ function harness(
 		liveState,
 		interactions,
 		runGuard,
+		memory: options.memory,
 		order,
 		settledRuns,
 		agentSessionIds,
@@ -346,6 +377,83 @@ describe("SIDE-04 turn end outcomes", () => {
 			status: "idle",
 			error: "agent crashed",
 		});
+	});
+
+	test("CLOUD-04 a memory incident shows the fixed out-of-memory message", async () => {
+		const memory = new ProbeForTurn();
+		memory.incident = {
+			kind: "workspace_memory_exhausted",
+			occurredAtMs: 1000,
+			trigger: "crash",
+			phase: "killed",
+		};
+		const h = harness({ memory });
+		await h.turn.start();
+		h.agent.resolve({
+			kind: "error",
+			message: "Claude Code process exited with code 137",
+			retryable: false,
+		});
+
+		expect(await h.turn.settled()).toEqual({
+			kind: "error",
+			message: MEMORY_EXHAUSTED_MESSAGE,
+			retryable: false,
+		});
+		const ended = h.publisher.events.find(({ event }) => event.type === "turn_ended")?.event;
+		expect(ended).toMatchObject({ outcome: "error", error: MEMORY_EXHAUSTED_MESSAGE });
+		expect(h.liveState.get(sessionId)).toMatchObject({
+			status: "idle",
+			error: MEMORY_EXHAUSTED_MESSAGE,
+		});
+	});
+
+	test("CLOUD-04 a rising oom_kill count shows the fixed out-of-memory message", async () => {
+		const memory = new ProbeForTurn();
+		memory.startCount = 4;
+		memory.failureCount = 5;
+		const h = harness({ memory });
+		await h.turn.start();
+		h.agent.resolve({ kind: "error", message: "agent killed", retryable: false });
+
+		expect(await h.turn.settled()).toEqual({
+			kind: "error",
+			message: MEMORY_EXHAUSTED_MESSAGE,
+			retryable: false,
+		});
+		expect(memory.incidentCalls).toBe(1);
+	});
+
+	test("CLOUD-04 an unchanged oom_kill count and no incident keeps the raw error", async () => {
+		const memory = new ProbeForTurn();
+		memory.startCount = 4;
+		memory.failureCount = 4;
+		const h = harness({ memory });
+		await h.turn.start();
+		h.agent.resolve({ kind: "error", message: "agent crashed", retryable: false });
+
+		expect(await h.turn.settled()).toEqual({
+			kind: "error",
+			message: "agent crashed",
+			retryable: false,
+		});
+	});
+
+	test("CLOUD-04 a cancelled turn keeps the user's cancel, not a memory message", async () => {
+		const memory = new ProbeForTurn();
+		memory.incident = {
+			kind: "workspace_memory_exhausted",
+			occurredAtMs: 1000,
+			trigger: "crash",
+			phase: "killed",
+		};
+		const h = harness({ memory });
+		await h.turn.start();
+		h.agent.resolve({ kind: "cancelled" });
+
+		expect(await h.turn.settled()).toEqual({ kind: "cancelled" });
+		expect(h.liveState.get(sessionId).error).toBe("aborted by user");
+		expect(memory.incidentCalls).toBe(0);
 	});
 
 	test("SIDE-04 a runner that rejects ends the turn with an error outcome", async () => {

@@ -1,5 +1,6 @@
 /**
  * @feature SIDE-04 Turn lifecycle and stale-run guard
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * Owns: one turn from the user message to the idle report: the user_message event, the start
  * checkpoint, the runner call, the end checkpoint, the turn_ended event, the flush and the next
  * queued message.
@@ -15,12 +16,15 @@
  *  - success, error and cancel each emit exactly one turn_ended event and one end checkpoint
  *  - the end checkpoint comes before the final flush, and idle is published after the flush
  *  - a runner that rejects (not a TurnOutcome): treated as an error outcome with its message
+ *  - a failed turn while the sandbox ran out of memory shows Conductor's fixed message instead of
+ *    the raw error (CLOUD-04, memory-exhaustion.ts)
  *  - cancel during the start checkpoint: the checkpoint is allowed to finish, then the turn ends
  *  - after the turn: queued messages drain one at a time, a failed queued message is logged and
  *    the next one is tried
  *  - shutdown takes no checkpoint (sessions.md section 7)
  * Test first: with a runner that returns success, events appear in the order user_message,
  * checkpoint start, agent..., checkpoint end, turn_ended, and idle is published last.
+ * CLOUD-04 test first: a memory incident shows the fixed out-of-memory message.
  * Our design choice: an explicit turn_ended event (Conductor has none), so a turn cut off by a
  * crash can be found and closed at startup (DATA-03).
  */
@@ -53,6 +57,11 @@ import {
 	setBackgroundTasks,
 	setWaitingSince,
 } from "./live-state.ts";
+import {
+	MEMORY_EXHAUSTED_MESSAGE,
+	type MemoryExhaustionProbe,
+	memoryExhausted,
+} from "./memory-exhaustion.ts";
 import type { RunGuard, RunNumber } from "./run-guard.ts";
 
 export interface TurnRequest {
@@ -84,6 +93,8 @@ export interface TurnDeps {
 	onTurnSettled(run: RunNumber): void;
 	/** The agent reported its background work: true while any task is open. */
 	onBackgroundTasks(hasTasks: boolean): void;
+	/** The sandbox's memory-exhaustion check (CLOUD-04). Absent: no substitution. */
+	memory?: MemoryExhaustionProbe;
 }
 
 interface PostTurn {
@@ -214,6 +225,7 @@ export class Turn {
 	}
 
 	private async runAgent(run: RunNumber, callbacks: TurnCallbacks): Promise<void> {
+		const oomKillAtStart = await this.oomKillCount();
 		let outcome: TurnOutcome;
 		try {
 			outcome = await this.deps.agent.runTurn(
@@ -232,7 +244,55 @@ export class Turn {
 			if (!this.cancelling) this.settle({ kind: "cancelled" });
 			return;
 		}
+		if (outcome.kind === "error") {
+			outcome = await this.explainMemory(outcome, oomKillAtStart);
+		}
 		await this.finish(outcome);
+	}
+
+	/** The OOM kill count before the turn, or undefined when it cannot be read. */
+	private async oomKillCount(): Promise<number | undefined> {
+		if (this.deps.memory === undefined) return undefined;
+		try {
+			return await this.deps.memory.oomKillCount();
+		} catch (cause) {
+			this.deps.logger.warn("Could not read the OOM kill count", {
+				sessionId: this.request.sessionId,
+				reason: messageOf(cause),
+			});
+			return undefined;
+		}
+	}
+
+	/**
+	 * Replaces a failed turn's raw error with Conductor's fixed out-of-memory message when the
+	 * workspace ran out of memory: the watchdog's recent incident, or a rising OOM kill count.
+	 */
+	private async explainMemory(
+		outcome: TurnOutcome & { kind: "error" },
+		oomKillAtStart: number | undefined,
+	): Promise<TurnOutcome> {
+		const memory = this.deps.memory;
+		if (memory === undefined) return outcome;
+		try {
+			const incident = await memory.recentIncident();
+			const oomKillAtFailure = incident === undefined ? await memory.oomKillCount() : undefined;
+			if (!memoryExhausted({ incident, oomKillAtStart, oomKillAtFailure })) return outcome;
+			this.deps.logger.error("Turn failure attributed to memory exhaustion", {
+				sessionId: this.request.sessionId,
+				rawErrorMsg: outcome.message,
+				memoryIncident: incident ?? null,
+				oomKillCountAtTurnStart: oomKillAtStart ?? null,
+				oomKillCountAtFailure: oomKillAtFailure ?? null,
+			});
+			return { ...outcome, message: MEMORY_EXHAUSTED_MESSAGE };
+		} catch (cause) {
+			this.deps.logger.warn("Could not check whether the workspace ran out of memory", {
+				sessionId: this.request.sessionId,
+				reason: messageOf(cause),
+			});
+			return outcome;
+		}
 	}
 
 	private finish(outcome: TurnOutcome): Promise<TurnOutcome> {

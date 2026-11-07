@@ -76,6 +76,7 @@ import {
 	PARENT_PID_ENV,
 } from "../adapters/environment.ts";
 import { createNodeFilesAdapters } from "../adapters/files.ts";
+import { createNodeMemoryProbePorts } from "../adapters/memory.ts";
 import {
 	bunSpawnProbe,
 	createChildSpawners,
@@ -161,6 +162,10 @@ import {
 	type SessionManager,
 	type ShutdownReason,
 } from "../session/manager.ts";
+import {
+	createMemoryIncidentProbe,
+	DEFAULT_MEMORY_INCIDENT_MARKER_PATH,
+} from "../session/memory-exhaustion.ts";
 import { AgentUtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
 import { runShutdownSteps, type ShutdownReport, type ShutdownStep } from "../shutdown.ts";
@@ -851,6 +856,10 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		clock,
 		ids,
 		logger,
+		memory: createMemoryIncidentProbe({
+			markerPath: config.incidentMarkerPath ?? DEFAULT_MEMORY_INCIDENT_MARKER_PATH,
+			ports: createNodeMemoryProbePorts(),
+		}),
 	});
 	const completions = new FileCompletionsCache({
 		dir: config.completionsDir,

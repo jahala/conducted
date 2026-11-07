@@ -1,12 +1,14 @@
 /**
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
  * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
  * answerInteraction, a Codex chat's goal (AGENT-13) and its compact turn (AGENT-14), and the ACP
  * chat options of a live chat (AGENT-17). It also builds each
  * agent's environment from the chat's launch settings, hands the runner the program the launch
  * names, and restarts an agent whose launch changed once no turn and no background task runs
- * (SIDE-21, `decideLaunchChange` in process/launch-fingerprint.ts).
+ * (SIDE-21, `decideLaunchChange` in process/launch-fingerprint.ts). It gives each turn the sandbox
+ * memory-exhaustion probe (CLOUD-04).
  * Behaviour: research/conductor/sessions.md sections 2, 3 and 6, sessions-and-chats.md "What
  * happens when you send a message" and "While the agent is working", other-runners.md section 2.4
  * (steering policy). Conductor splits this over a server (`CJi`), a host (`PFe`) and a send
@@ -139,6 +141,7 @@ import type { EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
 import type { LiveStateStore } from "./live-state.ts";
 import { addPendingSteer, CANCELLED_BY_USER, endTurn, removePendingSteer } from "./live-state.ts";
+import type { MemoryExhaustionProbe } from "./memory-exhaustion.ts";
 import type { QueuedMessages } from "./queued-messages.ts";
 import { QueuedMessages as Queue } from "./queued-messages.ts";
 import type { RunNumber } from "./run-guard.ts";
@@ -247,6 +250,8 @@ export interface SessionManagerDeps {
 	clock: Clock;
 	ids: IdSource;
 	logger: Logger;
+	/** The sandbox's memory-exhaustion check for failed turns (CLOUD-04). */
+	memory?: MemoryExhaustionProbe;
 	/** The seam that lets a manager test run without the turn lifecycle (SIDE-04). */
 	createTurn?: TurnFactory;
 }
@@ -1547,6 +1552,7 @@ export class DefaultSessionManager implements SessionManager {
 					this.deps.processes.setBackgroundTasks(state.processKey, hasTasks);
 				}
 			},
+			...(this.deps.memory === undefined ? {} : { memory: this.deps.memory }),
 		};
 	}
 
