@@ -84,6 +84,13 @@ describe("NAV-06 grouping workspaces", () => {
 		expect(groups.backlog.map((row) => row.id)).toEqual(["live"]);
 	});
 
+	it("keeps a workspace being restored on the board", () => {
+		const groups = groupByKanbanStatus([
+			workspace("restoring", "backlog", { state: "initializing", archivedAt: 5 }),
+		]);
+		expect(groups.backlog.map((row) => row.id)).toEqual(["restoring"]);
+	});
+
 	it("orders a column by last activity, newest first, with a stable tie-break", () => {
 		const groups = groupByKanbanStatus([
 			workspace("old", "done", { lastActivityAt: 100 }),

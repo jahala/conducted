@@ -31,6 +31,7 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useActions, useChat, useDraft, useSetting, useWorkspace } from "../../core/hooks.ts";
 import type { ChatView } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { EmptyChat } from "./EmptyChat.tsx";
@@ -99,7 +100,7 @@ function workingOf(data: ChatView): ListContext["working"] {
 export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: MessageListProps) {
 	const chat = useChat(sessionId);
 	const workspace = useWorkspace(workspaceId);
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const canRun = workspace.state === "ready" && workspace.data.state === "ready";
 	const draft = useDraft(sessionId);
 	const actions = useActions();

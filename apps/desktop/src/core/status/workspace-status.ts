@@ -38,6 +38,7 @@
  */
 import type { LiveState } from "@conducted/protocol";
 import type { GitState, Workspace, WorkspaceStatus } from "../model.ts";
+import { isArchivedWorkspace } from "./archived.ts";
 import {
 	checksAreFailing,
 	checksAreRunning,
@@ -152,7 +153,7 @@ function gitLabel(git: GitState): GitLabel | null {
 
 /** Returns null for an archived workspace. */
 export function deriveWorkspaceStatus(input: WorkspaceStatusInput): WorkspaceStatus | null {
-	if (input.state === "archived") return null;
+	if (isArchivedWorkspace(input)) return null;
 	const lifecycle = lifecycleLabel(input);
 	if (lifecycle !== null) return { kind: "lifecycle", label: lifecycle };
 	const agent = aggregateAgentLabel(input.chats);

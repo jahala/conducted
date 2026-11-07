@@ -31,6 +31,7 @@ import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useServices } from "../core/context.tsx";
 import type { Terminal, Workspace } from "../core/model.ts";
+import { isArchivedWorkspace } from "../core/status/archived.ts";
 import { TerminalView } from "../features/terminal/TerminalView.tsx";
 import { tabRef } from "../features/workspace/active-tab.ts";
 import { terminalTabs } from "../features/workspace/TabStrip.tsx";
@@ -240,7 +241,7 @@ function terminalTabState(
 ): TabState {
 	if (!workspaces.loaded) return "unknown";
 	const workspace = workspaces.byId[surface.workspaceId];
-	if (workspace === undefined || workspace.state === "archived") return "closed";
+	if (workspace === undefined || isArchivedWorkspace(workspace)) return "closed";
 	if (surface.owner === "run") return "open";
 	const listed = terminals[surface.workspaceId];
 	if (listed === undefined) return "unknown";

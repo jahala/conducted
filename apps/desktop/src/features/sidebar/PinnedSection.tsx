@@ -16,6 +16,7 @@ import { useParams } from "@tanstack/react-router";
 import { type DragEvent, useState } from "react";
 import { useActions, useRepos, useSetting } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
 import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
@@ -85,7 +86,7 @@ export function PinnedSection({
 		// the main list.
 		const workspace = allWorkspaces.find((candidate) => candidate.id === carriedId);
 		// An archived workspace is not a sidebar row, so it cannot be pinned by a drop.
-		if (workspace === undefined || workspace.state === "archived") {
+		if (workspace === undefined || isArchivedWorkspace(workspace)) {
 			drag.cancel();
 			return;
 		}

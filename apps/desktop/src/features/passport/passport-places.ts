@@ -18,6 +18,7 @@ import {
 	PLACE_GAZETTEER,
 	placeKey,
 } from "../../core/services/place-gazetteer.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 
 export interface PlacePosition {
 	latitude: number;
@@ -83,7 +84,7 @@ export function buildPassportPlaces(workspaces: readonly Workspace[]): PassportP
 			country: place.country,
 			position: place.position,
 			workspaces: place.workspaces,
-			archived: place.workspaces.every((workspace) => workspace.state === "archived"),
+			archived: place.workspaces.every(isArchivedWorkspace),
 		}))
 		.sort((left, right) => left.name.localeCompare(right.name));
 }

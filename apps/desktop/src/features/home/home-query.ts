@@ -1,15 +1,15 @@
 /**
  * @feature NAV-05 Home filtering, sorting and paging
  * Owns: the pure function that applies Home's search, project filter, archive filter and sort, and
- * grows the visible result by one page of 50 per request; the display fields a card may show; the
- * rule for whether a workspace counts as archived.
+ * grows the visible result by one page of 50 per request; the display fields a card may show.
  * Behaviour: ui-map.md 2 (Home: search, filters for projects and active or archived, sort, paging
  * by 50, pinned group), 10 (the fields seen on Home cards).
  * Our design choice: search matches the display name, branch, PR title and repository name,
  * ignoring case and accents. Pinned workspaces form their own first group and are not paged. The
  * total counts the unpaged matches, so the screen can say how many are hidden. Paging is
  * cumulative: `pageCount` 2 returns the first 100 unpinned matches, so "Show more" only adds
- * cards. An archived date counts as archived even before the state catches up.
+ * cards. The archived rule is `isArchivedWorkspace` in core, so the archive filter agrees with
+ * every other screen while a workspace is restored.
  * Must handle: empty search (no filtering); the archive filter hides archived workspaces, shows all,
  * or shows only archived ones; name and repository sorts ignore case;
  * asking for more pages than exist returns every match; sorting is stable; a project filter naming
@@ -20,6 +20,7 @@
 
 import type { RepoId } from "@conducted/shared";
 import type { Repo, Workspace } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 
 /** Conductor's archive filter: "Hiding archived", "Showing all", "Only archived". */
@@ -68,11 +69,6 @@ function normalise(value: string): string {
 		.normalize("NFD")
 		.replace(/[\u0300-\u036f]/g, "")
 		.toLowerCase();
-}
-
-/** An archived date counts too, so a row cannot outlive its files while its state lags behind. */
-export function isArchived(workspace: Pick<Workspace, "state" | "archivedAt">): boolean {
-	return workspace.state === "archived" || workspace.archivedAt !== null;
 }
 
 function matchesSearch(workspace: Workspace, repo: Repo | undefined, needle: string): boolean {
@@ -138,8 +134,8 @@ export function queryHome({
 
 	const matching = workspaces
 		.filter((workspace) => {
-			if (filters.archive === "active" && isArchived(workspace)) return false;
-			if (filters.archive === "archived" && !isArchived(workspace)) return false;
+			if (filters.archive === "active" && isArchivedWorkspace(workspace)) return false;
+			if (filters.archive === "archived" && !isArchivedWorkspace(workspace)) return false;
 			if (projects.size > 0 && !projects.has(workspace.repoId)) return false;
 			return matchesSearch(workspace, reposById.get(workspace.repoId), needle);
 		})

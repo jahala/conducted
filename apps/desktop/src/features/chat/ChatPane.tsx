@@ -24,6 +24,7 @@ import type { VirtuosoHandle } from "react-virtuoso";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { ArchivedComposer } from "../composer/ArchivedComposerBar.tsx";
@@ -47,7 +48,7 @@ export function ChatPane({
 	const { services } = useServices();
 	const actions = useActions();
 	const workspace = useWorkspace(workspaceId);
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const [findOpen, setFindOpen] = useState(false);
 	// The find bar scrolls the message list to a match in a turn the list has not mounted.
 	const listRef = useRef<VirtuosoHandle>(null);
