@@ -240,6 +240,18 @@ describe("REV-01 changes tab", () => {
 });
 
 describe("REV-01 diff scope menu", () => {
+	// Conductor's options trigger on all changes is an icon with the tooltip "Options" (renderApp, the
+	// changes toolbar); it names no scope.
+	it("is an icon button with no scope name while all changes are shown", () => {
+		render(
+			<DiffScopeMenu workspaceId={workspaceId} scope={{ kind: "branch" }} onChange={vi.fn()} />,
+		);
+		const trigger = screen.getByRole("button", { name: "Diff scope" });
+		expect(trigger.textContent).toBe("");
+		expect(trigger.getAttribute("title")).toBe("Options");
+		expect(trigger.querySelector("svg")).not.toBeNull();
+	});
+
 	it("keeps the menu working when the branch list fails to load", async () => {
 		state.workspace = { state: "ready", data: { repoId: "r1" } as Workspace };
 		state.branchesThrow = new Error("The branch list could not be read.");
