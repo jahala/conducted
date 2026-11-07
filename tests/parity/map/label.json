@@ -232,7 +232,11 @@
 	"label:M322421": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"screen": "inventory-controls Agents",
+		"backlog": "SIDE-14",
+		"item": "Each agent has a static model table with picker, gated and deprecated flags; ours has each runner report its own list",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:M322496": {
 		"status": "decided",
@@ -315,7 +319,11 @@
 	"label:M335764": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-10",
+		"item": "OpenCode provider catalogue: about 90 providers, each with the environment variable for its key",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:M335844": {
 		"status": "matched",
@@ -652,7 +660,11 @@
 	"label:M340089": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-10",
+		"item": "OpenCode provider catalogue: about 90 providers, each with the environment variable for its key",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:M340155": {
 		"status": "decided",
@@ -1313,7 +1325,11 @@
 	"label:R2139552": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Loading PR info...' and 'Checking mergeability...'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R2139834": {
 		"status": "matched",
@@ -1626,9 +1642,10 @@
 		"by": "rule:hosted-computer"
 	},
 	"label:R2960659": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The Prompts tab of Conductor's organisation settings page; organisations stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R2960724": {
 		"status": "gap",
@@ -2005,7 +2022,11 @@
 	"label:R8697662": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "Scopes user and workspace with 'reset to repo settings.toml' actions",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R8822100": {
 		"status": "gap",
@@ -2206,7 +2227,11 @@
 	"label:R9235878": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "'Fast' toggle in the model picker",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R9240756": {
 		"status": "gap",
@@ -2219,7 +2244,11 @@
 	"label:R9241717": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Model picker 'Agent' submenu: Claude Code, Codex, Cursor",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R9278910": {
 		"status": "gap",
@@ -2842,17 +2871,29 @@
 	"label:R10676910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "'Amp' row in the Big terminal 'New tab preset' radio list (bundle @10676910), with `amp` shown as its command",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R10676977": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "'Copilot' row in the Big terminal 'New tab preset' radio list (bundle @10676977), with `copilot --allow-all` shown as its command",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R10677047": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"label:R10677114": {
 		"status": "matched",
