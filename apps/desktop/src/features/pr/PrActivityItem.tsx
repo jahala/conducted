@@ -75,9 +75,9 @@ export function PrActivityItem({ entry, onOpen }: PrActivityItemProps) {
 							<span className="font-mono">{entry.sha.slice(0, 7)}</span> · {entry.authorName}
 						</span>
 					</>
-				) : entry.kind === "comment" ? (
+				) : (
 					<PrCommentContent entry={entry} />
-				) : null}
+				)}
 			</span>
 			<Time at={entry.at} />
 		</button>
