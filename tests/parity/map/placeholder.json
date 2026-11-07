@@ -80,7 +80,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(38) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(38) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"placeholder:R4987113": {
@@ -93,7 +93,7 @@
 	},
 	"placeholder:R5444083": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -109,7 +109,7 @@
 	},
 	"placeholder:R5645838": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"class": "wording",
 		"backlog": "REV-07",
@@ -117,13 +117,12 @@
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R5652247": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "REV-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(12) > article > div:nth-of-type(1) > p",
+		"by": "seed-unsure"
 	},
 	"placeholder:R5664306": {
 		"status": "gap",
@@ -158,7 +157,7 @@
 	},
 	"placeholder:R8170318": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"class": "wording",
 		"backlog": "AGENT-08",
@@ -172,12 +171,9 @@
 		"by": "hand"
 	},
 	"placeholder:R9234039": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "textbox",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"placeholder:R9369318": {
 		"status": "gap",
@@ -219,12 +215,12 @@
 		"by": "seed"
 	},
 	"placeholder:R10182992": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "WS-01",
-		"item": "Repo picker ('Switch repo', 'Repository on <host>', 'Add repository') with its states",
-		"owner": "hand"
+		"status": "matched",
+		"state": "first-run",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button > span:nth-of-type(2)",
+		"by": "seed-unsure"
 	},
 	"placeholder:R10189388": {
 		"status": "gap",
@@ -250,11 +246,12 @@
 		"owner": "hand"
 	},
 	"placeholder:R10672939": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(11) > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R10680280": {
 		"status": "gap",
@@ -265,12 +262,9 @@
 		"owner": "hand"
 	},
 	"placeholder:R10696051": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "placeholder",
-		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(2) > input",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings"
 	},
 	"placeholder:R10770889": {
 		"status": "decided",
@@ -301,7 +295,7 @@
 		"state": "settings-agents",
 		"via": "aria-label",
 		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > input",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > input",
 		"by": "seed"
 	},
 	"placeholder:R10958311": {
@@ -322,7 +316,7 @@
 	},
 	"placeholder:R11021601": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"class": "wording",
 		"backlog": "SET-07",
@@ -330,11 +324,12 @@
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R11117637": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "SET-02",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > fieldset > label:nth-of-type(2)",
+		"by": "seed"
 	},
 	"placeholder:R11129925": {
 		"status": "gap",
@@ -378,7 +373,7 @@
 	},
 	"placeholder:R11267721": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
 		"owner": "rule:neighbour"

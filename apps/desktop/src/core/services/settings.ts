@@ -70,7 +70,7 @@ import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { showSettingsFileAt, symbolicRefRemoteHead } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { EnvScope, EnvVarView } from "../model.ts";
+import type { ActionTarget, EnvScope, EnvVarView } from "../model.ts";
 import {
 	coerceSettingValue,
 	getSettingDef,
@@ -248,7 +248,7 @@ export const settingsSchemaUrl = (scope: "user" | "repo"): string =>
 
 // ---------------------------------------------------------------- actions
 
-export type ActionTarget = "local" | "cloud";
+export type { ActionTarget };
 
 /**
  * One named action from `[scripts.run.<id>]`, in our own shape. Every field except `id` and

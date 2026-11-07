@@ -80,7 +80,8 @@ export const READ_ONLY_TOOLS: ReadonlySet<CanonicalTool> = new Set([
 
 /**
  * Tools this app gives to every agent through MCP (server name "conducted").
- * Research: claude-runner.md section 4.2. Cloud-only tools are left out.
+ * Research: claude-runner.md section 4.2. RunLocalCommand is cloud-only (CLOUD-14): the chat's
+ * config offers it only for a cloud workspace, through the `localExecution` switch.
  */
 export const APP_TOOLS = [
 	"AskUserQuestion",
@@ -90,8 +91,41 @@ export const APP_TOOLS = [
 	"GetTerminalOutput",
 	"UpdateProgress",
 	"SetTargetBranch",
+	"RunLocalCommand",
 ] as const;
 export const zAppTool = z.enum(APP_TOOLS);
 export type AppTool = z.infer<typeof zAppTool>;
 
 export const APP_TOOL_SERVER = "conducted";
+
+/**
+ * RunLocalCommand's limits, from the research (claude-runner.md section 4.2): a command defaults
+ * to 60 s, may ask for 120 s, and may ask for up to 30 minutes when it gives an extended-timeout
+ * reason. The agent's answer is not waited for beyond 110 s. Output over 32,000 characters goes to
+ * a file in the workspace instead of the tool result.
+ */
+export const LOCAL_COMMAND_DEFAULT_TIMEOUT_MS = 60_000;
+export const LOCAL_COMMAND_MAX_TIMEOUT_MS = 120_000;
+export const LOCAL_COMMAND_EXTENDED_MAX_TIMEOUT_MS = 1_800_000;
+export const LOCAL_COMMAND_APPROVAL_TIMEOUT_MS = 110_000;
+export const LOCAL_COMMAND_OUTPUT_FILE_CHARS = 32_000;
+/** Where the full output of a long local command is saved, relative to the workspace folder. */
+export const LOCAL_COMMAND_OUTPUT_FOLDER = ".context/conductor";
+
+/**
+ * The timeout RunLocalCommand is given: the agent's own, clamped to 120 s, or to 30 minutes when
+ * it gave an extended-timeout reason. No timeout means 60 s.
+ */
+export function localCommandTimeoutMs(args: {
+	timeoutMs?: number;
+	extendedTimeoutReason?: string;
+}): number {
+	if (args.timeoutMs === undefined || !Number.isFinite(args.timeoutMs)) {
+		return LOCAL_COMMAND_DEFAULT_TIMEOUT_MS;
+	}
+	const cap =
+		args.extendedTimeoutReason !== undefined && args.extendedTimeoutReason.trim().length > 0
+			? LOCAL_COMMAND_EXTENDED_MAX_TIMEOUT_MS
+			: LOCAL_COMMAND_MAX_TIMEOUT_MS;
+	return Math.max(1, Math.min(Math.trunc(args.timeoutMs), cap));
+}

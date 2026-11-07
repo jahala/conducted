@@ -16,17 +16,13 @@ import type { Host } from "@conducted/protocol";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import type { Cloud } from "../../platform/platform.ts";
 import { cloudJson } from "./host-runtime.ts";
+import { SSH_PORT } from "./port-allocation.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
 
-/** Ports a preview may not use. 22 is SSH, which the research says is reserved. */
-export const RESERVED_PREVIEW_PORTS: readonly number[] = [22];
-
-/** True when `port` is a number a preview may share. */
+/** True when `port` is a number a preview may share: not SSH's, which the research reserves. */
 export function shareablePort(port: number): boolean {
-	return (
-		Number.isInteger(port) && port >= 1 && port <= 65_535 && !RESERVED_PREVIEW_PORTS.includes(port)
-	);
+	return Number.isInteger(port) && port >= 1 && port <= 65_535 && port !== SSH_PORT;
 }
 
 /**
@@ -39,7 +35,7 @@ export async function previewUrlFor(
 	port: number,
 ): Promise<Result<string>> {
 	if (!shareablePort(port)) {
-		return port === 22
+		return port === SSH_PORT
 			? err(
 					appError(
 						"preview_port_reserved",

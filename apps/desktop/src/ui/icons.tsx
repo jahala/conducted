@@ -272,9 +272,6 @@ export const PaletteIcon = (p: P) => (
 export const KeyboardIcon = (p: P) => (
 	<Icon d="M2 4.5h12v7H2zM4.5 7h.01M7 7h.01M9.5 7h.01M12 7h.01M5 9.5h6" {...p} />
 );
-export const CloudIcon = (p: P) => (
-	<Icon d="M4.8 12h6.4a2.6 2.6 0 0 0 .3-5.18A3.5 3.5 0 0 0 5.1 5.8 2.8 2.8 0 0 0 4.8 12z" {...p} />
-);
 export const HardDriveIcon = (p: P) => (
 	<Icon d="M2.5 8.5h11v4h-11zM4.5 10.5h.01M2.5 8.5l1.5-5h8l1.5 5" {...p} />
 );
@@ -315,6 +312,9 @@ export const RadioIcon = (p: P) => (
 	/>
 );
 export const LaptopIcon = (p: P) => <Icon d="M3.5 4h9v6.5h-9zM1.5 12.5h13" {...p} />;
+export const CloudIcon = (p: P) => (
+	<Icon d="M4.7 12.5h6.8a2.7 2.7 0 0 0 .2-5.4 4 4 0 0 0-7.8-.6 3 3 0 0 0 .8 6z" {...p} />
+);
 export const BicepsIcon = (p: P) => (
 	<Icon
 		d="M3 13.5c2.5 0 7 .5 9.5-1.5s.5-6-2-5.5c-1 .2-1.5 1-2 2M3 13.5V7.5l2.5-5 2 1-1 3.5"

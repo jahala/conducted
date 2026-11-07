@@ -695,6 +695,8 @@ export class TerminalsService {
 						cwd: terminal.cwd,
 						cols: DEFAULT_COLS,
 						rows: DEFAULT_ROWS,
+						// An interactive cloud terminal retries a dropped stream; a one-shot script ends.
+						reconnect: terminal.kind === "terminal",
 						...(options?.command === undefined ? {} : { command: options.command }),
 						...(env === undefined ? {} : { env }),
 					});

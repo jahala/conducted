@@ -537,6 +537,7 @@ describe("PRJ-04 repo config reads", () => {
 				hidden: false,
 				icon: null,
 				origin: "changed_locally",
+				availableIn: ["local", "cloud"],
 			},
 			{
 				id: "docs",
@@ -548,6 +549,7 @@ describe("PRJ-04 repo config reads", () => {
 				hidden: false,
 				icon: null,
 				origin: "local",
+				availableIn: ["local", "cloud"],
 			},
 			{
 				id: "test",
@@ -559,6 +561,7 @@ describe("PRJ-04 repo config reads", () => {
 				hidden: false,
 				icon: null,
 				origin: "shared",
+				availableIn: ["local", "cloud"],
 			},
 		];
 		const sharedBefore = ctx.files.get(sharedPath);
@@ -589,6 +592,33 @@ describe("PRJ-04 repo config reads", () => {
 			command: "pnpm test",
 			origin: "shared",
 		});
+	});
+
+	it("writes and reads where an action can run", async () => {
+		const ctx = makeService();
+		const config = must(await ctx.service.loadConfig(repoId));
+		config.runScripts = [
+			{
+				id: "deploy",
+				label: "Deploy",
+				command: "pnpm deploy",
+				args: [],
+				cwd: null,
+				isDefault: true,
+				hidden: false,
+				icon: null,
+				origin: "local",
+				availableIn: ["cloud"],
+			},
+		];
+
+		must(await ctx.service.updateConfig(repoId, config));
+
+		expect(ctx.files.get(localPath)).toContain('available_in = [ "cloud" ]');
+		const reloaded = must(await ctx.service.loadConfig(repoId));
+		expect(reloaded.runScripts.find((action) => action.id === "deploy")?.availableIn).toEqual([
+			"cloud",
+		]);
 	});
 });
 

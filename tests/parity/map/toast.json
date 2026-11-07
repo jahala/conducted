@@ -302,7 +302,7 @@
 	},
 	"toast:R2489534": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-11",
 		"item": "Opening a file outside the synced cloud workspace shows \"File is outside the synced workspace\".",
@@ -333,12 +333,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R2505067": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in another app: a path the app cannot open shows \"This app can't open this path\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "open-in-missing-folder",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R2505156": {
 		"status": "gap",
@@ -467,7 +467,7 @@
 	},
 	"toast:R5443582": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-10",
 		"item": "Forwarding a port needs a valid number: \"Enter a valid port (1-65535)\".",
@@ -475,7 +475,7 @@
 	},
 	"toast:R5443642": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-10",
 		"item": "Port 22 cannot be forwarded: \"Port 22 is reserved for SSH and cannot be forwarded here\".",
@@ -483,7 +483,7 @@
 	},
 	"toast:R5453992": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-10",
 		"item": "Forwarding ports shows the notice \"Forwarding ports\" while the forward is being set up.",
@@ -977,7 +977,7 @@
 	},
 	"toast:R9626762": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
 		"item": "Showing a downloaded cloud file can fail with \"Could not open Downloads. Try again.\"",
@@ -992,12 +992,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R9948837": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Opening the editor can fail with \"Failed to open editor\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "open-in-not-installed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R9953202": {
 		"status": "gap",

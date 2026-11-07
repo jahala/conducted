@@ -99,6 +99,31 @@ describe("NAV-10 TabItem", () => {
 		expect(onSelect).not.toHaveBeenCalled();
 	});
 
+	it("shows a cloud host icon on a cloud workspace's terminal tab", () => {
+		const { container } = render(
+			<TabItem
+				tab={{ kind: "terminal", ref: "terminal:t1", title: "Terminal 1", hostKind: "cloud" }}
+				active={false}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		expect(container.querySelector('[data-host="cloud"]')).not.toBeNull();
+		expect(container.querySelector('[data-host="local"]')).toBeNull();
+	});
+
+	it("shows a laptop host icon on a cloud workspace's local terminal tab", () => {
+		const { container } = render(
+			<TabItem
+				tab={{ kind: "terminal", ref: "terminal:t1", title: "Terminal 1", hostKind: "local" }}
+				active={false}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		expect(container.querySelector('[data-host="local"]')).not.toBeNull();
+	});
+
 	it("shows the full title as a tooltip and reports a drag", () => {
 		const onDragStart = vi.fn();
 		render(

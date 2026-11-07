@@ -313,19 +313,16 @@
 		"by": "hand"
 	},
 	"label:M335764": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > p",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"label:M335844": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "settings-agents-bedrock",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"label:M335927": {
@@ -653,12 +650,9 @@
 		"by": "hand"
 	},
 	"label:M340089": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(7) > p",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"label:M340155": {
 		"status": "decided",
@@ -883,7 +877,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(34) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(34) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:M733593": {
@@ -891,7 +885,7 @@
 		"state": "home-archived",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"label:M780682": {
@@ -1039,12 +1033,12 @@
 		"owner": "hand"
 	},
 	"label:M3099042": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-08",
-		"item": "A shell environment that cannot be captured shows a notice with a Learn more link.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "link",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > a",
+		"by": "seed"
 	},
 	"label:M3222818": {
 		"status": "decided",
@@ -1157,19 +1151,19 @@
 		"owner": "rule:quote"
 	},
 	"label:R104578": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-11",
-		"item": "Approval secondary button 'Yes for this session', 'Allow all edits during this session' or 'Yes always' (Cmd+Enter)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-approval-edit",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(2) > span > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R105108": {
 		"status": "matched",
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(3) > span > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(3) > span > span",
 		"by": "seed"
 	},
 	"label:R319291": {
@@ -1177,7 +1171,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"label:R361903": {
@@ -1309,140 +1303,137 @@
 		"owner": "rule:quote"
 	},
 	"label:R2139395": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'No internet connection' with Retry",
-		"owner": "rule:quote"
-	},
-	"label:R2139552": {
 		"status": "matched",
-		"state": "pr-loading",
+		"state": "pr-offline",
 		"via": "text",
 		"role": "button",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
 		"by": "seed"
 	},
-	"label:R2139834": {
+	"label:R2139552": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Loading PR info...' and 'Checking mergeability...'",
-		"owner": "rule:quote"
+		"screen": "Unplaced"
+	},
+	"label:R2139834": {
+		"status": "matched",
+		"state": "pr-checking-mergeability",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R2206903": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2206958": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207031": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207088": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207145": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207202": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207254": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207318": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207376": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PR-04",
-		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2269745": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Deployed\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2269882": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Lifecycle labels 'Setting up' and 'Failed'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > button > span:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R2270007": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Deploying\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2270162": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Pending\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2270269": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Inactive\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2271428": {
 		"status": "matched",
@@ -1453,11 +1444,12 @@
 		"by": "seed"
 	},
 	"label:R2271674": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2959506": {
 		"status": "matched",
@@ -1520,7 +1512,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(1) > button:nth-of-type(7) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"label:R2959862": {
@@ -1552,31 +1544,31 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > p",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > p",
 		"by": "seed"
 	},
 	"label:R2960047": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(2)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"label:R2960087": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(3)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(4) > span",
 		"by": "seed"
 	},
 	"label:R2960124": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(5)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(5) > span",
 		"by": "seed"
 	},
 	"label:R2960160": {
@@ -1592,7 +1584,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"label:R2960244": {
@@ -1600,7 +1592,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"label:R2960293": {
@@ -1634,12 +1626,9 @@
 		"by": "rule:hosted-computer"
 	},
 	"label:R2960659": {
-		"status": "matched",
-		"state": "settings-repo-scripts",
-		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(4)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
 	},
 	"label:R2960724": {
 		"status": "gap",
@@ -1754,10 +1743,10 @@
 	},
 	"label:R4993174": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "open-in-menu",
 		"via": "text",
-		"role": "figcaption",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(4) > div > figure:nth-of-type(2) > figcaption",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(15) > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R4994069": {
@@ -1785,7 +1774,7 @@
 	},
 	"label:R5438208": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Forward to localhost' and 'Auto-forwarding'",
@@ -1793,7 +1782,7 @@
 	},
 	"label:R5438774": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Forward to localhost' and 'Auto-forwarding'",
@@ -1811,8 +1800,8 @@
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(1) > dt",
+		"role": "th",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(1) > th",
 		"by": "seed"
 	},
 	"label:R5599862": {
@@ -2002,7 +1991,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(35) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(35) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R8149637": {
@@ -2010,16 +1999,13 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(36) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(36) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R8697662": {
-		"status": "matched",
-		"state": "settings-appearance",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > fieldset > div > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R8822100": {
 		"status": "gap",
@@ -2043,8 +2029,8 @@
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(3) > dt",
+		"role": "th",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(3) > th",
 		"by": "seed"
 	},
 	"label:R8853292": {
@@ -2107,18 +2093,18 @@
 	},
 	"label:R8863451": {
 		"status": "matched",
-		"state": "composer-model-picker",
+		"state": "settings-models-effort-menu",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(3) > button > span:nth-of-type(1)",
+		"role": "div",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R8863584": {
 		"status": "matched",
-		"state": "composer-model-picker",
+		"state": "settings-models-effort-menu",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(4) > button > span:nth-of-type(1)",
+		"role": "div",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(4)",
 		"by": "seed"
 	},
 	"label:R8863736": {
@@ -2139,10 +2125,10 @@
 	},
 	"label:R8864029": {
 		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "section",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5)",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R8864825": {
@@ -2218,12 +2204,9 @@
 		"by": "seed"
 	},
 	"label:R9235878": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5) > button > span:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R9240756": {
 		"status": "gap",
@@ -2234,12 +2217,9 @@
 		"owner": "rule:quote"
 	},
 	"label:R9241717": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R9278910": {
 		"status": "gap",
@@ -2286,7 +2266,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(17) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(17) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R9369840": {
@@ -2298,36 +2278,36 @@
 		"by": "seed"
 	},
 	"label:R9371127": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-active",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9371331": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-paused",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9371721": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-active",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R9372025": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-active",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R9380499": {
 		"status": "matched",
@@ -2482,12 +2462,12 @@
 		"owner": "rule:cite"
 	},
 	"label:R10015966": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"item": "Check state 'Waiting'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R10026233": {
 		"status": "matched",
@@ -2498,12 +2478,12 @@
 		"by": "seed"
 	},
 	"label:R10026716": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-06",
-		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"by": "seed"
 	},
 	"label:R10026849": {
 		"status": "gap",
@@ -2539,18 +2519,18 @@
 	},
 	"label:R10044498": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "GIT-04",
 		"owner": "rule:neighbour"
 	},
 	"label:R10046733": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"label:R10047731": {
 		"status": "matched",
@@ -2573,7 +2553,7 @@
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"label:R10091233": {
@@ -2629,7 +2609,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(13) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(13) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R10213512": {
@@ -2848,7 +2828,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10676842": {
@@ -2856,7 +2836,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4)",
 		"by": "seed"
 	},
 	"label:R10676910": {
@@ -2876,10 +2856,10 @@
 	},
 	"label:R10677114": {
 		"status": "matched",
-		"state": "settings-models-codex-thinking-menu",
+		"state": "settings-git",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > fieldset > label:nth-of-type(3)",
 		"by": "seed"
 	},
 	"label:R10726210": {
@@ -2887,7 +2867,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(1) > h4",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > h4",
 		"by": "seed"
 	},
 	"label:R10727056": {
@@ -2926,10 +2906,10 @@
 	},
 	"label:R10750930": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "open-in-menu",
 		"via": "text",
-		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(3)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10751739": {
@@ -2942,10 +2922,10 @@
 	},
 	"label:R10754989": {
 		"status": "matched",
-		"state": "composer-model-picker",
+		"state": "settings-agents",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(2)",
+		"role": "tab",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R10755170": {
@@ -2984,7 +2964,7 @@
 	},
 	"label:R10818359": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "SET-02",
 		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
@@ -3023,7 +3003,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10929522": {
@@ -3089,17 +3069,17 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"label:R11117716": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
+		"class": "wording",
 		"backlog": "SET-02",
 		"item": "General: 'Send messages with' (Enter, Cmd+Enter, Custom)",
 		"owner": "hand",
-		"class": "wording",
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"label:R11118427": {
@@ -3274,10 +3254,10 @@
 	},
 	"label:R11440359": {
 		"status": "matched",
-		"state": "settings-agents-error",
+		"state": "git-checks-mixed",
 		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section:nth-of-type(1) > div > button > span",
+		"role": "button",
+		"selector": "[data-testid=\"check-row\"] > div:nth-of-type(2) > section > div > button",
 		"by": "seed"
 	},
 	"label:R11440532": {
@@ -3437,7 +3417,7 @@
 		"state": "settings-repo-scripts",
 		"via": "text",
 		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"label:R11748740": {

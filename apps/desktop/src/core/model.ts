@@ -54,6 +54,9 @@ export type RepoIconChoice =
 	| { kind: "file"; path: string }
 	| null;
 
+/** Where a run action may run: this Mac and/or a cloud workspace (services-map 5A.1.6). */
+export type ActionTarget = "local" | "cloud";
+
 /** One run action of a repository (the Run button and the actions menu). */
 export interface RunAction {
 	id: string;
@@ -70,6 +73,13 @@ export interface RunAction {
 	icon: string | null;
 	/** Where it is defined: the shared repo file, this Mac only, or a local change to a shared one. */
 	origin: "shared" | "local" | "changed_locally";
+	/** Where the action may run. The default is both the Mac and a cloud workspace. */
+	availableIn: readonly ActionTarget[];
+	/**
+	 * On an expanded entry in a cloud workspace, the host this variant runs on. Absent when the
+	 * action has a single target (services-map 5A.1.6).
+	 */
+	runAvailability?: ActionTarget;
 }
 
 /** Per-repo configuration from `.conducted/settings.toml` (shared) merged with local settings. */

@@ -3,7 +3,8 @@
  * Owns: the list of all app tools, and which of them a chat gets.
  * Behaviour: research/conductor/claude-runner.md section 4.1 "Tool availability flags": the config
  * switches decide which tools exist; a change of the switches restarts the agent (policy
- * "recreate" in the Claude config table), because the tool list is fixed at start.
+ * "recreate" in the Claude config table), because the tool list is fixed at start. RunLocalCommand
+ * is cloud-only and follows the `localExecution` switch (CLOUD-14).
  * Must handle: the registry has exactly one definition for every name in APP_TOOLS (the type
  * enforces it), the bridge-only list leaves out AskUserQuestion (Codex and ACP agents have their
  * own question mechanism), and a switch that is off removes the tool from the list.
@@ -16,6 +17,7 @@ import { diffCommentTool } from "./diff-comment.ts";
 import { getDiffCommentsTool } from "./get-diff-comments.ts";
 import { getTerminalOutputTool } from "./get-terminal-output.ts";
 import { getWorkspaceDiffTool } from "./get-workspace-diff.ts";
+import { runLocalCommandTool } from "./run-local-command.ts";
 import { setTargetBranchTool } from "./set-target-branch.ts";
 import type { ToolDefinition, ToolShape } from "./types.ts";
 import { updateProgressTool } from "./update-progress.ts";
@@ -30,6 +32,7 @@ export const APP_TOOL_DEFINITIONS: Record<AppTool, AnyTool> = {
 	GetTerminalOutput: getTerminalOutputTool as unknown as AnyTool,
 	UpdateProgress: updateProgressTool as unknown as AnyTool,
 	SetTargetBranch: setTargetBranchTool as unknown as AnyTool,
+	RunLocalCommand: runLocalCommandTool as unknown as AnyTool,
 };
 
 /** The tools a chat gets, in the order of APP_TOOLS. */

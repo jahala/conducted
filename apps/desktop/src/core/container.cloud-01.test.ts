@@ -44,8 +44,12 @@ async function stoppedAt(call: () => Promise<unknown>): Promise<string> {
 }
 
 /** A ready workspace on `host` whose folder exists, with one file in it. */
-async function readyWorkspace(test: TestContainer, host: Host): Promise<Workspace> {
-	const workspace = await seedWorkspace(test.container, { host });
+async function readyWorkspace(
+	test: TestContainer,
+	host: Host,
+	linkedPaths: readonly string[] = [],
+): Promise<Workspace> {
+	const workspace = await seedWorkspace(test.container, { host, linkedPaths: [...linkedPaths] });
 	await test.container.platform.fs.mkdirp(workspace.path);
 	test.memory.controls.files.set(`${workspace.path}/README.md`, "hello\n");
 	await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
@@ -61,20 +65,22 @@ async function readyWorkspace(test: TestContainer, host: Host): Promise<Workspac
 	return workspace;
 }
 
-/** Answers every sendMessage at once and keeps the workspace each one carried. */
-function captureSends(test: TestContainer): { hosts: unknown[] } {
+/** Answers every sendMessage at once and keeps the workspace and folders each one carried. */
+function captureSends(test: TestContainer): { hosts: unknown[]; directories: unknown[] } {
 	const transport = test.memory.platform.sidecar;
 	const originalSend = transport.send.bind(transport);
 	const hosts: unknown[] = [];
+	const directories: unknown[] = [];
 	transport.send = async (line) => {
 		const answered = await originalSend(line);
 		const parsed = JSON.parse(line) as {
 			id: number;
 			method: string;
-			params: { workspace?: { host?: unknown } };
+			params: { workspace?: { host?: unknown }; config?: { additionalDirectories?: unknown } };
 		};
 		if (parsed.method === "sendMessage") {
 			hosts.push(parsed.params.workspace?.host);
+			directories.push(parsed.params.config?.additionalDirectories);
 			queueMicrotask(() =>
 				test.memory.controls.emitSidecarLine(
 					JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } }),
@@ -83,7 +89,7 @@ function captureSends(test: TestContainer): { hosts: unknown[] } {
 		}
 		return answered;
 	};
-	return { hosts };
+	return { hosts, directories };
 }
 
 const ranIn = (test: TestContainer, folder: string): number =>
@@ -287,6 +293,31 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			// The mirror is the only file the search may leave on the Mac.
 			const added = [...cloud.files.keys()].filter((path) => !filesOnDisk.has(path));
 			expect(added.filter((path) => !path.startsWith("/Users/conducted/")).length).toBe(0);
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+	it("sends no linked folders to a cloud workspace", async () => {
+		const test = createTestContainer();
+		try {
+			must(await test.container.sidecar.start());
+			const workspace = await readyWorkspace(test, CLOUD, ["/code/shared/docs"]);
+			const cloud = test.memory.controls;
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+
+			const sending = test.container.services.sessions.send(session.id, "hello", [], "auto");
+			const line = await waitForSent(cloud, "sendMessage");
+			const parsed = JSON.parse(line.line) as {
+				id: number;
+				params: { config: { additionalDirectories: unknown } };
+			};
+			expect(parsed.params.config.additionalDirectories).toEqual([]);
+			cloud.emitCloudLine(
+				line.relayId,
+				`${JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } })}\n`,
+			);
+			expect((await sending).ok).toBe(true);
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();

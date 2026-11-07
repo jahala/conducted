@@ -45,6 +45,11 @@ export interface ScriptedRepo {
 	upstream: { ahead: number; behind: number } | null;
 	/** Commits the target has that the branch lacks. */
 	behindTarget: number;
+	/**
+	 * The remote branch was force-pushed after this branch's tip was pushed: the tip is still in the
+	 * remote-tracking ref's reflog.
+	 */
+	remoteRewritten?: boolean;
 }
 
 const out = (stdout = "", exitCode = 0, stderr = ""): Result<ShellOutput> =>
@@ -146,7 +151,12 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 		};
 
 		if (joined === "branch --show-current") return out(`${repo.branch}\n`);
-		if (joined === "symbolic-ref HEAD") return out(`refs/heads/${repo.branch}\n`);
+		// An empty branch is a detached HEAD: no symbolic ref to read.
+		if (joined === "symbolic-ref HEAD") {
+			return repo.branch === ""
+				? out("", 128, "fatal: ref HEAD is not a symbolic ref\n")
+				: out(`refs/heads/${repo.branch}\n`);
+		}
 		if (joined === "rev-parse HEAD") return out(`${HEAD}\n`);
 		if (verb === "merge-base" && args[1] === "--is-ancestor") return out("", 1);
 		if (verb === "merge-base") return out(`${MERGE_BASE}\n`);
@@ -165,7 +175,9 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 			return pushed ? out(`${upstreamSha}\n`) : out("", 1);
 		}
 		if (verb === "show-ref") return out("", 1);
-		if (verb === "reflog") return out(`${upstreamSha}\n`);
+		if (verb === "reflog") {
+			return out(repo.remoteRewritten === true ? `${upstreamSha}\n${HEAD}\n` : `${upstreamSha}\n`);
+		}
 		if (verb === "rev-list" && args[1] === "--left-right") {
 			// `<a>...<b>` prints the commits only in a, a tab, then the commits only in b.
 			const [left = "", right = ""] = (args[3] ?? "").split("...");

@@ -48,7 +48,7 @@ import { toast, toastError } from "../../../ui/Toast.tsx";
 import { PrInlineEditor } from "../../pr/PrInlineEditor.tsx";
 import { ChecksList } from "./ChecksList.tsx";
 import { DeploymentsList } from "./DeploymentsList.tsx";
-import { type GitStatusRow, gitStatusRows } from "./git-status-rows.ts";
+import { commentsToAddToChat, type GitStatusRow, gitStatusRows } from "./git-status-rows.ts";
 import { PrCommentsList } from "./PrCommentsList.tsx";
 import { PrSummaryHeader } from "./PrSummaryHeader.tsx";
 import { ReviewersList } from "./ReviewersList.tsx";
@@ -257,7 +257,7 @@ export function ChecksTab({ workspaceId, onGitAction, title, description }: Chec
 			/>
 			<GitStatusSection
 				className="px-4 py-2"
-				rows={gitStatusRows(git.data, optionalBlocking)}
+				rows={gitStatusRows(git.data, optionalBlocking, commentsToAddToChat(commentList).length)}
 				onGitAction={onGitAction}
 				onCreatePr={createOnGithub}
 			/>
@@ -402,7 +402,8 @@ function GitStatusView({
 				</div>
 			)}
 			<GitStatusSection
-				rows={gitStatusRows(git, treatOptionalAsBlocking)}
+				// With no pull request there is no review, so no comments to add.
+				rows={gitStatusRows(git, treatOptionalAsBlocking, 0)}
 				onGitAction={onGitAction}
 				onCreatePr={onCreatePr}
 			/>
