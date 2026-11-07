@@ -33,7 +33,6 @@ export interface SessionRow {
 	agent_session_id: string | null;
 	unread_count: number;
 	context_used_tokens: number | null;
-	context_window_tokens: number | null;
 	queue_paused_at: number | null;
 	closed_at: number | null;
 	last_user_message_at: number | null;
@@ -55,7 +54,8 @@ export function sessionFromRow(row: SessionRow): Result<Session> {
 			agentSessionId: row.agent_session_id,
 			unreadCount: row.unread_count,
 			contextUsedTokens: row.context_used_tokens,
-			contextWindowTokens: row.context_window_tokens,
+			// The window size lives in model_context_windows, keyed by agent and model (CHAT-14).
+			contextWindowTokens: null,
 			queuePausedAt: row.queue_paused_at,
 			closedAt: row.closed_at,
 			lastUserMessageAt: row.last_user_message_at,
@@ -80,7 +80,6 @@ export function sessionToParams(session: Session): Result<readonly unknown[]> {
 			session.agentSessionId,
 			session.unreadCount,
 			session.contextUsedTokens,
-			session.contextWindowTokens,
 			session.queuePausedAt,
 			session.closedAt,
 			session.lastUserMessageAt,
@@ -92,7 +91,7 @@ export function sessionToParams(session: Session): Result<readonly unknown[]> {
 }
 
 const COLUMNS = `id, workspace_id, title, config, agent_session_id, unread_count,
-	context_used_tokens, context_window_tokens, queue_paused_at, closed_at, last_user_message_at,
+	context_used_tokens, queue_paused_at, closed_at, last_user_message_at,
 	created_at, updated_at, fork_resume_native_message_id`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
@@ -103,7 +102,7 @@ export const SESSIONS_SQL = {
 		AND closed_at IS NULL ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM sessions WHERE id = $1`,
 	insert: `INSERT INTO sessions (${COLUMNS})
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
 	setTitle: "UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3",
 	setTitleIfEmpty:
 		"UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3 AND title IS NULL",
@@ -111,8 +110,7 @@ export const SESSIONS_SQL = {
 	setAgentSessionId: "UPDATE sessions SET agent_session_id = $1, updated_at = $2 WHERE id = $3",
 	setForkResume: `UPDATE sessions SET fork_resume_native_message_id = $1, updated_at = $2
 		WHERE id = $3`,
-	setContextUsage: `UPDATE sessions SET context_used_tokens = $1, context_window_tokens = $2
-		WHERE id = $3`,
+	setContextUsage: "UPDATE sessions SET context_used_tokens = $1 WHERE id = $2",
 	/**
 	 * A user message reached the agent. A fork's resume point is used up by its first one, so it is
 	 * cleared in the same statement (CHAT-16).
@@ -155,7 +153,7 @@ export interface SessionRepository {
 	/** SESSIONS_SQL.setContextUsage. Does not touch updated_at. */
 	setContextUsage(
 		id: SessionId,
-		usage: { usedTokens: number | null; windowTokens: number | null },
+		usage: { usedTokens: number | null },
 	): Promise<Result<void>>;
 	/** SESSIONS_SQL.recordUserMessage. Moves last_user_message_at forward only. */
 	recordUserMessage(id: SessionId, at: number): Promise<Result<void>>;
@@ -261,7 +259,7 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 			executeVoid(
 				db,
 				SESSIONS_SQL.setContextUsage,
-				[usage.usedTokens, usage.windowTokens, id],
+				[usage.usedTokens, id],
 				"Saving context usage",
 			),
 		recordUserMessage: (id, at) =>

@@ -347,7 +347,11 @@ describe("DATA-04 event ingest", () => {
 		await harness.ingest.ingest(envelope(agentEvent("a1", "t1", 6000, [usage(1200, 200000)]), 1));
 		session = must(await harness.repositories.sessions.get(sessionId));
 		expect(session?.contextUsedTokens).toBe(1200);
-		expect(session?.contextWindowTokens).toBe(200000);
+		// The window has one home, the per-model table; the chat keeps only the last used count.
+		expect(session?.contextWindowTokens).toBeNull();
+		expect(must(await harness.repositories.modelContextWindows.list())).toEqual([
+			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000, updatedAt: 1000 },
+		]);
 		expect(session?.unreadCount).toBe(1);
 
 		viewing = true;
@@ -376,6 +380,29 @@ describe("CHAT-14 event ingest remembers each model's context window", () => {
 		]);
 		expect(remembered).toEqual([
 			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000 },
+		]);
+	});
+
+	it("updates the chat's used tokens without storing a window of its own", async () => {
+		seedWorkspace();
+		seedSession();
+		const harness = makeHarness();
+
+		await harness.ingest.ingest(envelope(agentEvent("a1", "t1", 6000, [usage(1200, 200000)]), 0));
+		await harness.ingest.ingest(
+			envelope(
+				agentEvent("a2", "t1", 7000, [
+					{ ...usage(2400, 200000), contextWindowTokens: undefined } as AgentItem,
+				]),
+				1,
+			),
+		);
+
+		const session = must(await harness.repositories.sessions.get(sessionId));
+		expect(session?.contextUsedTokens).toBe(2400);
+		expect(session?.contextWindowTokens).toBeNull();
+		expect(must(await harness.repositories.modelContextWindows.list())).toEqual([
+			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000, updatedAt: 1000 },
 		]);
 	});
 });
