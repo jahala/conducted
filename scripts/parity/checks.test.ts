@@ -174,6 +174,17 @@ describe("check b, text and controls both ways", () => {
 		expect(findings.map((f) => [f.code, f.severity])).toEqual([["state-failed", "broken"]]);
 	});
 
+	test("an environment variable's name is an identifier, not wording", () => {
+		const dump = dumpOf([
+			state("sidebar", [
+				["ANTHROPIC_API_KEY", "text"],
+				["TOKEN", "text"],
+			]),
+		]);
+		const ours = checkText(inputs(), dump).filter((finding) => finding.code === "ours-only");
+		expect(ours.map((finding) => finding.text)).toEqual(["TOKEN"]);
+	});
+
 	test("a template must match the whole name, and a sample piece needs four letters or digits", () => {
 		expect(templatePattern("{} tool calls, {} messages").test("6 tool calls, 4 messages")).toBe(
 			true,

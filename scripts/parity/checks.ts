@@ -227,6 +227,12 @@ export function accountedFor(text: string, removable: string[]): boolean {
 /** Letters and digits only: a value split over several elements still reads as one. */
 export const squash = (text: string): string => text.replace(/[^\p{L}\p{N}]/gu, "");
 
+/**
+ * An environment variable's name, such as ANTHROPIC_API_KEY: an identifier both apps show as it is,
+ * never wording. It needs an underscore, so a capitalised word or "TOKEN" is still read as wording.
+ */
+const ENV_NAME = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+
 /** A piece this long can be part of a sample value; a shorter one must be all of it. */
 const SAMPLE_PIECE = 12;
 
@@ -345,6 +351,7 @@ function oursOnlyGaps(inputs: Inputs, dump: Dump): Finding[] {
 				continue;
 			}
 			if (templates.some((template) => template.test(name.text))) continue;
+			if (ENV_NAME.test(name.text)) continue;
 			if (isSample(name.text, squashedSample)) continue;
 			if (accountedFor(name.text, removable)) continue;
 			findings.push({
