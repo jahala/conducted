@@ -5,6 +5,8 @@
  * Test first: with a base and a modal handler registered for "palette.open", only the modal one runs.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { appError, err, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectiveShortcuts, getCommand } from "../core/registries/commands.ts";
@@ -12,6 +14,7 @@ import {
 	commandForKeyPress,
 	createCommandRegistry,
 	dispatchCommand,
+	FIXED_MENU_COMMAND_IDS,
 	fieldOwnsKey,
 	type KeyBinding,
 	type KeyPress,
@@ -234,9 +237,27 @@ describe("NAV-14 menuShortcuts", () => {
 		expect(
 			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleRightSidebar")?.accelerator,
 		).toBe("CmdOrCtrl+Alt+B");
-		expect(shortcuts.find((shortcut) => shortcut.commandId === "app.quit")?.accelerator).toBe(
-			"CmdOrCtrl+Q",
-		);
+	});
+
+	it("leaves the fixed menu items to the Rust shell", () => {
+		const shortcuts = menuShortcuts();
+		expect(shortcuts.find((shortcut) => shortcut.commandId === "app.quit")).toBeUndefined();
+		expect(shortcuts.find((shortcut) => shortcut.commandId === "app.openSettings")).toBeUndefined();
+	});
+
+	it("names the same fixed menu commands as Rust's FIXED_MENU_IDS", () => {
+		// Under vitest's jsdom environment `import.meta.url` is not a file URL, so the Rust source is
+		// found from the working directory, as other tests find the migrations.
+		const menuRsPath = [
+			resolve(process.cwd(), "src-tauri/src/menu.rs"),
+			resolve(process.cwd(), "apps/desktop/src-tauri/src/menu.rs"),
+		].find((candidate) => existsSync(candidate));
+		expect(menuRsPath).toBeDefined();
+		const menuRs = readFileSync(menuRsPath ?? "", "utf8");
+		const block = /const FIXED_MENU_IDS: &\[&str\] = &\[([^\]]*)\]/.exec(menuRs)?.[1];
+		expect(block).toBeDefined();
+		const rustIds = [...(block ?? "").matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+		expect([...FIXED_MENU_COMMAND_IDS].sort()).toEqual(rustIds.sort());
 	});
 
 	it("follows a rebind", () => {
