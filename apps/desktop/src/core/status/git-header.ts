@@ -46,7 +46,7 @@
  *                                                                                                  may merge
  *   review_required       reviewDecision review_required               PR review required          Approve if the forge can make
  *                                                                                                  remote requests and the viewer
- *                                                                                                  may, otherwise a waiting note
+ *                                                                                                  may, otherwise none
  *   blocked               mergeable unknown after checks reported,     Blocked from merging        none
  *                         or a required check was skipped
  *   checking_mergeability mergeable "unknown", no checks reported yet  Checking mergeability...    none
