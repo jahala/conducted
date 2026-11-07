@@ -8,12 +8,13 @@
 //! newline the sidecar's NDJSON stream needs).
 //!
 //! Our design choice: the Worker runs without a container, with a Durable Object that echoes each
-//! frame in place of the sandbox sidecar. The relay route's sandbox needs Docker, so this test covers
-//! the relay's headers and line framing against the real front door (token, route, method, upgrade)
-//! and leaves the sandboxed sidecar to the live run. The local runtime's certificate is self-signed,
-//! so the test trusts it.
+//! frame in place of the sandbox sidecar. Both stream channels (`rpc` and `terminal`) reach that
+//! Durable Object without Docker. The test runs the same `front-door.ts` checks the deployed Worker
+//! runs, so a wrong token, route, method or missing upgrade header is refused exactly as in
+//! production. The local runtime's certificate is self-signed, so the test trusts it. The test starts
+//! the runtime, reads the port it printed, and stops the process group of the pid it recorded.
 //!
-//! Test first: the relay's line reaches the Worker and its answer comes back.
+//! Test first: the relay's line reaches the Worker and its answer comes back on both channels.
 
 use std::io::{BufRead, BufReader};
 use std::os::unix::process::CommandExt;
@@ -69,14 +70,14 @@ impl Drop for TempDir {
     }
 }
 
-/// The local runtime, stopped by the process id it recorded when it drops.
+/// The local runtime, stopped by the process group of the pid it recorded when it drops.
 struct Wrangler {
     child: Child,
     port: u16,
 }
 
 impl Wrangler {
-    /// Starts `wrangler dev` in the package's own runtime, in a folder the test owns.
+    /// Starts `wrangler dev` in a folder the test owns, with the e2e Worker and no container.
     fn start(folder: &Path) -> Self {
         let cloud = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../cloud");
         let program = cloud.join("node_modules/.bin/wrangler");
@@ -111,6 +112,8 @@ impl Wrangler {
             .env("XDG_CACHE_HOME", &cache)
             .env("TMPDIR", folder)
             .env("NO_COLOR", "1")
+            .env("CI", "1")
+            .env("WRANGLER_SEND_METRICS", "false")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -123,25 +126,24 @@ impl Wrangler {
         let stderr = child.stderr.take().expect("the runtime's errors are piped");
         let log = Arc::new(Mutex::new(Vec::<String>::new()));
         let (ready, port) = mpsc::channel::<u16>();
-        let log_for_stdout = Arc::clone(&log);
-        std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if let Some(found) = ready_port(&line) {
-                    let _ = ready.send(found);
+        // The runtime prints its ready line on either stream; watch both.
+        for stream in [
+            Box::new(stdout) as Box<dyn std::io::Read + Send>,
+            Box::new(stderr) as Box<dyn std::io::Read + Send>,
+        ] {
+            let ready = ready.clone();
+            let log = Arc::clone(&log);
+            std::thread::spawn(move || {
+                for line in BufReader::new(stream).lines().map_while(Result::ok) {
+                    if let Some(found) = ready_port(&line) {
+                        let _ = ready.send(found);
+                    }
+                    if let Ok(mut lines) = log.lock() {
+                        lines.push(line);
+                    }
                 }
-                if let Ok(mut lines) = log_for_stdout.lock() {
-                    lines.push(line);
-                }
-            }
-        });
-        let log_for_stderr = Arc::clone(&log);
-        std::thread::spawn(move || {
-            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                if let Ok(mut lines) = log_for_stderr.lock() {
-                    lines.push(line);
-                }
-            }
-        });
+            });
+        }
 
         let port = match port.recv_timeout(READY_TIMEOUT) {
             Ok(port) => port,
@@ -231,30 +233,30 @@ fn mock_app() -> App<tauri::test::MockRuntime> {
         .expect("the mock app builds")
 }
 
-#[test]
-fn cloud_03_the_relay_reaches_the_worker_and_frames_the_line() {
-    let folder = TempDir::new();
-    let wrangler = Wrangler::start(folder.path());
-    let app = mock_app();
-    let (sender, receiver) = mpsc::channel();
-    app.listen(EVENT_LINE, move |event| {
-        let _ = sender.send(event.payload().to_string());
-    });
-    let state = app.state::<CloudState>();
-    let url = wrangler.url();
-
+/// Opens a relay, sends one line, and returns the answer the relay emitted.
+fn round_trip(app: &App<tauri::test::MockRuntime>, url: &str, channel: &str, line: &str) -> String {
     let relay_id = tauri::async_runtime::block_on(open_relay(
         app.handle().clone(),
-        &state,
-        &url,
+        &app.state::<CloudState>(),
+        url,
         WORKSPACE,
+        Some(channel),
         PAIRING_TOKEN,
         Some(local_connector()),
     ))
-    .expect("the relay opens with the pairing token");
+    .unwrap_or_else(|error| panic!("the {channel} relay opens with the pairing token: {error}"));
 
-    let line =
-        r#"{"jsonrpc":"2.0","id":1,"method":"liveState","params":{"liveState":{"status":"idle"}}}"#;
+    let (sender, receiver) = mpsc::channel();
+    let wanted = relay_id.clone();
+    let listener = app.listen(EVENT_LINE, move |event| {
+        let payload = event.payload().to_string();
+        let is_wanted = serde_json::from_str::<Value>(&payload)
+            .is_ok_and(|value| value["relayId"].as_str() == Some(wanted.as_str()));
+        if is_wanted {
+            let _ = sender.send(payload);
+        }
+    });
+
     tauri::async_runtime::block_on(cloud_relay_send(
         app.state(),
         relay_id.clone(),
@@ -264,24 +266,39 @@ fn cloud_03_the_relay_reaches_the_worker_and_frames_the_line() {
 
     let payload = receiver
         .recv_timeout(LINE_TIMEOUT)
-        .expect("the relay delivers the Worker's answer");
-    let payload: Value = serde_json::from_str(&payload).expect("the event payload is JSON");
-    let expected = format!("{line}\n");
-    assert_eq!(payload["relayId"].as_str(), Some(relay_id.as_str()));
-    assert_eq!(
-        payload["line"].as_str(),
-        Some(expected.as_str()),
-        "the relay adds the newline the sidecar's NDJSON stream needs"
-    );
-
+        .unwrap_or_else(|_| panic!("the {channel} relay delivers the Worker's answer"));
+    app.unlisten(listener);
     tauri::async_runtime::block_on(cloud_relay_close(app.state(), relay_id))
         .expect("the relay closes");
+    payload
+}
+
+#[test]
+fn cloud_03_the_relay_reaches_the_worker_and_frames_the_line() {
+    let folder = TempDir::new();
+    let wrangler = Wrangler::start(folder.path());
+    let app = mock_app();
+    let url = wrangler.url();
+    let line =
+        r#"{"jsonrpc":"2.0","id":1,"method":"liveState","params":{"liveState":{"status":"idle"}}}"#;
+    let expected = format!("{line}\n");
+
+    for channel in ["rpc", "terminal"] {
+        let payload = round_trip(&app, &url, channel, line);
+        let payload: Value = serde_json::from_str(&payload).expect("the event payload is JSON");
+        assert_eq!(
+            payload["line"].as_str(),
+            Some(expected.as_str()),
+            "the {channel} relay adds the newline the sidecar's NDJSON stream needs"
+        );
+    }
 
     let refused = tauri::async_runtime::block_on(open_relay(
         app.handle().clone(),
-        &state,
+        &app.state::<CloudState>(),
         &url,
         WORKSPACE,
+        Some("rpc"),
         "wrong-token",
         Some(local_connector()),
     ))
@@ -291,4 +308,16 @@ fn cloud_03_the_relay_reaches_the_worker_and_frames_the_line() {
         "cloud_relay_failed",
         "the Worker's 401 stops the relay: {refused}"
     );
+
+    let bad_channel = tauri::async_runtime::block_on(open_relay(
+        app.handle().clone(),
+        &app.state::<CloudState>(),
+        &url,
+        WORKSPACE,
+        Some("colour"),
+        PAIRING_TOKEN,
+        Some(local_connector()),
+    ))
+    .expect_err("an unknown channel is refused before connecting");
+    assert_eq!(bad_channel.code(), "cloud_bad_channel");
 }
