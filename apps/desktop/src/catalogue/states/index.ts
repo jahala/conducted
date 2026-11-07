@@ -11,6 +11,7 @@ import { BANNER_STATES } from "./banners.ts";
 import { CHAT_STATES } from "./chat.ts";
 import { CHECKS_STATES } from "./checks.ts";
 import { COMPOSER_STATES } from "./composer.ts";
+import { DEEP_LINK_STATES } from "./deep-links.ts";
 import { GIT_STATES } from "./git.ts";
 import { GOAL_STATES } from "./goals.ts";
 import { OPEN_IN_STATES } from "./open-in.ts";
@@ -48,6 +49,7 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...SIDEBAR_STATES,
 	...QUEUE_STATES,
 	...PR_TAB_STATES,
+	...DEEP_LINK_STATES,
 ];
 
 const seen = new Set<string>();

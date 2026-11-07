@@ -4,12 +4,13 @@
  * projects in the navigation; the selects whose options are wording (themes, sounds, effort levels,
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix; the Advanced page asking before it changes the root
- * folder; the Environment page's documented variables; atlas's Add action dialog; and the Agents page's provider dialog with the Bedrock
+ * folder; the Agents page's MCP servers for the chat last open; the Environment page's documented
+ * variables; atlas's Add action dialog and icon picker; and the Agents page's provider dialog with the Bedrock
  * access-key form.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
-import { seedCast } from "../cast.ts";
+import { chatRoute, seedCast } from "../cast.ts";
 import { click, find, shows } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
 
@@ -250,6 +251,63 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				after: ({ document }) =>
 					click(document, "button", "Show documented variables", { prefix: true }),
 				ready: (document) => shows(document, "Routes HTTP requests through a proxy."),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-picker",
+		group: "Settings",
+		title: "atlas: Misc, the repository icon picker",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: ({ document }) => click(document, "button", "Change repository icon"),
+				ready: (document) => document.querySelector('input[placeholder="Search emoji"]') !== null,
+			};
+		},
+	},
+	{
+		// MCP status is per chat: the Agents page lists the servers of the chat last on screen.
+		id: "settings-agents-mcp",
+		group: "Settings",
+		title:
+			"Agents, the MCP servers of arbor's chat: connected, needing sign-in, failed, turned off",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.answerSidecar({
+				listMcpServers: () => ({
+					servers: [
+						{
+							name: "github",
+							status: "connected",
+							toolCount: 41,
+							scope: "user",
+							transport: "http",
+						},
+						{ name: "linear", status: "needs_auth", scope: "user", transport: "http" },
+						{
+							name: "postgres",
+							status: "failed",
+							scope: "project",
+							transport: "stdio",
+							error: "connect ECONNREFUSED 127.0.0.1:5432",
+						},
+						{ name: "sentry", status: "disabled", scope: "plugin", transport: "sse" },
+					],
+				}),
+			});
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await find(document, "button", "MCP status");
+					await app.router.navigate({ to: "/settings/$page", params: { page: "agents" } });
+					// The servers sit below the agent's own settings; scroll them into view.
+					await find(document, "td,span,p", "Needs auth");
+					const servers = await find(document, "section", "MCP servers");
+					servers.scrollIntoView({ block: "start" });
+				},
+				ready: (document) => shows(document, "Needs auth"),
 			};
 		},
 	},

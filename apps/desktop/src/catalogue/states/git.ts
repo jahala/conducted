@@ -3,7 +3,8 @@
  * Owns: the Changes tab with files, a file's diff and its View options menu, the workspace header's
  * actions menu, a chat tab's context menu, the diff scope menu with the branch's commits, the
  * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
- * failed check, one ready to merge and a merged one, and the Changes tab when the tree is clean and when git fails.
+ * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
+ * the Changes tab as a folder tree with a filter that matches nothing, and the tab strip's new tab menu.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
  * Test first: not applicable; the screenshot run opens every state.
@@ -18,7 +19,7 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, has, rightClick, shows } from "../dom.ts";
+import { click, has, rightClick, shows, typeInto } from "../dom.ts";
 import type { PrKind, ScriptedPr } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
@@ -215,5 +216,27 @@ export const GIT_STATES: CatalogueState[] = [
 		group: "Pull request header",
 		title: "Merged",
 		seed: arborScene({ git: prOf("merged") }),
+	},
+	{
+		id: "git-changes-filter-empty",
+		group: "Git panel",
+		title: "Changes tab as a folder tree, filtered by a name no file has",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await click(document, "button", "Show folder hierarchy");
+				await click(document, "button", "Search changed files");
+				await typeInto(document, "input", "Filter changed files", "billing");
+			},
+			ready: (document) => shows(document, "No files match this filter"),
+		}),
+	},
+	{
+		id: "workspace-new-tab-menu",
+		group: "Workspace chat",
+		title: "The tab strip's new tab menu",
+		seed: arborScene({
+			after: ({ document }) => click(document, "button", "New tab"),
+			ready: (document) => shows(document, "New chat, same files"),
+		}),
 	},
 ];
