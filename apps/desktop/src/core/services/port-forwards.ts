@@ -57,7 +57,10 @@ const EMPTY_VIEW: PortForwardView = Object.freeze({
 export interface PortForwardsDeps {
 	platform: Pick<Platform, "portForward" | "cloud">;
 	repos: Pick<{ portForwards: PortForwardRepository }, "portForwards"> & {
-		workspaces: { get(id: WorkspaceId): Promise<Result<Workspace | null>> };
+		workspaces: {
+			get(id: WorkspaceId): Promise<Result<Workspace | null>>;
+			listAll(): Promise<Result<Workspace[]>>;
+		};
 	};
 	settings: { get<T>(key: string): T };
 }
@@ -112,7 +115,12 @@ export class PortForwardsService {
 		if (!cleaned.ok) return cleaned;
 		const all = await this.#deps.repos.portForwards.listAll();
 		if (!all.ok) return all;
+		const workspaces = await this.#deps.repos.workspaces.listAll();
+		if (!workspaces.ok) return workspaces;
 		const byWorkspace: Record<string, PortForwardView> = {};
+		for (const workspace of workspaces.value) {
+			if (workspace.host.kind === "cloud") byWorkspace[workspace.id] = { ...EMPTY_VIEW };
+		}
 		for (const forward of all.value) {
 			const current = byWorkspace[forward.workspaceId] ?? EMPTY_VIEW;
 			byWorkspace[forward.workspaceId] = {
@@ -120,24 +128,15 @@ export class PortForwardsService {
 				forwards: [...current.forwards, viewOf(forward)],
 			};
 		}
-		this.store.setState({ byWorkspace });
-		const flags = await Promise.all(
-			Object.keys(byWorkspace).map(async (workspaceId) => {
-				const read = await this.#deps.repos.portForwards.flags(workspaceId as WorkspaceId);
-				return { workspaceId, flags: read.ok ? read.value : null };
-			}),
-		);
-		for (const entry of flags) {
-			this.store.setState((state) => ({
-				byWorkspace: {
-					...state.byWorkspace,
-					[entry.workspaceId]: viewWith(state.byWorkspace[entry.workspaceId], {
-						forwardingEnabled: entry.flags?.forwardingEnabled ?? false,
-						autoForwardEnabled: entry.flags?.autoForwardEnabled ?? false,
-					}),
-				},
-			}));
+		for (const workspaceId of Object.keys(byWorkspace)) {
+			const flags = await this.#deps.repos.portForwards.flags(workspaceId as WorkspaceId);
+			if (!flags.ok) continue;
+			byWorkspace[workspaceId] = viewWith(byWorkspace[workspaceId], {
+				forwardingEnabled: flags.value.forwardingEnabled,
+				autoForwardEnabled: flags.value.autoForwardEnabled,
+			});
 		}
+		this.store.setState({ byWorkspace });
 		this.#unsubscribeEvents?.();
 		this.#unsubscribeEvents = this.#deps.platform.portForward.onEvent((event) => {
 			for (const [workspaceId, view] of Object.entries(this.store.getState().byWorkspace)) {
@@ -149,6 +148,24 @@ export class PortForwardsService {
 				}
 			}
 		});
+		// The switch survives a restart, so the forwards it left on are started again, as Conductor
+		// does at startup. A workspace whose sandbox or key is unavailable keeps its rows and shows
+		// the error instead of losing the user's forwards.
+		for (const workspace of workspaces.value) {
+			if (workspace.host.kind !== "cloud") continue;
+			if (!this.view(workspace.id).forwardingEnabled) continue;
+			const taken = await this.#taken();
+			if (!taken.ok) continue;
+			for (const forward of this.view(workspace.id).forwards) {
+				if (!forward.enabled) continue;
+				const row = await this.#deps.repos.portForwards.get(forward.id);
+				if (!row.ok || row.value === null) continue;
+				const started = await this.#start(workspace, row.value, taken.value);
+				if (!started.ok) this.#patch(workspace.id, { error: started.error.message });
+				else taken.value.add(started.value.localPort);
+			}
+			this.#startDiscovery(workspace.id);
+		}
 		return ok(undefined);
 	}
 
@@ -220,12 +237,23 @@ export class PortForwardsService {
 			taken,
 		});
 		if (!plan.ok) return plan;
-		return this.#deps.platform.portForward.findAvailableLocalPort({
+		const found = await this.#deps.platform.portForward.findAvailableLocalPort({
 			preferredPort: plan.value.preferredPort,
 			excludedPorts: [...taken],
 			rangeStart: range.start,
 			rangeEnd: range.end,
 		});
+		if (!found.ok) return found;
+		// A manual mapping is fixed: never let the search move it silently.
+		if (plan.value.pinned && found.value !== plan.value.preferredPort) {
+			return err(
+				appError(
+					"port_forward_mapping_taken",
+					`Local port ${plan.value.preferredPort ?? 0} is mapped to remote port ${remotePort} but is already in use`,
+				),
+			);
+		}
+		return ok(found.value);
 	}
 
 	async #start(
@@ -268,43 +296,45 @@ export class PortForwardsService {
 		return err(appError("port_forward_bind_failed", "Failed to bind a local port."));
 	}
 
-	async setForwarding(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
-		return this.#serial(async () => {
-			const workspace = await this.#workspace(workspaceId);
-			if (!workspace.ok) return workspace;
-			if (enabled && this.#deps.settings.get<boolean>("exclusive_port_forwarding_enabled")) {
-				for (const [otherId, view] of Object.entries(this.store.getState().byWorkspace)) {
-					if (otherId === workspaceId || !view.forwardingEnabled) continue;
-					await this.setForwarding(otherId as WorkspaceId, false);
-				}
+	setForwarding(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
+		return this.#serial(() => this.#setForwarding(workspaceId, enabled));
+	}
+
+	async #setForwarding(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
+		const workspace = await this.#workspace(workspaceId);
+		if (!workspace.ok) return workspace;
+		if (enabled && this.#deps.settings.get<boolean>("exclusive_port_forwarding_enabled")) {
+			for (const [otherId, view] of Object.entries(this.store.getState().byWorkspace)) {
+				if (otherId === workspaceId || !view.forwardingEnabled) continue;
+				await this.#setForwarding(otherId as WorkspaceId, false);
 			}
-			const saved = await this.#deps.repos.portForwards.setForwardingEnabled(workspaceId, enabled);
-			if (!saved.ok) return saved;
-			this.#patch(workspaceId, { forwardingEnabled: enabled, error: null });
-			if (!enabled) {
-				await this.#stopAll(workspaceId);
-				this.#stopDiscovery(workspaceId);
-				this.#patch(workspaceId, { waiting: false });
-				return ok(undefined);
-			}
-			const taken = await this.#taken();
-			if (!taken.ok) return taken;
-			const view = this.view(workspaceId);
-			for (const forward of view.forwards) {
-				if (!forward.enabled) continue;
-				const row = await this.#deps.repos.portForwards.get(forward.id);
-				if (!row.ok || row.value === null) continue;
-				const started = await this.#start(workspace.value, row.value, taken.value);
-				if (!started.ok) {
-					this.#patch(workspaceId, { error: started.error.message });
-					continue;
-				}
-				taken.value.add(started.value.localPort);
-			}
-			this.#patch(workspaceId, { waiting: view.detectedPorts.length === 0 });
-			this.#startDiscovery(workspaceId);
+		}
+		const saved = await this.#deps.repos.portForwards.setForwardingEnabled(workspaceId, enabled);
+		if (!saved.ok) return saved;
+		this.#patch(workspaceId, { forwardingEnabled: enabled, error: null });
+		if (!enabled) {
+			await this.#stopAll(workspaceId);
+			this.#stopDiscovery(workspaceId);
+			this.#patch(workspaceId, { waiting: false });
 			return ok(undefined);
-		});
+		}
+		const taken = await this.#taken();
+		if (!taken.ok) return taken;
+		const view = this.view(workspaceId);
+		for (const forward of view.forwards) {
+			if (!forward.enabled) continue;
+			const row = await this.#deps.repos.portForwards.get(forward.id);
+			if (!row.ok || row.value === null) continue;
+			const started = await this.#start(workspace.value, row.value, taken.value);
+			if (!started.ok) {
+				this.#patch(workspaceId, { error: started.error.message });
+				continue;
+			}
+			taken.value.add(started.value.localPort);
+		}
+		this.#patch(workspaceId, { waiting: view.detectedPorts.length === 0 });
+		this.#startDiscovery(workspaceId);
+		return ok(undefined);
 	}
 
 	async setAutoForward(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {

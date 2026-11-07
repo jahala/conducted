@@ -366,11 +366,20 @@ pub async fn list_port_forwards(
 /// Stops one forward. A forward that is already gone succeeds.
 #[tauri::command]
 pub async fn stop_port_forward(
+    app: AppHandle,
     state: State<'_, PortForwardState>,
     forward_id: String,
 ) -> CommandResult<()> {
     if let Some(running) = lock(&state.forwards).remove(&forward_id) {
         running.task.abort();
+        let _ = app.emit(
+            EVENT,
+            PortForwardEvent {
+                forward_id,
+                kind: "stopped",
+                message: None,
+            },
+        );
     }
     Ok(())
 }

@@ -227,7 +227,7 @@ export function WorkspaceRow({
 							{workspaceName(workspace, branchPrefix)}
 						</span>
 						<span className="flex-1" />
-						{forwarding.forwardingEnabled && forwarding.forwards.length > 0 ? (
+						{forwarding.forwardingEnabled ? (
 							<span
 								role="img"
 								aria-label="Forwarding ports"
