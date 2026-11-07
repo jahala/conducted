@@ -12,8 +12,10 @@
  * points at a path of their own is shown as theirs and never downloaded over; a message to Claude
  * or Codex while its managed copy is still being made ready waits, unless the user chose a
  * program of their own (`holdsSend`; the container holds the follow-up queue with it); gh and
- * watchexec are managed too but stay off the agent programs list (PLAT-35); Cursor's SDK is on
- * that list and holds a send to Cursor while it installs (AGENT-09); copying an image
+ * watchexec are listed under Helpers, apart from the agent programs (PLAT-35); Cursor's SDK is on
+ * the agent list and holds a send to Cursor while it installs (AGENT-09); a program with no
+ * managed copy and no chosen path is an error that names it and points to Retry, never a PATH
+ * copy (`programPath`, D088); copying an image
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
  * the project's issue page with the text filled in, adding recent logs only when the user asks;
@@ -27,8 +29,8 @@
  * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, opening the
  * sidecar and app logs, copying, saving and opening an attachment in its own app (CHAT-29), and
  * sending feedback (APP-09).
- * Our design choice: a copy that failed or is missing does not hold a message, so a copy on the
- * user's PATH runs instead (D021). Conductor holds until the copy is ready.
+ * Our design choice: a copy that failed or is missing does not hold a message; the send fails
+ * with the program's own named error instead of a copy on the user's PATH (D088).
  * Test first: install while a download of the same program runs starts no second download.
  *
  * @feature APP-09 Send feedback
@@ -79,7 +81,10 @@ import { isImagePath } from "../media-files.ts";
 import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
 
 export interface SystemState {
+	/** The agent programs: Claude Code, Codex and Cursor's SDK. */
 	programs: Loadable<AgentProgramView[]>;
+	/** The helper programs the app downloads for its own commands: gh and watchexec. */
+	helpers: Loadable<AgentProgramView[]>;
 	/**
 	 * The last time the chosen program paths could not be staged (SET-13). `serial` grows with
 	 * each failure, so the notice shows again for the next terminal or script. Null once staging
@@ -105,6 +110,18 @@ export interface SystemServiceDeps {
  * installs only from there, because it is never bundled (AGENT-09, D083).
  */
 const AGENT_PROGRAMS: readonly ManagedProgram[] = ["claude", "codex", "cursor"];
+
+/** The helper programs the app downloads for its own commands and lists under Helpers. */
+const HELPER_PROGRAMS: readonly ManagedProgram[] = ["gh", "watchexec"];
+
+/** The names the program list and the program errors show. */
+export const PROGRAM_DISPLAY_NAMES: Readonly<Record<ManagedProgram, string>> = {
+	claude: "Claude Code",
+	codex: "Codex",
+	gh: "GitHub CLI (gh)",
+	watchexec: "watchexec",
+	cursor: "Cursor SDK",
+};
 
 /** The states in which the program manager is still getting a program ready. */
 const PREPARING: ReadonlySet<ProgramState> = new Set([
@@ -166,6 +183,7 @@ export class SystemService {
 		this.#deps = deps;
 		this.store = createStore<SystemState>(() => ({
 			programs: { state: "loading" },
+			helpers: { state: "loading" },
 			pathOverrideProblem: null,
 		}));
 	}
@@ -189,7 +207,10 @@ export class SystemService {
 		const loaded = await this.#deps.platform.programs.statuses();
 		if (!loaded.ok) {
 			if (this.#statusSerial === serial) {
-				this.store.setState({ programs: { state: "error", error: loaded.error } });
+				this.store.setState({
+					programs: { state: "error", error: loaded.error },
+					helpers: { state: "error", error: loaded.error },
+				});
 			}
 			return loaded;
 		}
@@ -204,14 +225,48 @@ export class SystemService {
 	/**
 	 * True while a message to `agent` must wait (services-map 5A.8.1): the program manager is still
 	 * getting the agent's managed copy ready and the user chose no program of their own. A copy
-	 * that failed or is missing does not hold a message, so a copy on the user's PATH can run
-	 * instead (D021).
+	 * that failed or is missing does not hold a message: the send then fails with the program's
+	 * own error, never a copy on the user's PATH (D088).
 	 */
 	holdsSend(agent: AgentKind): boolean {
 		if (agent !== "claude" && agent !== "codex" && agent !== "cursor") return false;
 		if (this.#userPath(agent) !== null) return false;
 		const status = this.#statuses.get(agent);
 		return status !== undefined && PREPARING.has(status.state);
+	}
+
+	/**
+	 * The path the app runs for `program`: the program the user chose for Claude Code or Codex,
+	 * else the program manager's own copy. A program with neither is an error that names it and
+	 * points to the Retry in Settings > Advanced. The app never falls back to a copy on PATH
+	 * (D088).
+	 */
+	async programPath(program: ManagedProgram): Promise<Result<string>> {
+		const started = await this.start();
+		if (!started.ok) return started;
+		const chosen = this.#userPath(program);
+		if (chosen !== null) return ok(chosen);
+		const status = this.#statuses.get(program);
+		if (status !== undefined && status.state === "ready" && status.path !== null) {
+			// The bin link is the program manager's record that the copy is ready. Checking it as
+			// well means a link that went missing behind the app's back is an error, not a reason
+			// to run another copy on PATH (D088). Cursor's SDK is not a program on PATH, so its
+			// link sits beside its versions and the status is enough.
+			const link =
+				program === "cursor" ? null : `${programsBinDir(this.#deps.platform.fs.paths)}/${program}`;
+			if (link === null || (await this.#deps.platform.fs.exists(link))) return ok(status.path);
+		}
+		const failure =
+			status !== undefined && status.state === "failed" && status.error !== null
+				? ` ${status.error}`
+				: "";
+		const canChoose = PROGRAM_PATH_SETTING[program] !== undefined;
+		return err(
+			appError(
+				"program_not_installed",
+				`${PROGRAM_DISPLAY_NAMES[program]} is not installed.${failure} Retry its download in Settings > Advanced.${canChoose ? " You can also choose its program in Settings." : ""}`,
+			),
+		);
 	}
 
 	/** Backs `Actions.programs.install`, also the Retry after a failure. */
@@ -291,14 +346,18 @@ export class SystemService {
 	}
 
 	#publish(): void {
-		const views: AgentProgramView[] = [...this.#statuses.values()]
-			.filter((status) => AGENT_PROGRAMS.includes(status.program))
-			.map((status) => ({
-				status,
-				userPath: this.#userPath(status.program),
-			}))
-			.sort((left, right) => orderOf(left.status.program) - orderOf(right.status.program));
-		this.store.setState({ programs: { state: "ready", data: views } });
+		const viewsOf = (programs: readonly ManagedProgram[]): AgentProgramView[] =>
+			[...this.#statuses.values()]
+				.filter((status) => programs.includes(status.program))
+				.map((status) => ({
+					status,
+					userPath: this.#userPath(status.program),
+				}))
+				.sort((left, right) => orderOf(left.status.program) - orderOf(right.status.program));
+		this.store.setState({
+			programs: { state: "ready", data: viewsOf(AGENT_PROGRAMS) },
+			helpers: { state: "ready", data: viewsOf(HELPER_PROGRAMS) },
+		});
 	}
 
 	#userPath(program: ManagedProgram): string | null {

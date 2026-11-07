@@ -22,7 +22,7 @@ describe("PLAT-35 managed helper programs in the system service", () => {
 		}
 	});
 
-	it("keeps gh and watchexec out of the agent programs the Advanced page lists", async () => {
+	it("keeps gh and watchexec off the agent programs list and on the helpers list", async () => {
 		const test = createTestContainer();
 		try {
 			expect((await test.container.services.system.start()).ok).toBe(true);
@@ -34,6 +34,10 @@ describe("PLAT-35 managed helper programs in the system service", () => {
 			expect(programs.state).toBe("ready");
 			if (programs.state !== "ready") return;
 			expect(programs.data.map((view) => view.status.program)).toEqual(["codex"]);
+			const helpers = test.container.services.system.store.getState().helpers;
+			expect(helpers.state).toBe("ready");
+			if (helpers.state !== "ready") return;
+			expect(helpers.data.map((view) => view.status.program)).toEqual(["gh", "watchexec"]);
 		} finally {
 			test.close();
 		}

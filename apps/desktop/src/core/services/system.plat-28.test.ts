@@ -185,6 +185,107 @@ describe("PLAT-28 SystemService programs", () => {
 	});
 });
 
+describe("D088 the program path the app runs", () => {
+	it("returns the program manager's copy for a ready program", async () => {
+		const test = createTestContainer();
+		try {
+			const path = `${test.memory.platform.fs.paths.appData}/bin/gh`;
+
+			expect(await test.container.services.system.programPath("gh")).toEqual(ok(path));
+		} finally {
+			test.close();
+		}
+	});
+
+	it("returns the user's chosen path for an agent, even after a failed download", async () => {
+		const test = createTestContainer();
+		try {
+			test.memory.controls.setProgramStatus({
+				program: "claude",
+				state: "failed",
+				version: null,
+				bytesDownloaded: 0,
+				bytesTotal: null,
+				attempt: 1,
+				nextAttemptAt: null,
+				error: "The download was cut off.",
+				path: null,
+			});
+			const service = new SystemService({
+				platform: test.container.platform,
+				setting: <T>(key: string) => (key === "claude_executable_path" ? "/opt/claude" : "") as T,
+				now: () => 0,
+			});
+
+			expect(await service.programPath("claude")).toEqual(ok("/opt/claude"));
+			service.dispose();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("names a failed program, shows its error and points to Retry instead of a PATH copy", async () => {
+		const test = createTestContainer();
+		try {
+			test.memory.controls.setProgramStatus({
+				program: "gh",
+				state: "failed",
+				version: null,
+				bytesDownloaded: 0,
+				bytesTotal: null,
+				attempt: 5,
+				nextAttemptAt: null,
+				error: "The download was cut off.",
+				path: null,
+			});
+
+			const result = await test.container.services.system.programPath("gh");
+
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.error.code).toBe("program_not_installed");
+			expect(result.error.message).toContain("GitHub CLI (gh)");
+			expect(result.error.message).toContain("The download was cut off.");
+			expect(result.error.message).toContain("Retry");
+		} finally {
+			test.close();
+		}
+	});
+
+	it("treats a missing bin link as not installed, so the shell never finds another copy", async () => {
+		const test = createTestContainer();
+		try {
+			test.memory.controls.files.delete(`${test.memory.platform.fs.paths.appData}/bin/gh`);
+
+			const result = await test.container.services.system.programPath("gh");
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.error.code).toBe("program_not_installed");
+				expect(result.error.message).toContain("Retry");
+			}
+		} finally {
+			test.close();
+		}
+	});
+
+	it("keeps gh and watchexec in the helper list, apart from the agent programs", async () => {
+		const test = createTestContainer();
+		try {
+			expect((await test.container.services.system.start()).ok).toBe(true);
+
+			const state = test.container.services.system.store.getState();
+			expect(state.programs.state).toBe("ready");
+			expect(state.helpers.state).toBe("ready");
+			if (state.helpers.state !== "ready" || state.programs.state !== "ready") return;
+			expect(state.helpers.data.map((view) => view.status.program)).toEqual(["gh", "watchexec"]);
+			expect(state.programs.data).toEqual([]);
+		} finally {
+			test.close();
+		}
+	});
+});
+
 describe("PLAT-28 send gate", () => {
 	const status = (
 		program: ProgramStatus["program"],
