@@ -38,8 +38,10 @@ function resultMessage(options: {
 	uuids?: string[];
 	numTurns?: number;
 	isError?: boolean;
+	origin?: { kind: string };
 }): SDKMessage {
 	return {
+		...(options.origin === undefined ? {} : { origin: options.origin }),
 		type: "result",
 		subtype: "success",
 		is_error: options.isError ?? false,
@@ -122,6 +124,38 @@ describe("AGENT-02 turn tracker", () => {
 		);
 		expect(decision.action).toBe("forward_and_settle");
 		expect(outcomes).toHaveLength(1);
+	});
+
+	test("a result without user_message_uuid, as older CLIs send, settles the turn", () => {
+		const { tracker, outcomes, scheduler } = makeTracker();
+		tracker.expectTurn("ours");
+
+		const decision = tracker.onSdkMessage(resultMessage({}));
+		expect(decision).toEqual({ action: "forward_and_settle", outcome: { kind: "success" } });
+		expect(outcomes).toEqual([{ kind: "success" }]);
+		expect(scheduler.pending()).toBe(0);
+	});
+
+	test("a result without user_message_uuid from a task notification does not settle the turn", () => {
+		const { tracker, outcomes, scheduler } = makeTracker();
+		tracker.expectTurn("ours");
+
+		const decision = tracker.onSdkMessage(resultMessage({ origin: { kind: "task-notification" } }));
+		expect(decision.action).toBe("forward");
+		expect(outcomes).toEqual([]);
+		expect(scheduler.pending()).toBe(1);
+
+		scheduler.fire(SETTLEMENT_WATCHDOG_MS);
+		expect(outcomes).toEqual([{ kind: "success" }]);
+	});
+
+	test("a result without user_message_uuid while a steer is unread is held back", () => {
+		const { tracker, receipts, outcomes } = makeTracker();
+		tracker.expectTurn("ours");
+		void receipts.register("steer");
+
+		expect(tracker.onSdkMessage(resultMessage({})).action).toBe("hold_back");
+		expect(outcomes).toEqual([]);
 	});
 
 	test("a mini result from a background task ends no turn", () => {

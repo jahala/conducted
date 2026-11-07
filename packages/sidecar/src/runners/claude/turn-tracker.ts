@@ -11,6 +11,8 @@
  * Must handle:
  *  - a result whose uuid we pushed: ends the turn when no steer is unread
  *  - a foreign result: forwarded as usage, does not end the turn, arms the watchdog
+ *  - a result that names no uuid (older CLIs): ends the turn, unless its origin is a task
+ *    notification, which makes it foreign
  *  - a "mini result" from a background-task notification (num_turns 0): never a boundary
  *  - a result while steers are unread: held back, watchdog armed, the next result decides
  *  - the CLI reports running again: the watchdog is disarmed
@@ -81,7 +83,7 @@ export class ClaudeTurnTracker {
 		if (!this.open) return { action: "forward" };
 		// A background-task notification ends no turn.
 		if (message.num_turns === 0) return { action: "forward" };
-		if (!uuids.some((uuid) => this.awaited.has(uuid))) {
+		if (!answersOurTurn(message, uuids, this.awaited)) {
 			// A foreign result, for example a turn the CLI ran for a background task.
 			this.armWatchdog();
 			return { action: "forward" };
@@ -150,6 +152,20 @@ export class ClaudeTurnTracker {
 		this.disarmWatchdog = null;
 		cancel();
 	}
+}
+
+/**
+ * Whether a result belongs to the open turn. A result that names a uuid answers our turn when it
+ * names one we pushed. Older CLIs name none; such a result ends our turn unless its origin says
+ * the CLI ran it for a task notification, as Conductor decides.
+ */
+function answersOurTurn(
+	message: SDKResultMessage,
+	uuids: readonly string[],
+	awaited: ReadonlySet<string>,
+): boolean {
+	if (uuids.length === 0) return message.origin?.kind !== "task-notification";
+	return uuids.some((uuid) => awaited.has(uuid));
 }
 
 /** Every uuid a result says it answered. Older CLIs send only the last one. */
