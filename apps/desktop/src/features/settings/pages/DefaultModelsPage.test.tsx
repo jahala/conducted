@@ -263,6 +263,42 @@ describe("SET-02 DefaultModelsPage", () => {
 		expect(keys).not.toContain("review_fast_mode");
 	});
 
+	it("lists every agent's models, and stores the chosen agent with its model", async () => {
+		const { container } = await renderPage();
+		const row = document.querySelector('[data-setting-key="review_model"]');
+		if (!(row instanceof HTMLElement)) throw new Error("no Review model row");
+		// An empty review model is the default model, so the picker names it.
+		const trigger = within(row).getByRole("button", { name: /Review model: Fast model/ });
+
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		// Codex's model is offered beside Claude Code's, under its agent's name.
+		const menu = await screen.findByRole("menu", { name: "Review model" });
+		expect(within(menu).getByText("Codex")).toBeTruthy();
+		fireEvent.click(within(menu).getByRole("menuitemradio", { name: "GPT" }));
+		await waitFor(() => {
+			const values = container.services.settings.store.getState().values;
+			expect(values.review_agent).toBe("codex");
+			expect(values.review_model).toBe("gpt");
+		});
+
+		// The effort follows the chosen agent, so Codex's thinking level is stored.
+		fireEvent.keyDown(within(row).getByRole("button", { name: /Review model: GPT/ }), {
+			key: "Enter",
+		});
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Low" }));
+		await waitFor(() =>
+			expect(container.services.settings.store.getState().values.review_codex_thinking_level).toBe(
+				"low",
+			),
+		);
+		// The agent and its effort have no rows of their own.
+		const keys = [...document.querySelectorAll("[data-setting-key]")].map((entry) =>
+			entry.getAttribute("data-setting-key"),
+		);
+		expect(keys).not.toContain("review_agent");
+		expect(keys).not.toContain("review_codex_thinking_level");
+	});
+
 	it("asks for the agent list when nothing has read it yet, as the Agents page does", async () => {
 		const { container } = await renderPage();
 		const refresh = vi.spyOn(container.actions.agents, "refresh");

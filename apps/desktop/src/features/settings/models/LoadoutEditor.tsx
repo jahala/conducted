@@ -26,12 +26,12 @@
  * Test first: Enter on a model row puts it in the next empty slot.
  */
 import type { ModelInfo } from "@conducted/protocol";
-import type { AcpAgent, AgentKind, Result } from "@conducted/shared";
+import type { Result } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useAgentInstalls, useModels } from "../../../core/hooks.ts";
-import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
+import { AGENT_CHOICES, agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import type { FavoriteModel } from "../../../core/services/favorite-models.ts";
 import { LOADOUT_SIZE } from "../../../core/services/favorite-models.ts";
 import { cn } from "../../../ui/cn.ts";
@@ -54,19 +54,7 @@ import { useSettingSaves } from "../SettingRow.tsx";
 
 type Choice = FavoriteModel["config"];
 
-interface AgentColumnSpec {
-	agent: AgentKind;
-	acpAgent?: AcpAgent;
-}
-
-/** Conductor's columns, then Pi, our own ACP agent. */
-const COLUMNS: readonly AgentColumnSpec[] = [
-	{ agent: "claude" },
-	{ agent: "codex" },
-	{ agent: "cursor" },
-	{ agent: "acp", acpAgent: "opencode" },
-	{ agent: "acp", acpAgent: "pi" },
-];
+type AgentColumnSpec = (typeof AGENT_CHOICES)[number];
 
 const MODEL_MIME = "application/x-conducted-loadout-model";
 const SLOT_MIME = "application/x-conducted-loadout-slot";
@@ -243,7 +231,7 @@ export function LoadoutEditor() {
 				})}
 			</ul>
 			<div className="mt-10 grid grid-cols-5 border-t border-l border-border">
-				{COLUMNS.map((spec) => (
+				{AGENT_CHOICES.map((spec) => (
 					<AgentColumn
 						key={`${spec.agent}:${spec.acpAgent ?? ""}`}
 						spec={spec}
@@ -359,8 +347,50 @@ function SlotCard({
 }
 
 /**
- * The choices of one model setting, shared by a loadout slot and the Review model picker: the
- * model among `models`, its effort or thinking level, and fast mode where the model has it.
+ * The effort or thinking level of one model, and its fast mode where it has one. Shared by a
+ * loadout slot and the Review model picker, which lists several agents' models above it.
+ */
+export function ModelEffortItems({
+	model,
+	choice,
+	onChange,
+}: {
+	model: ModelInfo;
+	choice: Choice;
+	onChange: (choice: Choice) => void;
+}) {
+	const change = (patch: Partial<Choice>) => onChange({ ...choice, ...patch });
+	return (
+		<>
+			<MenuSeparator />
+			<MenuLabel>{model.effortAxis === "thinking" ? "Thinking" : "Effort"}</MenuLabel>
+			<MenuRadioGroup value={choice.effort}>
+				{model.efforts.map((level) => (
+					<MenuRadioItem key={level} value={level} onSelect={() => change({ effort: level })}>
+						{model.effortLabels?.[level] ?? EFFORT_LABELS[level]}
+					</MenuRadioItem>
+				))}
+			</MenuRadioGroup>
+			<MenuSeparator />
+			<MenuCheckboxItem
+				checked={choice.fastMode}
+				disabled={!model.supportsFastMode}
+				onCheckedChange={(checked) => change({ fastMode: checked === true })}
+			>
+				Fast mode
+			</MenuCheckboxItem>
+			{model.supportsFastMode ? null : (
+				<p className="px-2 pb-1.5 text-xs text-fg-muted">
+					The chosen model does not support fast mode.
+				</p>
+			)}
+		</>
+	);
+}
+
+/**
+ * The choices of one model setting, shared by a loadout slot: the model among `models`, its
+ * effort or thinking level, and fast mode where the model has it.
  */
 export function ModelChoiceItems({
 	models,
@@ -396,30 +426,7 @@ export function ModelChoiceItems({
 					))}
 			</MenuRadioGroup>
 			{model === undefined ? null : (
-				<>
-					<MenuSeparator />
-					<MenuLabel>{model.effortAxis === "thinking" ? "Thinking" : "Effort"}</MenuLabel>
-					<MenuRadioGroup value={choice.effort}>
-						{model.efforts.map((level) => (
-							<MenuRadioItem key={level} value={level} onSelect={() => change({ effort: level })}>
-								{model.effortLabels?.[level] ?? EFFORT_LABELS[level]}
-							</MenuRadioItem>
-						))}
-					</MenuRadioGroup>
-					<MenuSeparator />
-					<MenuCheckboxItem
-						checked={choice.fastMode}
-						disabled={!model.supportsFastMode}
-						onCheckedChange={(checked) => change({ fastMode: checked === true })}
-					>
-						Fast mode
-					</MenuCheckboxItem>
-					{model.supportsFastMode ? null : (
-						<p className="px-2 pb-1.5 text-xs text-fg-muted">
-							The chosen model does not support fast mode.
-						</p>
-					)}
-				</>
+				<ModelEffortItems model={model} choice={choice} onChange={onChange} />
 			)}
 		</>
 	);

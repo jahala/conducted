@@ -118,8 +118,8 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - The plan file link: at the start of the plan bar's one row, before "Sending to"; Conductor's bar has only its controls and shows the plan in the chat's plan card.
 - The chat history's search field: at the top of Conductor's closed-chats popover, for a workspace with many closed chats.
 - The Loadout slot's choices (model, effort, fast mode, Remove): a menu on the slot, where Conductor opens its chat-bound model picker; the first slot takes Claude Code models only, since new chats start with Claude Code. Pi's models: a column after OpenCode.
-- Review model: Conductor's picker, holding the review effort and fast mode, lists Claude Code's models only, since a review chat starts from the default chat config, whose agent is Claude Code.
-- The Default models rows Conductor keeps inside its pickers and ours cannot reach: the Codex thinking level for reviews right after Review model, the default Codex thinking level after Codex personality, and "Models shown in the picker" last.
+- Review model: Conductor's picker, holding the review agent, effort and fast mode for every agent's models under the agent's name. The agent is stored beside the model, since our model ids do not carry it; Claude and Codex keep their own review effort settings and Cursor and the ACP agents share one.
+- The Default models rows Conductor keeps inside its pickers and ours cannot reach: the default Codex thinking level after Codex personality, and "Models shown in the picker" last. The Codex thinking level for reviews is inside Review model, as in Conductor.
 - "Clear" for a shortcut: a ghost button after Reset on the Keyboard shortcuts row, since Conductor's row has no way to unbind a shortcut.
 - Importing a dotenv file into the variables: a banner above the Environment table. Conductor's env files load their variables when an agent starts; ours are a list to import from, so the import needs its own control.
 - Removing a variable asks first ("Remove variable?"), since its value leaves the Keychain for good; Conductor's Delete removes it at once.

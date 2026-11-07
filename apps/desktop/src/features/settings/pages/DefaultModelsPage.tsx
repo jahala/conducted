@@ -8,12 +8,11 @@
  * The loadout's first slot is the default model: its model, effort and fast mode are the settings
  * `default_model`, `default_claude_effort_level` and `default_fast_mode`, so they have no rows of
  * their own, as in Conductor, where they live in the slot's picker.
- * Review model is Conductor's picker, which holds the review effort and fast mode
- * (models/ReviewModelPicker.tsx).
+ * Review model is Conductor's picker, which holds the review agent, effort and fast mode for every
+ * agent (models/ReviewModelPicker.tsx).
  * Our design choice (D098, ours placed in Conductor's layout): the rows Conductor keeps inside its
- * pickers and ours cannot reach sit beside the row they belong to. The Codex thinking level for
- * reviews follows Review model; the default Codex thinking level follows Codex personality;
- * "Models shown in the picker" comes last.
+ * pickers and ours cannot reach sit beside the row they belong to. The default Codex thinking level
+ * follows Codex personality; "Models shown in the picker" comes last.
  * Data: LoadoutEditor (the loadout and the agents' models); registry rows for the rest, in the
  * registry's order for this page, which follows the list above.
  * Must handle: the settings store loading or failing (the shared frame); an agent that is not

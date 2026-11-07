@@ -659,6 +659,47 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
+	// Our design choice: our model ids do not carry their agent (Conductor infers it from the
+	// model), so the review picker stores the agent beside the model. Empty keeps the default
+	// chat's agent.
+	{
+		key: "review_agent",
+		page: "models",
+		scopes: ["user"],
+		title: "Review agent",
+		description: "Agent that runs AI code review chats. Empty uses the default chat's agent.",
+		pageDescription: false,
+		searchTerms: ["agent", "review", "model"],
+		feature: "REV-05",
+		type: "string",
+		default: "",
+	},
+	// Our design choice: Conductor keeps a model's effort per model. Without that store, a review
+	// effort for an agent with no review setting of its own (Cursor, ACP) goes here.
+	{
+		key: "review_effort",
+		page: "models",
+		scopes: ["user"],
+		title: "Effort level for reviews",
+		description:
+			"How hard agents without their own review effort setting think during AI code reviews.",
+		pageDescription: false,
+		searchTerms: ["effort", "thinking", "review"],
+		feature: "REV-05",
+		type: "enum",
+		default: "",
+		options: [
+			{ value: "", label: "Default chat's effort" },
+			{ value: "none", label: "None" },
+			{ value: "low", label: "Low" },
+			{ value: "medium", label: "Medium" },
+			{ value: "high", label: "High" },
+			{ value: "xhigh", label: "Extra high" },
+			{ value: "max", label: "Max" },
+			{ value: "ultra", label: "Ultra" },
+			{ value: "ultracode", label: "Ultracode" },
+		],
+	},
 	// Our design choice: off, as the research gives no default.
 	{
 		key: "default_plan_mode",
