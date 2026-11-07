@@ -48,6 +48,20 @@ describe("SET-02 GeneralPage", () => {
 		expect(screen.queryByText(/Let you drag workspaces/)).toBeNull();
 	});
 
+	it("names the completion sound as Conductor does: Chime", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+
+		const sound = await screen.findByRole("combobox", { name: "Completion sound" });
+		expect(sound.textContent).toContain("Chime");
+		expect(sound.textContent).not.toContain("Default chime");
+	});
+
 	it("shows the failure under the row when a save fails", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();

@@ -12,35 +12,27 @@
  * pickers sit beside the row they belong to. The review effort, thinking and fast mode follow Review
  * model; the default Codex thinking level follows Codex personality; "Models shown in the picker"
  * comes last.
- * Data: LoadoutEditor (the loadout and the agents' models); registry rows for the rest.
+ * Data: LoadoutEditor (the loadout and the agents' models); registry rows for the rest, in the
+ * registry's order for this page, which follows the list above.
  * Must handle: the settings store loading or failing (the shared frame); an agent that is not
  * installed (its column offers Configure); a chosen model without fast mode (the slot says so).
  * Test first: Enter on a model row puts it into the next empty loadout slot.
  */
 
 import { LoadoutEditor } from "../models/LoadoutEditor.tsx";
-import { RegistrySettingRowByKey } from "../SettingRow.tsx";
+import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
-/** The rows after the Loadout, in Conductor's order with ours beside the row they belong to. */
-const ROWS: readonly string[] = [
-	"default_codex_personality",
-	"default_codex_thinking_level",
-	"default_claude_personality",
-	"review_model",
-	"review_claude_effort_level",
-	"review_codex_thinking_level",
-	"review_fast_mode",
-	"default_plan_mode",
-	"visible_provider_models",
+/** The default model's settings, which the Loadout's first slot edits. */
+const LOADOUT_DEFAULT_KEYS: readonly string[] = [
+	"default_model",
+	"default_fast_mode",
+	"default_claude_effort_level",
 ];
 
 export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
-	const loadoutFocused =
-		focusSettingKey === "default_model" ||
-		focusSettingKey === "default_fast_mode" ||
-		focusSettingKey === "default_claude_effort_level";
+	const loadoutFocused = focusSettingKey !== null && LOADOUT_DEFAULT_KEYS.includes(focusSettingKey);
 
 	return (
 		<SettingsPageFrame
@@ -64,9 +56,12 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 				</div>
 				<LoadoutEditor />
 			</section>
-			{ROWS.map((key) => (
-				<RegistrySettingRowByKey key={key} settingKey={key} focusSettingKey={focusSettingKey} />
-			))}
+			{/* The registry lists the models page in this order (core/registries/settings.ts). */}
+			<RegistrySettingRows
+				page="models"
+				focusSettingKey={focusSettingKey}
+				exclude={LOADOUT_DEFAULT_KEYS}
+			/>
 		</SettingsPageFrame>
 	);
 }
