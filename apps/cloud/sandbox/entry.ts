@@ -4,7 +4,7 @@
  * Owns: the container's main process. It sets the sidecar's folders and the sandbox flag, starts
  * the compiled sidecar, reads its `SOCKET_PATH=` handshake, and relays each WebSocket on the
  * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens. It also reads
- * each relayed sidecar line for the turn end and asks the Worker to save the workspace (D104).
+ * each relayed sidecar line for the turn end and asks the Worker to save the workspace (D105).
  * Behaviour: cloud-and-remote.md Part 1 ("The sidecar runs inside the sandbox unchanged") and the
  * CLOUD-02 spike's bridge, which showed the same relay working in a Cloudflare sandbox
  * (cloud-spike-2026-11-06.md); claude-runner.md 1.3 says a cloud sandbox adds

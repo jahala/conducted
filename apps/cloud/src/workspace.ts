@@ -19,7 +19,7 @@
  * Our design choice: turn state comes from the relay itself, not a second signalling channel: a
  * `sendMessage` request starts a turn and the sidecar's `liveState` notification ends it. The
  * spike named this gap and left it open. The sandbox entry sees the same notification and asks for
- * the backup over an internal hostname (D104).
+ * the backup over an internal hostname (D105).
  * Our design choice: a cloud "trash" removes the file, because a sandbox has no macOS Trash.
  * Test first: a stopped sandbox saves no backup and is not started.
  */
@@ -183,7 +183,7 @@ export class Workspace extends DurableObject<Env> {
 		if (!container.running) {
 			const env: Record<string, string> = { ...CONTAINER_ENV };
 			const name = this.ctx.id.name;
-			// The callback the entry calls when the last running chat goes idle (D104).
+			// The callback the entry calls when the last running chat goes idle (D105).
 			if (name !== undefined) env.CONDUCTED_TURN_END_URL = turnEndUrl(name);
 			container.start({
 				image: container.images.sandbox,

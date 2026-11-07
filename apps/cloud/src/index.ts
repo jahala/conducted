@@ -6,7 +6,7 @@
  * outbound handler also carries the sandbox entry's turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
  * HTTPS and one WebSocket; the Worker authenticates, routes and swaps the model key outside the
- * sandbox) and D104 (the entry asks for a backup over an internal hostname). Route list and
+ * sandbox) and D105 (the entry asks for a backup over an internal hostname). Route list and
  * measurements: docs/research/cloud-spike-2026-11-06.md.
  * Must handle: 401 before any Durable Object for a missing or wrong token; 404 for an unknown
  * route; 400 for a bad workspace name or body; 405 for the wrong method; 426 for a non-WebSocket

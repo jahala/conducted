@@ -3,7 +3,7 @@
  * Owns: the container entry's turn-end hook: it follows the chats a relayed `liveState` line says
  * are working and reports the moment the last of them goes idle.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 ("Keeping work": the backup must run at each
- * turn end) and D104 (the entry reports the turn end to the Worker over an internal hostname).
+ * turn end) and D105 (the entry reports the turn end to the Worker over an internal hostname).
  * Must handle: several chats running in one sandbox (the backup waits for the last one); an idle
  * line for a chat this connection never saw working; a disconnect, which forgets the chats that
  * connection reported.

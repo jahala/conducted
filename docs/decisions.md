@@ -516,7 +516,7 @@ Chosen:
 Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
 Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.
 
-## D104. A cloud workspace saves its work to R2 at each turn end and restores it when it starts (2026-11-07)
+## D105. A cloud workspace saves its work to R2 at each turn end and restores it when it starts (2026-11-07)
 
 Context: the CLOUD-02 spike proved that the sandbox disk is wiped when it stops, and that an R2 directory backup of `/workspace` and `/root/.claude`, taken explicitly before a restart, brought back the uncommitted work and the transcript Claude resumed (`docs/research/cloud-spike-2026-11-06.md`, criterion 4). It also named two gaps: the backup must run at every turn end, and the Durable Object must learn about a turn end from the sandbox rather than only from a connected desktop. CLOUD-06 builds those parts.
 Chosen:

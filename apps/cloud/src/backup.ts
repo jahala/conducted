@@ -14,7 +14,7 @@
  * that fails leaves the error with the caller instead of pretending the work came back.
  * Our design choice: the turn-end signal is the relay's `liveState: idle`, the same signal D101
  * uses for the keep-alive alarm, and the sandbox entry reports it to the Worker over an internal
- * hostname (D104). The spike named this signal as missing and did not build it.
+ * hostname (D105). The spike named this signal as missing and did not build it.
  * Our design choice: `/workspace` is saved whole, with no gitignore exclude, because a restart has
  * no setup rerun yet: an installed dependency has to survive with the work that needs it.
  * Test first: a backup replaces the previous record for its directory and deletes the old object.

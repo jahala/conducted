@@ -224,7 +224,7 @@ Built `apps/cloud/sandbox/Dockerfile` on this Mac with `nice -n 10 docker build 
 
 ## Follow-up: keep work across restarts (CLOUD-06, 2026-11-07)
 
-Built the parts the spike's criterion 4 said the product needs: an R2 `DirectoryBackup` of `/workspace`, the agents' transcript folders and a restore when a stopped sandbox starts, driven by the turn-end signal the entry reads from the relay (D104). Run on the owner's account with the product image, one `basic` instance, Worker `conducted-dev-c06-131323`.
+Built the parts the spike's criterion 4 said the product needs: an R2 `DirectoryBackup` of `/workspace`, the agents' transcript folders and a restore when a stopped sandbox starts, driven by the turn-end signal the entry reads from the relay (D105). Run on the owner's account with the product image, one `basic` instance, Worker `conducted-dev-c06-131323`.
 
 - **Cold start after the deploy:** `POST /w/c06-live/start` took **10.1 s** round trip; the Worker reported `readyMs` **9,333 ms**, with the sidecar ready **818 ms** after the entry started.
 - **A successful Claude turn:** 7 session events, idle **7.3 s** after the send. The turn-end hook saved three objects straight away: `/workspace` **20,311 B**, `/root/.claude` **41,075 B**, `/root/.codex` **261 B**.
