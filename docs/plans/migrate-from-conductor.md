@@ -16,18 +16,18 @@ These hold for every step, and each has a test (section "Checks").
 
 ## What comes over
 
-| Conductor | Conducted | Notes |
-|---|---|---|
-| `repos` | `repos` | Name, remote, root folder, default branch, display order. |
-| repo scripts (`repos.setup_script`, `run_script`, `archive_script`, and `conductor.json`) | `<repo>/.conducted/settings.toml` | Written once, as a new file, only when the repo has none. `conductor.json` stays as it is. |
-| `workspaces` (active and archived) | `workspaces` | Branch, folder, state, unread, target branch. An archived workspace keeps its archived state. |
-| `sessions` | `sessions` | Title, model, permission mode, the agent's own session id, so a chat resumes from the agent's transcript (D006). |
-| `session_events` | `session_events` | Mapped event by event to our event format (packages/protocol events.ts). Their older `session_messages` table is read only for chats that have no events. The spike decides whether this row ships. |
-| `settings` | `settings` | Only keys whose meaning matches one of ours, by a written key map. Every other key is listed in the dry run as not brought over. |
-| `env_vars` | `env_vars` + Keychain | Values into the Keychain (rule 6). |
-| `navigation_sections`, `navigation_section_memberships` | `sections`, `section_members` | Sidebar sections and who is in them. |
-| `favorite_models` | `favorite_models` | Models that we offer; others are listed. |
-| `diff_comments` | `diff_comments` | Review comments on open workspaces. |
+| Conductor                                                                                 | Conducted                         | Notes                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repos`                                                                                   | `repos`                           | Name, remote, root folder, default branch, display order.                                                                                                                                           |
+| repo scripts (`repos.setup_script`, `run_script`, `archive_script`, and `conductor.json`) | `<repo>/.conducted/settings.toml` | Written once, as a new file, only when the repo has none. `conductor.json` stays as it is.                                                                                                          |
+| `workspaces` (active and archived)                                                        | `workspaces`                      | Branch, folder, state, unread, target branch. An archived workspace keeps its archived state.                                                                                                       |
+| `sessions`                                                                                | `sessions`                        | Title, model, permission mode, the agent's own session id, so a chat resumes from the agent's transcript (D006).                                                                                    |
+| `session_events`                                                                          | `session_events`                  | Mapped event by event to our event format (packages/protocol events.ts). Their older `session_messages` table is read only for chats that have no events. The spike decides whether this row ships. |
+| `settings`                                                                                | `settings`                        | Only keys whose meaning matches one of ours, by a written key map. Every other key is listed in the dry run as not brought over.                                                                    |
+| `env_vars`                                                                                | `env_vars` + Keychain             | Values into the Keychain (rule 6).                                                                                                                                                                  |
+| `navigation_sections`, `navigation_section_memberships`                                   | `sections`, `section_members`     | Sidebar sections and who is in them.                                                                                                                                                                |
+| `favorite_models`                                                                         | `favorite_models`                 | Models that we offer; others are listed.                                                                                                                                                            |
+| `diff_comments`                                                                           | `diff_comments`                   | Review comments on open workspaces.                                                                                                                                                                 |
 
 Left out, each listed in the dry run with the reason: terminal tabs and their history (the spike checks whether `terminal_sessions` holds anything we can show), port forwards, the outbox and identity tables (Conductor's own servers), attachments whose files are gone.
 
