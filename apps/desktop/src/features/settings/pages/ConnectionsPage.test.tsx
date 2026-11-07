@@ -31,7 +31,7 @@ describe("SET-02 ConnectionsPage", () => {
 		const { set } = await mountPage();
 		fireEvent.change(screen.getByLabelText("First port"), { target: { value: "3000" } });
 		fireEvent.change(screen.getByLabelText("Last port"), { target: { value: "2000" } });
-		fireEvent.click(screen.getByRole("button", { name: "Save port range" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save port forwarding settings" }));
 
 		expect(
 			screen.getByText("The first port must be lower than or equal to the last port."),
@@ -43,13 +43,39 @@ describe("SET-02 ConnectionsPage", () => {
 		const { set } = await mountPage();
 		fireEvent.change(screen.getByLabelText("First port"), { target: { value: "22" } });
 		fireEvent.change(screen.getByLabelText("Last port"), { target: { value: "30" } });
-		fireEvent.click(screen.getByRole("button", { name: "Save port range" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save port forwarding settings" }));
 
 		expect(screen.getByText(/Port 22 is reserved for SSH/)).toBeTruthy();
 		expect(screen.getByRole("alert").textContent).toBe(
 			"Port 22 is reserved for SSH. Choose a range that does not include it.",
 		);
 		expect(set).not.toHaveBeenCalled();
+	});
+
+	it("rejects an override that names port 22 and does not save", async () => {
+		const { set } = await mountPage();
+		fireEvent.change(screen.getByLabelText("Manual overrides"), {
+			target: { value: "22:4000" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save port forwarding settings" }));
+
+		expect(
+			screen.getByText("Port 22 is reserved for SSH and cannot be forwarded here."),
+		).toBeTruthy();
+		expect(set).not.toHaveBeenCalled();
+	});
+
+	it("saves a valid local range and override", async () => {
+		const { set, container } = await mountPage();
+		fireEvent.change(screen.getByLabelText("First port"), { target: { value: "30000" } });
+		fireEvent.change(screen.getByLabelText("Last port"), { target: { value: "30999" } });
+		fireEvent.change(screen.getByLabelText("Manual overrides"), {
+			target: { value: "3000:4000" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save port forwarding settings" }));
+
+		await vi.waitFor(() => expect(set).toHaveBeenCalledWith("port_mappings", ["3000:4000"]));
+		expect(container.services.settings.get("local_port_range_start")).toBe(30000);
 	});
 
 	it("pairs with a Worker URL and a token, then unpairs", async () => {
@@ -84,5 +110,17 @@ describe("SET-02 ConnectionsPage", () => {
 		expect(await screen.findByText("A Worker URL must be https and name a host.")).toBeTruthy();
 		const status = await container.platform.cloud.status();
 		expect(status.ok && status.value.paired).toBe(false);
+	});
+
+	it("deploys the app's Worker and pairs this Mac", async () => {
+		const { container } = await mountPage();
+		if (test === undefined) throw new Error("no test container");
+		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted-cloud.example.workers.dev."),
+		).toBeTruthy();
+		expect(test.memory.controls.cloudDeploys).toEqual([{}]);
+		expect((await container.platform.cloud.status()).ok).toBe(true);
 	});
 });

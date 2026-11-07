@@ -137,7 +137,7 @@ export function createActions(
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
 		},
 		pullRequests: {
-			create: (workspaceId) => services.github.create(workspaceId),
+			create: (workspaceId, options) => services.github.create(workspaceId, options),
 			markReady: (workspaceId) => services.github.markReady(workspaceId),
 			merge: (workspaceId) => services.github.merge(workspaceId),
 			setAutoMerge: (workspaceId, enabled) => services.github.setAutoMerge(workspaceId, enabled),
@@ -195,6 +195,10 @@ export function createActions(
 			resolveConflicts: (workspaceId, path, choices, seenText) =>
 				services.workspaceFiles.resolveConflicts(workspaceId, path, choices, seenText),
 			reveal: (workspaceId, path) => services.workspaceFiles.reveal(workspaceId, path),
+			revealPath: (path) =>
+				settle("reveal_failed", "Finder could not show the file.", () =>
+					platform.opener.revealInFinder(path),
+				),
 			openInApp: (workspaceId, path, appName) =>
 				services.workspaceFiles.openInApp(workspaceId, path, appName),
 		},
@@ -226,6 +230,8 @@ export function createActions(
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
 			resetForRepo: (repoId, key) => services.settings.resetForRepo(repoId, key),
+			filePath: (file) => services.settings.filePath(file),
+			openFile: (file, appName) => services.settings.openFile(file, appName),
 		},
 		agents: {
 			login: (agent, acpAgent) => services.agentCatalog.login(agent, acpAgent),
@@ -246,10 +252,29 @@ export function createActions(
 		accounts: {
 			setGitHubToken: (token) => services.github.setToken(token),
 			setLinearKey: (key) => services.linear.setApiKey(key),
+			recheckLinear: () => services.linear.recheckAccess(),
 		},
 		cloud: {
 			pair: (input) => services.cloudPairing.pair(input),
 			unpair: () => services.cloudPairing.unpair(),
+			deploy: () => services.cloudDeploy.deploy(),
+			uninstall: () => services.cloudDeploy.uninstall(),
+			saveGitIdentity: (identity) => services.cloudSettings.saveGitIdentity(identity),
+			setCloudEnvVar: (name, value) => services.cloudSettings.setEnvVar(name, value),
+			removeCloudEnvVar: (name) => services.cloudSettings.removeEnvVar(name),
+		},
+		portForwards: {
+			setForwarding: (workspaceId, enabled) =>
+				services.portForwards.setForwarding(workspaceId, enabled),
+			setAutoForward: (workspaceId, enabled) =>
+				services.portForwards.setAutoForward(workspaceId, enabled),
+			add: (workspaceId, remotePort) => services.portForwards.add(workspaceId, remotePort),
+			remove: (forwardId) => services.portForwards.remove(forwardId),
+			toggle: (forwardId, enabled) => services.portForwards.toggle(forwardId, enabled),
+			pauseWorkspace: (workspaceId) => services.portForwards.pauseWorkspace(workspaceId),
+			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
+			previewUrl: (workspaceId, remotePort) =>
+				services.portForwards.previewUrl(workspaceId, remotePort),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
@@ -264,12 +289,18 @@ export function createActions(
 				settle("pick_folder_failed", "The folder picker could not be opened.", () =>
 					platform.dialogs.pickFolder({ title }),
 				),
+			pickFile: (title) =>
+				settle("pick_file_failed", "The file picker could not be opened.", async () => {
+					const [picked] = await platform.dialogs.pickFiles({ title, multiple: false });
+					return picked ?? null;
+				}),
 			recheckGitHubAccess: () => services.github.recheckAccess(),
 			createDiagnosticsChat: (workspaceId) => services.sessions.createDiagnosticsChat(workspaceId),
 			copyText: (text) => services.system.copyText(text),
 			sendFeedback: (input) => services.system.sendFeedback(input),
 			openSidecarLogs: () => services.system.openSidecarLogs(),
 			openFullDiskAccessSettings: () => services.system.openFullDiskAccessSettings(),
+			testCompletionSound: (soundId) => services.notifications.testSound(soundId),
 			runXcodeLicenseFix: () => services.system.runXcodeLicenseFix(),
 		},
 	};

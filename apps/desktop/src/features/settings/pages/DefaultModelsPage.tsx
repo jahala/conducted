@@ -8,10 +8,11 @@
  * The loadout's first slot is the default model: its model, effort and fast mode are the settings
  * `default_model`, `default_claude_effort_level` and `default_fast_mode`, so they have no rows of
  * their own, as in Conductor, where they live in the slot's picker.
+ * Review model is Conductor's picker, which holds the review agent, effort and fast mode for every
+ * agent (models/ReviewModelPicker.tsx).
  * Our design choice (D098, ours placed in Conductor's layout): the rows Conductor keeps inside its
- * pickers sit beside the row they belong to. The review effort, thinking and fast mode follow Review
- * model; the default Codex thinking level follows Codex personality; "Models shown in the picker"
- * comes last.
+ * pickers and ours cannot reach sit beside the row they belong to. The default Codex thinking level
+ * follows Codex personality; "Models shown in the picker" comes last.
  * Data: LoadoutEditor (the loadout and the agents' models); registry rows for the rest, in the
  * registry's order for this page, which follows the list above.
  * Must handle: the settings store loading or failing (the shared frame); an agent that is not
@@ -19,7 +20,9 @@
  * Test first: Enter on a model row puts it into the next empty loadout slot.
  */
 
+import { settingsForPage } from "../../../core/registries/settings.ts";
 import { LoadoutEditor } from "../models/LoadoutEditor.tsx";
+import { IN_REVIEW_PICKER, ReviewModelRow } from "../models/ReviewModelPicker.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -29,6 +32,11 @@ const LOADOUT_DEFAULT_KEYS: readonly string[] = [
 	"default_fast_mode",
 	"default_claude_effort_level",
 ];
+
+const MODEL_KEYS = settingsForPage("models").map((def) => def.key);
+const REVIEW_AT = MODEL_KEYS.indexOf("review_model");
+const UP_TO_REVIEW_MODEL = MODEL_KEYS.slice(0, REVIEW_AT + 1);
+const FROM_REVIEW_MODEL = MODEL_KEYS.slice(REVIEW_AT);
 
 export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
@@ -60,7 +68,13 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 			<RegistrySettingRows
 				page="models"
 				focusSettingKey={focusSettingKey}
-				exclude={LOADOUT_DEFAULT_KEYS}
+				exclude={[...LOADOUT_DEFAULT_KEYS, ...FROM_REVIEW_MODEL]}
+			/>
+			<ReviewModelRow focusSettingKey={focusSettingKey} />
+			<RegistrySettingRows
+				page="models"
+				focusSettingKey={focusSettingKey}
+				exclude={[...LOADOUT_DEFAULT_KEYS, ...UP_TO_REVIEW_MODEL, ...IN_REVIEW_PICKER]}
 			/>
 		</SettingsPageFrame>
 	);

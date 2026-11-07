@@ -4,6 +4,7 @@
  * Test first: the setup script runs in a terminal of kind "setup" with CONDUCTED_* variables and
  * its transcript is written when it ends.
  */
+import type { Host } from "@conducted/protocol";
 import {
 	appError,
 	err,
@@ -83,7 +84,8 @@ function harness(
 	options: {
 		setupScript?: string | null;
 		exitCode?: number | null;
-		environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
+		host?: Host;
+		environmentFor?: (repo: Repo, workspace: Workspace) => Promise<Result<Record<string, string>>>;
 	} = {},
 ) {
 	let started = 0;
@@ -125,7 +127,7 @@ function harness(
 	const service = new RunScriptsService({
 		terminals: { runScript, outputFor, end, stop: vi.fn(async () => ok(undefined)) },
 		configFor: async () => ok(config({ setupScript: options.setupScript ?? "npm install" })),
-		workspaceFor: async () => ok(workspace),
+		workspaceFor: async () => ok({ ...workspace, host: options.host ?? workspace.host }),
 		repoFor: async () => ok(repo),
 		fs,
 		...(options.environmentFor === undefined ? {} : { environmentFor: options.environmentFor }),
@@ -136,8 +138,12 @@ function harness(
 describe("SET-04 environment variables reach scripts", () => {
 	it("gives the setup, archive and run scripts the repository's saved variables", async () => {
 		const seen: Record<string, string>[] = [];
+		const asked: { repo: Repo; workspace: Workspace }[] = [];
 		const { service, runScript } = harness({
-			environmentFor: async () => ok({ TOKEN: "secret" }),
+			environmentFor: async (fromRepo, fromWorkspace) => {
+				asked.push({ repo: fromRepo, workspace: fromWorkspace });
+				return ok({ TOKEN: "secret" });
+			},
 		});
 		runScript.mockImplementation(async (input: { env: Record<string, string> }) => {
 			seen.push({ ...input.env });
@@ -148,6 +154,26 @@ describe("SET-04 environment variables reach scripts", () => {
 
 		expect(runScript).toHaveBeenCalledTimes(1);
 		expect(seen[0]?.TOKEN).toBe("secret");
+		// The rule needs both folders, so it can read the repository's and the workspace's files.
+		expect(asked).toEqual([{ repo, workspace }]);
+	});
+});
+
+describe("CLOUD-09 a cloud setup script", () => {
+	it("runs with strict shell options, as the research has it for a remote host", async () => {
+		const { service, runScript } = harness({
+			host: { kind: "cloud", url: "https://conducted.example.workers.dev", vmId: "vm-1" },
+		});
+		await service.runSetup(workspace.id);
+		const input = runScript.mock.calls[0]?.[0] as { command: string };
+		expect(input.command.startsWith("set -euo pipefail\n")).toBe(true);
+	});
+
+	it("leaves a local setup script as written", async () => {
+		const { service, runScript } = harness();
+		await service.runSetup(workspace.id);
+		const input = runScript.mock.calls[0]?.[0] as { command: string };
+		expect(input.command).toBe("npm install");
 	});
 });
 

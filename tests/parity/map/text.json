@@ -42,7 +42,13 @@
 	"text:R1853248": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"backlog": "NAV-13",
+		"item": "Conductor shows \"View workspace world map\" (control, Unplaced); ours says \"Open the place name map\" on Passport command (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R1855374": {
 		"status": "gap",
@@ -127,7 +133,11 @@
 	"text:R1894370": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-02",
+		"item": "Conductor shows \"Location\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R1894726": {
 		"status": "matched",
@@ -140,7 +150,11 @@
 	"text:R1895265": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-02",
+		"item": "Conductor shows \"Cloning...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R1897964": {
 		"status": "gap",
@@ -159,9 +173,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R1944728": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A checkmark drawn by the select component, a glyph and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R1957512": {
 		"status": "gap",
@@ -188,10 +203,10 @@
 	},
 	"text:R1959931": {
 		"status": "matched",
-		"state": "settings-agents-error",
+		"state": "git-checks-mixed",
 		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section:nth-of-type(1) > div > button > span",
+		"role": "button",
+		"selector": "[data-testid=\"check-row\"] > div:nth-of-type(2) > section > div > button",
 		"by": "seed"
 	},
 	"text:R1960086": {
@@ -277,7 +292,13 @@
 	"text:R2035684": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Our Create project dialog documents a two-dialog flow (CreateProjectDialog.tsx): it creates the folder and project, then offers the private repository. Claiming all three in this dialog's description would be false.",
+		"backlog": "PRJ-03",
+		"item": "Conductor shows \"Create a local folder, private GitHub repo, and first workspace.\" (region, Unplaced); ours says \"Create a local folder from a template and add it as a project.\" on Create project dialog (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2035905": {
 		"status": "matched",
@@ -290,7 +311,11 @@
 	"text:R2036417": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-03",
+		"item": "Conductor shows \"Name must include letters or numbers.\" (region, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2036542": {
 		"status": "matched",
@@ -317,25 +342,28 @@
 		"by": "seed"
 	},
 	"text:R2086010": {
-		"status": "matched",
-		"state": "chat-finished",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(1) > button:nth-of-type(2)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"text:R2093609": {
 		"status": "matched",
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"text:R2184278": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"class": "wording",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"backlog": "GIT-04",
+		"item": "Conductor shows \"View PR status\" (control, inventory-ui-text Git, review and files); ours says \"PR status details\" on git panel PR status chip (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2186426": {
 		"status": "gap",
@@ -356,7 +384,11 @@
 	"text:R2202229": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-08",
+		"item": "Conductor shows \"Couldn't load this stack. Open the PR on GitHub to see it.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2213837": {
 		"status": "gap",
@@ -369,41 +401,55 @@
 	"text:R2224224": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"class": "wording",
+		"note": "Conductor shows this only when it has no pending count; with one it shows 'N checks pending...', which is our string. Our checks_pending state always has at least one pending check.",
+		"backlog": "GIT-04",
+		"item": "Conductor shows \"Checks pending...\" (region, inventory-ui-text Git, review and files); ours says \"N checks pending...\" on git panel header (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2256696": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Conductor shows \"Discard\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2256762": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Conductor shows \"Save\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2260361": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(29) > article > div:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"text:R2261476": {
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > ul > li > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
+	},
+	"text:R2262911": {
+		"status": "matched",
+		"state": "pr-changes-requested",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
 		"by": "seed"
-	},
-	"text:R2261476": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Merge conflicts' with 'Resolve'",
-		"owner": "rule:quote"
-	},
-	"text:R2262911": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'PR changes requested' with 'Add all comments to chat'",
-		"owner": "rule:quote"
 	},
 	"text:R2263133": {
 		"status": "matched",
@@ -414,12 +460,12 @@
 		"by": "seed"
 	},
 	"text:R2270584": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Deployments\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(3) > h3",
+		"by": "seed"
 	},
 	"text:R2272875": {
 		"status": "gap",
@@ -454,46 +500,51 @@
 		"by": "seed"
 	},
 	"text:R2275695": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"item": "Comments: 'Add to chat' and 'Add all to chat'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > button > span",
+		"by": "seed"
 	},
 	"text:R2277683": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "git-checks-mixed",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > ul > li > div:nth-of-type(2) > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"text:R2277819": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-05",
-		"item": "Browser tab annotation overlay and 'Add to chat'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > ul > li > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R2501184": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
-	},
-	"text:R2506945": {
-		"status": "gap",
-		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "WS-08",
-		"item": "'Open in...' app button in the header",
-		"owner": "rule:quote"
+		"item": "Conductor shows \"No apps available\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
+	},
+	"text:R2506945": {
+		"status": "matched",
+		"state": "settings-general",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"settings-top-bar\"] > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R2530910": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A breadcrumb separator printed by the component, punctuation and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R2532074": {
 		"status": "gap",
@@ -532,7 +583,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > h2",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > h2",
 		"by": "seed"
 	},
 	"text:R2557374": {
@@ -626,7 +677,11 @@
 	"text:R2668400": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-02",
+		"item": "Conductor shows \"Could not load git status\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2669333": {
 		"status": "matched",
@@ -693,12 +748,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R2759094": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Conductor shows \"Options\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "title",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"text:R2759246": {
 		"status": "gap",
@@ -710,34 +765,35 @@
 	},
 	"text:R2759518": {
 		"status": "matched",
-		"state": "git-scope-menu",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div:nth-of-type(4) > span:nth-of-type(1)",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R2760150": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "git-scope-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(3) > span > span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R2760613": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "git-scope-menu",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div:nth-of-type(3) > span:nth-of-type(2) > span > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R2762831": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "title",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R2763588": {
 		"status": "gap",
@@ -822,7 +878,11 @@
 	"text:R2982552": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "WS-03",
+		"item": "Conductor shows \"Couldn’t load the logs.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2982812": {
 		"status": "gap",
@@ -850,7 +910,11 @@
 	"text:R2991628": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-16",
+		"item": "Conductor shows \"Cloud desktop\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2997030": {
 		"status": "matched",
@@ -877,7 +941,11 @@
 	"text:R3983808": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "GIT-12",
+		"item": "Conductor shows \"Switch to\" (control, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R4005057": {
 		"status": "gap",
@@ -906,16 +974,24 @@
 	"text:R4011003": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Import details\" (control, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R4026205": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Conductor shows \"Close search\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R4420842": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-09",
 		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
@@ -923,7 +999,7 @@
 	},
 	"text:R4421898": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-09",
 		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
@@ -938,19 +1014,22 @@
 		"owner": "rule:quote"
 	},
 	"text:R4971674": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label from the code editor's own context menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R4971853": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label from the code editor's own context menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R4972025": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label from the code editor's own context menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R4987742": {
 		"status": "gap",
@@ -977,12 +1056,9 @@
 		"owner": "rule:cite"
 	},
 	"text:R5017572": {
-		"status": "matched",
-		"state": "settings-repo-actions",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"text:R5018396": {
 		"status": "gap",
@@ -1051,7 +1127,11 @@
 	"text:R5020313": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Conductor shows \"Couldn't load actions.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5020935": {
 		"status": "gap",
@@ -1095,7 +1175,7 @@
 	},
 	"text:R5434210": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
@@ -1112,11 +1192,15 @@
 	"text:R5436101": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-09",
+		"item": "Conductor shows \"Select a port to share via a URL. Workspace read permissions required.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5444654": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -1124,7 +1208,7 @@
 	},
 	"text:R5446468": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -1132,7 +1216,7 @@
 	},
 	"text:R5447177": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "Port forwarding popover: 'Forward ports', 'Ports detected', 'Ports unavailable'",
@@ -1140,7 +1224,7 @@
 	},
 	"text:R5457681": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "Port forwarding popover: 'Forward ports', 'Ports detected', 'Ports unavailable'",
@@ -1185,12 +1269,16 @@
 	"text:R5509774": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R5509816": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R5512152": {
 		"status": "decided",
@@ -1207,7 +1295,9 @@
 	"text:R5512389": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R5525229": {
 		"status": "decided",
@@ -1273,13 +1363,21 @@
 	},
 	"text:R5543955": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Conductor shows \"Loading sections…\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5544139": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Conductor shows \"Couldn't load sections\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5560559": {
 		"status": "matched",
@@ -1300,42 +1398,74 @@
 	"text:R5584687": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Sync files\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5584915": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Keeps this cloud workspace's files mirrored to a local folder so local tools can inspect and edit them.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5585079": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Changes continue syncing in the background while the switch is on.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5587920": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Mirrors this cloud workspace to a local folder for local tools.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5588145": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Local folder\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5589114": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Sync to a local directory\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5591397": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Sync failed\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5592461": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Internal sync error\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5607740": {
 		"status": "decided",
@@ -1432,43 +1562,62 @@
 		"state": "chat-finished",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div:nth-of-type(4) > button:nth-of-type(2)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div > div:nth-of-type(3) > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R5679832": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"item": "'No logs available.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"check-row\"] > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"text:R5686320": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"note": "Checked by hand: the wording differs. Ours reads \"Browse\" (text) in create-project.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Browse...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand"
 	},
 	"text:R5687206": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"No workspaces found\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5693367": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Loading directories...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5694226": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Select all\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5694380": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Deselect all\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8047584": {
 		"status": "gap",
@@ -1489,15 +1638,19 @@
 	"text:R8049769": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-24",
+		"item": "Conductor shows \"Mermaid diagram\" (control, inventory-ui-text Chat and tool cards); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8061041": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-23",
-		"item": "'Run' button on shell code blocks with live output, status icon, exit code, 'Stop command' and 'Clear output'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(7) > div > div:nth-of-type(2) > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8113678": {
 		"status": "gap",
@@ -1509,7 +1662,7 @@
 	},
 	"text:R8113966": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "REV-08",
 		"item": "'Empty CSV' and 'Preview not available'",
@@ -1556,24 +1709,28 @@
 		"owner": "rule:quote"
 	},
 	"text:R8173658": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-11",
-		"item": "'Network access' card with Deny and Approve",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-permission-network",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div > section > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8174862": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-11",
+		"item": "Conductor shows \"Deny\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8175062": {
 		"status": "matched",
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(4) > div > button:nth-of-type(3) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > div > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"text:R8175687": {
@@ -1581,18 +1738,26 @@
 		"state": "onboarding",
 		"via": "text",
 		"role": "span",
-		"selector": "div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > button > span",
+		"selector": "[data-testid=\"onboarding-setup-scene\"] > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > button > span",
 		"by": "seed"
 	},
 	"text:R8176460": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-08",
+		"item": "Conductor shows \"Structured response (JSON)\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8178859": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-08",
+		"item": "Conductor shows \"Open authorization page\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8183776": {
 		"status": "matched",
@@ -1605,12 +1770,20 @@
 	"text:R8683825": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Disconnect\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8685730": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Stop waiting\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8717420": {
 		"status": "gap",
@@ -1621,12 +1794,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R8750078": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Edit card retry note 'Claude Code has to retry the file edit...'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R8750377": {
 		"status": "gap",
@@ -1637,12 +1810,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R8754647": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Edit and Write cards: 'Open in editor', 'Edit', diff body",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > div > div:nth-of-type(2) > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8772995": {
 		"status": "matched",
@@ -1711,38 +1884,54 @@
 	"text:R8791800": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Status:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8792002": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Subject:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8792236": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Blocked by:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8792501": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Blocks:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8795249": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Conductor shows \"Glob\" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8796070": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Glob card, 'List files' card",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8798797": {
 		"status": "matched",
@@ -1761,20 +1950,20 @@
 		"owner": "rule:quote"
 	},
 	"text:R8799937": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-12",
-		"item": "Plan cards 'Enter plan mode' and 'Propose plan'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-plan-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8802449": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Bash card with 'Clear output', 'Formatted' and 'Raw' toggle, 'Input:'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(7) > div > div:nth-of-type(2) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R8802663": {
 		"status": "matched",
@@ -1785,60 +1974,60 @@
 		"by": "seed"
 	},
 	"text:R8803962": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "'Skill activated' card and 'Slash command' card",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8806931": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "'Skill activated' card and 'Slash command' card",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(9) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8807889": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "App tool cards 'Workspace diff', 'Review comments', 'Code review comments', 'Get terminal output', 'User input'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > button > span:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R8811680": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "App tool cards 'Workspace diff', 'Review comments', 'Code review comments', 'Get terminal output', 'User input'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(10) > button > span:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R8812957": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "App tool cards 'Workspace diff', 'Review comments', 'Code review comments', 'Get terminal output', 'User input'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > button > span:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R8813616": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "App tool cards 'Workspace diff', 'Review comments', 'Code review comments', 'Get terminal output', 'User input'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > button > span:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R8815338": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "App tool cards 'Workspace diff', 'Review comments', 'Code review comments', 'Get terminal output', 'User input'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(8) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8816516": {
 		"status": "matched",
@@ -1867,7 +2056,11 @@
 	"text:R8823423": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Purpose: \" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8824972": {
 		"status": "gap",
@@ -1886,12 +2079,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R8831385": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "'Subagent' card",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(6) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8833980": {
 		"status": "gap",
@@ -1912,40 +2105,61 @@
 	"text:R8839892": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "REV-13",
+		"item": "Conductor shows \"Unable to load comment\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8840402": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Preview unavailable\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8840488": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Open the file to inspect this attachment.\" (region, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8843206": {
-		"status": "matched",
-		"state": "chat-finished",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(4) > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
 	},
 	"text:R8855401": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-28",
+		"item": "Conductor shows \"Loading usage…\" (region, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8859618": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Conductor shows \"Context\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8860458": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Conductor shows \"Window used\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8868546": {
 		"status": "gap",
@@ -1981,7 +2195,11 @@
 	"text:R8875135": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-14",
+		"item": "Conductor shows \"Context usage\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8876144": {
 		"status": "gap",
@@ -1996,20 +2214,24 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section > div > div > h2",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section > div > div > h2",
 		"by": "seed"
 	},
 	"text:R8881215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-01",
+		"item": "Conductor shows \"MCPs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8907303": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(13) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(13) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R8907434": {
@@ -2025,7 +2247,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(18) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(18) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R8908351": {
@@ -2059,12 +2281,9 @@
 		"by": "rule:hosted-computer"
 	},
 	"text:R8916905": {
-		"status": "matched",
-		"state": "chat-finished",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div:nth-of-type(3) > div > button:nth-of-type(2) > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"text:R8917278": {
 		"status": "gap",
@@ -2077,7 +2296,11 @@
 	"text:R9037926": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Couldn’t load image\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9083099": {
 		"status": "gap",
@@ -2090,17 +2313,29 @@
 	"text:R9119284": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-17",
+		"item": "Conductor shows \"Couldn’t load options\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9120201": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-17",
+		"item": "Conductor shows \"Loading options…\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9121155": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-17",
+		"item": "Conductor shows \"Options update with your next message\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9226849": {
 		"status": "gap",
@@ -2131,7 +2366,7 @@
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "label",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > label",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"text:R9260827": {
@@ -2143,17 +2378,18 @@
 		"owner": "rule:quote"
 	},
 	"text:R9261443": {
-		"status": "matched",
-		"state": "chat-plan-review",
-		"via": "text",
-		"role": "tooltip",
-		"selector": "div:nth-of-type(2) > div",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"text:R9268515": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Files from this directory are accessible to the agent in this workspace.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9306566": {
 		"status": "matched",
@@ -2170,12 +2406,9 @@
 		"by": "hand"
 	},
 	"text:R9307562": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"text:R9383052": {
 		"status": "gap",
@@ -2186,9 +2419,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R9397918": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A cloud workspace's read/write access level; workspace sharing is a team feature (D004).",
+		"by": "hand"
 	},
 	"text:R9497410": {
 		"status": "matched",
@@ -2224,8 +2458,12 @@
 	},
 	"text:R9502437": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"reason": "missing",
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Prompt\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9511048": {
 		"status": "gap",
@@ -2294,7 +2532,11 @@
 	"text:R9534245": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"This content could not be displayed.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9539350": {
 		"status": "gap",
@@ -2339,7 +2581,11 @@
 	"text:R9543653": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"Add a Cursor API key in provider settings to use Cursor.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9544396": {
 		"status": "gap",
@@ -2352,7 +2598,11 @@
 	"text:R9544627": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9544970": {
 		"status": "gap",
@@ -2381,7 +2631,11 @@
 	"text:R9557324": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"Cancelled\" (control, inventory-controls Chat view); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9562178": {
 		"status": "gap",
@@ -2417,10 +2671,10 @@
 	},
 	"text:R9586422": {
 		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "section",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5)",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R9586815": {
@@ -2456,7 +2710,7 @@
 	},
 	"text:R9626830": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
 		"item": "Opening a cloud file downloads it with a 'Downloading file' toast, then 'Saved to' with a 'Downloads' button that reveals it",
@@ -2489,22 +2743,38 @@
 	"text:R9637583": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"Unsaved changes\" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9637908": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"Retry update\" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9638032": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"Update failed. Retry\" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9638941": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"This file has been modified. Click to view the latest changes.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9643764": {
 		"status": "matched",
@@ -2517,17 +2787,29 @@
 	"text:R9652412": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Failed to load PDF\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9655838": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Failed to render page\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9659929": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Failed to load video\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9662211": {
 		"status": "gap",
@@ -2588,7 +2870,11 @@
 	"text:R9957571": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"No changes in this file\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9959555": {
 		"status": "gap",
@@ -2641,7 +2927,11 @@
 	"text:R9988523": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Video attachment\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9992592": {
 		"status": "gap",
@@ -2654,32 +2944,50 @@
 	"text:R10000509": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-12",
+		"item": "Conductor shows \"Resolved\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10000794": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-12",
+		"item": "Conductor shows \"Outdated\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10007781": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Conductor shows \"Couldn't load comments\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10014580": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-04",
+		"item": "Conductor shows \"Failed to load logs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10030326": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The add-people picker in the shared workspace access dialog; workspace sharing is a team feature (D004).",
+		"by": "hand"
 	},
 	"text:R10031601": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The add-people picker in the shared workspace access dialog; workspace sharing is a team feature (D004).",
+		"by": "hand"
 	},
 	"text:R10038377": {
 		"status": "matched",
@@ -2708,17 +3016,29 @@
 	"text:R10060117": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-09",
+		"item": "Conductor shows \"Cloud terminal unavailable in read-only workspaces.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10069947": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"Waiting for background tasks\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10070194": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"Cancelling\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10076586": {
 		"status": "matched",
@@ -2729,9 +3049,10 @@
 		"by": "seed"
 	},
 	"text:R10076883": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label in the chat tab menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10076955": {
 		"status": "matched",
@@ -2806,51 +3127,58 @@
 		"by": "seed"
 	},
 	"text:R10179244": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"note": "Checked by hand: not a match. Ours shows the sample value \"docs\" in git-files, which is data, not this wording.",
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Docs item opens Conductor's own website, which D025 leaves out.",
 		"by": "hand"
 	},
 	"text:R10179596": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Best practices item opens Conductor's website and prompt programme, which D025 names as left out.",
+		"by": "hand"
 	},
 	"text:R10179959": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Changelog item opens Conductor's own website, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R10180387": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(6) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div > div:nth-of-type(6) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10180754": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Discord item opens Conductor's own community, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R10181093": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a prompt item opens Conductor's prompt programme, which D025 names as left out.",
+		"by": "hand"
 	},
 	"text:R10181424": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Diagnostics\" (control, inventory-ui-text Projects and workspaces); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10181731": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(7) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div > div:nth-of-type(7) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10188886": {
@@ -2874,7 +3202,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(13) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(13) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10214243": {
@@ -2888,7 +3216,9 @@
 	"text:R10221548": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R10247990": {
 		"status": "gap",
@@ -2925,7 +3255,13 @@
 	"text:R10289703": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"backlog": "NAV-01",
+		"item": "Conductor shows \"Toggle sidebar\" (control, Unplaced); ours says \"Toggle left sidebar\" on window controls row (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10303954": {
 		"status": "decided",
@@ -2999,26 +3335,26 @@
 	},
 	"text:R10324361": {
 		"status": "matched",
-		"state": "sidebar",
+		"state": "chat-markdown",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(2) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"text:R10324537": {
 		"status": "matched",
-		"state": "sidebar",
+		"state": "chat-finished",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(3) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"text:R10324717": {
 		"status": "matched",
-		"state": "sidebar",
+		"state": "chat-markdown",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"text:R10324889": {
@@ -3031,10 +3367,10 @@
 	},
 	"text:R10325053": {
 		"status": "matched",
-		"state": "sidebar",
+		"state": "home",
 		"via": "aria-label",
-		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(2) > a > span:nth-of-type(1)",
+		"role": "status",
+		"selector": "[data-testid=\"home-workspace-card\"] > span:nth-of-type(1) > span > span",
 		"by": "seed"
 	},
 	"text:R10325216": {
@@ -3046,12 +3382,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R10325382": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-03",
-		"item": "Row subtitles 'Planning...', 'Working...', 'Cancelling...', 'Waiting...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed-unsure"
 	},
 	"text:R10325545": {
 		"status": "gap",
@@ -3082,7 +3418,7 @@
 		"state": "settings-experimental",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(16) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(15) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10359782": {
@@ -3096,7 +3432,11 @@
 	"text:R10362249": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-07",
+		"item": "Conductor shows \"Memory\" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10377244": {
 		"status": "decided",
@@ -3177,9 +3517,10 @@
 		"by": "hand"
 	},
 	"text:R10411671": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The cloud-only Pull requests nav row belongs to Conductor's team organisations, which D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R10432702": {
 		"status": "matched",
@@ -3194,7 +3535,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(8) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(8) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10434714": {
@@ -3205,7 +3546,7 @@
 	},
 	"text:R10435354": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Sidebar",
 		"backlog": "CLOUD-09",
 		"item": "Row badge 'Forwarding ports'",
@@ -3224,7 +3565,7 @@
 		"state": "settings-repo-actions",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > ul > li:nth-of-type(1) > div:nth-of-type(1) > div > span:nth-of-type(3)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > ul > li:nth-of-type(1) > div:nth-of-type(1) > div > span:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R10474958": {
@@ -3243,29 +3584,34 @@
 	},
 	"text:R10493981": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"My workspaces\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10502058": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "kbd",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(1) > div > div:nth-of-type(2) > kbd",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(1) > article > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R10502494": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "kbd",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(2) > div > div:nth-of-type(2) > kbd",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(2) > article > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R10502967": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label for the Settings shortcut, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10534590": {
 		"status": "matched",
@@ -3282,42 +3628,69 @@
 		"by": "hand"
 	},
 	"text:R10553428": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The organisation account sign-in button needs Conductor's own service, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R10574411": {
 		"status": "matched",
 		"state": "settings-general",
 		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(1) > button > span",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(1) > button",
 		"by": "seed"
 	},
 	"text:R10574584": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Capture information about your environment to help diagnose issues.\" (region, Unplaced); ours says \"Gather details about Conducted, your Mac and its shell to help diagnose a problem.\" on Diagnostics screen (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10576215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Copy the full diagnostics report to your clipboard\" (region, Unplaced); ours says \"Copy full report\" on Diagnostics actions (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10576554": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Redacted report hashes the values of all env variables, except a few non-sensitive ones like PATH\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10576999": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH.\" (region, Unplaced); ours says \"Create a new session with the redacted report attached\" on Diagnostics actions (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10577409": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Create a new session with the full report attached. All env values are sent to your AI provider.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10581067": {
 		"status": "gap",
@@ -3364,7 +3737,7 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10662643": {
@@ -3372,25 +3745,33 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"text:R10662685": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"Dark\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10662728": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"System\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10663577": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(3) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10664733": {
@@ -3398,7 +3779,7 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(2) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(2) > div > div > div > p",
 		"by": "seed"
 	},
 	"text:R10665334": {
@@ -3406,15 +3787,15 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(4) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10665424": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(4) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10666063": {
@@ -3422,15 +3803,15 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(3) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(5) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10666149": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(3) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(5) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10666456": {
@@ -3438,7 +3819,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"text:R10666519": {
@@ -3462,15 +3843,15 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(1) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10667435": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(1) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10668642": {
@@ -3478,56 +3859,67 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(2) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10668720": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(2) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10669114": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"reason": "missing",
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"Custom...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10669800": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"Enter font name exactly as installed on your system\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10670104": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample code in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10670143": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample code in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10670205": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample code in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10670896": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(3) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10670979": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(3) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10671582": {
@@ -3535,15 +3927,15 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(4) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10671665": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(4) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10672006": {
@@ -3558,8 +3950,8 @@
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(5) > div > div > div > p",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(11) > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"text:R10673328": {
@@ -3567,46 +3959,49 @@
 		"state": "settings-appearance",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(5) > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(11) > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10673659": {
 		"status": "matched",
 		"state": "settings-appearance",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(6) > div > div > div > p",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(11) > div:nth-of-type(2) > div > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10674386": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample terminal output in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10674436": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample terminal output in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10674477": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample terminal output in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10678723": {
 		"status": "matched",
 		"state": "settings-experimental",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R10678806": {
 		"status": "matched",
 		"state": "settings-experimental",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10686757": {
@@ -3620,7 +4015,11 @@
 	"text:R10692019": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Conductor shows \"Cmd+Shift+.\" (region, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10693634": {
 		"status": "matched",
@@ -3639,35 +4038,29 @@
 		"by": "seed"
 	},
 	"text:R10695776": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(2) > label",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings"
 	},
 	"text:R10699838": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-controls Settings",
 		"backlog": "SET-04",
 		"item": "Variables table: Name, Value, 'Locally overwritten', 'Not set'",
 		"owner": "rule:quote"
 	},
 	"text:R10701209": {
-		"status": "matched",
-		"state": "settings-key-bindings",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(9) > div > div:nth-of-type(2) > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings"
 	},
 	"text:R10705286": {
 		"status": "matched",
 		"state": "settings-environment",
 		"via": "text",
-		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > h2",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr > td > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10705371": {
@@ -3675,112 +4068,173 @@
 		"state": "settings-environment",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr > td > div > p:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10715045": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > div > h2",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings"
 	},
 	"text:R10715128": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div > div:nth-of-type(1) > article > div:nth-of-type(2) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R10725742": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"OAuth\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10725877": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Bearer token\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10725931": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Custom headers\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10725984": {
 		"status": "matched",
-		"state": "settings-models-codex-thinking-menu",
+		"state": "settings-git",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > fieldset > label:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R10726669": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Advanced client identity\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10726955": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"OAuth callback URL\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10734876": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"setup guide\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10735245": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"MCP server URL\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10735883": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Client ID\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10736417": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Client secret\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10737019": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Finish connecting in your browser.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10738808": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Connect Datadog\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10738847": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Before connecting, allow Conductor’s OAuth redirect URL in Datadog.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10739035": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Datadog site\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10739612": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Organization Settings → Preferences → MCP OAuth Redirect URLs\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10739707": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Add this URL:\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10764556": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"No recommended MCPs match your search\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10764770": {
 		"status": "decided",
@@ -3799,22 +4253,38 @@
 	"text:R10767373": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Import from local\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10769991": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Select MCP servers\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10770341": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Scanning local MCP servers…\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10770489": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Couldn't read local MCP configs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10771891": {
 		"status": "gap",
@@ -3827,15 +4297,16 @@
 	"text:R10778940": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Installed\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10778993": {
-		"status": "matched",
-		"state": "settings-agents",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(3)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
 	},
 	"text:R10784516": {
 		"status": "decided",
@@ -3896,7 +4367,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(2) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > p",
 		"by": "seed"
 	},
 	"text:R10810641": {
@@ -3910,27 +4381,39 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div > div:nth-of-type(2) > button > span",
 		"by": "seed"
 	},
 	"text:R10820086": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"reason": "missing",
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "Conductor shows \"Loading repositories...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10821137": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "Conductor shows \"Couldn't check your GitHub sign-in\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10821338": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "Conductor shows \"Signed in to GitHub as\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10832356": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "SET-02",
 		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
@@ -3979,14 +4462,16 @@
 		"by": "hand"
 	},
 	"text:R10854681": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Part of the organisation install script, a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R10854974": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Part of the organisation install script, a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R10855274": {
 		"status": "decided",
@@ -4039,7 +4524,11 @@
 	"text:R10876329": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"item": "Conductor shows \"Loading environment variables\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10878586": {
 		"status": "decided",
@@ -4074,7 +4563,11 @@
 	"text:R10886799": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"item": "Conductor shows \"Import\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10891604": {
 		"status": "decided",
@@ -4158,30 +4651,46 @@
 	"text:R10927644": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Open the OpenAI device authorization page.\" (region, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10928079": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Enter this code when OpenAI asks for it:\" (control, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10929825": {
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(1) > h4",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > h4",
 		"by": "seed"
 	},
 	"text:R10932513": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Connected to\" (control, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10933927": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Checking login status...\" (region, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10945315": {
 		"status": "gap",
@@ -4204,7 +4713,7 @@
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R10955177": {
@@ -4212,46 +4721,65 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(3) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R10962716": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Review the provider setup, then refresh.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10967695": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Changing this removes all existing repos and workspaces from Conductor, but leaves their files on disk.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10971526": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-13",
+		"item": "Conductor shows \"Changing this may cause issues if the executable is not compatible with Conductor.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10976147": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R10977415": {
 		"status": "matched",
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(3) > span > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(3) > span > span",
 		"by": "seed"
 	},
 	"text:R10978033": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An inline code identifier in a setting description, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10982001": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Checking\" (control, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10985659": {
 		"status": "gap",
@@ -4266,7 +4794,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11017379": {
@@ -4280,37 +4808,50 @@
 	"text:R11019107": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Hidden\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11022869": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Show action\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11023100": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Hide action\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11023334": {
-		"status": "matched",
-		"state": "settings-appearance",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > fieldset > div > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"text:R11023365": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Reset to your repo's settings.toml\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11026106": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(2)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"text:R11027519": {
@@ -4348,7 +4889,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div > div:nth-of-type(1) > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11052560": {
@@ -4356,7 +4897,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div > div:nth-of-type(1) > div > p:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11092800": {
@@ -4376,7 +4917,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11094514": {
@@ -4384,7 +4925,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11094925": {
@@ -4414,19 +4955,27 @@
 	"text:R11097816": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "SET-12",
+		"item": "Conductor shows \"Always approve\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11104016": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Learn more\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11111478": {
 		"status": "matched",
 		"state": "settings-experimental",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > p:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(19) > div > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11120103": {
@@ -4434,7 +4983,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "status",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(2) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div:nth-of-type(2) > p",
 		"by": "seed"
 	},
 	"text:R11120292": {
@@ -4442,7 +4991,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(2) > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div:nth-of-type(2) > button > span",
 		"by": "seed"
 	},
 	"text:R11122592": {
@@ -4454,37 +5003,65 @@
 	"text:R11130319": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "GIT-08",
+		"item": "Conductor shows \"Loading remotes...\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11130377": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "GIT-08",
+		"item": "Conductor shows \"No remote found.\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11137042": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "PR-08",
+		"item": "Conductor shows \"Graphite\" (control, inventory-controls Settings: General); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11138708": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Custom\" (control, inventory-controls Settings: General); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11140791": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Delete the local branch when archiving a workspace.\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11141184": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"configure it on GitHub\" (control, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11141442": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Warning: archived workspaces will be unrecoverable\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11143599": {
 		"status": "gap",
@@ -4496,7 +5073,7 @@
 	},
 	"text:R11143929": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "CLOUD-09",
 		"item": "'Pause port forwarding?' dialog",
@@ -4519,7 +5096,11 @@
 	"text:R11154299": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-09",
+		"item": "Conductor shows \"Manual overrides are ignored while Exclusive port forwarding is off.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11155309": {
 		"status": "gap",
@@ -4557,7 +5138,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11168401": {
@@ -4597,9 +5178,10 @@
 		"by": "hand"
 	},
 	"text:R11187774": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The phone pairing dialog belongs to the phone relay, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11192869": {
 		"status": "decided",
@@ -4624,7 +5206,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(16) > div > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(16) > div > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11205120": {
@@ -4638,7 +5220,7 @@
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R11217431": {
@@ -4686,7 +5268,11 @@
 	"text:R11231761": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Conductor shows \"Could not load models.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11264124": {
 		"status": "gap",
@@ -4698,7 +5284,11 @@
 	"text:R11274850": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "PRJ-04",
+		"item": "Conductor shows \"Using .worktreeinclude from this repository. Remove that file to edit these patterns here.\" (region, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11277107": {
 		"status": "gap",
@@ -4743,7 +5333,11 @@
 	"text:R11285835": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "PRJ-05",
+		"item": "Conductor shows \"No favicon detected\" (control, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11291806": {
 		"status": "gap",
@@ -4802,9 +5396,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R11324211": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R11338967": {
 		"status": "decided",
@@ -4889,7 +5484,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(15) > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(15) > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11419444": {
@@ -4897,43 +5492,71 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(15) > div > p:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(15) > div > p:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11445293": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-12",
+		"item": "Conductor shows \"No branch name\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11448022": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"item": "Conductor shows \"Linear could not be loaded. Refresh Linear in settings.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11455832": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"No pull requests found\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11456439": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"Open settings\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11456954": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"In use\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11457027": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"Select\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11458209": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "GIT-12",
+		"item": "Conductor shows \"No branches found\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11463277": {
 		"status": "matched",
@@ -4946,27 +5569,41 @@
 	"text:R11464130": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Conductor shows \"PRs\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11464188": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Conductor shows \"Branches\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11464249": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Conductor shows \"Issues\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11502876": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11502916": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11503507": {
 		"status": "matched",
@@ -4987,12 +5624,20 @@
 	"text:R11508077": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-10",
+		"item": "Conductor shows \"Enter a new name for this workspace\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11510910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"item": "Conductor shows \"Section not found\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11515751": {
 		"status": "gap",
@@ -5011,7 +5656,11 @@
 	"text:R11524020": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "Conductor shows \"Keyword\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11525093": {
 		"status": "decided",
@@ -5022,7 +5671,11 @@
 	"text:R11525602": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "Conductor shows \"Prompt snippet\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11527318": {
 		"status": "gap",
@@ -5041,39 +5694,52 @@
 		"owner": "rule:cite"
 	},
 	"text:R11533432": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11534506": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11534878": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11535620": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11541757": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11542973": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-01",
+		"item": "Conductor shows \"Enter a new name for this chat\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11544294": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-05",
+		"item": "Conductor shows \"Pick an icon, emoji, favicon, or uploaded image for this repository\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11548768": {
 		"status": "decided",
@@ -5088,9 +5754,10 @@
 		"by": "hand"
 	},
 	"text:R11551086": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A path prefix, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R11551241": {
 		"status": "decided",
@@ -5137,14 +5804,18 @@
 	"text:R11574947": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Conductor shows \"Sign-in expired.\" (region, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11584038": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "settings-agents-bedrock",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"text:R11585673": {
@@ -5182,19 +5853,27 @@
 	"text:R11595958": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Conductor shows \"Workspace ID (optional)\" (control, inventory-ui-text Settings and agents); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11601498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Conductor shows \"Manual\" (control, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11601595": {
 		"status": "matched",
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R11603747": {
@@ -5204,14 +5883,16 @@
 		"by": "rule:conductor-service"
 	},
 	"text:R11609141": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Organisation onboarding's admin workspace, a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11610071": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The hosted computer build belongs to Conductor's hosted computers, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11619039": {
 		"status": "decided",
@@ -5221,7 +5902,7 @@
 	},
 	"text:R11647782": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
 		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
@@ -5282,12 +5963,20 @@
 	"text:R11656536": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"item": "Conductor shows \"Drop images here\" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11657459": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"item": "Conductor shows \"Click to preview\" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11657833": {
 		"status": "matched",
@@ -5306,14 +5995,16 @@
 		"by": "seed"
 	},
 	"text:R11660855": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Submit a prompt dialog belongs to Conductor's prompt programme, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11661522": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Submit a prompt dialog belongs to Conductor's prompt programme, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11676567": {
 		"status": "gap",
@@ -5342,7 +6033,11 @@
 	"text:R11679495": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-03",
+		"item": "Conductor shows \"No local servers running. Start your dev server and it'll show up here.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11687853": {
 		"status": "gap",
@@ -5353,17 +6048,18 @@
 		"owner": "rule:quote"
 	},
 	"text:R11709231": {
-		"status": "matched",
-		"state": "settings-experimental",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > header > p",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"text:R11716261": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"No actions found in this source.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11721389": {
 		"status": "decided",
@@ -5404,12 +6100,20 @@
 	"text:R11741989": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-09",
+		"item": "Conductor shows \"Type shortcut\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11744268": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-09",
+		"item": "Conductor shows \"Fixed shortcut\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11751146": {
 		"status": "decided",
@@ -5428,13 +6132,17 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > p",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > p",
 		"by": "seed"
 	},
 	"text:R11772171": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Loading...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11775650": {
 		"status": "decided",
@@ -5447,7 +6155,7 @@
 		"state": "onboarding",
 		"via": "text",
 		"role": "span",
-		"selector": "div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > button > span",
+		"selector": "[data-testid=\"onboarding-setup-scene\"] > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"text:R11912205": {
@@ -5497,7 +6205,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > h2",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > h2",
 		"by": "seed"
 	},
 	"text:R11940194": {
@@ -5719,9 +6427,10 @@
 		"by": "seed"
 	},
 	"text:R12039927": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The database rollback terminal is a staff tool, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R12041464": {
 		"status": "gap",
@@ -5732,24 +6441,28 @@
 		"owner": "rule:quote"
 	},
 	"text:R12044893": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The forced-update screen is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12044977": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The forced-update screen is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12046593": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The forced-update screen is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12047732": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The region block is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12095445": {
 		"status": "gap",
@@ -5788,23 +6501,23 @@
 		"state": "home-archived",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R12097931": {
 		"status": "matched",
 		"state": "home-archived",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(3) > span",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R12098172": {
 		"status": "matched",
 		"state": "home-archived",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(4) > span",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(4)",
 		"by": "seed"
 	}
 }

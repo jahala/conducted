@@ -90,14 +90,15 @@ describe("REV-08 FileTabHeader", () => {
 				button.getAttribute("aria-label"),
 			),
 		).toEqual(["Unified view", "Split view", "Edit", "Preview"]);
-		fireEvent.click(screen.getByRole("button", { name: "Copy file contents" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy file contents to clipboard" }));
 		expect(onCopy).toHaveBeenCalledWith("const a = 1;\n");
 	});
 
 	it("disables Copy file contents until the text is loaded", () => {
 		render(<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} copyText={null} />);
 		expect(
-			(screen.getByRole("button", { name: "Copy file contents" }) as HTMLButtonElement).disabled,
+			(screen.getByRole("button", { name: "Copy file contents to clipboard" }) as HTMLButtonElement)
+				.disabled,
 		).toBe(true);
 	});
 
@@ -106,7 +107,7 @@ describe("REV-08 FileTabHeader", () => {
 		render(
 			<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} dirty onSave={onSave} />,
 		);
-		expect(screen.getByLabelText("Unsaved edits")).toBeTruthy();
+		expect(screen.getByLabelText("Unsaved changes")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 		expect(onSave).toHaveBeenCalledTimes(1);
 	});

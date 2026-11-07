@@ -107,7 +107,7 @@ describe("GIT-04 git header state machine", () => {
 			},
 			{
 				name: "uncommitted",
-				input: inputs({ git: gitState({ uncommittedFiles: 1 }) }),
+				input: inputs({ git: gitState({ uncommittedFiles: 1, pullRequest: pullRequest() }) }),
 				kind: "uncommitted",
 				title: "Uncommitted changes",
 				action: "commit_and_push",
@@ -115,7 +115,10 @@ describe("GIT-04 git header state machine", () => {
 			{
 				name: "diverged",
 				input: inputs({
-					git: gitState({ sync: { ahead: 1, behind: 2, rewritten: false, hasUpstream: true } }),
+					git: gitState({
+						sync: { ahead: 1, behind: 2, rewritten: false, hasUpstream: true },
+						pullRequest: pullRequest(),
+					}),
 				}),
 				kind: "diverged",
 				title: "Incompatible with remote",
@@ -124,7 +127,10 @@ describe("GIT-04 git header state machine", () => {
 			{
 				name: "behind",
 				input: inputs({
-					git: gitState({ sync: { ahead: 0, behind: 3, rewritten: false, hasUpstream: true } }),
+					git: gitState({
+						sync: { ahead: 0, behind: 3, rewritten: false, hasUpstream: true },
+						pullRequest: pullRequest(),
+					}),
 				}),
 				kind: "behind",
 				title: "Behind by 3 commits",
@@ -133,7 +139,10 @@ describe("GIT-04 git header state machine", () => {
 			{
 				name: "ahead",
 				input: inputs({
-					git: gitState({ sync: { ahead: 2, behind: 0, rewritten: false, hasUpstream: true } }),
+					git: gitState({
+						sync: { ahead: 2, behind: 0, rewritten: false, hasUpstream: true },
+						pullRequest: pullRequest(),
+					}),
 				}),
 				kind: "ahead",
 				title: "Ahead by 2 commits",
@@ -284,10 +293,11 @@ describe("GIT-04 git header state machine", () => {
 				action: null,
 			},
 			{
-				name: "clean",
+				// Conductor's header is empty on a GitHub branch with no pull request and no changes.
+				name: "no pull request and no changes",
 				input: inputs(),
-				kind: "clean",
-				title: "No changes",
+				kind: "none",
+				title: "",
 				action: null,
 			},
 		];
@@ -313,6 +323,7 @@ describe("GIT-04 git header state machine", () => {
 			inputs({
 				git: gitState({
 					sync: { ahead: 1, behind: 1, rewritten: true, hasUpstream: true },
+					pullRequest: pullRequest(),
 				}),
 			}),
 		);
@@ -326,6 +337,7 @@ describe("GIT-04 git header state machine", () => {
 				inputs({
 					git: gitState({
 						sync: { ahead: 0, behind: 1, rewritten: false, hasUpstream: true },
+						pullRequest: pullRequest(),
 					}),
 				}),
 			).title,
@@ -344,6 +356,7 @@ describe("GIT-04 git header state machine", () => {
 			inputs({
 				git: gitState({
 					sync: { ahead: 5, behind: 0, rewritten: false, hasUpstream: false },
+					pullRequest: pullRequest(),
 				}),
 			}),
 		);
@@ -351,7 +364,7 @@ describe("GIT-04 git header state machine", () => {
 		expect(header.action?.id).toBe("push");
 	});
 
-	it("keeps local actions while pull request info loads or fails", () => {
+	it("keeps local actions while the pull request's info refreshes or fails", () => {
 		for (const pullRequestUnavailable of [
 			"loading",
 			"offline",
@@ -360,7 +373,11 @@ describe("GIT-04 git header state machine", () => {
 		] as const) {
 			const header = computeGitHeader(
 				inputs({
-					git: gitState({ pullRequestUnavailable, uncommittedFiles: 1 }),
+					git: gitState({
+						pullRequestUnavailable,
+						uncommittedFiles: 1,
+						pullRequest: pullRequest(),
+					}),
 				}),
 			);
 			expect(header.kind).toBe("uncommitted");
@@ -480,13 +497,23 @@ describe("GIT-04 git header state machine", () => {
 		expect(reviewer.action?.id).toBe("approve");
 	});
 
-	it("labels Merge with the repository's merge method", () => {
-		const labelFor = (mergeMethod: PullRequest["mergeMethod"]) =>
+	// Conductor's GitHub button reads "Merge" and names a squash or rebase in its tooltip; a merge
+	// commit has no tooltip of its own (renderApp Main _j.mergeMethodTooltip).
+	it("labels Merge and names the repository's merge method in its tooltip", () => {
+		const actionFor = (mergeMethod: PullRequest["mergeMethod"]) =>
 			computeGitHeader(inputs({ git: gitState({ pullRequest: pullRequest({ mergeMethod }) }) }))
-				.action?.label;
-		expect(labelFor("squash")).toBe("Squash and merge");
-		expect(labelFor("rebase")).toBe("Rebase and merge");
-		expect(labelFor("merge")).toBe("Create a merge commit");
+				.action;
+		expect(actionFor("squash")).toEqual({
+			id: "merge",
+			label: "Merge",
+			tooltip: "Squash and merge",
+		});
+		expect(actionFor("rebase")).toEqual({
+			id: "merge",
+			label: "Merge",
+			tooltip: "Rebase and merge",
+		});
+		expect(actionFor("merge")).toEqual({ id: "merge", label: "Merge" });
 	});
 
 	it("hides Merge from a viewer without write access", () => {
@@ -521,8 +548,8 @@ describe("GIT-04 git header state machine", () => {
 			}),
 		);
 		expect(header.action?.id).toBe("merge");
-		expect(header.action?.label).toBe("Squash and merge");
-		expect(header.action?.tooltip).toBeUndefined();
+		expect(header.action?.label).toBe("Merge");
+		expect(header.action?.tooltip).toBe("Squash and merge");
 	});
 
 	it("names a stack blocker only when the pull request itself could merge", () => {
@@ -574,6 +601,7 @@ describe("GIT-04 git header state machine", () => {
 				git: gitState({
 					uncommittedFiles: 1,
 					sync: { ahead: 0, behind: 3, rewritten: false, hasUpstream: true },
+					pullRequest: pullRequest(),
 				}),
 			}),
 		);
@@ -590,6 +618,37 @@ describe("GIT-04 git header state machine", () => {
 			inputs({ agentWorking: true, git: gitState({ pullRequest: pullRequest() }) }),
 		);
 		expect(withPullRequest.kind).toBe("ready_to_merge");
+	});
+
+	it("shows nothing on a GitHub branch with no pull request and no changes, whatever its sync state", () => {
+		for (const git of [
+			gitState(),
+			gitState({ uncommittedFiles: 2 }),
+			gitState({ sync: { ahead: 2, behind: 0, rewritten: false, hasUpstream: true } }),
+			gitState({ sync: { ahead: 0, behind: 3, rewritten: false, hasUpstream: true } }),
+			gitState({ sync: { ahead: 1, behind: 1, rewritten: true, hasUpstream: true } }),
+		]) {
+			const header = computeGitHeader(inputs({ git }));
+			expect({ kind: header.kind, title: header.title, action: header.action }).toEqual({
+				kind: "none",
+				title: "",
+				action: null,
+			});
+		}
+	});
+
+	it("names a loading or failed pull request read on a GitHub branch with no pull request", () => {
+		const titles = (["loading", "offline", "no_github_access", null] as const).map(
+			(pullRequestUnavailable) =>
+				computeGitHeader(inputs({ git: gitState({ pullRequestUnavailable, uncommittedFiles: 1 }) }))
+					.title,
+		);
+		expect(titles).toEqual([
+			"Loading PR info...",
+			"No internet connection",
+			"GitHub access required",
+			"PR info unavailable",
+		]);
 	});
 
 	it("lets Merged win over every other state", () => {

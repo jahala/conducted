@@ -1,8 +1,9 @@
 {
 	"route:M1114939": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "An HTTP route of Conductor's Roundhouse cloud API, not a page.",
+		"by": "hand"
 	},
 	"route:M2049475": {
 		"status": "decided",
@@ -238,12 +239,20 @@
 	"route:R5008856": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Conductor's full route is `/settings/repos/$repoId/misc`; our router serves it through `/settings/repos/$repoId/$page` (app/router.tsx). The seed compares the parameterised spec text with a state's literal route, so it cannot match."
 	},
 	"route:R9253487": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our user settings pages live under `/settings/<page>`, with the page id `default-models`; Conductor's is `/settings/user/models`. The same page opens, but the route identifier differs."
 	},
 	"route:R9524664": {
 		"status": "decided",
@@ -262,7 +271,9 @@
 	"route:R10181173": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "APP-03",
+		"owner": "hand"
 	},
 	"route:R10198052": {
 		"status": "decided",
@@ -273,7 +284,9 @@
 	"route:R10407696": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-06",
+		"owner": "hand"
 	},
 	"route:R10410820": {
 		"status": "decided",
@@ -282,9 +295,10 @@
 		"by": "rule:team-route"
 	},
 	"route:R10411413": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The internal Pull requests page.",
+		"by": "hand"
 	},
 	"route:R10854854": {
 		"status": "decided",
@@ -318,12 +332,17 @@
 	"route:R11298182": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/git`. The same page opens, but the route identifier differs."
 	},
 	"route:R11312381": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The internal settings page.",
+		"by": "hand"
 	},
 	"route:R11641644": {
 		"status": "decided",
@@ -332,14 +351,19 @@
 		"by": "rule:team-route"
 	},
 	"route:R11704796": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account sign-in page.",
+		"by": "hand"
 	},
 	"route:R11732135": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/experimental`. The same page opens, but the route identifier differs."
 	},
 	"route:R11736341": {
 		"status": "decided",
@@ -370,47 +394,72 @@
 	"route:R11783496": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"owner": "hand"
 	},
 	"route:R11783578": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A parent route with no page; its index redirects to the settings page.",
+		"by": "hand"
 	},
 	"route:R11783949": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-09",
+		"owner": "hand",
+		"note": "Our provider setup is a dialog on `/settings/agents` (AgentProvidersDialog.tsx), not a page route. Conductor's `/providers` page has no route in ours."
 	},
 	"route:R11784032": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-04",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/environment`. A segment cannot equal a state's full route."
 	},
 	"route:R11784112": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/connections`. A segment cannot equal a state's full route."
 	},
 	"route:R11784178": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A redirect to the connections settings page, not a page of its own.",
+		"by": "hand"
 	},
 	"route:R11784222": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/connections`. The same page opens, but the route identifier differs."
 	},
 	"route:R11784338": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The phone relay's remote-control settings page.",
+		"by": "hand"
 	},
 	"route:R11784428": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "NAV-09",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/key-bindings`. A segment cannot equal a state's full route."
 	},
 	"route:R11784537": {
 		"status": "gap",
@@ -444,23 +493,39 @@
 	},
 	"route:R11785937": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11785995": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11786057": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11786119": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11786178": {
 		"status": "decided",
@@ -469,9 +534,10 @@
 		"by": "rule:team-route"
 	},
 	"route:R11786352": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation GitHub settings page.",
+		"by": "hand"
 	},
 	"route:R11786413": {
 		"status": "decided",
@@ -494,9 +560,10 @@
 		"owner": "rule:quote"
 	},
 	"route:R11786662": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A redirect to the organisation MCP settings page.",
+		"by": "hand"
 	},
 	"route:R11786702": {
 		"status": "decided",
@@ -533,9 +600,10 @@
 		"by": "rule:team-route"
 	},
 	"route:R12032539": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A developer test route.",
+		"by": "hand"
 	},
 	"route:R12033165": {
 		"status": "decided",

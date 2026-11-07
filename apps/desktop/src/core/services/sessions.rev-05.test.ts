@@ -69,7 +69,7 @@ const harness = (
 		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspaceContextOf: async () => ok(workspace),
 		defaultConfig: async () => ok(options.baseConfig ?? sampleSession.config),
-		setting: <T>(key: string) => settings[key] as T,
+		setting: <T>(key: string) => (settings[key] ?? "") as T,
 		now: () => now,
 		newId: () => `generated-${++nextId}`,
 	} as unknown as SessionsServiceDeps;
@@ -187,6 +187,66 @@ describe("REV-05 startReviewChat", () => {
 		expect(created.ok).toBe(true);
 		if (!created.ok) return;
 		expect(created.value.config).toMatchObject({ agent: "codex", effort: "low" });
+	});
+
+	it("starts the review chat with the agent stored with the review model", async () => {
+		seedWorkspace();
+		const h = harness({
+			default_message_send_mode: "steer",
+			custom_prompt_general: "",
+			review_agent: "codex",
+			review_model: "gpt-5",
+			review_fast_mode: false,
+			review_codex_thinking_level: "low",
+		});
+
+		const created = await h.service.startReviewChat(workspaceId, "Review this change.");
+
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+		expect(created.value.config.agent).toBe("codex");
+		expect(created.value.config.acpAgent).toBeUndefined();
+		expect(created.value.config).toMatchObject({ model: "gpt-5", effort: "low" });
+	});
+
+	it("starts the review chat with an ACP review agent and its own effort", async () => {
+		seedWorkspace();
+		const h = harness({
+			default_message_send_mode: "steer",
+			custom_prompt_general: "",
+			review_agent: "acp:opencode",
+			review_model: "opencode-model",
+			review_effort: "medium",
+			review_fast_mode: false,
+		});
+
+		const created = await h.service.startReviewChat(workspaceId, "Review this change.");
+
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+		expect(created.value.config.agent).toBe("acp");
+		expect(created.value.config.acpAgent).toBe("opencode");
+		expect(created.value.config).toMatchObject({ model: "opencode-model", effort: "medium" });
+	});
+
+	it("refuses a review agent this app cannot use without creating a chat", async () => {
+		seedWorkspace();
+		const h = harness({
+			default_message_send_mode: "steer",
+			custom_prompt_general: "",
+			review_agent: "not-an-agent",
+			review_model: "",
+			review_fast_mode: false,
+			review_claude_effort_level: "",
+		});
+
+		const result = await h.service.startReviewChat(workspaceId, "Review this change.");
+
+		expect(result).toMatchObject({ ok: false, error: { code: "setting_invalid" } });
+		const listed = must(
+			await repositories.sessions.listByWorkspace(workspaceId, { includeClosed: true }),
+		);
+		expect(listed).toEqual([]);
 	});
 
 	it("turns fast mode off for a review even when the default chat is fast", async () => {

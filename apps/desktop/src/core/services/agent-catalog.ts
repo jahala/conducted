@@ -11,7 +11,8 @@
  * a sign-in flow, an agent's provider keys and the providers an agent can use, the preview and
  * copy of MCP servers, slash commands and skills from one agent's config to the other's, and the
  * text of an agent's own settings file for its editor on the Agents page.
- * Also the display name and catalogue key that the Agents page and the model picker share.
+ * Also the display name, catalogue key and list of agents that the Agents page and the model
+ * pickers share, and the parser of a stored agent key.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
  * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states, provider
  * credential forms and the Claude settings and Codex config editors), services-map.md 4.2.8
@@ -72,7 +73,7 @@ import {
 	signInEnvVars,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { ACP_AGENTS, AGENT_KINDS, appError, err, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
@@ -135,6 +136,35 @@ export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent
 	if (choice.acpAgent === "pi") return "Pi";
 	if (choice.acpAgent === "opencode") return "OpenCode";
 	return "ACP agent";
+}
+
+/**
+ * Every agent the app can run, in Conductor's order (Pi is ours, D098). The composer's picker,
+ * the loadout and the review model picker share it, so a new agent is added in one place.
+ */
+export const AGENT_CHOICES: readonly { agent: AgentKind; acpAgent?: AcpAgent }[] = [
+	{ agent: "claude" },
+	{ agent: "codex" },
+	{ agent: "cursor" },
+	{ agent: "acp", acpAgent: "opencode" },
+	{ agent: "acp", acpAgent: "pi" },
+];
+
+/**
+ * Reads the agent a stored `agentKey` names, or null when it names no agent this app can run.
+ * The review model stores its agent beside its model, so a chat starts with the agent that offers
+ * the model rather than with the default chat's.
+ */
+export function parseAgentKey(key: string): { agent: AgentKind; acpAgent?: AcpAgent } | null {
+	const parts = key.split(":");
+	if (parts.length === 1) {
+		const agent = parts[0] as AgentKind;
+		return agent !== "acp" && AGENT_KINDS.includes(agent) ? { agent } : null;
+	}
+	if (parts.length !== 2) return null;
+	const [agent, acpAgent] = parts;
+	if (agent !== "acp" || !ACP_AGENTS.includes(acpAgent as AcpAgent)) return null;
+	return { agent: "acp", acpAgent: acpAgent as AcpAgent };
 }
 
 export interface AgentCatalogServiceDeps {

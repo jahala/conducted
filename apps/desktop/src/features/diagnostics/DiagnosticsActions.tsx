@@ -51,6 +51,7 @@ export function DiagnosticsActions({
 				onClick={() => onAction("copy_full")}
 				disabled={disabled}
 				loading={busy === "copy_full"}
+				title="Copy the full diagnostics report to your clipboard"
 			>
 				Copy full report
 			</Button>
@@ -60,7 +61,9 @@ export function DiagnosticsActions({
 				disabled={disabled || !canStartChat}
 				loading={busy === "start_chat"}
 				title={
-					canStartChat ? undefined : "Create a workspace before starting a chat from diagnostics."
+					canStartChat
+						? "Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH."
+						: "Create a workspace before starting a chat from diagnostics."
 				}
 			>
 				Create a new session with the redacted report attached

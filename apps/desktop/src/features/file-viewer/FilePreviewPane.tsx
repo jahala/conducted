@@ -12,7 +12,7 @@
  * file in the tab, and a relative image loads from the workspace folder.
  * A file the tab cannot show (too large, no preview, a video the webview cannot play) offers "Open
  * in another app", which opens it in the default "Open in" app, and a file with no preview also
- * offers "Reveal in Finder" (use-open-elsewhere.ts).
+ * offers "Reveal in Finder" (use-open-elsewhere.tsx).
  * Test first: a path ending in ".md" renders the Markdown preview, and ".bin" renders the
  * unavailable notice.
  */
@@ -37,7 +37,7 @@ import { PreviewUnavailable } from "./preview/PreviewUnavailable.tsx";
 import { classifyPreview } from "./preview/preview-kind.ts";
 import { SvgPreview } from "./preview/SvgPreview.tsx";
 import { VideoPreview } from "./preview/VideoPreview.tsx";
-import { useOpenElsewhere } from "./use-open-elsewhere.ts";
+import { useOpenElsewhere } from "./use-open-elsewhere.tsx";
 
 export interface FilePreviewPaneProps {
 	workspaceId: WorkspaceId;

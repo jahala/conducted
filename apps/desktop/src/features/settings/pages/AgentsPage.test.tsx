@@ -100,6 +100,27 @@ describe("SET-03 AgentsPage", () => {
 		expect(spies.refresh).toHaveBeenCalled();
 	});
 
+	it("waits on Refresh until the check settles, and says when it failed", async () => {
+		const { page, spies } = harness([install({ agent: "claude", authenticated: true })]);
+		render(page());
+		await waitFor(() => expect(spies.refresh).toHaveBeenCalledTimes(1));
+		let settle: (value: Awaited<ReturnType<typeof spies.refresh>>) => void = () => undefined;
+		spies.refresh.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					settle = resolve;
+				}),
+		);
+
+		const refresh = screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement;
+		fireEvent.click(refresh);
+		await waitFor(() => expect(refresh.disabled).toBe(true));
+
+		settle(err(appError("sidecar_unavailable", "The sidecar is not running.")));
+		await waitFor(() => expect(refresh.disabled).toBe(false));
+		expect(await screen.findByText("Couldn't refresh the agents")).toBeTruthy();
+	});
+
 	it("leads with install help when no agent program is found", () => {
 		const { page } = harness([]);
 		render(page());
@@ -172,7 +193,7 @@ describe("SET-03 AgentsPage", () => {
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("ABCD-1234")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy Codex verification code" }));
 		expect(await screen.findByText("Copied Codex verification code.")).toBeTruthy();
 
 		signedIn = true;

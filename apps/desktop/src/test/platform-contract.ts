@@ -397,6 +397,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"os",
 	),
 	c(
+		"opener",
+		"app-icon",
+		"appIcon answers with a PNG or no icon",
+		"Finder's icon is a PNG data URL or null, and a name outside the catalogue is refused.",
+		"os",
+	),
+	c(
 		"speech",
 		"available",
 		"available reports support",
@@ -529,6 +536,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"a relay carries lines and reports its end",
 		"A line the Worker sends reaches the relay's listener, a sent line stays one line, and a closed relay is reported once.",
 		"controls",
+	),
+	c(
+		"portForward",
+		"start-stop",
+		"a local listener starts, is listed and stops",
+		"findAvailableLocalPort answers a usable port, start binds it, list shows it, and stop removes it.",
 	),
 ];
 
@@ -1643,6 +1656,17 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"opener.app-icon": async (ctx) => {
+		const icon = await ctx.platform.opener.appIcon("Finder");
+		ctx.assert(icon.ok, `appIcon failed for Finder: ${icon.ok ? "" : icon.error.message}`);
+		if (icon.ok && icon.value !== null) {
+			ctx.assert(
+				icon.value.startsWith("data:image/png;base64,"),
+				`appIcon did not return a PNG data URL: ${icon.value.slice(0, 40)}`,
+			);
+		}
+	},
+
 	"speech.available": async (ctx) => {
 		const available = await ctx.platform.speech.available();
 		ctx.assert(typeof available === "boolean", `available returned ${String(available)}`);
@@ -1896,6 +1920,40 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(!after.paired && after.url === null, "unpair kept the pairing");
 	},
 
+	"portForward.start-stop": async (ctx) => {
+		const events: string[] = [];
+		const stop = ctx.platform.portForward.onEvent((event) => events.push(event.kind));
+		const free = expectOk(
+			ctx,
+			await ctx.platform.portForward.findAvailableLocalPort({
+				rangeStart: 20_000,
+				rangeEnd: 29_999,
+			}),
+			"findAvailableLocalPort",
+		);
+		ctx.assert(free >= 1024 && free !== 22, `the port search answered ${free}`);
+		expectOk(
+			ctx,
+			await ctx.platform.portForward.start({
+				forwardId: "forward-1",
+				url: "https://w.example.dev",
+				vmId: "oslo",
+				localPort: free,
+				remotePort: 3000,
+			}),
+			"start",
+		);
+		const running = expectOk(ctx, await ctx.platform.portForward.list(), "list");
+		ctx.assert(
+			running.some((forward) => forward.forwardId === "forward-1"),
+			"the started forward is not listed",
+		);
+		expectOk(ctx, await ctx.platform.portForward.stop("forward-1"), "stop");
+		const after = expectOk(ctx, await ctx.platform.portForward.list(), "list after stop");
+		ctx.assert(after.length === 0, "the stopped forward is still listed");
+		stop();
+		ctx.assert(events.includes("started"), "no started event was reported");
+	},
 	"cloud.relay": async (ctx) => {
 		const emit = ctx.controls?.emitCloudLine;
 		const close = ctx.controls?.emitCloudClosed;
@@ -2052,6 +2110,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"dialogs.pick-files": ["dialogs.pickFiles"],
 	"dialogs.confirm": ["dialogs.confirm"],
 	"opener.installed-apps": ["opener.installedApps"],
+	"opener.app-icon": ["opener.appIcon"],
 	"speech.available": ["speech.available"],
 	"speech.stop-ends": ["speech.start", "speech.stop"],
 	"updater.check": ["updater.check"],
@@ -2093,6 +2152,13 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"cloud.relay.send",
 		"cloud.relay.onClosed",
 		"cloud.relay.close",
+	],
+	"portForward.start-stop": [
+		"portForward.findAvailableLocalPort",
+		"portForward.start",
+		"portForward.stop",
+		"portForward.list",
+		"portForward.onEvent",
 	],
 };
 
@@ -2142,6 +2208,10 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"http.download":
 		"Streams to a file in Rust; the Rust download tests own progress, checksum and cancel.",
 	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",
+	"cloud.deploy":
+		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
+	"cloud.uninstall":
+		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
 };
 
 /** Methods that are neither covered by a case nor listed with a reason. */

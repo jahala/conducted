@@ -6,7 +6,9 @@
  * merge' (Merge), 'No PR open' (Create PR), 'PR is in draft' ('Ready for review'), 'N uncommitted
  * change(s)' ('Commit and push'), 'N commit(s) behind remote' (Pull), 'N commit(s) ahead of remote'
  * (Push, only with nothing uncommitted), 'Merge conflicts detected' (Resolve), 'Incompatible with
- * remote' (Resolve), 'Waiting for PR review', 'PR changes requested' ('Add all comments to chat').
+ * remote' (Resolve), 'Waiting for PR review', 'PR changes requested' ('Add all comments to chat',
+ * offered only while a review comment is not in the chat yet, as Conductor does).
+ * Also owns `commentsToAddToChat`, the comments that action sends, which the git header uses too.
  * Our design choice: 'No PR open' shows whenever there is no pull request, as our tab did before;
  * Conductor shows it only when the branch has changes. 'Ready to merge' follows Conductor's rule
  * on our fields: an open pull request the viewer may merge, mergeable, with no blocking check
@@ -17,7 +19,8 @@
  * Test first: a draft pull request with two uncommitted files gives 'PR is in draft' and then
  * '2 uncommitted changes'.
  */
-import type { GitState } from "../../../core/model.ts";
+import type { CommentId } from "@conducted/shared";
+import type { DiffComment, GitState } from "../../../core/model.ts";
 import { countsAsBlocking, type GitHeaderActionId } from "../../../core/status/git-header.ts";
 
 export interface GitStatusRow {
@@ -30,9 +33,30 @@ function counted(count: number, word: string): string {
 	return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
+/**
+ * The review comments "Add all comments to chat" sends: GitHub's open comments, each thread's first
+ * one, that no message has carried to a chat yet (sending marks a comment reviewed).
+ */
+export function commentsToAddToChat(comments: readonly DiffComment[]): CommentId[] {
+	return comments
+		.filter(
+			(comment) =>
+				comment.author.kind === "github" &&
+				comment.replyToId === null &&
+				!comment.resolved &&
+				!comment.outdated &&
+				comment.state !== "reviewed" &&
+				comment.state !== "hidden" &&
+				comment.state !== "superseded",
+		)
+		.map((comment) => comment.id);
+}
+
+/** `commentsToAdd` is how many comments "Add all comments to chat" would send now. */
 export function gitStatusRows(
 	git: GitState,
 	treatOptionalChecksAsBlocking: boolean,
+	commentsToAdd: number,
 ): GitStatusRow[] {
 	const rows: GitStatusRow[] = [];
 	const pr = git.pullRequest;
@@ -120,7 +144,10 @@ export function gitStatusRows(
 		rows.push({
 			id: "changes-requested",
 			text: "PR changes requested",
-			action: { id: "add_comments_to_chat", label: "Add all comments to chat" },
+			action:
+				commentsToAdd > 0
+					? { id: "add_comments_to_chat", label: "Add all comments to chat" }
+					: null,
 		});
 	}
 	return rows;

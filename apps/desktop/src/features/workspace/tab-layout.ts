@@ -33,6 +33,8 @@ export interface TabDescriptor {
 	mode?: "diff" | "edit";
 	scope?: DiffScope;
 	line?: number | null;
+	/** Where a terminal runs, shown as its tab icon in a cloud workspace (CLOUD-09). */
+	hostKind?: "local" | "cloud";
 }
 
 export interface TabGroup {

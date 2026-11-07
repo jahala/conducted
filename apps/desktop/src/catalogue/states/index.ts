@@ -6,14 +6,20 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import type { CatalogueState } from "../state.ts";
+import { APPROVAL_STATES } from "./approvals.ts";
 import { CHAT_STATES } from "./chat.ts";
+import { CHECKS_STATES } from "./checks.ts";
 import { COMPOSER_STATES } from "./composer.ts";
 import { GIT_STATES } from "./git.ts";
+import { GOAL_STATES } from "./goals.ts";
+import { OPEN_IN_STATES } from "./open-in.ts";
 import { OVERLAY_STATES } from "./overlays.ts";
 import { PAGE_STATES } from "./pages.ts";
+import { PR_HEADER_STATES } from "./pull-request.ts";
 import { SETTINGS_STATES } from "./settings.ts";
 import { SHELL_STATES } from "./shell.ts";
 import { STARTUP_STATES } from "./startup.ts";
+import { TOOL_STATES } from "./tools.ts";
 
 export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...SHELL_STATES,
@@ -24,6 +30,12 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...SETTINGS_STATES,
 	...OVERLAY_STATES,
 	...STARTUP_STATES,
+	...OPEN_IN_STATES,
+	...TOOL_STATES,
+	...APPROVAL_STATES,
+	...PR_HEADER_STATES,
+	...CHECKS_STATES,
+	...GOAL_STATES,
 ];
 
 const seen = new Set<string>();

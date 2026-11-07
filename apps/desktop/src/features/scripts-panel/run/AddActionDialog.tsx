@@ -1,19 +1,24 @@
 /**
  * @feature SET-07 Add or edit action dialog
- * Owns: the dialog for creating or editing a run action: name, command, folder, icon and default
- * flag. Used by the repository Actions settings page; the Run tab's "Add action" route is RUN-01's.
- * Behaviour: ui-map.md 3.7 (Add-action dialog: "Action name", icon picker with search);
- * services-map.md 5A.1.6 (action fields; ids are normalised; labels come from the id; the shared
- * file is read-only, so a change to a shared action is written to the personal file).
+ * Owns: the dialog for creating or editing a run action: name, command, folder, icon, default flag,
+ * and where it can run. Used by the repository Actions settings page; the Run tab's "Add action"
+ * route is RUN-01's.
+ * Behaviour: ui-map.md 3.7 (Add-action dialog: "Action name", "Can run in" with "Cloud workspace"
+ * and "Local mirror", icon picker with search); services-map.md 5A.1.6 (action fields including
+ * `available_in`; ids are normalised; labels come from the id; the shared file is read-only, so a
+ * change to a shared action is written to the personal file).
  * Children: ActionIconPicker.
- * Must handle: an empty name or command (Save disabled), a name that normalises to an existing id
- * (error naming the clash, Save disabled), a folder with `$VARIABLES` (the known names are shown
- * as help), and a save failure (dialog stays open with the text kept).
+ * Must handle: an empty name or command (Save disabled), no place to run (Save disabled), a name
+ * that normalises to an existing id (error naming the clash, Save disabled), a folder with
+ * `$VARIABLES` (the known names are shown as help), and a save failure (dialog stays open with the
+ * text kept).
  * Test first: two names that normalise to the same id show the clash and disable Save.
  */
 import { useEffect, useId, useRef, useState } from "react";
+import type { ActionTarget } from "../../../core/model.ts";
 import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/services/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
+import { Checkbox } from "../../../ui/Checkbox.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label, Textarea } from "../../../ui/Input.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
@@ -27,6 +32,8 @@ export interface ActionDraft {
 	cwd: string;
 	icon: string | null;
 	isDefault: boolean;
+	/** Where the action may run: this Mac and/or a cloud workspace. */
+	availableIn: readonly ActionTarget[];
 }
 
 export interface AddActionDialogProps {
@@ -54,6 +61,7 @@ const EMPTY_DRAFT: ActionDraft = {
 	cwd: "",
 	icon: null,
 	isDefault: false,
+	availableIn: ["local", "cloud"],
 };
 
 export function AddActionDialog({
@@ -69,6 +77,8 @@ export function AddActionDialog({
 	const nameId = useId();
 	const commandId = useId();
 	const cwdId = useId();
+	const cloudId = useId();
+	const localId = useId();
 	const initialKey = JSON.stringify(initial);
 	const lastKey = useRef(initialKey);
 
@@ -86,10 +96,21 @@ export function AddActionDialog({
 		existingIds.some(
 			(existing) => actionIdsEqual(existing, id) && !(draft.id !== null && existing === draft.id),
 		);
-	const canSave = id !== "" && draft.command.trim() !== "" && !clash && !saving;
+	const canSave =
+		id !== "" && draft.command.trim() !== "" && draft.availableIn.length > 0 && !clash && !saving;
 
 	const set = (patch: Partial<ActionDraft>) => {
 		setDraft((current) => ({ ...current, ...patch }));
+		setError(null);
+	};
+
+	const setTarget = (target: ActionTarget, enabled: boolean) => {
+		setDraft((current) => ({
+			...current,
+			availableIn: enabled
+				? [...new Set([...current.availableIn, target])]
+				: current.availableIn.filter((entry) => entry !== target),
+		}));
 		setError(null);
 	};
 
@@ -138,7 +159,7 @@ export function AddActionDialog({
 							id={nameId}
 							value={draft.name}
 							autoFocus
-							placeholder="Dev server"
+							placeholder="My action"
 							aria-invalid={clash || undefined}
 							error={clash ? `An action called "${draft.name.trim()}" already exists.` : undefined}
 							onChange={(event) => set({ name: event.target.value })}
@@ -181,6 +202,26 @@ export function AddActionDialog({
 							selected={draft.icon}
 							onSelect={(iconName) => set({ icon: iconName })}
 						/>
+					</div>
+
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+						<span className="text-xs text-fg-muted">Can run in</span>
+						<label htmlFor={cloudId} className="flex items-center gap-2 text-sm text-fg">
+							<Checkbox
+								id={cloudId}
+								checked={draft.availableIn.includes("cloud")}
+								onCheckedChange={(checked) => setTarget("cloud", checked)}
+							/>
+							Cloud workspace
+						</label>
+						<label htmlFor={localId} className="flex items-center gap-2 text-sm text-fg">
+							<Checkbox
+								id={localId}
+								checked={draft.availableIn.includes("local")}
+								onCheckedChange={(checked) => setTarget("local", checked)}
+							/>
+							Local mirror
+						</label>
 					</div>
 
 					<div className="flex items-center justify-between gap-3">
@@ -229,6 +270,7 @@ export function draftForAction(action: {
 	cwd: string | null;
 	icon: string | null;
 	isDefault: boolean;
+	availableIn: readonly ActionTarget[];
 }): ActionDraft {
 	return {
 		id: action.id,
@@ -237,5 +279,6 @@ export function draftForAction(action: {
 		cwd: action.cwd ?? "",
 		icon: action.icon,
 		isDefault: action.isDefault,
+		availableIn: action.availableIn,
 	};
 }

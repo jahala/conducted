@@ -28,6 +28,7 @@ const GROUPS = [
 	"mcp",
 	"attachments",
 	"cloud",
+	"portForwards",
 	"snippets",
 	"settings",
 	"agents",
@@ -86,6 +87,10 @@ describe("DATA-01 createActions", () => {
 			cloud: {
 				run: () => actions.cloud.unpair(),
 				path: "cloudPairing.unpair",
+			},
+			portForwards: {
+				run: () => actions.portForwards.add("w" as never, 3000),
+				path: "portForwards.add",
 			},
 			sessions: {
 				run: () => actions.sessions.close("s" as never),
@@ -232,5 +237,28 @@ describe("DATA-01 createActions", () => {
 		await expect(actions.app.pickFolder("Pick")).resolves.toEqual(ok("/code/app"));
 		await expect(actions.app.pickFolder("Pick")).resolves.toEqual(ok(null));
 		await expect(actions.app.openUrl("https://example.com")).resolves.toEqual(ok(undefined));
+	});
+
+	it("returns the one chosen file and null when the file picker is cancelled", async () => {
+		const answers: string[][] = [["/usr/local/bin/claude"], []];
+		const asked: { title: string; multiple: boolean }[] = [];
+		const platform = {
+			dialogs: {
+				pickFiles: async (options: { title: string; multiple: boolean }) => {
+					asked.push(options);
+					return answers.shift() ?? [];
+				},
+			},
+		};
+		const actions = createActions({} as Services, platform as never);
+
+		await expect(actions.app.pickFile("Select Claude Code executable")).resolves.toEqual(
+			ok("/usr/local/bin/claude"),
+		);
+		await expect(actions.app.pickFile("Select Claude Code executable")).resolves.toEqual(ok(null));
+		expect(asked).toEqual([
+			{ title: "Select Claude Code executable", multiple: false },
+			{ title: "Select Claude Code executable", multiple: false },
+		]);
 	});
 });

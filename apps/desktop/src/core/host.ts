@@ -8,16 +8,20 @@
  * Must handle: a local host passes, and the call goes on to the Mac's Platform exactly as before;
  * a cloud host never falls back to the Mac. Its git, shell and file calls and its chats belong to
  * the user's Worker and its Durable Object (CLOUD-03), which the shell and file adapters in
- * `core/cloud/` and the host-routed sidecar reach. The doors CLOUD-03 does not own stop at their
- * row's placeholder: terminals and run commands at CLOUD-09, file search at CLOUD-11, Open in at
- * CLOUD-12, and archive, unarchive and delete at CLOUD-08.
+ * `core/cloud/` and the host-routed sidecar reach; its terminals and run scripts reach the
+ * sandbox's PTY through the Worker's terminal stream (CLOUD-09, `core/cloud/terminal.ts`). The
+ * doors those rows do not own stop at their own placeholder: Open in at CLOUD-12. File search is
+ * built (CLOUD-11): it reads the workspace's local mirror, so it too passes this check. A cloud
+ * workspace's archive, unarchive and delete are built (CLOUD-08) as branches in the workspace
+ * service that reach its Worker, so they no longer stop here.
  * Our design choice: one check, called where a workspace is turned into the folder a call runs in
  * (core/lookups.ts, the terminal service and the workspace services), instead of a host object
  * every call goes through. A local host object would only pass calls on to the Platform (D092).
- * CLOUD-03 removed the cloud stop for the doors it built; the callers' folders now select the
- * runtime, and every door it did not build keeps its own row's placeholder.
- * Test first: a cloud workspace's terminal, search, Open in and lifecycle calls stop at their
- * placeholders, and its git, file and chat calls reach the Worker.
+ * CLOUD-03 removed the cloud stop for the doors it built, CLOUD-09 for terminals and run scripts,
+ * and CLOUD-08 for lifecycle; the callers' folders now select the runtime, and every door not yet
+ * built keeps its own row's placeholder.
+ * Test first: a cloud workspace's Open in call stops at its placeholder, and its git, file, chat,
+ * search, terminal and lifecycle calls reach the Worker or the local mirror.
  */
 import type { Host } from "@conducted/protocol";
 import { notImplemented } from "@conducted/shared";
@@ -37,17 +41,8 @@ export type HostDoor =
 export function checkHost(host: Host, door: HostDoor): void {
 	if (host.kind === "local") return;
 	switch (door) {
-		case "terminals":
-			notImplemented("CLOUD-09");
-			return;
-		case "search":
-			notImplemented("CLOUD-11");
-			return;
 		case "open-in":
 			notImplemented("CLOUD-12");
-			return;
-		case "lifecycle":
-			notImplemented("CLOUD-08");
 			return;
 		default:
 			return;

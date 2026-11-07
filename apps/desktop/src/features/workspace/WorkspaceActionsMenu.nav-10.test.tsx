@@ -22,7 +22,12 @@ const state = vi.hoisted(() => {
 	return {
 		workspace: {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" },
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			},
 		} as Loadable<Workspace>,
 		sessions: { state: "ready", data: [] } as Loadable<Session[]>,
 		sectionsStore,
@@ -37,6 +42,7 @@ const state = vi.hoisted(() => {
 		place: vi.fn(),
 		createSection: vi.fn(),
 		copyText: vi.fn(),
+		pauseWorkspace: vi.fn(),
 	};
 });
 
@@ -46,6 +52,14 @@ vi.mock("../../core/hooks.ts", () => ({
 	useLiveShortcut: () => null,
 	useWorkspace: () => state.workspace,
 	useSessions: () => state.sessions,
+	usePortForwards: () => ({
+		forwardingEnabled: false,
+		autoForwardEnabled: false,
+		waiting: false,
+		forwards: [],
+		detectedPorts: [],
+		error: null,
+	}),
 	useActions: () => ({
 		workspaces: {
 			setPinned: state.setPinned,
@@ -57,6 +71,7 @@ vi.mock("../../core/hooks.ts", () => ({
 			unarchive: state.unarchive,
 		},
 		sections: { place: state.place, create: state.createSection },
+		portForwards: { pauseWorkspace: state.pauseWorkspace },
 		app: { copyText: state.copyText },
 	}),
 }));
@@ -92,6 +107,7 @@ beforeEach(() => {
 		state.place,
 		state.createSection,
 		state.copyText,
+		state.pauseWorkspace,
 	]) {
 		fn.mockReset();
 		fn.mockResolvedValue({ ok: true, value: undefined });
@@ -100,7 +116,12 @@ beforeEach(() => {
 	state.sessions = { state: "ready", data: [] };
 	state.workspace = {
 		state: "ready",
-		data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		data: {
+			pinnedAt: null,
+			directoryName: "quiet-meadow",
+			state: "ready",
+			host: { kind: "local" },
+		} as Workspace,
 	};
 });
 
@@ -110,7 +131,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("pins an unpinned workspace", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /^Pin/ }));
@@ -120,7 +146,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("reads Unpin for a pinned workspace", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: 10, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: 10,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		expect(await screen.findByRole("menuitem", { name: /^Unpin/ })).toBeTruthy();
@@ -129,7 +160,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("offers Unarchive instead of Rename for an archived workspace", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "archived",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		expect(await screen.findByRole("menuitem", { name: "Unarchive" })).toBeTruthy();
@@ -139,7 +175,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("marks the workspace as read when it is unread", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		state.sessions = {
 			state: "ready",
@@ -153,7 +194,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("marks the workspace as unread when all chats are read", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		state.sessions = {
 			state: "ready",
@@ -167,7 +213,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("sets the status from the submenu", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		const trigger = await screen.findByRole("menuitem", { name: "Set status" });
@@ -181,7 +232,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("moves the workspace to a section", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		state.snapshot.sections = [{ id: "sec1", name: "Today" }];
 		await openMenu();
@@ -198,6 +254,7 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 				pinnedAt: null,
 				directoryName: "quiet-meadow",
 				state: "ready",
+				host: { kind: "local" },
 				displayName: "Old",
 			} as Workspace,
 		};
@@ -212,7 +269,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("creates a new section", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		const trigger = await screen.findByRole("menuitem", { name: "Move to section" });
@@ -227,7 +289,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("copies a deep link", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /^Copy link/ }));
@@ -237,7 +304,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("archives a workspace", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
@@ -249,7 +321,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("unarchives an archived workspace", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "archived",
+				host: { kind: "local" },
+			} as Workspace,
 		};
 		state.unarchive.mockResolvedValue({
 			ok: true,
@@ -270,7 +347,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 		try {
 			state.workspace = {
 				state: "ready",
-				data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
+				data: {
+					pinnedAt: null,
+					directoryName: "quiet-meadow",
+					state: "archived",
+					host: { kind: "local" },
+				} as Workspace,
 			};
 			state.unarchive.mockResolvedValue({
 				ok: true,

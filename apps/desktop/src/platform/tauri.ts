@@ -67,6 +67,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployResult,
 	CloudPairing,
 	CloudRelay,
 	CloudRequest,
@@ -84,6 +85,9 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	PortForwardEvent,
+	PortForwardInfo,
+	PortForwarding,
 	ProcessUsage,
 	ProgramStatus,
 	Programs,
@@ -365,6 +369,7 @@ export const COMMANDS = {
 	revealInFinder: "reveal_in_finder",
 	openWith: "open_with",
 	installedApps: "installed_apps",
+	appIcon: "app_icon",
 	speechAvailable: "speech_available",
 	speechStart: "speech_start",
 	speechStop: "speech_stop",
@@ -391,10 +396,16 @@ export const COMMANDS = {
 	cloudPairing: "cloud_pairing", // CLOUD-07
 	cloudPair: "cloud_pair", // CLOUD-07
 	cloudUnpair: "cloud_unpair", // CLOUD-07
+	cloudDeploy: "cloud_deploy", // CLOUD-08
+	cloudUninstall: "cloud_uninstall", // CLOUD-08
 	cloudRequest: "cloud_request", // CLOUD-03
 	cloudRelayOpen: "cloud_relay_open", // CLOUD-03
 	cloudRelaySend: "cloud_relay_send", // CLOUD-03
 	cloudRelayClose: "cloud_relay_close", // CLOUD-03
+	portForwardFindPort: "find_available_local_port", // CLOUD-10
+	portForwardStart: "start_port_forward", // CLOUD-10
+	portForwardStop: "stop_port_forward", // CLOUD-10
+	portForwardList: "list_port_forwards", // CLOUD-10
 } as const;
 
 /** Events emitted by the Rust shell and by Tauri's own window. */
@@ -416,6 +427,7 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 	cloudLine: "cloud://line", // CLOUD-03
 	cloudClosed: "cloud://closed", // CLOUD-03
+	portForwardEvent: "port-forward-event", // CLOUD-10
 } as const;
 
 /** The answer of `deep_link_launch`: the links that launched the app, sorted by deep_link.rs. */
@@ -1094,7 +1106,10 @@ export function createTauriDialogs(bindings: TauriBindings = realTauriBindings):
 	};
 }
 
-/** plugin-opener: `openUrl`; `reveal_in_finder { path }`, `open_with { appName, path }`, `installed_apps`. */
+/**
+ * plugin-opener: `openUrl`; `reveal_in_finder { path }`, `open_with { appName, path }`,
+ * `installed_apps`, `app_icon { appName }`.
+ */
 export function createTauriOpener(bindings: TauriBindings = realTauriBindings): Opener {
 	return {
 		openUrl: (url) => requireBinding(bindings.opener, "opener").openUrl(url),
@@ -1108,6 +1123,7 @@ export function createTauriOpener(bindings: TauriBindings = realTauriBindings): 
 			if (!result.ok) throw result.error;
 			return result.value;
 		},
+		appIcon: (appName) => invokeResult<string | null>(bindings, COMMANDS.appIcon, { appName }),
 	};
 }
 
@@ -1340,12 +1356,19 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 		status: () => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPairing),
 		pair: (input) => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPair, { input }),
 		unpair: () => invokeResult<void>(bindings, COMMANDS.cloudUnpair),
+		// The command takes an optional override; an empty object keeps the argument present, which
+		// Tauri's deserializer needs for the `Option` field.
+		deploy: (input) =>
+			invokeResult<CloudDeployResult>(bindings, COMMANDS.cloudDeploy, { input: input ?? {} }),
+		uninstall: (input) =>
+			invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
 		request: (request: CloudRequest) =>
 			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
 		openRelay: async (input) => {
 			const opened = await invokeResult<string>(bindings, COMMANDS.cloudRelayOpen, {
 				url: input.url,
 				vmId: input.vmId,
+				channel: input.channel ?? "rpc",
 			});
 			if (!opened.ok) return opened;
 			const id = opened.value;
@@ -1397,6 +1420,34 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 			};
 			return ok(relay);
 		},
+	};
+}
+
+/**
+ * `find_available_local_port`, `start_port_forward`, `stop_port_forward`,
+ * `list_port_forwards`, and the `port-forward-event` event (CLOUD-10). The pairing token and the
+ * socket live in Rust; the screen only names the workspace and the ports.
+ */
+export function createTauriPortForward(bindings: TauriBindings): PortForwarding {
+	return {
+		findAvailableLocalPort: (input) =>
+			invokeResult<number>(bindings, COMMANDS.portForwardFindPort, {
+				preferredPort: input.preferredPort,
+				excludedPorts: input.excludedPorts ?? [],
+				rangeStart: input.rangeStart,
+				rangeEnd: input.rangeEnd,
+			}),
+		start: (input) =>
+			invokeResult<PortForwardInfo>(bindings, COMMANDS.portForwardStart, {
+				forwardId: input.forwardId,
+				url: input.url,
+				vmId: input.vmId,
+				localPort: input.localPort,
+				remotePort: input.remotePort,
+			}),
+		stop: (forwardId) => invokeResult<void>(bindings, COMMANDS.portForwardStop, { forwardId }),
+		list: () => invokeResult<PortForwardInfo[]>(bindings, COMMANDS.portForwardList),
+		onEvent: (listener) => onEvent<PortForwardEvent>(bindings, EVENTS.portForwardEvent, listener),
 	};
 }
 
@@ -1453,6 +1504,7 @@ export async function createTauriPlatform(
 		programs: createTauriPrograms(bindings),
 		http: createTauriHttp(bindings),
 		cloud: createTauriCloud(bindings),
+		portForward: createTauriPortForward(bindings),
 	};
 	return ok(platform);
 }

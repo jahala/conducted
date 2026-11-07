@@ -5,6 +5,8 @@
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * @feature GIT-14 Local-git forge: header state and the merge request to the agent
+ * @feature GIT-04 the header's "Add all comments to chat", which sends the review comments not in
+ * the chat yet
  * @feature PR-08 the stack readiness the header reads for its "Merge stack" action, which runs the
  * stack merge, the header's Resolve on a branch incompatible with its remote, which syncs a GitHub
  * stack first, and the Graphite poll for the repository of the workspace on screen
@@ -14,7 +16,8 @@
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs), 5.4 (Cmd+Shift+X fix errors); frontend
  * layout in structure-map.md 3.2.
  * Data: useGitState, useWorkspaceStatus (agent working), useStack (the stack, judged for the
- * workspace's pull request by core/status/stack-readiness.ts), useActions().
+ * workspace's pull request by core/status/stack-readiness.ts), useDiffComments (the review
+ * comments "Add all comments to chat" sends, from checks/git-status-rows.ts), useActions().
  * While mounted, the panel watches its workspace's repository with the Graphite service and
  * releases the watch on unmount or when the workspace moves to another repository, so `gt state`
  * runs only for the repository on screen (services-map.md 3.8.1). It reads the stack of the
@@ -60,6 +63,7 @@ import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import {
 	useActions,
+	useDiffComments,
 	useGitState,
 	useSetting,
 	useStack,
@@ -91,6 +95,7 @@ import { ArtifactsTab } from "./artifacts/ArtifactsTab.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
 import { summarizeChecks } from "./checks/checks-summary.ts";
+import { commentsToAddToChat } from "./checks/git-status-rows.ts";
 import { FilesTab } from "./files/FilesTab.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs, type GitPanelViewTab } from "./GitPanelTabs.tsx";
@@ -125,10 +130,13 @@ function ComputedHeader({
 	inputs,
 	onAction,
 	workspaceId,
+	commentsToAdd,
 }: {
 	inputs: GitHeaderInputs;
 	onAction: (action: GitHeaderActionId) => Promise<void>;
 	workspaceId: WorkspaceId;
+	/** How many review comments "Add all comments to chat" would send now. */
+	commentsToAdd: number;
 }) {
 	const actions = useActions();
 	const computed = computeGitHeader(inputs);
@@ -137,10 +145,12 @@ function ComputedHeader({
 			if (!result.ok) toastError("Couldn't archive the workspace", result.error);
 		});
 	};
-	// "Add all comments to chat" needs the review comment store (REV-03). Until it exists,
-	// offer no button rather than one that silently does nothing.
+	// As in Conductor, "Add all comments to chat" is offered only while a review comment is not
+	// in the chat yet (renderApp @2262911).
 	const model =
-		computed.action?.id === "add_comments_to_chat" ? { ...computed, action: null } : computed;
+		computed.action?.id === "add_comments_to_chat" && commentsToAdd === 0
+			? { ...computed, action: null }
+			: computed;
 	return (
 		<GitHeader
 			model={model}
@@ -220,6 +230,9 @@ export function GitPanel({
 		repoRemoteUrl !== undefined &&
 		forgeForRemoteUrl(repoRemoteUrl) === "local";
 	const stack = useStack(workspaceId);
+	const reviewComments = useDiffComments(workspaceId);
+	const commentsToAdd =
+		reviewComments.state === "ready" ? commentsToAddToChat(reviewComments.data) : [];
 	const localForgeEntry = useStore(localGitForge.store, (state) => state.byWorkspace[workspaceId]);
 	const localForgeInfo = localForgeActive ? (localForgeEntry?.info ?? null) : undefined;
 	const localForgeError = localForgeActive ? (localForgeEntry?.error ?? null) : undefined;
@@ -317,7 +330,17 @@ export function GitPanel({
 		};
 		switch (action) {
 			case "create_pr":
-				return run(actions.pullRequests.create(workspaceId), "Couldn't create the pull request");
+				return run(
+					actions.pullRequests.create(workspaceId, { draft: false }),
+					"Couldn't create the pull request",
+				);
+			case "create_draft_pr":
+				return run(
+					actions.pullRequests.create(workspaceId, { draft: true }),
+					"Couldn't create the pull request",
+				);
+			case "create_pr_manually":
+				return run(actions.pullRequests.openOnGithub(workspaceId), "Couldn't open GitHub");
 			case "commit_and_push":
 				return run(
 					actions.git.commitAndPush(workspaceId),
@@ -383,8 +406,10 @@ export function GitPanel({
 				);
 			}
 			case "add_comments_to_chat":
-				// The header model above drops this action until REV-03 supplies sendToChat.
-				return Promise.resolve();
+				return run(
+					actions.comments.sendToChat(workspaceId, commentsToAdd),
+					"Couldn't add the comments to the chat",
+				);
 			case "retry":
 				return refresh();
 			case "continue": {
@@ -525,6 +550,7 @@ export function GitPanel({
 				inputs={headerInputs}
 				onAction={runGuarded}
 				workspaceId={workspaceId}
+				commentsToAdd={commentsToAdd.length}
 			/>
 		);
 	})();

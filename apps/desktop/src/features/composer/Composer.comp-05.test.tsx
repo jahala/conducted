@@ -9,7 +9,7 @@
  */
 import type { SessionConfig } from "@conducted/protocol";
 import { ok, type Result } from "@conducted/shared";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +17,7 @@ import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GithubAccess } from "../../core/services/github.ts";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { unmountComposer } from "../../test/composer-teardown.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -77,9 +78,11 @@ interface SetupOptions {
 }
 
 let active: TestContainer | undefined;
+let mountedEditor: Editor | null = null;
 
-afterEach(() => {
-	cleanup();
+afterEach(async () => {
+	await unmountComposer(mountedEditor);
+	mountedEditor = null;
 	toast.dismiss();
 	vi.restoreAllMocks();
 	active?.close();
@@ -148,6 +151,7 @@ async function setup(options: SetupOptions = {}) {
 			sessionId={session.id}
 			onEditorReady={(next) => {
 				editor = next;
+				mountedEditor = next;
 			}}
 		/>,
 		{ wrapper },

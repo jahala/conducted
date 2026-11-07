@@ -1,6 +1,11 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-06 Keep work across sandbox restarts
+ * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-17 Cloud settings page
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
  * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
@@ -47,8 +52,11 @@ import {
 	turnEndUrl,
 } from "./backup.ts";
 import type { Env } from "./env.ts";
+import { walkFileTree } from "./file-list.ts";
 import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
 import { SANDBOX_GIT_ENV } from "./sandbox-git-env.ts";
+import { cloudSettingsEnv, readCloudSettings } from "./settings.ts";
+import { type ServerMessage, TerminalSession } from "./terminal.ts";
 
 /** The port the sandbox image's bridge listens on. */
 export const SIDECAR_PORT = 8080;
@@ -58,6 +66,12 @@ export const READY_DEADLINE_MS = 150_000;
 export const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 /** How often the alarm touches a sandbox that is running a turn. */
 export const ALARM_INTERVAL_MS = 60_000;
+/** One listening port reported by the sandbox, with its process name when it has one. */
+export interface DetectedRemotePort {
+	port: number;
+	processName: string | null;
+}
+
 /** The CA the Worker's outbound handler terminates TLS with, so clients in the sandbox trust it. */
 export const CA_PATH = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 
@@ -130,6 +144,9 @@ interface StartReport {
 /** A loopback binding to a Worker export, as `ctx.exports` gives it. */
 type LoopbackExport = (options: { props: Record<string, unknown> }) => Fetcher;
 
+/** The preview path inside a Worker route: `/w/<name>/preview/<token>/<port>/<rest>`. */
+const PREVIEW_IN_WORKSPACE = /\/preview\/[^/]+\/(\d{1,5})(\/.*)?$/;
+
 /** A stat in the desktop's Platform FileStat shape. */
 export interface CloudFileStat {
 	path: string;
@@ -190,7 +207,10 @@ export class Workspace extends DurableObject<Env> {
 	private async setUp(): Promise<void> {
 		const container = this.requireContainer();
 		if (!container.running) {
-			const env: Record<string, string> = { ...CONTAINER_ENV };
+			// The Mac's personal cloud settings (CLOUD-17): the commit identity and the variables
+			// only cloud workspaces see. They are read here so every start applies the latest save.
+			const settings = await readCloudSettings(this.env);
+			const env: Record<string, string> = { ...CONTAINER_ENV, ...cloudSettingsEnv(settings) };
 			const name = this.ctx.id.name;
 			// The callback the entry calls when the last running chat goes idle (D105).
 			if (name !== undefined) env.CONDUCTED_TURN_END_URL = turnEndUrl(name);
@@ -318,6 +338,75 @@ export class Workspace extends DurableObject<Env> {
 		});
 	}
 
+	/**
+	 * The TCP ports listening in the sandbox, read from /proc by the entry. A port forward's
+	 * discovery uses this; starting a stopped sandbox is the caller's choice, so a read does not
+	 * bill a container nobody asked for.
+	 */
+	async listeningPorts(): Promise<{ ports: DetectedRemotePort[] }> {
+		await this.ensureSetUp();
+		const response = await this.requireContainer()
+			.getTcpPort(SIDECAR_PORT)
+			.fetch("http://container/ports", { signal: AbortSignal.timeout(5_000) });
+		if (!response.ok) {
+			throw new Error(`The sandbox could not list its ports: ${response.status}`);
+		}
+		const body = (await response.json()) as { ports?: unknown };
+		const byPort = new Map<number, DetectedRemotePort>();
+		if (Array.isArray(body.ports)) {
+			for (const entry of body.ports) {
+				if (typeof entry !== "object" || entry === null) continue;
+				const port = (entry as { port?: unknown }).port;
+				const name = (entry as { processName?: unknown }).processName;
+				if (typeof port !== "number" || !Number.isInteger(port)) continue;
+				if (port <= 0 || port > 65_535 || port === 22 || port === SIDECAR_PORT) continue;
+				byPort.set(port, {
+					port,
+					processName: typeof name === "string" && name !== "" ? name : null,
+				});
+			}
+		}
+		return { ports: [...byPort.values()].sort((left, right) => left.port - right.port) };
+	}
+
+	/**
+	 * Stops a workspace's sandbox the way an archive does (CLOUD-08): the work and the transcripts
+	 * are saved to R2 first, then the container stops. A sandbox that is already stopped is left
+	 * alone, and nothing is started to save it. Returning the archive to a running workspace is
+	 * `start`, which restores those backups (CLOUD-06).
+	 */
+	async stop(): Promise<BackupReport & { running: false }> {
+		return this.exclusive(async () => {
+			if (this.container === undefined || !this.container.running) {
+				return { running: false, ran: false, saved: [], skipped: [] };
+			}
+			if (this.setup === null) await this.setUp();
+			const result = await saveWorkspace(this.backupStore(), this.backupLedger());
+			await this.container.destroy();
+			return { running: false, ran: true, saved: result.saved, skipped: result.skipped };
+		});
+	}
+
+	/**
+	 * Deletes everything a workspace keeps (CLOUD-08): its R2 backups, its sandbox and the storage
+	 * this Durable Object holds. The container application itself belongs to the Worker's deploy
+	 * and is removed by the uninstall (CLOUD-07). A sandbox that is already stopped is not started
+	 * to be deleted. Deleting the same workspace twice succeeds, because every step tolerates work
+	 * that is already gone.
+	 */
+	async remove(): Promise<{ deletedBackups: number }> {
+		return this.exclusive(async () => {
+			const records = (await this.ctx.storage.get<DirectoryBackupRecord[]>(STORAGE_BACKUPS)) ?? [];
+			if (this.container !== undefined) {
+				const store = this.backupStore();
+				for (const record of records) await store.delete(record);
+				await this.container.destroy();
+			}
+			await this.ctx.storage.deleteAll();
+			return { deletedBackups: records.length };
+		});
+	}
+
 	/** Polls the bridge's health endpoint until it answers or the deadline passes. */
 	private async waitForSidecar(began: number): Promise<unknown> {
 		const container = this.requireContainer();
@@ -339,10 +428,17 @@ export class Workspace extends DurableObject<Env> {
 
 	/**
 	 * Runs one git command in a folder. A stopped sandbox is started, because a user asking for
-	 * git state is asking the workspace to be there.
+	 * git state is asking the workspace to be there. The saved commit identity is read again here,
+	 * so a change saved while the sandbox runs applies to the next commit without a restart.
 	 */
 	async git(args: readonly string[], cwd: string): Promise<CommandResult> {
-		return this.exec({ program: "git", args: [...args], cwd });
+		const settings = await readCloudSettings(this.env);
+		return this.exec({
+			program: "git",
+			args: [...args],
+			cwd,
+			env: cloudSettingsEnv(settings),
+		});
 	}
 
 	/**
@@ -446,6 +542,11 @@ export class Workspace extends DurableObject<Env> {
 					}
 					return { entries: stats };
 				}
+				case "list":
+					return walkFileTree(body.path, {
+						readDirectory: (path) => files.readDirectory(path),
+						stat: (path) => files.stat(path),
+					});
 				case "mkdirp":
 					await files.mkdir(body.path, { recursive: true });
 					return {};
@@ -521,6 +622,15 @@ export class Workspace extends DurableObject<Env> {
 	 * Durable Object and the container active while the desktop is connected.
 	 */
 	override async fetch(request: Request): Promise<Response> {
+		// A WebSocket and a proxied preview must be answered by this Durable Object's own `fetch`,
+		// because their Response holds a WebSocket or a stream that RPC cannot serialize.
+		const path = new URL(request.url).pathname;
+		if (path.endsWith("/terminal")) return this.terminal(request);
+		if (path.endsWith("/tunnel")) return this.tunnel(request);
+		const preview = PREVIEW_IN_WORKSPACE.exec(path);
+		if (preview !== null) {
+			return this.preview(request, Number(preview[1]), preview[2] ?? "/");
+		}
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return new Response("Expected a WebSocket", { status: 426 });
 		}
@@ -542,6 +652,108 @@ export class Workspace extends DurableObject<Env> {
 		this.pump(server, upstream);
 		this.pump(upstream, server);
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/**
+	 * The terminal WebSocket. The client's first message names the folder, size and command; the
+	 * process runs in the container with a PTY, and its bytes travel as base64 JSON. The connection
+	 * keeps the Durable Object and the container active, as the relay does.
+	 */
+	async terminal(request: Request): Promise<Response> {
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return new Response("Expected a WebSocket", { status: 426 });
+		}
+		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
+		server.accept();
+		const send = (message: ServerMessage): void => {
+			try {
+				server.send(JSON.stringify(message));
+			} catch {
+				// The connection is already gone; its close event ends the session.
+			}
+		};
+		const session = new TerminalSession(
+			send,
+			async (input) => {
+				await this.ensureSetUp();
+				const container = this.requireContainer();
+				const process = await container.exec(input.command, {
+					cwd: input.cwd,
+					env: { ...CONTAINER_ENV, ...(input.env ?? {}) },
+					pty: { cols: input.cols, rows: input.rows },
+					stdin: "pipe",
+					stdout: "pipe",
+					stderr: "combined",
+				});
+				// The SDK process and the protocol share stdin, stdout and exit; the cast is the one
+				// seam between them.
+				return process as unknown as {
+					stdin: WritableStream<Uint8Array> | null;
+					stdout: ReadableStream<Uint8Array> | null;
+					exitCode: Promise<number>;
+					kill(signal?: number): void;
+					resize(cols: number, rows: number): void;
+				};
+			},
+			() => {
+				try {
+					server.close(1000, "The terminal ended.");
+				} catch {
+					// Already closed.
+				}
+			},
+		);
+		server.addEventListener("message", (event: MessageEvent) => {
+			const text = typeof event.data === "string" ? event.data : textOf(event.data as ArrayBuffer);
+			if (text === null) {
+				send({ type: "error", message: "A terminal message must be text." });
+				return;
+			}
+			void session.receive(text);
+		});
+		server.addEventListener("close", () => {
+			session.disconnect();
+		});
+		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/**
+	 * The port-forward tunnel. The Rust shell keeps a local listener and opens one WebSocket per
+	 * accepted connection; this hands the upgrade to the sandbox entry, which connects it to the
+	 * requested loopback port (CLOUD-10, D110).
+	 */
+	async tunnel(request: Request): Promise<Response> {
+		if (this.container === undefined) {
+			return new Response("This workspace has no sandbox configured", { status: 503 });
+		}
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return new Response("Expected a WebSocket", { status: 426 });
+		}
+		const raw = new URL(request.url).searchParams.get("port");
+		if (raw === null || !/^\d{1,5}$/.test(raw)) {
+			return new Response("Bad tunnel port", { status: 400 });
+		}
+		const port = Number(raw);
+		if (port < 1 || port > 65_535 || port === 22) {
+			return new Response("Bad tunnel port", { status: 400 });
+		}
+		await this.ensureSetUp();
+		const target = new URL(`http://container/tunnel?port=${port}`);
+		return this.requireContainer().getTcpPort(SIDECAR_PORT).fetch(new Request(target, request));
+	}
+
+	/**
+	 * Proxies a browser's request to a port inside the sandbox. The preview token was checked by
+	 * the Worker's front door, so nothing here needs the pairing token.
+	 */
+	async preview(request: Request, port: number, rest: string): Promise<Response> {
+		if (this.container === undefined) {
+			return new Response("This workspace has no sandbox configured", { status: 503 });
+		}
+		await this.ensureSetUp();
+		const target = new URL(`http://container${rest.startsWith("/") ? rest : `/${rest}`}`);
+		target.search = new URL(request.url).search;
+		return this.requireContainer().getTcpPort(port).fetch(new Request(target, request));
 	}
 
 	/** Copies frames from one side to the other, reading each for turn state. */

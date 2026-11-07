@@ -47,7 +47,7 @@ import {
 	type SessionId,
 	type WorkspaceId,
 } from "@conducted/shared";
-import type { Platform } from "../platform/platform.ts";
+import type { Cloud, Platform } from "../platform/platform.ts";
 import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
 import {
@@ -57,9 +57,17 @@ import {
 	spotlighterScript,
 } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
+import { type CloudDeployService, createCloudDeploy } from "./cloud/deploy.ts";
+import { FileSyncService } from "./cloud/file-sync.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
+import {
+	CLOUD_DATA_PRIVACY_MESSAGE,
+	cloudRequestRuns,
+	isCloudRestrictedByDataPrivacy,
+} from "./cloud/privacy.ts";
 import { createHostRoutedSidecar } from "./cloud/router.ts";
+import { type CloudSettingsService, createCloudSettings } from "./cloud/settings.ts";
 import { type CloudTransport, createCloudTransport } from "./cloud/transport.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
@@ -68,7 +76,7 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { checkHost } from "./host.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import type { DiagnosticsCapture, Session } from "./model.ts";
+import type { DiagnosticsCapture, Session, Workspace } from "./model.ts";
 import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
@@ -93,6 +101,7 @@ import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { PortForwardsService } from "./services/port-forwards.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
 import { ReviewService } from "./services/review.ts";
@@ -109,7 +118,7 @@ import {
 	terminalLimit,
 } from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
-import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
+import { expandHome, type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
 import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {
@@ -166,6 +175,9 @@ export interface Services {
 	mcp: McpService;
 	linear: LinearService;
 	cloudPairing: CloudPairingService;
+	cloudDeploy: CloudDeployService;
+	cloudSettings: CloudSettingsService;
+	cloudFileSync: FileSyncService;
 	git: GitService;
 	graphite: GraphiteService;
 	gitCache: GitCache;
@@ -181,6 +193,7 @@ export interface Services {
 	runScripts: RunScriptsService;
 	spotlight: SpotlightService;
 	ports: PortService;
+	portForwards: PortForwardsService;
 	terminals: TerminalsService;
 	notifications: NotificationService;
 	updates: UpdatesService;
@@ -283,12 +296,27 @@ function cursorBecameReady(
 export function createContainer(inputs: ContainerInputs): Container {
 	const { clock, ids } = inputs;
 	const rawPlatform = inputs.platform;
+	// Data privacy mode (CLOUD-17): while it is on, no cloud workspace may start work in its
+	// sandbox. The setting is read when a call runs, and settings and lifecycle calls still reach
+	// the Worker, so the page can be opened and a workspace can be stopped or removed.
+	let cloudRunsBlocked = () => false;
+	const cloudDoor: Cloud = {
+		...rawPlatform.cloud,
+		request: (request) =>
+			cloudRequestRuns(request.path) && cloudRunsBlocked()
+				? Promise.resolve(err(appError("cloud_data_privacy", CLOUD_DATA_PRIVACY_MESSAGE)))
+				: rawPlatform.cloud.request(request),
+		openRelay: (input) =>
+			cloudRunsBlocked()
+				? Promise.resolve(err(appError("cloud_data_privacy", CLOUD_DATA_PRIVACY_MESSAGE)))
+				: rawPlatform.cloud.openRelay(input),
+	};
 	// A cloud workspace's folder belongs to its sandbox: the shell and file calls for it go to the
 	// Worker, and every other folder still reaches the Mac (CLOUD-03). The rows arrive with the
 	// workspace service below, so the reader is set there and this one stays empty until then.
 	let hostedFolders: () => Iterable<{ path: string; host: Host }> = () => [];
 	const cloudHosts = createCloudHosts(() => hostedFolders());
-	const platform = createHostedPlatform(rawPlatform, cloudHosts);
+	const platform = createHostedPlatform({ ...rawPlatform, cloud: cloudDoor }, cloudHosts);
 	const repositoryDeps = { clock, ids };
 	const repositories = createRepositories(platform.db, repositoryDeps);
 	// An aborted signal clears the timer, so a lock wait that ends leaves no 10 s timer behind.
@@ -320,6 +348,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const ready = <T>(result: Result<T>): Promise<Result<T>> => Promise.resolve(result);
 	const setting = <T>(key: string): T => settings.get(key);
+	// The cloud-in-data-privacy-mode flag is a hosted flag and we run no flag service, so it is
+	// off (D113): data privacy mode keeps cloud workspaces off.
+	cloudRunsBlocked = () =>
+		isCloudRestrictedByDataPrivacy(setting<boolean>("enterprise_data_privacy") === true, false);
 	const paths = platform.fs.paths;
 	const writeDiagnosticsReport = inputs.writeDiagnosticsReport;
 
@@ -532,6 +564,19 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: () => repo.store,
 		sessions: () => sessions.store,
 	});
+	const cloudFileSync = new FileSyncService({
+		cloud: platform.cloud,
+		fs: platform.fs,
+		opener: platform.opener,
+		workspaceOf: (id) => lookups.workspace(id),
+		repoNameOf: (id) => {
+			const found = lookups.repoOf(id);
+			return found.ok ? ok(found.value.name) : found;
+		},
+		rootPath: () => expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+		setting,
+		now: () => clock.now(),
+	});
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
 		cloudClientFor: (host) => tunnelForHost(host),
@@ -543,9 +588,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return ready(repo.ok ? ok(repo.value.rootPath) : repo);
 		},
 		launchFor: (agent, acpAgent, sessionId) => {
-			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null, null, null);
 			const ws = lookups.workspaceOfSession(sessionId);
-			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+			return ws.ok ? launchForWorkspace(agent, acpAgent, ws.value) : ready(ws);
 		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
@@ -569,10 +614,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
-	 * region or project, the Environment page's variables (a repository's replacing the global one
-	 * of the same name) and the provider keys that belong to that agent and its sign-in choice
-	 * (`launchTakesKey`). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
-	 * the sidecar fills from the login shell it captured. A list that
+	 * region or project, the Environment page's variables and env files (a repository's replacing the
+	 * global one of the same name, SET-04) and the provider keys that belong to that agent and its
+	 * sign-in choice (`launchTakesKey`). Secrets come from the Keychain or an env file; a key chosen
+	 * from the Mac goes as a marker the sidecar fills from the login shell it captured. A list that
 	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
 	 * that names it, so the send or warm that asked shows it instead of starting without it.
 	 */
@@ -580,6 +625,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agent: AgentKind,
 		acpAgent: AcpAgent | undefined,
 		repoId: RepoId | null,
+		repoRootPath: string | null,
+		workspacePath: string | null,
 	): Promise<Result<AgentLaunch>> => {
 		const env: Record<string, string> = {};
 		const providerKeys: AgentLaunch["providerKeys"] = {};
@@ -618,9 +665,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const project = setting<string>("vertex_project_id").trim();
 			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
 		}
-		// The Environment page's variables, by the one rule the repository scripts also use. Without a
-		// repository (a model list), only the global ones.
-		const variables = await settings.environmentFor(repoId);
+		// The Environment page's variables, and the env files its settings layers name. Without a
+		// repository (a model list), only the user's layer applies.
+		const variables = await settings.environmentForLaunch(repoId, repoRootPath, workspacePath);
 		if (!variables.ok) return variables;
 		Object.assign(env, variables.value);
 		const keys = await repositories.providerKeys.listForAgent(agent, acpAgent ?? null);
@@ -657,10 +704,25 @@ export function createContainer(inputs: ContainerInputs): Container {
 			...(provider === undefined ? {} : { provider }),
 		});
 	};
+	/**
+	 * Builds a launch for one workspace's chat. A local workspace's repository layers live in its
+	 * checkout; a cloud workspace holds the project at its own sandbox folder, which the platform's
+	 * file calls reach through the Worker (CLOUD-03), so both layers come from there (SET-04).
+	 */
+	const launchForWorkspace = (
+		agent: AgentKind,
+		acpAgent: AcpAgent | undefined,
+		workspace: Workspace,
+	): Promise<Result<AgentLaunch>> => {
+		const repo = lookups.repoOf(workspace.id);
+		if (!repo.ok) return ready(repo);
+		const repoRootPath = workspace.host.kind === "local" ? repo.value.rootPath : workspace.path;
+		return launchForAgent(agent, acpAgent, workspace.repoId, repoRootPath, workspace.path);
+	};
 	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
 		const workspace = lookups.workspace(session.workspaceId);
 		if (!workspace.ok) return workspace;
-		return launchForAgent(session.config.agent, session.config.acpAgent, workspace.value.repoId);
+		return launchForWorkspace(session.config.agent, session.config.acpAgent, workspace.value);
 	};
 	const chatTitles = new ChatTitleService({
 		sidecar: client,
@@ -856,7 +918,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		shell: platform.shell,
 		ports,
 		log,
-		environmentFor: (repoId) => settings.environmentFor(repoId),
+		environmentFor: (repo, workspace) =>
+			settings.environmentForLaunch(
+				repo.id,
+				workspace.host.kind === "local" ? repo.rootPath : workspace.path,
+				workspace.path,
+			),
 		pathPrefixFor: () => system.pathPrefix(),
 	});
 	const repo: RepoService = new RepoService({
@@ -871,13 +938,21 @@ export function createContainer(inputs: ContainerInputs): Container {
 		ids,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
+	// Built before the workspace service so archive and delete can pause its forwards (CLOUD-10).
+	const portForwards = new PortForwardsService({
+		platform,
+		repos: repositories,
+		settings,
+	});
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
+		cloud: platform.cloud,
 		git: gitRunner,
 		repos: repositories,
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		portForwards,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
@@ -904,9 +979,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return ok({ agent: session.config.agent, acpAgent: session.config.acpAgent });
 		},
 		launchFor: (agent, acpAgent, sessionId) => {
-			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null, null, null);
 			const ws = lookups.workspaceOfSession(sessionId);
-			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+			return ws.ok ? launchForWorkspace(agent, acpAgent, ws.value) : ready(ws);
 		},
 	});
 	const linear = new LinearService({
@@ -920,6 +995,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 	});
 	const cloudPairing = createCloudPairing(platform.cloud);
+	const cloudDeploy = createCloudDeploy(platform.cloud, () => cloudPairing.start());
+	const cloudSettings = createCloudSettings({
+		cloud: platform.cloud,
+		pairing: () => {
+			const state = cloudPairing.store.getState();
+			return state.state === "ready" ? state.pairing : { paired: false, url: null };
+		},
+	});
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,
@@ -1027,9 +1110,27 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 		searchOn: async (id) => {
-			const found = lookups.workspaceOn(id, "search");
-			return found.ok ? ok(undefined) : found;
+			const found = lookups.workspace(id);
+			if (!found.ok) return found;
+			if (found.value.host.kind === "local") return ok(undefined);
+			return cloudFileSync.ensureMirror(id);
 		},
+		searchRootOf: async (id) => {
+			const found = lookups.workspace(id);
+			if (!found.ok) return found;
+			if (found.value.host.kind === "cloud") return cloudFileSync.mirrorPathOf(id);
+			const roots = lookups.allowedRoots(id);
+			if (!roots.ok) return roots;
+			const first = roots.value[0];
+			return first === undefined
+				? err(appError("workspace_path_missing", "That workspace has no folder on this Mac."))
+				: ok(first);
+		},
+		hostKindOf: (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? found.value.host.kind : "local";
+		},
+		cloudOpen: (id, path) => cloudFileSync.downloadFile(id, path),
 		opener: platform.opener,
 	});
 	const review = new ReviewService({
@@ -1106,6 +1207,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		mcp,
 		linear,
 		cloudPairing,
+		cloudDeploy,
+		portForwards,
+		cloudSettings,
+		cloudFileSync,
 		git,
 		graphite,
 		gitCache,
@@ -1170,6 +1275,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
 		{ name: "linear access", phase: "services", fatal: false, run: () => linear.start() },
 		{ name: "cloud pairing", phase: "services", fatal: false, run: () => cloudPairing.start() },
+		{ name: "port forwards", phase: "services", fatal: false, run: () => portForwards.start() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
@@ -1452,6 +1558,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		});
 		await step("keep-awake", () => keepAwake.stop());
 		await step("notifications", () => notifications.stop());
+		await step("cloud file sync", () => cloudFileSync.dispose());
 		await step("agent programs", () => system.dispose());
 		await step("the repo service", () => repo.dispose());
 		await step("git polling", () => git.dispose());
@@ -1468,6 +1575,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 			for (const cloudTunnel of cloudTunnels.values()) cloudTunnel.stop();
 			for (const transport of cloudTransports) await transport.close();
 		});
+		// The local listeners are Rust's, but their timers and event listener are this service's.
+		await step("port forwards", () => portForwards.stop());
 	};
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:

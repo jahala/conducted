@@ -1,4 +1,5 @@
 /**
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature DATA-01 Lookups across service stores
  * Owns: answering "which folder, branch and remote belong to this workspace or chat" from the
  * service stores that are already in memory, so services do not each repeat the join.
@@ -243,12 +244,13 @@ export function defaultModelChoice(
 
 /**
  * The config a new chat starts with: the default model and effort from settings, plan mode and
- * tool approvals from settings, the workspace's linked folders as additional directories, and the
- * chat options the settings offer (AGENT-16): Claude's output style and Chrome switch, Codex's
- * personality and tool approval policy. Each runner reads only its own fields, so a chat that later
- * changes agent keeps them. Settings are read when the chat is created, so a change reaches new
- * chats and leaves existing ones as they are. Codex's sandbox has no setting; the runner uses full
- * access, as Conductor does.
+ * tool approvals from settings, and the chat options the settings offer (AGENT-16): Claude's
+ * output style and Chrome switch, Codex's personality and tool approval policy. Each runner reads
+ * only its own fields, so a chat that later changes agent keeps them. Settings are read when the
+ * chat is created, so a change reaches new chats and leaves existing ones as they are. Codex's
+ * sandbox has no setting; the runner uses full access, as Conductor does.
+ * Linked folders are not part of the stored config: `withLinkedPaths` in the sessions service
+ * reads them from the workspace row at send time (WS-07).
  * Our design choice: the Codex tool approval setting "Always approve" is Codex's `never` policy;
  * "Default" sends no policy, so Codex follows the tool approvals switch.
  */
@@ -267,7 +269,7 @@ export function defaultSessionConfig(
 		...chosen.value,
 		planMode: setting<boolean>("default_plan_mode"),
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
-		additionalDirectories: workspace.value.linkedPaths,
+		additionalDirectories: [],
 		appTools: FIRST_CHAT_APP_TOOLS,
 		...options.value,
 		// RC-04: a new Claude chat starts with Remote Control on when the user chose so.

@@ -22,7 +22,8 @@
  * Must handle: every watched workspace polls every 5 s at the deepest depth any watcher asked
  * for; a result younger than 0.9 of the interval is reused; at most four refreshes at once
  * (the limiter runs foreground requests first, and every caller today is foreground); an answer
- * whose branch differs from the branch the request was made for is dropped; a failed poll keeps
+ * whose branch differs from the branch the request was made for is dropped, while a detached
+ * HEAD's answer (no branch at all) lands; a failed poll keeps
  * the last snapshot and records the error; a path or commit id from a screen that could leave the
  * workspace or read as a git option is refused; discarding a file moves a file the branch added to
  * the Trash and stops when git cannot say whether the base has the file; viewed marks are saved
@@ -949,9 +950,13 @@ export class GitService {
 			return err(result.error);
 		}
 
-		// An answer for a branch that has since changed must not land (services-map 3.3.3).
+		// An answer for a branch that has since changed must not land (services-map 3.3.3). A
+		// detached HEAD (no branch, during a rebase too) is still this workspace, so it lands and
+		// the header can say so (GIT-17).
 		const expectedBranch = found.branch.length > 0 ? found.branch : null;
-		if (result.value.branch !== expectedBranch) return ok(undefined);
+		if (result.value.branch !== null && result.value.branch !== expectedBranch) {
+			return ok(undefined);
+		}
 
 		const previous = this.store.getState().byWorkspace[key]?.snapshot ?? null;
 		// A metadata poll reads only the branch, so every other part stays as it was and the depth

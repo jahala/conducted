@@ -335,3 +335,141 @@ Everything the run created was deleted: Worker `conducted-dev-c07-131515` (its U
 `wrangler containers list` and `wrangler containers images list` hold no `c07` entry. The local
 `apps/cloud/sandbox/build/` folder was removed, and the token file and run notes under `/tmp` were
 trashed.
+
+## Follow-up: cloud terminals, run scripts and previews (CLOUD-09, 2026-11-07)
+
+Built the terminal WebSocket and the preview proxy on the owner's account with the product image,
+one `basic` instance, Worker `conducted-dev-c09-1408`, driven from this Mac with Node's `ws` client.
+The driver opened the Worker's `/w/c09-live/terminal` WebSocket with the pairing token in the
+`Authorization` header, sent one JSON `start` message, and read base64 `data`, `exit` and `error`
+messages back.
+
+- **Cold start:** `/start` answered in **15,318 ms** round trip, with the Worker reporting
+  `readyMs` **14,386 ms** and the sidecar ready 1,175 ms after the entry started.
+- **Warm start:** **123 ms** round trip, `readyMs` **25 ms**, `started: false`.
+- **A command terminal:** the WebSocket opened in **140 ms**; `ready` arrived at **160 ms**, the
+  first output byte at **165 ms**, and `exit: 0` at **167 ms**. The output was
+  `HELLO_FROM_CLOUD`. This is the `run` shape a run script uses.
+- **An interactive terminal:** `ready` at **141 ms**, first prompt byte at **151 ms**. A resize to
+  100x30 and typing `echo INTERACTIVE_OK` both took effect, and `exit` typed in it ended the
+  process with code 0.
+- **Strict shell options for a cloud setup script:** a command beginning
+  `set -euo pipefail\nprintf 'SETUP_OK\n'\nfalse\nprintf 'UNREACHABLE\n'` printed `SETUP_OK` and
+  exited **1**; `UNREACHABLE` was absent. In the desktop this prefix is added only for a cloud
+  host (`run-scripts.setup.test.ts`).
+- **A preview:** a Node HTTP server on port 3000 was started inside the sandbox. `POST
+  /w/c09-live/preview-url` with `{"port":3000}` 200'd with a URL, and fetching that URL with no
+  pairing token answered **200** with body `preview ok`, in **139 ms** including the URL request.
+  A URL with one character changed in its token answered **403**; port 22 answered **400**.
+- **Deploy:** the first deploy uploaded the image and Worker in **40.25 s**; a redeploy of code
+  only took **7.88 s**.
+
+A bug the run found, fixed before the passing run: a Durable Object RPC method that returns a
+`Response` carrying a `webSocket` throws `DataCloneError` ("Could not serialize object of type
+\"WebSocket\"") and the Worker answers 500. The terminal and preview routes now go through the
+object's own `fetch` handler, where a 101 response and a streamed proxy body are allowed. The
+same applies to a preview that upgrades a WebSocket.
+
+Not measured or not built:
+
+- **Previews are under the Worker's hostname, not their own.** The URL is
+  `/w/<name>/preview/<token>/<port>/...`, so a dev server that builds absolute asset URLs from `/`
+  will not render through it. The spike's note that previews need their own hostname still stands;
+  a hostname per preview needs a custom domain and a wildcard route, which this run did not test.
+  D108 records the choice and the gap.
+- **Terminal text is a bounded line mirror, not a VT screen.** The renderer holds the real screen;
+  the mirror serves the agent's output tool and the saved scrollback.
+- **No reconnect.** A terminal that loses its stream ends and shows "Connection lost."; it does not
+  resume. The sidecar relay's reconnect backoff does not apply to a terminal process.
+
+Everything the run created was deleted: the Worker `conducted-dev-c09-1408` (the URL then answered
+404 with Cloudflare error 1042), the container application `conducted-cloud-sandbox`
+(`8589fc968e1c466294841c155b90dab9`), the image
+`conducted-dev-c09-1408-workspace-sandbox:wrangler-mw6hb5fq`
+(`sha256:db4d337bebafc1bf90aeb4122b7148854c29693a72f54e705af088665a42ebac`), the R2 bucket
+`conducted-cloud-backups`, and the local Docker image by id `db4d337bebaf`. Final
+`wrangler containers list` and `containers images list` held no `conducted` entry, the bucket list
+held no `conducted-cloud-backups`, and the local `apps/cloud/sandbox/build/` folder and the run's
+`/tmp` files were trashed.
+
+## Follow-up: the deploy flow (CLOUD-08, 2026-11-07)
+
+The app carries its deploy inputs as Tauri resources: `scripts/cloud/prepare-deploy.ts` builds the
+sandbox image inputs, bundles the Worker with `wrangler deploy --dry-run` against a config with no
+containers, and writes `worker.js`, `deploy.json`, the sandbox `Dockerfile` and `build/` to
+`apps/desktop/src-tauri/resources/cloud` (183 MB). One live deploy and uninstall ran through the
+Rust `deploy_worker` and `uninstall_worker` from `tests/cloud_deploy_live.rs`, with the repository's
+pinned wrangler 4.158.0 and the owner's Docker:
+
+| Check | Result |
+| --- | --- |
+| deploy, under `conducted-dev-c08-153711` | 73,581 ms |
+| the Worker's own `/pair` with the made token | answered 200, `conducted-cloud` |
+| uninstall | 14,089 ms |
+| the Worker URL after the uninstall | no longer answers the pairing check |
+| `containers list --json` for `<name>-sandbox` | gone |
+| `containers images list --json`, images named `<name>-…` | none |
+| `r2 bucket list` for `<name>` | gone |
+
+The deploy uploads the pre-bundled Worker (`no_bundle: true`) and builds the sandbox image from the
+bundled Dockerfile; the bucket name is the Worker name and the container application is
+`<worker>-sandbox`. Everything the run made was deleted by its own uninstall, and the final lists
+held no `conducted-dev-c08` entry. The local Docker image the build left,
+`registry.cloudflare.com/…/conducted-dev-c08-153711-workspace-sandbox:wrangler-mw6kh6io`, was
+removed by its id `a6914abad2f6`.
+
+Two command facts the run needed:
+
+- wrangler 4.128.0 (the copy on this Mac's PATH) refuses the sandbox's `durable_object` container
+  config: it accepts `scheduling_policy` only `regional`, `moon` or `default`. wrangler 4.158.0,
+  the version the repository pins, accepts it. The app therefore refuses a wrangler older than
+  4.158 and says to run `npm install -g wrangler@latest`.
+- `wrangler r2 bucket list` has no `--json` flag; it prints one `name:           <bucket>` line per
+  bucket. `wrangler containers list --json` and `containers images list --json` answer arrays whose
+  entries carry `id`/`name` and `name`/`tags`. The uninstall reads those.
+
+Cloudflare's docs (read 2026-11-07) make Docker necessary for our policy: under
+`durable_object`, a registry image must be a digest-pinned Cloudflare-managed-registry reference
+(`registry.cloudflare.com/<ACCOUNT_ID>/<REPOSITORY>@sha256:<DIGEST>`), and Docker Hub, ECR and GAR
+are refused. The deprecated `default` policy accepts those registries without Docker but fixes one
+image and instance type in the config. Sources:
+https://developers.cloudflare.com/containers/guides/image-management/,
+https://developers.cloudflare.com/containers/configuration/scheduling-policy/,
+https://developers.cloudflare.com/containers/guides/deploy/.
+
+## Follow-up: port forwarding to the Mac (CLOUD-10, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, Worker
+`conducted-dev-c10-1536` (R2 bucket of the same name). The driver started a small Node HTTP
+server inside the sandbox on 127.0.0.1:3456, then a temporary ignored Rust test bound a loopback
+listener with the product's `accept_loop`/`pipe` and fetched through the Worker's tunnel route.
+
+- **Deploy:** 37.68 s to upload the image and Worker, 1.93 s to publish the triggers.
+- **Cold start:** `POST /w/c10-live/start` answered in **12,324 ms** round trip; the Worker
+  reported `readyMs` **11,588 ms**, with the sidecar ready **938 ms** after the entry started.
+- **Warm start:** **108 ms** round trip, `readyMs` **2 ms**, `started: false`.
+- **Starting the server:** the `exec` that launched Node printed its pid in **465 ms**
+  (exit 0). The server answered on 127.0.0.1 only, so the tunnel had to reach the sandbox's own
+  loopback.
+- **Discovery:** `GET /w/c10-live/ports` answered **200** in **71 ms** with
+  `{"ports":[{"port":3456,"processName":"MainThread"}]}`. The name was the kernel `comm`; Node 24
+  names its main thread `MainThread`. This exposed a mismatch with Conductor, which summarises the
+  process's command line instead. The entry now reads `/proc/<pid>/cmdline` and applies
+  Conductor's rule, so the same `node /tmp/server.js` reports `server.js`; the live value above is
+  the old behaviour, not the shipped one.
+- **The forward:** the real Rust listener accepted the local connection, opened the tunnel
+  WebSocket and carried one HTTP `GET /`; the body was `LIVE_OK`, in **255 ms** from the local
+  connect.
+- **One correction found while reading the bundle:** the "Forwarding ports" toast is a success
+  toast after Cmd+Y turns forwarding on, with up to three `:<localPort> <process>` chips and
+  "+N more". The desktop now shows the same words in the description; CLOUD-10's first report had
+  said this was not built.
+
+Everything the run created was deleted: Worker `conducted-dev-c10-1536` (its URL now answers 404),
+the container application `conducted-cloud-sandbox` (`a5fd6cdd984a4d99a3bc4d49fbf47042`), the
+registry image `conducted-dev-c10-1536-workspace-sandbox:wrangler-mw6kgk19`
+(`sha256:68bd993995e24a078d4f3bcfef1510539af2ff493772d636e4dcdb789c181af3`), the R2 bucket
+`conducted-dev-c10-1536`, and the local Docker image by id `68bd993995e2`. Final
+`wrangler containers list`, `containers images list` and `r2 bucket list` hold no
+`conducted-dev-c10` entry, and `docker images` holds none. The token and run files under `/tmp`
+and the `apps/cloud/sandbox/build/` folder were trashed.

@@ -68,6 +68,87 @@ describe("SET-02 AdvancedPage", () => {
 		expect(await screen.findByText(warning)).toBeTruthy();
 	});
 
+	// Conductor looks the program up on PATH (renderApp QFa runs `which <program>`) and offers it as
+	// "Use system <program>", with the found path as the field's placeholder and the button's tooltip.
+	it("offers Use system Claude Code when PATH has one, and saves its path when chosen", async () => {
+		test = createTestContainer();
+		const found = "/opt/homebrew/bin/claude";
+		test.memory.controls.scriptShell((command) =>
+			command.program === "which" && command.args[0] === "claude"
+				? ok({ exitCode: 0, stdout: `${found}\n`, stderr: "" })
+				: command.program === "which"
+					? ok({ exitCode: 1, stdout: "", stderr: "" })
+					: null,
+		);
+		expect((await test.container.platform.fs.writeTextAtomic(found, "")).ok).toBe(true);
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<AdvancedPage />
+			</ServicesProvider>,
+		);
+
+		const use = await screen.findByRole("button", { name: "Use system Claude Code" });
+		expect(screen.getByLabelText("Claude Code executable path").getAttribute("placeholder")).toBe(
+			found,
+		);
+		// Codex is not on PATH here: no button, and the usual placeholder.
+		expect(screen.queryByRole("button", { name: "Use system Codex" })).toBeNull();
+		expect(screen.getByLabelText("Codex executable path").getAttribute("placeholder")).toBe(
+			"/usr/local/bin/codex",
+		);
+
+		fireEvent.click(use);
+
+		await waitFor(() =>
+			expect(test?.container.services.settings.get("claude_executable_path")).toBe(found),
+		);
+		await waitFor(() =>
+			expect(screen.queryByRole("button", { name: "Use system Claude Code" })).toBeNull(),
+		);
+	});
+
+	it("lays out each executable path under its text, with Conductor's placeholder and folder button", async () => {
+		const mounted = await mountPage();
+		const pickFile = vi
+			.spyOn(mounted.container.actions.app, "pickFile")
+			.mockResolvedValue(ok("/opt/tools/claude"));
+		// The picked program exists on the in-memory disk, so the path check lets it through.
+		expect((await mounted.container.platform.fs.writeTextAtomic("/opt/tools/claude", "")).ok).toBe(
+			true,
+		);
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		const input = screen.getByLabelText("Claude Code executable path");
+		expect(input.getAttribute("placeholder")).toBe("/usr/local/bin/claude");
+		expect(screen.getByLabelText("Codex executable path").getAttribute("placeholder")).toBe(
+			"/usr/local/bin/codex",
+		);
+		const row = input.closest("[data-setting-key]");
+		expect(row?.querySelector("[data-stacked='true']")).not.toBeNull();
+
+		const browse = row?.querySelector('button[title="Browse for executable"]');
+		if (!(browse instanceof HTMLButtonElement)) throw new Error("no folder button");
+		fireEvent.click(browse);
+
+		await waitFor(() =>
+			expect(set).toHaveBeenCalledWith("claude_executable_path", "/opt/tools/claude"),
+		);
+		expect(pickFile).toHaveBeenCalledWith("Select Claude Code executable");
+	});
+
+	it("resets a custom program path to the bundled program", async () => {
+		const mounted = await mountPage();
+		await act(async () => {
+			await mounted.container.actions.settings.set("codex_executable_path", "/opt/bin/codex");
+		});
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		fireEvent.click(await screen.findByRole("button", { name: "Reset to bundled Codex" }));
+
+		await waitFor(() => expect(set).toHaveBeenCalledWith("codex_executable_path", ""));
+	});
+
 	it("re-downloads an installed agent program from the Agent binaries section", async () => {
 		const mounted = await mountPage();
 		const redownload = vi.spyOn(mounted.container.platform.programs, "redownload");

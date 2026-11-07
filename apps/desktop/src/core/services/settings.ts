@@ -7,7 +7,9 @@
  * `~/.conducted/settings.toml`, `.conducted/settings.toml`, `.conducted/settings.local.toml`),
  * deciding the effective value, parsing the environment variable tables of a settings file
  * (names and markers), and parsing settings text that came from a git ref in a cloud repo's shared
- * clone (CLOUD-04). The Keychain values behind those names belong to SET-04.
+ * clone (CLOUD-04), and opening the user's settings file or a project's local file in another
+ * app (SET-02's "Open settings.toml"; a missing file is created empty first). The Keychain values
+ * behind those names belong to SET-04.
  * Behaviour: services-map.md 4.2.1 (layers and precedence), 4.2.2 (scopes), 4.2.4 (settings.toml
  * schema, named actions, env var sections), ui-map.md 6, 5A.1.6 (named actions and their ids),
  * 2.5.2 (config reload on focus and every 30 s).
@@ -28,7 +30,11 @@
  * writers, this service and PRJ-04's repository config, write through `updateSettingsFile`.
  * SET-04 must handle: removing a project removes its own variables and their Keychain entries as
  * one step; a Keychain entry that cannot be removed is an error the user sees, and its row stays
- * so a retry can remove it.
+ * so a retry can remove it. A launch reads the env files every settings layer names (the user's,
+ * the repository's shared and local files, and a workspace's shared file), resolving each path and
+ * parsing it as dotenv; a repository's file wins over a saved variable of the same name and the
+ * user's file does not (services-map.md 4.2.8); a missing or unreadable file is skipped with a log
+ * line that names only its path, never its values.
  * Our design choice: file-backed keys (the ones with a `tomlKey` in the registry) live only in
  * TOML files; every other key lives in the `settings` table. There is no legacy `conductor.json`
  * migration. The TOML parser is passed in (`TomlCodec`) so tests and the app can differ. Per-user
@@ -51,7 +57,12 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Loadable } from "../api.ts";
-import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
+import {
+	conductedDir,
+	localSettingsFile,
+	sharedSettingsFile,
+	userSettingsFile,
+} from "../app-paths.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import type { EnvVar } from "../db/env-vars.ts";
@@ -59,7 +70,7 @@ import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { showSettingsFileAt, symbolicRefRemoteHead } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { EnvScope, EnvVarView } from "../model.ts";
+import type { ActionTarget, EnvScope, EnvVarView } from "../model.ts";
 import {
 	coerceSettingValue,
 	getSettingDef,
@@ -68,6 +79,7 @@ import {
 	type SettingValue,
 	tomlKeys,
 } from "../registries/settings.ts";
+import { parseDotenv, resolveEnvFilePath } from "./dotenv.ts";
 
 export interface TomlCodec {
 	parse(text: string): Result<Record<string, unknown>>;
@@ -236,7 +248,7 @@ export const settingsSchemaUrl = (scope: "user" | "repo"): string =>
 
 // ---------------------------------------------------------------- actions
 
-export type ActionTarget = "local" | "cloud";
+export type { ActionTarget };
 
 /**
  * One named action from `[scripts.run.<id>]`, in our own shape. Every field except `id` and
@@ -837,7 +849,12 @@ export interface SettingsState {
 
 export type SettingsPlatform = Pick<Platform, "fs" | "keychain" | "app"> & {
 	window?: Pick<Platform["window"], "onFocusChanged">;
+	/** Opens a settings file in the app the user picks ("Open settings.toml"). */
+	opener: Pick<Platform["opener"], "openWith">;
 };
+
+/** A settings file the user can open: their own, or one project's local file. */
+export type SettingsFileRef = "user" | { repoId: RepoId };
 
 export interface SettingsServiceDeps {
 	platform: SettingsPlatform;
@@ -1094,6 +1111,42 @@ export class SettingsService {
 			return err(appError("repo_unknown", "That project no longer exists."));
 		}
 		return this.setForRepo(found.value.rootPath, key, null);
+	}
+
+	/** Backs `Actions.settings.filePath`: the user's settings file, or a project's local one. */
+	async filePath(file: SettingsFileRef): Promise<Result<string>> {
+		if (file === "user") return ok(this.#userFile());
+		const repositories = this.#deps.repos.repos;
+		if (repositories === undefined) {
+			return err(appError("repo_unknown", "The project list is not available."));
+		}
+		const found = await repositories.get(file.repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		return ok(localSettingsFile(found.value.rootPath));
+	}
+
+	/**
+	 * Backs `Actions.settings.openFile`, Conductor's "Open settings.toml": creates the file empty
+	 * when it is missing, then opens it in the named app. A file that exists is left as it is.
+	 */
+	async openFile(file: SettingsFileRef, appName: string): Promise<Result<void>> {
+		const path = await this.filePath(file);
+		if (!path.ok) return path;
+		const fs = this.#deps.platform.fs;
+		const made = await this.#writes.run(path.value, async (): Promise<Result<void>> => {
+			if (await fs.exists(path.value)) return ok(undefined);
+			const folder = await fs.mkdirp(path.value.slice(0, path.value.lastIndexOf("/")));
+			if (!folder.ok) return folder;
+			return fs.writeTextAtomic(path.value, "");
+		});
+		if (!made.ok) {
+			// Conductor's title for this failure is "Failed to prepare file to open".
+			return err(appError("open_in_prepare_failed", `Couldn't create ${path.value}.`, made.error));
+		}
+		return this.#deps.platform.opener.openWith(appName, path.value);
 	}
 
 	/** Backs `Actions.settings.set`. Validates with the registry, then writes to the right place. */
@@ -1407,11 +1460,12 @@ export class SettingsService {
 	}
 
 	/**
-	 * The Environment page's variables for one repository, the one rule both its scripts and its agents'
-	 * launch use. Rows come in name order with the global row before the repository's (env-vars.ts), so
-	 * a repository's value replaces the global one of the same name. Without a repository (an agent's
-	 * model list), the global variables only. A value the Keychain cannot give back fails the whole read
-	 * with a message that names the variable, never the global value instead.
+	 * The Environment page's Keychain variables for one repository. Rows come in name order with the
+	 * global row before the repository's (env-vars.ts), so a repository's value replaces the global
+	 * one of the same name. Without a repository (an agent's model list), the global variables only.
+	 * A value the Keychain cannot give back fails the whole read with a message that names the
+	 * variable, never the global value instead. The env files named by the settings layers are read
+	 * by `environmentForLaunch`, which wraps this method.
 	 */
 	async environmentFor(repoId: RepoId | null): Promise<Result<Record<string, string>>> {
 		const listed =
@@ -1450,6 +1504,133 @@ export class SettingsService {
 			env[entry.name] = read.value;
 		}
 		return ok(env);
+	}
+
+	/**
+	 * The variables an agent's launch and a workspace's scripts start with: the env files named by
+	 * every settings layer, then the Keychain rows (SET-04). Conductor's read merge (services-map.md
+	 * 4.2.8): a variable a repository's settings file defines wins over a saved variable of the same
+	 * name; the user's file does not, so a value the user saved on the Environment page wins there.
+	 * Layers are read in Conductor's order, user, repository shared, workspace shared, repository
+	 * local, and a later file replaces an earlier one. For a cloud workspace both folder arguments
+	 * are its sandbox folder, so the platform's file calls reach the Worker; the user layer is the
+	 * Mac's own settings. Without a repository (a model list) only the user layer applies.
+	 */
+	async environmentForLaunch(
+		repoId: RepoId | null,
+		repoRootPath: string | null,
+		workspacePath: string | null,
+	): Promise<Result<Record<string, string>>> {
+		const files = await this.#envFileEnvironment(repoRootPath, workspacePath);
+		if (!files.ok) return files;
+		const stored = await this.environmentFor(repoId);
+		if (!stored.ok) return stored;
+		const env: Record<string, string> = { ...files.value.values };
+		for (const [name, value] of Object.entries(stored.value)) {
+			// A repository's file is more specific than a saved variable, so it keeps its value.
+			if (files.value.repoNames.has(name)) continue;
+			env[name] = value;
+		}
+		return ok(env);
+	}
+
+	/** The settings layers that can list env files, lowest precedence first. */
+	#envFileLayers(
+		repoRootPath: string | null,
+		workspacePath: string | null,
+	): {
+		file: string;
+		settingsDir: string;
+		sourceRoot: string;
+		scope: "user" | "repo";
+	}[] {
+		const paths = this.#deps.platform.fs.paths;
+		const layers: {
+			file: string;
+			settingsDir: string;
+			sourceRoot: string;
+			scope: "user" | "repo";
+		}[] = [
+			{
+				file: userSettingsFile(paths),
+				settingsDir: conductedDir(paths.home),
+				sourceRoot: paths.home,
+				scope: "user",
+			},
+		];
+		if (repoRootPath === null) return layers;
+		layers.push({
+			file: sharedSettingsFile(repoRootPath),
+			settingsDir: conductedDir(repoRootPath),
+			sourceRoot: repoRootPath,
+			scope: "repo",
+		});
+		if (workspacePath !== null && workspacePath !== repoRootPath) {
+			layers.push({
+				file: sharedSettingsFile(workspacePath),
+				settingsDir: conductedDir(workspacePath),
+				sourceRoot: workspacePath,
+				scope: "repo",
+			});
+		}
+		layers.push({
+			file: localSettingsFile(repoRootPath),
+			settingsDir: conductedDir(repoRootPath),
+			sourceRoot: repoRootPath,
+			scope: "repo",
+		});
+		return layers;
+	}
+
+	/**
+	 * The values of every env file the settings layers name, and the names that came from a
+	 * repository layer. A file that is missing or unreadable is skipped with a log line that names
+	 * its path, as Conductor does; a value never reaches a log line.
+	 */
+	async #envFileEnvironment(
+		repoRootPath: string | null,
+		workspacePath: string | null,
+	): Promise<Result<{ values: Record<string, string>; repoNames: Set<string> }>> {
+		const fs = this.#deps.platform.fs;
+		const values: Record<string, string> = {};
+		const repoNames = new Set<string>();
+		for (const layer of this.#envFileLayers(repoRootPath, workspacePath)) {
+			const contents = await this.readSettingsFile(layer.file);
+			if (!contents.ok) {
+				this.#deps.platform.app.writeLog(
+					"warn",
+					`Could not read ${layer.file} for its environment files.`,
+					{ cause: contents.error.message },
+				);
+				continue;
+			}
+			const listed = contents.value.values["environment_variable_files"];
+			if (!Array.isArray(listed)) continue;
+			for (const path of listed) {
+				if (typeof path !== "string" || path.trim() === "") continue;
+				const resolved = await resolveEnvFilePath({
+					path,
+					settingsDir: layer.settingsDir,
+					sourceRoot: layer.sourceRoot,
+					home: fs.paths.home,
+					exists: (candidate) => fs.exists(candidate),
+				});
+				const text = await fs.readText(resolved);
+				if (!text.ok) {
+					this.#deps.platform.app.writeLog(
+						"warn",
+						`Could not read the environment file ${resolved}.`,
+						{ cause: text.error.message },
+					);
+					continue;
+				}
+				for (const pair of parseDotenv(text.value)) {
+					values[pair.name] = pair.value;
+					if (layer.scope === "repo") repoNames.add(pair.name);
+				}
+			}
+		}
+		return ok({ values, repoNames });
 	}
 
 	async #envViews(scope: "global" | { repoId: RepoId }): Promise<Result<EnvVarView[]>> {

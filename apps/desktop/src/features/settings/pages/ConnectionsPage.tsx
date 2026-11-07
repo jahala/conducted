@@ -1,27 +1,33 @@
 /**
  * @feature SET-02 Connections settings page
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
- * Owns: the Connections page of Settings: the port range workspaces draw from, and the pairing
- * with the Worker that runs the user's cloud workspaces.
- * Behaviour: ui-map.md 3.7 and 6 ("Connections": in Conductor this page covers cloud port
- * forwarding, which is left out) and backlog RUN-03 (one port per workspace, detection, preview
- * URLs). CLOUD-07: the Worker URL and token are checked with the Worker and then kept in the
- * Keychain; the page shows which Worker this Mac is paired with and can remove the pairing.
- * Our design choice: the range is validated here, and port 22 is always refused because SSH
- * uses it. The pairing form sits on Connections because it connects this Mac to a Worker; it is
- * ours, since Conductor has no self-hosted Worker (D098, D106).
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * Owns: the Connections page of Settings: the port-forwarding controls, the deploy of the Worker
+ * to the user's own Cloudflare account, and the pairing with that Worker.
+ * Behaviour: ui-map.md 3.7 and 6 ("Connections": Exclusive port forwarding, Forwarding strategies,
+ * Local port range, Manual overrides). services-map.md 5A.3.3 gives the two strategies, the range
+ * defaults (20000 to 29999) and the override shape (remote to local, port 22 refused). CLOUD-07:
+ * the Worker URL and token are checked with the Worker and then kept in the Keychain; the page
+ * shows which Worker this Mac is paired with and can remove the pairing. CLOUD-08: the deploy runs
+ * `wrangler` with the user's own login from the Worker and image inputs the app carries, pairs this
+ * Mac, and can delete the Worker, its container application and its bucket with Remove deployment.
+ * Our design choice: Conductor keeps the forwarding keys as org-personal server settings; this app
+ * has no server, so they are ordinary local settings (D110). Port 22 is always refused. The deploy
+ * and pairing forms are ours, since Conductor has no self-hosted Worker (D098, D106, D109).
  * Must handle: a range whose first port is above its last, ports below 1024 or above 65535, and
- * port 22 inside the range (rejected). The range is stored under two registry keys; while the
- * settings registry has no such keys, the page says so instead of writing an unknown key. A
- * Worker URL or token the Worker refused shows its message and leaves any earlier pairing alone;
- * an unpaired Mac shows the form, and a paired one shows the Worker and Unpair.
+ * port 22 inside the range (rejected); an override line that is not remote:local or uses port 22
+ * (rejected before saving); a Worker URL or token the Worker refused (its message, earlier pairing
+ * left alone); an unpaired Mac shows the form and a paired one shows the Worker and Unpair; a
+ * deploy or uninstall that fails shows the shell's own message and changes no pairing.
  * Test first: a range of 3000 to 2000 shows an error and does not call settings.set.
  */
 import { useState } from "react";
-import { useActions, useCloudPairing } from "../../../core/hooks.ts";
-import { getSettingDef } from "../../../core/registries/settings.ts";
+import { useActions, useCloudPairing, useSetting } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
-import { Input, Label } from "../../../ui/Input.tsx";
+import { Input, Label, Textarea } from "../../../ui/Input.tsx";
+import { Select } from "../../../ui/Select.tsx";
+import { Switch } from "../../../ui/Switch.tsx";
 import { toast } from "../../../ui/Toast.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -50,18 +56,50 @@ function validateRange(first: number, last: number): RangeError | null {
 	return null;
 }
 
+/** Rejects a manual override that is not remote:local, or that uses port 22. */
+function validateMappings(text: string): string | null {
+	for (const line of text.split("\n")) {
+		const trimmed = line.trim();
+		if (trimmed === "") continue;
+		const match = /^(\d{1,5})\s*:\s*(\d{1,5})$/.exec(trimmed);
+		if (match === null) return `"${trimmed}" is not remote:local.`;
+		const remote = Number(match[1]);
+		const local = Number(match[2]);
+		if (remote === SSH_PORT) return "Port 22 is reserved for SSH and cannot be forwarded here.";
+		if (
+			remote < 1 ||
+			remote > MAX_PORT ||
+			local < MIN_PORT ||
+			local > MAX_PORT ||
+			local === SSH_PORT
+		) {
+			return `"${trimmed}" uses a port outside 1024 to 65535.`;
+		}
+	}
+	return null;
+}
+
 export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
 	const actions = useActions();
 	const pairing = useCloudPairing();
-	const [first, setFirst] = useState("55000");
-	const [last, setLast] = useState("55010");
+	const strategy = useSetting<string>("port_forwarding_strategy");
+	const exclusive = useSetting<boolean>("exclusive_port_forwarding_enabled");
+	const savedFirst = useSetting<number>("local_port_range_start");
+	const savedLast = useSetting<number>("local_port_range_end");
+	const savedMappings = useSetting<string[]>("port_mappings");
+	const [first, setFirst] = useState(String(savedFirst));
+	const [last, setLast] = useState(String(savedLast));
+	const [mappings, setMappings] = useState((savedMappings ?? []).join("\n"));
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [workerUrl, setWorkerUrl] = useState("");
 	const [pairingToken, setPairingToken] = useState("");
 	const [pairingError, setPairingError] = useState<string | null>(null);
 	const [pairingBusy, setPairingBusy] = useState(false);
+	const [deployBusy, setDeployBusy] = useState(false);
+	const [deployError, setDeployError] = useState<string | null>(null);
+	const [deployNote, setDeployNote] = useState<string | null>(null);
 
 	const pairWorker = async () => {
 		setPairingError(null);
@@ -89,32 +127,79 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 		toast("Unpaired from the Worker");
 	};
 
+	const deployWorker = async () => {
+		setDeployError(null);
+		setDeployNote(null);
+		setDeployBusy(true);
+		const result = await actions.cloud.deploy();
+		setDeployBusy(false);
+		if (!result.ok) {
+			setDeployError(result.error.message);
+			return;
+		}
+		setDeployNote(`Deployed and paired with ${result.value.url}.`);
+		toast("Deployed the Worker and paired this Mac");
+	};
+
+	const removeDeployment = async () => {
+		setDeployError(null);
+		setDeployNote(null);
+		setDeployBusy(true);
+		const result = await actions.cloud.uninstall();
+		setDeployBusy(false);
+		if (!result.ok) {
+			setDeployError(result.error.message);
+			return;
+		}
+		setDeployNote("Removed the Worker, its container application and its bucket.");
+		toast("Removed the deployment from your Cloudflare account");
+	};
+
 	const save = async () => {
 		const problem = validateRange(Number(first), Number(last));
 		if (problem !== null) {
 			setError(problem.message);
 			return;
 		}
-		if (
-			getSettingDef("workspace_port_range_start") === undefined ||
-			getSettingDef("workspace_port_range_end") === undefined
-		) {
-			setError(
-				"The port range settings are not in the settings registry yet, so this range cannot be saved.",
-			);
+		const mappingProblem = validateMappings(mappings);
+		if (mappingProblem !== null) {
+			setError(mappingProblem);
 			return;
 		}
 		setError(null);
 		setSaving(true);
-		const savedFirst = await actions.settings.set("workspace_port_range_start", Number(first));
-		const savedLast = await actions.settings.set("workspace_port_range_end", Number(last));
+		const savedStart = await actions.settings.set("local_port_range_start", Number(first));
+		const savedEnd = await actions.settings.set("local_port_range_end", Number(last));
+		const savedOverrides = await actions.settings.set(
+			"port_mappings",
+			mappings
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line !== ""),
+		);
 		setSaving(false);
-		const failure = !savedFirst.ok ? savedFirst.error : !savedLast.ok ? savedLast.error : null;
+		const failure = !savedStart.ok
+			? savedStart.error
+			: !savedEnd.ok
+				? savedEnd.error
+				: !savedOverrides.ok
+					? savedOverrides.error
+					: null;
 		if (failure !== null) {
 			setError(failure.message);
 			return;
 		}
-		toast("Workspace port range saved");
+		toast("Port forwarding settings saved");
+	};
+
+	const setStrategy = async (value: string) => {
+		const result = await actions.settings.set("port_forwarding_strategy", value);
+		if (!result.ok) setError(result.error.message);
+	};
+
+	const setExclusive = async (checked: boolean) => {
+		const result = await actions.settings.set("exclusive_port_forwarding_enabled", checked);
+		if (!result.ok) setError(result.error.message);
 	};
 
 	return (
@@ -126,45 +211,97 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 		>
 			<div className="flex flex-col gap-3 border-t border-border py-4 first:border-t-0 first:pt-0">
 				<div className="flex flex-col gap-1">
-					<p className="text-sm font-medium text-fg">Workspace port range</p>
+					<p className="text-sm font-medium text-fg">Exclusive port forwarding</p>
 					<p className="max-w-prose text-sm text-fg-muted">
-						New workspaces receive a block of ports inside this range. Existing workspaces keep the
-						ports they were given.
+						Turning on port forwarding in one workspace turns it off everywhere else.
 					</p>
 				</div>
-				<div className="flex items-end gap-3">
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="port-range-first">First port</Label>
-						<Input
-							id="port-range-first"
-							type="number"
-							value={first}
-							min={MIN_PORT}
-							max={MAX_PORT}
-							className="w-28"
-							onChange={(event) => {
-								setFirst(event.target.value);
-								setError(null);
-							}}
-						/>
-					</div>
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="port-range-last">Last port</Label>
-						<Input
-							id="port-range-last"
-							type="number"
-							value={last}
-							min={MIN_PORT}
-							max={MAX_PORT}
-							className="w-28"
-							onChange={(event) => {
-								setLast(event.target.value);
-								setError(null);
-							}}
-						/>
-					</div>
+				<Switch
+					checked={exclusive === true}
+					aria-label="Exclusive port forwarding"
+					onCheckedChange={(checked) => void setExclusive(checked)}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-3 border-t border-border py-4">
+				<div className="flex flex-col gap-1">
+					<p className="text-sm font-medium text-fg">Forwarding strategies</p>
+					<p className="max-w-prose text-sm text-fg-muted">
+						How new forwards choose their local port. Existing forwards keep their ports.
+					</p>
+				</div>
+				<Select
+					value={strategy}
+					aria-label="Forwarding strategy"
+					options={[
+						{ value: "match", label: "Match the remote port" },
+						{ value: "range", label: "Use the local range" },
+					]}
+					onValueChange={(value) => void setStrategy(value)}
+					className="w-64"
+				/>
+			</div>
+
+			<div className="flex flex-col gap-3 border-t border-border py-4">
+				<div className="flex flex-col gap-1">
+					<p className="text-sm font-medium text-fg">Local port range</p>
+					<p className="max-w-prose text-sm text-fg-muted">
+						Used for forwards that don't match their remote port number.
+					</p>
+				</div>
+				<div className="flex flex-col gap-1">
+					<Label htmlFor="local-port-range-first">First port</Label>
+					<Input
+						id="local-port-range-first"
+						type="number"
+						value={first}
+						min={MIN_PORT}
+						max={MAX_PORT}
+						className="w-28"
+						onChange={(event) => {
+							setFirst(event.target.value);
+							setError(null);
+						}}
+					/>
+				</div>
+				<div className="flex flex-col gap-1">
+					<Label htmlFor="local-port-range-last">Last port</Label>
+					<Input
+						id="local-port-range-last"
+						type="number"
+						value={last}
+						min={MIN_PORT}
+						max={MAX_PORT}
+						className="w-28"
+						onChange={(event) => {
+							setLast(event.target.value);
+							setError(null);
+						}}
+					/>
+				</div>
+				<p className="text-xs text-fg-subtle">Ranges cannot include port 22, which SSH uses.</p>
+			</div>
+
+			<div className="flex flex-col gap-3 border-t border-border py-4">
+				<div className="flex flex-col gap-1">
+					<p className="text-sm font-medium text-fg">Manual overrides</p>
+					<p className="max-w-prose text-sm text-fg-muted">
+						Map a remote port to a local port, one per line as remote:local.
+					</p>
+				</div>
+				<Textarea
+					aria-label="Manual overrides"
+					value={mappings}
+					placeholder={"3000:4000"}
+					className="w-64 font-mono"
+					onChange={(event) => {
+						setMappings(event.target.value);
+						setError(null);
+					}}
+				/>
+				<div>
 					<Button variant="secondary" loading={saving} onClick={() => void save()}>
-						Save port range
+						Save port forwarding settings
 					</Button>
 				</div>
 				{error ? (
@@ -172,16 +309,14 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 						{error}
 					</p>
 				) : null}
-				<p className="text-xs text-fg-subtle">Ranges cannot include port 22, which SSH uses.</p>
 			</div>
 
 			<div className="flex flex-col gap-3 border-t border-border py-4">
 				<div className="flex flex-col gap-1">
 					<p className="text-sm font-medium text-fg">Cloud Workspaces</p>
 					<p className="max-w-prose text-sm text-fg-muted">
-						Pair this Mac with the Worker you deployed to your Cloudflare account. Its URL and
-						pairing token come from the deployment. The token is kept in the Keychain and is never
-						shown again.
+						Deploy the Worker to your Cloudflare account, or pair this Mac with one you deployed
+						already. The token is kept in the Keychain and is never shown again.
 					</p>
 				</div>
 				{pairing.state === "loading" ? (
@@ -195,20 +330,75 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 					</p>
 				) : null}
 				{pairing.state === "ready" && pairing.data.paired ? (
-					<div className="flex items-end gap-3">
-						<p className="text-sm text-fg">Paired with {pairing.data.url ?? "a Worker"}.</p>
-						<Button
-							variant="outlineDestructive"
-							loading={pairingBusy}
-							onClick={() => void unpairWorker()}
-						>
-							Unpair
-						</Button>
+					<div className="flex flex-col gap-2">
+						<div className="flex items-end gap-3">
+							<p className="text-sm text-fg">Paired with {pairing.data.url ?? "a Worker"}.</p>
+							<Button
+								variant="outlineDestructive"
+								loading={pairingBusy}
+								onClick={() => void unpairWorker()}
+							>
+								Unpair
+							</Button>
+						</div>
+						<p className="max-w-prose text-sm text-fg-muted">
+							Remove deployment deletes the Worker, its container application and its R2 bucket from
+							your Cloudflare account. It also unpairs this Mac.
+						</p>
+						<div className="flex items-end gap-3">
+							<Button variant="secondary" loading={deployBusy} onClick={() => void deployWorker()}>
+								Deploy to Cloudflare
+							</Button>
+							<Button
+								variant="outlineDestructive"
+								loading={deployBusy}
+								onClick={() => void removeDeployment()}
+							>
+								Remove deployment
+							</Button>
+						</div>
+						{deployNote ? (
+							<p role="status" className="text-xs text-fg-muted">
+								{deployNote}
+							</p>
+						) : null}
+						{deployError ? (
+							<p role="alert" className="text-xs text-danger">
+								{deployError}
+							</p>
+						) : null}
 					</div>
 				) : null}
 				{pairing.state === "ready" && !pairing.data.paired ? (
 					<div className="flex flex-col gap-2">
 						<p className="text-sm text-fg-muted">Not paired</p>
+						<p className="max-w-prose text-sm text-fg-muted">
+							Deploy the Worker yourself with your own Cloudflare login. Install{" "}
+							<code>wrangler</code> and run <code>wrangler login</code> once, then choose this
+							project's <code>apps/cloud</code> folder, prepared once with{" "}
+							<code>bun apps/cloud/sandbox/build.ts</code>. The deploy makes the Worker, its
+							container application and its R2 bucket in your account, sets the pairing token as a
+							Worker secret, and pairs this Mac.
+						</p>
+						<div className="flex items-end gap-3">
+							<Button loading={deployBusy} onClick={() => void deployWorker()}>
+								Deploy to Cloudflare
+							</Button>
+						</div>
+						{deployNote ? (
+							<p role="status" className="text-xs text-fg-muted">
+								{deployNote}
+							</p>
+						) : null}
+						{deployError ? (
+							<p role="alert" className="text-xs text-danger">
+								{deployError}
+							</p>
+						) : null}
+						<p className="text-xs text-fg-subtle">
+							Already deployed? Deploying again updates it, and Remove deployment deletes it.
+						</p>
+						<p className="text-sm font-medium text-fg">Pair a Worker you deployed already</p>
 						<div className="flex flex-col gap-1">
 							<Label htmlFor="cloud-worker-url">Worker URL</Label>
 							<Input

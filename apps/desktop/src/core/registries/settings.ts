@@ -13,8 +13,9 @@
  *
  * Our design choice: `default_message_send_mode` defaults to "steer" and its values are "steer" and "queue".
  * The research default is `steering` with the other value `queued`.
- * Our design choice: settings that the research marks as cloud, hosted account, billing, organization, remote control,
+ * Our design choice: settings that the research marks as hosted account, billing, organization, remote control,
  * analytics or internal are left out, as are secrets such as tokens and API keys, which belong in the Keychain.
+ * The file-sync switch for new cloud workspaces is kept because CLOUD-11 builds the sync it starts.
  * The one internal switch kept is `unstarted_workspaces_enabled`, because the backlog (WS-11) is built.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
@@ -33,6 +34,7 @@ export type SettingPage =
 	| "experimental"
 	| "advanced"
 	| "remote-control"
+	| "connections"
 	| "state";
 
 /** "state" is a hidden page for saved screen state that has no settings screen. */
@@ -50,6 +52,7 @@ export const SETTING_PAGES: readonly SettingPage[] = [
 	"experimental",
 	"advanced",
 	"remote-control",
+	"connections",
 	"state",
 ];
 
@@ -78,6 +81,8 @@ export type SettingDef = {
 	detail?: string;
 	/** A detail that warns, drawn in the warning colour (Graphite's performance note). */
 	detailTone?: "warning";
+	/** A page that explains the setting, linked as "Learn more" after the description. */
+	learnMoreUrl?: string;
 	/** Extra words that find this setting in search. */
 	searchTerms: readonly string[];
 	/** Backlog id of the feature that owns the behaviour. */
@@ -110,7 +115,7 @@ const SETTINGS_TABLE = [
 		default: "enter",
 		options: [
 			{ value: "enter", label: "Enter" },
-			{ value: "cmd-enter", label: "Cmd+Enter" },
+			{ value: "cmd-enter", label: "⌘ Enter" },
 		],
 	},
 	// Our design choice: values are steer and queue (the research uses steering and queued), and the default is steer.
@@ -232,9 +237,8 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
-	// Our design choice: the key is renamed from the research name, to describe the behaviour.
 	{
-		key: "expand_tool_calls",
+		key: "garry_mode",
 		page: "general",
 		scopes: ["user"],
 		title: "Don't collapse tool calls (Garry Mode)",
@@ -657,6 +661,47 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
+	// Our design choice: our model ids do not carry their agent (Conductor infers it from the
+	// model), so the review picker stores the agent beside the model. Empty keeps the default
+	// chat's agent.
+	{
+		key: "review_agent",
+		page: "models",
+		scopes: ["user"],
+		title: "Review agent",
+		description: "Agent that runs AI code review chats. Empty uses the default chat's agent.",
+		pageDescription: false,
+		searchTerms: ["agent", "review", "model"],
+		feature: "REV-05",
+		type: "string",
+		default: "",
+	},
+	// Our design choice: Conductor keeps a model's effort per model. Without that store, a review
+	// effort for an agent with no review setting of its own (Cursor, ACP) goes here.
+	{
+		key: "review_effort",
+		page: "models",
+		scopes: ["user"],
+		title: "Effort level for reviews",
+		description:
+			"How hard agents without their own review effort setting think during AI code reviews.",
+		pageDescription: false,
+		searchTerms: ["effort", "thinking", "review"],
+		feature: "REV-05",
+		type: "enum",
+		default: "",
+		options: [
+			{ value: "", label: "Default chat's effort" },
+			{ value: "none", label: "None" },
+			{ value: "low", label: "Low" },
+			{ value: "medium", label: "Medium" },
+			{ value: "high", label: "High" },
+			{ value: "xhigh", label: "Extra high" },
+			{ value: "max", label: "Max" },
+			{ value: "ultra", label: "Ultra" },
+			{ value: "ultracode", label: "Ultracode" },
+		],
+	},
 	// Our design choice: off, as the research gives no default.
 	{
 		key: "default_plan_mode",
@@ -863,6 +908,8 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Auto permission mode",
 		description: "Turns on Claude auto mode.",
+		// Claude's glossary entry on auto mode, which Conductor's "Learn more" opens.
+		learnMoreUrl: "https://code.claude.com/docs/en/glossary#auto-mode",
 		searchTerms: ["auto", "permission", "claude", "mode"],
 		feature: "AGENT-04",
 		type: "bool",
@@ -1229,7 +1276,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user", "repo"],
 		title: "Env files",
 		description:
-			"Dotenv files to read into the environment of scripts and terminals. Paths may be relative to the settings folder or repository.",
+			"Dotenv files to read into the environment of scripts and agents. Paths may be relative to the settings folder or repository.",
 		searchTerms: ["env", "dotenv", ".env", "variables", "files"],
 		tomlKey: "environment_variable_files",
 		fileLayers: "user-and-repo",
@@ -1425,6 +1472,19 @@ const SETTINGS_TABLE = [
 		feature: "SET-07",
 		type: "string-list",
 		default: [],
+	},
+	// Our design choice: the wording is ours (D002); the research gives only the truncated row text.
+	{
+		key: "auto_sync_files_in_new_cloud_workspaces",
+		page: "advanced",
+		scopes: ["user"],
+		title: "Enable file sync in new cloud workspaces",
+		description:
+			"Start syncing a new cloud workspace to this Mac when its files are first needed. You can still turn sync on or off for one workspace later.",
+		searchTerms: ["cloud", "sync", "mirror", "files", "workspace"],
+		feature: "CLOUD-11",
+		type: "bool",
+		default: true,
 	},
 	// Our design choice: the key and the default folder are named after the app, as the research gives no default.
 	{
@@ -1741,6 +1801,73 @@ const SETTINGS_TABLE = [
 		description: "Whether you closed the banner that offers to import local environment variables.",
 		searchTerms: ["env", "banner", "import"],
 		feature: "SET-04",
+		type: "bool",
+		default: false,
+	},
+	// CLOUD-10: Conductor keeps these four as org-personal server settings (services-map 5A.3.3).
+	// This app has no server settings, so they live with the other local settings (D110).
+	{
+		key: "port_forwarding_strategy",
+		page: "connections",
+		scopes: ["user"],
+		title: "Forwarding strategy",
+		description:
+			"How a new forward chooses its local port. Match uses the remote port when it is free; Range picks from the local range.",
+		searchTerms: ["forward", "port", "match", "range", "cloud"],
+		feature: "CLOUD-10",
+		type: "enum",
+		default: "match",
+		options: [
+			{ value: "match", label: "Match the remote port" },
+			{ value: "range", label: "Use the local range" },
+		],
+	},
+	{
+		key: "local_port_range_start",
+		page: "connections",
+		scopes: ["user"],
+		title: "Local port range",
+		description:
+			"The first local port a cloud forward may use when it does not match the remote port.",
+		searchTerms: ["forward", "port", "range", "cloud", "first"],
+		feature: "CLOUD-10",
+		type: "number",
+		default: 20_000,
+		min: 1_024,
+		max: 65_535,
+	},
+	{
+		key: "local_port_range_end",
+		page: "connections",
+		scopes: ["user"],
+		title: "Local port range end",
+		description: "The last local port a cloud forward may use.",
+		searchTerms: ["forward", "port", "range", "cloud", "last"],
+		feature: "CLOUD-10",
+		type: "number",
+		default: 29_999,
+		min: 1_024,
+		max: 65_535,
+	},
+	{
+		key: "port_mappings",
+		page: "connections",
+		scopes: ["user"],
+		title: "Manual overrides",
+		description: "Map a remote port to a local port, one per line as remote:local.",
+		searchTerms: ["forward", "port", "mapping", "override", "cloud"],
+		feature: "CLOUD-10",
+		type: "string-list",
+		default: [],
+	},
+	{
+		key: "exclusive_port_forwarding_enabled",
+		page: "connections",
+		scopes: ["user"],
+		title: "Exclusive port forwarding",
+		description: "Turning on port forwarding in one workspace turns it off everywhere else.",
+		searchTerms: ["forward", "port", "exclusive", "cloud", "one"],
+		feature: "CLOUD-10",
 		type: "bool",
 		default: false,
 	},

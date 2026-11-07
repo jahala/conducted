@@ -14,6 +14,7 @@ import { Outbound, type OutboundSecrets, outboundRequest } from "./outbound.ts";
 const SECRETS: OutboundSecrets = {
 	ANTHROPIC_API_KEY: "sk-ant-real",
 	OPENAI_API_KEY: "sk-openai-real",
+	CURSOR_API_KEY: "cursor-real",
 	GITHUB_TOKEN: "ghp-real",
 };
 
@@ -79,6 +80,23 @@ describe("CLOUD-05 the outbound handler's credentials and allow-list", () => {
 		expect(sent.headers.get("authorization")).toBe("Bearer sk-openai-real");
 		expect(sent.headers.get("x-api-key")).toBeNull();
 		expect(sent.redirect).toBe("manual");
+	});
+
+	it("replaces the placeholder for the Worker's Cursor key on Cursor's SDK backend", () => {
+		const sent = prepared("https://api2.cursor.sh/agent.v1.AgentService/Run", {
+			authorization: "Bearer provided-by-worker",
+			"x-api-key": "provided-by-worker",
+		});
+		expect(sent.headers.get("authorization")).toBe("Bearer cursor-real");
+		expect(sent.headers.get("x-api-key")).toBeNull();
+		expect(sent.redirect).toBe("manual");
+	});
+
+	it("refuses Cursor's API over plain HTTP and refuses a look-alike host", () => {
+		expect(refusal("http://api2.cursor.sh/agent.v1.AgentService/Run").status).toBe(403);
+		expect(refusal("https://api2.cursor.sh.example.com/agent.v1.AgentService/Run").status).toBe(
+			403,
+		);
 	});
 
 	it("adds the Worker's GitHub token to api.github.com and replaces a placeholder", () => {

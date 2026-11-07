@@ -42,7 +42,7 @@ import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/hooks.ts";
-import { agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
+import { AGENT_CHOICES, agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import {
@@ -63,14 +63,6 @@ export interface ModelPickerProps {
 
 type Choice = Pick<SessionConfig, "agent" | "acpAgent">;
 type ConfigChange = Pick<SessionConfig, "agent" | "acpAgent" | "model" | "effort" | "fastMode">;
-
-const AGENT_CHOICES: readonly Choice[] = [
-	{ agent: "claude" },
-	{ agent: "codex" },
-	{ agent: "cursor" },
-	{ agent: "acp", acpAgent: "opencode" },
-	{ agent: "acp", acpAgent: "pi" },
-];
 
 export const EFFORT_LABELS: Record<Effort, string> = {
 	none: "None",
@@ -507,7 +499,11 @@ export function ModelMenu({
 					{effortName === null ? null : (
 						<span className="shrink-0 text-fg-muted">{effortName}</span>
 					)}
-					{config?.fastMode === true ? <span className="shrink-0 text-fg-muted">Fast</span> : null}
+					{config?.fastMode === true ? (
+						<span role="img" aria-label="Fast mode on" className="shrink-0 text-fg-muted">
+							Fast
+						</span>
+					) : null}
 					<ChevronDownIcon className="ml-0.5 size-3 shrink-0 text-fg-muted" />
 				</Button>
 			}

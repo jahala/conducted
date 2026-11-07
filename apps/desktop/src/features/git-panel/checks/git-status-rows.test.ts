@@ -1,9 +1,11 @@
 /**
  * Tests for PR-04: the Checks tab's Git status rows follow Conductor's wording and order.
  */
+
+import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import type { CheckRun, GitState, PullRequest } from "../../../core/model.ts";
-import { gitStatusRows } from "./git-status-rows.ts";
+import type { CheckRun, DiffComment, GitState, PullRequest } from "../../../core/model.ts";
+import { commentsToAddToChat, gitStatusRows } from "./git-status-rows.ts";
 
 const check = (state: CheckRun["state"], required = true): CheckRun => ({
 	name: "ci",
@@ -53,13 +55,14 @@ const gitState = (overrides: Partial<GitState> = {}): GitState => ({
 });
 
 const texts = (git: GitState, optionalBlocking = false) =>
-	gitStatusRows(git, optionalBlocking).map((row) => row.text);
+	gitStatusRows(git, optionalBlocking, 0).map((row) => row.text);
 
 describe("PR-04 Git status rows", () => {
 	it("gives a draft pull request with two uncommitted files its two rows, in Conductor's order", () => {
 		const rows = gitStatusRows(
 			gitState({ uncommittedFiles: 2, pullRequest: pullRequest({ state: "draft" }) }),
 			false,
+			0,
 		);
 
 		expect(rows.map((row) => [row.text, row.action?.label ?? null])).toEqual([
@@ -111,13 +114,62 @@ describe("PR-04 Git status rows", () => {
 		const changes = gitStatusRows(
 			gitState({ pullRequest: pullRequest({ reviewDecision: "changes_requested" }) }),
 			false,
+			1,
 		);
 		expect(changes.map((row) => [row.text, row.action?.id])).toEqual([
 			["PR changes requested", "add_comments_to_chat"],
 		]);
 	});
 
+	it("offers Add all comments to chat only while a review comment is not in the chat yet", () => {
+		const changes = gitStatusRows(
+			gitState({ pullRequest: pullRequest({ reviewDecision: "changes_requested" }) }),
+			false,
+			0,
+		);
+		expect(changes.map((row) => [row.text, row.action])).toEqual([["PR changes requested", null]]);
+	});
+
 	it("shows no pull request rows once it is merged", () => {
 		expect(texts(gitState({ pullRequest: pullRequest({ state: "merged" }) }))).toEqual([]);
+	});
+});
+
+const comment = (id: string, overrides: Partial<DiffComment> = {}): DiffComment => ({
+	id: id as CommentId,
+	workspaceId: "w1" as WorkspaceId,
+	filePath: "src/a.ts",
+	line: 4,
+	endLine: null,
+	body: "Please rename this.",
+	author: { kind: "github", name: "lee", avatarUrl: null },
+	state: "pending",
+	side: "additions",
+	threadId: `thread-${id}`,
+	replyToId: null,
+	suggestion: null,
+	suggestionBaseCode: null,
+	remoteUrl: null,
+	resolved: false,
+	outdated: false,
+	createdAt: 1,
+	updatedAt: 1,
+	...overrides,
+});
+
+describe("GIT-04 the review comments Add all comments to chat sends", () => {
+	it("takes the open GitHub comments that are not in the chat yet", () => {
+		expect(
+			commentsToAddToChat([
+				comment("open"),
+				comment("mine", { author: { kind: "user", name: null, avatarUrl: null } }),
+				comment("reply", { replyToId: "open" as CommentId }),
+				comment("resolved", { resolved: true }),
+				comment("outdated", { outdated: true }),
+				comment("sent", { state: "reviewed" }),
+				comment("hidden", { state: "hidden" }),
+				comment("superseded", { state: "superseded" }),
+			]),
+		).toEqual(["open"]);
 	});
 });

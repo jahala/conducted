@@ -37,10 +37,13 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployInput,
+	CloudDeployResult,
 	CloudPairing,
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
+	CloudUninstallInput,
 	Database,
 	Dialogs,
 	FileDropEvent,
@@ -53,6 +56,9 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	PortForwardEvent,
+	PortForwardInfo,
+	PortForwarding,
 	ProgramStatus,
 	Programs,
 	Pty,
@@ -83,6 +89,11 @@ export type CloudScript = (
 	request: CloudRequest,
 ) => Promise<Result<CloudResponse>> | Result<CloudResponse> | null;
 
+/** A scripted answer to a deploy, or null to let the next script answer. */
+export type CloudDeployScript = (
+	input: CloudDeployInput,
+) => Promise<Result<CloudDeployResult>> | Result<CloudDeployResult> | null;
+
 export interface MemoryPlatformOptions {
 	clock: Clock;
 	ids: IdSource;
@@ -106,12 +117,20 @@ export interface MemoryPlatformControls {
 	scriptShell(script: ShellScript): void;
 	/** Adds a cloud answer. Later scripts are tried first. */
 	scriptCloud(script: CloudScript): void;
+	/** Adds a deploy answer. Later scripts are tried first. */
+	scriptCloudDeploy(script: CloudDeployScript): void;
+	/** Every deploy the app asked for, in order. */
+	readonly cloudDeploys: readonly CloudDeployInput[];
+	/** Every uninstall the app asked for, in order. */
+	readonly cloudUninstalls: readonly CloudUninstallInput[];
 	/** Every cloud request made, in order. */
 	readonly cloudRequests: readonly CloudRequest[];
 	/** Every line the app sent to a cloud relay, in order. */
 	readonly cloudSent: readonly { relayId: string; line: string }[];
 	/** The ids of the relays the app opened and has not closed. */
 	readonly cloudRelayIds: readonly string[];
+	/** The channel each open relay asked for, by relay id. */
+	readonly cloudRelayChannels: Readonly<Record<string, string>>;
 	/** Changes what `cloud.status` reports and what `cloud.pair` would replace. */
 	setCloudPairing(pairing: CloudPairing): void;
 	/** Delivers a line to every listener of one relay. False when the relay is not open. */
@@ -951,6 +970,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		revealInFinder: async () => {},
 		openWith: async () => ok(undefined),
 		installedApps: async () => [],
+		// The in-memory Mac has no app bundles, so no app has an icon to read.
+		appIcon: async () => ok(null),
 	};
 
 	const clipboard: Clipboard = {
@@ -1135,6 +1156,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const cloudScripts: CloudScript[] = [];
+	const cloudDeployScripts: CloudDeployScript[] = [];
+	const cloudDeploys: CloudDeployInput[] = [];
+	const cloudUninstalls: CloudUninstallInput[] = [];
 	const cloudRequests: CloudRequest[] = [];
 	const cloudSent: { relayId: string; line: string }[] = [];
 	let cloudPairing: CloudPairing = {
@@ -1144,6 +1168,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	interface MemoryRelay {
 		url: string;
 		vmId: string;
+		channel: string;
 		lineListeners: Set<(line: string) => void>;
 		closedListeners: Set<(reason: string) => void>;
 		closed: string | null;
@@ -1162,6 +1187,24 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			cloudPairing = { paired: false, url: null };
 			return ok(undefined);
 		},
+		deploy: async (input = {}) => {
+			cloudDeploys.push(input);
+			let answer: Result<CloudDeployResult> | null = null;
+			for (const script of cloudDeployScripts) {
+				answer = await script(input);
+				if (answer !== null) break;
+			}
+			const result =
+				answer ??
+				ok({ url: `https://${input.workerName ?? "conducted-cloud"}.example.workers.dev` });
+			// The real deploy writes the pairing in Rust; the stand-in keeps the same two facts.
+			if (result.ok) cloudPairing = { paired: true, url: result.value.url };
+			return result;
+		},
+		uninstall: async (input = {}) => {
+			cloudUninstalls.push(input);
+			return ok(undefined);
+		},
 		request: async (request) => {
 			cloudRequests.push(request);
 			for (const script of cloudScripts) {
@@ -1177,6 +1220,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			const state: MemoryRelay = {
 				url: input.url,
 				vmId: input.vmId,
+				channel: input.channel ?? "rpc",
 				lineListeners: new Set(),
 				closedListeners: new Set(),
 				closed: null,
@@ -1215,6 +1259,65 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 	};
 
+	const runningForwards = new Map<string, PortForwardInfo>();
+	const forwardListeners = new Set<(event: PortForwardEvent) => void>();
+	const emitForward = (event: PortForwardEvent): void => {
+		for (const listener of forwardListeners) listener(event);
+	};
+	const portForward: PortForwarding = {
+		findAvailableLocalPort: async (input) => {
+			const taken = new Set(input.excludedPorts ?? []);
+			for (const forward of runningForwards.values()) taken.add(forward.localPort);
+			const usable = (port: number): boolean =>
+				Number.isInteger(port) && port >= 1024 && port <= 65_535 && port !== 22 && !taken.has(port);
+			if (input.preferredPort !== undefined && usable(input.preferredPort)) {
+				return ok(input.preferredPort);
+			}
+			for (
+				let port = Math.max(input.rangeStart, 1024);
+				port <= Math.min(input.rangeEnd, 65_535);
+				port += 1
+			) {
+				if (usable(port)) return ok(port);
+			}
+			return err(
+				platformError(
+					"port_forward_no_port",
+					"No free local port is left in the forwarding range.",
+				),
+			);
+		},
+		start: async (input) => {
+			if (input.localPort === 22 || input.remotePort === 22) {
+				return err(
+					platformError(
+						"port_forward_reserved",
+						"Port 22 is reserved for SSH and cannot be forwarded here.",
+					),
+				);
+			}
+			const info: PortForwardInfo = {
+				forwardId: input.forwardId,
+				localPort: input.localPort,
+				remotePort: input.remotePort,
+			};
+			runningForwards.set(input.forwardId, info);
+			emitForward({ forwardId: input.forwardId, kind: "started", message: null });
+			return ok(info);
+		},
+		stop: async (forwardId) => {
+			if (runningForwards.delete(forwardId)) {
+				emitForward({ forwardId, kind: "stopped", message: null });
+			}
+			return ok(undefined);
+		},
+		list: async () => ok([...runningForwards.values()]),
+		onEvent: (listener) => {
+			forwardListeners.add(listener);
+			return () => forwardListeners.delete(listener);
+		},
+	};
+
 	const app: AppInfo = {
 		version: options.version ?? "0.0.0-test",
 		channel: options.channel ?? "dev",
@@ -1249,6 +1352,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		scriptCloud: (script) => {
 			cloudScripts.unshift(script);
 		},
+		scriptCloudDeploy: (script) => {
+			cloudDeployScripts.unshift(script);
+		},
+		get cloudDeploys() {
+			return cloudDeploys;
+		},
+		get cloudUninstalls() {
+			return cloudUninstalls;
+		},
 		get cloudRequests() {
 			return cloudRequests;
 		},
@@ -1257,6 +1369,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get cloudRelayIds() {
 			return [...cloudRelays.keys()];
+		},
+		get cloudRelayChannels() {
+			return Object.fromEntries([...cloudRelays].map(([id, relay]) => [id, relay.channel]));
 		},
 		setCloudPairing: (pairing) => {
 			cloudPairing = pairing;
@@ -1399,6 +1514,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		programs,
 		http,
 		cloud,
+		portForward,
 	};
 
 	return { platform, controls };

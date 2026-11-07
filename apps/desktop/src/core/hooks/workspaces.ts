@@ -121,6 +121,26 @@ export const useInstalledApps: Queries["useInstalledApps"] = () => {
 	if (query.data === undefined) return { state: "loading" };
 	return { state: "ready", data: query.data };
 };
+/**
+ * The Rust shell reads an app's icon once and keeps a copy, so the answer is kept for the life of
+ * the window, as Conductor keeps its app icons (services-map.md 2.5, `staleTime: Infinity`).
+ */
+export const useAppIcon: Queries["useAppIcon"] = (appName) => {
+	const { platform } = useServices();
+	const query = useQuery<string | null, AppError>({
+		queryKey: ["opener", "app-icon", appName],
+		queryFn: async () => {
+			const icon = await platform.opener.appIcon(appName);
+			if (!icon.ok) throw icon.error;
+			return icon.value;
+		},
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: Number.POSITIVE_INFINITY,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => {
 	const store = useServices().services.workspace.store;
 	const loaded = useStore(store, (state) => state.backlogLoaded);

@@ -98,6 +98,7 @@ export function ComposerEditor({
 				attributes: {
 					"aria-label": "composer",
 					"aria-multiline": "true",
+					"data-testid": "composer-input",
 					class: "min-h-12 max-h-[188px] overflow-y-auto text-sm font-light text-fg outline-none",
 					role: "textbox",
 				},

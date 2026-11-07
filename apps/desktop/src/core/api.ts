@@ -35,7 +35,9 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
-import type { CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { FileSyncView } from "./cloud/file-sync.ts";
+import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -149,6 +151,34 @@ export interface DetectedPort {
 	processName: string;
 	/** The macOS app that owns the process, such as a browser or an Electron app. Null for a plain process. */
 	appName: string | null;
+}
+
+/** One port a cloud workspace forwards to this Mac (CLOUD-10). */
+export interface PortForwardEntry {
+	id: string;
+	remotePort: number;
+	localPort: number;
+	label: string | null;
+	autoDetected: boolean;
+	enabled: boolean;
+}
+
+/** A port the sandbox listens on, with the process behind it when /proc names one. */
+export interface DetectedRemotePort {
+	port: number;
+	processName: string | null;
+}
+
+/** What the Ports tab shows for a cloud workspace: its forwards, switches and discovery. */
+export interface PortForwardView {
+	forwardingEnabled: boolean;
+	autoForwardEnabled: boolean;
+	/** True after Start forwarding until the first discovery answer arrives. */
+	waiting: boolean;
+	forwards: PortForwardEntry[];
+	/** Remote ports the sandbox currently listens on, with their process names. */
+	detectedPorts: DetectedRemotePort[];
+	error: string | null;
 }
 
 export interface RunState {
@@ -274,6 +304,8 @@ export interface Queries {
 	useDiffComments(workspaceId: WorkspaceId): Loadable<DiffComment[]>;
 	useTerminals(workspaceId: WorkspaceId): Loadable<Terminal[]>;
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
+	/** The forwarding switches, forwards and discovered ports of a cloud workspace (CLOUD-10). */
+	usePortForwards(workspaceId: WorkspaceId): PortForwardView;
 	useSetting<T>(key: string): T;
 	useAgentInstalls(): Loadable<AgentInstall[]>;
 	useModels(agent: AgentKind, acpAgent?: AcpAgent, host?: Host): Loadable<ModelInfo[]>;
@@ -302,6 +334,8 @@ export interface Queries {
 	useGitHubAccess(): Loadable<GitHubAccess>;
 	/** Names of the apps on this Mac that the "Open in" menu can use. */
 	useInstalledApps(): Loadable<string[]>;
+	/** An "Open in" app's own icon as a PNG data URL; null when the app has no icon file. */
+	useAppIcon(appName: string): Loadable<string | null>;
 	/** The MCP servers of one chat and their status. */
 	useMcpServers(sessionId: SessionId): Loadable<McpServerView[]>;
 	/** What the diagnostics screen shows about the app, the machine and the agents. */
@@ -362,6 +396,10 @@ export interface Queries {
 	useLinearAccess(): Loadable<LinearAccess>;
 	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
 	useCloudPairing(): Loadable<CloudPairing>;
+	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
+	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
+	/** A cloud workspace's file-sync state, for the scripts panel (CLOUD-11). */
+	useFileSyncStatus(workspaceId: WorkspaceId): FileSyncView;
 	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
 	useRepoTerminals(repoId: RepoId): Loadable<Terminal[]>;
 	/** The macOS version and CPU, for the old-system and wrong-build warnings. */
@@ -515,8 +553,8 @@ export interface Actions {
 		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
 	};
 	pullRequests: {
-		/** Asks the agent to open the PR, with written instructions. */
-		create: Act<[workspaceId: WorkspaceId]>;
+		/** Asks the agent to open the PR, with written instructions; `draft` asks for a draft PR. */
+		create: Act<[workspaceId: WorkspaceId, options: { draft: boolean }]>;
 		markReady: Act<[workspaceId: WorkspaceId]>;
 		merge: Act<[workspaceId: WorkspaceId]>;
 		setAutoMerge: Act<[workspaceId: WorkspaceId, enabled: boolean]>;
@@ -613,8 +651,13 @@ export interface Actions {
 		resolveConflicts: Act<
 			[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[], seenText: string]
 		>;
-		/** Shows a workspace file selected in a Finder window. */
-		reveal: Act<[workspaceId: WorkspaceId, path: string]>;
+		/**
+		 * Shows a workspace file selected in a Finder window. A cloud workspace's file is the
+		 * mirror's copy, or a download to Downloads (CLOUD-11); the result names the path shown.
+		 */
+		reveal: Act<[workspaceId: WorkspaceId, path: string], { path: string; downloaded: boolean }>;
+		/** Shows an absolute path in a Finder window, for a file already downloaded (CLOUD-11). */
+		revealPath: Act<[path: string]>;
 		/** Opens a workspace file in the named app, the one the "Open in" menu opens by default. */
 		openInApp: Act<[workspaceId: WorkspaceId, path: string, appName: string]>;
 	};
@@ -659,6 +702,10 @@ export interface Actions {
 		 * repository's shared settings.toml (or a layer above it) applies again.
 		 */
 		resetForRepo: Act<[repoId: RepoId, key: string]>;
+		/** Where the user's settings file, or one project's local settings file, lives. */
+		filePath: Act<[file: "user" | { repoId: RepoId }], string>;
+		/** Opens that settings file in the named app, creating it empty when it is missing. */
+		openFile: Act<[file: "user" | { repoId: RepoId }, appName: string]>;
 	};
 	agents: {
 		login: Act<[agent: AgentKind, acpAgent?: AcpAgent], AgentLogin>;
@@ -695,12 +742,42 @@ export interface Actions {
 		setGitHubToken: Act<[token: string | null]>;
 		/** Stores the personal Linear API key (D035), or removes it with null. */
 		setLinearKey: Act<[key: string | null]>;
+		/** Asks Linear again whether the stored key works: the Linear row's Refresh. */
+		recheckLinear: Act;
 	};
 	cloud: {
 		/** Checks the URL and token with the Worker, then keeps them in the Keychain (CLOUD-07). */
 		pair: Act<[input: CloudPairInput], CloudPairing>;
 		/** Removes this Mac's pairing with its Worker. */
 		unpair: Act<[], void>;
+		/** Deploys the app's bundled Worker to the user's account and pairs this Mac (CLOUD-08). */
+		deploy: Act<[], CloudDeployResult>;
+		/** Deletes the Worker, its container application and its bucket, and unpairs (CLOUD-08). */
+		uninstall: Act<[], void>;
+		/** Saves the commit identity cloud workspaces use, or clears it with null (CLOUD-17). */
+		saveGitIdentity: Act<[identity: CloudGitIdentity | null], CloudSettings>;
+		/** Adds or replaces one personal cloud variable (CLOUD-17). */
+		setCloudEnvVar: Act<[name: string, value: string], CloudSettings>;
+		/** Removes one personal cloud variable (CLOUD-17). */
+		removeCloudEnvVar: Act<[name: string], CloudSettings>;
+	};
+	portForwards: {
+		/** The workspace's Start forwarding switch (Cmd+Y). Exclusive mode turns others off first. */
+		setForwarding: Act<[workspaceId: WorkspaceId, enabled: boolean], void>;
+		/** Whether newly discovered remote ports are forwarded automatically. */
+		setAutoForward: Act<[workspaceId: WorkspaceId, enabled: boolean], void>;
+		/** Adds a forward for a typed remote port, with its local port chosen by the strategy. */
+		add: Act<[workspaceId: WorkspaceId, remotePort: number], PortForwardEntry>;
+		/** Stops and removes one forward. */
+		remove: Act<[forwardId: string], void>;
+		/** Turns one forward on or off without deleting it. */
+		toggle: Act<[forwardId: string, enabled: boolean], void>;
+		/** Stops every forward and clears the rows when a workspace is archived (CLOUD-10). */
+		pauseWorkspace: Act<[workspaceId: WorkspaceId], void>;
+		/** Reads the sandbox's listening ports now, for the Forward ports popover. */
+		refreshDiscovery: Act<[workspaceId: WorkspaceId], void>;
+		/** The Worker's shareable preview URL for one remote port. */
+		previewUrl: Act<[workspaceId: WorkspaceId, remotePort: number], string>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
@@ -710,6 +787,8 @@ export interface Actions {
 		openUrl: Act<[url: string]>;
 		/** Shows the system folder dialog. The result is null when the user cancels. */
 		pickFolder: Act<[title: string], string | null>;
+		/** Shows the system dialog for one file. The result is null when the user cancels. */
+		pickFile: Act<[title: string], string | null>;
 		recheckGitHubAccess: Act;
 		/** Writes the redacted diagnostics report to a file and starts a chat with it attached. */
 		createDiagnosticsChat: Act<[workspaceId: WorkspaceId]>;
@@ -717,6 +796,8 @@ export interface Actions {
 		sendFeedback: Act<[input: FeedbackInput]>;
 		openSidecarLogs: Act;
 		openFullDiskAccessSettings: Act;
+		/** Plays a completion sound now, for the General page's "Test". */
+		testCompletionSound: Act<[soundId: string]>;
 		/** Opens a terminal that runs the Xcode licence command, when git is blocked by it. */
 		runXcodeLicenseFix: Act;
 	};

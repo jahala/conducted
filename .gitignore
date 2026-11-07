@@ -8,6 +8,10 @@ target/
 # Coverage reports (`pnpm test:coverage`, the coverage workflow)
 coverage/
 
+# Cloud deploy inputs built at release time (scripts/cloud/prepare-deploy.ts)
+apps/cloud/sandbox/build/
+apps/desktop/src-tauri/resources/cloud/
+
 # Local scratch space, including code extracted from Conductor for research.
 # Never commit it: it is another company's code.
 .context/

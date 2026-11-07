@@ -12,7 +12,10 @@
 	"table:identity_associations": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-13",
+		"item": "Identity associations table for cloud hosts.",
+		"owner": "hand"
 	},
 	"table:repos": {
 		"status": "matched",
@@ -133,12 +136,9 @@
 		"owner": "rule:cite"
 	},
 	"table:port_forwards": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "Table port_forwards.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "port_forwards",
+		"by": "seed"
 	},
 	"table:favorite_models": {
 		"status": "matched",
@@ -162,24 +162,34 @@
 		"owner": "rule:name"
 	},
 	"table:_sqlx_migrations": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "matched",
+		"ours": "_sqlx_migrations",
+		"by": "hand",
+		"note": "The SQL plugin's migration ledger, which our shell uses too."
 	},
 	"table:identity_acceptances": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-13",
+		"item": "Identity acceptances table for cloud hosts.",
+		"owner": "hand"
 	},
 	"table:local_workspace_deletion_tombstones": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-13",
+		"item": "Deletion tombstones for local workspaces synced to a cloud host.",
+		"owner": "hand"
 	},
 	"table:local_workspace_revision_counter": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-13",
+		"item": "A local workspace revision counter for cloud sync.",
+		"owner": "hand"
 	},
 	"table:migration_rollbacks": {
 		"status": "gap",

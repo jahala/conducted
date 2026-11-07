@@ -54,6 +54,7 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `opener.revealInFinder`                          | `reveal_in_finder`                                                           | open_with.rs        |                                        |
 | `opener.openWith`                                | `open_with`                                                                  | open_with.rs        |                                        |
 | `opener.installedApps`                           | `installed_apps`                                                             | open_with.rs        |                                        |
+| `opener.appIcon`                                 | `app_icon`                                                                   | open_with.rs        |                                        |
 | `speech.available`, `.start`, `.stop`, `.cancel` | `speech_available`, `speech_start` (Channel), `speech_stop`, `speech_cancel` | speech.rs           |                                        |
 | `updater.check`, `.install`, `.relaunch`         | `updater_check`, `updater_install`, `updater_relaunch`                       | updater.rs          | `updater://status`                     |
 | `updater.installedUpdate`                        | `updater_installed_update`                                                   | updater.rs          |                                        |
@@ -81,8 +82,14 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `cloud.status`                                   | `cloud_pairing`                                                              | cloud.rs            |                                        |
 | `cloud.pair`                                     | `cloud_pair`                                                                 | cloud.rs            |                                        |
 | `cloud.unpair`                                   | `cloud_unpair`                                                               | cloud.rs            |                                        |
+| `cloud.deploy`                                   | `cloud_deploy`                                                               | cloud.rs            |                                        |
+| `cloud.uninstall`                                | `cloud_uninstall`                                                            | cloud.rs            |                                        |
 | `cloud.request`                                  | `cloud_request`                                                              | cloud.rs            |                                        |
 | `cloud.openRelay`, `CloudRelay.send`, `.close`   | `cloud_relay_open`, `cloud_relay_send`, `cloud_relay_close`                  | cloud.rs            | `cloud://line`, `cloud://closed`       |
+| `portForward.findAvailableLocalPort`             | `find_available_local_port`                                                  | port_forward.rs     |                                        |
+| `portForward.start`                              | `start_port_forward`                                                         | port_forward.rs     | `port-forward-event`                   |
+| `portForward.stop`                               | `stop_port_forward`                                                          | port_forward.rs     | `port-forward-event`                   |
+| `portForward.list`, `.onEvent`                   | `list_port_forwards`                                                         | port_forward.rs     | `port-forward-event`                   |
 
 Commands outside the Platform interface:
 

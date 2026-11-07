@@ -9,7 +9,7 @@
 import type { SessionConfig } from "@conducted/protocol";
 import { appError, err } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
@@ -17,6 +17,7 @@ import { useOverlayStore } from "../../app/overlay-store.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { createAppRouter } from "../../app/router.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
+import { unmountComposer } from "../../test/composer-teardown.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -47,9 +48,11 @@ const must = <T,>(
 };
 
 const containers: TestContainer[] = [];
+let mountedEditor: Editor | null = null;
 
-afterEach(() => {
-	cleanup();
+afterEach(async () => {
+	await unmountComposer(mountedEditor);
+	mountedEditor = null;
 	toast.dismiss();
 	useSnippetDialogsStore.getState().close();
 	useOverlayStore.getState().close();
@@ -246,7 +249,10 @@ describe("COMP-09 composer snippets", () => {
 					<Composer
 						workspaceId={workspace.id}
 						sessionId={session.id}
-						{...(onEditorReady === undefined ? {} : { onEditorReady })}
+						onEditorReady={(next) => {
+							mountedEditor = next;
+							onEditorReady?.(next);
+						}}
 					/>
 					<SnippetOverlays />
 				</CommandDispatcher>

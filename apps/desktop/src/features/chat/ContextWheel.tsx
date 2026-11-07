@@ -12,8 +12,9 @@
  * Plan usage and the signed-in account are drawn by UsageAccountRows (CHAT-28) for Claude and
  * Codex chats: the card asks the sidecar's getContextUsage each time it opens, as Conductor asks
  * only while its card is open, and only the newest answer is shown.
- * A chat whose agent has not reported its window yet uses the size the same agent last reported
- * for the same model in any chat (ContextWindowService); no sizes ship with the app.
+ * A chat's window size comes only from the per-model table through ContextWindowService: the
+ * ingest stores the size every usage report carries under the chat's agent and model, and no
+ * sizes ship with the app.
  * Must handle: window size unknown (the note and an empty ring, no invented percentage); Cursor
  * (its note); usage above the window (clamped at 100 percent); the setting off and usage at or
  * below 70 percent (nothing rendered); no usage event yet (the chat's stored context tokens); a
@@ -165,8 +166,7 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 
 	const usage = latestUsage(events);
 	const usedTokens = usage?.contextUsedTokens ?? session.contextUsedTokens;
-	const windowTokens =
-		usage?.contextWindowTokens ?? session.contextWindowTokens ?? knownWindow ?? null;
+	const windowTokens = knownWindow ?? null;
 	const share = shareOf(usedTokens, windowTokens);
 	const percent = percentOf(share);
 	const isCursor = session.config.agent === "cursor";
@@ -180,7 +180,6 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 
 	const model = usage?.model ?? session.config.model;
 	const fastMode = usage?.fastMode ?? (session.config.fastMode ? true : null);
-	const label = percent === null ? "Context usage: not available" : `Context usage: ${percent}%`;
 
 	return (
 		<Popover
@@ -191,7 +190,7 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 				if (open && usageAgent !== null) void readPlanUsage();
 			}}
 			trigger={
-				<Button variant="ghost" size="xs" className="px-0" aria-label={label}>
+				<Button variant="ghost" size="xs" className="px-0" aria-label="Context usage">
 					<span className={toneFor(percent)}>
 						<RadialProgress percent={percent} />
 					</span>

@@ -15,17 +15,17 @@ describe("NAV-01 window controls", () => {
 	it("names the sidebar button as Conductor does and says whether it is open", async () => {
 		renderWithRouter(<ToggleHarness />);
 
-		const hide = await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true });
+		const hide = await screen.findByRole("button", { name: "Toggle sidebar", expanded: true });
 		fireEvent.click(hide);
 
 		const show = await screen.findByRole("button", {
-			name: "Toggle left sidebar",
+			name: "Toggle sidebar",
 			expanded: false,
 		});
 		fireEvent.click(show);
 
 		expect(
-			await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true }),
+			await screen.findByRole("button", { name: "Toggle sidebar", expanded: true }),
 		).toBeTruthy();
 	});
 
@@ -33,7 +33,7 @@ describe("NAV-01 window controls", () => {
 		renderWithRouter(<ShellControls sidebarOpen onToggleSidebar={() => {}} />);
 
 		const sidebarButton = await screen.findByRole("button", {
-			name: "Toggle left sidebar",
+			name: "Toggle sidebar",
 			expanded: true,
 		});
 		const cluster = sidebarButton.parentElement;

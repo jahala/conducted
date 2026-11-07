@@ -20,7 +20,7 @@ import { collectResults, parseJsonColumn, parseStringList, stringifyJson } from 
 import { sectionFromRow, sectionToParams } from "./sections.ts";
 import { sessionEventFromRow, sessionEventToParams } from "./session-events.ts";
 import { liveStateFromRow, liveStateToParams } from "./session-live-state.ts";
-import { sessionFromRow, sessionToParams } from "./sessions.ts";
+import { SESSION_COLUMNS, sessionFromRow, sessionToParams } from "./sessions.ts";
 import { settingFromRow, settingToParams } from "./settings.ts";
 import { terminalFromRow, terminalToParams } from "./terminals.ts";
 import {
@@ -38,7 +38,6 @@ import {
 	turnEndedEvent,
 	turnId,
 	userMessageEvent,
-	workspaceId,
 } from "./test-fixtures.ts";
 import { workspaceFromRow, workspaceToParams } from "./workspaces.ts";
 
@@ -154,34 +153,17 @@ describe("workspaces", () => {
 });
 
 describe("sessions", () => {
-	const columns = [
-		"id",
-		"workspace_id",
-		"title",
-		"config",
-		"agent_session_id",
-		"unread_count",
-		"context_used_tokens",
-		"context_window_tokens",
-		"queue_paused_at",
-		"closed_at",
-		"last_user_message_at",
-		"created_at",
-		"updated_at",
-		"fork_resume_native_message_id",
-	];
-
 	it("round-trips the config", () => {
 		const params = sessionToParams(sampleSession);
 		if (!params.ok) throw new Error("fixture must serialise");
-		const row = rowFrom<Parameters<typeof sessionFromRow>[0]>(columns, params.value);
+		const row = rowFrom<Parameters<typeof sessionFromRow>[0]>(SESSION_COLUMNS, params.value);
 		expect(sessionFromRow(row)).toEqual({ ok: true, value: sampleSession });
 	});
 
 	it("returns an error Result when config is invalid", () => {
 		const params = sessionToParams(sampleSession);
 		if (!params.ok) throw new Error("fixture must serialise");
-		const row = rowFrom<Parameters<typeof sessionFromRow>[0]>(columns, params.value);
+		const row = rowFrom<Parameters<typeof sessionFromRow>[0]>(SESSION_COLUMNS, params.value);
 		expect(sessionFromRow({ ...row, config: "{" }).ok).toBe(false);
 		expect(sessionFromRow({ ...row, config: '{"agent":"claude"}' }).ok).toBe(false);
 		expect(sessionFromRow({ ...row, config: '{"agent":"nobody","model":"x"}' }).ok).toBe(false);
@@ -537,7 +519,7 @@ describe("repair and lifetime helpers", () => {
 });
 
 describe("createRepositories", () => {
-	it("returns all eighteen repositories", () => {
+	it("returns all nineteen repositories", () => {
 		const unused = {} as never;
 		const repositories = createRepositories(unused, unused);
 		expect(Object.keys(repositories).sort()).toEqual(
@@ -560,6 +542,7 @@ describe("createRepositories", () => {
 				"providerKeys",
 				"modelContextWindows",
 				"hostCopy",
+				"portForwards",
 			].sort(),
 		);
 	});

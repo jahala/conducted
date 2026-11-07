@@ -53,7 +53,7 @@ export function OpenInButton({
 				title={disabledReason ?? (defaultApp === null ? undefined : `Open in ${defaultApp.label}`)}
 				onClick={openDefault}
 			>
-				{defaultApp === null ? "Open in" : <OpenInAppIcon category={defaultApp.category} />}
+				{defaultApp === null ? "Open in" : <OpenInAppIcon app={defaultApp} />}
 			</Button>
 			<MenuTrigger asChild>
 				<Button

@@ -1,5 +1,6 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Tests the Worker's front door inside Cloudflare's local runtime: the pairing token is checked
  * before any Durable Object, and each route answers the right refusal for a bad name, method or
  * body. The state route reads a real Durable Object's storage without a container.
@@ -31,6 +32,8 @@ describe("CLOUD-03 the Worker's front door", () => {
 		expect((await get("/w/ws1/state", { authorization: "Bearer wrong" })).status).toBe(401);
 		expect((await get("/w/ws1/state", { authorization: "test-pairing-token" })).status).toBe(401);
 		expect((await post("/w/ws1/start", {}, {})).status).toBe(401);
+		expect((await post("/w/ws1/stop", {}, {})).status).toBe(401);
+		expect((await post("/w/ws1/remove", {}, {})).status).toBe(401);
 		expect((await post("/w/ws1/git", { args: [], cwd: "/workspace" }, {})).status).toBe(401);
 	});
 
@@ -58,6 +61,80 @@ describe("CLOUD-03 the Worker's front door", () => {
 		expect((await get("/w/ws1/rpc")).status).toBe(426);
 	});
 
+	it("refuses a terminal request that is not a WebSocket", async () => {
+		expect((await get("/w/ws1/terminal")).status).toBe(426);
+	});
+
+	it("refuses a tunnel request that is not a WebSocket, or names a bad port", async () => {
+		expect((await get("/w/ws1/tunnel?port=3000")).status).toBe(426);
+		const upgrade = { ...AUTH, upgrade: "websocket" };
+		expect((await get("/w/ws1/tunnel?port=22", upgrade)).status).toBe(400);
+		expect((await get("/w/ws1/tunnel", upgrade)).status).toBe(400);
+		expect((await get("/w/ws1/tunnel?port=nope", upgrade)).status).toBe(400);
+	});
+
+	it("checks the tunnel route's token before any Durable Object", async () => {
+		expect((await get("/w/ws1/tunnel?port=3000", {})).status).toBe(401);
+	});
+
+	it("makes a preview URL that carries an unguessable token", async () => {
+		const response = await post("/w/preview-ws/preview-url", { port: 3000 });
+		expect(response.status).toBe(200);
+		const { url } = (await response.json()) as { url: string };
+		expect(url).toMatch(
+			/^https:\/\/cloud\.test\/w\/preview-ws\/preview\/[A-Za-z0-9_-]{43}\/3000\/$/,
+		);
+	});
+
+	it("refuses a reserved or malformed preview port", async () => {
+		expect((await post("/w/preview-ws/preview-url", { port: 22 })).status).toBe(400);
+		expect((await post("/w/preview-ws/preview-url", { port: "not-a-port" })).status).toBe(400);
+		expect((await post("/w/preview-ws/preview-url", { port: 70_000 })).status).toBe(400);
+	});
+
+	it("checks a preview token without the pairing token, because a browser holds no key", async () => {
+		const { url } = (await (await post("/w/preview-ws/preview-url", { port: 3000 })).json()) as {
+			url: string;
+		};
+		const path = new URL(url).pathname;
+		// A browser's request carries no pairing token; the URL's own token is the capability.
+		const withGoodToken = await SELF.fetch(`${BASE}${path}`, { headers: {} });
+		expect(withGoodToken.status).toBe(503);
+		const bad = path.replace(/preview\/[A-Za-z0-9_-]{43}\//, `preview/${"A".repeat(43)}/`);
+		expect((await SELF.fetch(`${BASE}${bad}`, { headers: {} })).status).toBe(403);
+		expect(
+			(await SELF.fetch(`${BASE}${path.replace("/3000/", "/3001/")}`, { headers: {} })).status,
+		).toBe(403);
+	});
+
+	it("refuses a preview token for another worker's secret or port", async () => {
+		const { url } = (await (await post("/w/preview-ws/preview-url", { port: 3000 })).json()) as {
+			url: string;
+		};
+		const path = new URL(url).pathname;
+		const other = path.replace("preview-ws", "preview-other");
+		expect((await SELF.fetch(`${BASE}${other}`, { headers: {} })).status).toBe(403);
+	});
+
+	it("stops a workspace that has no sandbox running without starting one", async () => {
+		const response = await post("/w/stop-test/stop", {});
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			running: false,
+			ran: false,
+			saved: [],
+			skipped: [],
+		});
+	});
+
+	it("removes a workspace's stored state and tolerates a second removal", async () => {
+		const first = await post("/w/remove-test/remove", {});
+		expect(first.status).toBe(200);
+		expect(await first.json()).toEqual({ deletedBackups: 0 });
+		const second = await post("/w/remove-test/remove", {});
+		expect(second.status).toBe(200);
+	});
+
 	it("answers state from the workspace's Durable Object", async () => {
 		const response = await get("/w/state-test/state");
 		expect(response.status).toBe(200);
@@ -69,5 +146,38 @@ describe("CLOUD-03 the Worker's front door", () => {
 			instance: "basic",
 			backups: [],
 		});
+	});
+
+	it("keeps the personal cloud settings behind the pairing token", async () => {
+		expect((await get("/settings", {})).status).toBe(401);
+
+		const empty = await get("/settings");
+		expect(empty.status).toBe(200);
+		expect(await empty.json()).toEqual({ gitIdentity: null, envVars: {} });
+
+		const saved = {
+			gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
+			envVars: { NODE_ENV: "development" },
+		};
+		const written = await post("/settings", saved);
+		expect(written.status).toBe(200);
+		expect(await written.json()).toEqual(saved);
+		expect(await (await get("/settings")).json()).toEqual(saved);
+	});
+
+	it("refuses a cloud variable the sandbox sets itself, and an unknown method", async () => {
+		expect((await post("/settings", { gitIdentity: null, envVars: { PATH: "/tmp" } })).status).toBe(
+			400,
+		);
+		expect(
+			(await post("/settings", { gitIdentity: null, envVars: { ANTHROPIC_API_KEY: "sk-x" } }))
+				.status,
+		).toBe(400);
+		const put = await SELF.fetch(`${BASE}/settings`, {
+			method: "PUT",
+			headers: AUTH,
+		});
+		expect(put.status).toBe(405);
+		expect(put.headers.get("allow")).toBe("GET, POST");
 	});
 });

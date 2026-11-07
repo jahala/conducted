@@ -2,14 +2,17 @@
 	"aria_label:R511358": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-05",
+		"item": "The toast area carries the accessible name 'Notifications'.",
+		"owner": "hand"
 	},
 	"aria_label:R1875559": {
 		"status": "matched",
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"aria_label:R1898003": {
@@ -37,19 +40,16 @@
 	},
 	"aria_label:R2049152": {
 		"status": "matched",
-		"state": "first-run",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "div > div > div:nth-of-type(1) > button:nth-of-type(1)",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(2) > div > div:nth-of-type(1) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"aria_label:R2248531": {
-		"status": "matched",
-		"state": "chat-finished",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"aria_label:R2269190": {
 		"status": "matched",
@@ -102,12 +102,19 @@
 	"aria_label:R2991910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-16",
+		"item": "The Cloud desktop tab has Reconnect, an edit-access message and a message for non-cloud workspaces.",
+		"owner": "hand"
 	},
 	"aria_label:R2996778": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"class": "wording",
+		"backlog": "CHAT-06",
+		"owner": "hand",
+		"note": "Same job, different control: our message actions are a right-click menu on the message bubble, so there is no visible trigger to name. Conductor's 'Show message actions' names an icon button; building that button is a UI change, not wording."
 	},
 	"aria_label:R3015261": {
 		"status": "decided",
@@ -126,7 +133,10 @@
 	"aria_label:R3983288": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-08",
+		"item": "'Switch branch?' warning with 'Switch anyway' when an agent is running in the stack view",
+		"owner": "hand"
 	},
 	"aria_label:R3991063": {
 		"status": "gap",
@@ -154,7 +164,7 @@
 	},
 	"aria_label:R4421044": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-09",
 		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
@@ -162,7 +172,7 @@
 	},
 	"aria_label:R4421815": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-09",
 		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
@@ -201,16 +211,13 @@
 		"by": "seed"
 	},
 	"aria_label:R5017441": {
-		"status": "matched",
-		"state": "settings-repo-actions",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"aria_label:R5434122": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
@@ -226,7 +233,7 @@
 	},
 	"aria_label:R5444519": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -234,7 +241,7 @@
 	},
 	"aria_label:R5445011": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -242,7 +249,7 @@
 	},
 	"aria_label:R5446340": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -253,7 +260,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > aside > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > aside > button > span",
 		"by": "seed"
 	},
 	"aria_label:R5501496": {
@@ -279,16 +286,13 @@
 		"state": "chat-finished",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(4) > button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > button",
 		"by": "seed"
 	},
 	"aria_label:R5625996": {
-		"status": "matched",
-		"state": "chat-finished",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R5627430": {
 		"status": "matched",
@@ -307,32 +311,44 @@
 		"by": "seed"
 	},
 	"aria_label:R8060854": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Bash card with 'Clear output', 'Formatted' and 'Raw' toggle, 'Input:'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(7) > div > div:nth-of-type(2) > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R8075890": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8082977": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8085928": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8087654": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8147878": {
 		"status": "matched",
@@ -345,12 +361,18 @@
 	"aria_label:R8148495": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-10",
+		"owner": "hand"
 	},
 	"aria_label:R8700214": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Same job, different control: our row shows its one override action as a link named 'Reset to shared settings'. Conductor groups row actions behind a menu button named 'Setting actions'. Building that menu is a UI change, not wording."
 	},
 	"aria_label:R8717346": {
 		"status": "gap",
@@ -367,15 +389,19 @@
 	},
 	"aria_label:R8874837": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "CHAT-14",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R8880898": {
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section > div > div > h2",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section > div > div > h2",
 		"by": "seed"
 	},
 	"aria_label:R8881675": {
@@ -383,7 +409,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section > div > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section > div > button > span",
 		"by": "seed"
 	},
 	"aria_label:R8906778": {
@@ -404,8 +430,12 @@
 	},
 	"aria_label:R9222951": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "COMP-02",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R9226139": {
 		"status": "gap",
@@ -424,19 +454,16 @@
 		"by": "seed"
 	},
 	"aria_label:R9234010": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "textbox",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"aria_label:R9246234": {
 		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "section",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5)",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"aria_label:R9323764": {
@@ -500,7 +527,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(42) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(42) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"aria_label:R9573518": {
@@ -537,13 +564,20 @@
 	},
 	"aria_label:R9637465": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"reason": "unshown",
+		"screen": "inventory-controls Chat view",
+		"class": "wording",
+		"backlog": "REV-08",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R9637821": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "Banner 'File changed on disk' with 'Discard my edits' and 'Keep mine'",
+		"owner": "hand"
 	},
 	"aria_label:R9643573": {
 		"status": "matched",
@@ -588,7 +622,10 @@
 	"aria_label:R9987343": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",
+		"owner": "hand"
 	},
 	"aria_label:R10032976": {
 		"status": "gap",
@@ -647,19 +684,28 @@
 		"owner": "rule:quote"
 	},
 	"aria_label:R10289853": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "first-run",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(1) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R10292173": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "first-run",
+		"via": "aria-label",
+		"role": "separator",
+		"selector": "[data-testid=\"app-shell\"] > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R10295355": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "Full-page '/create' flow: repo, create from, prompt, model, plan mode, section",
+		"owner": "hand"
 	},
 	"aria_label:R10311628": {
 		"status": "decided",
@@ -668,9 +714,10 @@
 		"by": "hand"
 	},
 	"aria_label:R10329806": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A workspace's restricted (team) access, an organisation feature.",
+		"by": "hand"
 	},
 	"aria_label:R10374081": {
 		"status": "gap",
@@ -719,7 +766,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(8) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(8) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"aria_label:R10434319": {
@@ -730,7 +777,7 @@
 	},
 	"aria_label:R10434919": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Sidebar",
 		"backlog": "CLOUD-09",
 		"item": "Row badge 'Forwarding ports'",
@@ -739,7 +786,9 @@
 	"aria_label:R10464425": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"owner": "hand"
 	},
 	"aria_label:R10504137": {
 		"status": "gap",
@@ -758,9 +807,12 @@
 		"by": "seed"
 	},
 	"aria_label:R10515645": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "sidebar",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(1) > h2",
+		"by": "seed"
 	},
 	"aria_label:R10537138": {
 		"status": "matched",
@@ -791,7 +843,7 @@
 		"state": "chat-finished",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(1) > button:nth-of-type(1)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(1) > button",
 		"by": "seed"
 	},
 	"aria_label:R10693791": {
@@ -803,9 +855,10 @@
 		"owner": "rule:quote"
 	},
 	"aria_label:R10770111": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's local import scan.",
+		"by": "hand"
 	},
 	"aria_label:R10808801": {
 		"status": "decided",
@@ -816,14 +869,16 @@
 	"aria_label:R10822492": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"owner": "hand"
 	},
 	"aria_label:R10831131": {
 		"status": "matched",
 		"state": "settings-general",
 		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(1) > button > span",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(1) > button",
 		"by": "seed"
 	},
 	"aria_label:R10844512": {
@@ -831,7 +886,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(13) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(13) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"aria_label:R10864060": {
@@ -843,12 +898,18 @@
 	"aria_label:R10876245": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"owner": "hand"
 	},
 	"aria_label:R10928433": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents",
+		"class": "wording",
+		"backlog": "SET-03",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R10948284": {
 		"status": "gap",
@@ -868,25 +929,36 @@
 	},
 	"aria_label:R11022769": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R11023000": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R11023468": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"aria_label:R11029463": {
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"aria_label:R11029622": {
@@ -894,13 +966,14 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(2) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > p",
 		"by": "seed"
 	},
 	"aria_label:R11083786": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account avatar upload.",
+		"by": "hand"
 	},
 	"aria_label:R11085226": {
 		"status": "matched",
@@ -911,14 +984,16 @@
 		"by": "seed"
 	},
 	"aria_label:R11088269": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account profile photo.",
+		"by": "hand"
 	},
 	"aria_label:R11090623": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account display name.",
+		"by": "hand"
 	},
 	"aria_label:R11147513": {
 		"status": "gap",
@@ -937,7 +1012,7 @@
 	},
 	"aria_label:R11156373": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -986,17 +1061,26 @@
 	"aria_label:R11269882": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-03",
+		"item": "Misc: 'Preview URLs' template",
+		"owner": "hand"
 	},
 	"aria_label:R11270077": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-03",
+		"item": "Misc: 'Preview URLs' template",
+		"owner": "hand"
 	},
 	"aria_label:R11270292": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-03",
+		"item": "Misc: 'Preview URLs' template",
+		"owner": "hand"
 	},
 	"aria_label:R11276904": {
 		"status": "gap",
@@ -1019,18 +1103,23 @@
 		"state": "settings-repo-misc",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > button > span",
 		"by": "seed"
 	},
 	"aria_label:R11319788": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-08",
+		"item": "Palette workspace action 'Move to section' with sub-page 'Search sections...' and 'Remove from section'",
+		"owner": "hand"
 	},
 	"aria_label:R11328531": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"owner": "hand"
 	},
 	"aria_label:R11329571": {
 		"status": "matched",
@@ -1043,25 +1132,33 @@
 	"aria_label:R11462165": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-02",
+		"item": "'Create from' toggle (default branch, branch, PR, issue)",
+		"owner": "hand"
 	},
 	"aria_label:R11487348": {
 		"status": "matched",
-		"state": "git-scope-menu",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div:nth-of-type(4) > span:nth-of-type(1)",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"aria_label:R11510611": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"item": "'New section...' (sidebar background menu and workspace menu)",
+		"owner": "hand"
 	},
 	"aria_label:R11513606": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"owner": "hand"
 	},
 	"aria_label:R11515814": {
 		"status": "gap",
@@ -1075,8 +1172,8 @@
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(1) > dt",
+		"role": "th",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(1) > th",
 		"by": "seed"
 	},
 	"aria_label:R11560462": {
@@ -1088,7 +1185,10 @@
 	"aria_label:R11613952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "APP-02",
+		"item": "First-run onboarding with three steps",
+		"owner": "hand"
 	},
 	"aria_label:R11676490": {
 		"status": "gap",
@@ -1115,14 +1215,16 @@
 		"owner": "rule:quote"
 	},
 	"aria_label:R11703477": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's custom window button, drawn only on Linux; macOS uses the native traffic lights.",
+		"by": "hand"
 	},
 	"aria_label:R11703813": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's custom window button, drawn only on Linux; macOS uses the native traffic lights.",
+		"by": "hand"
 	},
 	"aria_label:R11725915": {
 		"status": "decided",
@@ -1139,12 +1241,18 @@
 	"aria_label:R11762034": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "Settings search box 'Search settings' (Cmd+F)",
+		"owner": "hand"
 	},
 	"aria_label:R11762597": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "Settings search box 'Search settings' (Cmd+F)",
+		"owner": "hand"
 	},
 	"aria_label:R11914392": {
 		"status": "decided",
@@ -1174,10 +1282,10 @@
 	},
 	"aria_label:R11924758": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(3)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(4) > span",
 		"by": "seed"
 	},
 	"aria_label:R11940002": {

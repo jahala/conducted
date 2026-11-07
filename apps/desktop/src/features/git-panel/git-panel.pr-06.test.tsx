@@ -132,7 +132,7 @@ describe("PR-06 Cmd+Shift+M in the git panel", () => {
 			.spyOn(harness.container.actions.pullRequests, "merge")
 			.mockResolvedValue(ok(undefined));
 		await renderPanel(harness, workspace);
-		await screen.findByRole("button", { name: /Squash and merge/ });
+		await screen.findByRole("button", { name: "Merge" });
 
 		pressMergeShortcut();
 

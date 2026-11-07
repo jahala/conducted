@@ -53,7 +53,7 @@ futures-util = "0.3"
 # The Rust shell owns the cloud WebSocket because the web view cannot set its headers (CLOUD-03).
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 sha2 = "0.10"
-tokio = { version = "1", features = ["fs", "io-util", "macros", "sync", "time"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 # The same app data folder rule Tauri uses, read before Tauri starts (PLAT-27, `lib.rs`).
@@ -83,6 +83,8 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 tauri = { version = "2", features = ["test"] }
 # Tests build xz archives of their own to serve from a local server (PLAT-35).
 lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "xz", "encoder"] }
+# The relay integration test trusts the local runtime's self-signed certificate (CLOUD-03).
+native-tls = "0.2"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

@@ -9,8 +9,12 @@
  * stored locally, not in the file) and 5A.2 (Spotlight).
  * Data: useRepoConfig(repoId).runScripts, useActions().projects (updateConfig, setRunActionHidden,
  * resetRunAction). Hidden shared ids are read from local storage through the repo service.
- * Children: ActionList, run/AddActionDialog (scripts-panel).
- * Our design choice: prompts for Review, Create PR and the others are on RepoPromptsPage, not here.
+ * Children: ActionList, run/AddActionDialog (scripts-panel), RepoPromptSettings (the instruction
+ * rows after Use spotlight testing, as Conductor's actions tab has them).
+ * Measured from Conductor's actions tab (renderApp Enl and tBa): the title "Actions" with
+ * "Configure action-specific behavior and instructions for this repository."; then the "Custom
+ * actions" row ("Shortcuts for quick actions, like running your dev server or test suite") with an
+ * outlined "Add" at its right and "No custom actions yet. Add one to get started." when empty.
  * Must handle: no actions (designed empty state), a shared action (hide for this user only, never
  * delete), a shared action changed on this Mac (Reset), the default action marked and changed,
  * and a save that fails (the user sees it and the list keeps its previous form; the Spotlight
@@ -25,7 +29,7 @@ import type { RepoConfig, RunAction } from "../../../core/model.ts";
 import { readHiddenRunActions } from "../../../core/services/repo.ts";
 import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/services/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
-import { EmptyState } from "../../../ui/EmptyState.tsx";
+import { PlusIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
@@ -36,6 +40,7 @@ import {
 	draftForAction,
 } from "../../scripts-panel/run/AddActionDialog.tsx";
 import { ActionList, type ActionListItem } from "./ActionList.tsx";
+import { RepoPromptSettings } from "./RepoPromptsPage.tsx";
 
 const EMPTY_DRAFT: ActionDraft = {
 	id: null,
@@ -44,6 +49,7 @@ const EMPTY_DRAFT: ActionDraft = {
 	cwd: "",
 	icon: null,
 	isDefault: false,
+	availableIn: ["local", "cloud"],
 };
 
 export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
@@ -139,6 +145,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			hidden: existing?.hidden ?? false,
 			icon: nextDraft.icon,
 			origin,
+			availableIn: nextDraft.availableIn,
 		};
 		let runScripts =
 			existing === undefined
@@ -203,7 +210,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Actions</h1>
 				<p className="text-sm text-fg-muted">
-					Shortcuts for quick actions, like running your dev server or test suite
+					Configure action-specific behavior and instructions for this repository.
 				</p>
 			</div>
 
@@ -245,24 +252,24 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 								</p>
 							) : null}
 
-							{items.length === 0 ? (
-								<EmptyState
-									compact
-									title="No custom actions yet. Add one to get started."
-									body="An action runs a command in a workspace, such as a dev server or your tests."
-									action={
-										<Button variant="default" onClick={add}>
-											Add action
-										</Button>
-									}
-								/>
-							) : (
-								<>
-									<div className="flex justify-end">
-										<Button variant="secondary" onClick={add}>
-											Add action
-										</Button>
+							<div className="flex flex-col gap-3">
+								<div className="flex items-center justify-between gap-8">
+									<div className="min-w-0">
+										<p className="text-sm font-medium text-fg">Custom actions</p>
+										<p className="mt-0.5 text-sm text-fg-muted">
+											Shortcuts for quick actions, like running your dev server or test suite
+										</p>
 									</div>
+									<Button variant="outline" size="sm" onClick={add}>
+										<PlusIcon className="size-4" />
+										Add
+									</Button>
+								</div>
+								{items.length === 0 ? (
+									<p className="text-sm text-fg-muted">
+										No custom actions yet. Add one to get started.
+									</p>
+								) : (
 									<ActionList
 										items={items}
 										onEdit={edit}
@@ -271,8 +278,8 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 										onSetDefault={(id) => void setDefault(id)}
 										onReset={(id) => void reset(id)}
 									/>
-								</>
-							)}
+								)}
+							</div>
 
 							<div className="flex items-center justify-between gap-4 border-t border-border pt-4">
 								<div>
@@ -292,6 +299,8 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 					);
 				}}
 			</LoadableView>
+
+			<RepoPromptSettings repoId={repoId} />
 
 			<AddActionDialog
 				open={dialogOpen}

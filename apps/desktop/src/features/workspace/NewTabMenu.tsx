@@ -1,6 +1,7 @@
 /**
  * @feature NAV-10 New tab menu
- * Owns: The '+' button and its menu: New chat (or New chat, same files), Browser, Local terminal.
+ * Owns: The '+' button and its menu: New chat (or New chat, same files), Browser, and the
+ * workspace's terminal (Local on the Mac, Cloud in a cloud workspace).
  * Behaviour: ui-map.md 3.2 ('+' new tab menu, Cmd+T; buttons disable at the tab limit; big
  * terminal mode creates a centre terminal with its startup command).
  * Our design choice: The three actions come from useNewTab, so this menu, the empty tab group and
@@ -61,7 +62,7 @@ export function NewTabMenu({ workspaceId, atTabLimit, onSearchChange }: NewTabMe
 					Browser
 				</MenuItem>
 				<MenuItem disabled={atTabLimit} onSelect={() => void startTerminal()}>
-					Local terminal
+					{newTab.terminalLabel}
 				</MenuItem>
 				{atTabLimit ? (
 					<>

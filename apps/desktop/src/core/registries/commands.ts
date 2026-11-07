@@ -210,7 +210,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.openPassport",
-		title: "Open the place name map",
+		title: "View workspace world map",
 		category: "General",
 		defaultShortcuts: [],
 		configurable: true,

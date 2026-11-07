@@ -25,6 +25,7 @@ import { type AppError, appError, type ManagedProgram, type Result } from "@cond
  * the real shell. The contract test reads the Rust sources and fails on a code that is missing.
  */
 export const PLATFORM_ERROR_CODES = [
+	"app_icon_failed",
 	"artifact_read_failed",
 	"attachment_app_data",
 	"attachment_bad_data",
@@ -42,6 +43,8 @@ export const PLATFORM_ERROR_CODES = [
 	"binary_verification_failed",
 	"clipboard_unavailable",
 	"cloud_bad_line",
+	"cloud_data_privacy",
+	"cloud_deploy_failed",
 	"cloud_method_not_allowed",
 	"cloud_not_a_worker",
 	"cloud_not_paired",
@@ -51,9 +54,11 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_relay_failed",
 	"cloud_relay_unknown",
 	"cloud_request_failed",
+	"cloud_resources_missing",
 	"cloud_response_too_large",
 	"cloud_token_invalid",
 	"cloud_token_unreadable",
+	"cloud_uninstall_failed",
 	"cloud_unscripted",
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
@@ -165,6 +170,11 @@ export const PLATFORM_ERROR_CODES = [
 	"program_status_not_sent",
 	"program_unpack_failed",
 	"program_version_not_pinned",
+	"port_forward_bind_failed",
+	"port_forward_failed",
+	"port_forward_invalid",
+	"port_forward_no_port",
+	"port_forward_reserved",
 	"pty_ack_failed",
 	"pty_bad_cwd",
 	"pty_bad_size",
@@ -481,6 +491,11 @@ export interface Opener {
 	/** Opens a folder or file in another app, e.g. "Cursor", "Visual Studio Code", "Ghostty". */
 	openWith(appName: string, path: string): Promise<Result<void>>;
 	installedApps(): Promise<string[]>;
+	/**
+	 * A known app's own icon as a PNG data URL, read once and cached by the Rust shell. Null when
+	 * the app is not installed or its bundle names no icon file.
+	 */
+	appIcon(appName: string): Promise<Result<string | null>>;
 }
 
 export interface Clipboard {
@@ -766,6 +781,22 @@ export interface CloudPairInput {
 	token: string;
 }
 
+/**
+ * What a deploy may override (CLOUD-08). The UI sends nothing, so the app's bundled name is used;
+ * a test may name one and delete everything after.
+ */
+export interface CloudDeployInput {
+	workerName?: string;
+}
+
+/** What a completed deploy leaves: the Worker's URL, now paired with this Mac. */
+export interface CloudDeployResult {
+	url: string;
+}
+
+/** What an uninstall overrides: the same optional name a deploy used. */
+export type CloudUninstallInput = CloudDeployInput;
+
 /** The line transport to the sidecar inside one workspace's sandbox (CLOUD-03). */
 export interface CloudRelay {
 	readonly id: string;
@@ -792,8 +823,67 @@ export interface Cloud {
 	pair(input: CloudPairInput): Promise<Result<CloudPairing>>;
 	/** Removes the saved pairing. A Mac that is not paired succeeds. */
 	unpair(): Promise<Result<void>>;
+	/**
+	 * Deploys the Worker, its container application and its R2 bucket to the user's own Cloudflare
+	 * account with their `wrangler` login, sets the pairing token as a Worker secret, and pairs
+	 * this Mac (CLOUD-08). The token is made in Rust and never reaches the web view.
+	 */
+	deploy(input?: CloudDeployInput): Promise<Result<CloudDeployResult>>;
+	/**
+	 * Deletes what the deploy made, in the order that stops billing: the Worker, its container
+	 * application and images, then the R2 bucket. It also removes this Mac's pairing (CLOUD-08).
+	 */
+	uninstall(input?: CloudUninstallInput): Promise<Result<void>>;
 	request(request: CloudRequest): Promise<Result<CloudResponse>>;
-	openRelay(input: { url: string; vmId: string }): Promise<Result<CloudRelay>>;
+	/**
+	 * Opens one line stream into the workspace's Durable Object. `channel` selects the sidecar
+	 * relay (the default) or a terminal's byte stream, which carries base64 JSON lines (CLOUD-09).
+	 */
+	openRelay(input: {
+		url: string;
+		vmId: string;
+		channel?: "rpc" | "terminal";
+	}): Promise<Result<CloudRelay>>;
+}
+
+/** One running local listener that carries a cloud workspace's port to the Mac (CLOUD-10). */
+export interface PortForwardInfo {
+	forwardId: string;
+	localPort: number;
+	remotePort: number;
+}
+
+/** What a port forward reports. `kind` is "started", "stopped" or "error". */
+export interface PortForwardEvent {
+	forwardId: string;
+	kind: "started" | "stopped" | "error";
+	message: string | null;
+}
+
+/**
+ * port_forward.rs: the Rust shell owns the local TCP listeners, because the web view cannot open a
+ * socket and cannot set the tunnel's Authorization header (CLOUD-10). The pairing token stays in
+ * Rust, so a forward needs no token from the screen.
+ */
+export interface PortForwarding {
+	/** The first free loopback port at `preferredPort`, then inside the range. */
+	findAvailableLocalPort(input: {
+		preferredPort?: number;
+		excludedPorts?: number[];
+		rangeStart: number;
+		rangeEnd: number;
+	}): Promise<Result<number>>;
+	/** Binds the local port before returning, so a good answer means the Mac port is open. */
+	start(input: {
+		forwardId: string;
+		url: string;
+		vmId: string;
+		localPort: number;
+		remotePort: number;
+	}): Promise<Result<PortForwardInfo>>;
+	stop(forwardId: string): Promise<Result<void>>;
+	list(): Promise<Result<PortForwardInfo[]>>;
+	onEvent(listener: (event: PortForwardEvent) => void): Unsubscribe;
 }
 
 /** http.rs: requests go through the system proxy settings and a URL allow-list. */
@@ -832,4 +922,5 @@ export interface Platform {
 	programs: Programs;
 	http: Http;
 	cloud: Cloud;
+	portForward: PortForwarding;
 }

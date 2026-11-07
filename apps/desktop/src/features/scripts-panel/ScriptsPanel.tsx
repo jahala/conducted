@@ -1,4 +1,5 @@
 /**
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature RUN-01 ScriptsPanel
  * Owns: right panel, bottom half. Tabs Setup, Run, Terminal N and Ports, a collapse control, and
  * the active tab. Entry point embedded by the workspace screen.
@@ -21,6 +22,7 @@ import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import {
 	useActions,
+	useFileSyncStatus,
 	useRunState,
 	useSetting,
 	useSetupState,
@@ -41,6 +43,7 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const terminals = useTerminals(workspaceId);
 	const setup = useSetupState(workspaceId);
 	const run = useRunState(workspaceId);
+	const fileSync = useFileSyncStatus(workspaceId);
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
 	const actions = useActions();
 	const runService = useServices().services.runScripts;
@@ -50,10 +53,13 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const all = terminals.state === "ready" ? terminals.data : [];
 	const interactive = all.filter((terminal) => terminal.kind === "terminal");
+	// Only a cloud workspace shows a host beside each terminal's name (CLOUD-09).
+	const cloudWorkspace = workspace.state === "ready" && workspace.data.host.kind === "cloud";
 	const terminalTabs = interactive.map((terminal) => ({
 		id: terminal.id,
 		title: terminal.title,
 		ended: terminal.endedAt !== null,
+		...(cloudWorkspace ? { hostKind: "cloud" as const } : {}),
 	}));
 	const limit = terminalLimit(Boolean(tabFreakMode));
 	const atLimit = terminalTabs.length >= limit;
@@ -131,6 +137,7 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 				showPorts={showPorts}
 				terminalLimit={limit}
 				collapsed={collapsed}
+				fileSync={fileSync}
 				onSelect={setPicked}
 				onNewTerminal={newTerminal}
 				onCloseTerminal={closeTerminal}

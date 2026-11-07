@@ -11,11 +11,17 @@
  * setting rows (data privacy, tool approvals).
  * Our design choice: the header shows the GitHub sign-in: its avatar and login, with the letter when
  * the avatar cannot load. Conductor's "Edit photo" and "Display name" are not built: there is nowhere
- * to keep them yet. The token field sits under the GitHub row and the Linear key field opens under
- * the Linear row from "Connect"; the service marks are our own glyphs (D002).
+ * to keep them yet. As in Conductor (renderApp $Ba @11051777), the GitHub row has one button,
+ * "Manage" with a check or "Connect", that opens the "GitHub" dialog ("Choose how Conducted
+ * authenticates GitHub operations on your machine."); ours holds the sign-in state with Check again,
+ * the sign-in method, the token field and Disconnect there. The Linear key field opens under the
+ * Linear row from "Connect"; the service marks are our own glyphs (D002). The Linear row has
+ * Conductor's Refresh before its button (renderApp YVe), which asks Linear again whether the stored
+ * key works; a request that fails is a toast.
  * Data: useGitHubAccess() for the `gh` status, useLinearAccess() for the Linear connection, the
  * GitHub store for the failure class,
- * RegistrySettingRowByKey for stored values, Actions.accounts for the token and Linear key.
+ * RegistrySettingRowByKey for stored values, Actions.accounts for the token, the Linear key and the
+ * Linear Refresh.
  * Our design choice: the page never starts `gh auth login`, because it is interactive. It shows the
  * command with a copy button and a "Check again" action. A token that does not look like a GitHub
  * token is saved only after the user confirms the warning.
@@ -37,6 +43,7 @@ import { Input, Label } from "../../../ui/Input.tsx";
 import { CheckIcon, GitBranchIcon, ListTodoIcon, RefreshIcon } from "../../../ui/icons.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
+import { RefreshButton } from "../RefreshButton.tsx";
 import { RegistrySettingRowByKey } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -47,8 +54,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const access = useGitHubAccess();
 	const linearAccess = useLinearAccess();
 	const raw = useStore(services.github.store, (state) => state.access);
-	const [accountOpen, setAccountOpen] = useState(false);
-	const [connectOpen, setConnectOpen] = useState(false);
+	const [githubOpen, setGithubOpen] = useState(false);
 	const [token, setToken] = useState("");
 	const [pendingWarning, setPendingWarning] = useState<string | null>(null);
 	const [tokenError, setTokenError] = useState<string | null>(null);
@@ -58,6 +64,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const [disconnectLinear, setDisconnectLinear] = useState(false);
 	const [savingLinear, setSavingLinear] = useState(false);
 	const [linearFormOpen, setLinearFormOpen] = useState(false);
+	const [refreshingLinear, setRefreshingLinear] = useState(false);
 	const [avatarFailed, setAvatarFailed] = useState(false);
 
 	const failure = raw.status === "signed_out" ? raw.failure : undefined;
@@ -66,6 +73,14 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const checkAgain = async () => {
 		const result = await actions.app.recheckGitHubAccess();
 		if (!result.ok) toastError("Couldn't check GitHub access", result.error);
+	};
+
+	/** The Linear row's Refresh: asks Linear again whether the stored key works. */
+	const refreshLinear = async () => {
+		setRefreshingLinear(true);
+		const result = await actions.accounts.recheckLinear();
+		setRefreshingLinear(false);
+		if (!result.ok) toastError("Couldn't check Linear access", result.error);
 	};
 
 	const copy = async (text: string, message: string) => {
@@ -143,117 +158,43 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				title="GitHub"
 				description="Connect GitHub to clone repos, create PRs, load comments and more."
 				actions={
-					<>
-						<Button variant="ghost" size="sm" onClick={() => void checkAgain()}>
-							<RefreshIcon className="size-3.5" />
-							Check again
-						</Button>
-						{signedIn ? (
-							<Button variant="outline" size="sm" onClick={() => setAccountOpen(true)}>
-								Manage
-								<CheckIcon className="size-3.5 text-success" />
-							</Button>
-						) : access.state === "ready" && access.data.state === "signed_out" ? (
-							<Button variant="outline" size="sm" onClick={() => setConnectOpen(true)}>
-								Connect GitHub
-							</Button>
-						) : null}
-					</>
+					// Conductor's one button: Manage with a check when connected, else Connect; both open
+					// the GitHub dialog that holds the sign-in, the token and the method.
+					<Button variant="outline" onClick={() => setGithubOpen(true)}>
+						{signedIn ? "Manage" : "Connect"}
+						{signedIn ? <CheckIcon aria-hidden="true" className="size-3.5 text-success" /> : null}
+					</Button>
 				}
-			>
-				{access.state === "loading" ? <Skeleton className="h-5 w-64" /> : null}
-				{access.state === "error" ? (
-					<p role="alert" className="text-xs text-danger">
-						{access.error.message}
-					</p>
-				) : null}
-				{access.state === "ready" && access.data.state === "gh_missing" ? (
-					<div className="flex flex-col gap-1">
-						<p className="text-sm text-fg-muted">
-							The GitHub CLI (gh) is not installed. Pull requests and GitHub features need it.
-						</p>
-						<p className="text-sm text-fg-muted">
-							Install the GitHub CLI from https://cli.github.com, then choose Check again.
-						</p>
-					</div>
-				) : null}
-				{access.state === "ready" && access.data.state === "signed_out" ? (
-					<div className="flex flex-col gap-1">
-						<p className="text-sm text-fg-muted">GitHub is not signed in.</p>
-						{failureMessage ? (
-							<p role="alert" className="text-xs text-danger">
-								{failureMessage}
-							</p>
-						) : null}
-					</div>
-				) : null}
-				{access.state === "ready" && access.data.state === "unknown" ? (
-					<p className="text-sm text-fg-muted">
-						GitHub's status could not be read. Check your connection, then choose Check again.
-					</p>
-				) : null}
-				{signedIn && access.state === "ready" && access.data.state === "signed_in" ? (
-					<p className="text-sm text-fg-muted">
-						Signed in as {access.data.login} on {access.data.host}
-						{access.data.scopes.length > 0 ? ` (${access.data.scopes.join(", ")})` : ""}.
-					</p>
-				) : null}
-				<div className="flex flex-col gap-2 pt-2">
-					<Label htmlFor="github-token">Personal access token</Label>
-					<p className="text-sm text-fg-muted">
-						Optional. Stored in the Keychain and given to gh as GH_TOKEN. It is never shown again.
-					</p>
-					<div className="flex items-end gap-2">
-						<Input
-							id="github-token"
-							type="password"
-							value={token}
-							autoComplete="off"
-							placeholder="ghp_..."
-							className="w-72"
-							onChange={(event) => {
-								setToken(event.target.value);
-								setTokenError(null);
-							}}
-						/>
-						<Button variant="outline" onClick={() => void saveToken()}>
-							Save token
-						</Button>
-					</div>
-					{tokenError ? (
-						<p role="alert" className="text-xs text-danger">
-							{tokenError}
-						</p>
-					) : null}
-				</div>
-			</ConnectionRow>
+			/>
 
 			<ConnectionRow
 				icon={<ListTodoIcon className="size-5" />}
 				title="Linear"
 				description="Connect Linear so Conducted can use issue context from your account."
 				actions={
-					linearAccess.state === "ready" &&
-					(linearAccess.data.state === "signed_in" ||
-						linearAccess.data.state === "key_rejected") ? (
-						<Button
-							variant="outlineDestructive"
-							size="sm"
-							onClick={() => setDisconnectLinear(true)}
-						>
-							Disconnect Linear
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							size="sm"
-							aria-expanded={linearFormOpen}
-							aria-controls="linear-key-form"
-							onClick={() => setLinearFormOpen((open) => !open)}
-						>
-							Connect
-						</Button>
-					)
+					<>
+						<RefreshButton refreshing={refreshingLinear} onRefresh={() => void refreshLinear()} />
+						{linearAccess.state === "ready" &&
+						(linearAccess.data.state === "signed_in" ||
+							linearAccess.data.state === "key_rejected") ? (
+							<Button
+								variant="outlineDestructive"
+								size="sm"
+								onClick={() => setDisconnectLinear(true)}
+							>
+								Disconnect Linear
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								aria-expanded={linearFormOpen}
+								aria-controls="linear-key-form"
+								onClick={() => setLinearFormOpen((open) => !open)}
+							>
+								Connect
+							</Button>
+						)}
+					</>
 				}
 			>
 				{linearAccess.state === "loading" ? <Skeleton className="h-5 w-56" /> : null}
@@ -313,12 +254,6 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			<RegistrySettingRowByKey
 				settingKey="enterprise_data_privacy"
 				focusSettingKey={focusSettingKey}
-				extraFor={() => (
-					<ul className="list-disc pl-5 text-xs text-fg-muted">
-						<li>Generated chat titles are turned off.</li>
-						<li>Custom MCP servers are turned off.</li>
-					</ul>
-				)}
 			/>
 			<RegistrySettingRowByKey
 				settingKey="tool_approvals_enabled"
@@ -329,48 +264,105 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				focusSettingKey={focusSettingKey}
 			/>
 
-			<div className="flex flex-col gap-2 border-t border-border py-4">
-				<RegistrySettingRowByKey settingKey="gh_auth_method" focusSettingKey={focusSettingKey} />
-			</div>
-
-			<Dialog open={connectOpen} onOpenChange={setConnectOpen}>
+			<Dialog open={githubOpen} onOpenChange={setGithubOpen}>
 				<DialogContent
-					title="Connect GitHub"
-					description="Run this command in a terminal, finish the browser sign-in, then choose Check again on this page."
+					title="GitHub"
+					description="Choose how Conducted authenticates GitHub operations on your machine."
 				>
-					<pre className="rounded-md bg-muted px-3 py-2 font-mono text-xs text-fg">
-						gh auth login
-					</pre>
-					<DialogFooter>
-						<Button
-							variant="secondary"
-							onClick={() => void copy("gh auth login", "Copied the sign-in command")}
-						>
-							Copy command
-						</Button>
-						<Button onClick={() => setConnectOpen(false)}>Done</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-				<DialogContent title="GitHub account">
-					{access.state === "ready" && access.data.state === "signed_in" ? (
-						<div className="flex flex-col gap-1 text-sm text-fg-muted">
-							<p>Signed in as {access.data.login}.</p>
-							<p>Host: {access.data.host}</p>
-							<p>
-								Scopes:{" "}
-								{access.data.scopes.length === 0 ? "none reported" : access.data.scopes.join(", ")}
+					<div className="flex flex-col gap-3">
+						{access.state === "loading" ? <Skeleton className="h-5 w-64" /> : null}
+						{access.state === "error" ? (
+							<p role="alert" className="text-xs text-danger">
+								{access.error.message}
 							</p>
+						) : null}
+						{access.state === "ready" && access.data.state === "gh_missing" ? (
+							<div className="flex flex-col gap-1">
+								<p className="text-sm text-fg-muted">
+									The GitHub CLI (gh) is not installed. Pull requests and GitHub features need it.
+								</p>
+								<p className="text-sm text-fg-muted">
+									Install the GitHub CLI from https://cli.github.com, then choose Check again.
+								</p>
+							</div>
+						) : null}
+						{access.state === "ready" && access.data.state === "signed_out" ? (
+							<div className="flex flex-col gap-1">
+								<p className="text-sm text-fg-muted">
+									GitHub is not signed in. Run this command in a terminal, finish the browser
+									sign-in, then choose Check again.
+								</p>
+								<div className="flex items-center gap-2">
+									<pre className="rounded-md bg-muted px-3 py-2 font-mono text-xs text-fg">
+										gh auth login
+									</pre>
+									<Button
+										variant="secondary"
+										size="sm"
+										onClick={() => void copy("gh auth login", "Copied the sign-in command")}
+									>
+										Copy command
+									</Button>
+								</div>
+								{failureMessage ? (
+									<p role="alert" className="text-xs text-danger">
+										{failureMessage}
+									</p>
+								) : null}
+							</div>
+						) : null}
+						{access.state === "ready" && access.data.state === "unknown" ? (
+							<p className="text-sm text-fg-muted">
+								GitHub's status could not be read. Check your connection, then choose Check again.
+							</p>
+						) : null}
+						{signedIn && access.state === "ready" && access.data.state === "signed_in" ? (
+							<p className="text-sm text-fg-muted">
+								Signed in as {access.data.login} on {access.data.host}
+								{access.data.scopes.length > 0 ? ` (${access.data.scopes.join(", ")})` : ""}.
+							</p>
+						) : null}
+						<div className="flex">
+							<Button variant="ghost" size="sm" onClick={() => void checkAgain()}>
+								<RefreshIcon className="size-3.5" />
+								Check again
+							</Button>
 						</div>
-					) : (
-						<p className="text-sm text-fg-muted">GitHub is not signed in.</p>
-					)}
+						<RegistrySettingRowByKey
+							settingKey="gh_auth_method"
+							focusSettingKey={focusSettingKey}
+						/>
+						<div className="flex flex-col gap-2 pt-2">
+							<Label htmlFor="github-token">Personal access token</Label>
+							<p className="text-sm text-fg-muted">
+								Optional. Stored in the Keychain and given to gh as GH_TOKEN. It is never shown
+								again.
+							</p>
+							<div className="flex items-end gap-2">
+								<Input
+									id="github-token"
+									type="password"
+									value={token}
+									autoComplete="off"
+									placeholder="ghp_..."
+									className="w-72"
+									onChange={(event) => {
+										setToken(event.target.value);
+										setTokenError(null);
+									}}
+								/>
+								<Button variant="outline" onClick={() => void saveToken()}>
+									Save token
+								</Button>
+							</div>
+							{tokenError ? (
+								<p role="alert" className="text-xs text-danger">
+									{tokenError}
+								</p>
+							) : null}
+						</div>
+					</div>
 					<DialogFooter>
-						<Button variant="secondary" onClick={() => setAccountOpen(false)}>
-							Close
-						</Button>
 						{signedIn &&
 						access.state === "ready" &&
 						access.data.state === "signed_in" &&
@@ -378,13 +370,16 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 							<Button
 								variant="outlineDestructive"
 								onClick={() => {
-									setAccountOpen(false);
+									setGithubOpen(false);
 									setDisconnectGithub(true);
 								}}
 							>
 								Disconnect GitHub
 							</Button>
 						) : null}
+						<Button variant="secondary" onClick={() => setGithubOpen(false)}>
+							Close
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

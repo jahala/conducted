@@ -10,8 +10,10 @@
  *
  * The cases, first match wins. The order is Conductor's where its bundle shows it (renderApp, the
  * git panel header): merged, the merge queue, then Create PR with no title for a GitHub branch with
- * changes and no pull request, ahead of every local state. The rest is our order: local problems
- * first (they can be seen offline), then PR state.
+ * changes and no pull request, ahead of every local state. Still with no pull request on GitHub,
+ * the header is empty after working, conflicts and a detached HEAD, unless the pull request read is
+ * loading or failed. The rest is our order: local problems first (they can be seen offline), then
+ * PR state.
  * Titles are the research wording; "N" is a count, "M" a total.
  *
  *   kind                  when                                         title                       main action
@@ -22,6 +24,10 @@
  *   conflicts             conflicted files, or merge/rebase underway,  Merge conflicts             Resolve (agent)
  *                         or PR mergeable is "conflicting"
  *   detached              no branch is checked out (detached HEAD)     Detached HEAD               Continue (GIT-17)
+ *   loading / offline /   GitHub forge, no PR, the PR read is loading  (as the rows below)        (as below)
+ *   github_access /       or failed
+ *   pr_unavailable
+ *   none                  GitHub forge, no PR, none of the above       (no title)                  none
  *   uncommitted           uncommittedFiles > 0                         Uncommitted changes         Commit and push (agent)
  *   conflicts             local-git forge, mergeState DIRTY            Merge conflicts             Resolve (agent)
  *   ready_to_merge        local-git forge, ahead > 0                   Ready to merge              Merge (agent)
@@ -56,15 +62,15 @@
  *   stack_blocked         ready to merge, but its stack is not: a      Stack needs a rebase /      none
  *                         draft, a lower PR not ready, or a branch     #N is still a draft /
  *                         not on the head below it                     #N isn't ready to merge
- *   ready_to_merge        mergeable, checks pass, no review needed     Ready to merge              Merge (label from the merge
- *                                                                                                  method: squash, rebase or
- *                                                                                                  merge commit), or "Merge
+ *   ready_to_merge        mergeable, checks pass, no review needed     Ready to merge              Merge (its tooltip names a
+ *                                                                                                  squash or a rebase, as
+ *                                                                                                  Conductor's does), or "Merge
  *                                                                                                  stack" with the tooltip
  *                                                                                                  "Merge N PRs from bottom to
  *                                                                                                  top" when the stack merge
  *                                                                                                  takes more than one PR
  *   unable                closed PR, or no rule above applies          Unable to merge             none
- *   clean                 no PR, no changes, nothing to push or pull   No changes                  none
+ *   clean                 no GitHub remote, no PR, no changes          No changes                  none
  *
  * Optional checks: when treatOptionalChecksAsBlocking is on, a failed or pending check with
  * `required: false` counts as blocking, so the Merge action stays hidden (ui-map.md 6, Git page).
@@ -76,16 +82,16 @@
  * viewer who authored the PR (`viewerDidAuthor`: cannot approve it), a viewer without write access
  * (`viewerCanMerge` false: no Merge), an agent working while files are uncommitted (`working` wins
  * only when there is no PR), a branch with no upstream (ahead counts every local commit, push is
- * the action), and unknown PR info (offline, no access, still loading) showing a loading or retry
- * state, never "clean".
+ * the action, once a pull request exists), and unknown PR info (offline, no access, still loading)
+ * showing a loading or retry state, never "clean".
  * Our design choice: the function takes plain values and returns a value; it reads no store and
  * runs no command. The button maps to an action id, and the command registry maps ids to
  * commands, so the palette and the header offer the same actions. Whether a call is in flight is
  * the button's own state, not part of this value.
  * Test first: a table test with one GitHeaderInputs per kind above, asserting kind, title and
  * action id, plus the order cases (conflicts beats uncommitted, uncommitted beats behind), and
- * "uncommitted files, no changes against the target and no PR" gives "commit_and_push"; changes and
- * no PR on GitHub give "create_pr" first.
+ * changes and no PR on GitHub give "create_pr" first, and no changes and no PR on GitHub give
+ * "none" whatever the local state.
  */
 import type { AppError } from "@conducted/shared";
 import type { CheckRun, GitState, PullRequest } from "../model.ts";
@@ -94,6 +100,10 @@ import { hasMergeConflict, isActivePullRequest, reviewIsBlocking } from "./pull-
 
 export type GitHeaderActionId =
 	| "create_pr"
+	/** From Create PR's menu: the agent opens a draft pull request. */
+	| "create_draft_pr"
+	/** From Create PR's menu: GitHub's new pull request page opens in the browser. */
+	| "create_pr_manually"
 	| "commit_and_push"
 	| "pull"
 	| "push"
@@ -134,7 +144,8 @@ export type GitHeaderKind =
 	| "stack_blocked"
 	| "ready_to_merge"
 	| "unable"
-	| "clean";
+	| "clean"
+	| "none";
 
 export type GitHeaderTone = "neutral" | "busy" | "attention" | "danger" | "success" | "done";
 
@@ -191,15 +202,26 @@ function checkCount(count: number): string {
 }
 
 /** GitHub's button text for each merge method. */
-function mergeLabel(method: PullRequest["mergeMethod"]): string {
+/**
+ * Conductor's GitHub Merge button names a squash or a rebase in its tooltip; a merge commit needs no
+ * words beyond "Merge" (renderApp Main _j.mergeMethodTooltip).
+ */
+function mergeMethodTooltip(method: PullRequest["mergeMethod"]): string | undefined {
 	switch (method) {
 		case "squash":
 			return "Squash and merge";
 		case "rebase":
 			return "Rebase and merge";
 		case "merge":
-			return "Create a merge commit";
+			return undefined;
 	}
+}
+
+function githubMergeAction(method: PullRequest["mergeMethod"]): GitHeaderAction {
+	const tooltip = mergeMethodTooltip(method);
+	return tooltip === undefined
+		? action("merge", "Merge")
+		: { ...action("merge", "Merge"), tooltip };
 }
 
 /**
@@ -235,6 +257,38 @@ function pendingChecks(
 /** A required check that GitHub skipped, which keeps the pull request from merging. */
 function hasSkippedRequiredCheck(pullRequest: PullRequest): boolean {
 	return pullRequest.checks.some((check) => check.required && check.state === "skipped");
+}
+
+/** The header while the pull request is read, or after the read failed. Null once it was read. */
+function pullRequestReadHeader(unavailable: GitState["pullRequestUnavailable"]): GitHeader | null {
+	switch (unavailable) {
+		case "loading":
+			return { kind: "loading", title: "Loading PR info...", tone: "busy", action: null };
+		case "offline":
+			return {
+				kind: "offline",
+				title: "No internet connection",
+				tone: "attention",
+				action: action("retry", "Retry"),
+			};
+		case "no_github_access":
+			return {
+				kind: "github_access",
+				title: "GitHub access required",
+				tone: "danger",
+				action: action("retry", "Retry"),
+			};
+		case null:
+			return {
+				kind: "pr_unavailable",
+				title: "PR info unavailable",
+				tone: "danger",
+				action: action("retry", "Retry"),
+			};
+		case "none":
+		case "not_github":
+			return null;
+	}
 }
 
 /** The state machine of ui-map.md 3.6. First matching row wins, in the order of the table above. */
@@ -300,6 +354,15 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			tone: "attention",
 			action: action("continue", "Continue"),
 		};
+	}
+	// With no pull request on a GitHub branch and nothing changed against the target, Conductor's
+	// header is empty: uncommitted files, commits to push or pull and a clean branch all show
+	// nothing (renderApp r9i returns no state for a forge that can create pull requests). Only the
+	// read of the pull request itself has a title there, while it loads or when it failed. Conflicts
+	// and a detached HEAD come first: they keep GIT-07's Resolve and GIT-17's Continue.
+	if (pullRequest === null && forge === "github" && git.pullRequestUnavailable !== "not_github") {
+		const reading = pullRequestReadHeader(git.pullRequestUnavailable);
+		return reading ?? { kind: "none", title: "", tone: "neutral", action: null };
 	}
 	if (git.uncommittedFiles > 0) {
 		return {
@@ -371,34 +434,8 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 	}
 
 	if (pullRequest === null) {
-		switch (git.pullRequestUnavailable) {
-			case "loading":
-				return { kind: "loading", title: "Loading PR info...", tone: "busy", action: null };
-			case "offline":
-				return {
-					kind: "offline",
-					title: "No internet connection",
-					tone: "attention",
-					action: action("retry", "Retry"),
-				};
-			case "no_github_access":
-				return {
-					kind: "github_access",
-					title: "GitHub access required",
-					tone: "danger",
-					action: action("retry", "Retry"),
-				};
-			case null:
-				return {
-					kind: "pr_unavailable",
-					title: "PR info unavailable",
-					tone: "danger",
-					action: action("retry", "Retry"),
-				};
-			case "none":
-			case "not_github":
-				break;
-		}
+		const reading = pullRequestReadHeader(git.pullRequestUnavailable);
+		if (reading !== null) return reading;
 		if (git.changedFiles > 0) {
 			return {
 				kind: "changes",
@@ -506,7 +543,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 							tooltip: `Merge ${stackCount} PRs from bottom to top`,
 							count: stackCount,
 						}
-					: action("merge", mergeLabel(active.mergeMethod));
+					: githubMergeAction(active.mergeMethod);
 		return {
 			kind: "ready_to_merge",
 			title: "Ready to merge",

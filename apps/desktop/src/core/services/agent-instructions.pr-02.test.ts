@@ -12,6 +12,7 @@ describe("PR-02 createPrInstruction", () => {
 	it("names the target branch, gh pr create and the PR template path", () => {
 		const text = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: ".github/pull_request_template.md",
 			hasUncommittedChanges: false,
 		});
@@ -22,14 +23,36 @@ describe("PR-02 createPrInstruction", () => {
 		expect(text).toContain("git diff origin/main...");
 	});
 
+	it("asks for a draft pull request only when the user chose Create draft PR", () => {
+		const draft = createPrInstruction({
+			...base,
+			draft: true,
+			prTemplatePath: null,
+			hasUncommittedChanges: false,
+		});
+		const ready = createPrInstruction({
+			...base,
+			draft: false,
+			prTemplatePath: null,
+			hasUncommittedChanges: false,
+		});
+
+		expect(draft).toContain("gh pr create --base main --draft");
+		expect(draft).toContain("draft pull request");
+		expect(ready).not.toContain("--draft");
+		expect(ready).not.toContain("draft");
+	});
+
 	it("asks for a commit only when there are uncommitted changes", () => {
 		const dirty = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: null,
 			hasUncommittedChanges: true,
 		});
 		const clean = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: null,
 			hasUncommittedChanges: false,
 		});
@@ -41,6 +64,7 @@ describe("PR-02 createPrInstruction", () => {
 	it("keeps the built-in steps when the repository adds its own prompt", () => {
 		const text = createPrInstruction({
 			...base,
+			draft: false,
 			customPrompt: "Use the release notes as the description.",
 			prTemplatePath: null,
 			hasUncommittedChanges: false,
@@ -53,6 +77,7 @@ describe("PR-02 createPrInstruction", () => {
 	it("never asks to rename the branch and only force pushes with a lease", () => {
 		const text = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: null,
 			hasUncommittedChanges: true,
 		});
@@ -65,6 +90,7 @@ describe("PR-02 createPrInstruction", () => {
 	it("does not leave a template heading when the repository has no template", () => {
 		const text = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: null,
 			hasUncommittedChanges: false,
 		});
@@ -76,6 +102,7 @@ describe("PR-02 createPrInstruction", () => {
 		const link = "conducted://workspace?id=w1";
 		const text = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: null,
 			hasUncommittedChanges: false,
 			workspaceLink: link,
@@ -89,6 +116,7 @@ describe("PR-02 createPrInstruction", () => {
 	it("leaves the workspace link out when the setting is off", () => {
 		const text = createPrInstruction({
 			...base,
+			draft: false,
 			prTemplatePath: null,
 			hasUncommittedChanges: false,
 			workspaceLink: null,

@@ -55,7 +55,7 @@ describe("SET-07 RepoActionsPage", () => {
 			.mockResolvedValue(ok(undefined));
 
 		const row = await screen.findByRole("listitem", { name: "Dev" });
-		fireEvent.click(within(row).getByRole("button", { name: "Hide" }));
+		fireEvent.click(within(row).getByRole("button", { name: "Hide action" }));
 
 		await waitFor(() =>
 			expect(localStorage.getItem(hiddenRunActionsStorageKey(repo.id))).toBe('["dev"]'),
@@ -64,13 +64,33 @@ describe("SET-07 RepoActionsPage", () => {
 		expect(must(await container.platform.fs.readText(sharedSettingsFile(repo.rootPath)))).toBe(
 			toml,
 		);
-		expect(await screen.findByRole("button", { name: "Show" })).toBeTruthy();
+		expect(await screen.findByRole("button", { name: "Show action" })).toBeTruthy();
 	});
 
 	it("shows the designed empty state when there are no actions", async () => {
 		await renderPage();
 
 		expect(await screen.findByText("No custom actions yet. Add one to get started.")).toBeTruthy();
+	});
+
+	// Conductor's Actions page: its own description, then Custom actions, Use spotlight testing and
+	// the instruction rows (renderApp Enl, _Wa).
+	it("holds the instruction rows after Use spotlight testing, under Conductor's description", async () => {
+		await renderPage();
+
+		expect(
+			await screen.findByText(
+				"Configure action-specific behavior and instructions for this repository.",
+			),
+		).toBeTruthy();
+		expect(
+			screen.getByText("Shortcuts for quick actions, like running your dev server or test suite"),
+		).toBeTruthy();
+		const spotlight = await screen.findByRole("switch", { name: "Use spotlight testing" });
+		const review = await screen.findByText("Code review preferences");
+		expect(
+			spotlight.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	});
 
 	it("saves a personal action's hidden flag to the settings file", async () => {
@@ -87,7 +107,7 @@ describe("SET-07 RepoActionsPage", () => {
 			.mockResolvedValue(ok(undefined));
 
 		const row = await screen.findByRole("listitem", { name: "Docs" });
-		fireEvent.click(within(row).getByRole("button", { name: "Hide" }));
+		fireEvent.click(within(row).getByRole("button", { name: "Hide action" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
 		expect(updateConfig.mock.calls[0]?.[1]?.runScripts).toMatchObject([
@@ -126,7 +146,7 @@ describe("SET-07 RepoActionsPage", () => {
 			.spyOn(container.actions.projects, "updateConfig")
 			.mockResolvedValue(ok(undefined));
 
-		fireEvent.click(await screen.findByRole("button", { name: "Add action" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Add" }));
 		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Tests" } });
 		fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm test" } });
 		fireEvent.click(screen.getByRole("button", { name: "Save action" }));

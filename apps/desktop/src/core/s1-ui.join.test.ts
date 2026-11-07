@@ -299,7 +299,7 @@ describe("s1-ui join", () => {
 			await waitFor(() =>
 				expect(document.querySelector(".cm-content")?.textContent).toBe("draft me with edits"),
 			);
-			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -315,11 +315,12 @@ describe("s1-ui join", () => {
 			await openApp(test.container, "/settings/environment");
 			expect(await screen.findByRole("heading", { name: "Environment" })).toBeTruthy();
 
-			fireEvent.change(screen.getByLabelText("Name"), { target: { value: "JOIN_TOKEN" } });
+			fireEvent.click(screen.getByRole("button", { name: "Add environment variable" }));
+			fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "JOIN_TOKEN" } });
 			fireEvent.change(screen.getByLabelText("Value"), {
 				target: { value: "s3cret-value" },
 			});
-			fireEvent.click(screen.getByRole("button", { name: "Add variable" }));
+			fireEvent.click(screen.getByRole("button", { name: /^Save/ }));
 
 			expect(await screen.findByText("JOIN_TOKEN")).toBeTruthy();
 			await waitFor(async () => {

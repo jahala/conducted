@@ -3,8 +3,8 @@
  * @feature CLOUD-01 Host interface: each workspace reaches git, shell, files, terminals and its sidecar through a local or cloud host
  * Owns: the composition-root proof that a workspace's git, shell, file, terminal and chat calls
  * check its host first: a local workspace's calls run on the Mac as before, and a cloud
- * workspace's git, file and chat calls reach the Worker and its relay while its terminals still
- * stop at CLOUD-09, with nothing run on the Mac in its place.
+ * workspace's git, file, chat and terminal calls reach the Worker and its relay, with nothing run
+ * on the Mac in its place.
  * Behaviour: services-map.md 1.2 (shell, file and git calls take a host and check it before use),
  * frontend.md 3c (the query options carry the host).
  * Test first: a cloud workspace's git, file and chat calls reach the Worker, and nothing runs on
@@ -44,8 +44,12 @@ async function stoppedAt(call: () => Promise<unknown>): Promise<string> {
 }
 
 /** A ready workspace on `host` whose folder exists, with one file in it. */
-async function readyWorkspace(test: TestContainer, host: Host): Promise<Workspace> {
-	const workspace = await seedWorkspace(test.container, { host });
+async function readyWorkspace(
+	test: TestContainer,
+	host: Host,
+	linkedPaths: readonly string[] = [],
+): Promise<Workspace> {
+	const workspace = await seedWorkspace(test.container, { host, linkedPaths: [...linkedPaths] });
 	await test.container.platform.fs.mkdirp(workspace.path);
 	test.memory.controls.files.set(`${workspace.path}/README.md`, "hello\n");
 	await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
@@ -61,20 +65,22 @@ async function readyWorkspace(test: TestContainer, host: Host): Promise<Workspac
 	return workspace;
 }
 
-/** Answers every sendMessage at once and keeps the workspace each one carried. */
-function captureSends(test: TestContainer): { hosts: unknown[] } {
+/** Answers every sendMessage at once and keeps the workspace and folders each one carried. */
+function captureSends(test: TestContainer): { hosts: unknown[]; directories: unknown[] } {
 	const transport = test.memory.platform.sidecar;
 	const originalSend = transport.send.bind(transport);
 	const hosts: unknown[] = [];
+	const directories: unknown[] = [];
 	transport.send = async (line) => {
 		const answered = await originalSend(line);
 		const parsed = JSON.parse(line) as {
 			id: number;
 			method: string;
-			params: { workspace?: { host?: unknown } };
+			params: { workspace?: { host?: unknown }; config?: { additionalDirectories?: unknown } };
 		};
 		if (parsed.method === "sendMessage") {
 			hosts.push(parsed.params.workspace?.host);
+			directories.push(parsed.params.config?.additionalDirectories);
 			queueMicrotask(() =>
 				test.memory.controls.emitSidecarLine(
 					JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } }),
@@ -83,7 +89,7 @@ function captureSends(test: TestContainer): { hosts: unknown[] } {
 		}
 		return answered;
 	};
-	return { hosts };
+	return { hosts, directories };
 }
 
 const ranIn = (test: TestContainer, folder: string): number =>
@@ -131,10 +137,22 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			const cloud = test.memory.controls;
 			cloud.scriptCloud((request) => {
 				if (request.path === "/w/vm-1/git") {
+					const args = (request.body as { args?: string[] }).args ?? [];
+					// An archive reads the branch's head through this same route.
+					const stdout = args.includes("rev-parse") && args.includes("HEAD") ? "abc123\n" : "";
 					return ok({
 						status: 200,
-						body: JSON.stringify({ exitCode: 0, stdout: "", stderr: "" }),
+						body: JSON.stringify({ exitCode: 0, stdout, stderr: "" }),
 					});
+				}
+				if (request.path === "/w/vm-1/stop") {
+					return ok({
+						status: 200,
+						body: JSON.stringify({ running: false, ran: true, saved: [], skipped: [] }),
+					});
+				}
+				if (request.path === "/w/vm-1/remove") {
+					return ok({ status: 200, body: JSON.stringify({ deletedBackups: 0 }) });
 				}
 				if (request.path === "/w/vm-1/exec") {
 					return ok({
@@ -164,6 +182,22 @@ describe("CLOUD-01 the host seam in the real container", () => {
 							});
 						case "readDir":
 							return ok({ status: 200, body: JSON.stringify({ entries: [] }) });
+						case "list":
+							return ok({
+								status: 200,
+								body: JSON.stringify({
+									entries: [
+										{
+											path: `${workspace.path}/README.md`,
+											isDirectory: false,
+											isSymlink: false,
+											size: 6,
+											modifiedAt: 0,
+										},
+									],
+									truncated: false,
+								}),
+							});
 						default:
 							return ok({ status: 200, body: "{}" });
 					}
@@ -171,8 +205,7 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				return null;
 			});
 
-			// Git, files and a chat go through the user's Worker and its relay (CLOUD-03);
-			// terminals still stop at the cloud runtime's row (CLOUD-09).
+			// Git, files, a chat and terminals go through the user's Worker (CLOUD-03, CLOUD-09).
 			expect((await services.git.refresh(workspace.id, "full")).ok).toBe(true);
 			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/git")).toBe(true);
 
@@ -186,44 +219,33 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				),
 			).toBe(true);
 
-			expect(await stoppedAt(() => services.terminals.create(workspace.id))).toBe("CLOUD-09");
-			expect(await stoppedAt(() => services.terminals.runCommand(workspace.id, "echo hi"))).toBe(
-				"CLOUD-09",
-			);
+			must(await services.terminals.create(workspace.id));
+			must(await services.terminals.runCommand(workspace.id, "echo hi"));
+			expect(
+				Object.values(cloud.cloudRelayChannels).filter((channel) => channel === "terminal"),
+			).toHaveLength(2);
+			expect(cloud.ptySpawns).toHaveLength(0);
 
-			// The doors CLOUD-03 does not own stop at their own row, before anything reaches the
-			// Mac: file search at CLOUD-11, Open in at CLOUD-12, lifecycle at CLOUD-08.
+			// File search reads the cloud workspace's local mirror (CLOUD-11), and nothing of it
+			// runs on the Mac. Open in still stops at its own row (CLOUD-12).
 			const shells = cloud.shellCalls.length;
 			const ptys = cloud.ptySpawns.length;
 			const filesOnDisk = new Map(cloud.files);
-			expect(await stoppedAt(() => services.workspaceFiles.tree(workspace.id))).toBe("CLOUD-11");
-			expect(
-				await stoppedAt(() => services.workspaceFiles.quickOpen(workspace.id, "read", 10)),
-			).toBe("CLOUD-11");
-			expect(
-				await stoppedAt(() =>
-					services.workspaceFiles.grep(workspace.id, "hello", {
-						caseSensitive: false,
-						wholeWord: false,
-						regex: false,
-					}),
-				),
-			).toBe("CLOUD-11");
+			const tree = must(await services.workspaceFiles.tree(workspace.id));
+			expect(tree.map((entry) => entry.path)).toEqual(["README.md"]);
+			const quick = must(await services.workspaceFiles.quickOpen(workspace.id, "read", 10));
+			expect(quick.map((entry) => entry.path)).toEqual(["README.md"]);
+			const matches = must(
+				await services.workspaceFiles.grep(workspace.id, "hello", {
+					caseSensitive: false,
+					wholeWord: false,
+					regex: false,
+				}),
+			);
+			expect(matches.map((match) => match.path)).toEqual(["README.md"]);
 			expect(await stoppedAt(() => services.workspace.openIn(workspace.id, "Finder"))).toBe(
 				"CLOUD-12",
 			);
-			expect(
-				await stoppedAt(() => services.workspace.archive(workspace.id, { deleteBranch: false })),
-			).toBe("CLOUD-08");
-			expect(
-				await stoppedAt(() =>
-					services.workspace.unarchive(workspace.id, { branchName: null, clearChats: false }),
-				),
-			).toBe("CLOUD-08");
-			expect(await stoppedAt(() => services.workspace.remove(workspace.id))).toBe("CLOUD-08");
-			expect(cloud.shellCalls.length).toBe(shells);
-			expect(cloud.ptySpawns.length).toBe(ptys);
-			expect(new Map(cloud.files)).toEqual(filesOnDisk);
 
 			const session = must(await services.sessions.create(workspace.id, CONFIG));
 			const sending = services.sessions.send(session.id, "hello", [], "auto");
@@ -248,6 +270,54 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			expect(ranIn(test, workspace.path)).toBe(0);
 			expect(test.memory.controls.ptySpawns).toEqual([]);
 			expect(sends.hosts).toEqual([]);
+
+			// Lifecycle is built (CLOUD-08): archive saves and stops the sandbox, unarchive moves the
+			// row back, and delete removes what the Worker keeps.
+			must(await services.workspace.archive(workspace.id, { deleteBranch: false }));
+			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/stop")).toBe(true);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]?.state).toBe(
+				"archived",
+			);
+			must(
+				await services.workspace.unarchive(workspace.id, {
+					branchName: null,
+					clearChats: false,
+				}),
+			);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]?.state).toBe("ready");
+			must(await services.workspace.remove(workspace.id));
+			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/remove")).toBe(true);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]).toBeUndefined();
+			expect(cloud.shellCalls.length).toBe(shells);
+			expect(cloud.ptySpawns.length).toBe(ptys);
+			// The mirror is the only file the search may leave on the Mac.
+			const added = [...cloud.files.keys()].filter((path) => !filesOnDisk.has(path));
+			expect(added.filter((path) => !path.startsWith("/Users/conducted/")).length).toBe(0);
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+	it("sends no linked folders to a cloud workspace", async () => {
+		const test = createTestContainer();
+		try {
+			must(await test.container.sidecar.start());
+			const workspace = await readyWorkspace(test, CLOUD, ["/code/shared/docs"]);
+			const cloud = test.memory.controls;
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+
+			const sending = test.container.services.sessions.send(session.id, "hello", [], "auto");
+			const line = await waitForSent(cloud, "sendMessage");
+			const parsed = JSON.parse(line.line) as {
+				id: number;
+				params: { config: { additionalDirectories: unknown } };
+			};
+			expect(parsed.params.config.additionalDirectories).toEqual([]);
+			cloud.emitCloudLine(
+				line.relayId,
+				`${JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } })}\n`,
+			);
+			expect((await sending).ok).toBe(true);
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();

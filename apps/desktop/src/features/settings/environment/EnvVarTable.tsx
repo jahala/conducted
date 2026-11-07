@@ -1,230 +1,492 @@
 /**
  * @feature SET-04 Environment variable table
- * Owns: the table of variables for one scope: name, hidden value with reveal, override markers,
- * edit and remove.
- * Behaviour: ui-map.md 6, "Environment page" (Name, Value, "Locally overwritten", "Not set"; empty
- * state "No variables set. Add a variable to make it available in this environment.").
- * Must handle: no variables (designed empty state), a value revealed for a short time only (hides
- * again on blur or after 10 seconds, Our design choice), reveal failing (the row keeps a short
- * message), an edit that changed nothing (Save stays off, so the stored value is never replaced by
- * an empty field; Cancel keeps it), remove asking first, sorting by name, and keyboard access to
- * every action.
- * Test first: clicking reveal asks for the value once and hides it again after blur.
+ * @feature SET-11 Documented variables on the Environment page
+ * Owns: one scope's variables as Conductor's table, with the documented variables behind their
+ * link and the side panel that edits, sets or shows one variable.
+ * Behaviour: Conductor's variables section (renderApp Cnr and lci @10697720-10708700): an optional
+ * muted heading; a fixed table in a rounded border whose empty state sits inside it ("No variables
+ * set" / "Add a variable to make it available in this environment."); each row has a lock (its
+ * tooltip "Securely saved by Conducted") beside the name in mono with the meaning of a documented
+ * name under it; the value as an eye button ("Reveal NAME" / "Hide NAME") and dots, or the value,
+ * that copy it when clicked ("Copied NAME"), or a "Not set" pill; and at the right Edit (pencil) and
+ * Delete (bin), or Set (plus) on an unset documented name. Under the table, "Show documented
+ * variables (N)" or "Hide documented variables". Edit and Set open a 520 px side panel: "Edit
+ * shared variable" (or "View inherited variable" for a row that cannot change) with the meaning or
+ * "Variable names may only contain letters, numbers, and underscores.", Name (fixed for a documented
+ * name), Value ("Use an empty value to set this variable to an empty string."), Cancel and Save.
+ * Data: the page passes the rows and the documented names still unset, and the reveal, save and
+ * delete calls; values stay in the Keychain until a row asks for one.
+ * Our design choice: Delete asks first ("Remove variable?"), since the value leaves the Keychain
+ * for good; Conductor deletes at once.
+ * Must handle: no variables (the empty row; none at all when `hideEmptyState` and nothing to show),
+ * a value that cannot be read (a toast, the dots stay), a rename (the old name goes once the new one
+ * is saved), the panel's value read before it can be saved, a row that cannot change (the panel only
+ * shows it), a dimmed row (an inherited value this scope replaces), and keyboard access to every
+ * action.
+ * Test first: clicking Reveal asks for the value once and shows it until Hide.
  */
-import { useEffect, useState } from "react";
-import type { EnvVarView } from "../../../core/model.ts";
+import { type ReactNode, useState } from "react";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
-import { EmptyState } from "../../../ui/EmptyState.tsx";
-import { Input } from "../../../ui/Input.tsx";
+import { cn } from "../../../ui/cn.ts";
+import { Input, Label, Textarea } from "../../../ui/Input.tsx";
+import {
+	EyeIcon,
+	EyeOffIcon,
+	LockIcon,
+	PencilIcon,
+	PlusIcon,
+	TrashIcon,
+} from "../../../ui/icons.tsx";
+import { Sheet, SheetContent } from "../../../ui/Sheet.tsx";
+import { Tooltip } from "../../../ui/Tooltip.tsx";
+import { type EnvDraft, envEditProblem, SaveHint } from "./AddEnvVarForm.tsx";
+import type { DocumentedEnvVar } from "./EnvVarSuggestions.tsx";
 
-const REVEAL_MS = 10_000;
+/** Conductor's mask for a hidden value. */
+const MASK = "••••••••";
+
+export interface EnvTableRow {
+	name: string;
+	/** The meaning of a documented name. */
+	description?: string;
+	/** False when the Keychain holds nothing for it: the row says "Not set". */
+	hasValue: boolean;
+	/** False for a row of another scope: the panel only shows it, and there is no Delete. */
+	editable: boolean;
+	/** A documented name keeps its name; any other variable can be renamed in the panel. */
+	canRename: boolean;
+	/** An inherited value that this scope replaces. */
+	dimmed?: boolean;
+}
 
 export interface EnvVarTableProps {
-	vars: EnvVarView[];
+	/** A muted heading over the table, such as "Inherited from User". */
+	title?: string;
+	/** The word the panel's title uses: "Edit shared variable", "View inherited variable". */
+	scopeLabel: string;
+	rows: readonly EnvTableRow[];
+	/** Documented names not set in this scope, behind "Show documented variables (N)". */
+	documented?: readonly DocumentedEnvVar[];
+	/** No table at all while there is nothing to show. */
+	hideEmptyState?: boolean;
+	/** The stored value, or null when it could not be read (the caller has said why). */
 	onReveal: (name: string) => Promise<string | null>;
-	onEdit: (name: string, value: string) => Promise<boolean>;
-	onRemove: (name: string) => Promise<boolean>;
+	onCopy: (name: string, value: string) => void;
+	/** Saves one variable; `previousName` is set when it was renamed. False when the save failed. */
+	onSave: (entry: EnvDraft & { previousName: string | null }) => Promise<boolean>;
+	onDelete: (name: string) => Promise<boolean>;
 }
 
 interface Editing {
-	name: string;
-	value: string;
-	/** What the field held when Edit opened: the revealed value, or empty when it was hidden. */
-	initial: string;
+	/** The name the row had, or null for a documented name being set. */
+	previousName: string | null;
+	draft: EnvDraft;
+	description: string | undefined;
+	editable: boolean;
+	canRename: boolean;
+	/** The stored value is still being read. */
+	loading: boolean;
 }
 
-export function EnvVarTable({ vars, onReveal, onEdit, onRemove }: EnvVarTableProps) {
-	const [revealed, setRevealed] = useState<{ name: string; value: string } | null>(null);
-	const [rowError, setRowError] = useState<{ name: string; message: string } | null>(null);
+export function EnvVarTable({
+	title,
+	scopeLabel,
+	rows,
+	documented = [],
+	hideEmptyState = false,
+	onReveal,
+	onCopy,
+	onSave,
+	onDelete,
+}: EnvVarTableProps) {
+	const [showDocumented, setShowDocumented] = useState(false);
+	const [revealed, setRevealed] = useState<Readonly<Record<string, string>>>({});
 	const [editing, setEditing] = useState<Editing | null>(null);
+	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
-	const [pendingRemove, setPendingRemove] = useState<string | null>(null);
-	const sorted = [...vars].sort((left, right) => left.name.localeCompare(right.name));
+	const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
-	useEffect(() => {
-		if (revealed === null) return;
-		const timer = setTimeout(() => setRevealed(null), REVEAL_MS);
-		return () => clearTimeout(timer);
-	}, [revealed]);
+	const names = rows.map((row) => row.name);
+	const documentedShown = showDocumented ? documented : [];
+	const empty = rows.length === 0 && documentedShown.length === 0;
 
-	const reveal = async (name: string) => {
-		if (revealed?.name === name) {
-			setRevealed(null);
+	const storedValue = async (name: string): Promise<string | null> =>
+		revealed[name] ?? (await onReveal(name));
+
+	const toggleReveal = async (name: string) => {
+		if (revealed[name] !== undefined) {
+			const { [name]: _hidden, ...rest } = revealed;
+			setRevealed(rest);
 			return;
 		}
-		setRowError(null);
 		const value = await onReveal(name);
-		if (value === null) {
-			setRowError({ name, message: "No value is stored for this variable." });
-			return;
-		}
-		setRevealed({ name, value });
+		if (value !== null) setRevealed({ ...revealed, [name]: value });
 	};
 
-	const saveEdit = async () => {
-		if (editing === null || editing.value === editing.initial) return;
-		setSaving(true);
-		const saved = await onEdit(editing.name, editing.value);
-		setSaving(false);
-		if (!saved) {
-			setRowError({ name: editing.name, message: "Couldn't save the value." });
-			return;
-		}
-		setEditing(null);
-		setRowError(null);
+	const copy = async (name: string) => {
+		const value = await storedValue(name);
+		if (value !== null) onCopy(name, value);
 	};
 
-	const remove = async () => {
-		const name = pendingRemove;
-		setPendingRemove(null);
-		if (name === null) return;
-		const removed = await onRemove(name);
-		if (!removed) setRowError({ name, message: "Couldn't remove the variable." });
-		else if (revealed?.name === name) setRevealed(null);
-	};
-
-	if (sorted.length === 0) {
-		return (
-			<EmptyState
-				compact
-				title="No variables set"
-				body="Add a variable to make it available in this environment."
-			/>
+	const openEditor = async (row: EnvTableRow) => {
+		setError(null);
+		const known = revealed[row.name];
+		const base: Editing = {
+			previousName: row.name,
+			draft: { name: row.name, value: known ?? "" },
+			description: row.description,
+			editable: row.editable,
+			canRename: row.canRename,
+			loading: row.hasValue && known === undefined,
+		};
+		setEditing(base);
+		if (!base.loading) return;
+		const value = await onReveal(row.name);
+		setEditing((current) =>
+			current === null || current.previousName !== row.name
+				? current
+				: { ...current, loading: false, draft: { ...current.draft, value: value ?? "" } },
 		);
-	}
+		// A value that could not be read keeps the panel from saving an empty one in its place.
+		if (value === null) setError("The saved value could not be read, so it cannot be edited here.");
+	};
+
+	const openSetter = (entry: DocumentedEnvVar) => {
+		setError(null);
+		setEditing({
+			previousName: null,
+			draft: { name: entry.name, value: "" },
+			description: entry.meaning,
+			editable: true,
+			canRename: false,
+			loading: false,
+		});
+	};
+
+	const save = async () => {
+		if (editing === null || !editing.editable || editing.loading) return;
+		const name = editing.canRename ? editing.draft.name.trim() : editing.draft.name;
+		const problem = envEditProblem(name, names, editing.previousName);
+		if (problem !== null) {
+			setError(problem);
+			return;
+		}
+		setSaving(true);
+		const saved = await onSave({
+			name,
+			value: editing.draft.value,
+			previousName: editing.previousName,
+		});
+		setSaving(false);
+		if (!saved) return;
+		const { [editing.previousName ?? name]: _old, ...rest } = revealed;
+		setRevealed(rest);
+		setEditing(null);
+	};
+
+	const confirmDelete = async () => {
+		const name = pendingDelete;
+		setPendingDelete(null);
+		if (name === null) return;
+		if (await onDelete(name)) {
+			const { [name]: _gone, ...rest } = revealed;
+			setRevealed(rest);
+		}
+	};
+
+	const panelTitle =
+		editing === null
+			? ""
+			: !editing.editable
+				? `View ${scopeLabel} variable`
+				: `Edit ${scopeLabel} variable`;
 
 	return (
-		<>
-			<table className="w-full border-collapse text-sm">
-				<thead>
-					<tr className="border-b border-border text-left text-xs text-fg-muted">
-						<th className="py-2 pr-3 font-medium">Name</th>
-						<th className="py-2 pr-3 font-medium">Value</th>
-						<th className="py-2 pr-3 font-medium" />
-						<th className="py-2 font-medium">
-							<span className="sr-only">Actions</span>
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{sorted.map((variable) => {
-						const isRevealed = revealed?.name === variable.name;
-						const error = rowError?.name === variable.name ? rowError.message : null;
-						return (
-							<tr key={variable.name} className="border-b border-border align-middle">
-								<td className="py-2 pr-3 font-mono text-code text-fg">{variable.name}</td>
-								<td className="py-2 pr-3">
-									{editing?.name === variable.name ? (
-										<div className="flex flex-col gap-1">
-											<div className="flex items-center gap-2">
-												<Input
-													aria-label={`New value for ${variable.name}`}
-													aria-describedby={`env-edit-${variable.name}`}
-													type="password"
-													value={editing.value}
-													placeholder="Enter a new value"
-													autoComplete="off"
-													onChange={(event) =>
-														setEditing({ ...editing, value: event.target.value })
-													}
-												/>
-												<Button
-													size="sm"
-													loading={saving}
-													disabled={editing.value === editing.initial}
-													onClick={() => void saveEdit()}
-												>
-													Save
-												</Button>
-												<Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
-													Cancel
-												</Button>
-											</div>
-											<p id={`env-edit-${variable.name}`} className="text-xs text-fg-muted">
-												The saved value stays until you save a new one.
+		<section className="flex flex-col gap-4">
+			{title === undefined ? null : <h3 className="text-sm font-medium text-fg-muted">{title}</h3>}
+			{hideEmptyState && empty ? null : (
+				<div className="overflow-hidden rounded-md border border-border">
+					<table className="w-full table-fixed text-sm">
+						<tbody>
+							{empty ? (
+								<tr>
+									<td colSpan={3} className="py-10 text-center">
+										<div className="mx-auto flex max-w-sm flex-col gap-2">
+											<p className="text-sm font-medium text-fg">No variables set</p>
+											<p className="text-sm text-fg-muted">
+												Add a variable to make it available in this environment.
 											</p>
 										</div>
-									) : !variable.hasValue ? (
-										<span className="text-fg-muted">Not set</span>
-									) : isRevealed ? (
-										<Input
-											aria-label={`Value of ${variable.name}`}
-											readOnly
-											autoFocus
-											className="font-mono"
-											value={revealed.value}
-											onBlur={() => setRevealed(null)}
+									</td>
+								</tr>
+							) : null}
+							{rows.map((row) => (
+								<VariableRow
+									key={row.name}
+									name={row.name}
+									description={row.description}
+									dimmed={row.dimmed === true}
+									value={row.hasValue ? (revealed[row.name] ?? null) : undefined}
+									onToggleReveal={() => void toggleReveal(row.name)}
+									onCopy={() => void copy(row.name)}
+									actions={
+										<>
+											<RowAction
+												label={`${row.editable ? "Edit" : "View"} ${row.name}`}
+												icon={<PencilIcon className="size-4" />}
+												onClick={() => void openEditor(row)}
+											/>
+											{row.editable ? (
+												<RowAction
+													label={`Delete ${row.name}`}
+													icon={<TrashIcon className="size-4" />}
+													onClick={() => setPendingDelete(row.name)}
+												/>
+											) : null}
+										</>
+									}
+								/>
+							))}
+							{documentedShown.map((entry) => (
+								<VariableRow
+									key={entry.name}
+									name={entry.name}
+									description={entry.meaning}
+									dimmed={false}
+									unset
+									value={undefined}
+									onToggleReveal={() => undefined}
+									onCopy={() => undefined}
+									actions={
+										<RowAction
+											label={`Set ${entry.name}`}
+											icon={<PlusIcon className="size-4" />}
+											onClick={() => openSetter(entry)}
 										/>
-									) : (
-										<span className="text-fg-muted">••••••••</span>
-									)}
-								</td>
-								<td className="py-2 pr-3 text-xs text-fg-muted">
-									{variable.overridesGlobal ? "Locally overwritten" : null}
-									{variable.overriddenInRepos > 0
-										? `Overridden in ${variable.overriddenInRepos} ${
-												variable.overriddenInRepos === 1 ? "repository" : "repositories"
-											}`
-										: null}
-								</td>
-								<td className="py-2">
-									<div className="flex items-center justify-end gap-1">
-										<Button
-											size="sm"
-											variant="ghost"
-											disabled={!variable.hasValue}
-											onClick={() => void reveal(variable.name)}
-										>
-											{isRevealed ? "Hide" : "Reveal"}
-										</Button>
-										<Button
-											size="sm"
-											variant="ghost"
-											onClick={() => {
-												const initial = isRevealed ? revealed.value : "";
-												setEditing({ name: variable.name, value: initial, initial });
-											}}
-										>
-											Edit
-										</Button>
-										<Button
-											size="sm"
-											variant="outlineDestructive"
-											onClick={() => setPendingRemove(variable.name)}
-										>
-											Remove
-										</Button>
-									</div>
-									{error === null ? null : (
-										<p role="alert" className="mt-1 text-right text-xs text-danger">
-											{error}
-										</p>
-									)}
-								</td>
-							</tr>
-						);
-					})}
-				</tbody>
-			</table>
-			<AlertDialog
-				open={pendingRemove !== null}
+									}
+								/>
+							))}
+						</tbody>
+					</table>
+				</div>
+			)}
+			{documented.length > 0 ? (
+				<div>
+					<Button
+						variant="link"
+						size="sm"
+						className="h-auto px-0 font-book text-fg-muted no-underline hover:text-fg"
+						onClick={() => setShowDocumented((shown) => !shown)}
+					>
+						{showDocumented
+							? "Hide documented variables"
+							: `Show documented variables (${documented.length})`}
+					</Button>
+				</div>
+			) : null}
+
+			<Sheet
+				open={editing !== null}
 				onOpenChange={(open) => {
-					if (!open) setPendingRemove(null);
+					if (!open) setEditing(null);
+				}}
+			>
+				{editing === null ? null : (
+					<SheetContent
+						title={panelTitle}
+						description={
+							editing.description ??
+							"Variable names may only contain letters, numbers, and underscores."
+						}
+						footer={
+							<>
+								<Button variant="ghost" onClick={() => setEditing(null)}>
+									{editing.editable ? "Cancel" : "Close"}
+								</Button>
+								{editing.editable ? (
+									<Button
+										data-primary-action
+										loading={saving}
+										disabled={editing.loading}
+										onClick={() => void save()}
+									>
+										Save
+										<SaveHint />
+									</Button>
+								) : null}
+							</>
+						}
+					>
+						<div className="mt-8 flex flex-1 flex-col gap-6">
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="env-edit-name">Name</Label>
+								<Input
+									id="env-edit-name"
+									value={editing.draft.name}
+									placeholder="MY_VARIABLE"
+									disabled={editing.editable && !editing.canRename}
+									readOnly={!editing.editable}
+									autoFocus
+									autoComplete="off"
+									autoCapitalize="off"
+									spellCheck={false}
+									onChange={(event) =>
+										setEditing({
+											...editing,
+											draft: { ...editing.draft, name: event.target.value },
+										})
+									}
+								/>
+							</div>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="env-edit-value">Value</Label>
+								<Textarea
+									id="env-edit-value"
+									value={editing.draft.value}
+									placeholder="Use an empty value to set this variable to an empty string."
+									readOnly={!editing.editable}
+									disabled={editing.loading}
+									autoComplete="off"
+									autoCapitalize="off"
+									spellCheck={false}
+									className="block min-h-[280px] w-full font-mono text-sm"
+									onChange={(event) =>
+										setEditing({
+											...editing,
+											draft: { ...editing.draft, value: event.target.value },
+										})
+									}
+								/>
+							</div>
+							{error === null ? null : (
+								<p role="alert" className="text-sm text-danger">
+									{error}
+								</p>
+							)}
+						</div>
+					</SheetContent>
+				)}
+			</Sheet>
+
+			<AlertDialog
+				open={pendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingDelete(null);
 				}}
 			>
 				<AlertDialogContent
 					title="Remove variable?"
 					description={
-						pendingRemove === null
+						pendingDelete === null
 							? ""
-							: `This removes ${pendingRemove} and its value from the Keychain.`
+							: `This removes ${pendingDelete} and its value from the Keychain.`
 					}
 					confirmLabel="Remove variable"
 					tone="destructive"
-					onConfirm={() => void remove()}
+					onConfirm={() => void confirmDelete()}
 				/>
 			</AlertDialog>
-		</>
+		</section>
+	);
+}
+
+/** One of a row's square ghost actions at the right. */
+function RowAction({
+	label,
+	icon,
+	onClick,
+}: {
+	label: string;
+	icon: ReactNode;
+	onClick: () => void;
+}) {
+	return (
+		<Button variant="ghost" size="sm" aria-label={label} className="w-7 px-0" onClick={onClick}>
+			{icon}
+		</Button>
+	);
+}
+
+/**
+ * Conductor's row (renderApp lci): 42% for the lock and the name with its meaning, 30% for the
+ * value, and 88 px of actions that brighten on hover.
+ */
+function VariableRow({
+	name,
+	description,
+	dimmed,
+	unset = false,
+	value,
+	onToggleReveal,
+	onCopy,
+	actions,
+}: {
+	name: string;
+	description: string | undefined;
+	dimmed: boolean;
+	/** A documented name with no value in this scope. */
+	unset?: boolean;
+	/** The revealed value, null while hidden, undefined when nothing is stored. */
+	value: string | null | undefined;
+	onToggleReveal: () => void;
+	onCopy: () => void;
+	actions: ReactNode;
+}) {
+	const shown = value !== undefined && value !== null;
+	return (
+		<tr className={cn("group border-b border-border last:border-0", dimmed && "opacity-50")}>
+			<td className="w-[42%] py-3 pr-2 pl-3 align-middle">
+				<div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+					<div className="flex h-5 items-center">
+						<Tooltip content="Securely saved by Conducted" side="right">
+							<span tabIndex={-1} className="inline-flex">
+								<LockIcon aria-hidden="true" className="size-3.5 shrink-0 text-fg-muted" />
+							</span>
+						</Tooltip>
+					</div>
+					<div className="flex min-w-0 max-w-[360px] flex-col gap-1">
+						<div className={cn("truncate font-mono text-sm leading-5", unset && "text-fg-muted")}>
+							{name}
+						</div>
+						{description === undefined ? null : (
+							<div className="max-w-full truncate text-xs text-fg-muted">{description}</div>
+						)}
+					</div>
+				</div>
+			</td>
+			<td className="w-[30%] px-2 py-2 align-top">
+				{value === undefined ? (
+					<span className="inline-flex rounded-sm bg-muted px-2 py-1 text-xs text-fg-muted">
+						Not set
+					</span>
+				) : (
+					<div className="flex min-w-0 items-center gap-2">
+						<Button
+							variant="ghost"
+							size="xs"
+							className="w-6 px-0"
+							aria-label={shown ? `Hide ${name}` : `Reveal ${name}`}
+							onClick={onToggleReveal}
+						>
+							{shown ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+						</Button>
+						<button
+							type="button"
+							className="min-w-0 max-w-full flex-1 truncate rounded-sm px-1 py-0.5 text-left font-mono text-xs text-fg-muted hover:bg-hover hover:text-fg"
+							title={shown ? value : undefined}
+							onClick={onCopy}
+						>
+							{shown ? value : MASK}
+						</button>
+					</div>
+				)}
+			</td>
+			<td className="w-[88px] py-2 pr-2 text-right align-top whitespace-nowrap">
+				<div className="flex items-center justify-end gap-0.5 opacity-70 group-focus-within:opacity-100 group-hover:opacity-100">
+					{actions}
+				</div>
+			</td>
+		</tr>
 	);
 }

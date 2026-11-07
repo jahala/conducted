@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { AppProviders, createQueryClient } from "../../../app/providers.tsx";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { renderWithRouter } from "../../../test/render-with-router.tsx";
@@ -37,7 +38,9 @@ describe("RC-04 Remote control settings page", () => {
 		await test.container.services.settings.start();
 		renderWithRouter(
 			<ServicesProvider container={test.container}>
-				<SettingsScreen page="remote-control" />
+				<AppProviders client={createQueryClient(() => {})}>
+					<SettingsScreen page="remote-control" />
+				</AppProviders>
 			</ServicesProvider>,
 		);
 		expect(await screen.findByRole("switch", { name: "Keep this Mac awake" })).toBeTruthy();

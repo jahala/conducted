@@ -59,6 +59,7 @@
  * Test first: buildScriptEnv sets CONDUCTED_PORT and CONDUCTED_WORKSPACE_PATH from the workspace.
  */
 
+import type { Host } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -76,6 +77,7 @@ import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 import type { Loadable } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import { openCloudTerminal } from "../cloud/terminal.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { checkHost } from "../host.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
@@ -372,7 +374,7 @@ export interface TerminalsState {
 }
 
 export interface TerminalsServiceDeps {
-	platform: Pick<Platform, "pty" | "shell" | "fs">;
+	platform: Pick<Platform, "pty" | "shell" | "fs" | "cloud">;
 	repos: Pick<Repositories, "terminals" | "workspaces" | "repos">;
 	/** Maximum interactive terminals per workspace, from settings. */
 	maxPerWorkspace: () => number;
@@ -389,9 +391,13 @@ export interface TerminalsServiceDeps {
 export const STOP_WATCHDOG_MS = 20_000;
 export const STOP_NOT_CONFIRMED_MESSAGE = "Stop not confirmed, the process may still be running.";
 
+type CloudHost = Extract<Host, { kind: "cloud" }>;
+
 interface ConnectionRecord {
 	terminal: Terminal;
 	handle: PtyHandle | null;
+	/** Whether the process runs in a sandbox, so its saved history is not read from the Mac. */
+	cloud: boolean;
 	history: Uint8Array;
 	/** Whether the saved history has been read from the shell, so it is read once. */
 	historyLoaded: boolean;
@@ -551,6 +557,7 @@ export class TerminalsService {
 	async #loadSavedHistory(record: ConnectionRecord): Promise<void> {
 		if (record.historyLoaded) return;
 		record.historyLoaded = true;
+		if (record.cloud) return;
 		if (record.ended === null && record.terminal.endedAt === null) return;
 		const loaded = await this.#deps.platform.pty.loadHistory(record.terminal.id);
 		if (!loaded.ok) {
@@ -582,6 +589,7 @@ export class TerminalsService {
 		const record: ConnectionRecord = {
 			terminal,
 			handle: null,
+			cloud: false,
 			history: new Uint8Array(),
 			historyLoaded: false,
 			ended: terminal.endedAt === null ? null : { exitCode: terminal.exitCode },
@@ -658,26 +666,45 @@ export class TerminalsService {
 		options?: {
 			command?: { program: string; args: readonly string[] };
 			env?: Readonly<Record<string, string>>;
+			cloud?: CloudHost | null;
 		},
 	): Promise<Result<void>> {
-		// Only an interactive zsh terminal loads the shim. A script is not zsh and must not.
+		const cloud = options?.cloud ?? null;
+		// Only an interactive zsh terminal on the Mac loads the shim. A script is not zsh, and a
+		// sandbox has no zsh shim, so neither must.
 		const env =
-			options?.command === undefined && terminal.kind === "terminal" && this.#shimDir !== null
+			cloud === null &&
+			options?.command === undefined &&
+			terminal.kind === "terminal" &&
+			this.#shimDir !== null
 				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir, this.#launchZdotdir) }
 				: options?.env;
-		const spawned = await this.#deps.platform.pty.spawn({
-			terminalId: terminal.id,
-			cwd: terminal.cwd,
-			cols: DEFAULT_COLS,
-			rows: DEFAULT_ROWS,
-			scrollbackLimitBytes: this.#deps.scrollbackLimitBytes(),
-			...(options?.command === undefined ? {} : { command: options.command }),
-			...(env === undefined ? {} : { env }),
-		});
+		const spawned =
+			cloud === null
+				? await this.#deps.platform.pty.spawn({
+						terminalId: terminal.id,
+						cwd: terminal.cwd,
+						cols: DEFAULT_COLS,
+						rows: DEFAULT_ROWS,
+						scrollbackLimitBytes: this.#deps.scrollbackLimitBytes(),
+						...(options?.command === undefined ? {} : { command: options.command }),
+						...(env === undefined ? {} : { env }),
+					})
+				: await openCloudTerminal(this.#deps.platform.cloud, cloud, {
+						terminalId: terminal.id,
+						cwd: terminal.cwd,
+						cols: DEFAULT_COLS,
+						rows: DEFAULT_ROWS,
+						// An interactive cloud terminal retries a dropped stream; a one-shot script ends.
+						reconnect: terminal.kind === "terminal",
+						...(options?.command === undefined ? {} : { command: options.command }),
+						...(env === undefined ? {} : { env }),
+					});
 		if (!spawned.ok) return spawned;
 
 		const record = existing ?? this.#record(terminal);
 		record.terminal = terminal;
+		record.cloud = cloud !== null;
 		record.handle = spawned.value;
 		record.ended = null;
 		// A restarted shell has no output yet; text from the previous one must not come back.
@@ -828,6 +855,13 @@ export class TerminalsService {
 		}));
 	}
 
+	/** The sandbox a workspace's terminal runs in, or null when it runs on the Mac. */
+	async #cloudHost(workspaceId: WorkspaceId): Promise<CloudHost | null> {
+		const workspace = await this.#deps.repos.workspaces.get(workspaceId);
+		if (!workspace.ok || workspace.value === null) return null;
+		return workspace.value.host.kind === "cloud" ? workspace.value.host : null;
+	}
+
 	/** A terminal needs its folder. Without this check the shell would fail to start with no reason. */
 	async #requireFolder(path: string): Promise<Result<void>> {
 		if (await this.#deps.platform.fs.exists(path)) return ok(undefined);
@@ -909,6 +943,7 @@ export class TerminalsService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		checkHost(workspace.value.host, "terminals");
+		const cloud = workspace.value.host.kind === "cloud" ? workspace.value.host : null;
 		if (workspace.value.state !== "ready") {
 			return err(appError("workspace_not_ready", "Workspace is not ready for local terminals."));
 		}
@@ -925,7 +960,7 @@ export class TerminalsService {
 		}
 		const folder = await this.#requireFolder(workspace.value.path);
 		if (!folder.ok) return folder;
-		const environment = await this.#withPathPrefix();
+		const environment = cloud === null ? await this.#withPathPrefix() : ok(undefined);
 		if (!environment.ok) return environment;
 
 		const started = await this.#deps.repos.terminals.start({
@@ -939,11 +974,10 @@ export class TerminalsService {
 		});
 		if (!started.ok) return started;
 
-		const spawned = await this.#spawn(
-			started.value,
-			undefined,
-			environment.value === undefined ? undefined : { env: environment.value },
-		);
+		const spawned = await this.#spawn(started.value, undefined, {
+			cloud,
+			...(environment.value === undefined ? {} : { env: environment.value }),
+		});
 		if (!spawned.ok) {
 			await this.#persistEnd(started.value.id, this.#deps.now(), null);
 			return spawned;
@@ -1023,9 +1057,10 @@ export class TerminalsService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		checkHost(workspace.value.host, "terminals");
+		const cloud = workspace.value.host.kind === "cloud" ? workspace.value.host : null;
 		const folder = await this.#requireFolder(input.cwd);
 		if (!folder.ok) return folder;
-		const environment = await this.#withPathPrefix(input.env);
+		const environment = cloud === null ? await this.#withPathPrefix(input.env) : ok(input.env);
 		if (!environment.ok) return environment;
 
 		const started = await this.#deps.repos.terminals.start({
@@ -1050,6 +1085,7 @@ export class TerminalsService {
 		}
 
 		const spawned = await this.#spawn(started.value, undefined, {
+			cloud,
 			command: { program: login.shell, args: ["-l", "-c", input.command] },
 			env: { PATH: login.path, ...(environment.value ?? input.env) },
 		});
@@ -1322,16 +1358,17 @@ export class TerminalsService {
 
 		const folder = await this.#requireFolder(terminal.cwd);
 		if (!folder.ok) return folder;
-		const environment = await this.#withPathPrefix();
+		const cloud =
+			terminal.workspaceId === null ? null : await this.#cloudHost(terminal.workspaceId);
+		const environment = cloud === null ? await this.#withPathPrefix() : ok(undefined);
 		if (!environment.ok) return environment;
 
 		const record = this.#records.get(id) ?? this.#record(terminal);
 		this.#emit(record, new TextEncoder().encode(`${RESTART_DIVIDER}\r\n`));
-		const spawned = await this.#spawn(
-			terminal,
-			record,
-			environment.value === undefined ? undefined : { env: environment.value },
-		);
+		const spawned = await this.#spawn(terminal, record, {
+			cloud,
+			...(environment.value === undefined ? {} : { env: environment.value }),
+		});
 		if (!spawned.ok) return spawned;
 		this.#update(id, { endedAt: null, exitCode: null });
 		return ok(undefined);

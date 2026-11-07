@@ -6,7 +6,10 @@
  * watchdog), 5A.1.4 (run mode, set by "run_script_mode"), 5A.1.5 (run history), 5A.1.6
  * (user-defined actions, default action and quoted args), ui-map.md 3.7 (Run tab: Run, Stop,
  * Starting, Stopping; the shortcut is "workspace.toggleRun"). Auto-run uses the repository
- * setting "auto_run_after_setup". RUN-03: services-map.md 5A.3.2 (listening ports of the
+ * setting "auto_run_after_setup". CLOUD-09: an action's `available_in` becomes the variants one
+ * workspace offers (`actionsForWorkspace`): a local workspace offers only Mac actions, and a cloud
+ * workspace offers the cloud variant and, when the action allows both, a local-mirror variant
+ * whose id carries `:local` or `:cloud`. RUN-03: services-map.md 5A.3.2 (listening ports of the
  * workspace's processes, a 10 second timeout) and ui-map.md 3.7 (Ports tab, activating a detected
  * app).
  * Must handle: starting an action stops the workspace's running one first (one process per
@@ -15,8 +18,11 @@
  * async step checks its start attempt number and gives up if a newer start or a stop happened
  * (only the newest attempt changes state); stop asks the terminal service for a 20 second
  * watchdog, and a stop that is not confirmed is returned to the caller and kept as the
- * workspace's outcome until the next start; quitting the app closes all runs; "run after setup"
- * starts the default action when setup succeeded; run output is not saved to disk. Run history is
+ * workspace's outcome until the next start; quitting the app closes all runs; a local-mirror
+ * action in a cloud workspace is refused with Conductor's "Local terminal unavailable", because no
+ * local terminal runs on the mirror yet (D111, CLOUD-11 #253); "run
+ * after setup" starts the default action when setup succeeded; run output is not saved to disk.
+ * Run history is
  * the last 20 action ids per workspace, kept in local storage so it survives a restart. Port
  * scanning (RUN-03) starts when a run starts and stops when it ends; an older scan never replaces
  * a newer one; a failed scan is reported to the log; activating a port with no owning macOS app
@@ -42,7 +48,6 @@ import {
 	appError,
 	err,
 	ok,
-	type RepoId,
 	type Result,
 	type TerminalId,
 	type WorkspaceId,
@@ -53,7 +58,7 @@ import type { RunState } from "../api.ts";
 import { programsBinDir, setupLogFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
-import type { Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
+import type { ActionTarget, Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 import type { PortService } from "./ports.ts";
 import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./terminals.ts";
@@ -107,6 +112,37 @@ export function actionCommand(action: Pick<RunAction, "command" | "args">): stri
 export function defaultRunAction(actions: readonly RunAction[]): RunAction | null {
 	const visible = actions.filter((action) => !action.hidden);
 	return visible.find((action) => action.isDefault) ?? visible[0] ?? null;
+}
+
+/**
+ * The run list for one workspace's kind (services-map 5A.1.6). A local workspace offers only the
+ * actions that can run on the Mac. A cloud workspace offers the cloud target and, for an action
+ * that can run on both, a second local-mirror variant with the same label. Both variants are kept
+ * apart by the `:local` and `:cloud` suffixes on the id.
+ */
+export function actionsForWorkspace(
+	actions: readonly RunAction[],
+	workspaceKind: "local" | "cloud",
+): RunAction[] {
+	return actions.flatMap((action) => {
+		const targets: ActionTarget[] =
+			workspaceKind === "local"
+				? action.availableIn.includes("local")
+					? ["local"]
+					: []
+				: // The cloud variant comes first, so a cloud workspace's default action is the one
+					// that runs there. The research's task picker also lists Cloud before Local.
+					[
+						...action.availableIn.filter((target) => target === "cloud"),
+						...action.availableIn.filter((target) => target === "local"),
+					];
+		const twoVariants = targets.length > 1;
+		return targets.map((target) => ({
+			...action,
+			id: twoVariants ? `${action.id}:${target}` : action.id,
+			runAvailability: target,
+		}));
+	});
 }
 
 /** Replaces `$NAME` and `${NAME}` in a working folder with the value from the run environment. */
@@ -165,10 +201,11 @@ export interface RunScriptsServiceDeps {
 	/** Receives a failed port scan so a detection problem is not silent. */
 	log?: (level: "warn" | "info", message: string) => void;
 	/**
-	 * The Environment page's variables for one repository (SET-04). The composition root supplies
-	 * it; a test of another path may leave it out, and no extra variables are then passed.
+	 * The Environment page's variables and env files for one workspace (SET-04). The composition
+	 * root supplies it; a test of another path may leave it out, and no extra variables are then
+	 * passed.
 	 */
-	environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
+	environmentFor?: (repo: Repo, workspace: Workspace) => Promise<Result<Record<string, string>>>;
 	/**
 	 * The folder to put first on PATH (SET-13). The composition root supplies it; a test of
 	 * another path may leave it out, and the app's bin folder is then used.
@@ -247,17 +284,20 @@ export class RunScriptsService {
 		const config = await this.#deps.configFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!config.ok) return config;
-		const action = config.value.runScripts.find((entry) => entry.id === actionId);
+		const workspace = await this.#deps.workspaceFor(workspaceId);
+		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
+		if (!workspace.ok) return workspace;
+		const actions = actionsForWorkspace(config.value.runScripts, workspace.value.host.kind);
+		const action = actions.find((entry) => entry.id === actionId);
 		if (action === undefined) {
 			return err(appError("run_action_unknown", "That action no longer exists."));
 		}
 		if (actionCommand(action) === "") {
 			return err(appError("run_action_empty", "That action has no command."));
 		}
-
-		const workspace = await this.#deps.workspaceFor(workspaceId);
-		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
-		if (!workspace.ok) return workspace;
+		if (action.runAvailability === "local" && workspace.value.host.kind === "cloud") {
+			return err(appError("run_local_mirror_unavailable", "Local terminal unavailable"));
+		}
 		if (isArchivedWorkspace(workspace.value) || workspace.value.state === "archiving") {
 			return err(appError("workspace_not_ready", "That workspace is archived."));
 		}
@@ -272,7 +312,7 @@ export class RunScriptsService {
 		if (!stopped.ok) return stopped;
 		this.#pending.delete(workspaceId);
 		this.#clearOutcome(workspaceId);
-		this.#setActions(workspaceId, config.value.runScripts);
+		this.#setActions(workspaceId, actions);
 
 		if (workspace.value.state === "initializing") {
 			this.#pending.set(workspaceId, { actionId, attempt });
@@ -356,7 +396,7 @@ export class RunScriptsService {
 			this.#lastTerminal.delete(workspaceId);
 		}
 
-		const userEnv = await this.#userEnv(repo.value.id);
+		const userEnv = await this.#userEnv(repo.value, workspace.value);
 		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace: workspace.value,
@@ -367,11 +407,14 @@ export class RunScriptsService {
 		const prefix = await this.#pathPrefix();
 		if (!prefix.ok) return prefix;
 		env.CONDUCTED_PATH_PREFIX = prefix.value;
+		// A remote host runs the setup script with strict options, as Conductor does; a local script
+		// runs as written (services-map.md 5A.1.2).
+		const command = workspace.value.host.kind === "cloud" ? `set -euo pipefail\n${script}` : script;
 		const started = await this.#deps.terminals.runScript({
 			workspaceId,
 			kind: "setup",
 			title: "Setup",
-			command: script,
+			command,
 			cwd: workspace.value.path,
 			env,
 		});
@@ -423,7 +466,7 @@ export class RunScriptsService {
 			);
 		}
 
-		const userEnv = await this.#userEnv(repo.value.id);
+		const userEnv = await this.#userEnv(repo.value, workspace.value);
 		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace: workspace.value,
@@ -692,10 +735,10 @@ export class RunScriptsService {
 		}
 	}
 
-	/** The variables saved on the Environment page for a repository, or none when it is not wired. */
-	async #userEnv(repoId: RepoId): Promise<Result<Record<string, string>>> {
+	/** The Environment page's variables and env files for a workspace, or none when not wired. */
+	async #userEnv(repo: Repo, workspace: Workspace): Promise<Result<Record<string, string>>> {
 		if (this.#deps.environmentFor === undefined) return ok({});
-		return this.#deps.environmentFor(repoId);
+		return this.#deps.environmentFor(repo, workspace);
 	}
 
 	/** The folder to put first on PATH, or the bundled bin folder when no source is wired. */
@@ -719,7 +762,11 @@ export class RunScriptsService {
 		const config = await this.#deps.configFor(workspaceId);
 		if (!config.ok) return config;
 		if (!config.value.autoRunAfterSetup || config.value.spotlightTesting) return ok(undefined);
-		const action = defaultRunAction(config.value.runScripts);
+		const workspace = await this.#deps.workspaceFor(workspaceId);
+		if (!workspace.ok) return workspace;
+		const action = defaultRunAction(
+			actionsForWorkspace(config.value.runScripts, workspace.value.host.kind),
+		);
 		if (action === null) return ok(undefined);
 		return this.#launchByAction(workspaceId, action.id, this.#nextAttempt(workspaceId));
 	}
@@ -733,17 +780,21 @@ export class RunScriptsService {
 		const config = await this.#deps.configFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!config.ok) return config;
-		const action = config.value.runScripts.find((entry) => entry.id === actionId);
-		if (action === undefined) {
-			return err(appError("run_action_unknown", "That action no longer exists."));
-		}
 		const workspace = await this.#deps.workspaceFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!workspace.ok) return workspace;
+		const actions = actionsForWorkspace(config.value.runScripts, workspace.value.host.kind);
+		const action = actions.find((entry) => entry.id === actionId);
+		if (action === undefined) {
+			return err(appError("run_action_unknown", "That action no longer exists."));
+		}
+		if (action.runAvailability === "local" && workspace.value.host.kind === "cloud") {
+			return err(appError("run_local_mirror_unavailable", "Local terminal unavailable"));
+		}
 		const repo = await this.#deps.repoFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!repo.ok) return repo;
-		this.#setActions(workspaceId, config.value.runScripts);
+		this.#setActions(workspaceId, actions);
 		return this.#launch(workspaceId, attempt, action, config.value, workspace.value, repo.value);
 	}
 
@@ -763,7 +814,7 @@ export class RunScriptsService {
 			if (!stoppedOthers.ok) return stoppedOthers;
 		}
 
-		const userEnv = await this.#userEnv(repo.id);
+		const userEnv = await this.#userEnv(repo, workspace);
 		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace,
@@ -777,7 +828,7 @@ export class RunScriptsService {
 		const cwd = expandActionCwd(action.cwd ?? workspace.path, env);
 		const command = actionCommand(action);
 
-		this.#setActions(workspaceId, config.runScripts);
+		this.#setActions(workspaceId, actionsForWorkspace(config.runScripts, workspace.host.kind));
 		this.#setPhase(workspaceId, attempt, "starting");
 		this.#launching.set(workspaceId, { actionId: action.id, attempt, repoId: repo.id });
 

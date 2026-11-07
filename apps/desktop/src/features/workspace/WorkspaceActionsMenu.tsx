@@ -1,5 +1,6 @@
 /**
  * @feature NAV-10 Workspace actions menu
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: The right-click menu of a workspace's sidebar row.
  * Behaviour: ui-map.md 3.1 ('Workspace actions' menu: mark as read or unread, pin or unpin, set
  * status, move to section, rename, copy link, link a pull request, archive or unarchive; the same
@@ -24,10 +25,17 @@ import { useState } from "react";
 import { useStore } from "zustand";
 import { useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useLiveShortcut, useSessions, useWorkspace } from "../../core/hooks.ts";
+import {
+	useActions,
+	useLiveShortcut,
+	usePortForwards,
+	useSessions,
+	useWorkspace,
+} from "../../core/hooks.ts";
 import type { KanbanStatus, Section } from "../../core/model.ts";
 import { buildDeepLink } from "../../core/services/notifications.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
+import { AlertDialog, AlertDialogContent } from "../../ui/AlertDialog.tsx";
 import {
 	ContextMenu,
 	ContextMenuItem,
@@ -55,6 +63,10 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const [renaming, setRenaming] = useState(false);
 	const [newSection, setNewSection] = useState(false);
 	const [branchPrompt, setBranchPrompt] = useState(false);
+	const [pausingForwarding, setPausingForwarding] = useState(false);
+	const workspace = useWorkspace(workspaceId);
+	const forwarding = usePortForwards(workspaceId);
+	const actions = useActions();
 
 	return (
 		<>
@@ -65,6 +77,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 						onRename={() => setRenaming(true)}
 						onNewSection={() => setNewSection(true)}
 						onNeedsBranchName={() => setBranchPrompt(true)}
+						onPauseForwarding={() => setPausingForwarding(true)}
 					/>
 				}
 			>
@@ -77,6 +90,20 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				<UnarchiveBranchDialog workspaceId={workspaceId} onOpenChange={setBranchPrompt} />
 			) : null}
 			{newSection ? <SectionDialog open onOpenChange={setNewSection} section={null} /> : null}
+			{pausingForwarding ? (
+				<AlertDialog open onOpenChange={setPausingForwarding}>
+					<AlertDialogContent
+						title="Pause port forwarding?"
+						description="Every forward of this workspace stops, and its forwards are removed."
+						confirmLabel="Pause"
+						onConfirm={() => {
+							void actions.portForwards.pauseWorkspace(workspaceId).then((result) => {
+								if (!result.ok) toastError("Couldn't pause port forwarding", result.error);
+							});
+						}}
+					/>
+				</AlertDialog>
+			) : null}
 		</>
 	);
 }
@@ -111,6 +138,7 @@ interface WorkspaceActionItemsProps {
 	onRename: () => void;
 	onNewSection: () => void;
 	onNeedsBranchName: () => void;
+	onPauseForwarding: () => void;
 }
 
 function WorkspaceActionItems({
@@ -118,8 +146,10 @@ function WorkspaceActionItems({
 	onRename,
 	onNewSection,
 	onNeedsBranchName,
+	onPauseForwarding,
 }: WorkspaceActionItemsProps) {
 	const actions = useActions();
+	const forwarding = usePortForwards(workspaceId);
 	const runCommand = useRunCommandHandlers();
 	const workspace = useWorkspace(workspaceId);
 	const sessions = useSessions(workspaceId);
@@ -249,6 +279,9 @@ function WorkspaceActionItems({
 					>
 						Link pull request
 					</ContextMenuItem>
+					{data?.host.kind === "cloud" && forwarding.forwardingEnabled ? (
+						<ContextMenuItem onSelect={onPauseForwarding}>Pause port forwarding</ContextMenuItem>
+					) : null}
 					<ContextMenuSeparator />
 					<ContextMenuItem
 						destructive

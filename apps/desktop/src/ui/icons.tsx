@@ -87,6 +87,24 @@ export const PullRequestIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A pull request still in draft: the head side is dashed. */
+export const PullRequestDraftIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 3.5v1M11.5 6.5v1.5"
+		{...p}
+	/>
+);
+/** A speaker with two sound waves. */
+export const VolumeIcon = (p: P) => (
+	<Icon
+		d="M2.5 6h2.5L8.5 3v10L5 10H2.5zM11 6a2.75 2.75 0 0 1 0 4M12.75 4.25a5.25 5.25 0 0 1 0 7.5"
+		{...p}
+	/>
+);
+/** A closed padlock. */
+export const LockIcon = (p: P) => (
+	<Icon d="M3.5 7.5h9v6h-9zM5.5 7.5V5.25a2.5 2.5 0 0 1 5 0V7.5" {...p} />
+);
 export const CheckIcon = (p: P) => <Icon d="M3 8.5l3 3 7-7" {...p} />;
 export const DotIcon = (p: P) => (
 	<Icon d="M8 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5z" {...p} />
@@ -108,6 +126,24 @@ export const EyeIcon = (p: P) => (
 		d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
 		{...p}
 	/>
+);
+/** A pointer clicking, with rays: run an action. */
+export const MousePointerClickIcon = (p: P) => (
+	<Icon
+		d="M6.5 6.5l6.5 2.25-2.75 1.25-1.25 2.75zM3 1.75l.6 1.85M1.75 3l1.85.6M6 1.75l-.9 1.7M1.75 6l1.7-.9"
+		{...p}
+	/>
+);
+/** An eye struck through: hide what is shown. */
+export const EyeOffIcon = (p: P) => (
+	<Icon
+		d="M6.6 3.7A6.9 6.9 0 0 1 8 3.5C12 3.5 14.5 8 14.5 8a12.4 12.4 0 0 1-1.6 2.2M4.2 4.7C2.5 5.9 1.5 8 1.5 8S4 12.5 8 12.5a6.6 6.6 0 0 0 3.4-.9M6.6 6.6a2 2 0 0 0 2.8 2.8M2 2l12 12"
+		{...p}
+	/>
+);
+/** A bin with a lid: delete. */
+export const TrashIcon = (p: P) => (
+	<Icon d="M2.5 4h11M6 4V2.5h4V4M3.75 4l.75 9.5h7l.75-9.5M6.5 6.75v4M9.5 6.75v4" {...p} />
 );
 export const CheckCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
@@ -264,6 +300,9 @@ export const RadioIcon = (p: P) => (
 	/>
 );
 export const LaptopIcon = (p: P) => <Icon d="M3.5 4h9v6.5h-9zM1.5 12.5h13" {...p} />;
+export const CloudIcon = (p: P) => (
+	<Icon d="M4.7 12.5h6.8a2.7 2.7 0 0 0 .2-5.4 4 4 0 0 0-7.8-.6 3 3 0 0 0 .8 6z" {...p} />
+);
 export const BicepsIcon = (p: P) => (
 	<Icon
 		d="M3 13.5c2.5 0 7 .5 9.5-1.5s.5-6-2-5.5c-1 .2-1.5 1-2 2M3 13.5V7.5l2.5-5 2 1-1 3.5"
@@ -285,6 +324,17 @@ export const DatabaseIcon = (p: P) => (
 	/>
 );
 export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
+export const ArrowDownIcon = (p: P) => <Icon d="M8 3v10M4 9l4 4 4-4" {...p} />;
+/**
+ * A pull request with its arrow pointing into the head branch: the agent's and the pull request's
+ * actions in the git panel header (Conductor's "git-pull-request-arrow").
+ */
+export const GitPullRequestArrowIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v7.75M11.5 11.5a1.25 1.25 0 1 0 0-.01zM9.5 5.5l-1.5-1.5 1.5-1.5M8 4h2.5a1 1 0 0 1 1 1v5.25"
+		{...p}
+	/>
+);
 export const UndoIcon = (p: P) => (
 	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />
 );

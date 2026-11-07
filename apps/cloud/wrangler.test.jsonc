@@ -12,5 +12,7 @@
 	},
 	"exports": {
 		"Workspace": { "type": "durable-object", "storage": "sqlite" }
-	}
+	},
+	// CLOUD-17: the personal cloud settings object lives in the same bucket as the backups.
+	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "conducted-cloud-test-backups" }]
 }

@@ -35,6 +35,7 @@ const dev: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
 const config = (previewUrlTemplate: string | null): RepoConfig => ({

@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { RepoId } from "@conducted/shared";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
@@ -14,30 +15,42 @@ afterEach(() => {
 	test = undefined;
 });
 
-async function mountPage() {
+/** The page for every repository, or a repository's Environment section when `forRepo` is set. */
+async function mountPage(forRepo = false) {
 	test = createTestContainer();
 	await test.container.services.settings.start();
 	const repo = await seedRepo(test.container);
 	render(
 		<ServicesProvider container={test.container}>
-			<EnvironmentPage />
+			<EnvironmentPage repoId={forRepo ? repo.id : null} />
 		</ServicesProvider>,
 	);
-	await screen.findByLabelText("Name");
+	await screen.findByRole("button", { name: "Add environment variable" });
 	return { container: test.container, repo };
 }
 
+/** Adds one variable through the panel the title's button opens. */
+async function addThroughPanel(name: string, value: string) {
+	fireEvent.click(screen.getByRole("button", { name: "Add environment variable" }));
+	const panel = await screen.findByRole("dialog", { name: "Add environment variable" });
+	fireEvent.change(within(panel).getByLabelText("Name"), { target: { value: name } });
+	fireEvent.change(within(panel).getByLabelText("Value"), { target: { value } });
+	fireEvent.click(within(panel).getByRole("button", { name: /^Save/ }));
+	await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+}
+
 describe("SET-04 EnvironmentPage", () => {
-	it("adds a variable in the chosen scope and shows the row with a hidden value", async () => {
+	// Conductor puts "Add environment variable" at the title's right and adds from a side panel.
+	it("adds a variable from the panel by the title and shows the row with a hidden value", async () => {
 		const { container } = await mountPage();
 		const original = container.services.settings.setEnvVar.bind(container.services.settings);
 		const setEnvVar = vi
 			.spyOn(container.services.settings, "setEnvVar")
 			.mockImplementation((name, value, scope) => original(name, value, scope));
+		const heading = screen.getByRole("heading", { name: "Environment" });
+		expect(heading.closest("header")?.textContent).toContain("Add environment variable");
 
-		fireEvent.change(screen.getByLabelText("Name"), { target: { value: "TOKEN" } });
-		fireEvent.change(screen.getByLabelText("Value"), { target: { value: "abc" } });
-		fireEvent.click(screen.getByRole("button", { name: "Add variable" }));
+		await addThroughPanel("TOKEN", "abc");
 
 		await waitFor(() => expect(setEnvVar).toHaveBeenCalledWith("TOKEN", "abc", "global"));
 		expect(await screen.findByText("TOKEN")).toBeTruthy();
@@ -49,18 +62,15 @@ describe("SET-04 EnvironmentPage", () => {
 	});
 
 	it("saves a repository's variable in that repository's scope", async () => {
-		const { container, repo } = await mountPage();
+		const { container, repo } = await mountPage(true);
 		const original = container.services.settings.setEnvVar.bind(container.services.settings);
 		const setEnvVar = vi
 			.spyOn(container.services.settings, "setEnvVar")
 			.mockImplementation((name, value, scope) => original(name, value, scope));
+		// The scope is the page's own: there is no scope switch, as in Conductor.
+		expect(screen.queryByRole("combobox", { name: "Scope" })).toBeNull();
 
-		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
-		fireEvent.keyDown(await screen.findByRole("option", { name: repo.name }), { key: "Enter" });
-
-		fireEvent.change(screen.getByLabelText("Name"), { target: { value: "LOCAL" } });
-		fireEvent.change(screen.getByLabelText("Value"), { target: { value: "yes" } });
-		fireEvent.click(screen.getByRole("button", { name: "Add variable" }));
+		await addThroughPanel("LOCAL", "yes");
 
 		await waitFor(() =>
 			expect(setEnvVar).toHaveBeenCalledWith("LOCAL", "yes", { repoId: repo.id }),
@@ -144,10 +154,8 @@ describe("SET-04 EnvironmentPage", () => {
 	});
 
 	it("keeps a repository's env file in that repository, out of the other scopes", async () => {
-		const { container, repo } = await mountPage();
+		const { container, repo } = await mountPage(true);
 
-		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
-		fireEvent.keyDown(await screen.findByRole("option", { name: repo.name }), { key: "Enter" });
 		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
 		fireEvent.change(screen.getByLabelText("Environment file path"), {
 			target: { value: ".env.local" },
@@ -163,17 +171,18 @@ describe("SET-04 EnvironmentPage", () => {
 		expect(forRepo.ok && forRepo.value.value).toEqual([".env.local"]);
 		expect(container.services.settings.get("environment_variable_files")).toEqual([]);
 
-		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
-		fireEvent.keyDown(await screen.findByRole("option", { name: "All repositories" }), {
-			key: "Enter",
-		});
+		cleanup();
+		render(
+			<ServicesProvider container={container}>
+				<EnvironmentPage />
+			</ServicesProvider>,
+		);
+		await screen.findByRole("button", { name: "Add environment variable" });
 		await waitFor(() => expect(screen.queryByText(".env.local")).toBeNull());
 	});
 
 	it("SET-02: resets a repository's own env file list so the shared settings apply again", async () => {
-		const { container, repo } = await mountPage();
-		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
-		fireEvent.keyDown(await screen.findByRole("option", { name: repo.name }), { key: "Enter" });
+		const { container, repo } = await mountPage(true);
 		expect(screen.queryByRole("button", { name: "Reset to shared settings" })).toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
 		fireEvent.change(screen.getByLabelText("Environment file path"), {
@@ -194,5 +203,60 @@ describe("SET-04 EnvironmentPage", () => {
 		);
 		expect(forRepo.ok && forRepo.value.source).toBe("default");
 		expect(screen.queryByRole("button", { name: "Reset to shared settings" })).toBeNull();
+	});
+
+	// Conductor's repository page lists the user's variables under "Inherited from User", read only,
+	// dimming the ones the repository replaces (renderApp PDa, TDa).
+	it("lists every repository's variables under Inherited from User, dimming the replaced one", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		const repo = await seedRepo(test.container);
+		const { settings } = test.container.services;
+		expect((await settings.setEnvVar("SHARED", "one", "global")).ok).toBe(true);
+		expect((await settings.setEnvVar("TOKEN", "global", "global")).ok).toBe(true);
+		expect((await settings.setEnvVar("TOKEN", "local", { repoId: repo.id as RepoId })).ok).toBe(
+			true,
+		);
+		render(
+			<ServicesProvider container={test.container}>
+				<EnvironmentPage repoId={repo.id} />
+			</ServicesProvider>,
+		);
+
+		const inherited = (await screen.findByRole("heading", { name: "Inherited from User" }))
+			.parentElement as HTMLElement;
+		const rows = await within(inherited).findAllByRole("row");
+		expect(rows.map((row) => row.querySelector(".font-mono")?.textContent)).toEqual([
+			"SHARED",
+			"TOKEN",
+		]);
+		expect(rows[1]?.className).toContain("opacity-50");
+		expect(within(inherited).queryByRole("button", { name: "Delete SHARED" })).toBeNull();
+
+		fireEvent.click(within(inherited).getByRole("button", { name: "View SHARED" }));
+		const panel = await screen.findByRole("dialog", { name: "View inherited variable" });
+		await waitFor(() =>
+			expect((within(panel).getByLabelText("Value") as HTMLTextAreaElement).value).toBe("one"),
+		);
+	});
+
+	it("edits a variable's value in the side panel", async () => {
+		const { container } = await mountPage();
+		await addThroughPanel("TOKEN", "abc");
+		fireEvent.click(await screen.findByRole("button", { name: "Edit TOKEN" }));
+		const panel = await screen.findByRole("dialog", { name: "Edit shared variable" });
+		await waitFor(() =>
+			expect((within(panel).getByLabelText("Value") as HTMLTextAreaElement).value).toBe("abc"),
+		);
+
+		fireEvent.change(within(panel).getByLabelText("Value"), { target: { value: "rotated" } });
+		fireEvent.click(within(panel).getByRole("button", { name: /^Save/ }));
+
+		await waitFor(async () =>
+			expect(await container.platform.keychain.get("env:global:TOKEN")).toEqual({
+				ok: true,
+				value: "rotated",
+			}),
+		);
 	});
 });

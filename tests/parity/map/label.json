@@ -2,22 +2,34 @@
 	"label:M204813": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M204930": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M205025": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M205124": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M315960": {
 		"status": "decided",
@@ -158,10 +170,9 @@
 		"by": "hand"
 	},
 	"label:M321253": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents",
-		"note": "Checked by hand: not a match. Ours shows the sample value \"gpt-5.5\" in composer-model-picker, which is data, not this wording.",
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
 		"by": "hand"
 	},
 	"label:M321304": {
@@ -302,19 +313,16 @@
 		"by": "hand"
 	},
 	"label:M335764": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > p",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"label:M335844": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "settings-agents-bedrock",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"label:M335927": {
@@ -642,12 +650,9 @@
 		"by": "hand"
 	},
 	"label:M340089": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(7) > p",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"label:M340155": {
 		"status": "decided",
@@ -826,27 +831,38 @@
 	"label:M363480": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-01",
+		"item": "Settings show which file a value came from (user shared, repository local, repository shared).",
+		"owner": "hand"
 	},
 	"label:M364103": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-01",
+		"item": "Settings show which file a value came from (user shared, repository local, repository shared).",
+		"owner": "hand"
 	},
 	"label:M364646": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-01",
+		"item": "Settings show which file a value came from (user shared, repository local, repository shared).",
+		"owner": "hand"
 	},
 	"label:M383118": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A settings-source type label in Conductor's resolver, never shown.",
+		"by": "hand"
 	},
 	"label:M383242": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A settings-source type label in Conductor's resolver, never shown.",
+		"by": "hand"
 	},
 	"label:M389969": {
 		"status": "gap",
@@ -861,7 +877,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(34) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(34) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:M733593": {
@@ -869,28 +885,40 @@
 		"state": "home-archived",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"label:M780682": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Merge and auto-merge are available from the PR header.",
+		"owner": "hand"
 	},
 	"label:M952497": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-01",
+		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
+		"owner": "hand"
 	},
 	"label:M1092304": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "A failed workspace shows Workspace initialization failed, Setup did not start or This workspace failed to start, with Retry and the log link.",
+		"owner": "hand"
 	},
 	"label:M1420230": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-20",
+		"item": "Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'",
+		"owner": "hand"
 	},
 	"label:M2477618": {
 		"status": "decided",
@@ -999,12 +1027,18 @@
 	"label:M3072009": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-02",
+		"item": "'Start spotlight' in the Run tab",
+		"owner": "hand"
 	},
 	"label:M3099042": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "link",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > a",
+		"by": "seed"
 	},
 	"label:M3222818": {
 		"status": "decided",
@@ -1041,12 +1075,18 @@
 	"label:M3754095": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-10",
+		"item": "A workspace delete that cannot finish asks to delete it permanently, or anyway.",
+		"owner": "hand"
 	},
 	"label:M3754296": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-10",
+		"item": "A workspace delete that cannot finish asks to delete it permanently, or anyway.",
+		"owner": "hand"
 	},
 	"label:R97098": {
 		"status": "decided",
@@ -1111,19 +1151,19 @@
 		"owner": "rule:quote"
 	},
 	"label:R104578": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-11",
-		"item": "Approval secondary button 'Yes for this session', 'Allow all edits during this session' or 'Yes always' (Cmd+Enter)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-approval-edit",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(2) > span > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R105108": {
 		"status": "matched",
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(3) > span > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(3) > span > span",
 		"by": "seed"
 	},
 	"label:R319291": {
@@ -1131,7 +1171,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"label:R361903": {
@@ -1249,7 +1289,10 @@
 	"label:R2035080": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "PR tab: 'Open on GitHub'",
+		"owner": "hand"
 	},
 	"label:R2138036": {
 		"status": "gap",
@@ -1260,113 +1303,137 @@
 		"owner": "rule:quote"
 	},
 	"label:R2139395": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'No internet connection' with Retry",
-		"owner": "rule:quote"
-	},
-	"label:R2139552": {
 		"status": "matched",
-		"state": "pr-loading",
+		"state": "pr-offline",
 		"via": "text",
 		"role": "button",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
 		"by": "seed"
 	},
-	"label:R2139834": {
+	"label:R2139552": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Loading PR info...' and 'Checking mergeability...'",
-		"owner": "rule:quote"
+		"screen": "Unplaced"
+	},
+	"label:R2139834": {
+		"status": "matched",
+		"state": "pr-checking-mergeability",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R2206903": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2206958": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207031": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207088": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207145": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207202": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207254": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207318": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2207376": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "title",
+		"role": "img",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R2269745": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Deployed\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2269882": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Lifecycle labels 'Setting up' and 'Failed'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > button > span:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R2270007": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Deploying\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2270162": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Pending\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2270269": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Conductor shows \"Inactive\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"deployment-row\"] > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2271428": {
 		"status": "matched",
@@ -1377,11 +1444,12 @@
 		"by": "seed"
 	},
 	"label:R2271674": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2959506": {
 		"status": "matched",
@@ -1444,7 +1512,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(1) > button:nth-of-type(7) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"label:R2959862": {
@@ -1476,31 +1544,31 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > p",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > p",
 		"by": "seed"
 	},
 	"label:R2960047": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(2)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"label:R2960087": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(3)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(4) > span",
 		"by": "seed"
 	},
 	"label:R2960124": {
 		"status": "matched",
-		"state": "settings-repo-scripts",
+		"state": "settings-repo-git",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(5)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(5) > span",
 		"by": "seed"
 	},
 	"label:R2960160": {
@@ -1516,7 +1584,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"label:R2960244": {
@@ -1524,7 +1592,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"label:R2960293": {
@@ -1558,12 +1626,9 @@
 		"by": "rule:hosted-computer"
 	},
 	"label:R2960659": {
-		"status": "matched",
-		"state": "settings-repo-scripts",
-		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(4)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
 	},
 	"label:R2960724": {
 		"status": "gap",
@@ -1639,34 +1704,49 @@
 	"label:R4400634": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4400746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4400952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4401198": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4401280": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4993174": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "open-in-menu",
 		"via": "text",
-		"role": "figcaption",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(4) > div > figure:nth-of-type(2) > figcaption",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(15) > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R4994069": {
@@ -1687,11 +1767,14 @@
 	"label:R5008818": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Misc: root path and workspaces path (read-only)",
+		"owner": "hand"
 	},
 	"label:R5438208": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Forward to localhost' and 'Auto-forwarding'",
@@ -1699,7 +1782,7 @@
 	},
 	"label:R5438774": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Forward to localhost' and 'Auto-forwarding'",
@@ -1717,8 +1800,8 @@
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(1) > dt",
+		"role": "th",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(1) > th",
 		"by": "seed"
 	},
 	"label:R5599862": {
@@ -1736,7 +1819,10 @@
 	"label:R5600192": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "Cloud workspace header shows 'Conductor Cloud' badge, status, CPU, memory, disk, 'Low disk' and 'Agent cost'",
+		"owner": "hand"
 	},
 	"label:R5600277": {
 		"status": "decided",
@@ -1863,7 +1949,10 @@
 	"label:R5629122": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "Cloud workspace header shows 'Conductor Cloud' badge, status, CPU, memory, disk, 'Low disk' and 'Agent cost'",
+		"owner": "hand"
 	},
 	"label:R5629656": {
 		"status": "matched",
@@ -1876,24 +1965,33 @@
 	"label:R5652630": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"label:R5652994": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"label:R5653348": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"label:R8149130": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(35) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(35) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R8149637": {
@@ -1901,16 +1999,13 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(36) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(36) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R8697662": {
-		"status": "matched",
-		"state": "settings-appearance",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > fieldset > div > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R8822100": {
 		"status": "gap",
@@ -1934,8 +2029,8 @@
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(3) > dt",
+		"role": "th",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(3) > th",
 		"by": "seed"
 	},
 	"label:R8853292": {
@@ -1967,37 +2062,49 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R8857310": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write",
+		"owner": "hand"
 	},
 	"label:R8857359": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write",
+		"owner": "hand"
 	},
 	"label:R8857397": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R8863451": {
 		"status": "matched",
-		"state": "composer-model-picker",
+		"state": "settings-models-effort-menu",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(3) > button > span:nth-of-type(1)",
+		"role": "div",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R8863584": {
 		"status": "matched",
-		"state": "composer-model-picker",
+		"state": "settings-models-effort-menu",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(4) > button > span:nth-of-type(1)",
+		"role": "div",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(4)",
 		"by": "seed"
 	},
 	"label:R8863736": {
@@ -2011,35 +2118,50 @@
 	"label:R8863884": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R8864029": {
 		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "section",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5)",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R8864825": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R9079981": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9080051": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9080097": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9080220": {
 		"status": "matched",
@@ -2052,12 +2174,18 @@
 	"label:R9080270": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9081765": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9083009": {
 		"status": "gap",
@@ -2076,12 +2204,9 @@
 		"by": "seed"
 	},
 	"label:R9235878": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5) > button > span:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R9240756": {
 		"status": "gap",
@@ -2092,12 +2217,9 @@
 		"owner": "rule:quote"
 	},
 	"label:R9241717": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R9278910": {
 		"status": "gap",
@@ -2110,7 +2232,10 @@
 	"label:R9301900": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-04",
+		"item": "'@' mentions files and directories with fuzzy search",
+		"owner": "hand"
 	},
 	"label:R9328374": {
 		"status": "matched",
@@ -2123,19 +2248,25 @@
 	"label:R9343545": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-02",
+		"item": "'Message not sent' with Retry and Discard",
+		"owner": "hand"
 	},
 	"label:R9354304": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "SET-09",
+		"item": "Agent 'Providers' and 'Custom provider' dialogs",
+		"owner": "hand"
 	},
 	"label:R9369573": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(17) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(17) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R9369840": {
@@ -2147,36 +2278,36 @@
 		"by": "seed"
 	},
 	"label:R9371127": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-active",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9371331": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-paused",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9371721": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-active",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R9372025": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-active",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R9380499": {
 		"status": "matched",
@@ -2197,7 +2328,10 @@
 	"label:R9380779": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-06",
+		"item": "Empty chat starters",
+		"owner": "hand"
 	},
 	"label:R9406451": {
 		"status": "gap",
@@ -2274,22 +2408,34 @@
 	"label:R9857501": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857551": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857607": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857669": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857803": {
 		"status": "matched",
@@ -2316,12 +2462,12 @@
 		"owner": "rule:cite"
 	},
 	"label:R10015966": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"item": "Check state 'Waiting'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R10026233": {
 		"status": "matched",
@@ -2332,44 +2478,59 @@
 		"by": "seed"
 	},
 	"label:R10026716": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"by": "seed"
 	},
 	"label:R10026849": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10026974": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10027091": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10027221": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10044498": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "GIT-04",
 		"owner": "rule:neighbour"
 	},
 	"label:R10046733": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"label:R10047731": {
 		"status": "matched",
@@ -2382,14 +2543,17 @@
 	"label:R10081916": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-16",
+		"item": "Cloud desktop tab with 'Reconnect' and notices 'You need edit access to use the cloud desktop' and 'Cloud desktop is available in cloud workspaces'",
+		"owner": "hand"
 	},
 	"label:R10091068": {
 		"status": "matched",
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"label:R10091233": {
@@ -2445,7 +2609,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(13) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(13) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"label:R10213512": {
@@ -2468,8 +2632,12 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Other...\" (text) in chat-question.",
-		"by": "hand"
+		"note": "This is Conductor's model-usage chart legend. Our question card's 'Other…' placeholder matches Conductor's own question card placeholder.",
+		"by": "hand",
+		"backlog": "CHAT-10",
+		"item": "Question 'Other...' free text (key 0)",
+		"owner": "hand",
+		"class": "wording"
 	},
 	"label:R10300655": {
 		"status": "decided",
@@ -2532,7 +2700,10 @@
 	"label:R10363513": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-07",
+		"item": "'Resources' table (Name, CPU, Mem) grouped by workspace",
+		"owner": "hand"
 	},
 	"label:R10382819": {
 		"status": "decided",
@@ -2549,12 +2720,18 @@
 	"label:R10415253": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"backlog": "APP-07",
+		"item": "Resources memory rows: Usage and Total.",
+		"owner": "hand"
 	},
 	"label:R10415566": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"backlog": "APP-07",
+		"item": "Resources memory rows: Usage and Total.",
+		"owner": "hand"
 	},
 	"label:R10461875": {
 		"status": "gap",
@@ -2565,9 +2742,10 @@
 		"owner": "rule:quote"
 	},
 	"label:R10480019": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The team sidebar's My workspaces group. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10481109": {
 		"status": "decided",
@@ -2578,27 +2756,42 @@
 	"label:R10488895": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: group by Status or Project",
+		"owner": "hand"
 	},
 	"label:R10488999": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "'View options' menu (sort icon, 'Sort workspaces')",
+		"owner": "hand"
 	},
 	"label:R10489049": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: sort by Updated or Created, hidden when manual order is on",
+		"owner": "hand"
 	},
 	"label:R10489205": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: group by Status or Project",
+		"owner": "hand"
 	},
 	"label:R10489474": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: filter by project, searchable from 5 repos",
+		"owner": "hand"
 	},
 	"label:R10546377": {
 		"status": "matched",
@@ -2617,19 +2810,25 @@
 	"label:R10570025": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics: shell, PATH and environment capture with values hashed except a safe list",
+		"owner": "hand"
 	},
 	"label:R10676706": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Popover: model picker",
+		"owner": "hand"
 	},
 	"label:R10676773": {
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10676842": {
@@ -2637,7 +2836,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4)",
 		"by": "seed"
 	},
 	"label:R10676910": {
@@ -2657,10 +2856,10 @@
 	},
 	"label:R10677114": {
 		"status": "matched",
-		"state": "settings-models-codex-thinking-menu",
+		"state": "settings-git",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > fieldset > label:nth-of-type(3)",
 		"by": "seed"
 	},
 	"label:R10726210": {
@@ -2668,56 +2867,74 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(1) > h4",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > h4",
 		"by": "seed"
 	},
 	"label:R10727056": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10727344": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10727824": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Settings",
 		"note": "Checked by hand: not a match. Ours shows the sample value \"TOKEN\" in settings-environment, which is data, not this wording.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10728254": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10750930": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "open-in-menu",
 		"via": "text",
-		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(3)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10751739": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "MCP import lists Claude Desktop and Claude Code plugins as sources.",
+		"owner": "hand"
 	},
 	"label:R10754989": {
 		"status": "matched",
-		"state": "composer-model-picker",
+		"state": "settings-agents",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(2)",
+		"role": "tab",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R10755170": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "MCP import lists Claude Desktop and Claude Code plugins as sources.",
+		"owner": "hand"
 	},
 	"label:R10787831": {
 		"status": "decided",
@@ -2734,7 +2951,10 @@
 	"label:R10787975": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-06",
+		"item": "Dashboard: Kanban with five columns",
+		"owner": "hand"
 	},
 	"label:R10808274": {
 		"status": "decided",
@@ -2744,7 +2964,7 @@
 	},
 	"label:R10818359": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "SET-02",
 		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
@@ -2759,7 +2979,10 @@
 	"label:R10853717": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics introduction, environment report and actions row",
+		"owner": "hand"
 	},
 	"label:R10855109": {
 		"status": "decided",
@@ -2780,7 +3003,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10929522": {
@@ -2846,18 +3069,26 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > fieldset > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > fieldset > button > span",
 		"by": "seed"
 	},
 	"label:R11117716": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General",
+		"class": "wording",
+		"backlog": "SET-02",
+		"item": "General: 'Send messages with' (Enter, Cmd+Enter, Custom)",
+		"owner": "hand",
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"label:R11118427": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "General: 'Follow-up behavior' (Queue or Steer).",
+		"owner": "hand"
 	},
 	"label:R11118460": {
 		"status": "matched",
@@ -2876,7 +3107,10 @@
 	"label:R11166546": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics introduction, environment report and actions row",
+		"owner": "hand"
 	},
 	"label:R11166702": {
 		"status": "decided",
@@ -2947,9 +3181,10 @@
 		"by": "seed"
 	},
 	"label:R11316952": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R11337771": {
 		"status": "decided",
@@ -3012,35 +3247,48 @@
 	"label:R11440151": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"item": "Agent program and sign-in problems shown inline in the chat",
+		"owner": "hand"
 	},
 	"label:R11440359": {
 		"status": "matched",
-		"state": "settings-agents-error",
+		"state": "git-checks-mixed",
 		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section:nth-of-type(1) > div > button > span",
+		"role": "button",
+		"selector": "[data-testid=\"check-row\"] > div:nth-of-type(2) > section > div > button",
 		"by": "seed"
 	},
 	"label:R11440532": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer. Our cloud is D018's, on the user's own account.",
+		"by": "hand"
 	},
 	"label:R11440860": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-01",
+		"item": "Sidebar footer 'Add project...' button and menu",
+		"owner": "hand"
 	},
 	"label:R11448282": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"item": "The Linear connection is made with an API key and used to list issues.",
+		"owner": "hand"
 	},
 	"label:R11539456": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-10",
+		"item": "Delete an artifact with a confirm.",
+		"owner": "hand"
 	},
 	"label:R11571757": {
 		"status": "gap",
@@ -3115,34 +3363,40 @@
 		"owner": "rule:quote"
 	},
 	"label:R11644260": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644447": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644517": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644626": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644788": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644907": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11667589": {
 		"status": "gap",
@@ -3163,7 +3417,7 @@
 		"state": "settings-repo-scripts",
 		"via": "text",
 		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"label:R11748740": {
@@ -3181,7 +3435,10 @@
 	"label:R11902518": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-11",
+		"item": "Issue filters are Label, Author and Base branch, with is and is not.",
+		"owner": "hand"
 	},
 	"label:R11924335": {
 		"status": "decided",
@@ -3228,6 +3485,9 @@
 	"label:R11977140": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Prompts: general preferences (instructions at chat start)",
+		"owner": "hand"
 	}
 }

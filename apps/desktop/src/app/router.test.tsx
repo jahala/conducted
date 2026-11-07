@@ -84,9 +84,7 @@ describe("app shell", () => {
 	it("keeps the window controls and navigation when a feature is not built", async () => {
 		await openApp("/");
 		await screen.findByRole("heading", { name: "Run agents side by side" });
-		expect(
-			screen.getByRole("button", { name: "Toggle left sidebar", expanded: true }),
-		).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Toggle sidebar", expanded: true })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Go forward" })).toBeTruthy();
 		const nav = screen.getByRole("navigation", { name: "Main" });
@@ -170,6 +168,23 @@ describe("routes", () => {
 		expect(await screen.findByRole("navigation", { name: "Settings" })).toBeTruthy();
 		expect(await screen.findByRole("heading", { name: "General" })).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
+	});
+
+	it("puts Back and the settings top bar in the title bar row, with no strip above them", async () => {
+		await openApp("/settings/general");
+		const settings = await screen.findByTestId("settings-screen");
+		await screen.findByRole("heading", { name: "General" });
+
+		// Conductor's settings screen draws its own drag regions: the row holding Back at the top of
+		// the nav, and the 40 px top bar of the page column. Nothing sits above them.
+		const regions = [...document.querySelectorAll("[data-tauri-drag-region]")];
+		expect(regions.length).toBeGreaterThan(0);
+		expect(regions.every((region) => settings.contains(region))).toBe(true);
+		const back = screen.getByRole("button", { name: "Back" });
+		expect(regions.some((region) => region.contains(back))).toBe(true);
+		expect(screen.getByTestId("settings-top-bar").hasAttribute("data-tauri-drag-region")).toBe(
+			true,
+		);
 	});
 
 	it("/diagnostics renders without the sidebar", async () => {

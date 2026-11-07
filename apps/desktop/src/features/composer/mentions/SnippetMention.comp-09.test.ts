@@ -5,10 +5,12 @@
  * Test first: typing "§rev" offers the snippet named Review and Enter inserts its prompt.
  */
 import type { SnippetId } from "@conducted/shared";
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { createElement, useLayoutEffect } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Snippet } from "../../../core/model.ts";
+import { settleEditorTeardown } from "../../../test/composer-teardown.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import { createSnippetMention, snippetSuggestions } from "./SnippetMention.ts";
 
@@ -50,11 +52,39 @@ const type = (editor: Editor, text: string) => {
 	editor.commands.insertContent(text);
 };
 
-afterEach(() => {
+/** Destroys the editor from inside a React commit, as TipTap's destroy timer can do. */
+function DestroyEditorOnCommit({ editor }: { editor: Editor }) {
+	useLayoutEffect(() => {
+		editor.destroy();
+	}, [editor]);
+	return null;
+}
+
+afterEach(async () => {
 	for (const editor of editors.splice(0)) editor.destroy();
+	// A trigger popup unmounts its root in a microtask after the editor is destroyed. Let it run
+	// inside act, or it reaches React's scheduler after this file's window is gone.
+	await settleEditorTeardown(null);
 });
 
 describe("COMP-09 SnippetMention", () => {
+	it("tears the popup down outside the commit that destroys the editor", async () => {
+		const editor = mount(() => snippets);
+		type(editor, "§rev");
+		await screen.findByRole("listbox", { name: "Snippets" });
+		const errors: string[] = [];
+		const reported = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			errors.push(args.map(String).join(" "));
+		});
+		try {
+			render(createElement(DestroyEditorOnCommit, { editor }));
+			expect(errors.join("\n")).not.toContain("synchronously unmount a root");
+		} finally {
+			reported.mockRestore();
+		}
+		editors.splice(editors.indexOf(editor), 1);
+	});
+
 	it("offers the matching snippet and inserts its prompt on Enter", async () => {
 		const editor = mount(() => snippets);
 		type(editor, "§rev");

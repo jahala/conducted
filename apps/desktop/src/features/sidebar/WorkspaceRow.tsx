@@ -1,6 +1,7 @@
 /**
  * @feature NAV-03 Workspace row
  * @feature NAV-16 Draft markers on the Create row and on workspaces
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: One row of the sidebar list: project avatar (outside project groups), status icon, name,
  * the "Open draft" marker, line change counts, and badges. Unread shows only in the name's weight, as
  * Conductor's row has no unread dot.
@@ -41,12 +42,14 @@ import {
 	useActions,
 	useGitState,
 	useLiveShortcut,
+	usePortForwards,
 	useSessions,
 	useWorkspaceStatus,
 } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { formatShortcut } from "../../core/registries/commands.ts";
 import { cn } from "../../ui/cn.ts";
+import { RadioIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useWorkspaceDraft } from "../composer/draft-sources.ts";
@@ -146,6 +149,7 @@ export function WorkspaceRow({
 	const [hovered, setHovered] = useState(false);
 	const readShortcut = useLiveShortcut("sidebar.toggleRead");
 	const branchPrefix = useBranchPrefix();
+	const forwarding = usePortForwards(workspace.id);
 
 	const openDraft = () => {
 		if (draft === null) return;
@@ -198,19 +202,25 @@ export function WorkspaceRow({
 					INDENT_CLASS[indent],
 					selected && "bg-hover",
 				)}
+				data-testid="left-sidebar-workspace-item"
 			>
-				{showRepo ? (
-					<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
-						<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
-					</span>
-				) : null}
 				<span
-					{...(statusWords === ""
-						? {}
-						: { role: "img", "aria-label": statusWords, title: statusWords })}
-					className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+					data-testid="workspace-leading-visual"
+					className="mt-0.5 flex shrink-0 items-center gap-1.5"
 				>
-					<WorkspaceStatusIcon status={status} decorative />
+					{showRepo ? (
+						<span className="mr-0.5 flex size-4 shrink-0 items-center justify-center">
+							<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
+						</span>
+					) : null}
+					<span
+						{...(statusWords === ""
+							? {}
+							: { role: "img", "aria-label": statusWords, title: statusWords })}
+						className="flex size-4 shrink-0 items-center justify-center overflow-hidden"
+					>
+						<WorkspaceStatusIcon status={status} decorative />
+					</span>
 				</span>
 				<span className="flex min-w-0 flex-1 flex-col">
 					<span className="flex h-5 min-w-0 items-center gap-1.5">
@@ -223,6 +233,16 @@ export function WorkspaceRow({
 							{workspaceName(workspace, branchPrefix)}
 						</span>
 						<span className="flex-1" />
+						{forwarding.forwardingEnabled ? (
+							<span
+								role="img"
+								aria-label="Forwarding ports"
+								title="Forwarding ports"
+								className="shrink-0 text-fg-muted"
+							>
+								<RadioIcon className="size-3.5" />
+							</span>
+						) : null}
 						<DraftMarker
 							place="workspace-row"
 							draft={draft?.draft ?? null}
