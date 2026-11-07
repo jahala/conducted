@@ -17,19 +17,23 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "APP-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Loading recent repos\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R1898585": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "APP-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Search repositories\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R1959218": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "PRJ-03",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R2049152": {
 		"status": "matched",
@@ -68,7 +72,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "REV-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Close filter\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R2637434": {
 		"status": "gap",
@@ -91,7 +96,8 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-16",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Open cloud desktop\" (aria_label, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R2991910": {
 		"status": "gap",
@@ -167,7 +173,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "RUN-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Choose action icon\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R4987086": {
 		"status": "gap",
@@ -214,7 +221,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Choose preview URL port\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R5444519": {
 		"status": "gap",
@@ -347,7 +355,10 @@
 	"aria_label:R8717346": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Loading MCP servers…\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:quote"
 	},
 	"aria_label:R8842839": {
 		"status": "gap",
@@ -386,7 +397,10 @@
 	"aria_label:R9068829": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Loading preview...\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9222951": {
 		"status": "gap",
@@ -510,7 +524,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Chat view",
 		"backlog": "CHAT-29",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Download progress\" (aria_label, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R9629615": {
 		"status": "matched",
@@ -910,12 +925,15 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"First local port\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R11147939": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-17",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R11156373": {
 		"status": "gap",
@@ -930,14 +948,16 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Local port\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R11157100": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Add override\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R11167685": {
 		"status": "decided",
@@ -983,7 +1003,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Settings: Repository",
 		"backlog": "SET-07",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Refresh files to copy preview\" (aria_label, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"aria_label:R11281401": {
 		"status": "gap",

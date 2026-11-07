@@ -81,7 +81,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Sidebar",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"workspace-port-forwarding-indicator\" (test_id, inventory-controls Sidebar); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"test_id:R10441458": {
 		"status": "gap",

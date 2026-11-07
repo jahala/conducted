@@ -538,21 +538,24 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "GIT-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"PR instructions.md\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:M2044552": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "GIT-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Review request.md\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:M2044572": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "GIT-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Fix errors instructions.md\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:M2044601": {
 		"status": "gap",
@@ -685,7 +688,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CHAT-19",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Agent finished. Click to view session.\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:M3236722": {
 		"status": "gap",
@@ -700,7 +704,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "WS-03",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Couldn't fetch remote updates. Creating the workspace from the latest local revision.\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:M3777807": {
 		"status": "decided",
@@ -968,7 +973,8 @@
 		"reason": "unshown",
 		"screen": "inventory-ui-text Git, review and files",
 		"backlog": "CHAT-23",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Connecting\" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R2216204": {
 		"status": "gap",
@@ -983,14 +989,16 @@
 		"reason": "unshown",
 		"screen": "inventory-ui-text Git, review and files",
 		"backlog": "CHAT-23",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Deleted\" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R2216298": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Git, review and files",
 		"backlog": "CHAT-23",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Unknown\" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R2223970": {
 		"status": "gap",
@@ -1025,7 +1033,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "PR-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Skipped\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R2271954": {
 		"status": "matched",
@@ -1040,7 +1049,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "PR-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Re-run\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R2517578": {
 		"status": "gap",
@@ -1365,7 +1375,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "RUN-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Edit action\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R4988948": {
 		"status": "gap",
@@ -1398,7 +1409,8 @@
 		"reason": "unshown",
 		"screen": "inventory-controls Workspaces",
 		"backlog": "PR-10",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Link\" (literal, inventory-controls Workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R5545346": {
 		"status": "matched",
@@ -1459,35 +1471,40 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "PR-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Searching issues...\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R5664589": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "PR-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Loading your issues...\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R5664683": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "PR-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Search results\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R5664700": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "PR-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Recent issues\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R5673483": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "SET-05",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Loading MCP servers…\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R5673831": {
 		"status": "gap",
@@ -1561,7 +1578,9 @@
 	"literal:R8718221": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8768165": {
 		"status": "gap",
@@ -1578,7 +1597,8 @@
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "NAV-05",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Show less\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8798014": {
 		"status": "gap",
@@ -1611,42 +1631,48 @@
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Do you want to run this command on your Mac?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8830720": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Do you want to make these changes?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8830802": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Do you want to run this agent?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8830857": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Do you want to do this search?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8830911": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Do you want to fetch this page?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8830959": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Do you want to run this tool?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8852793": {
 		"status": "matched",
@@ -1695,7 +1721,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "COMP-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Transcribing\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R8911246": {
 		"status": "gap",
@@ -1726,7 +1753,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Not supported\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R9235510": {
 		"status": "gap",
@@ -1749,14 +1777,16 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CHAT-12",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Copy plan to clipboard\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R9294532": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "COMP-07",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Set a goal\" (literal, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R9294548": {
 		"status": "matched",
@@ -1851,7 +1881,8 @@
 		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "COMP-10",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to update goal.\" (literal, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R9378722": {
 		"status": "gap",
@@ -1939,7 +1970,8 @@
 		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "REV-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"SVG preview\" (literal, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R9984405": {
 		"status": "gap",
@@ -2133,7 +2165,8 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "NAV-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Edit section\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R10477343": {
 		"status": "gap",
@@ -2399,21 +2432,24 @@
 		"reason": "unshown",
 		"screen": "inventory-controls App shell",
 		"backlog": "APP-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to open app logs.\" (literal, inventory-controls App shell); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R11653021": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-controls App shell",
 		"backlog": "APP-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Please select image files only.\" (literal, inventory-controls App shell); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R11653153": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-controls App shell",
 		"backlog": "APP-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Maximum 5 images allowed.\" (literal, inventory-controls App shell); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"literal:R11654231": {
 		"status": "gap",
