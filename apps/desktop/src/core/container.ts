@@ -873,6 +873,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		ids,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
+	// Built before the workspace service so archive and delete can pause its forwards (CLOUD-10).
+	const portForwards = new PortForwardsService({
+		platform,
+		repos: repositories,
+		settings,
+	});
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		git: gitRunner,
@@ -880,6 +886,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		portForwards,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
@@ -922,11 +929,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 	});
 	const cloudPairing = createCloudPairing(platform.cloud);
-	const portForwards = new PortForwardsService({
-		platform,
-		repos: repositories,
-		settings,
-	});
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,
