@@ -147,7 +147,7 @@ use std::io::Read;
 use std::os::unix::fs::symlink;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
@@ -500,14 +500,27 @@ fn run_program(path: &Path) -> Result<(), String> {
 }
 
 fn run_program_with_timeout(path: &Path, timeout: Duration) -> Result<(), String> {
-    let mut child = Command::new(path)
+    let child = spawn_program(path)?;
+    wait_for_program(child, timeout)
+}
+
+/// Starts a program with `--version` in its own process group, so a timeout can stop it and every
+/// child it started together.
+fn spawn_program(path: &Path) -> Result<Child, String> {
+    Command::new(path)
         .arg("--version")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .process_group(0)
         .spawn()
-        .map_err(|error| format!("it could not be started: {error}"))?;
+        .map_err(|error| format!("it could not be started: {error}"))
+}
+
+/// Waits for a started program to answer, stopping its whole process group after `timeout`. The
+/// timeout is counted from this call, so a caller that must see the program start first can wait
+/// for that event before it hands the child over.
+fn wait_for_program(mut child: Child, timeout: Duration) -> Result<(), String> {
     let pid = child.id();
     let started = Instant::now();
     loop {
@@ -2515,6 +2528,51 @@ mod tests {
         }
     }
 
+    /// Waits for a file to appear, up to a limit that only catches a hang. The caller waits for
+    /// the event itself, never for a fixed time.
+    fn wait_for_file(path: &Path, what: &str) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !path.is_file() {
+            assert!(Instant::now() < deadline, "{what} within 30 seconds");
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    /// A program a test started. However the test ends, its whole process group is stopped, so a
+    /// failed assertion leaves nothing running.
+    struct Running {
+        child: Option<Child>,
+    }
+
+    impl Running {
+        fn adopt(child: Child) -> Self {
+            Self { child: Some(child) }
+        }
+
+        fn is_running(&mut self) -> bool {
+            self.child
+                .as_mut()
+                .expect("the test program is running")
+                .try_wait()
+                .expect("read the test program's state")
+                .is_none()
+        }
+
+        /// Hands the child to the code that stops it. The guard then stops nothing.
+        fn take(&mut self) -> Child {
+            self.child.take().expect("the test program is running")
+        }
+    }
+
+    impl Drop for Running {
+        fn drop(&mut self) {
+            if let Some(mut child) = self.child.take() {
+                process_group::terminate_group(child.id(), Duration::from_millis(200));
+                let _ = child.wait();
+            }
+        }
+    }
+
     #[test]
     fn plat_34_copies_the_bundled_bin_folder() {
         let folder = TempDir::new();
@@ -2680,13 +2738,26 @@ mod tests {
         let source = folder.folder("source");
         let destination = folder.folder("destination");
         write_script(&source, "gh", "exit 0");
-        // A copy of a real program, because macOS refuses writes to a running Mach-O binary.
+        // A program the test writes itself, not a copied system binary: macOS refuses to start a
+        // copy of its own signed binaries.
+        let started = folder.path().join("old-started");
         let old = destination.join("gh");
-        fs::copy("/bin/sleep", &old).expect("place a real program in the destination");
-        let mut running = Command::new(&old)
-            .arg("2")
-            .spawn()
-            .expect("start the old copy");
+        write_script(
+            &destination,
+            "gh",
+            &format!(
+                "echo ready > \"{}\"\nwhile :; do sleep 1; done",
+                started.display()
+            ),
+        );
+        let mut running = Running::adopt(
+            Command::new(&old)
+                .process_group(0)
+                .spawn()
+                .expect("start the old copy"),
+        );
+        // Wait for the old copy to start before it is replaced, so a loaded Mac cannot race it.
+        wait_for_file(&started, "the old copy must start");
 
         let errors = verify_bundled_programs(&source, &destination).expect("verification");
 
@@ -2696,14 +2767,9 @@ mod tests {
             "#!/bin/sh\nexit 0\n"
         );
         assert!(
-            running
-                .try_wait()
-                .expect("read the old copy's state")
-                .is_none(),
+            running.is_running(),
             "renaming the new copy must leave the running one alone"
         );
-        running.kill().expect("stop the old copy");
-        running.wait().expect("collect the old copy");
     }
 
     #[test]
@@ -2724,18 +2790,24 @@ mod tests {
     fn plat_34_stops_the_children_a_program_started() {
         let folder = TempDir::new();
         let started = folder.path().join("child-started");
+        let go = folder.path().join("child-go");
         let ran = folder.path().join("child-ran");
         let program = write_script(
             folder.path(),
             "spawner",
             &format!(
-                "( sleep 0.5; echo ran > \"{}\" ) &\necho started > \"{}\"\nwait",
+                "( while [ ! -f \"{}\" ]; do sleep 0.05; done; echo ran > \"{}\" ) &\necho started > \"{}\"\nwait",
+                go.display(),
                 ran.display(),
                 started.display()
             ),
         );
 
-        let error = run_program_with_timeout(&program, Duration::from_millis(200))
+        // Start the program, then wait for the child to start before the timeout is applied: a
+        // loaded Mac can take longer than any fixed wait to reach the first line of the script.
+        let mut running = Running::adopt(spawn_program(&program).expect("start the program"));
+        wait_for_file(&started, "the child must have started");
+        let error = wait_for_program(running.take(), Duration::from_millis(200))
             .expect_err("the program outlives the timeout");
 
         assert!(
@@ -2746,11 +2818,17 @@ mod tests {
             started.is_file(),
             "the child must have started before the timeout"
         );
-        thread::sleep(Duration::from_millis(700));
-        assert!(
-            !ran.exists(),
-            "the whole process group must be stopped, not only the parent"
-        );
+        // Release the child now that the timeout has stopped the group. A child that survived the
+        // stop would run `ran` at once; a stopped one never runs it.
+        fs::write(&go, "go").expect("release the child");
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline {
+            assert!(
+                !ran.exists(),
+                "the whole process group must be stopped, not only the parent"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 
     #[test]
