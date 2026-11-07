@@ -19,7 +19,8 @@
  * (only the newest attempt changes state); stop asks the terminal service for a 20 second
  * watchdog, and a stop that is not confirmed is returned to the caller and kept as the
  * workspace's outcome until the next start; quitting the app closes all runs; a local-mirror
- * action in a cloud workspace is refused with a reason until CLOUD-11 supplies the mirror; "run
+ * action in a cloud workspace is refused with Conductor's "Local terminal unavailable", because no
+ * local terminal runs on the mirror yet (D111, CLOUD-11 #253); "run
  * after setup" starts the default action when setup succeeded; run output is not saved to disk.
  * Run history is
  * the last 20 action ids per workspace, kept in local storage so it survives a restart. Port
@@ -295,12 +296,7 @@ export class RunScriptsService {
 			return err(appError("run_action_empty", "That action has no command."));
 		}
 		if (action.runAvailability === "local" && workspace.value.host.kind === "cloud") {
-			return err(
-				appError(
-					"run_local_mirror_unavailable",
-					"This action runs on the local mirror, which cloud workspaces do not have yet.",
-				),
-			);
+			return err(appError("run_local_mirror_unavailable", "Local terminal unavailable"));
 		}
 		if (isArchivedWorkspace(workspace.value) || workspace.value.state === "archiving") {
 			return err(appError("workspace_not_ready", "That workspace is archived."));
@@ -793,12 +789,7 @@ export class RunScriptsService {
 			return err(appError("run_action_unknown", "That action no longer exists."));
 		}
 		if (action.runAvailability === "local" && workspace.value.host.kind === "cloud") {
-			return err(
-				appError(
-					"run_local_mirror_unavailable",
-					"This action runs on the local mirror, which cloud workspaces do not have yet.",
-				),
-			);
+			return err(appError("run_local_mirror_unavailable", "Local terminal unavailable"));
 		}
 		const repo = await this.#deps.repoFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);

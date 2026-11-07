@@ -679,7 +679,7 @@ describe("RUN-01 run targets expand by workspace kind", () => {
 		const started = await service.start(ws, "dev:local");
 
 		expect(started.ok).toBe(false);
-		if (!started.ok) expect(started.error.message).toContain("local mirror");
+		if (!started.ok) expect(started.error.message).toBe("Local terminal unavailable");
 		expect(runScript).not.toHaveBeenCalled();
 	});
 });
