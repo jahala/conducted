@@ -112,4 +112,4 @@ Not checked yet:
 - The three add-project paths: the catalogue's scripted git does not answer `rev-parse --show-toplevel` for a new folder, and no state queues a folder-dialog answer or scripts `gh` and clone.
 - Layout beyond the 13 elements in `layout.json`; colours and motion.
 - Backend renames: a Conductor name whose counterpart of ours has another name is a gap until someone maps the two.
-- Team and hosted features D004 and D025 leave out are gaps, not decisions, until a person maps them; the seeder has no rule for them, because the only signals are keywords.
+- Left-out features outside the regions read so far: the rules in `rules.ts` catch those whose words name them, and a person decides the rest by bundle region (section 2, "Sorting the gaps").

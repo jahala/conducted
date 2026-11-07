@@ -178,6 +178,16 @@ export function scriptGitHub(prs: readonly ScriptedPr[]): ShellScript {
 				}),
 			);
 		}
+		// Whether a branch ever had a pull request, which a rename checks before it renames (GIT-13).
+		if (args[0] === "pr" && args[1] === "list" && args.includes("--head")) {
+			const branch = args[args.indexOf("--head") + 1];
+			const found = prs
+				.filter((pr) => pr.branch === branch)
+				.map((pr) => ({
+					state: pr.kind === "merged" ? "MERGED" : "OPEN",
+				}));
+			return out(JSON.stringify(found));
+		}
 		console.info("[catalogue] unscripted gh command:", joined.slice(0, 120));
 		return null;
 	};
