@@ -59,24 +59,25 @@ How they talk:
 
 `packages/sidecar/src/adapters` holds the process, file, socket and environment ports the composition root (`modes/sidecar-mode.ts`) wires and passes down. A module outside `adapters/` may touch the outside world directly only when it is itself the edge: the implementation of a port, a listener, or the one helper for an external program. `scripts/guards/sidecar-edges.ts` fails on a new such module, and this list is the rule:
 
-| Module                                                  | Why it is the edge                                                                     |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `packages/sidecar/src/outbox/node-storage.ts`           | the `node:fs` implementation of `OutboxStorage`, whose port is `outbox/outbox-file.ts` |
-| `packages/sidecar/src/models/completions-cache.ts`      | `createNodeCompletionsFiles`, the slash-command cache's file edge                      |
-| `packages/sidecar/src/prompt/pull-request-stub.ts`      | the pull-request stub writer, passed to the assembler as a port                        |
-| `packages/sidecar/src/rpc/server.ts`                    | the Unix socket listener itself; `adapters/sockets.ts` only builds its path            |
-| `packages/sidecar/src/tools/socket-bridge.ts`           | the private Unix socket the app-tools helpers call                                     |
-| `packages/sidecar/src/tools/mcp-stdio-server.ts`        | the helper process that connects to that socket                                        |
-| `packages/sidecar/src/process/spawn-child.ts`           | the one spawn helper for long-lived agent children, wired by `adapters/process.ts`     |
-| `packages/sidecar/src/checkpoints/run-checkpointer.ts`  | runs `bin/checkpointer.sh` as a detached process group, behind the checkpointer's port |
-| `packages/sidecar/src/runners/managed-programs.ts`      | reads the program manager's links in the app's bin folder                              |
-| `packages/sidecar/src/runners/claude/transcript.ts`     | reads Claude's own transcript files, whose folder the agent owns                       |
-| `packages/sidecar/src/runners/claude/claude-session.ts` | checks whether a bundled skill plugin file exists                                      |
-| `packages/sidecar/src/runners/acp/acp-client.ts`        | answers an ACP agent's file reads and writes, restricted to the workspace              |
-| `packages/sidecar/src/runners/cursor/cursor-runner.ts`  | reads the launch script the Cursor SDK needs                                           |
-| `packages/sidecar/src/util/read-text.ts`                | the one "read a text file, a missing file is null" helper                              |
-| `packages/sidecar/src/main.ts`                          | the entry point: the launcher environment enters here once, for `config.ts`            |
-| `packages/sidecar/src/packaging.ts`                     | build-time packaging run by the package's `build` script, not by the sidecar process   |
+| Module                                                  | Why it is the edge                                                                                         |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `packages/sidecar/src/outbox/node-storage.ts`           | the `node:fs` implementation of `OutboxStorage`, whose port is `outbox/outbox-file.ts`                     |
+| `packages/sidecar/src/models/completions-cache.ts`      | `createNodeCompletionsFiles`, the slash-command cache's file edge                                          |
+| `packages/sidecar/src/prompt/pull-request-stub.ts`      | the pull-request stub writer, passed to the assembler as a port                                            |
+| `packages/sidecar/src/rpc/server.ts`                    | the Unix socket listener itself; `adapters/sockets.ts` only builds its path                                |
+| `packages/sidecar/src/tools/socket-bridge.ts`           | the private Unix socket the app-tools helpers call                                                         |
+| `packages/sidecar/src/tools/mcp-stdio-server.ts`        | the helper process that connects to that socket                                                            |
+| `packages/sidecar/src/process/spawn-child.ts`           | the one spawn helper for long-lived agent children, wired by `adapters/process.ts`                         |
+| `packages/sidecar/src/checkpoints/run-checkpointer.ts`  | runs `bin/checkpointer.sh` as a detached process group, behind the checkpointer's port                     |
+| `packages/sidecar/src/runners/managed-programs.ts`      | reads the program manager's links in the app's bin folder                                                  |
+| `packages/sidecar/src/runners/claude/transcript.ts`     | reads Claude's own transcript files, whose folder the agent owns                                           |
+| `packages/sidecar/src/runners/claude/claude-session.ts` | checks whether a bundled skill plugin file exists                                                          |
+| `packages/sidecar/src/runners/acp/acp-client.ts`        | answers an ACP agent's file reads and writes, restricted to the workspace                                  |
+| `packages/sidecar/src/runners/cursor/cursor-runner.ts`  | reads the launch script the Cursor SDK needs                                                               |
+| `packages/sidecar/src/util/read-text.ts`                | the one "read a text file, a missing file is null" helper                                                  |
+| `packages/sidecar/src/main.ts`                          | the entry point: the launcher environment enters here once, for `config.ts`                                |
+| `packages/sidecar/src/packaging.ts`                     | build-time packaging run by the package's `build` script, not by the sidecar process                       |
+| `packages/sidecar/src/cloud-build.ts`                   | build-time packaging for the cloud image, run by `apps/cloud/sandbox/build.ts`, not by the sidecar process |
 
 Every other module receives its files, processes, sockets and environment as values or ports from the composition root.
 
