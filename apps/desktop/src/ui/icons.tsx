@@ -87,6 +87,13 @@ export const PullRequestIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A pull request still in draft: the head side is dashed. */
+export const PullRequestDraftIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 3.5v1M11.5 6.5v1.5"
+		{...p}
+	/>
+);
 export const CheckIcon = (p: P) => <Icon d="M3 8.5l3 3 7-7" {...p} />;
 export const DotIcon = (p: P) => (
 	<Icon d="M8 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5z" {...p} />
