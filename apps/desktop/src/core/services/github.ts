@@ -43,6 +43,8 @@
  * and refused when HEAD cannot be read, and a head mismatch gets a blocked message instead of the
  * raw `gh` error; auto-merge on is the same merge pinned to HEAD, and auto-merge off is
  * `--disable-auto`; mark ready, edit, reviewer and approve calls refuse a workspace with no PR;
+ * every action after the poll (the writes, the base move, the stack read and catch-up, the review
+ * sync) acts on the workspace's linked pull request, else the one the poll found for its branch;
  * an approval is pinned to the pull request's head commit; mark ready can take the number of
  * another pull request of the stack, so the stack view marks the row clicked; the merge method
  * follows the repo's allowed methods (squash, then rebase, then merge) and is cached per
@@ -2743,6 +2745,19 @@ export class GithubService {
 		});
 	}
 
+	/**
+	 * The number of the workspace's pull request: the one linked to the workspace, else the one the
+	 * poll found for its branch. An agent opens most pull requests, so the poll's answer is the only
+	 * place their number lives (Conductor reads `workspacePrInfo`, services-map.md 2426).
+	 */
+	#pullRequestNumberOf(found: PrWorkspaceContext): number | null {
+		return (
+			found.prNumber ??
+			this.store.getState().byWorkspace[String(found.workspaceId)]?.pullRequest?.number ??
+			null
+		);
+	}
+
 	/** Reads the workspace's pull request and the `gh` sign-in every write action needs. */
 	async #preparePullRequestWrite(workspaceId: WorkspaceId): Promise<
 		Result<{
@@ -2754,14 +2769,15 @@ export class GithubService {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
-		if (found.prNumber === null) {
+		const prNumber = this.#pullRequestNumberOf(found);
+		if (prNumber === null) {
 			return err(appError("github_pr_missing", "This workspace has no pull request yet."));
 		}
 		const settings = await this.#ghSettings();
 		if (!settings.ok) return err(settings.error);
 		return ok({
 			found,
-			prNumber: found.prNumber,
+			prNumber,
 			runOptions: this.#runOptions(settings.value, found.workspacePath),
 		});
 	}
@@ -3010,20 +3026,21 @@ export class GithubService {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
-		if (found.prNumber === null) return ok(false);
+		const prNumber = this.#pullRequestNumberOf(found);
+		if (prNumber === null) return ok(false);
 
 		const settings = await this.#ghSettings();
 		if (!settings.ok) return err(settings.error);
 		const runOptions = this.#runOptions(settings.value, found.workspacePath);
 
-		const state = await this.#ghScalar(prViewState(found.prNumber), runOptions);
+		const state = await this.#ghScalar(prViewState(prNumber), runOptions);
 		if (!state.ok) return err(state.error);
 		if (state.value !== "OPEN") return ok(false);
 
 		const edited = await this.#runPullRequestCommand(
 			found,
 			runOptions,
-			prEdit(found.prNumber, { base: branch }),
+			prEdit(prNumber, { base: branch }),
 		);
 		return edited.ok ? ok(true) : err(edited.error);
 	}
@@ -3145,7 +3162,7 @@ export class GithubService {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
-		const prNumber = found.prNumber;
+		const prNumber = this.#pullRequestNumberOf(found);
 		if (prNumber === null) {
 			this.#stackMembers.delete(key);
 			return ok([]);
@@ -3317,7 +3334,8 @@ export class GithubService {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
-		if (found.prNumber === null) {
+		const prNumber = this.#pullRequestNumberOf(found);
+		if (prNumber === null) {
 			return err(appError("github_pr_missing", "This workspace has no pull request yet."));
 		}
 		const remoteUrl = await this.#deps.git.stdout(remoteGetUrl(found.remote), {
@@ -3326,7 +3344,7 @@ export class GithubService {
 		if (!remoteUrl.ok) return err(remoteUrl.error);
 		const repository = githubRepositoryFromRemote(remoteUrl.value);
 		if (!repository.ok) return err(repository.error);
-		return ok({ prNumber: found.prNumber, workspacePath: found.workspacePath });
+		return ok({ prNumber, workspacePath: found.workspacePath });
 	}
 
 	/**
@@ -3370,7 +3388,7 @@ export class GithubService {
 		const found = context.value;
 		const key = String(workspaceId);
 		const pullRequest = this.store.getState().byWorkspace[key]?.pullRequest ?? null;
-		if (found.prNumber === null || pullRequest === null) return skip("not_in_stack");
+		if (pullRequest === null) return skip("not_in_stack");
 		if (pullRequest.state !== "open" && pullRequest.state !== "draft") return skip("not_in_stack");
 		if (!pullRequest.viewerCanMerge) return skip("no_write_permission");
 		const repoRootPath = found.repoRootPath;
