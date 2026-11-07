@@ -36,6 +36,8 @@ export interface NewTabActions {
 	browserAvailable: boolean;
 	/** True when there is a chat to copy the files from. */
 	hasRecentChat: boolean;
+	/** "Cloud terminal" in a cloud workspace, "Local terminal" on the Mac (CLOUD-09). */
+	terminalLabel: "Cloud terminal" | "Local terminal";
 }
 
 export function useNewTab({
@@ -59,6 +61,7 @@ export function useNewTab({
 	const newestChat = openChats.state === "ready" ? openChats.data[0] : undefined;
 	const port = workspace.state === "ready" ? workspace.data.port : 0;
 	const browserAvailable = port > 0;
+	const cloudWorkspace = workspace.state === "ready" && workspace.data.host?.kind === "cloud";
 	const keyPrefix = `workspace:${workspaceId}`;
 
 	const newChat = (sameFiles = false): Promise<boolean> =>
@@ -107,5 +110,6 @@ export function useNewTab({
 		openBrowser,
 		browserAvailable,
 		hasRecentChat: newestChat !== undefined,
+		terminalLabel: cloudWorkspace ? "Cloud terminal" : "Local terminal",
 	};
 }

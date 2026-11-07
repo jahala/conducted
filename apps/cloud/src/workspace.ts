@@ -1,6 +1,7 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-06 Keep work across sandbox restarts
+ * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
  * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
@@ -49,6 +50,7 @@ import {
 import type { Env } from "./env.ts";
 import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
 import { SANDBOX_GIT_ENV } from "./sandbox-git-env.ts";
+import { type ServerMessage, TerminalSession } from "./terminal.ts";
 
 /** The port the sandbox image's bridge listens on. */
 export const SIDECAR_PORT = 8080;
@@ -129,6 +131,9 @@ interface StartReport {
 
 /** A loopback binding to a Worker export, as `ctx.exports` gives it. */
 type LoopbackExport = (options: { props: Record<string, unknown> }) => Fetcher;
+
+/** The preview path inside a Worker route: `/w/<name>/preview/<token>/<port>/<rest>`. */
+const PREVIEW_IN_WORKSPACE = /\/preview\/[^/]+\/(\d{1,5})(\/.*)?$/;
 
 /** A stat in the desktop's Platform FileStat shape. */
 export interface CloudFileStat {
@@ -521,6 +526,14 @@ export class Workspace extends DurableObject<Env> {
 	 * Durable Object and the container active while the desktop is connected.
 	 */
 	override async fetch(request: Request): Promise<Response> {
+		// A WebSocket and a proxied preview must be answered by this Durable Object's own `fetch`,
+		// because their Response holds a WebSocket or a stream that RPC cannot serialize.
+		const path = new URL(request.url).pathname;
+		if (path.endsWith("/terminal")) return this.terminal(request);
+		const preview = PREVIEW_IN_WORKSPACE.exec(path);
+		if (preview !== null) {
+			return this.preview(request, Number(preview[1]), preview[2] ?? "/");
+		}
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return new Response("Expected a WebSocket", { status: 426 });
 		}
@@ -542,6 +555,83 @@ export class Workspace extends DurableObject<Env> {
 		this.pump(server, upstream);
 		this.pump(upstream, server);
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/**
+	 * The terminal WebSocket. The client's first message names the folder, size and command; the
+	 * process runs in the container with a PTY, and its bytes travel as base64 JSON. The connection
+	 * keeps the Durable Object and the container active, as the relay does.
+	 */
+	async terminal(request: Request): Promise<Response> {
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return new Response("Expected a WebSocket", { status: 426 });
+		}
+		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
+		server.accept();
+		const send = (message: ServerMessage): void => {
+			try {
+				server.send(JSON.stringify(message));
+			} catch {
+				// The connection is already gone; its close event ends the session.
+			}
+		};
+		const session = new TerminalSession(
+			send,
+			async (input) => {
+				await this.ensureSetUp();
+				const container = this.requireContainer();
+				const process = await container.exec(input.command, {
+					cwd: input.cwd,
+					env: { ...CONTAINER_ENV, ...(input.env ?? {}) },
+					pty: { cols: input.cols, rows: input.rows },
+					stdin: "pipe",
+					stdout: "pipe",
+					stderr: "combined",
+				});
+				// The SDK process and the protocol share stdin, stdout and exit; the cast is the one
+				// seam between them.
+				return process as unknown as {
+					stdin: WritableStream<Uint8Array> | null;
+					stdout: ReadableStream<Uint8Array> | null;
+					exitCode: Promise<number>;
+					kill(signal?: number): void;
+					resize(cols: number, rows: number): void;
+				};
+			},
+			() => {
+				try {
+					server.close(1000, "The terminal ended.");
+				} catch {
+					// Already closed.
+				}
+			},
+		);
+		server.addEventListener("message", (event: MessageEvent) => {
+			const text = typeof event.data === "string" ? event.data : textOf(event.data as ArrayBuffer);
+			if (text === null) {
+				send({ type: "error", message: "A terminal message must be text." });
+				return;
+			}
+			void session.receive(text);
+		});
+		server.addEventListener("close", () => {
+			session.disconnect();
+		});
+		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/**
+	 * Proxies a browser's request to a port inside the sandbox. The preview token was checked by
+	 * the Worker's front door, so nothing here needs the pairing token.
+	 */
+	async preview(request: Request, port: number, rest: string): Promise<Response> {
+		if (this.container === undefined) {
+			return new Response("This workspace has no sandbox configured", { status: 503 });
+		}
+		await this.ensureSetUp();
+		const target = new URL(`http://container${rest.startsWith("/") ? rest : `/${rest}`}`);
+		target.search = new URL(request.url).search;
+		return this.requireContainer().getTcpPort(port).fetch(new Request(target, request));
 	}
 
 	/** Copies frames from one side to the other, reading each for turn state. */

@@ -198,8 +198,11 @@ pub fn route_url(base: &reqwest::Url, path: &str) -> CommandResult<reqwest::Url>
     Ok(url)
 }
 
-/// The WebSocket URL for one workspace's relay.
-pub fn relay_url(base: &reqwest::Url, vm_id: &str) -> CommandResult<reqwest::Url> {
+/// The WebSocket URLs a workspace's Durable Object answers: the sidecar relay and a terminal.
+pub const RELAY_CHANNELS: [&str; 2] = ["rpc", "terminal"];
+
+/// The WebSocket URL for one workspace's relay or terminal stream.
+pub fn relay_url(base: &reqwest::Url, vm_id: &str, channel: &str) -> CommandResult<reqwest::Url> {
     if vm_id.is_empty()
         || vm_id.len() > 63
         || !vm_id.chars().all(|character| {
@@ -213,7 +216,13 @@ pub fn relay_url(base: &reqwest::Url, vm_id: &str) -> CommandResult<reqwest::Url
             "A workspace id is lowercase letters, digits and dashes, and no longer than 63 characters.",
         ));
     }
-    let url = route_url(base, &format!("/w/{vm_id}/rpc"))?;
+    if !RELAY_CHANNELS.contains(&channel) {
+        return Err(refused(
+            "cloud_bad_channel",
+            "A cloud stream is the sidecar relay or a terminal.",
+        ));
+    }
+    let url = route_url(base, &format!("/w/{vm_id}/{channel}"))?;
     let mut url = url;
     url.set_scheme("wss").map_err(|_| {
         refused(
@@ -474,9 +483,11 @@ pub async fn cloud_relay_open(
     state: State<'_, CloudState>,
     url: String,
     vm_id: String,
+    channel: Option<String>,
 ) -> CommandResult<String> {
     let base = checked_worker_url(&url)?;
-    let relay = relay_url(&base, &vm_id)?;
+    let channel = channel.unwrap_or_else(|| String::from("rpc"));
+    let relay = relay_url(&base, &vm_id, &channel)?;
     let token = pairing_token().await?;
     let mut request = relay.as_str().into_client_request().map_err(|error| {
         refused(
@@ -642,14 +653,21 @@ mod tests {
     fn a_relay_url_is_secure_and_names_a_workspace() {
         let base = checked_worker_url("https://conducted.example.workers.dev").expect("a good URL");
         assert_eq!(
-            relay_url(&base, "oslo-1")
+            relay_url(&base, "oslo-1", "rpc")
                 .expect("a good workspace")
                 .as_str(),
             "wss://conducted.example.workers.dev/w/oslo-1/rpc"
         );
-        assert!(relay_url(&base, "Oslo").is_err());
-        assert!(relay_url(&base, "").is_err());
-        assert!(relay_url(&base, "-oslo").is_err());
+        assert_eq!(
+            relay_url(&base, "oslo-1", "terminal")
+                .expect("a good workspace")
+                .as_str(),
+            "wss://conducted.example.workers.dev/w/oslo-1/terminal"
+        );
+        assert!(relay_url(&base, "Oslo", "rpc").is_err());
+        assert!(relay_url(&base, "", "rpc").is_err());
+        assert!(relay_url(&base, "-oslo", "rpc").is_err());
+        assert!(relay_url(&base, "oslo-1", "colour").is_err());
     }
 
     #[test]

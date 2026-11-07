@@ -22,6 +22,15 @@ export const unusedDatabase: Database = {
 	transaction: refuse,
 };
 
+/** A memory Platform over an unused database, for a test that only needs the cloud stand-in. */
+export function cloudMemoryPlatform() {
+	return createMemoryPlatform({
+		clock: { now: () => 1_700_000_000_000 },
+		ids: { uuid: () => crypto.randomUUID() },
+		database: unusedDatabase,
+	});
+}
+
 export function memoryPlatformForShape(): Platform {
 	let idCounter = 0;
 	return createMemoryPlatform({

@@ -793,7 +793,15 @@ export interface Cloud {
 	/** Removes the saved pairing. A Mac that is not paired succeeds. */
 	unpair(): Promise<Result<void>>;
 	request(request: CloudRequest): Promise<Result<CloudResponse>>;
-	openRelay(input: { url: string; vmId: string }): Promise<Result<CloudRelay>>;
+	/**
+	 * Opens one line stream into the workspace's Durable Object. `channel` selects the sidecar
+	 * relay (the default) or a terminal's byte stream, which carries base64 JSON lines (CLOUD-09).
+	 */
+	openRelay(input: {
+		url: string;
+		vmId: string;
+		channel?: "rpc" | "terminal";
+	}): Promise<Result<CloudRelay>>;
 }
 
 /** http.rs: requests go through the system proxy settings and a URL allow-list. */
