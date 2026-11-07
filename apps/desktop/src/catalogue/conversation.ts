@@ -25,6 +25,8 @@ export interface ToolStep {
 	/** Null leaves the call running, with no result yet. */
 	output: string | null;
 	isError?: boolean;
+	/** The sub-agent call this call ran inside, so the Subagent card nests it. */
+	parent?: ToolUseId;
 }
 
 export interface Conversation {
@@ -36,8 +38,8 @@ export interface Conversation {
 	agent(turn: TurnId, items: AgentItem[]): void;
 	text(turn: TurnId, text: string): void;
 	thinking(turn: TurnId, text: string): void;
-	/** A tool call and, unless `output` is null, its result in a second message. */
-	tool(turn: TurnId, step: ToolStep): void;
+	/** A tool call and, unless `output` is null, its result in a second message. Returns its id. */
+	tool(turn: TurnId, step: ToolStep): ToolUseId;
 	usage(turn: TurnId, contextUsedTokens: number): void;
 	/** The end checkpoint with the files the turn changed, then the turn's end. */
 	end(turn: TurnId, changes?: FileChange[]): void;
@@ -93,6 +95,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 					tool: step.tool,
 					rawName: step.rawName,
 					input: step.input,
+					...(step.parent === undefined ? {} : { parentToolUseId: step.parent }),
 				},
 			]);
 			if (step.output !== null) {
@@ -103,9 +106,11 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 						output: step.output,
 						isError: step.isError ?? false,
 						truncated: false,
+						...(step.parent === undefined ? {} : { parentToolUseId: step.parent }),
 					},
 				]);
 			}
+			return toolUseId;
 		},
 		usage: (turn, contextUsedTokens) =>
 			agent(turn, [
