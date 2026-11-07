@@ -5,7 +5,7 @@
  * being archived, sends the route Home; an archived one stays open, as in Conductor, renderApp @10132431).
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
-import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
+import { ok, type RepoId, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { createMemoryHistory, type RouterHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -96,7 +96,7 @@ async function openApp(path: string | RouterHistory, fixture: Fixture = {}) {
 		</ServicesProvider>,
 	);
 	await router.load();
-	return { router, setActiveSession, registry, quit };
+	return { router, setActiveSession, registry, quit, container };
 }
 
 describe("NAV-02 route tree", () => {
@@ -287,5 +287,45 @@ describe("PLAT-15 Quit from the window", () => {
 
 		fireEvent.keyDown(document.body, { key: "q", metaKey: true });
 		await waitFor(() => expect(quit).toHaveBeenCalledTimes(2));
+	});
+});
+
+describe("PRJ-01 adding a project opens a workspace in it, as Conductor does", () => {
+	// Conductor's repo-created step (renderApp @1713146, autoCreateWorkspace) creates the new
+	// project's first workspace with the default chat settings and opens it.
+	const added = repo("app");
+	const first = workspace({ id: "w-first", repoId: added.id });
+
+	it("Open project: picks the folder, adds it, then opens a new workspace in it", async () => {
+		const { router, container } = await openApp("/");
+		vi.spyOn(container.actions.app, "pickFolder").mockResolvedValue(ok("/repos/app"));
+		vi.spyOn(container.actions.projects, "addLocal").mockResolvedValue(ok(added));
+		const create = vi
+			.spyOn(container.actions.workspaces, "createFirst")
+			.mockResolvedValue(ok(first));
+
+		fireEvent.click(await screen.findByRole("button", { name: /^Open project$/ }));
+
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/repository/app/workspace/w-first"),
+		);
+		expect(create).toHaveBeenCalledWith(added.id);
+	});
+
+	it("Open GitHub project: a finished clone opens a new workspace in the clone", async () => {
+		const { router, container } = await openApp("/");
+		vi.spyOn(container.actions.projects, "clone").mockResolvedValue(ok(added));
+		vi.spyOn(container.actions.workspaces, "createFirst").mockResolvedValue(ok(first));
+
+		fireEvent.click(await screen.findByRole("button", { name: /Open GitHub project/ }));
+		fireEvent.change(await screen.findByLabelText("Repository URL"), {
+			target: { value: "https://github.com/octo/app.git" },
+		});
+		fireEvent.change(screen.getByLabelText("Location"), { target: { value: "/repos" } });
+		fireEvent.click(screen.getByRole("button", { name: /Clone repository/ }));
+
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/repository/app/workspace/w-first"),
+		);
 	});
 });
