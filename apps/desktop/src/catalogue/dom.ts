@@ -48,7 +48,8 @@ export async function click(
 	element.dispatchEvent(new MouseEvent("mousedown", init));
 	element.dispatchEvent(new PointerEvent("pointerup", init));
 	element.dispatchEvent(new MouseEvent("mouseup", init));
-	element.click();
+	// A pointer click counts 1; `element.click()` counts 0, which controls read as the keyboard.
+	element.dispatchEvent(new MouseEvent("click", { ...init, detail: 1 }));
 	// A pointer click shows no focus ring; a scripted one would, so leave focus where a pointer would.
 	if (document.activeElement === element) element.blur();
 }

@@ -85,7 +85,7 @@ describe("REV-08 WorkspaceFilesService open and read", () => {
 
 			expect(await test.container.actions.files.reveal(workspace.id, "src/a.ts")).toEqual({
 				ok: true,
-				value: undefined,
+				value: { path: `${workspace.path}/src/a.ts`, downloaded: false },
 			});
 			expect(reveal).toHaveBeenCalledWith(`${workspace.path}/src/a.ts`);
 

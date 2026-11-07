@@ -70,7 +70,7 @@ export function LinkDirectoriesDialog({
 	};
 
 	const pickFolder = async () => {
-		const picked = await actions.app.pickFolder("Select working directories");
+		const picked = await actions.app.pickFolder("Select directory to link");
 		if (!picked.ok) {
 			setError(picked.error.message);
 			return;

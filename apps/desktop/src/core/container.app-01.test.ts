@@ -49,6 +49,7 @@ const SERVICE_NAMES = Object.keys({
 	cloudPairing: true,
 	cloudDeploy: true,
 	cloudWorkspace: true,
+	cloudFileSync: true,
 	git: true,
 	graphite: true,
 	gitCache: true,

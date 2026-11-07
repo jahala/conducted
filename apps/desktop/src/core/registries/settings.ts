@@ -13,8 +13,9 @@
  *
  * Our design choice: `default_message_send_mode` defaults to "steer" and its values are "steer" and "queue".
  * The research default is `steering` with the other value `queued`.
- * Our design choice: settings that the research marks as cloud, hosted account, billing, organization, remote control,
+ * Our design choice: settings that the research marks as hosted account, billing, organization, remote control,
  * analytics or internal are left out, as are secrets such as tokens and API keys, which belong in the Keychain.
+ * The file-sync switch for new cloud workspaces is kept because CLOUD-11 builds the sync it starts.
  * The one internal switch kept is `unstarted_workspaces_enabled`, because the backlog (WS-11) is built.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
@@ -114,7 +115,7 @@ const SETTINGS_TABLE = [
 		default: "enter",
 		options: [
 			{ value: "enter", label: "Enter" },
-			{ value: "cmd-enter", label: "Cmd+Enter" },
+			{ value: "cmd-enter", label: "⌘ Enter" },
 		],
 	},
 	// Our design choice: values are steer and queue (the research uses steering and queued), and the default is steer.
@@ -236,9 +237,8 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
-	// Our design choice: the key is renamed from the research name, to describe the behaviour.
 	{
-		key: "expand_tool_calls",
+		key: "garry_mode",
 		page: "general",
 		scopes: ["user"],
 		title: "Don't collapse tool calls (Garry Mode)",
@@ -1472,6 +1472,19 @@ const SETTINGS_TABLE = [
 		feature: "SET-07",
 		type: "string-list",
 		default: [],
+	},
+	// Our design choice: the wording is ours (D002); the research gives only the truncated row text.
+	{
+		key: "auto_sync_files_in_new_cloud_workspaces",
+		page: "advanced",
+		scopes: ["user"],
+		title: "Enable file sync in new cloud workspaces",
+		description:
+			"Start syncing a new cloud workspace to this Mac when its files are first needed. You can still turn sync on or off for one workspace later.",
+		searchTerms: ["cloud", "sync", "mirror", "files", "workspace"],
+		feature: "CLOUD-11",
+		type: "bool",
+		default: true,
 	},
 	// Our design choice: the key and the default folder are named after the app, as the research gives no default.
 	{

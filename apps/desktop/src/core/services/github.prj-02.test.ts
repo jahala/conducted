@@ -130,7 +130,7 @@ describe("PRJ-02 owner picker", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.code).toBe("github_failed");
-			expect(result.error.message).toContain("gh auth login");
+			expect(result.error.message).toContain("Reconnect GitHub in Settings");
 		}
 		expect(service.store.getState().health.status).toBe("broken");
 	});

@@ -26,7 +26,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy Codex verification code" }));
 
 		expect(onCopy).toHaveBeenCalledWith("ABCD-1234");
 	});

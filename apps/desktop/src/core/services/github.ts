@@ -256,8 +256,7 @@ export const GH_PAT_KEYCHAIN_KEY = "gh_pat_token";
 export const GITHUB_TOKEN_WARNING = "That doesn't look like a GitHub token. Are you sure?";
 /** Shown when a refresh of GitHub data fails for a reason the service cannot classify. */
 export const GITHUB_REFRESH_FAILED_MESSAGE = "Couldn't refresh GitHub";
-export const GITHUB_UNAUTHORIZED_MESSAGE =
-	"GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.";
+export const GITHUB_UNAUTHORIZED_MESSAGE = "Reconnect GitHub in Settings to keep pushing changes.";
 export const GITHUB_SAML_SSO_MESSAGE =
 	"GitHub requires single sign-on for this organization. Authorize your account for the organization, then try again.";
 /** Shown when the workspace's HEAD is not the pull request's head, so a merge would act on other code. */

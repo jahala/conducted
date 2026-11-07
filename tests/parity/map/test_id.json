@@ -46,7 +46,7 @@
 		"class": "wording",
 		"backlog": "COMP-01",
 		"owner": "hand",
-		"note": "Our composer input carries `composer-editor` (features/composer)."
+		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
 	},
 	"test_id:R9473251": {
 		"status": "decided",
@@ -61,7 +61,7 @@
 		"class": "wording",
 		"backlog": "NAV-10",
 		"owner": "hand",
-		"note": "Our split-pane tab drag has no ghost test id (features/workspace/SplitPanes.tsx)."
+		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
 	},
 	"test_id:R10242215": {
 		"status": "gap",
@@ -118,7 +118,7 @@
 		"class": "wording",
 		"backlog": "NAV-03",
 		"owner": "hand",
-		"note": "Our sidebar workspace row carries `workspace-row` (features/sidebar/WorkspaceRow.tsx)."
+		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
 	},
 	"test_id:R10441716": {
 		"status": "gap",
@@ -127,7 +127,7 @@
 		"class": "wording",
 		"backlog": "NAV-03",
 		"owner": "hand",
-		"note": "Our row's leading icons (RepoIconAvatar, WorkspaceStatusIcon) have no wrapper test id."
+		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
 	},
 	"test_id:R11550278": {
 		"status": "gap",
@@ -136,7 +136,7 @@
 		"class": "wording",
 		"backlog": "APP-02",
 		"owner": "hand",
-		"note": "Our onboarding screen (features/onboarding) has no test id."
+		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
 	},
 	"test_id:R12001662": {
 		"status": "decided",

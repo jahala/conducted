@@ -1,4 +1,5 @@
 /**
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
@@ -14,6 +15,22 @@ import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import { EMPTY_CLOUD_WORKSPACE_VIEW } from "../services/cloud-workspace.ts";
+
+export const useFileSyncStatus: Queries["useFileSyncStatus"] = (workspaceId) => {
+	const container = useServices();
+	const service = container.services.cloudFileSync;
+	const host = useStore(
+		container.services.workspace.store,
+		(state) => state.workspacesById[workspaceId]?.host,
+	);
+	// Subscribe to the status so a sync that finishes redraws the panel.
+	useStore(service.store, (state) => state.byWorkspace[workspaceId]);
+	useEffect(() => {
+		if (host?.kind !== "cloud") return;
+		void service.start(workspaceId);
+	}, [service, workspaceId, host?.kind]);
+	return service.viewOf(workspaceId, host ?? { kind: "local" });
+};
 
 export const useCloudPairing: Queries["useCloudPairing"] = () => {
 	const service = useServices().services.cloudPairing;

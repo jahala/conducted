@@ -14,7 +14,7 @@ describe("REV-08 ImagePreview", () => {
 		const image = container.querySelector("img");
 		expect(image).not.toBeNull();
 		if (image !== null) fireEvent.error(image);
-		expect(screen.getByText("Preview not available")).toBeTruthy();
+		expect(screen.getByText("Preview unavailable. Open the file to try again.")).toBeTruthy();
 		expect(screen.getByText(/Failed to load image/)).toBeTruthy();
 		expect(screen.getByText(/diagram.png/)).toBeTruthy();
 	});
@@ -32,11 +32,11 @@ describe("REV-08 ImagePreview", () => {
 		const { container, rerender } = render(<ImagePreview url="a.png?v=1" fileName="a.png" />);
 		const image = container.querySelector("img");
 		if (image !== null) fireEvent.error(image);
-		expect(screen.getByText("Preview not available")).toBeTruthy();
+		expect(screen.getByText("Preview unavailable. Open the file to try again.")).toBeTruthy();
 
 		rerender(<ImagePreview url="a.png?v=2" fileName="a.png" />);
 
-		expect(screen.queryByText("Preview not available")).toBeNull();
+		expect(screen.queryByText("Preview unavailable. Open the file to try again.")).toBeNull();
 		expect(container.querySelector("img")?.getAttribute("src")).toBe("a.png?v=2");
 	});
 
@@ -47,7 +47,7 @@ describe("REV-08 ImagePreview", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-		expect(screen.queryByText("Preview not available")).toBeNull();
+		expect(screen.queryByText("Preview unavailable. Open the file to try again.")).toBeNull();
 		expect(container.querySelector("img")?.getAttribute("src")).toBe("a.png");
 	});
 });

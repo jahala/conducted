@@ -12,7 +12,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { appError } from "@conducted/shared";
 import { useActions } from "../../core/hooks.ts";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { openInFailureTitle } from "../open-in/open-in-apps.ts";
 import { useOpenInApps } from "../open-in/use-open-in-apps.ts";
 
@@ -37,7 +37,27 @@ export function useOpenElsewhere(workspaceId: WorkspaceId, path: string): OpenEl
 		},
 		reveal: () => {
 			void actions.files.reveal(workspaceId, path).then((result) => {
-				if (!result.ok) toastError("Couldn't reveal the file in Finder", result.error);
+				if (!result.ok) {
+					toastError("Couldn't reveal the file in Finder", result.error);
+					return;
+				}
+				if (!result.value.downloaded) return;
+				toast.success(
+					<>
+						Saved to{" "}
+						<button
+							type="button"
+							className="cursor-pointer underline underline-offset-2"
+							onClick={() => {
+								void actions.files.revealPath(result.value.path).then((shown) => {
+									if (!shown.ok) toastError("Couldn't open Downloads", shown.error);
+								});
+							}}
+						>
+							Downloads
+						</button>
+					</>,
+				);
 			});
 		},
 	};

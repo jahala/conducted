@@ -55,7 +55,9 @@ describe("REV-08 FilePreviewPane", () => {
 			render(<FilePreviewPane workspaceId={workspace.id} path="data.bin" onOpenFile={vi.fn()} />, {
 				wrapper: wrapper(test.container),
 			});
-			expect(await screen.findByText("Preview not available")).toBeTruthy();
+			expect(
+				await screen.findByText("Preview unavailable. Open the file to try again."),
+			).toBeTruthy();
 		} finally {
 			test.close();
 		}

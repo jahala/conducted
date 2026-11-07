@@ -245,7 +245,7 @@ export function McpFormCard({
 										aria-label={field.label}
 										value={text === "" ? UNSET : text}
 										options={[
-											{ value: UNSET, label: "Choose..." },
+											{ value: UNSET, label: "Select an option" },
 											...field.options.map((option) => ({ value: option, label: option })),
 										]}
 										onValueChange={(next) => setValue(field.key, next === UNSET ? "" : next)}

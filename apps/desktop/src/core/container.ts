@@ -58,6 +58,7 @@ import {
 } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
 import { type CloudDeployService, createCloudDeploy } from "./cloud/deploy.ts";
+import { FileSyncService } from "./cloud/file-sync.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
 import { createHostRoutedSidecar } from "./cloud/router.ts";
@@ -112,7 +113,7 @@ import {
 	terminalLimit,
 } from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
-import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
+import { expandHome, type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
 import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {
@@ -171,6 +172,7 @@ export interface Services {
 	cloudPairing: CloudPairingService;
 	cloudDeploy: CloudDeployService;
 	cloudWorkspace: CloudWorkspaceService;
+	cloudFileSync: FileSyncService;
 	git: GitService;
 	graphite: GraphiteService;
 	gitCache: GitCache;
@@ -537,6 +539,19 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspaces: () => workspace.store,
 		repos: () => repo.store,
 		sessions: () => sessions.store,
+	});
+	const cloudFileSync = new FileSyncService({
+		cloud: platform.cloud,
+		fs: platform.fs,
+		opener: platform.opener,
+		workspaceOf: (id) => lookups.workspace(id),
+		repoNameOf: (id) => {
+			const found = lookups.repoOf(id);
+			return found.ok ? ok(found.value.name) : found;
+		},
+		rootPath: () => expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+		setting,
+		now: () => clock.now(),
 	});
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
@@ -1071,9 +1086,27 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 		searchOn: async (id) => {
-			const found = lookups.workspaceOn(id, "search");
-			return found.ok ? ok(undefined) : found;
+			const found = lookups.workspace(id);
+			if (!found.ok) return found;
+			if (found.value.host.kind === "local") return ok(undefined);
+			return cloudFileSync.ensureMirror(id);
 		},
+		searchRootOf: async (id) => {
+			const found = lookups.workspace(id);
+			if (!found.ok) return found;
+			if (found.value.host.kind === "cloud") return cloudFileSync.mirrorPathOf(id);
+			const roots = lookups.allowedRoots(id);
+			if (!roots.ok) return roots;
+			const first = roots.value[0];
+			return first === undefined
+				? err(appError("workspace_path_missing", "That workspace has no folder on this Mac."))
+				: ok(first);
+		},
+		hostKindOf: (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? found.value.host.kind : "local";
+		},
+		cloudOpen: (id, path) => cloudFileSync.downloadFile(id, path),
 		opener: platform.opener,
 	});
 	const review = new ReviewService({
@@ -1153,6 +1186,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cloudDeploy,
 		cloudWorkspace,
 		portForwards,
+		cloudFileSync,
 		git,
 		graphite,
 		gitCache,
@@ -1506,6 +1540,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		});
 		await step("keep-awake", () => keepAwake.stop());
 		await step("notifications", () => notifications.stop());
+		await step("cloud file sync", () => cloudFileSync.dispose());
 		await step("agent programs", () => system.dispose());
 		await step("the repo service", () => repo.dispose());
 		await step("git polling", () => git.dispose());
