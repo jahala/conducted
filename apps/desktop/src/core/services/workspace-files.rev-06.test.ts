@@ -1,4 +1,4 @@
-import { ok, type WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer } from "../../test/container.ts";
 import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
@@ -17,6 +17,9 @@ function serviceFor(test: ReturnType<typeof createTestContainer>) {
 		opener: test.memory.platform.opener,
 		searchOn: async () => ok(undefined),
 		rootsOf: async () => ok([root]),
+		searchRootOf: async () => ok(root),
+		hostKindOf: () => "local",
+		cloudOpen: async () => ok({ path: root, downloaded: false }),
 	});
 }
 
@@ -105,6 +108,10 @@ describe("REV-06 workspace files service", () => {
 				opener: test.memory.platform.opener,
 				searchOn: async () => ok(undefined),
 				rootsOf: async () => ok([]),
+				searchRootOf: async () =>
+					err(appError("workspace_path_missing", "That workspace has no folder on this Mac.")),
+				hostKindOf: () => "local",
+				cloudOpen: async () => ok({ path: root, downloaded: false }),
 			});
 			const tree = await service.tree(workspaceId);
 			const quickOpen = await service.quickOpen(workspaceId, "readme", 10);

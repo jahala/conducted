@@ -96,15 +96,15 @@ export interface WorkspaceFilesServiceDeps {
 	 * The folder a search reads (CLOUD-11): the workspace folder on the Mac, or the local mirror of
 	 * a cloud workspace.
 	 */
-	searchRootOf?: (workspaceId: WorkspaceId) => Promise<Result<string>>;
+	searchRootOf: (workspaceId: WorkspaceId) => Promise<Result<string>>;
 	/** Where a cloud workspace's file tab gets a file (CLOUD-11). Null for a Mac workspace. */
-	cloudOpen?: (
+	cloudOpen: (
 		workspaceId: WorkspaceId,
 		relativePath: string,
 		options?: { reveal?: boolean },
 	) => Promise<Result<{ path: string; downloaded: boolean }>>;
 	/** Which host a workspace is on, for the open and download branch (CLOUD-11). */
-	hostKindOf?: (workspaceId: WorkspaceId) => "local" | "cloud";
+	hostKindOf: (workspaceId: WorkspaceId) => "local" | "cloud";
 	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
 	opener: Pick<Opener, "revealInFinder" | "openWith">;
 }
@@ -648,10 +648,8 @@ export class WorkspaceFilesService {
 		workspaceId: WorkspaceId,
 		relativePath: string,
 	): Promise<Result<{ path: string; downloaded: boolean }>> {
-		const cloud =
-			this.#deps.hostKindOf?.(workspaceId) === "cloud" ? this.#deps.cloudOpen : undefined;
-		if (cloud !== undefined) {
-			const opened = await cloud(workspaceId, relativePath);
+		if (this.#deps.hostKindOf(workspaceId) === "cloud") {
+			const opened = await this.#deps.cloudOpen(workspaceId, relativePath);
 			if (!opened.ok) return opened;
 			if (opened.value.downloaded || opened.value.path.includes("/remote-workspace-sync/")) {
 				return opened;
@@ -676,10 +674,8 @@ export class WorkspaceFilesService {
 		relativePath: string,
 		appName: string,
 	): Promise<Result<void>> {
-		const cloud =
-			this.#deps.hostKindOf?.(workspaceId) === "cloud" ? this.#deps.cloudOpen : undefined;
-		if (cloud !== undefined) {
-			const opened = await cloud(workspaceId, relativePath, { reveal: false });
+		if (this.#deps.hostKindOf(workspaceId) === "cloud") {
+			const opened = await this.#deps.cloudOpen(workspaceId, relativePath, { reveal: false });
 			if (!opened.ok) return opened;
 			if (opened.value.downloaded || opened.value.path.includes("/remote-workspace-sync/")) {
 				return this.#deps.opener.openWith(appName, opened.value.path);
@@ -947,7 +943,6 @@ export class WorkspaceFilesService {
 	}
 
 	async #searchRootOf(workspaceId: WorkspaceId): Promise<Result<string>> {
-		if (this.#deps.searchRootOf === undefined) return this.#rootOf(workspaceId);
 		const root = await this.#deps.searchRootOf(workspaceId);
 		if (!root.ok) return root;
 		if (root.value.length === 0) {
