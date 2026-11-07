@@ -529,9 +529,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: () => repo.store,
 		sessions: () => sessions.store,
 	});
-	// unwired: CLOUD-03 the cloud workspace's model list arrives through the Worker's relay.
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
+		cloudClientFor: (host) => tunnelForHost(host),
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
 		repoRootPathOf: (sessionId) => {
 			const ws = lookups.workspaceOfSession(sessionId);

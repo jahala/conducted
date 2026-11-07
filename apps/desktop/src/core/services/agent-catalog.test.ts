@@ -1,4 +1,4 @@
-import type { AgentInstall, ModelInfo } from "@conducted/protocol";
+import type { AgentInstall, Host, ModelInfo } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
@@ -12,11 +12,13 @@ const claude = (changes: Partial<AgentInstall> = {}): AgentInstall => ({
 
 function serviceWith(
 	request: SidecarClient["request"],
-	options: { cloudSidecar?: Pick<SidecarClient, "request"> } = {},
+	options: {
+		cloudClientFor?: (host: Extract<Host, { kind: "cloud" }>) => Pick<SidecarClient, "request">;
+	} = {},
 ): AgentCatalogService {
 	return new AgentCatalogService({
 		sidecar: { request },
-		...(options.cloudSidecar === undefined ? {} : { cloudSidecar: options.cloudSidecar }),
+		...(options.cloudClientFor === undefined ? {} : { cloudClientFor: options.cloudClientFor }),
 		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspacePathOf: async () => ok("/workspace"),
 		repoRootPathOf: async () => ok("/repo"),
@@ -123,7 +125,7 @@ describe("SET-03 agent catalogue model lists", () => {
 		const local = vi.fn().mockResolvedValue(ok({ models: [model("local")] }));
 		const cloud = vi.fn().mockResolvedValue(ok({ models: [model("cloud")] }));
 		const service = serviceWith(local as unknown as SidecarClient["request"], {
-			cloudSidecar: { request: cloud as unknown as SidecarClient["request"] },
+			cloudClientFor: () => ({ request: cloud as unknown as SidecarClient["request"] }),
 		});
 		const host = {
 			kind: "cloud" as const,

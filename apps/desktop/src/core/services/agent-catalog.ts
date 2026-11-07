@@ -77,6 +77,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
+import { withoutProviderKeys } from "../cloud/router.ts";
 import type { ProviderKey, ProviderKeyRepository } from "../db/provider-keys.ts";
 import type {
 	AgentConfigFile,
@@ -138,8 +139,8 @@ export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent
 
 export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
-	/** The cloud workspace's sidecar, through the Worker (CLOUD-03). Absent until that door exists. */
-	cloudSidecar?: Pick<SidecarClient, "request">;
+	/** The sidecar of one cloud workspace, through the Worker's relay (CLOUD-03). */
+	cloudClientFor?: (host: Extract<Host, { kind: "cloud" }>) => Pick<SidecarClient, "request">;
 	/** Workspace folder of a chat, for slash commands. */
 	workspacePathOf: (sessionId: SessionId) => Promise<Result<string>>;
 	/**
@@ -548,7 +549,7 @@ export class AgentCatalogService {
 		}));
 		const launch = await this.#deps.launchFor(agent, acpAgent, null);
 		// A cloud workspace's list comes from its own sidecar, through the Worker (CLOUD-03).
-		const client = host?.kind === "cloud" ? this.#deps.cloudSidecar : this.#deps.sidecar;
+		const client = host?.kind === "cloud" ? this.#deps.cloudClientFor?.(host) : this.#deps.sidecar;
 		const result = !launch.ok
 			? launch
 			: client === undefined
@@ -558,12 +559,16 @@ export class AgentCatalogService {
 							"This cloud workspace's model list is not available yet.",
 						),
 					)
-				: await client.request(
-						"listModels",
-						acpAgent === undefined
-							? { agent, launch: launch.value }
-							: { agent, acpAgent, launch: launch.value },
-					);
+				: await (() => {
+						const params =
+							acpAgent === undefined
+								? { agent, launch: launch.value }
+								: { agent, acpAgent, launch: launch.value };
+						// A cloud list must carry no real provider key into the sandbox (CLOUD-05).
+						const sent =
+							host?.kind === "cloud" ? withoutProviderKeys("listModels", params) : params;
+						return client.request("listModels", sent as typeof params);
+					})();
 		if (this.#modelRequests.get(key) !== request) {
 			return result.ok ? ok(result.value.models) : err(result.error);
 		}
