@@ -82,6 +82,23 @@ describe("NAV-05 WorkspaceCard", () => {
 		expect(link.getAttribute("href")).toBe(`/repository/${repo.id}/workspace/${workspace.id}`);
 	});
 
+	it("shows no status words or branch after the name, as Conductor's row does not", async () => {
+		const { repo, workspace } = await seedCard({ displayName: "Fix the login", branch: "sam/fix" });
+		renderCard(workspace, repo);
+		const link = await screen.findByRole("link", { name: /Fix the login/ });
+		expect(within(link).queryByText("sam/fix")).toBeNull();
+	});
+
+	it("keeps an archived row one line, its actions at the right end", async () => {
+		const { repo, workspace } = await seedCard({ displayName: "Old work" });
+		renderCard(archive(workspace), repo);
+		const copy = await screen.findByRole("button", { name: "Copy path" });
+		const row = screen.getByTestId("home-workspace-card");
+		// Conductor's unarchive actions: two small buttons, then icon buttons named by tooltip (D098).
+		expect(copy.textContent).toBe("");
+		expect(row.className).toContain("h-11");
+	});
+
 	it("shows an Unarchive button on an archived card and no workspace link", async () => {
 		const { repo, workspace } = await seedCard({ displayName: "Old work" });
 		renderCard(archive(workspace), repo);

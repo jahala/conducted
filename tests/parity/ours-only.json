@@ -1,10 +1,5 @@
 [
 	{
-		"text": "All workspaces",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Home: the title strip and its filters."
-	},
-	{
 		"text": "Backlog",
 		"keep": "parity-round2-report.md (kept for the owner)",
 		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
@@ -95,8 +90,8 @@
 	},
 	{
 		"text": "In all projects",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Home: the title strip and its filters."
+		"decision": "D020",
+		"note": "Conductor's own project filter label, composed as \"In <projects>\" (renderApp @10213824); the spec holds no template for it."
 	},
 	{
 		"text": "Install status, versions and sign-in for each agent program.",
