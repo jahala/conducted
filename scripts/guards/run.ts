@@ -9,7 +9,12 @@ import { checkDataModel } from "./data-model.ts";
 import { checkDocs } from "./docs.ts";
 import { checkHeaderClaims } from "./header-claims.ts";
 import type { Problem } from "./lib.ts";
+import { checkLifetimeLimits } from "./lifetime-limits.ts";
+import { checkLocalStorageKeys } from "./local-storage-keys.ts";
 import { checkMigrations } from "./migrations.ts";
+import { checkModuleState } from "./module-state.ts";
+import { checkSettingsKeys } from "./settings-keys.ts";
+import { checkSidecarEdges } from "./sidecar-edges.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
 import {
 	checkBrowserImports,
@@ -36,6 +41,11 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["docs", checkDocs],
 	["data-model", checkDataModel],
 	["migrations", checkMigrations],
+	["module-state", checkModuleState],
+	["sidecar-edges", checkSidecarEdges],
+	["lifetime-limits", checkLifetimeLimits],
+	["settings-keys", checkSettingsKeys],
+	["local-storage-keys", checkLocalStorageKeys],
 	["headers", checkHeaders],
 	["header-claims", checkHeaderClaims],
 	["markers", checkMarkers],
