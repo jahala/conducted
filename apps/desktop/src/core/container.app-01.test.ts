@@ -410,6 +410,29 @@ describe("APP-01 after start", () => {
 		await harness.container.stop();
 	});
 
+	it("the Quit command asks and quits the same way as the menu's Quit", async () => {
+		const harness = build();
+		stubStartup(harness);
+		const safe = vi
+			.spyOn(harness.container.services.updates, "isSafeToQuit")
+			.mockReturnValue(false);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const confirm = vi.spyOn(harness.memory.platform.dialogs, "confirm");
+
+		await harness.container.start();
+
+		harness.memory.controls.queueDialogAnswers({ confirm: false });
+		harness.container.actions.app.quit();
+		await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+		expect(quit).not.toHaveBeenCalled();
+
+		safe.mockReturnValue(true);
+		harness.container.actions.app.quit();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		await harness.container.stop();
+	});
+
 	it("quits once the stop limit passes, even when a stop step never ends", async () => {
 		const harness = build();
 		stubStartup(harness);

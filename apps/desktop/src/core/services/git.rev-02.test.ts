@@ -209,6 +209,7 @@ describe("REV-02 viewed files", () => {
 		const actions = createActions(
 			{ git: service } as unknown as Services,
 			{} as unknown as Parameters<typeof createActions>[1],
+			{} as unknown as Parameters<typeof createActions>[2],
 		);
 		const result = await actions.git.setViewed(workspaceId, "src/a.ts", true);
 		expect(result.ok).toBe(true);

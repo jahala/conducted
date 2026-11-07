@@ -99,10 +99,12 @@ describe("PRJ-03 creating a project from a template", () => {
 		expect(test.memory.controls.shellCalls).toHaveLength(0);
 	});
 
-	it("refuses a parent folder that is missing or a folder already at the destination", async () => {
+	it("refuses a parent that is a file, or a folder already at the destination", async () => {
+		// A missing parent folder is made, as git clone makes one; a file in its place cannot be.
+		await test.container.platform.fs.writeTextAtomic("/a-file", "not a folder");
 		const missing = await test.container.actions.projects.createFromTemplate(
 			"app",
-			"/missing",
+			"/a-file",
 			"empty",
 		);
 		expect(missing.ok).toBe(false);

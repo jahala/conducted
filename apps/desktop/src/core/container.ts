@@ -1296,7 +1296,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		system,
 		commands,
 	};
-	const actions = createActions(services, platform);
+	const actions = createActions(services, platform, { requestQuit: () => requestQuit() });
 
 	// ---- startup ----
 	const steps: StartStep[] = [
@@ -1537,33 +1537,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		}, UPDATE_CHECK_INTERVAL_MS);
 		(updateTimer as unknown as { unref?: () => void }).unref?.();
 
-		let quitPromptOpen = false;
-		cleanups.push(
-			platform.app.onQuitRequested(() => {
-				if (updates.isSafeToQuit()) {
-					stopThenQuit();
-					return;
-				}
-				// Agents are still working. Ask before quitting, and only one prompt at a time.
-				if (quitPromptOpen) return;
-				quitPromptOpen = true;
-				void platform.dialogs
-					.confirm({
-						title: "Quit Conducted?",
-						message: "Agents are still working. Quitting stops their turns and running commands.",
-						okLabel: "Quit",
-					})
-					.then((confirmed) => {
-						quitPromptOpen = false;
-						if (confirmed) stopThenQuit();
-					})
-					.catch((cause: unknown) => {
-						quitPromptOpen = false;
-						const message = messageOf(cause);
-						log("warn", `Could not ask whether to quit: ${message}`);
-					});
-			}),
-		);
+		cleanups.push(platform.app.onQuitRequested(requestQuit));
 		await platform.app.setQuitHandlerReady();
 	};
 
@@ -1680,6 +1654,34 @@ export function createContainer(inputs: ContainerInputs): Container {
 				log("warn", `Could not quit: ${message}`);
 			},
 		);
+	};
+
+	// Every way to quit asks the same way: the menu's Quit (through Rust's quit hook) and the Quit
+	// command (Cmd+Q in the window, the command palette). While agents work it asks first, one
+	// prompt at a time; then it stops and quits.
+	let quitPromptOpen = false;
+	const requestQuit = (): void => {
+		if (services.updates.isSafeToQuit()) {
+			stopThenQuit();
+			return;
+		}
+		if (quitPromptOpen) return;
+		quitPromptOpen = true;
+		void platform.dialogs
+			.confirm({
+				title: "Quit Conducted?",
+				message: "Agents are still working. Quitting stops their turns and running commands.",
+				okLabel: "Quit",
+			})
+			.then((confirmed) => {
+				quitPromptOpen = false;
+				if (confirmed) stopThenQuit();
+			})
+			.catch((cause: unknown) => {
+				quitPromptOpen = false;
+				const message = messageOf(cause);
+				log("warn", `Could not ask whether to quit: ${message}`);
+			});
 	};
 
 	return {

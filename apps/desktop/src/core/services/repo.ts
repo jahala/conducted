@@ -120,6 +120,7 @@ import {
 	type SettingsFileContents,
 	type SettingsService,
 } from "./settings.ts";
+import { expandHome } from "./workspace.ts";
 
 /** What the clone dialog shows while a repository is cloned and after it ends. */
 export interface CloneProgress {
@@ -269,6 +270,9 @@ export function repoNameFromUrl(url: string): string | null {
 	return last === "" ? null : last;
 }
 
+/** The setting that remembers where the last clone went (Conductor's own key). */
+const LAST_CLONE_DIRECTORY = "last_clone_directory";
+
 /** Joins a parent folder and a child name with a single slash. */
 export function joinFolder(parent: string, child: string): string {
 	const root = normaliseRootPath(parent);
@@ -330,7 +334,12 @@ export interface RepoServiceDeps {
 	repos: Pick<Repositories, "repos" | "settings" | "workspaces">;
 	settings: Pick<
 		SettingsService,
-		"readSettingsFile" | "updateSettingsFile" | "readSettingsText" | "removeEnvVarsForRepo"
+		| "readSettingsFile"
+		| "updateSettingsFile"
+		| "readSettingsText"
+		| "removeEnvVarsForRepo"
+		| "get"
+		| "set"
 	>;
 	removal: RepoRemovalPort;
 	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
@@ -802,6 +811,23 @@ export class RepoService {
 	 * for a GitHub URL and `git clone --progress` otherwise, checks out the default branch, reads the
 	 * remote and adds the project. The store keeps the clone's state and final output for the dialog.
 	 */
+	/**
+	 * The folder the clone and Quick start dialogs suggest, as Conductor picks it: the last clone
+	 * folder while it still exists, otherwise `<root>/repos`.
+	 */
+	async defaultCloneDirectory(): Promise<string> {
+		const last = normaliseRootPath(this.#deps.settings.get<string>(LAST_CLONE_DIRECTORY) ?? "");
+		if (last !== "") {
+			const found = await this.#deps.platform.fs.stat(last);
+			if (found.ok && found.value.isDirectory) return last;
+		}
+		const root = expandHome(
+			this.#deps.settings.get<string>("conducted_root_path"),
+			this.#deps.platform.fs.paths.home,
+		);
+		return joinFolder(root, "repos");
+	}
+
 	async clone(rawUrl: string, rawParentDir: string): Promise<Result<Repo>> {
 		const url = normaliseRemoteUrl(rawUrl);
 		if (url === "") {
@@ -815,18 +841,8 @@ export class RepoService {
 		if (name === null) {
 			return err(appError("repo_url_invalid", "That doesn't look like a Git repository URL."));
 		}
-		const reachable = await this.#deps.platform.fs.registerRoot(parentDir);
-		if (!reachable.ok) return reachable;
-
-		const location = await this.#deps.platform.fs.stat(parentDir);
-		if (!location.ok) {
-			return err(
-				appError("repo_location_missing", `Can't find the folder ${parentDir}.`, location.error),
-			);
-		}
-		if (!location.value.isDirectory) {
-			return err(appError("repo_location_missing", `${parentDir} is not a folder.`));
-		}
+		const prepared = await this.#prepareParentFolder(parentDir);
+		if (!prepared.ok) return prepared;
 
 		const destination = joinFolder(parentDir, name);
 		const existingFolder = await this.#deps.platform.fs.stat(destination);
@@ -926,6 +942,7 @@ export class RepoService {
 			return registered;
 		}
 		this.#setCloneProgress({ state: "done", url, destination, output: "" });
+		await this.#rememberParentFolder(parentDir);
 		return ok(registered.value);
 	}
 
@@ -950,17 +967,8 @@ export class RepoService {
 		if (!isProjectTemplate(template)) {
 			return err(appError("repo_template_unknown", "Choose one of the offered templates."));
 		}
-		const reachable = await this.#deps.platform.fs.registerRoot(parentDir);
-		if (!reachable.ok) return reachable;
-		const location = await this.#deps.platform.fs.stat(parentDir);
-		if (!location.ok) {
-			return err(
-				appError("repo_location_missing", `Can't find the folder ${parentDir}.`, location.error),
-			);
-		}
-		if (!location.value.isDirectory) {
-			return err(appError("repo_location_missing", `${parentDir} is not a folder.`));
-		}
+		const parent = await this.#prepareParentFolder(parentDir);
+		if (!parent.ok) return parent;
 
 		const destination = joinFolder(parentDir, folder);
 		const existing = await this.#deps.platform.fs.stat(destination);
@@ -990,7 +998,42 @@ export class RepoService {
 			const cleaned = await this.#removeCreatedFolder(destination, registered.error);
 			return cleaned.ok ? registered : err(cleaned.error);
 		}
+		await this.#rememberParentFolder(parentDir);
 		return registered;
+	}
+
+	/**
+	 * Gets the folder a clone or a new project goes into ready: reachable by the file commands,
+	 * made when missing (git clone makes a missing parent too, so the suggested `<root>/repos` works
+	 * on a first run), and a folder.
+	 */
+	async #prepareParentFolder(parentDir: string): Promise<Result<void>> {
+		const reachable = await this.#deps.platform.fs.registerRoot(parentDir);
+		if (!reachable.ok) return reachable;
+		const made = await this.#deps.platform.fs.mkdirp(parentDir);
+		if (!made.ok) {
+			return err(
+				appError("repo_location_missing", `Can't create the folder ${parentDir}.`, made.error),
+			);
+		}
+		const location = await this.#deps.platform.fs.stat(parentDir);
+		if (!location.ok) {
+			return err(
+				appError("repo_location_missing", `Can't find the folder ${parentDir}.`, location.error),
+			);
+		}
+		if (!location.value.isDirectory) {
+			return err(appError("repo_location_missing", `${parentDir} is not a folder.`));
+		}
+		return ok(undefined);
+	}
+
+	/**
+	 * The next clone or new project suggests this folder (Conductor's `last_clone_directory`, which
+	 * both dialogs share). A failed save loses only the suggestion, so the work still succeeds.
+	 */
+	async #rememberParentFolder(parentDir: string): Promise<void> {
+		await this.#deps.settings.set(LAST_CLONE_DIRECTORY, parentDir);
 	}
 
 	/** Backs `Actions.projects.remove`. */

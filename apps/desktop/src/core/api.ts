@@ -430,6 +430,8 @@ export interface Actions {
 	projects: {
 		addLocal: Act<[path: string], Repo>;
 		clone: Act<[url: string, parentDir: string], Repo>;
+		/** The folder the clone and Quick start dialogs suggest: the last one used, or `<root>/repos`. */
+		defaultCloneDirectory: Act<[], string>;
 		createFromTemplate: Act<[name: string, parentDir: string, template: string], Repo>;
 		/** Creates a GitHub repository for a local project and pushes it. Returns the repository URL. */
 		createGitHubRepo: Act<
@@ -805,6 +807,8 @@ export interface Actions {
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
+		/** Quits the app the way the menu's Quit does: asks first while agents are working. */
+		quit: Act;
 		checkForUpdates: Act;
 		installUpdate: Act;
 		exportLogs: Act<[], string>;

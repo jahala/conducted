@@ -1,6 +1,6 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
- * Owns: the command palette open over a workspace, the Feedback dialog (opened as Send feedback opens it), a code file open in the file viewer, the file viewer
+ * Owns: the command palette open over a workspace, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
@@ -26,6 +26,69 @@ export const OVERLAY_STATES: CatalogueState[] = [
 					await pressUntilTaken(document, "k", { meta: true });
 				},
 				ready: (document) => document.querySelector('[aria-label="Command palette tabs"]') !== null,
+			};
+		},
+	},
+	{
+		// A tall dialog: its lists of repositories reach below a laptop window's fold, so the dialog
+		// must stay inside the window and scroll, as Conductor's does.
+		id: "clone-github-dialog",
+		group: "Overlays and panels",
+		title: "Clone GitHub repo dialog with its repositories",
+		seed: async (world) => {
+			await seedCast(world);
+			const row = (name: string, description: string, isPrivate = false) => ({
+				name,
+				owner: { login: "sam" },
+				description,
+				isPrivate,
+				url: `https://github.com/sam/${name}`,
+				sshUrl: `git@github.com:sam/${name}.git`,
+				updatedAt: "2026-11-02T10:00:00Z",
+			});
+			const answer = (stdout: string) => ({
+				ok: true as const,
+				value: { stdout, stderr: "", exitCode: 0 },
+			});
+			world.scriptShell((command) => {
+				if (command.program !== "gh") return null;
+				const args = command.args.join(" ");
+				if (args === "api user/orgs --paginate --jq .[].login") return answer("");
+				if (args.startsWith("api user/repos")) {
+					// GitHub's REST shape, which the Recent repos list reads.
+					const recent = (name: string, description: string) => ({
+						name,
+						owner: { login: "sam" },
+						updated_at: "2026-11-02T10:00:00Z",
+						description,
+						private: true,
+						clone_url: `https://github.com/sam/${name}.git`,
+						ssh_url: `git@github.com:sam/${name}.git`,
+					});
+					return answer(
+						JSON.stringify([
+							recent("atlas", "The marketing site and its blog"),
+							recent("relay", "Webhook relay with retries and a dead-letter queue"),
+							recent("ledger", "Double-entry bookkeeping for the billing service"),
+						]),
+					);
+				}
+				if (args.startsWith("repo list ")) {
+					return answer(
+						JSON.stringify([
+							row("atlas", "The marketing site and its blog"),
+							row("relay", "Webhook relay with retries and a dead-letter queue"),
+							row("ledger", "Double-entry bookkeeping for the billing service"),
+							row("tern", "A tiny command-line task runner"),
+						]),
+					);
+				}
+				return null;
+			});
+			return {
+				route: "/",
+				after: ({ document }) => click(document, "button", "Open GitHub project"),
+				ready: (document) => shows(document, "Recent repos"),
 			};
 		},
 	},

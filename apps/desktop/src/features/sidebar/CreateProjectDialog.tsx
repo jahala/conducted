@@ -85,6 +85,19 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 		setError(null);
 	}, [open]);
 
+	// Conductor fills the folder with the last one used, or <root>/repos, as the clone dialog does.
+	// Only this opening's answer lands, and a folder the user typed meanwhile is kept.
+	useEffect(() => {
+		if (!open) return;
+		let current = true;
+		void actions.projects.defaultCloneDirectory().then((suggested) => {
+			if (current && suggested.ok) setParent((typed) => (typed === "" ? suggested.value : typed));
+		});
+		return () => {
+			current = false;
+		};
+	}, [open, actions]);
+
 	const browse = async () => {
 		const picked = await actions.app.pickFolder("Choose where to create the project");
 		if (!picked.ok) {

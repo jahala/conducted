@@ -85,6 +85,7 @@ async function openApp(path: string | RouterHistory, fixture: Fixture = {}) {
 	const registry = createCommandRegistry();
 	const { container } = createShellContainer(fixture);
 	const setActiveSession = vi.spyOn(container.actions.workspaces, "setActiveSession");
+	const quit = vi.spyOn(container.actions.app, "quit");
 	render(
 		<ServicesProvider container={container}>
 			<AppProviders client={createQueryClient(() => {})}>
@@ -95,7 +96,7 @@ async function openApp(path: string | RouterHistory, fixture: Fixture = {}) {
 		</ServicesProvider>,
 	);
 	await router.load();
-	return { router, setActiveSession, registry };
+	return { router, setActiveSession, registry, quit };
 }
 
 describe("NAV-02 route tree", () => {
@@ -274,5 +275,17 @@ describe("NAV-02 back and forward commands", () => {
 
 		fireEvent.keyDown(document.body, { key: "[", metaKey: true });
 		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
+	});
+});
+
+describe("PLAT-15 Quit from the window", () => {
+	it("runs the Quit command, as Cmd+Q in the window and Quit in the palette do", async () => {
+		const { registry, quit } = await openApp("/");
+
+		expect(registry.run("app.quit")).toBe(true);
+		expect(quit).toHaveBeenCalledTimes(1);
+
+		fireEvent.keyDown(document.body, { key: "q", metaKey: true });
+		await waitFor(() => expect(quit).toHaveBeenCalledTimes(2));
 	});
 });

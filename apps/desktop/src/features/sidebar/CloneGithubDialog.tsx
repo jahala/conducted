@@ -133,7 +133,16 @@ export function CloneGithubDialog({ open, onOpenChange }: CloneGithubDialogProps
 		setOwner("");
 		setQuery("");
 		setError(null);
-	}, [open]);
+		// Conductor fills Location with the last clone folder, or <root>/repos. Only this opening's
+		// answer lands, and a folder the user typed meanwhile is kept.
+		let current = true;
+		void actions.projects.defaultCloneDirectory().then((suggested) => {
+			if (current && suggested.ok) setLocation((typed) => (typed === "" ? suggested.value : typed));
+		});
+		return () => {
+			current = false;
+		};
+	}, [open, actions]);
 
 	const choose = (repository: GitHubRepoSummary) => {
 		setUrl(repository.cloneUrl);
