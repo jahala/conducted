@@ -137,7 +137,7 @@ export function createActions(
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
 		},
 		pullRequests: {
-			create: (workspaceId) => services.github.create(workspaceId),
+			create: (workspaceId, options) => services.github.create(workspaceId, options),
 			markReady: (workspaceId) => services.github.markReady(workspaceId),
 			merge: (workspaceId) => services.github.merge(workspaceId),
 			setAutoMerge: (workspaceId, enabled) => services.github.setAutoMerge(workspaceId, enabled),
@@ -226,6 +226,8 @@ export function createActions(
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
 			resetForRepo: (repoId, key) => services.settings.resetForRepo(repoId, key),
+			filePath: (file) => services.settings.filePath(file),
+			openFile: (file, appName) => services.settings.openFile(file, appName),
 		},
 		agents: {
 			login: (agent, acpAgent) => services.agentCatalog.login(agent, acpAgent),
@@ -264,12 +266,18 @@ export function createActions(
 				settle("pick_folder_failed", "The folder picker could not be opened.", () =>
 					platform.dialogs.pickFolder({ title }),
 				),
+			pickFile: (title) =>
+				settle("pick_file_failed", "The file picker could not be opened.", async () => {
+					const [picked] = await platform.dialogs.pickFiles({ title, multiple: false });
+					return picked ?? null;
+				}),
 			recheckGitHubAccess: () => services.github.recheckAccess(),
 			createDiagnosticsChat: (workspaceId) => services.sessions.createDiagnosticsChat(workspaceId),
 			copyText: (text) => services.system.copyText(text),
 			sendFeedback: (input) => services.system.sendFeedback(input),
 			openSidecarLogs: () => services.system.openSidecarLogs(),
 			openFullDiskAccessSettings: () => services.system.openFullDiskAccessSettings(),
+			testCompletionSound: (soundId) => services.notifications.testSound(soundId),
 			runXcodeLicenseFix: () => services.system.runXcodeLicenseFix(),
 		},
 	};

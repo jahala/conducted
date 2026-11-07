@@ -329,6 +329,7 @@ describe("s1-ui-1 join", () => {
 		try {
 			const workspace = await seedWorkspace(test.container);
 			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
 			test.container.services.sessions.applyStoredEvent(created.id, 1, usageEvent(), 1001);
 
 			render(

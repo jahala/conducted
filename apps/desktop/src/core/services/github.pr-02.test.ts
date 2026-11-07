@@ -114,7 +114,7 @@ describe("PR-02 create a pull request", () => {
 		const agent = fakeAgent();
 		const service = makeService(git, agent, { customPrompt: "Use the release notes." });
 
-		expect(await service.create(workspaceId)).toEqual(ok(undefined));
+		expect(await service.create(workspaceId, { draft: false })).toEqual(ok(undefined));
 
 		expect(agent.calls).toHaveLength(1);
 		const text = agent.calls[0]?.text ?? "";
@@ -125,6 +125,14 @@ describe("PR-02 create a pull request", () => {
 		expect(text).not.toContain("uncommitted changes");
 	});
 
+	it("asks the agent for a draft pull request when the user chose one", async () => {
+		const agent = fakeAgent();
+		const service = makeService(fakeGit({ stdout: tracked }), agent);
+
+		expect(await service.create(workspaceId, { draft: true })).toEqual(ok(undefined));
+		expect(agent.calls[0]?.text).toContain("gh pr create --base main --draft");
+	});
+
 	it("asks the agent to commit when the worktree has uncommitted changes", async () => {
 		const git = fakeGit({
 			stdout: (command) => (command.args[0] === "status" ? ok(" M src/a.ts\n") : tracked(command)),
@@ -132,7 +140,7 @@ describe("PR-02 create a pull request", () => {
 		const agent = fakeAgent();
 		const service = makeService(git, agent);
 
-		expect(await service.create(workspaceId)).toEqual(ok(undefined));
+		expect(await service.create(workspaceId, { draft: false })).toEqual(ok(undefined));
 		expect(agent.calls[0]?.text).toContain("uncommitted changes");
 	});
 
@@ -144,7 +152,7 @@ describe("PR-02 create a pull request", () => {
 		const agent = fakeAgent();
 		const service = makeService(git, agent);
 
-		const result = await service.create(workspaceId);
+		const result = await service.create(workspaceId, { draft: false });
 
 		expect(result.ok).toBe(false);
 		expect(!result.ok && result.error.code).toBe("github_not_github");
@@ -156,7 +164,7 @@ describe("PR-02 create a pull request", () => {
 		const agent = fakeAgent();
 		const service = makeService(git, agent, { targetBranch: undefined });
 
-		const result = await service.create(workspaceId);
+		const result = await service.create(workspaceId, { draft: false });
 
 		expect(result.ok).toBe(false);
 		expect(!result.ok && result.error.code).toBe("github_target_unknown");
@@ -173,7 +181,7 @@ describe("PR-02 create a pull request", () => {
 			withLink,
 			{},
 			setting({ include_workspace_link_in_pr: true }),
-		).create(workspaceId);
+		).create(workspaceId, { draft: false });
 		expect(withLink.calls[0]?.text).toContain("conducted://workspace?id=ws-1");
 
 		const withoutLink = fakeAgent();
@@ -182,7 +190,7 @@ describe("PR-02 create a pull request", () => {
 			withoutLink,
 			{},
 			setting({ include_workspace_link_in_pr: false }),
-		).create(workspaceId);
+		).create(workspaceId, { draft: false });
 		expect(withoutLink.calls[0]?.text).not.toContain("conducted://");
 	});
 });

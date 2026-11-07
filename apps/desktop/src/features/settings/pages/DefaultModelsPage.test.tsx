@@ -146,6 +146,77 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 	});
 
+	/** A drag's data, as a browser keeps it between dragstart and drop. */
+	const dragData = (dropEffect: string) => {
+		const data = new Map<string, string>();
+		return {
+			setData: (type: string, value: string) => data.set(type, value),
+			getData: (type: string) => data.get(type) ?? "",
+			get types() {
+				return [...data.keys()];
+			},
+			effectAllowed: "move",
+			dropEffect,
+		};
+	};
+
+	it("takes a model out of the loadout when its slot is dropped outside the slots", async () => {
+		const { container } = await renderPage();
+		fireEvent.click(
+			within(screen.getByRole("region", { name: "Codex" })).getByRole("button", {
+				name: "Add GPT to loadout",
+			}),
+		);
+		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
+
+		// WebKit, the engine of the app's window, reports a drop's effect unlike Chromium, so the
+		// drop on the page is what takes the model out, not the effect dragend reports.
+		const transfer = dragData("move");
+		fireEvent.dragStart(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		const heading = screen.getByRole("heading", { name: "Default models" });
+		fireEvent.dragOver(heading, { dataTransfer: transfer });
+		fireEvent.drop(heading, { dataTransfer: transfer });
+		fireEvent.dragEnd(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+
+		await waitFor(() =>
+			expect(container.services.favoriteModels.store.getState().favorites).toEqual([]),
+		);
+	});
+
+	it("keeps the model when a slot's drag is cancelled with no drop", async () => {
+		const { container } = await renderPage();
+		fireEvent.click(
+			within(screen.getByRole("region", { name: "Codex" })).getByRole("button", {
+				name: "Add GPT to loadout",
+			}),
+		);
+		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
+
+		const transfer = dragData("none");
+		fireEvent.dragStart(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		fireEvent.dragEnd(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(
+			container.services.favoriteModels.store
+				.getState()
+				.favorites.map((entry) => entry.config.model),
+		).toEqual(["gpt"]);
+	});
+
+	it("opens a slot's choices on the click, never on the press that may start a drag", async () => {
+		await renderPage();
+		const trigger = within(slot(1)).getByRole("button");
+
+		fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+		expect(screen.queryByRole("menu", { name: "Slot 1" })).toBeNull();
+
+		fireEvent.click(trigger, { detail: 1 });
+		expect(await screen.findByRole("menu", { name: "Slot 1" })).toBeTruthy();
+	});
+
 	it("changes the default model from its slot, and disables fast mode the model lacks", async () => {
 		const { container } = await renderPage();
 		const trigger = within(slot(1)).getByRole("button");
@@ -159,6 +230,37 @@ describe("SET-02 DefaultModelsPage", () => {
 		const fast = await screen.findByRole("menuitemcheckbox", { name: "Fast mode" });
 		expect(fast.getAttribute("aria-disabled")).toBe("true");
 		expect(screen.getByText("The chosen model does not support fast mode.")).toBeTruthy();
+	});
+
+	it("picks the review model, its effort and fast mode in one picker, as Conductor does", async () => {
+		const { container } = await renderPage();
+		const row = document.querySelector('[data-setting-key="review_model"]');
+		if (!(row instanceof HTMLElement)) throw new Error("no Review model row");
+		expect(within(row).queryByRole("textbox")).toBeNull();
+		// An empty review model is the default model, so the picker names it.
+		const trigger = within(row).getByRole("button", { name: /Review model: Fast model, High/ });
+
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Slow model" }));
+		await waitFor(() =>
+			expect(container.services.settings.store.getState().values.review_model).toBe("slow-model"),
+		);
+
+		fireEvent.keyDown(within(row).getByRole("button", { name: /Review model: Slow model/ }), {
+			key: "Enter",
+		});
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Low" }));
+		await waitFor(() =>
+			expect(container.services.settings.store.getState().values.review_claude_effort_level).toBe(
+				"low",
+			),
+		);
+		// The picker holds the effort and fast mode, so they have no rows of their own.
+		const keys = [...document.querySelectorAll("[data-setting-key]")].map((entry) =>
+			entry.getAttribute("data-setting-key"),
+		);
+		expect(keys).not.toContain("review_claude_effort_level");
+		expect(keys).not.toContain("review_fast_mode");
 	});
 
 	it("asks for the agent list when nothing has read it yet, as the Agents page does", async () => {

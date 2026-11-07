@@ -3,13 +3,14 @@
  * Owns: the left column of the settings screen: the search box, the grouped page links, the
  * repository picker with its pages, and the Back button.
  * Behaviour: ui-map.md 6 (layout and navigation groups; Back and Esc leave; Cmd+F focuses search).
+ * Conductor's Back sits in the window's title bar row (renderApp prl, @11773158): a 32 px drag
+ * region with 8 px above, the button at its right with "Esc" as its tooltip.
  * Must handle: the active page marked (aria-current), no repositories (the group says so), many
  * repositories (the picker has type-ahead), and a repository page applying to the picked project.
  * Test first: the active page link has aria-current and the others do not.
  */
 import type { RepoId } from "@conducted/shared";
 import type { ReactElement, ReactNode, SVGProps } from "react";
-import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import {
 	ArrowLeftIcon,
@@ -26,6 +27,7 @@ import {
 	UserCircleIcon,
 	WrenchIcon,
 } from "../../ui/icons.tsx";
+import { Tooltip } from "../../ui/Tooltip.tsx";
 import {
 	REPO_SETTINGS_PAGES,
 	SETTINGS_NAV_GROUP_TITLES,
@@ -88,13 +90,24 @@ export function SettingsNav({
 
 	return (
 		<aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface">
-			<div className="flex h-10 shrink-0 items-center justify-end px-2">
-				<Button variant="ghost" size="sm" className="gap-1.5 text-fg-muted" onClick={onBack}>
-					<ArrowLeftIcon className="size-3.5" />
-					Back
-				</Button>
+			{/* Conductor's Back row is the window's title bar: a drag region beside the traffic lights. */}
+			<div
+				data-tauri-drag-region
+				className="flex h-8 shrink-0 items-center justify-end px-1.5 pt-2"
+			>
+				<Tooltip content="Esc" side="right">
+					<button
+						type="button"
+						tabIndex={-1}
+						onClick={onBack}
+						className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-fg-muted transition-colors hover:text-fg"
+					>
+						<ArrowLeftIcon className="size-4" />
+						Back
+					</button>
+				</Tooltip>
 			</div>
-			<div className="px-1.5 pb-3">{searchSlot}</div>
+			<div className="px-1.5 py-3">{searchSlot}</div>
 
 			<nav aria-label="Settings" className="flex flex-col gap-4 px-1.5 pb-4">
 				{GROUPS_BEFORE_REPOSITORIES.map((group) => (

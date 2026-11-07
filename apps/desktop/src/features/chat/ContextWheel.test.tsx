@@ -71,7 +71,17 @@ function addUsage(
 	over: Partial<UsageItem> = {},
 	idx = 1,
 ): void {
-	test.container.services.sessions.applyStoredEvent(sessionId, idx, usageEvent(over), 1000 + idx);
+	const event = usageEvent(over);
+	test.container.services.sessions.applyStoredEvent(sessionId, idx, event, 1000 + idx);
+	// The ingest stores a reported window in the per-model table, the chat's one home for it.
+	const item = (event as AgentEvent).message.items.find((entry) => entry.kind === "usage");
+	if (item?.kind === "usage" && item.contextWindowTokens !== undefined) {
+		test.container.services.contextWindows.remember(
+			"claude",
+			CONFIG.model,
+			item.contextWindowTokens,
+		);
+	}
 }
 
 function setSetting(test: TestContainer, key: string, value: boolean): void {
@@ -190,6 +200,19 @@ describe("CHAT-14 context wheel", () => {
 			// An earlier chat of this agent and model reported its window, which the app remembers.
 			test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
 			addUsage(test, session.id, { contextWindowTokens: undefined });
+			render(<ContextWheel sessionId={session.id} />, { wrapper });
+			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+		} finally {
+			await teardown(test);
+		}
+	});
+
+	it("reads the window from the model table, not from the usage item", async () => {
+		const { test, session, wrapper } = await setup();
+		try {
+			// The usage item reports 200,000, but the app remembers the model's window as 100,000.
+			addUsage(test, session.id, { contextWindowTokens: 200_000 });
+			test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
 			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
 		} finally {

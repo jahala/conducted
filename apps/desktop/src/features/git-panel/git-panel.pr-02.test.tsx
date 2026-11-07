@@ -121,7 +121,7 @@ describe("PR-02 git panel create PR", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: /Create PR/ }));
 
-		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId));
+		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId, { draft: false }));
 	});
 
 	it("maps Cmd+Shift+P to git.createPr and runs the panel's handler", async () => {
@@ -139,7 +139,7 @@ describe("PR-02 git panel create PR", () => {
 		expect(commandForKeyPress(press, ["global"], keyBindings())).toBe("git.createPr");
 		expect(runCommandHandlers("git.createPr")).toBe(true);
 
-		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId));
+		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId, { draft: false }));
 	});
 
 	it("asks the agent for one pull request when Cmd+Shift+P is pressed twice while the first runs", async () => {

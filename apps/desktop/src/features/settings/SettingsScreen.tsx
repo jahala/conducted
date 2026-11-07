@@ -3,7 +3,10 @@
  * Owns: the settings route. A left navigation with search, and the page for `page`. Entry point
  * embedded by the router.
  * Behaviour: ui-map.md 6 (layout: left nav with a search box, Back and Esc to leave, repository
- * picker in the Repositories group; pages by group). Cloud pages (organization, members, cloud
+ * picker in the Repositories group; pages by group). Conductor's frame (renderApp, the settings
+ * layout @11782342): the screen fills the window with no strip above it; the page column starts
+ * with a 40 px top bar that is a window drag region and holds "Open settings.toml" at its right,
+ * then the page scrolls with 40 px sides and a 56rem column. Cloud pages (organization, members, cloud
  * computer) and Conductor's phone-pairing remote control are left out; the Remote control page holds
  * our claude.ai Remote Control settings (RC-04, D019).
  * Data: useRepos for the Repositories group. Each page reads its own data.
@@ -26,6 +29,7 @@ import { useLiveShortcut, useRepos } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
+import { OpenSettingsFileButton } from "./OpenSettingsFileButton.tsx";
 import { AccountPage } from "./pages/AccountPage.tsx";
 import { AdvancedPage } from "./pages/AdvancedPage.tsx";
 import { AgentsPage } from "./pages/AgentsPage.tsx";
@@ -255,10 +259,18 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 					/>
 				}
 			/>
-			<main className="min-h-0 flex-1 overflow-y-auto">
-				<div className="h-10 border-b border-border" />
-				<div className="w-full max-w-[var(--settings-content-width)] px-10 pt-6 pb-8">
-					{content}
+			<main className="flex min-h-0 min-w-0 flex-1 flex-col">
+				<div
+					data-tauri-drag-region
+					data-testid="settings-top-bar"
+					className="flex h-10 shrink-0 items-center justify-end border-b border-border px-10"
+				>
+					<OpenSettingsFileButton
+						file={active.kind === "repo" ? { repoId: active.repoId } : "user"}
+					/>
+				</div>
+				<div className="min-h-0 flex-1 overflow-y-auto px-10 pt-6 pb-8">
+					<div className="min-w-0 max-w-[var(--settings-content-width)] pb-14">{content}</div>
 				</div>
 			</main>
 		</div>

@@ -7,7 +7,7 @@
  * Resolve instead; a clean tree has neither.
  */
 import { describe, expect, it } from "vitest";
-import type { GitState } from "../model.ts";
+import type { GitState, PullRequest } from "../model.ts";
 import { computeGitHeader, type GitHeaderInputs } from "./git-header.ts";
 
 const gitState = (overrides: Partial<GitState> = {}): GitState => ({
@@ -25,6 +25,27 @@ const gitState = (overrides: Partial<GitState> = {}): GitState => ({
 	pendingPullRequestAction: null,
 	...overrides,
 });
+
+const OPEN_PULL_REQUEST: PullRequest = {
+	number: 1,
+	url: "https://example.test/pull/1",
+	title: "A change",
+	body: "",
+	state: "open",
+	mergeable: "mergeable",
+	reviewDecision: null,
+	checks: [],
+	inMergeQueue: false,
+	autoMergeEnabled: false,
+	baseBranch: "main",
+	authorLogin: "octocat",
+	viewerDidAuthor: false,
+	viewerCanMerge: true,
+	mergeMethod: "squash",
+	reviewers: [],
+	deployments: [],
+	updatedAt: 0,
+};
 
 const inputs = (git: GitState): GitHeaderInputs => ({
 	git,
@@ -44,8 +65,14 @@ describe("GIT-07 Git header resolve action", () => {
 	});
 
 	it("offers the incompatibility Resolve, not the conflicts one, when the branch has diverged from its remote", () => {
+		// Conductor shows the remote's state once the branch has a pull request.
 		const header = computeGitHeader(
-			inputs(gitState({ sync: { ahead: 1, behind: 1, rewritten: false, hasUpstream: true } })),
+			inputs(
+				gitState({
+					sync: { ahead: 1, behind: 1, rewritten: false, hasUpstream: true },
+					pullRequest: OPEN_PULL_REQUEST,
+				}),
+			),
 		);
 
 		expect(header.kind).toBe("diverged");

@@ -14,7 +14,7 @@
 		"text": "Check again",
 		"state": "settings-account",
 		"decision": "D098",
-		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+		"note": "Ours, placed in Conductor's layout: the GitHub token, sign-in method and Check again in the GitHub dialog on Account (docs/design.md)."
 	},
 	{
 		"text": "Checking the saved pairing…",
@@ -26,13 +26,19 @@
 		"text": "Choose how the app signs in to GitHub. Automatic uses a saved personal access token when there is one, and the gh command's own login otherwise.",
 		"state": "settings-account",
 		"decision": "D098",
-		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+		"note": "Ours, placed in Conductor's layout: the GitHub token, sign-in method and Check again in the GitHub dialog on Account (docs/design.md)."
 	},
 	{
 		"text": "Claude Code · default",
 		"state": "composer-model-picker",
 		"decision": "D098",
 		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
+	},
+	{
+		"text": "Clear",
+		"state": "settings-key-bindings",
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Clear after Reset on a Keyboard shortcuts row (docs/design.md)."
 	},
 	{
 		"text": "Cloud Workspaces",
@@ -74,7 +80,7 @@
 		"text": "GitHub sign-in method",
 		"state": "settings-account",
 		"decision": "D098",
-		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+		"note": "Ours, placed in Conductor's layout: the GitHub token, sign-in method and Check again in the GitHub dialog on Account (docs/design.md)."
 	},
 	{
 		"text": "In all projects",
@@ -119,7 +125,7 @@
 		"text": "Optional. Stored in the Keychain and given to gh as GH_TOKEN. It is never shown again.",
 		"state": "settings-account",
 		"decision": "D098",
-		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+		"note": "Ours, placed in Conductor's layout: the GitHub token, sign-in method and Check again in the GitHub dialog on Account (docs/design.md)."
 	},
 	{
 		"text": "Pair",
@@ -178,7 +184,7 @@
 		"text": "Save token",
 		"state": "settings-account",
 		"decision": "D098",
-		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+		"note": "Ours, placed in Conductor's layout: the GitHub token, sign-in method and Check again in the GitHub dialog on Account (docs/design.md)."
 	},
 	{
 		"text": "Select Claude Code · default",
@@ -242,7 +248,7 @@
 		"text": "ghp_...",
 		"state": "settings-account",
 		"decision": "D098",
-		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+		"note": "Ours, placed in Conductor's layout: the GitHub token, sign-in method and Check again in the GitHub dialog on Account (docs/design.md)."
 	},
 	{
 		"text": "https://conducted.example.workers.dev",

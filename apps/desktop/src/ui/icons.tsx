@@ -87,6 +87,24 @@ export const PullRequestIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A pull request still in draft: the head side is dashed. */
+export const PullRequestDraftIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 3.5v1M11.5 6.5v1.5"
+		{...p}
+	/>
+);
+/** A speaker with two sound waves. */
+export const VolumeIcon = (p: P) => (
+	<Icon
+		d="M2.5 6h2.5L8.5 3v10L5 10H2.5zM11 6a2.75 2.75 0 0 1 0 4M12.75 4.25a5.25 5.25 0 0 1 0 7.5"
+		{...p}
+	/>
+);
+/** A closed padlock. */
+export const LockIcon = (p: P) => (
+	<Icon d="M3.5 7.5h9v6h-9zM5.5 7.5V5.25a2.5 2.5 0 0 1 5 0V7.5" {...p} />
+);
 export const CheckIcon = (p: P) => <Icon d="M3 8.5l3 3 7-7" {...p} />;
 export const DotIcon = (p: P) => (
 	<Icon d="M8 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5z" {...p} />

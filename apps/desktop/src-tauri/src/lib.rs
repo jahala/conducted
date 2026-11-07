@@ -811,6 +811,7 @@ pub fn run() {
             open_with::reveal_in_finder,
             open_with::open_with,
             open_with::installed_apps,
+            open_with::app_icon,
             speech::speech_available,
             speech::speech_start,
             speech::speech_stop,

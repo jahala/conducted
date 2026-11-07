@@ -269,7 +269,12 @@ describe("GIT-17 Continue header", () => {
 		cleanup();
 		await renderPanel(harness, workspace);
 
-		expect(await screen.findByRole("button", { name: "PR status details" })).toBeTruthy();
+		// The new branch has no pull request and no changes, so the header is read but empty, as
+		// in Conductor.
+		await screen.findByRole("tablist");
+		await waitFor(() =>
+			expect(screen.queryByRole("status", { name: "Loading git state" })).toBeNull(),
+		);
 		expect(screen.queryByRole("button", { name: /^Continue/ })).toBeNull();
 		expect(
 			harness.container.services.github.store.getState().byWorkspace[workspace.id]?.pullRequest

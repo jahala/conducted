@@ -1,0 +1,17 @@
+// CLOUD-03. The Worker the Rust relay integration test runs in Cloudflare's local runtime.
+// No container and no sandbox: the relay route's echo Durable Object stands in for the sandbox
+// sidecar, so the test needs neither Docker nor a Cloudflare account. The front door (pairing
+// token, route, method, upgrade) is the real one. `wrangler.jsonc` is still the deployed Worker.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "conducted-cloud-relay-test",
+	"main": "src/test-relay.ts",
+	"compatibility_date": "2026-11-06",
+	"compatibility_flags": ["nodejs_compat"],
+	"durable_objects": {
+		"bindings": [{ "class_name": "EchoWorkspace", "name": "WORKSPACE" }]
+	},
+	"exports": {
+		"EchoWorkspace": { "type": "durable-object", "storage": "sqlite" }
+	}
+}

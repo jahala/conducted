@@ -25,6 +25,7 @@ import { type AppError, appError, type ManagedProgram, type Result } from "@cond
  * the real shell. The contract test reads the Rust sources and fails on a code that is missing.
  */
 export const PLATFORM_ERROR_CODES = [
+	"app_icon_failed",
 	"artifact_read_failed",
 	"attachment_app_data",
 	"attachment_bad_data",
@@ -481,6 +482,11 @@ export interface Opener {
 	/** Opens a folder or file in another app, e.g. "Cursor", "Visual Studio Code", "Ghostty". */
 	openWith(appName: string, path: string): Promise<Result<void>>;
 	installedApps(): Promise<string[]>;
+	/**
+	 * A known app's own icon as a PNG data URL, read once and cached by the Rust shell. Null when
+	 * the app is not installed or its bundle names no icon file.
+	 */
+	appIcon(appName: string): Promise<Result<string | null>>;
 }
 
 export interface Clipboard {

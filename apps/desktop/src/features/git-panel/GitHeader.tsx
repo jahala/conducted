@@ -1,10 +1,11 @@
 /**
  * @feature REV-01 Git panel header
  * Owns: the status chip and the one main action button above the tab strip. It renders a
- * GitHeaderModel and calls the matching action. It decides nothing itself.
+ * GitHeaderModel and calls the matching action. It decides nothing itself. Create PR is Conductor's
+ * outlined split button: its menu holds "Create draft PR" and "Create PR manually".
  * Behaviour: ui-map.md 3.6 ("Header status chip and action"); the cases are in core/status/git-header.ts.
  * Data: the parent computes the model with computeGitHeader and passes it in.
- * Must handle: no action (chip only), an action in flight (spinner, clicks ignored), a failed
+ * Must handle: no title (no chip, as on a GitHub branch with no pull request), no action (chip only), an action in flight (spinner, clicks ignored), a failed
  * action (button usable again; the parent shows the error toast from the Result), the user's
  * current key binding shown on
  * the button, the Retry action for missing PR info, narrow panel widths (title truncates,
@@ -23,8 +24,14 @@ import type {
 } from "../../core/status/git-header.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ArrowUpRightIcon } from "../../ui/icons.tsx";
+import {
+	ArrowUpRightIcon,
+	ChevronDownIcon,
+	PullRequestDraftIcon,
+	PullRequestIcon,
+} from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
 
@@ -95,7 +102,7 @@ export function GitHeader({
 			)}
 		>
 			<div className="flex min-w-0 flex-1 items-center gap-1">
-				{pullRequest === null ? null : (
+				{pullRequest === null || model.title === "" ? null : (
 					<button
 						type="button"
 						onClick={onOpenPullRequest}
@@ -109,32 +116,36 @@ export function GitHeader({
 						<ArrowUpRightIcon className="size-3" />
 					</button>
 				)}
-				<Popover
-					trigger={
-						<button
-							type="button"
-							aria-label="PR status details"
-							className={cn(
-								"min-w-0 truncate rounded-sm px-1 text-left text-sm font-medium hover:bg-hover",
-								tint.word,
-							)}
-							title={model.title}
-						>
-							{model.title}
-						</button>
-					}
-				>
-					<fieldset aria-label="PR status details" className="m-0 w-56 space-y-1 border-0 p-0">
-						<p className="text-sm font-medium text-fg">{model.title}</p>
-						<p className="text-xs text-fg-muted">Status: {model.kind.replaceAll("_", " ")}</p>
-						<p className="text-xs text-fg-muted">
-							{model.action === null ? "No action is available." : `Next: ${model.action.label}`}
-						</p>
-					</fieldset>
-				</Popover>
+				{model.title === "" ? null : (
+					<Popover
+						trigger={
+							<button
+								type="button"
+								aria-label="PR status details"
+								className={cn(
+									"min-w-0 truncate rounded-sm px-1 text-left text-sm font-medium hover:bg-hover",
+									tint.word,
+								)}
+								title={model.title}
+							>
+								{model.title}
+							</button>
+						}
+					>
+						<fieldset aria-label="PR status details" className="m-0 w-56 space-y-1 border-0 p-0">
+							<p className="text-sm font-medium text-fg">{model.title}</p>
+							<p className="text-xs text-fg-muted">Status: {model.kind.replaceAll("_", " ")}</p>
+							<p className="text-xs text-fg-muted">
+								{model.action === null ? "No action is available." : `Next: ${model.action.label}`}
+							</p>
+						</fieldset>
+					</Popover>
+				)}
 			</div>
 
-			{model.action !== null ? (
+			{model.action?.id === "create_pr" ? (
+				<CreatePrButton busy={busy} shortcut={shortcut} onRun={run} />
+			) : model.action !== null ? (
 				<ActionTooltip content={model.action.tooltip}>
 					<Button
 						size="sm"
@@ -169,6 +180,63 @@ export function GitHeader({
 				</Button>
 			) : null}
 		</div>
+	);
+}
+
+/**
+ * Conductor's Create PR: an outlined split button. The main part asks the agent for a pull request
+ * and names its shortcut in the tooltip; the arrow's menu offers a draft pull request and GitHub's
+ * own page (renderApp i8s, @2228800).
+ */
+function CreatePrButton({
+	busy,
+	shortcut,
+	onRun,
+}: {
+	busy: boolean;
+	shortcut: string | null;
+	onRun: (action: GitHeaderActionId) => void;
+}) {
+	const [menuOpen, setMenuOpen] = useState(false);
+	return (
+		<Menu open={menuOpen} onOpenChange={setMenuOpen}>
+			<div className="flex shrink-0 items-center">
+				<Tooltip content="Create PR" shortcut={shortcut ?? undefined}>
+					<Button
+						variant="outline"
+						size="xs"
+						className="rounded-r-none bg-raised"
+						loading={busy}
+						disabled={busy}
+						onClick={() => onRun("create_pr")}
+					>
+						{busy ? null : <PullRequestIcon className="size-3" />}
+						Create PR
+					</Button>
+				</Tooltip>
+				<MenuTrigger asChild>
+					<Button
+						variant="outline"
+						size="xs"
+						className="-ml-px rounded-l-none bg-raised px-1"
+						aria-label="More ways to create a PR"
+						aria-expanded={menuOpen}
+						disabled={busy}
+						onClick={() => setMenuOpen(!menuOpen)}
+					>
+						<ChevronDownIcon className="size-3" />
+					</Button>
+				</MenuTrigger>
+			</div>
+			<MenuContent align="end" aria-label="Create PR">
+				<MenuItem icon={<PullRequestDraftIcon />} onSelect={() => onRun("create_draft_pr")}>
+					Create draft PR
+				</MenuItem>
+				<MenuItem icon={<ArrowUpRightIcon />} onSelect={() => onRun("create_pr_manually")}>
+					Create PR manually
+				</MenuItem>
+			</MenuContent>
+		</Menu>
 	);
 }
 

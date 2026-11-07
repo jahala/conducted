@@ -9,7 +9,8 @@
  * agent (Claude Code, Codex, Cursor, OpenCode) under a muted header: each model is a 40px row with
  * a check when it is in the loadout and a grip, dragged into a slot or added to the next slot with
  * Enter or Space; an agent that is not ready offers "Configure <agent>". Dropping a slot on another
- * reorders, and dropping it outside the slots removes it.
+ * reorders, and dropping it anywhere outside the slots removes it; a drag cancelled with Escape
+ * keeps it.
  * Data: useLoadout (the default model, then the favourites), the favourites service, useSettingSaves
  * for the default model's settings, useAgentInstalls and useModels per agent.
  * Our design choice: a slot's choices are a menu (model, effort, fast mode, and Remove for a
@@ -27,7 +28,7 @@
 import type { ModelInfo } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { type DragEvent, useEffect, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useAgentInstalls, useModels } from "../../../core/hooks.ts";
 import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
@@ -69,6 +70,35 @@ const COLUMNS: readonly AgentColumnSpec[] = [
 
 const MODEL_MIME = "application/x-conducted-loadout-model";
 const SLOT_MIME = "application/x-conducted-loadout-slot";
+
+/**
+ * While a slot is dragged, lets the whole page take its drop: a drop anywhere outside the slots
+ * takes the model out of the loadout. The drop itself decides, not the effect dragend reports,
+ * because WebKit (the app window's engine) reports that effect unlike Chromium. A drag cancelled
+ * with Escape drops nowhere and changes nothing. Returns the function that stops listening.
+ */
+function watchDropOutsideSlots(page: Document, onDropOutside: () => void): () => void {
+	const carriesSlot = (event: globalThis.DragEvent) =>
+		event.dataTransfer?.types.includes(SLOT_MIME) === true;
+	const onSlots = (target: EventTarget | null) =>
+		target instanceof Element && target.closest("[data-loadout-slots]") !== null;
+	const over = (event: globalThis.DragEvent) => {
+		if (!carriesSlot(event) || onSlots(event.target)) return;
+		event.preventDefault();
+		if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "move";
+	};
+	const drop = (event: globalThis.DragEvent) => {
+		if (!carriesSlot(event) || onSlots(event.target)) return;
+		event.preventDefault();
+		onDropOutside();
+	};
+	page.addEventListener("dragover", over);
+	page.addEventListener("drop", drop);
+	return () => {
+		page.removeEventListener("dragover", over);
+		page.removeEventListener("drop", drop);
+	};
+}
 
 const sameModel = (left: Choice, right: Choice): boolean =>
 	left.agent === right.agent && left.acpAgent === right.acpAgent && left.model === right.model;
@@ -172,6 +202,7 @@ export function LoadoutEditor() {
 			{/* Dropping a slot anywhere outside the slots removes it, as in Conductor. */}
 			<ul
 				aria-label="Loadout"
+				data-loadout-slots
 				className="relative m-0 grid list-none grid-cols-5 border-t border-l border-border p-0"
 			>
 				{Array.from({ length: LOADOUT_SIZE }, (_, index) => {
@@ -255,92 +286,67 @@ function SlotCard({
 	const model = list.find((item) => item.id === entry.config.model);
 	const label = model?.label ?? entry.config.model;
 	const effort = effortLabel(model, entry.config);
-	const [dropped, setDropped] = useState(false);
-	const change = (patch: Partial<Choice>) => onChange({ ...entry.config, ...patch });
+	const stopWatching = useRef<(() => void) | null>(null);
+	useEffect(() => () => stopWatching.current?.(), []);
+	const [menuOpen, setMenuOpen] = useState(false);
 
 	return (
-		<Menu>
-			<MenuTrigger asChild>
-				<button
-					type="button"
-					aria-label={`${agentDisplayName(entry.config)} ${label}, ${effort}`}
-					draggable={!entry.isDefault}
-					onDragStart={(event) => {
-						setDropped(false);
-						event.dataTransfer.setData(SLOT_MIME, String(index));
-						event.dataTransfer.effectAllowed = "move";
-					}}
-					onDrop={() => setDropped(true)}
-					onDragEnd={(event) => {
-						// Released outside every slot: Conductor takes the model out of the loadout.
-						if (!dropped && event.dataTransfer.dropEffect === "none") onDragOut();
-					}}
-					className="group absolute inset-0 flex flex-col justify-end gap-1 bg-canvas px-3 pb-1.5 text-left font-mono text-xs outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset"
-				>
-					{entry.isDefault ? (
-						<span className="pointer-events-none absolute top-2.5 right-2.5 rounded-xs border border-accent px-1 font-mono text-[8px] leading-3 text-accent">
-							DEFAULT
+		<Menu open={menuOpen} onOpenChange={setMenuOpen}>
+			{/*
+			 * Conductor opens a slot's choices when the press is released, so a press that starts a
+			 * drag never opens them (Hrr's openOnPressRelease). The menu opens its trigger on press and
+			 * cancels the press's default, which in Chromium also cancels the drag. So the press stops
+			 * here, before the menu sees it, with its default kept; a click, which no drag produces,
+			 * opens the choices, and the keyboard still opens them through the menu.
+			 */}
+			<span
+				className="contents"
+				onPointerDownCapture={(event) => {
+					if (event.button === 0 && !event.ctrlKey) event.stopPropagation();
+				}}
+			>
+				<MenuTrigger asChild>
+					<button
+						type="button"
+						aria-label={`${agentDisplayName(entry.config)} ${label}, ${effort}`}
+						draggable={!entry.isDefault}
+						onClick={(event) => {
+							if (event.detail !== 0) setMenuOpen((open) => !open);
+						}}
+						onDragStart={(event) => {
+							event.dataTransfer.setData(SLOT_MIME, String(index));
+							event.dataTransfer.effectAllowed = "move";
+							// Released outside every slot: Conductor takes the model out of the loadout.
+							stopWatching.current?.();
+							stopWatching.current = watchDropOutsideSlots(
+								event.currentTarget.ownerDocument,
+								onDragOut,
+							);
+						}}
+						onDragEnd={() => {
+							stopWatching.current?.();
+							stopWatching.current = null;
+						}}
+						className="group absolute inset-0 flex flex-col justify-end gap-1 bg-canvas px-3 pb-1.5 text-left font-mono text-xs outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset"
+					>
+						{entry.isDefault ? (
+							<span className="pointer-events-none absolute top-2.5 right-2.5 rounded-xs border border-accent px-1 font-mono text-[8px] leading-3 text-accent">
+								DEFAULT
+							</span>
+						) : null}
+						<span className="truncate font-sans text-2xs text-fg-muted">
+							{agentDisplayName(entry.config)}
 						</span>
-					) : null}
-					<span className="truncate font-sans text-2xs text-fg-muted">
-						{agentDisplayName(entry.config)}
-					</span>
-					<span className="truncate font-medium text-fg">{label}</span>
-					<span className="flex h-4 items-center truncate text-[11px] text-fg-muted">
-						{effort}
-						{entry.config.fastMode ? " · Fast" : ""}
-					</span>
-				</button>
-			</MenuTrigger>
+						<span className="truncate font-medium text-fg">{label}</span>
+						<span className="flex h-4 items-center truncate text-[11px] text-fg-muted">
+							{effort}
+							{entry.config.fastMode ? " · Fast" : ""}
+						</span>
+					</button>
+				</MenuTrigger>
+			</span>
 			<MenuContent align="start" className="w-56" aria-label={`Slot ${index + 1}`}>
-				<MenuLabel>Model</MenuLabel>
-				<MenuRadioGroup value={entry.config.model}>
-					{list
-						.filter((item) => item.status === "picker" || item.id === entry.config.model)
-						.map((item) => (
-							<MenuRadioItem
-								key={item.id}
-								value={item.id}
-								onSelect={() =>
-									change({
-										model: item.id,
-										effort: item.efforts.includes(entry.config.effort)
-											? entry.config.effort
-											: item.defaultEffort,
-										fastMode: item.supportsFastMode && entry.config.fastMode,
-									})
-								}
-							>
-								{item.label}
-							</MenuRadioItem>
-						))}
-				</MenuRadioGroup>
-				{model === undefined ? null : (
-					<>
-						<MenuSeparator />
-						<MenuLabel>{model.effortAxis === "thinking" ? "Thinking" : "Effort"}</MenuLabel>
-						<MenuRadioGroup value={entry.config.effort}>
-							{model.efforts.map((level) => (
-								<MenuRadioItem key={level} value={level} onSelect={() => change({ effort: level })}>
-									{model.effortLabels?.[level] ?? EFFORT_LABELS[level]}
-								</MenuRadioItem>
-							))}
-						</MenuRadioGroup>
-						<MenuSeparator />
-						<MenuCheckboxItem
-							checked={entry.config.fastMode}
-							disabled={!model.supportsFastMode}
-							onCheckedChange={(checked) => change({ fastMode: checked === true })}
-						>
-							Fast mode
-						</MenuCheckboxItem>
-						{model.supportsFastMode ? null : (
-							<p className="px-2 pb-1.5 text-xs text-fg-muted">
-								The chosen model does not support fast mode.
-							</p>
-						)}
-					</>
-				)}
+				<ModelChoiceItems models={list} choice={entry.config} onChange={onChange} />
 				{entry.isDefault ? null : (
 					<>
 						<MenuSeparator />
@@ -349,6 +355,73 @@ function SlotCard({
 				)}
 			</MenuContent>
 		</Menu>
+	);
+}
+
+/**
+ * The choices of one model setting, shared by a loadout slot and the Review model picker: the
+ * model among `models`, its effort or thinking level, and fast mode where the model has it.
+ */
+export function ModelChoiceItems({
+	models,
+	choice,
+	onChange,
+}: {
+	models: readonly ModelInfo[];
+	choice: Choice;
+	onChange: (choice: Choice) => void;
+}) {
+	const model = models.find((item) => item.id === choice.model);
+	const change = (patch: Partial<Choice>) => onChange({ ...choice, ...patch });
+	return (
+		<>
+			<MenuLabel>Model</MenuLabel>
+			<MenuRadioGroup value={choice.model}>
+				{models
+					.filter((item) => item.status === "picker" || item.id === choice.model)
+					.map((item) => (
+						<MenuRadioItem
+							key={item.id}
+							value={item.id}
+							onSelect={() =>
+								change({
+									model: item.id,
+									effort: item.efforts.includes(choice.effort) ? choice.effort : item.defaultEffort,
+									fastMode: item.supportsFastMode && choice.fastMode,
+								})
+							}
+						>
+							{item.label}
+						</MenuRadioItem>
+					))}
+			</MenuRadioGroup>
+			{model === undefined ? null : (
+				<>
+					<MenuSeparator />
+					<MenuLabel>{model.effortAxis === "thinking" ? "Thinking" : "Effort"}</MenuLabel>
+					<MenuRadioGroup value={choice.effort}>
+						{model.efforts.map((level) => (
+							<MenuRadioItem key={level} value={level} onSelect={() => change({ effort: level })}>
+								{model.effortLabels?.[level] ?? EFFORT_LABELS[level]}
+							</MenuRadioItem>
+						))}
+					</MenuRadioGroup>
+					<MenuSeparator />
+					<MenuCheckboxItem
+						checked={choice.fastMode}
+						disabled={!model.supportsFastMode}
+						onCheckedChange={(checked) => change({ fastMode: checked === true })}
+					>
+						Fast mode
+					</MenuCheckboxItem>
+					{model.supportsFastMode ? null : (
+						<p className="px-2 pb-1.5 text-xs text-fg-muted">
+							The chosen model does not support fast mode.
+						</p>
+					)}
+				</>
+			)}
+		</>
 	);
 }
 

@@ -14,7 +14,7 @@ const command = {
 };
 
 describe("SET-02 ShortcutRow", () => {
-	it("shows Not set and a Set action for an unbound command", () => {
+	it("shows no key caps and a Set action for an unbound command, as Conductor does", () => {
 		const onStartRecording = vi.fn();
 		render(
 			<ShortcutRow
@@ -25,10 +25,11 @@ describe("SET-02 ShortcutRow", () => {
 				onStartRecording={onStartRecording}
 				onClear={() => undefined}
 				onReset={() => undefined}
+				fixed={false}
 			/>,
 		);
 
-		expect(screen.getByText("Not set")).toBeTruthy();
+		expect(screen.queryByText("Not set")).toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Set shortcut for Test command" }));
 		expect(onStartRecording).toHaveBeenCalledTimes(1);
 	});
@@ -43,11 +44,31 @@ describe("SET-02 ShortcutRow", () => {
 				onStartRecording={() => undefined}
 				onClear={() => undefined}
 				onReset={() => undefined}
+				fixed={false}
 			/>,
 		);
 
 		expect(screen.getByText("⌘K")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Reset shortcut for Test command" })).toBeTruthy();
 		expect(screen.getByRole("alert").textContent).toContain("Command palette");
+	});
+
+	it("shows a fixed shortcut with a lock and no way to change it", () => {
+		render(
+			<ShortcutRow
+				command={{ ...command, title: "Quit", shortcut: "⌘Q", defaultShortcut: "⌘Q" }}
+				changedFromDefault={false}
+				conflictWith={null}
+				recording={false}
+				onStartRecording={() => undefined}
+				onClear={() => undefined}
+				onReset={() => undefined}
+				fixed
+			/>,
+		);
+
+		expect(screen.getByText("⌘Q")).toBeTruthy();
+		expect(screen.getByText("Fixed shortcut")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: /shortcut for Quit/ })).toBeNull();
 	});
 });

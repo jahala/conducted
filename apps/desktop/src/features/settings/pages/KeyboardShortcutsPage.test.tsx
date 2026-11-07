@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { COMMANDS } from "../../../core/registries/commands.ts";
@@ -69,5 +69,29 @@ describe("SET-02 KeyboardShortcutsPage", () => {
 			expect.stringContaining("reserved for Quit"),
 		);
 		expect(set).not.toHaveBeenCalled();
+	});
+
+	it("lists each category as one bordered list, with Conductor's search and no category line per row", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<KeyboardShortcutsPage />
+			</ServicesProvider>,
+		);
+
+		const search = screen.getByRole("searchbox", { name: "Search keyboard shortcuts" });
+		expect(search.getAttribute("placeholder")).toBe("Search keyboard shortcuts...");
+		const general = screen.getByRole("heading", { name: "General" });
+		const list = general.parentElement?.querySelector("[data-shortcut-list]");
+		if (!(list instanceof HTMLElement)) throw new Error("no shortcut list under General");
+		// The category is the list's heading only, never a line under each row.
+		expect(within(list).queryByText("General")).toBeNull();
+		expect(
+			within(list).getByRole("button", { name: "Change shortcut for Toggle theme (dark/light)" }),
+		).toBeTruthy();
+		// Settings and Quit keep their keys: a lock, no pencil.
+		expect(within(list).queryByRole("button", { name: /shortcut for Settings/ })).toBeNull();
+		expect(within(list).getAllByText("Fixed shortcut").length).toBeGreaterThan(0);
 	});
 });
