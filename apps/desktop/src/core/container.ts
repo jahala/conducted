@@ -47,7 +47,7 @@ import {
 	type SessionId,
 	type WorkspaceId,
 } from "@conducted/shared";
-import type { Platform } from "../platform/platform.ts";
+import type { Cloud, Platform } from "../platform/platform.ts";
 import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
 import {
@@ -61,7 +61,13 @@ import { type CloudDeployService, createCloudDeploy } from "./cloud/deploy.ts";
 import { FileSyncService } from "./cloud/file-sync.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
+import {
+	CLOUD_DATA_PRIVACY_MESSAGE,
+	cloudRequestRuns,
+	isCloudRestrictedByDataPrivacy,
+} from "./cloud/privacy.ts";
 import { createHostRoutedSidecar } from "./cloud/router.ts";
+import { type CloudSettingsService, createCloudSettings } from "./cloud/settings.ts";
 import { type CloudTransport, createCloudTransport } from "./cloud/transport.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
@@ -170,6 +176,7 @@ export interface Services {
 	linear: LinearService;
 	cloudPairing: CloudPairingService;
 	cloudDeploy: CloudDeployService;
+	cloudSettings: CloudSettingsService;
 	cloudFileSync: FileSyncService;
 	git: GitService;
 	graphite: GraphiteService;
@@ -289,12 +296,27 @@ function cursorBecameReady(
 export function createContainer(inputs: ContainerInputs): Container {
 	const { clock, ids } = inputs;
 	const rawPlatform = inputs.platform;
+	// Data privacy mode (CLOUD-17): while it is on, no cloud workspace may start work in its
+	// sandbox. The setting is read when a call runs, and settings and lifecycle calls still reach
+	// the Worker, so the page can be opened and a workspace can be stopped or removed.
+	let cloudRunsBlocked = () => false;
+	const cloudDoor: Cloud = {
+		...rawPlatform.cloud,
+		request: (request) =>
+			cloudRequestRuns(request.path) && cloudRunsBlocked()
+				? Promise.resolve(err(appError("cloud_data_privacy", CLOUD_DATA_PRIVACY_MESSAGE)))
+				: rawPlatform.cloud.request(request),
+		openRelay: (input) =>
+			cloudRunsBlocked()
+				? Promise.resolve(err(appError("cloud_data_privacy", CLOUD_DATA_PRIVACY_MESSAGE)))
+				: rawPlatform.cloud.openRelay(input),
+	};
 	// A cloud workspace's folder belongs to its sandbox: the shell and file calls for it go to the
 	// Worker, and every other folder still reaches the Mac (CLOUD-03). The rows arrive with the
 	// workspace service below, so the reader is set there and this one stays empty until then.
 	let hostedFolders: () => Iterable<{ path: string; host: Host }> = () => [];
 	const cloudHosts = createCloudHosts(() => hostedFolders());
-	const platform = createHostedPlatform(rawPlatform, cloudHosts);
+	const platform = createHostedPlatform({ ...rawPlatform, cloud: cloudDoor }, cloudHosts);
 	const repositoryDeps = { clock, ids };
 	const repositories = createRepositories(platform.db, repositoryDeps);
 	// An aborted signal clears the timer, so a lock wait that ends leaves no 10 s timer behind.
@@ -326,6 +348,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const ready = <T>(result: Result<T>): Promise<Result<T>> => Promise.resolve(result);
 	const setting = <T>(key: string): T => settings.get(key);
+	// The cloud-in-data-privacy-mode flag is a hosted flag and we run no flag service, so it is
+	// off (D113): data privacy mode keeps cloud workspaces off.
+	cloudRunsBlocked = () =>
+		isCloudRestrictedByDataPrivacy(setting<boolean>("enterprise_data_privacy") === true, false);
 	const paths = platform.fs.paths;
 	const writeDiagnosticsReport = inputs.writeDiagnosticsReport;
 
@@ -970,6 +996,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const cloudPairing = createCloudPairing(platform.cloud);
 	const cloudDeploy = createCloudDeploy(platform.cloud, () => cloudPairing.start());
+	const cloudSettings = createCloudSettings({
+		cloud: platform.cloud,
+		pairing: () => {
+			const state = cloudPairing.store.getState();
+			return state.state === "ready" ? state.pairing : { paired: false, url: null };
+		},
+	});
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,
@@ -1176,6 +1209,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cloudPairing,
 		cloudDeploy,
 		portForwards,
+		cloudSettings,
 		cloudFileSync,
 		git,
 		graphite,

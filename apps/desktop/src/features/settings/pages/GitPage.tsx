@@ -15,9 +15,11 @@
  * Test first: previews a custom branch prefix ("feature/" previews "feature/tokyo").
  */
 import { type ReactNode, useEffect, useState } from "react";
-import { useGitHubAccess, useSetting } from "../../../core/hooks.ts";
+import { useServices } from "../../../core/context.tsx";
+import { useActions, useCloudSettings, useGitHubAccess, useSetting } from "../../../core/hooks.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { Input } from "../../../ui/Input.tsx";
+import { toast } from "../../../ui/Toast.tsx";
 import { ExternalLink } from "../../chat/ExternalLink.tsx";
 import { RegistrySettingRowByKey, type RowLayout, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
@@ -62,6 +64,117 @@ const LAYOUTS: Readonly<Record<string, RowLayout>> = {
 		),
 	},
 };
+
+/** Why a typed identity cannot be saved, or null. A partial identity would make a commit fail. */
+function identityProblem(name: string, email: string): string | null {
+	if (name === "" && email === "") return null;
+	if (name === "" || email === "") return "Enter both a name and an email, or clear both.";
+	return null;
+}
+
+/**
+ * The cloud commit identity (CLOUD-17), on the Git page where Conductor puts it. The row appears
+ * only on a Mac paired with a Worker, because a cloud workspace is the only thing that uses it.
+ * It saves when a field loses focus, as Conductor does.
+ */
+function CloudGitIdentityRow({ focusSettingKey }: { focusSettingKey: string | null }) {
+	const { services } = useServices();
+	const actions = useActions();
+	const cloud = useCloudSettings();
+	const identity = cloud.state === "ready" ? cloud.data.settings.gitIdentity : null;
+	const paired = cloud.state === "ready" && cloud.data.paired;
+	const [name, setName] = useState(identity?.name ?? "");
+	const [email, setEmail] = useState(identity?.email ?? "");
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		void services.cloudSettings.load();
+	}, [services]);
+	useEffect(() => {
+		setName(identity?.name ?? "");
+		setEmail(identity?.email ?? "");
+	}, [identity?.name, identity?.email]);
+
+	if (cloud.state === "error") {
+		return (
+			<div
+				id="setting-cloud_git_identity"
+				data-setting-key="cloud_git_identity"
+				className="flex flex-col gap-3 border-t border-border py-5"
+			>
+				<div className="flex flex-col">
+					<p className="text-sm font-medium text-fg">Git identity</p>
+					<p className="mt-0.5 text-sm text-fg-muted">
+						Name and email used for commits in cloud workspaces.
+					</p>
+				</div>
+				<p className="text-sm text-danger">{cloud.error.message}</p>
+			</div>
+		);
+	}
+	if (!paired) return null;
+
+	const commit = async () => {
+		const problem = identityProblem(name.trim(), email.trim());
+		if (problem !== null) {
+			setError(problem);
+			return;
+		}
+		setError(null);
+		if ((identity?.name ?? "") === name.trim() && (identity?.email ?? "") === email.trim()) return;
+		const next =
+			name.trim() === "" && email.trim() === "" ? null : { name: name.trim(), email: email.trim() };
+		const saved = await actions.cloud.saveGitIdentity(next);
+		if (!saved.ok) {
+			toast.error("Couldn't update Git identity", {
+				description: "Check your connection and try again.",
+			});
+		}
+	};
+
+	return (
+		<div
+			id="setting-cloud_git_identity"
+			data-setting-key="cloud_git_identity"
+			data-highlighted={focusSettingKey === "cloud_git_identity" ? "true" : undefined}
+			className="flex flex-col gap-3 border-t border-border py-5"
+		>
+			<div className="flex flex-col">
+				<p className="text-sm font-medium text-fg">Git identity</p>
+				<p className="mt-0.5 text-sm text-fg-muted">
+					Name and email used for commits in cloud workspaces.
+				</p>
+			</div>
+			<div className="grid min-w-80 max-w-sm gap-2">
+				<Input
+					value={name}
+					placeholder="Name"
+					aria-label="Git identity name"
+					autoComplete="off"
+					spellCheck={false}
+					onChange={(event) => {
+						setName(event.target.value);
+						setError(null);
+					}}
+					onBlur={() => void commit()}
+				/>
+				<Input
+					value={email}
+					placeholder="Email"
+					aria-label="Git identity email"
+					autoComplete="off"
+					spellCheck={false}
+					onChange={(event) => {
+						setEmail(event.target.value);
+						setError(null);
+					}}
+					onBlur={() => void commit()}
+				/>
+			</div>
+			{error === null ? null : <p className="text-xs text-danger">{error}</p>}
+		</div>
+	);
+}
 
 /** Conductor warns under the switch while archiving deletes the branch. */
 const extraFor = (key: string, value: unknown): ReactNode =>
@@ -159,6 +272,7 @@ export function GitPage({ focusSettingKey = null }: { focusSettingKey?: string |
 	);
 	return (
 		<SettingsPageFrame title="Git" description={null} {...load} focusSettingKey={focusSettingKey}>
+			<CloudGitIdentityRow focusSettingKey={focusSettingKey} />
 			{BEFORE_PREFIX.map(row)}
 			<BranchPrefixRow focusSettingKey={focusSettingKey} />
 			{AFTER_PREFIX.map(row)}

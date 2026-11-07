@@ -34,6 +34,7 @@ import { AccountPage } from "./pages/AccountPage.tsx";
 import { AdvancedPage } from "./pages/AdvancedPage.tsx";
 import { AgentsPage } from "./pages/AgentsPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
+import { CloudPage } from "./pages/CloudPage.tsx";
 import { ConnectionsPage } from "./pages/ConnectionsPage.tsx";
 import { DefaultModelsPage } from "./pages/DefaultModelsPage.tsx";
 import { EnvironmentPage } from "./pages/EnvironmentPage.tsx";
@@ -97,6 +98,8 @@ function UserPage({
 			);
 		case "environment":
 			return <EnvironmentPage focusSettingKey={focusSettingKey} />;
+		case "cloud":
+			return <CloudPage focusSettingKey={focusSettingKey} />;
 		case "remote-control":
 			return <RemoteControlPage focusSettingKey={focusSettingKey} />;
 	}

@@ -1,5 +1,6 @@
 /**
  * @feature CLOUD-05 Secrets stay outside the sandbox: the outbound handler swaps in the model key and GitHub token
+ * @feature CLOUD-18 A Cursor API key never enters the sandbox
  * Owns: the host tables the outbound handler reads: the model APIs and the Worker secret that
  * authenticates each one, GitHub's hosts and the header the GitHub token rides in, and the
  * package-registry check that lets CLOUD-04's list through.
@@ -12,9 +13,10 @@
  * value), a host that only looks like an allowed one (exact names, never a suffix), and a
  * provider key sent in either the `authorization` or the `x-api-key` header.
  * Our design choice: the request's hostname decides which Worker secret is swapped in, because
- * the sandbox names no agent in its HTTP calls. The research names Anthropic's and OpenAI's API
- * hosts; it names no Cursor host and the sandbox image has no Cursor SDK (CLOUD-04), so Cursor
- * has no row here until CLOUD-18 supplies the host.
+ * the sandbox names no agent in its HTTP calls. Anthropic's and OpenAI's hosts are the research's;
+ * Cursor's is the local SDK's own backend, `api2.cursor.sh`, which `@cursor/sdk` 1.3.1 names as its
+ * default `CURSOR_BACKEND_URL` (read from the package on 2026-11-07; D118). The Cloud API at
+ * `api.cursor.com` is not used by our runner, which runs the SDK locally.
  * Test first: replaces the sandbox's placeholder Anthropic key with the Worker's real key.
  */
 import { isPackageRegistryHost } from "../sandbox/package-allow-list.ts";
@@ -25,6 +27,8 @@ export interface OutboundSecrets {
 	ANTHROPIC_API_KEY?: string;
 	/** Codex's OpenAI API key. */
 	OPENAI_API_KEY?: string;
+	/** Cursor's API key (CLOUD-18). */
+	CURSOR_API_KEY?: string;
 	/** The GitHub token `git` and `gh` use without holding it. */
 	GITHUB_TOKEN?: string;
 }
@@ -44,9 +48,9 @@ export interface ModelProvider {
 }
 
 /**
- * The model APIs the sandbox may reach. Anthropic's API reads `x-api-key`; OpenAI's reads a
- * bearer token. Both hosts are the vendors' public API names (services-map.md 4.2.8 names the
- * key variables; the hosts are in the agents' own documentation).
+ * The model APIs the sandbox may reach. Anthropic's API reads `x-api-key`; OpenAI's and Cursor's
+ * read a bearer token. The hosts are the vendors' public API names (services-map.md 4.2.8 names
+ * the key variables; the hosts are in the agents' own documentation and package defaults).
  */
 export const MODEL_PROVIDERS: readonly ModelProvider[] = [
 	{
@@ -59,6 +63,13 @@ export const MODEL_PROVIDERS: readonly ModelProvider[] = [
 	{
 		host: "api.openai.com",
 		secret: "OPENAI_API_KEY",
+		header: "authorization",
+		prefix: "Bearer ",
+		clear: ["authorization", "x-api-key"],
+	},
+	{
+		host: "api2.cursor.sh",
+		secret: "CURSOR_API_KEY",
 		header: "authorization",
 		prefix: "Bearer ",
 		clear: ["authorization", "x-api-key"],

@@ -4,6 +4,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-17 Cloud settings page
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
@@ -54,6 +55,7 @@ import type { Env } from "./env.ts";
 import { walkFileTree } from "./file-list.ts";
 import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
 import { SANDBOX_GIT_ENV } from "./sandbox-git-env.ts";
+import { cloudSettingsEnv, readCloudSettings } from "./settings.ts";
 import { type ServerMessage, TerminalSession } from "./terminal.ts";
 
 /** The port the sandbox image's bridge listens on. */
@@ -205,7 +207,10 @@ export class Workspace extends DurableObject<Env> {
 	private async setUp(): Promise<void> {
 		const container = this.requireContainer();
 		if (!container.running) {
-			const env: Record<string, string> = { ...CONTAINER_ENV };
+			// The Mac's personal cloud settings (CLOUD-17): the commit identity and the variables
+			// only cloud workspaces see. They are read here so every start applies the latest save.
+			const settings = await readCloudSettings(this.env);
+			const env: Record<string, string> = { ...CONTAINER_ENV, ...cloudSettingsEnv(settings) };
 			const name = this.ctx.id.name;
 			// The callback the entry calls when the last running chat goes idle (D105).
 			if (name !== undefined) env.CONDUCTED_TURN_END_URL = turnEndUrl(name);
@@ -423,10 +428,17 @@ export class Workspace extends DurableObject<Env> {
 
 	/**
 	 * Runs one git command in a folder. A stopped sandbox is started, because a user asking for
-	 * git state is asking the workspace to be there.
+	 * git state is asking the workspace to be there. The saved commit identity is read again here,
+	 * so a change saved while the sandbox runs applies to the next commit without a restart.
 	 */
 	async git(args: readonly string[], cwd: string): Promise<CommandResult> {
-		return this.exec({ program: "git", args: [...args], cwd });
+		const settings = await readCloudSettings(this.env);
+		return this.exec({
+			program: "git",
+			args: [...args],
+			cwd,
+			env: cloudSettingsEnv(settings),
+		});
 	}
 
 	/**

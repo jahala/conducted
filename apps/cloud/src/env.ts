@@ -32,6 +32,8 @@ export interface Env {
 	ANTHROPIC_API_KEY: string;
 	/** Codex's model key, which the outbound handler swaps into the sandbox's placeholder. */
 	OPENAI_API_KEY?: string;
+	/** Cursor's API key, which the outbound handler swaps into the sandbox's placeholder (CLOUD-18). */
+	CURSOR_API_KEY?: string;
 	/** The GitHub token the outbound handler holds for `git` and `gh` (CLOUD-05). */
 	GITHUB_TOKEN?: string;
 	/** The container size the sandbox starts in. */

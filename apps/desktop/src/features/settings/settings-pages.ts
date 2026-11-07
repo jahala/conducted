@@ -33,6 +33,7 @@ export type UserSettingsPageId =
 	| "connections"
 	| "agents"
 	| "environment"
+	| "cloud"
 	| "remote-control"
 	| "experimental"
 	| "advanced";
@@ -58,6 +59,7 @@ export const USER_SETTINGS_PAGES: readonly {
 	{ id: "git", title: "Git", group: "personal" },
 	{ id: "agents", title: "Agents", group: "agents_and_environment" },
 	{ id: "environment", title: "Environment", group: "agents_and_environment" },
+	{ id: "cloud", title: "Cloud", group: "agents_and_environment" },
 	{ id: "remote-control", title: "Remote control", group: "agents_and_environment" },
 	{ id: "experimental", title: "Experimental", group: "more" },
 	{ id: "advanced", title: "Advanced", group: "more" },
