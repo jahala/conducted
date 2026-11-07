@@ -632,3 +632,21 @@ Chosen:
 - **Left out under D004 and D018.** Nothing in this row is organisation-only. Exclusive forwarding is described in the research as an org+server setting; here it applies to the Mac's cloud workspaces, which is the same rule without an organisation.
 
 Why: the tunnel reuses the connection the Worker already authenticates and the Rust shell already owns, keeps every secret on the Rust side, and gives raw TCP (SSH, databases, dev servers) rather than only HTTP, which the preview path cannot do. The cost is Conductor's per-connection WebSocket and a three-second poll instead of its multiplexed subscription.
+
+## D116. The cloud workspace header reads status, resources and cost from the sandbox and the local record (2026-11-07)
+
+Proposed by the CLOUD-15 PR; not yet ruled on by the owner.
+Context: CLOUD-15's checklist asks the cloud workspace header for a "Conductor Cloud" badge, a status, CPU, memory, disk, "Low disk", "Agent cost" and a Restart that reports "Restarted workspace" (ui-map.md 3.1; inventory toast M3756589). Conductor's frontend gets every one of those values except the badge from `remoteState`, which it fetches from its hosted Roundhouse backend; the component only formats them (`renderApp` `Xgo`, `Zgo`, `Vjt`, `Wjt`). Our design has no Conductor account or backend (D018): the user's Worker and its sandbox are the backend, and the research does not describe how Conductor's backend derives the readings, so its formulas cannot be copied (D002).
+
+Chosen:
+
+- **Status is the Worker's running flag.** `GET /w/<name>/state` answers `running`; the header says "Running" or "Stopped", and "Starting" while a restart is in flight. A Worker that cannot be reached says "Unavailable" and carries the error on hover.
+- **Resources come from the running sandbox.** The sandbox entry answers `GET /resources` from `/sys/fs/cgroup/cpu.max`, `cpu.stat`, `memory.max` and `memory.current`, with `/proc/meminfo` as the memory fallback, and disk from `statfs("/workspace")`. CPU capacity is the cgroup quota over its period, so it is the instance's real limit and no instance table is copied. The first reading after a start has no CPU percentage because there is no earlier sample. The Worker's `state` route carries the readings only while the container runs; a state read never starts it.
+- **"Low disk" is Conductor's own threshold.** 512 MiB left or less, from `Zmo` in `renderApp`, and the row shows the space left instead of the percentage.
+- **Agent cost is the local usage record.** It is the sum of the `usage.costUsd` each agent turn reported, read from `session_events` for the workspace and leaving reverted turns out. It appears only while "Show agent cost" is on, as in Conductor, and when it is above zero.
+- **Restart is the Worker's own stop and start.** `/w/<name>/restart` saves `/workspace` and the agents' transcripts to R2, stops the sandbox, starts a new one and restores them (CLOUD-06); the app shows "Restarted workspace" only when the Worker answers that it started, then re-reads the state at once instead of waiting for the poll.
+- **The strip is in the header, not a hover card.** Conductor puts these values in the workspace identity hover card; the checklist asks for the header, so our values are visible beside the branch. Follow, creator and watcher avatars and the Share dialog stay out as organisation features (D004, D018, D107).
+
+Left out: Conductor's intermediate cloud lifecycle words ("Building", "Preparing", "Updating", "Setting up", "Unresponsive") and its failure fields. Our Worker builds the image at deploy time rather than per workspace, and its sandbox has only running and stopped states; an unreachable Worker is the one failure the header shows. No live run measured the `/resources` paths: their unit tests use the files' real text, and `/sys/fs/cgroup/cpu.stat` is the path the CLOUD-02 spike read on the same runtime, but the exact Cloudflare paths are not verified until a dev Worker reports them.
+
+Why: this keeps the header honest with the self-hosted design, needs no second hosted service, and uses values the app or the sandbox already produces. A reading the sandbox cannot give is left out rather than invented.
