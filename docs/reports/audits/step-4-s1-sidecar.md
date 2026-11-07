@@ -22,13 +22,13 @@ Scope: SIDE-03 only (`packages/sidecar/src/session/{manager,serial-queue,queued-
    - Fix: one `startAgent(state, runner, config, workspace, env)` helper and one `replaceAgentIfKindChanged(state, config)` helper.
 
 6. **LATER** `steering.ts:46`, `58-59` and `manager.ts:732-734`: the `cancelled` steer failure and the `drop` action are never produced. `steerFailure()` (`manager.ts:741-752`) never returns `{kind:"cancelled"}`, and cancellation is handled by the epoch checks at `678` and `700`. The header line "the user cancelled meanwhile: drop it quietly" describes a path that never runs, and cancellation has two mechanisms. Fix: delete the `cancelled` kind and `drop` action, or route the epoch check through `resolveSteerFailure`. Update the header.
-Outcome: open, item SIDE-03 — `steerFailure()` still never returns `cancelled` (`packages/sidecar/src/session/manager.ts:1226-1236`), the `drop` action and its header line remain (`steering.ts:16,58-59`; `manager.ts:1217-1219`), and cancellation still uses the epoch checks (`manager.ts:1110,1149`).
+   Outcome: open, item SIDE-03 — `steerFailure()` still never returns `cancelled` (`packages/sidecar/src/session/manager.ts:1226-1236`), the `drop` action and its header line remain (`steering.ts:16,58-59`; `manager.ts:1217-1219`), and cancellation still uses the epoch checks (`manager.ts:1110,1149`).
 
 7. **LATER** `manager.ts:303`: `drain` after `cancel` does nothing, because the queue was cleared at `290` and `activeTurn` is null. Remove the dead call.
-Outcome: fixed already, aad02f59 — `cancel()` no longer schedules a drain; the only drain is after a turn or self-started work ends (`packages/sidecar/src/session/manager.ts:436-473`).
+   Outcome: fixed already, aad02f59 — `cancel()` no longer schedules a drain; the only drain is after a turn or self-started work ends (`packages/sidecar/src/session/manager.ts:436-473`).
 
 8. **LATER** `manager.ts:766` (`enqueue` calls `withdrawAll`): the header says only a new non-steering message and a steer withdraw the open interaction. A queued message arrives while the agent may be waiting for an answer, and withdrawing it would stall that turn. I found no support in `sessions.md`, `claude-runner.md` or `other-runners.md`. Fix: confirm against the research; if unsupported, remove the withdraw from `enqueue` and test that a queued message leaves the open question alone.
-Outcome: open, item SIDE-03 — `enqueue` still calls `this.deps.interactions.withdrawAll(...)` (`packages/sidecar/src/session/manager.ts:1250-1255`), with no research support recorded for withdrawing on a queued message.
+   Outcome: open, item SIDE-03 — `enqueue` still calls `this.deps.interactions.withdrawAll(...)` (`packages/sidecar/src/session/manager.ts:1250-1255`), with no research support recorded for withdrawing on a queued message.
 
 9. **LATER** Checklist items with no test that would fail without the feature:
    - A steer with no active turn (`NoActiveTurnError`) starts a new turn if the session is idle, and is rejected if not. Only the pure function is tested (`steering.test.ts:25`). The mapping in `manager.ts:741-752` is not.
@@ -36,16 +36,16 @@ Outcome: open, item SIDE-03 — `enqueue` still calls `this.deps.interactions.wi
    - Option changes are serialised on the lifecycle queue: no test that `updateConfig` waits behind a `sendMessage`.
    - `getSessionStatus` carrying pending steers and an open question (test at `manager.test.ts:718` shows only known and unknown).
    - A queued message for a chat whose agent kind changed (`manager.ts:241-246`).
-Outcome: open, item SIDE-03 — the idle-steer mapping is now tested (`manager.test.ts:803`) and a failed queued message has a test (`manager.test.ts:1570`), but serialised option changes and a queued message after an agent-kind change still have none.
+     Outcome: open, item SIDE-03 — the idle-steer mapping is now tested (`manager.test.ts:803`) and a failed queued message has a test (`manager.test.ts:1570`), but serialised option changes and a queued message after an agent-kind change still have none.
 
 10. **LATER** `manager.ts:316-321`, `340-346`, `366-371` (`warmAgent`): every failure is logged and the answer is `ok({})`. This is best-effort warming, so it is probably intended, but the header does not say so and no test covers a failing runner start. Add one line to the header and one test.
-Outcome: open, item SIDE-03 — `warmAgent` still logs every failure and returns `ok({})` (`packages/sidecar/src/session/manager.ts:476-532`), with no header line or failing-runner-start test.
+    Outcome: open, item SIDE-03 — `warmAgent` still logs every failure and returns `ok({})` (`packages/sidecar/src/session/manager.ts:476-532`), with no header line or failing-runner-start test.
 
 11. **LATER** `manager.ts:259-264`: `Turn` is still a stub (`session/turn.ts:75,80` call `notImplemented("SIDE-04")`), so in production every new turn fails with the generic `send_failed` ("The message could not start a turn.") and the cause is only in the log. All manager tests use the `createTurn` fake. Fine while SIDE-04 is open, but the issue title promises "idle after flush", which only SIDE-04 can show. Fix: return the cause in the error, and add one manager test with the real `Turn` when SIDE-04 lands.
-Outcome: fixed already, 90288d42 — `Turn` is real, the manager returns a start's own error (`packages/sidecar/src/session/manager.ts:42-44,1017-1065`), and manager tests run the real pipeline with `realPipeline: true` (`manager.test.ts:1405,1421`).
+    Outcome: fixed already, 90288d42 — `Turn` is real, the manager returns a start's own error (`packages/sidecar/src/session/manager.ts:42-44,1017-1065`), and manager tests run the real pipeline with `realPipeline: true` (`manager.test.ts:1405,1421`).
 
 12. **LATER** Header drift: the `manager.ts` header "Owns" list (lines 3-4) omits `setAutoApproveEdits`, which the interface has (`113`). The "Must handle" list says cancel "takes the end checkpoint", but that is done by `Turn.cancel`, not by this file.
-Outcome: fixed already, aad02f59 — the "Owns" list now includes `setAutoApproveEdits` and cancel "asks the running turn to take the end checkpoint" (`packages/sidecar/src/session/manager.ts:3-5,34-35`).
+    Outcome: fixed already, aad02f59 — the "Owns" list now includes `setAutoApproveEdits` and cancel "asks the running turn to take the end checkpoint" (`packages/sidecar/src/session/manager.ts:3-5,34-35`).
 
 Clean files: `serial-queue.ts` (header, code and three tests agree), `queued-messages.ts` (FIFO and clear tested). Behaviour is consistent with D031 (delivery in place of a queued state) and D032 (one manager).
 

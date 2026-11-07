@@ -6,7 +6,7 @@ Paths are relative to `apps/desktop/src` unless they start with `docs/`. I read 
 
 - **MUST** `docs/plans/backlog.md`: all eight rows are still `stub` and the code has no placeholders left. `pnpm stubs` fails with 8 problems ("X is marked stub but no placeholder exists in the code"). Fix: set `done` only for the finished features. For PR-08, PR-09, GIT-15, DATA-07 and GIT-14, first restore a `notImplemented("<ID>")` for each unbuilt checklist item (see below), so the row stays honest.
 - **LATER** `docs/data-model.md:51`: says the git cache is "Removed with the workspace". Nothing does that (see DATA-07).
-Outcome: fixed already, 1a638b00. Workspace deletion calls gitCache?.remove (services/workspace.ts:1804), so data-model.md:56's "Removed with the workspace" is true.
+  Outcome: fixed already, 1a638b00. Workspace deletion calls gitCache?.remove (services/workspace.ts:1804), so data-model.md:56's "Removed with the workspace" is true.
 
 ## CHAT-16 Fork a chat from a turn
 
@@ -15,11 +15,11 @@ Outcome: fixed already, 1a638b00. Workspace deletion calls gitCache?.remove (ser
 - **MUST** `core/services/sessions.ts:1850-1860` with `core/git/refs.ts:36`: the copied events keep the origin's checkpoint ids (`session-<originId>-turn-…`). Deleting the origin chat prunes `sessionCheckpointRefPrefix(originId)`, so the fork's Revert and Reset then point at refs that no longer exist. Fix: copy the refs to the fork's own ids and rewrite the ids in the copied events, or refuse to delete refs another chat still uses. Test: fork, delete the origin, revert the fork.
 - **MUST** `features/chat/TurnFooter.tsx` ("Fork to new tab" item) vs `features/workspace/TabContextMenu.tsx:84` and `features/workspace/TabStrip.tsx:355`: the Experimental setting `experimental_fork_to_new_tab` gates the tab menu item and Cmd+Alt+Enter, but not the turn menu's "Fork to new tab". The issue ties the fork to that setting, and the turn footer forks even when it is off. Fix: gate it the same way, or document in the header and the setting text that the turn menu is always available. No test shows a footer fork with the setting off.
 - **LATER** `features/workspace/TabStrip.tsx:296-326`: the tab-menu fork picks the latest checkpointed turn, so it never forks "even mid-turn" as the setting text claims (`core/registries/settings.ts:1242`). Reword the setting, or fork from the running turn's start checkpoint.
-Outcome: fixed already, 1a638b00. TabStrip now prefers a finished turn but falls back to a turn with only a start checkpoint, i.e. the running turn (TabStrip.tsx:308-314).
+  Outcome: fixed already, 1a638b00. TabStrip now prefers a finished turn but falls back to a turn with only a start checkpoint, i.e. the running turn (TabStrip.tsx:308-314).
 - **LATER** `core/services/sessions.ts:1788-1860`: no test for the cleanup path (`discard` after a failed rename, `setAgentSessionId` or `append`), nor for a failed `setAgentSessionId` leaving a half-copied chat.
-Outcome: open, item CHAT-16. sessions.chat-16.test.ts:348-364 now covers cleanup after a failed copyCheckpoints, but there is still no test for a failed setAgentSessionId or append, nor for a failed setAgentSessionId leaving a half-copied chat.
+  Outcome: open, item CHAT-16. sessions.chat-16.test.ts:348-364 now covers cleanup after a failed copyCheckpoints, but there is still no test for a failed setAgentSessionId or append, nor for a failed setAgentSessionId leaving a half-copied chat.
 - **LATER** `features/chat/TurnFooter.tsx` (fork) and `features/workspace/TabStrip.tsx` (fork) each carry their own copy of the open-tab-after-fork logic: one navigates with `search: (previous) => …`, the other calls `onSearchChange`. Extract one helper.
-Outcome: open, item CHAT-16. TurnFooter.tsx:184 still navigates with a search patch while TabStrip.tsx:324 calls onSearchChange; the two open-tab paths are still separate.
+  Outcome: open, item CHAT-16. TurnFooter.tsx:184 still navigates with a search patch while TabStrip.tsx:324 calls onSearchChange; the two open-tab paths are still separate.
 
 ## CHAT-17 Copy transcript, search chat history
 
@@ -29,11 +29,11 @@ Outcome: open, item CHAT-16. TurnFooter.tsx:184 still navigates with a search pa
 - **MUST** `features/chat/ChatSearchBar.tsx:12`: the header says "the query is kept while switching chats". The query is local state of one bar instance per `ChatPane`, and no test switches chats. Either keep it (move the state to the sessions store or the pane's parent) or cut the claim.
 - **MUST** (missing tests) `core/services/transcript.chat-17.test.ts`: no test for a literal `%` or `_` in the query (the header's "matched literally") or for "reverted events are not searched". The `reverted_at IS NULL` filter and `escapeLike` could be removed without a failure.
 - **LATER** `core/services/transcript.ts:35` and `core/services/transcript.ts:30`: `JOIN sessions s` selects nothing from `s`. It silently drops events of deleted chats, which is right, but it should say so, or become an `EXISTS`.
-Outcome: open, item CHAT-17. transcript.ts:39 still joins sessions and selects nothing from it, and the header comment (lines 35-38) explains the LIKE and the limit but not the deleted-chat drop.
+  Outcome: open, item CHAT-17. transcript.ts:39 still joins sessions and selects nothing from it, and the header comment (lines 35-38) explains the LIKE and the limit but not the deleted-chat drop.
 - **LATER** `features/palette/CommandPalette.tsx` (history group): hits whose chat is not in `sessions.store` are dropped without a trace (`if (session === undefined) continue`). Hits for chats of archived workspaces, or chats not yet loaded, vanish and the user sees fewer than 8 results. Also, one query runs per keystroke with no debounce.
-Outcome: open, item CHAT-17. CommandPalette.tsx:212 still continues on a missing session, and the history effect (:140-160) has no debounce.
+  Outcome: open, item CHAT-17. CommandPalette.tsx:212 still continues on a missing session, and the history effect (:140-160) has no debounce.
 - **LATER** `core/services/transcript.ts:62-64` and `features/chat/ChatSearchBar.tsx:35-39`: two copies of "turn a tool block into text" (`toolInputText` and `toolText`). Both walk the same block kinds. Share one `blockTexts(turn, detail)`.
-Outcome: open, item CHAT-17. toolInputText (transcript.ts:75) and toolText (ChatSearchBar.tsx:41) are still two copies walking the same blocks.
+  Outcome: open, item CHAT-17. toolInputText (transcript.ts:75) and toolText (ChatSearchBar.tsx:41) are still two copies walking the same blocks.
 
 ## DATA-07 Cache the last PR info and changes
 
@@ -41,7 +41,7 @@ Outcome: open, item CHAT-17. toolInputText (transcript.ts:75) and toolText (Chat
 - **MUST** `docs/data-model.md:51` and the `git-cache.ts` header ("removing a workspace moves both of its files to the Trash"): no workspace deletion path calls `remove`, so cache files stay forever. This breaks the stated lifetime. Fix with the wiring above.
 - **MUST** `core/services/git-cache.ts:111-124` (`#save`) with the header line "written only when the content changed": the skip compares the whole serialized entry, and the entry holds `observedAt`. Every real save has a new `observedAt`, so the skip never fires unless a caller reuses the time. Fix: compare `value` and `branch` and keep the old `observedAt`, or document that the caller must pass a stable time. Test with two saves at different times.
 - **LATER** the checklist items about `cache.db` ("A second cache.db…", "cache.db holds caches; ours has none by design") are decision items. Mark them as answered by D038 in `docs/plans/items/`, or they stay open.
-Outcome: open, item DATA-07. Both rows are now marked covered (docs/plans/items/system.tsv:805, 908), but neither names D038; the decision is still not recorded against the items.
+  Outcome: open, item DATA-07. Both rows are now marked covered (docs/plans/items/system.tsv:805, 908), but neither names D038; the decision is still not recorded against the items.
 
 ## GIT-14 Local-git forge
 
@@ -50,11 +50,11 @@ Outcome: open, item DATA-07. Both rows are now marked covered (docs/plans/items/
 - **MUST** (duplicated logic) `features/git-panel/GitPanel.tsx:161-164` repeats the forge decision `repoRemoteUrl === null || !isGithubRemoteUrl(…)`. `forgeForRemoteUrl` in `core/services/github.ts:340` already holds that rule. Fix: call `forgeForRemoteUrl` (and decide null once, in one place).
 - **MUST** (missing test) `GitPanel.tsx:161-228, 288-300`: no test mounts the panel with the switch on. The refresh effect, the `forge` choice and the routing of the Merge action to `mergeIntoTarget` are untested (the tests stop at `computeGitHeader` and the service). Add a panel test over `createTestContainer` that shows "Ready to merge" and sends the agent instruction on click.
 - **LATER** `core/services/local-git-forge.ts:210-228`: `mergeIntoTarget` repeats the target and branch checks of `synthesizePrInfo` (lines 135-145). Extract `resolveBranches(context)`.
-Outcome: open, item GIT-14. mergeIntoTarget still repeats both checks inline (local-git-forge.ts:189-198) exactly as synthesizePrInfo does (:126-136); there is no resolveBranches.
+  Outcome: open, item GIT-14. mergeIntoTarget still repeats both checks inline (local-git-forge.ts:189-198) exactly as synthesizePrInfo does (:126-136); there is no resolveBranches.
 - **LATER** `core/services/local-git-forge.ts:228`: `customPrompt: null` is always passed, so the repository-instruction branch of `mergeIntoTargetInstruction` has no live caller. Wire a repo prompt or drop the parameter.
-Outcome: open, item GIT-14. mergeIntoTarget still passes customPrompt: null (local-git-forge.ts:204).
+  Outcome: open, item GIT-14. mergeIntoTarget still passes customPrompt: null (local-git-forge.ts:204).
 - **LATER** header "a repository with no remote at all": no test of `contextOf` returning a workspace with an empty `remote`.
-Outcome: open, item GIT-14. local-git-forge.git-14.test.ts and the container test contain no case where contextOf returns an empty remote.
+  Outcome: open, item GIT-14. local-git-forge.git-14.test.ts and the container test contain no case where contextOf returns an empty remote.
 
 ## GIT-15 Git extras: sparse checkout, external diff tool
 
@@ -62,9 +62,9 @@ Outcome: open, item GIT-14. local-git-forge.git-14.test.ts and the container tes
 - **MUST** (unreachable code) `core/actions.ts:130`: `openInDiffTool` is an Action, but no screen calls it (grep of `features/` is empty). "Open a diff in an external tool" has no control. Fix: add the "Open in Kaleidoscope" item in the file context menu or diff header, or file the wiring as above.
 - **MUST** `core/git/commands.ts:376` + `core/services/git.ts:2066-2078`: `git diff --quiet HEAD -- <path>` exits 0 for an untracked (new) file, so `openInDiffTool` returns `ok` and opens nothing for a file the Changes list shows as added. That is a silent success. Research (services-map 3.11) checks the whole tree, not a path. Fix: treat an untracked path as changed (`git ls-files --others --exclude-standard`), or check the whole tree as Conductor does. Add a test with an untracked file.
 - **LATER** `core/git/commands.ts:376`: the per-file check is our change from the research (whole tree). Mark it "Our design choice:" in the header of `git.ts`.
-Outcome: fixed already, 1a638b00. git.ts:80-81 now says "Our design choice: the change check is per file, where Conductor checks the whole tree".
+  Outcome: fixed already, 1a638b00. git.ts:80-81 now says "Our design choice: the change check is per file, where Conductor checks the whole tree".
 - **LATER** `core/services/git.ts:2011-2030`: if sparse checkout is already on in non-cone mode, `set` runs against a non-cone checkout. Check `core.sparseCheckoutCone` or always run `init --cone`.
-Outcome: fixed already, 1a638b00. setSparseCheckoutDirectories now initialises cone mode first when it was off (git.ts:2186-2212), and sparseCheckoutInitCone exists (git/commands.ts:425).
+  Outcome: fixed already, 1a638b00. setSparseCheckoutDirectories now initialises cone mode first when it was off (git.ts:2186-2212), and sparseCheckoutInitCone exists (git/commands.ts:425).
 
 ## PR-08 Stacked PRs and read-only Graphite
 
@@ -76,9 +76,9 @@ This feature is mostly not built, and it is marked as finished. About 20 of its 
 - **MUST** also not built: readiness of each entry by GraphQL query by PR number, the "Switch branch?" / "Switch anyway" dialog, range diffs of a PR or a stack (the "resolved or unresolved" result), and the "Use GitHub stacked PRs enables the stack view and stack merges" rule. The setting `github_stacked_prs_enabled` (`settings.ts:817`) only gates `readStack` and `syncStack`, and its text says "Tell agents they may use the gh stack command", which is not what the checklist item says.
 - **MUST** (header) `core/services/github.ts` header: it says Graphite "is not read here". True, but `StackView.tsx` says "Graphite and GitHub stacks are read-only plus checkout" and lists the `gt restack` hint as handled. That hint has no data source. Cut or build.
 - **LATER** `core/services/github.ts:566` (`PrStackInfo`): `size`, `position` and `baseRefName` are parsed and never used.
-Outcome: open, item PR-08. parsePrStackEntry still fills size, position and baseRefName (github.ts:737-749), but readStack uses only parsedStack.value.number (github.ts:3177-3182); StackEntryView has no such fields (model.ts:474-487).
+  Outcome: open, item PR-08. parsePrStackEntry still fills size, position and baseRefName (github.ts:737-749), but readStack uses only parsedStack.value.number (github.ts:3177-3182); StackEntryView has no such fields (model.ts:474-487).
 - **LATER** `core/services/github.ts:2591`: with `setting === undefined` (optional dependency left out) stacks are treated as on, unmarked. Add `// unwired: PR-08` per D055 or make the dependency required.
-Outcome: open, item PR-08. The stack reads and mergeStack still treat an undefined setting as on (github.ts:3047, 3102, 3150, 3372), with no // unwired: PR-08 marker.
+  Outcome: open, item PR-08. The stack reads and mergeStack still treat an undefined setting as on (github.ts:3047, 3102, 3150, 3372), with no // unwired: PR-08 marker.
 
 ## PR-09 Linear issues: list, link, attach as context
 
@@ -86,9 +86,9 @@ Outcome: open, item PR-08. The stack reads and mergeStack still treat an undefin
 - **MUST** (unbuilt) "Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'", `Cmd+I` link issue, and "Cannot create workspace from this issue" have no code. `chat.linkIssue` is registered (`core/registries/commands.ts:949`) and shown in the plus menu and palette, but no handler or dialog exists. Restore `notImplemented("PR-09")` for them and keep the row `stub`.
 - **MUST** (unreachable code) `core/services/linear.ts:482, 503`: `teamIds` and `suggestRepositories` have no caller. The search never filters by team ids, and no workspace-creation code suggests repositories. `getIssue` and `attachAsContext` are reached only through `attachToWorkspace`. Fix: use `teamIds` in the search filter and `suggestRepositories` in the create-from-issue flow, or file them on the screens that will call them.
 - **LATER** `core/services/linear.ts:436-454`: the in-memory `#cache` has no size bound. It keeps one entry per distinct search term and expires entries only on read. State its lifetime or evict on write.
-Outcome: open, item PR-09. #cache is still an unbounded Map (linear.ts:398) written at :736 and cleared only by setApiKey (:721); nothing evicts on write or states a bound.
+  Outcome: open, item PR-09. #cache is still an unbounded Map (linear.ts:398) written at :736 and cleared only by setApiKey (:721); nothing evicts on write or states a bound.
 - **LATER** `core/services/linear.ts:422-432`: `loadMyIssues` leaves its `#issueReads` ticket unsettled when it is not the latest. Settle in every path.
-Outcome: fixed already, 1a638b00. loadMyIssues now settles the ticket in every branch: cache hit, error, invalid response, parse failure and success (linear.ts:456-488).
+  Outcome: fixed already, 1a638b00. loadMyIssues now settles the ticket in every branch: cache hit, error, invalid response, parse failure and success (linear.ts:456-488).
 
 ## PRJ-03 Quick start a new project from a template
 
@@ -97,12 +97,12 @@ Outcome: fixed already, 1a638b00. loadMyIssues now settles the ticket in every b
 - **MUST** `core/services/repo.ts:1150-1170`: the first commit does `git add -A` on the user's existing folder when it has no commits, then pushes it. Anything in that folder (an `.env`, keys) goes into the first commit and onto GitHub. Research 3.2 shows no `add -A`. Fix: commit only a folder that Quick start created, or show the file list in the dialog before it runs.
 - **MUST** `core/services/repo.ts:1185`: the research's push is `git -c credential.https://github.com.helper=<gh auth git-credential…> push -u origin HEAD`. The code runs a plain `git push -u origin HEAD`, which fails for users whose git has no credential helper. Fix: use the research command (in `core/git/commands.ts`).
 - **LATER** `core/services/repo.ts` (`createGitHubRepo`): the description `A repository for ${name}` is invented. The research leaves `<d>` open. Mark it as a design choice or take the project name only.
-Outcome: open, item PRJ-03. The description is still the literal `A repository for ${name}` (repo.ts:1354).
+  Outcome: open, item PRJ-03. The description is still the literal `A repository for ${name}` (repo.ts:1354).
 - **LATER** `features/sidebar/CreateProjectDialog.tsx:262-270`: when the name check fails (`check.state === "error"`), the message "Sign in to GitHub to check a repository name." from `useRepoNameCheck` is dropped and the dialog says "Couldn't check repository availability." The header promises "no GitHub sign-in (the repository dialog explains it)". Show `check.error.message`.
-Outcome: open, item PRJ-03. The dialog still returns the generic "Couldn't check repository availability." for an error and never reads check.error.message (CreateProjectDialog.tsx:292-293).
+  Outcome: open, item PRJ-03. The dialog still returns the generic "Couldn't check repository availability." for an error and never reads check.error.message (CreateProjectDialog.tsx:292-293).
 - **LATER** `core/services/repo.ts:1050-1075`: the `stat` for "folder exists" and the `mkdirp` are not one step, so two Quick starts to the same folder can race. Use an exclusive create.
-Outcome: open, item PRJ-03. The Quick start still stats the destination and then calls mkdirp (repo.ts:853-857), so two runs can both pass the check.
+  Outcome: open, item PRJ-03. The Quick start still stats the destination and then calls mkdirp (repo.ts:853-857), so two runs can both pass the check.
 - **LATER** the "Quick start" entry exists only on the landing page (`app/NoWorkspaceSelected.tsx`). ui-map 2 puts it on the landing page, so this matches. No test covers the sidebar add menu either way.
-Outcome: wrong. The placement matches ui-map 2's landing page, so there is no behaviour to fix; the sidebar add-menu test gap is a separate note.
+  Outcome: wrong. The placement matches ui-map 2's landing page, so there is no behaviour to fix; the sidebar add-menu test gap is a separate note.
 
 Summary: CHAT-16 4 MUST + 3 LATER; CHAT-17 5 MUST + 3 LATER; DATA-07 3 MUST + 1 LATER; GIT-14 4 MUST + 3 LATER; GIT-15 3 MUST + 2 LATER; PR-08 5 MUST + 2 LATER (about 20 of 27 checklist items unbuilt); PR-09 3 MUST + 2 LATER; PRJ-03 4 MUST + 4 LATER; all features: 1 MUST (8 backlog rows still `stub`, `pnpm stubs` fails with 8 problems) + 1 LATER.
