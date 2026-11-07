@@ -4,7 +4,8 @@
 	"type": "module",
 	"packageManager": "pnpm@9.15.9",
 	"scripts": {
-		"dev": "pnpm --filter @conducted/sidecar build && pnpm --filter @conducted/desktop tauri dev --config src-tauri/tauri.release.conf.json",
+		"dev": "pnpm --filter @conducted/sidecar build && bun scripts/cloud/prepare-deploy.ts && pnpm --filter @conducted/desktop tauri dev --config src-tauri/tauri.release.conf.json",
+		"cloud:prepare": "bun scripts/cloud/prepare-deploy.ts",
 		"typecheck": "pnpm -r --parallel typecheck && tsc -p scripts",
 		"lint": "biome check . && shellcheck bin/*.sh",
 		"format": "biome format --write .",

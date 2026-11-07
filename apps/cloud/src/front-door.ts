@@ -2,6 +2,7 @@
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * Owns: the checks every request passes after the unauthenticated preview path and before a
  * Durable Object is touched: the pairing token, the pairing check, the route, the workspace name,
  * the method, and the WebSocket upgrade for the relay and terminal streams.
@@ -22,6 +23,8 @@ import { isAuthorized, PAIR_PATH } from "./auth.ts";
 /** A workspace route: one workspace name and one action. */
 export type CloudAction =
 	| "start"
+	| "stop"
+	| "remove"
 	| "git"
 	| "exec"
 	| "files"
@@ -38,7 +41,7 @@ export interface CloudRoute {
 /** What an authenticated request is: a route, the pairing check, or the answer that refuses it. */
 export type FrontDoor = { route: CloudRoute } | { pair: true } | { refusal: Response };
 
-const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|rpc|terminal|preview-url)$/;
+const ROUTE = /^\/w\/([^/]+)\/(start|stop|remove|git|exec|files|state|rpc|terminal|preview-url)$/;
 
 const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	state: "GET",
@@ -46,6 +49,8 @@ const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	terminal: "GET",
 	"preview-url": "POST",
 	start: "POST",
+	stop: "POST",
+	remove: "POST",
 	git: "POST",
 	exec: "POST",
 	files: "POST",

@@ -43,6 +43,7 @@ export const PLATFORM_ERROR_CODES = [
 	"binary_verification_failed",
 	"clipboard_unavailable",
 	"cloud_bad_line",
+	"cloud_deploy_failed",
 	"cloud_method_not_allowed",
 	"cloud_not_a_worker",
 	"cloud_not_paired",
@@ -52,9 +53,11 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_relay_failed",
 	"cloud_relay_unknown",
 	"cloud_request_failed",
+	"cloud_resources_missing",
 	"cloud_response_too_large",
 	"cloud_token_invalid",
 	"cloud_token_unreadable",
+	"cloud_uninstall_failed",
 	"cloud_unscripted",
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
@@ -772,6 +775,22 @@ export interface CloudPairInput {
 	token: string;
 }
 
+/**
+ * What a deploy may override (CLOUD-08). The UI sends nothing, so the app's bundled name is used;
+ * a test may name one and delete everything after.
+ */
+export interface CloudDeployInput {
+	workerName?: string;
+}
+
+/** What a completed deploy leaves: the Worker's URL, now paired with this Mac. */
+export interface CloudDeployResult {
+	url: string;
+}
+
+/** What an uninstall overrides: the same optional name a deploy used. */
+export type CloudUninstallInput = CloudDeployInput;
+
 /** The line transport to the sidecar inside one workspace's sandbox (CLOUD-03). */
 export interface CloudRelay {
 	readonly id: string;
@@ -798,6 +817,17 @@ export interface Cloud {
 	pair(input: CloudPairInput): Promise<Result<CloudPairing>>;
 	/** Removes the saved pairing. A Mac that is not paired succeeds. */
 	unpair(): Promise<Result<void>>;
+	/**
+	 * Deploys the Worker, its container application and its R2 bucket to the user's own Cloudflare
+	 * account with their `wrangler` login, sets the pairing token as a Worker secret, and pairs
+	 * this Mac (CLOUD-08). The token is made in Rust and never reaches the web view.
+	 */
+	deploy(input?: CloudDeployInput): Promise<Result<CloudDeployResult>>;
+	/**
+	 * Deletes what the deploy made, in the order that stops billing: the Worker, its container
+	 * application and images, then the R2 bucket. It also removes this Mac's pairing (CLOUD-08).
+	 */
+	uninstall(input?: CloudUninstallInput): Promise<Result<void>>;
 	request(request: CloudRequest): Promise<Result<CloudResponse>>;
 	/**
 	 * Opens one line stream into the workspace's Durable Object. `channel` selects the sidecar

@@ -551,7 +551,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	}, []);
 
 	const focusEditorAtEnd = useCallback(() => {
-		editorRef.current?.commands.focus("end");
+		// A dialog's close focus can land after the composer itself has gone.
+		const editor = editorRef.current;
+		if (editor === null || editor.isDestroyed) return;
+		editor.commands.focus("end");
 	}, []);
 
 	// Dictation (COMP-08) and snippets (COMP-09) both put text at the cursor, as plain text with
