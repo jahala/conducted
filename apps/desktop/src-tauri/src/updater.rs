@@ -732,7 +732,7 @@ mod tests {
         }
     }
 
-    /// The feed for this Mac, as `pnpm release` writes `latest.json`.
+    /// The feed for this Mac, as the release workflow writes `latest.json`.
     fn feed(version: &str, package_url: &str, signature: &str) -> Vec<u8> {
         let platform = format!("darwin-{}", std::env::consts::ARCH);
         serde_json::to_vec(&serde_json::json!({
