@@ -1,6 +1,7 @@
 /**
  * @feature catalogue States of the Git panel and the pull request header
- * Owns: the Changes tab with files, a file's diff, the diff scope menu with the branch's commits, the
+ * Owns: the Changes tab with files, a file's diff and its View options menu, the workspace header's
+ * actions menu, a chat tab's context menu, the diff scope menu with the branch's commits, the
  * All files tab, the Checks tab, the header with no pull request, an open one, one ready to merge and a
  * merged one, and the Changes tab when the tree is clean and when git fails.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
@@ -16,7 +17,7 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, has, shows } from "../dom.ts";
+import { click, has, rightClick, shows } from "../dom.ts";
 import type { PrKind } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
@@ -84,6 +85,34 @@ export const GIT_STATES: CatalogueState[] = [
 			search: { tab: "file", path: "src/auth/sign-in.ts", fileMode: "diff", scope: "branch" },
 			// The layout toggles are icons since the file header took Conductor's look: read their names.
 			ready: (document) => has(document, "button", "Unified view"),
+		}),
+	},
+	{
+		id: "git-diff-view-options",
+		group: "Git panel",
+		title: "A file's diff, its View options menu open",
+		seed: arborScene({
+			search: { tab: "file", path: "src/auth/sign-in.ts", fileMode: "diff", scope: "branch" },
+			after: ({ document }) => click(document, "button", "View options"),
+			ready: (document) => shows(document, "Hide whitespace changes"),
+		}),
+	},
+	{
+		id: "workspace-actions-menu",
+		group: "Workspace chat",
+		title: "The workspace header's actions menu",
+		seed: arborScene({
+			after: ({ document }) => click(document, "button", "Workspace actions"),
+			ready: (document) => shows(document, "Move to section"),
+		}),
+	},
+	{
+		id: "chat-tab-menu",
+		group: "Workspace chat",
+		title: "A chat tab's context menu",
+		seed: arborScene({
+			after: ({ document }) => rightClick(document, "[role=tab]", "Fix the login redirect"),
+			ready: (document) => shows(document, "Rename chat"),
 		}),
 	},
 	{
