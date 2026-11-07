@@ -701,6 +701,8 @@ export interface Actions {
 		setGitHubToken: Act<[token: string | null]>;
 		/** Stores the personal Linear API key (D035), or removes it with null. */
 		setLinearKey: Act<[key: string | null]>;
+		/** Asks Linear again whether the stored key works: the Linear row's Refresh. */
+		recheckLinear: Act;
 	};
 	cloud: {
 		/** Checks the URL and token with the Worker, then keeps them in the Keychain (CLOUD-07). */
