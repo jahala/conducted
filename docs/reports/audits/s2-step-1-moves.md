@@ -1,6 +1,7 @@
 # Slice 2 step 1: moved items and rejected findings
 
 Each fixer for slice 2 step 1 wrote `MOVE` lines for work that belongs to another feature, and `NO` lines for findings it judged wrong. The `MOVE` lines became rows in `docs/plans/items/` (research column `docs/reports/audits/s2-step-1`, status `missing`). A move whose item already existed for its owner, or that is doc work for the conductor, got no row; the last column says which. Grouped by the fixer's feature id.
+Outcome: stale, this file is the D045 record of MOVE and NO decisions, not a findings list: each MOVE either became an item-map row (for example `docs/plans/items/system.tsv:3014` and `:3016-3018`, `docs/plans/items/ui.tsv:1027-1028`) or was already covered or doc work, as its last column says, and every NO was rejected by its fixer with the reason shown. The live status of each moved item is the status column in `docs/plans/items/`, which this worker may not edit, so there are no untriaged LATER findings here to record.
 
 ## AGENT-07
 

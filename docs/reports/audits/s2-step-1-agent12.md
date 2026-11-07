@@ -17,18 +17,27 @@ Read: CLAUDE.md, architecture, engineering, issue #77, other-runners 2.2/3/4/5, 
 ### LATER
 
 8. `translate.ts:173-189` (`toolCallUpdate`): non-terminal `tool_call_update` messages are dropped, including the ones that carry `rawInput`, a new `title` or `kind`. ACP agents often send `tool_call` with an empty `rawInput` first and the real input in an `in_progress` update. The chat card then shows an empty input. Fix: merge `rawInput` and `title` from non-terminal updates before the call is emitted, or re-emit the call. Needs a test with two updates for one call.
+Outcome: open, item AGENT-12
 9. `translate.ts:307-311` (`diffText`): the header says "diff content is shown as an edit", but the result only carries the text "Edited <path>". The diff itself (`oldText`/`newText`) is lost. Fix: either pass the diff to the card in a canonical edit input, or change the header to say that only a one-line summary is shown.
+Outcome: fixed already, 470e25c1 the header now says "diff content is summarised as Wrote/Edited <path>", which matches `diffText` (`translate.ts:6`).
 10. `translate.ts:207-273`: `plan`, `usage`, `notice` and `compaction` also call `drain()`. The header and the checklist say the buffer is flushed at tool boundaries and the turn end only. The behaviour is reasonable (it keeps order), but the header should list it, and no test covers a flush caused by `usage_update` or `plan`. Fix: add one test and one header line.
+Outcome: open, item AGENT-12 (header line added in 184aa57b; `translate.test.ts` still has no case with text buffered before a `plan` or `usage_update`)
 11. `acp-session.ts:407-418`: a throw inside `translator.push` is logged and the update is dropped. This is "an error that is only logged" (engineering.md). It belongs to AGENT-11, but it hides translator bugs. Fix: surface it as an `error` item for the turn.
+Outcome: fixed already, ad3ab4b9 `acp-session.ts:604-606` lets a translator throw propagate and ends the turn with the error.
 12. Test gaps against the checklist:
     - "The ACP model list waits 15 seconds and is capped at 90 seconds": `adapters.test.ts` tests only the pure `modelCatalogWaitMs`. No runner test shows that OpenCode waits, that Pi (wait 0) does not, that the wait ends at the timeout, or that `spent` from the clock is used.
     - `ACP_COMMAND_LIST_WAIT_MS` (2 s): no test for the timeout path of `listSlashCommands`.
     - `permissionEnv` has no test that the value never reaches a log, although the opencode.ts header says "must never log the value".
     - "The Agent submenu also lists OpenCode and Pi" (ui-map 3.5): no AGENT-12 test. `ModelPicker.test.tsx:408` covers the entry, so treat as covered elsewhere and name the owner in the issue.
+Outcome: open, item AGENT-12 (model-wait tests added in `acp-runner.test.ts:444-497`, the clock path in 470e25c1; the command-list timeout and the "permissionEnv never logs" test are still missing)
 13. `adapters/pi.ts:22-24`: `permissionEnv` ignores `requireToolApproval`, so Pi gets no approval policy through the environment. This may match Conductor (research line 159 names only OpenCode), but the header is silent. Fix: add one header line saying Pi's approval goes through ACP `session/request_permission` only.
+Outcome: fixed already, 470e25c1 the `pi.ts` header now says approval goes through ACP session/request_permission only.
 14. `adapters/opencode.ts:7-9` and `:19-20`: the OpenCode 2 key `mcp.timeout.execution` is taken from the inventory and could not be checked here (installed OpenCode is 1.18.x). `OPENCODE_DB` does appear in the installed binary, and the v1 key `experimental.mcp_timeout` is read there. Fix: verify the v2 key against an OpenCode 2 build before the claim stays in the header.
+Outcome: fixed already, 470e25c1 the header now says the key "was not checked against a 2.x build here" (`opencode.ts:8-9`).
 15. `acp-runner.ts:60` (comment on `translator?`): "AGENT-12 supplies it in the composition root" is now false, because `makeTranslator` builds `AcpTranslator` by default. Fix: reword to say the option is a test injection point, or remove it if nothing passes it.
+Outcome: fixed already, 470e25c1 the comment now says "a test injection point the composition root leaves out" (`acp-runner.ts:82`).
 16. `acp-runner.ts:206-210, 244-248`: `listModels` and `listSlashCommands` start the agent with `this.lastEnv` only. They skip `sessionStorage.env` and `permissionEnv`, so the throwaway session reads the user's global OpenCode database and config. Fix: state this choice in the header or apply the adapter env.
+Outcome: fixed already, 833f6059 the header states the design choice: listing sessions run the `ListingContext` environment and do not apply the adapter's approval policy or session storage (`acp-runner.ts:28-31`); the code takes `context.env`.
 
 ### Checks with no finding
 

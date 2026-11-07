@@ -13,10 +13,15 @@ Read-only audit of branch `slice2/step-1`. Paths are relative to `apps/desktop/s
 - MUST `features/chat/NextUnreadButton.tsx:44-67`: this rebuilds the workspace status for every workspace with `deriveWorkspaceStatus` and its own inputs. `useWorkspaceStatus` in `core/hooks` already does that per workspace. This is a second copy of the status rule (architecture.md puts it in `core/status/workspace-status.ts` for "every screen that shows a status"). It also passes `git: null`, so it can differ from the sidebar. Fix: take the status from one shared selector.
 - MUST `core/services/sessions.ts:1115-1138` (`markAllRead`): after the awaited `clearUnread` calls it writes `unreadCount: 0` into the store from a snapshot. A new agent message that raised the count (via `EventIngest`) while the loop was awaiting is overwritten in the store but is 1 in the database. This is the newest-answer rule from engineering.md. Fix: re-read each session's count when setting the store, or run the writes through `createKeyedQueue` per workspace. Test with two overlapping calls.
 - LATER `features/sidebar/WorkspaceRow.tsx:93-103`: pressing R on a row whose only unread chat waits for the user calls `markAllRead`, which skips it on purpose. The key press is a silent no-op and the row stays unread. Fix: say why in a toast, or flip to "unread" only when the state changes.
+Outcome: open, item NAV-11 (`toggleRead` still calls the workspace-wide mark and only toasts on an error, not on the no-op, `WorkspaceRow.tsx:161-172`).
 - LATER `features/workspace/TabContextMenu.test.tsx:12-40`: the test replaces `useActions`/`useLiveShortcut` with `vi.fn` mocks instead of the real container (engineering.md: screens are tested over `createTestContainer`). `useLiveShortcut: () => null` means the live-hint rule is not tested. Fix: use the real container and assert a hint changes after a rebind.
+Outcome: open, item NAV-11 (`TabContextMenu.test.tsx:16-18` still mocks `core/hooks.ts` with `useLiveShortcut: () => null`).
 - LATER `features/composer/SendButton.tsx:15,44-45`: hand-written `getCommand(...).defaultShortcuts[0]` is left. The NAV-11 checklist item "replace hand-written or default shortcut text with useLiveShortcut" was done for TabContextMenu and WorkspaceActionsMenu only. Fix: sweep this sibling.
+Outcome: open, item NAV-11 (`SendButton.tsx:48` still reads `getCommand("chat.submit")?.defaultShortcuts[0]`).
 - LATER `core/services/sessions.ts:1380-1389` (`markWorkspaceUnread`): "newest chat" is `byWorkspace[id][0]` or a sort, and it can be a closed chat. Fix: pick the newest open chat, and test it.
+Outcome: open, item NAV-11 (`markWorkspaceUnread` still takes `byWorkspace[workspaceId]?.[0]` with no closed filter, `sessions.ts:1991-1993`).
 - LATER `core/services/notifications.ts:173-183`: the failure path of `refreshDockBadge` (`setDockBadge` throws) has no test.
+Outcome: open, item NAV-11 (`notifications.nav-11.test.ts` still tests only the success path).
 
 ## NAV-15 Terminals and previews that survive tab switches
 
@@ -24,9 +29,13 @@ Read-only audit of branch `slice2/step-1`. Paths are relative to `apps/desktop/s
 - MUST checklist items "The surface layout registry that places panels" and "The dialog manager that opens and closes dialogs" (services-map 1.5): no code and no test. The header moves the registry to "the caller", and nothing in `src` is called a dialog manager. Fix: build both, or move both items to the feature that will own them in `docs/plans/items/` and cut them from this issue.
 - MUST `app/SurfaceLayer.tsx:1-18` header, "Must handle: a tab that closes (its surface is removed and disposed)": the layer only stops rendering the spec. Disposal of the PTY or webview is the caller's, and no code does it. Header line is not kept. Fix: cut "and disposed" or add the disposal path.
 - LATER `app/SurfaceLayer.tsx:129`: the comment "keeping hidden ones mounted over their last known slot" is wrong. A hidden surface has no style at all and no slot. Fix: reword.
+Outcome: fixed already, 470e25c1 the comment now says a hidden surface "stays mounted but has no box on screen" (`SurfaceLayer.tsx:141`).
 - LATER `app/SurfaceLayer.tsx:5-9` against `:154-182`: the design choice says the layer "measures nothing", and the same file measures in `SurfaceAnchor`. Say which part measures.
+Outcome: fixed already, 470e25c1 the header now says the layer "draws what it is given and measures nothing; the anchor is the part that measures" (`SurfaceLayer.tsx:9`).
 - LATER `app/SurfaceLayer.tsx:177-178`: `report` runs on every `scroll` event in the document (capture phase) with no frame throttle, once per anchor. Fix: batch in `requestAnimationFrame`.
+Outcome: fixed already, 470e25c1 the scroll handler now schedules one `requestAnimationFrame` measure (`SurfaceLayer.tsx:190-201`).
 - LATER `app/SurfaceLayer.tsx:123`: the layer is `fixed ... z-10`. No test shows it stays below menus and dialogs.
+Outcome: open, item NAV-15 (`SurfaceLayer.nav-15.test.tsx` has no assertion about layer order; the layer is still `fixed inset-0 z-10`, `SurfaceLayer.tsx:145`).
 
 ## SET-07 Repo pages: scripts, actions, prompts
 
@@ -45,10 +54,16 @@ Read-only audit of branch `slice2/step-1`. Paths are relative to `apps/desktop/s
 - MUST `features/settings/repo/RepoScriptsPage.tsx` has no test for the Run mode select (checklist: run mode), and the Misc page has no test for the Git "Branch new workspaces from" control. Fix: add both.
 - MUST `features/settings/repo/RepoActionsPage.tsx:20-26` and `RepoMiscPage.tsx:28`: the screens import `core/services/repo.ts`, `core/services/settings.ts` and `core/services/ports.ts`, and read `localStorage` through `readHiddenRunActions` in a `useEffect`. architecture.md allows `features` to import `core/hooks.ts`, `core/api.ts` and `core/model.ts` only. Hidden ids are page-local state, so they are stale after a reset in another view. Fix: expose hidden ids through a hook on the repo store and move `actionIdsEqual`, `normalizeActionId`, `expandPreviewUrl` behind `core/hooks` or `core/model`.
 - LATER `features/settings/repo/RepoScriptsPage.tsx:62-111`, `RepoActionsPage.tsx:77-181`, `RepoMiscPage.tsx:77-82,212`: every save builds the next config from `value.data` and calls `updateConfig` with no single-flight or latest-wins guard. Two quick changes (Run mode, then the switch; or two quick "Add" in Files to copy) send the second from stale data and undo the first. Fix: `createSingleFlight` or a serial queue per repo, and a two-overlapping-calls test.
+Outcome: open, item SET-07 (the pages still call `updateConfig` directly with no queue, e.g. `RepoActionsPage.tsx:73`).
 - LATER `features/settings/repo/RepoScriptsPage.tsx:57-60`, `RepoPromptsPage.tsx:104-114`, `RepoMiscPage.tsx:77-82`: the draft is reset in a `useEffect([ready])`, so an unsaved edit is lost when the config object changes for another reason (another page saved). The header promises an edit kept until blur.
+Outcome: open, item SET-07 (`RepoScriptsPage.tsx:51-55` still resets the draft whenever `ready` changes).
 - LATER `features/settings/repo/RemoveRepoDialog.tsx:34-36`: `onConfirm` returns a boolean, so the dialog shows "could not be fully removed" and the real error stays in a toast only. Return a `Result` and show its message.
+Outcome: open, item SET-07 (`onConfirm` is still `() => Promise<boolean>`, `RemoveRepoDialog.tsx:22`).
 - LATER `features/scripts-panel/run/ActionIconPicker.tsx:63-65`: `console.error` runs inside render for an unknown icon, on every render, and falls back to the default icon. Fix: report once from an effect, or return the failure as a value.
+Outcome: fixed already, 3a4eab42 the report now runs from a `useEffect` (`ActionIconPicker.tsx:65-67`).
 - LATER `core/services/repo.ts:99-117`: the service reads `globalThis.localStorage` directly instead of taking a storage dependency (side effects at the edge). Tests would share a global.
+Outcome: open, item SET-07 (`repo.ts:147-153` still reads `globalThis.localStorage` directly).
 - LATER `core/services/repo.ts:774-788` (`resetRunAction`): `updateConfig` and then `setRunActionHidden` are two writes; if the second fails the reset has already happened and the user gets an error for a reset that worked. Fix: report a partial result.
+Outcome: open, item SET-07 (`resetRunAction` still does `updateConfig` then `setRunActionHidden` as two writes, `repo.ts:1410-1422`).
 
 Summary: NAV-11 has 8 MUST and 5 LATER; NAV-15 has 3 MUST and 4 LATER; SET-07 has 14 MUST and 6 LATER.
