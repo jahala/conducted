@@ -49,7 +49,7 @@ import "./styles.css";
 
 /**
  * Where the Apple silicon build is published: the latest GitHub release of this repository, the place
- * `pnpm release` tags (scripts/release.ts builds only the Apple silicon app). The wrong-CPU screen opens it.
+ * `pnpm release` tags (the release workflow builds only the Apple silicon app). The wrong-CPU screen opens it.
  */
 const APPLE_SILICON_DOWNLOAD_URL = "https://github.com/jahala/conducted/releases/latest";
 

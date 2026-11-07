@@ -43,7 +43,7 @@ export function versionFitsChannel(version: string, channel: UpdateChannel): boo
 	return !withoutBuildMetadata.includes("-");
 }
 
-/** The GitHub release page `pnpm release` writes for this version. */
+/** The GitHub release page the release workflow writes for this version. */
 export function releaseNotesUrl(version: string): string {
 	return `https://github.com/jahala/conducted/releases/tag/v${version}`;
 }
