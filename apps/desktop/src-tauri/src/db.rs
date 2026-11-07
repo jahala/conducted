@@ -139,6 +139,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0015_settings_garry_mode.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 16,
+            description: "terminal_host",
+            sql: include_str!("../migrations/0016_terminal_host.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

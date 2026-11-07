@@ -19,9 +19,10 @@
  * (only the newest attempt changes state); stop asks the terminal service for a 20 second
  * watchdog, and a stop that is not confirmed is returned to the caller and kept as the
  * workspace's outcome until the next start; quitting the app closes all runs; a local-mirror
- * action in a cloud workspace is refused with Conductor's "Local terminal unavailable", because no
- * local terminal runs on the mirror yet (D111, CLOUD-11 #253); "run
- * after setup" starts the default action when setup succeeded; run output is not saved to disk.
+ * action in a cloud workspace runs on this Mac in the workspace's mirror, and is refused with
+ * Conductor's "Local terminal unavailable" only when the mirror is not there (CLOUD-11, D120);
+ * "run after setup" starts the default action when setup succeeded; run output is not saved to
+ * disk.
  * Run history is
  * the last 20 action ids per workspace, kept in local storage so it survives a restart. Port
  * scanning (RUN-03) starts when a run starts and stops when it ends; an older scan never replaces
@@ -61,7 +62,12 @@ import { createSingleFlight } from "../async/single-flight.ts";
 import type { ActionTarget, Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 import type { PortService } from "./ports.ts";
-import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./terminals.ts";
+import {
+	buildScriptEnv,
+	LOCAL_TERMINAL_MESSAGE,
+	STOP_WATCHDOG_MS,
+	type TerminalsService,
+} from "./terminals.ts";
 
 export { STOP_WATCHDOG_MS };
 export const RUN_HISTORY_LIMIT = 20;
@@ -187,7 +193,9 @@ export interface RunScriptsServiceDeps {
 	/** The workspace and its project, for the folder and the script variables. */
 	workspaceFor: (workspaceId: WorkspaceId) => Promise<Result<Workspace>>;
 	repoFor: (workspaceId: WorkspaceId) => Promise<Result<Repo>>;
-	fs: Pick<FileSystem, "writeTextAtomic" | "mkdirp"> & { paths: FileSystem["paths"] };
+	fs: Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
+		paths: FileSystem["paths"];
+	};
 	/**
 	 * Runs the archive script, a one-shot shell command. The composition root supplies it; a test
 	 * of the setup path may leave it out, and archive then reports that it cannot run.
@@ -211,6 +219,12 @@ export interface RunScriptsServiceDeps {
 	 * another path may leave it out, and the app's bin folder is then used.
 	 */
 	pathPrefixFor?: () => Promise<Result<string>>;
+	/**
+	 * The mirrored folder of a cloud workspace on this Mac (CLOUD-11). An action whose local variant
+	 * runs in a cloud workspace runs there. Without it, and without a folder, that variant is refused
+	 * with "Local terminal unavailable".
+	 */
+	localFolderFor?: (workspaceId: WorkspaceId) => Promise<Result<string>>;
 }
 
 interface RunProcess {
@@ -295,9 +309,11 @@ export class RunScriptsService {
 		if (actionCommand(action) === "") {
 			return err(appError("run_action_empty", "That action has no command."));
 		}
-		if (action.runAvailability === "local" && workspace.value.host.kind === "cloud") {
-			return err(appError("run_local_mirror_unavailable", "Local terminal unavailable"));
-		}
+		const localRoot =
+			action.runAvailability === "local" && workspace.value.host.kind === "cloud"
+				? await this.#localRoot(workspaceId)
+				: ok(null);
+		if (!localRoot.ok) return localRoot;
 		if (isArchivedWorkspace(workspace.value) || workspace.value.state === "archiving") {
 			return err(appError("workspace_not_ready", "That workspace is archived."));
 		}
@@ -320,7 +336,15 @@ export class RunScriptsService {
 			return ok(undefined);
 		}
 
-		return this.#launch(workspaceId, attempt, action, config.value, workspace.value, repo.value);
+		return this.#launch(
+			workspaceId,
+			attempt,
+			action,
+			config.value,
+			workspace.value,
+			repo.value,
+			localRoot.value,
+		);
 	}
 
 	/** Backs `Actions.run.stop`. */
@@ -788,14 +812,24 @@ export class RunScriptsService {
 		if (action === undefined) {
 			return err(appError("run_action_unknown", "That action no longer exists."));
 		}
-		if (action.runAvailability === "local" && workspace.value.host.kind === "cloud") {
-			return err(appError("run_local_mirror_unavailable", "Local terminal unavailable"));
-		}
+		const localRoot =
+			action.runAvailability === "local" && workspace.value.host.kind === "cloud"
+				? await this.#localRoot(workspaceId)
+				: ok(null);
+		if (!localRoot.ok) return localRoot;
 		const repo = await this.#deps.repoFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!repo.ok) return repo;
 		this.#setActions(workspaceId, actions);
-		return this.#launch(workspaceId, attempt, action, config.value, workspace.value, repo.value);
+		return this.#launch(
+			workspaceId,
+			attempt,
+			action,
+			config.value,
+			workspace.value,
+			repo.value,
+			localRoot.value,
+		);
 	}
 
 	async #launch(
@@ -805,6 +839,7 @@ export class RunScriptsService {
 		config: RepoConfig,
 		workspace: Workspace,
 		repo: Repo,
+		localRoot: string | null,
 	): Promise<Result<void>> {
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 
@@ -816,8 +851,10 @@ export class RunScriptsService {
 
 		const userEnv = await this.#userEnv(repo, workspace);
 		if (!userEnv.ok) return userEnv;
+		// A local variant of a cloud workspace runs against its mirrored copy on this Mac.
+		const runWorkspace = localRoot === null ? workspace : { ...workspace, path: localRoot };
 		const env = buildScriptEnv({
-			workspace,
+			workspace: runWorkspace,
 			repoRootPath: repo.rootPath,
 			defaultBranch: repo.defaultBranch,
 			userEnv: userEnv.value,
@@ -825,7 +862,7 @@ export class RunScriptsService {
 		const prefix = await this.#pathPrefix();
 		if (!prefix.ok) return prefix;
 		env.CONDUCTED_PATH_PREFIX = prefix.value;
-		const cwd = expandActionCwd(action.cwd ?? workspace.path, env);
+		const cwd = expandActionCwd(action.cwd ?? runWorkspace.path, env);
 		const command = actionCommand(action);
 
 		this.#setActions(workspaceId, actionsForWorkspace(config.runScripts, workspace.host.kind));
@@ -841,6 +878,7 @@ export class RunScriptsService {
 			command,
 			cwd,
 			env,
+			...(localRoot === null ? {} : { hostKind: "local" as const }),
 			onOutput: (text) => {
 				tail = `${tail}${text}`.slice(-4096);
 				const url = detectLocalUrl(tail);
@@ -880,7 +918,7 @@ export class RunScriptsService {
 		this.#processes.set(workspaceId, process);
 		this.#recordHistory(workspaceId, action.id);
 		this.#setPhase(workspaceId, attempt, "running");
-		this.#startPortPolling(workspaceId, workspace.path);
+		this.#startPortPolling(workspaceId, localRoot ?? workspace.path);
 
 		const settle = (_code: number | null): void => {
 			if (!this.#isCurrent(workspaceId, attempt)) return;
@@ -893,6 +931,22 @@ export class RunScriptsService {
 		};
 		process.exit.then(settle, () => settle(null));
 		return ok(undefined);
+	}
+
+	/** The mirror a local variant runs in, or the refusal when it is not ready (CLOUD-11). */
+	async #localRoot(workspaceId: WorkspaceId): Promise<Result<string | null>> {
+		const folder = this.#deps.localFolderFor;
+		if (folder === undefined) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE));
+		}
+		const mirrored = await folder(workspaceId);
+		if (!mirrored.ok) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE, mirrored.error));
+		}
+		if (!(await this.#deps.fs.exists(mirrored.value))) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE));
+		}
+		return ok(mirrored.value);
 	}
 
 	async #stopOtherWorkspaces(repoId: string, keepWorkspaceId: WorkspaceId): Promise<Result<void>> {

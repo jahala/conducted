@@ -34,6 +34,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { RunTerminalSlot, useRunSurfaceTerminal } from "../../../app/surface-registry.tsx";
+import { PREVIEW_MIRROR_UNAVAILABLE_MESSAGE } from "../../../core/cloud/file-sync.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/services/run-scripts.ts";
@@ -71,6 +72,8 @@ interface RunPreviewProps
 	workspaceId: WorkspaceId;
 	workspacePort: number;
 	runOutputUrl: string | null;
+	/** True when the picked action is a cloud workspace's Local variant (CLOUD-11). */
+	localVariant: boolean;
 }
 
 /**
@@ -83,10 +86,21 @@ function RunPreview({
 	workspaceId,
 	workspacePort,
 	runOutputUrl,
+	localVariant,
 	...toolbar
 }: RunPreviewProps) {
 	const config = useRepoConfig(repoId);
 	const open = useUrlOpeners(workspaceId);
+	const cloudFileSync = useServices().services.cloudFileSync;
+	const openPreview = (url: string): void => {
+		void (async () => {
+			if (localVariant && !(await cloudFileSync.mirrorReady(workspaceId))) {
+				toast(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE);
+				return;
+			}
+			open.preview(url);
+		})();
+	};
 	const templates = config.state === "ready" ? config.data.previewUrls : [];
 	const { urls, problems } = buildPreviewUrls({
 		runOutputUrl,
@@ -97,7 +111,7 @@ function RunPreview({
 	useCommandHandler("terminal.openLocalhost", "area", () => {
 		const target = urls[0];
 		if (target === undefined) return false;
-		open.preview(target.url);
+		openPreview(target.url);
 		return true;
 	});
 
@@ -106,7 +120,7 @@ function RunPreview({
 			<RunToolbar
 				{...toolbar}
 				urls={urls}
-				onOpenUrl={open.preview}
+				onOpenUrl={openPreview}
 				defaultUrl={urls[0]?.url ?? null}
 			/>
 			{[...new Set(problems)].map((problem) => (
@@ -295,6 +309,7 @@ export function RunTab({ workspaceId }: RunTabProps) {
 				workspaceId={workspaceId}
 				workspacePort={workspace.data.port}
 				runOutputUrl={active?.url ?? null}
+				localVariant={selected.runAvailability === "local" && workspace.data.host.kind === "cloud"}
 				actions={available.map((entry) => ({
 					id: entry.id,
 					label: entry.label,

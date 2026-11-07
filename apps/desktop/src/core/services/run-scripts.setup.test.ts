@@ -290,6 +290,7 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 			fs: {
 				writeTextAtomic: async () => ok(undefined),
 				mkdirp: async () => ok(undefined),
+				exists: async () => true,
 				paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 			},
 		});

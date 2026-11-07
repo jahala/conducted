@@ -23,7 +23,8 @@
  * the chat's staging folder and get an attachment row; a
  * file named like one of the app's own context files is attached under another name. A
  * send copies each staged file into the workspace's `.context/attachments/<id>/<name>`, moves the
- * staging copy to the Trash and flips its row from draft to sent. `flush` writes every draft
+ * staging copy to the Trash and flips its row from draft to sent. In a cloud workspace the copy is
+ * an upload through the Worker into the sandbox (CLOUD-11, D120). `flush` writes every draft
  * still waiting for its debounce and waits for every write; the container's `stop` calls it, so
  * the last edit before quitting is kept. Draft files of deleted chats, and drafts older than 30
  * days, go to the Trash in the data-lifetime job (core/db/lifetime.ts, `remove-draft-files`).
@@ -258,6 +259,15 @@ export interface ComposerServiceDeps {
 		sessionId: SessionId,
 		planId: string,
 	) => Promise<Result<{ title: string; text: string }>>;
+	/**
+	 * Uploads one staged attachment into a cloud workspace through its Worker (CLOUD-11), and
+	 * returns the file's path there. Absent only in a test of another path.
+	 */
+	cloudUpload?: (
+		sessionId: SessionId,
+		sourcePath: string,
+		relativePath: string,
+	) => Promise<Result<string>>;
 }
 
 export class ComposerService {
@@ -583,6 +593,7 @@ export class ComposerService {
 		workspacePath: string,
 		messageId: string,
 		attachmentPaths: readonly string[],
+		hostKind: "local" | "cloud" = "local",
 	): Promise<Result<string[]>> {
 		if ((this.#busy.get(sessionId) ?? 0) > 0) {
 			return err(appError("attachment_processing", "Wait for attachments to finish processing."));
@@ -611,16 +622,27 @@ export class ComposerService {
 				return err(appError("attachment_unavailable", "Attachments not available", source.error));
 			}
 			const folder = `${workspacePath}/.context/attachments/${row.id}`;
-			const made = await fs.mkdirp(folder);
-			if (!made.ok) return made;
 			const destination = `${folder}/${attachmentFileName(row.originalName)}`;
 			let finalPath = destination;
-			if (!(await fs.exists(destination))) {
-				const materialized = await files.materialize(path, destination, {
-					resizeImage: row.kind === "image",
-				});
-				if (!materialized.ok) return err(this.#copyError(materialized.error));
-				finalPath = materialized.value.path;
+			if (hostKind === "cloud") {
+				const upload = this.#deps.cloudUpload;
+				if (upload === undefined) {
+					return err(appError("attachment_unavailable", "Attachments not available"));
+				}
+				const relative = `.context/attachments/${row.id}/${attachmentFileName(row.originalName)}`;
+				const uploaded = await upload(sessionId, path, relative);
+				if (!uploaded.ok) return err(this.#copyError(uploaded.error));
+				finalPath = uploaded.value;
+			} else {
+				const made = await fs.mkdirp(folder);
+				if (!made.ok) return made;
+				if (!(await fs.exists(destination))) {
+					const materialized = await files.materialize(path, destination, {
+						resizeImage: row.kind === "image",
+					});
+					if (!materialized.ok) return err(this.#copyError(materialized.error));
+					finalPath = materialized.value.path;
+				}
 			}
 			if (isInsideFolder(draftAttachmentsRoot(fs.paths), path)) {
 				const trashed = await trashIfPresent(fs, path);

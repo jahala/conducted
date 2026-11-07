@@ -8,8 +8,9 @@
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the host seam's git, shell and file calls and
  * the sidecar relay reach the Worker) and services-map.md 1.2 (a shell command is a program and
  * its arguments, never a shell string).
- * Must handle: an absolute path inside the sandbox, a program and argument without NUL bytes, and
- * a timeout that catches a hang rather than slowness. Relative file paths are refused because a
+ * Must handle: an absolute path inside the sandbox, a program and argument without NUL bytes, a
+ * file body that carries text or base64 bytes (CLOUD-11), and a timeout that catches a hang rather
+ * than slowness. Relative file paths are refused because a
  * sandbox has no session working directory.
  * Our design choice: `exec` runs an argv, the same shape the Platform's Shell takes, so the desktop
  * can hand its own commands over unchanged. Git is a separate route because it is the call the
@@ -79,7 +80,9 @@ export type SshKeyBody = z.infer<typeof zSshKeyBody>;
 
 export const zFileBody = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("read"), path: absolutePath }).strict(),
+	z.object({ operation: z.literal("readBytes"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("write"), path: absolutePath, text: z.string() }).strict(),
+	z.object({ operation: z.literal("writeBytes"), path: absolutePath, base64: z.string() }).strict(),
 	z.object({ operation: z.literal("exists"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("stat"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("readDir"), path: absolutePath }).strict(),

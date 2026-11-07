@@ -271,10 +271,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			});
 		});
 
-	const writeAtomic = async (path: string, text: string): Promise<void> => {
+	const writeAtomic = async (path: string, data: string | Uint8Array): Promise<void> => {
 		const temp = join(dirname(path), `.${basename(path)}.tmp-${process.pid}-${++tempCounter}`);
 		try {
-			await writeFile(temp, text, "utf8");
+			await (typeof data === "string" ? writeFile(temp, data, "utf8") : writeFile(temp, data));
 			await rename(temp, path);
 		} catch (error) {
 			await rm(temp, { force: true });
@@ -317,6 +317,21 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			}
 			case COMMANDS.fsWriteTextAtomic:
 				return writeAtomic(scopedPath(args), String(args.text));
+			// CLOUD-11's byte door, as files.rs answers it: base64 both ways, and a body that is not
+			// base64 refused as fs_bad_data.
+			case COMMANDS.fsReadBytes: {
+				const requested = scopedPath(args);
+				return readFile(requested)
+					.then((bytes) => bytes.toString("base64"))
+					.catch((error: Error) => fsFailure(error, requested));
+			}
+			case COMMANDS.fsWriteBytesAtomic: {
+				const data = String(args.data);
+				if (data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) {
+					fail("fs_bad_data", "The file's bytes are not base64.");
+				}
+				return writeAtomic(scopedPath(args), Buffer.from(data, "base64"));
+			}
 			case COMMANDS.fsStat:
 				return statOf(scopedPath(args));
 			case COMMANDS.fsMkdirp:

@@ -638,8 +638,14 @@ export interface Actions {
 		activateApp: Act<[workspaceId: WorkspaceId, port: number]>;
 	};
 	terminals: {
-		/** `command` is typed into the new shell when it starts. */
-		create: Act<[workspaceId: WorkspaceId, options?: { command?: string }], Terminal>;
+		/**
+		 * `command` is typed into the new shell when it starts. In a cloud workspace `hostKind`
+		 * picks the sandbox (the default) or the Mac in the local mirror (CLOUD-11).
+		 */
+		create: Act<
+			[workspaceId: WorkspaceId, options?: { command?: string; hostKind?: "local" | "cloud" }],
+			Terminal
+		>;
 		/** Opens the repository's terminal in its main clone, creating it the first time. */
 		openForRepo: Act<[repoId: RepoId], Terminal>;
 		/** Starts a new shell in a terminal whose shell has ended, below a divider line. */

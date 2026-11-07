@@ -600,6 +600,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 		setting,
 		now: () => clock.now(),
 	});
+	/**
+	 * The mirrored folder of a cloud workspace on this Mac (CLOUD-11): its Mac terminals and run
+	 * actions run there. The sync is asked to fill it first; the folder check that follows decides,
+	 * so a failed refresh leaves a mirror that is already on disk usable.
+	 */
+	const localFolderOf = async (workspaceId: WorkspaceId): Promise<Result<string>> => {
+		await cloudFileSync.ensureMirror(workspaceId);
+		return cloudFileSync.mirrorPathOf(workspaceId);
+	};
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
 		cloudClientFor: (host) => tunnelForHost(host),
@@ -781,6 +790,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		scrollbackLimitBytes: () => setting<number>("terminal_scrollback_limit_bytes"),
 		now: () => clock.now(),
 		pathPrefixFor: () => system.pathPrefix(),
+		localFolderFor: localFolderOf,
 	});
 	const composer = new ComposerService({
 		platform,
@@ -804,6 +814,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (!output.ok) return output;
 			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
 			return ok({ text: output.value.output, source: output.value.source });
+		},
+		// CLOUD-11: a cloud workspace's attachments go into the sandbox through its Worker.
+		cloudUpload: async (sessionId, sourcePath, relativePath) => {
+			const found = lookups.workspaceOfSession(sessionId);
+			if (!found.ok) return found;
+			return cloudFileSync.uploadFile(found.value.id, sourcePath, relativePath);
 		},
 		// CHAT-26: another chat's transcript and one plan, read when the user attaches them.
 		transcriptOf: (sessionId) => sessions.transcriptOf(sessionId),
@@ -964,6 +980,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				workspace.path,
 			),
 		pathPrefixFor: () => system.pathPrefix(),
+		localFolderFor: localFolderOf,
 	});
 	const repo: RepoService = new RepoService({
 		platform,

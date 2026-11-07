@@ -12,6 +12,7 @@
 	},
 	"dependencies": {
 		"@cloudflare/sandbox": "1.0.3",
+		"@conducted/shared": "workspace:*",
 		"zod": "^4.6.7"
 	},
 	"devDependencies": {

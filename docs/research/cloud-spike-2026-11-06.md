@@ -511,3 +511,50 @@ answers 404), container application `conducted-dev-c12s-1794076306-sandbox`
 `wrangler containers list`, `containers images list` and `r2 bucket list` hold no
 `conducted-dev-c12s` entry, and `docker images` holds none. The temp keys, listener, configs and
 the `apps/cloud/sandbox/build/` output were trashed.
+
+## Follow-up: the mirror's file route and terminal (CLOUD-11, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, through a temporary
+ignored Rust test (`apps/desktop/src-tauri/tests/cloud_c11_live.rs`). It exercises the Worker paths
+CLOUD-11's mirror, Local terminal and Local run variant read from, not the Mac's own PTY: a text
+file, a binary file and a file over 2 MiB through `/files`, and a command through the `/terminal`
+stream a run script uses in the sandbox.
+
+- **Deploy:** **32,552 ms** to build and upload the image and Worker (wrangler 4.158).
+- **Cold start:** `POST /w/c11live183155/start` answered after **176,532 ms** across three tries,
+  not one. The first request after a deploy pulls the new image and is cut off by Cloudflare's
+  100-second request window. The second and third found the container running. The test now
+  retries up to three times.
+- **Files:** **1,017 ms** for the whole block: a text write, a binary `writeBytes`, a 3 MiB text
+  write, a `readBytes` whose bytes matched byte for byte, and a `list` that carried
+  `/workspace/big.txt`.
+- **Terminal:** **259 ms** for `/bin/bash -l -c 'echo TERMOK && pwd'` over the terminal WebSocket,
+  with `TERMOK` and `/workspace` in the output and exit 0.
+- **Uninstall:** **13,599 ms**. Final `wrangler containers list`, `containers images list` and
+  `r2 bucket list` held no `conducted-dev-c11t` entry, the Worker URL answers 404, and the local
+  Docker image was removed by its id `8bfd6ad75467`. Both run names, `conducted-dev-c11t-182835`
+  (the first try, cut at the 100-second start) and `conducted-dev-c11t-183155` (the pass), were
+  deleted.
+
+## Review round 2: the read limit (CLOUD-11, 2026-11-07)
+
+The first cut removed the 2 MiB limit without a replacement, so one large file could make the
+Worker build a base64 answer it can never send, and the five-second poll retried it forever. This
+run measured the real ceiling.
+
+Method: Worker `conducted-dev-c11t-190020` (8, 16, 24, 32, 40, 48, 56, 64 MiB) then
+`conducted-dev-c11t-190232` (16, 20, 22, 23 MiB). For each size, `exec dd` created a zero file in
+`/workspace`, one `/files readBytes` read it, and the answer's base64 was decoded to check its
+length. The probe file was removed after each read; the Worker, container application, images and
+bucket were deleted by the test.
+
+- **8, 16, 20, 22 and 23 MiB succeeded.** The decoded lengths matched exactly.
+- **24 MiB failed:** `Serialized RPC arguments or return values are limited to 32MiB, but the size
+  of this value was: 33554450 bytes.` The ceiling is the Durable Object RPC value, not the
+  Worker's 128 MB memory.
+- **Chosen limit: 16 MiB**, a dial with 7 MiB of margin below the 23 MiB success and 8 MiB below
+  the 24 MiB failure. Both the mirror and the Worker use `CLOUD_MIRROR_FILE_LIMIT_BYTES` from
+  `packages/shared`, and the Worker checks the size before it reads.
+- Cleanup: `containers list`, `containers images list` and `r2 bucket list` held no
+  `conducted-dev-c11t` entry; the local Docker image was removed by id. The first measurement's
+  image and the second's image were both removed.

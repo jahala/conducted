@@ -268,6 +268,12 @@ function makeHarness(
 			registered.push(path);
 			return ok(undefined);
 		},
+		async readBytes() {
+			return ok(new Uint8Array());
+		},
+		async writeBytes() {
+			return ok(undefined);
+		},
 		assetUrl(path: string) {
 			return `asset://localhost/${encodeURIComponent(path)}`;
 		},

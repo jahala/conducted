@@ -45,8 +45,10 @@
  * which is how script terminals end and how a tab's shell can be started again.
  * Built now (RUN-06, RUN-07, RUN-01, RUN-09, CHAT-23): tabs, the live connection, restart, repo
  * terminal, limit, folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript`, `stop`
- * and `runCommand`. An ended terminal reads its saved scrollback once, before its connection is
- * handed to the view, so a reopened terminal replays it (PLAT-08). `runCommand` starts a chat code
+ * and `runCommand`. A terminal row says which host it runs on: a cloud workspace can open a Mac
+ * terminal in its local mirror beside one in the sandbox (CLOUD-11, D120). An ended terminal reads
+ * its saved scrollback once, before its connection is handed to the view, so a reopened terminal
+ * replays it (PLAT-08). `runCommand` starts a chat code
  * block's command as a `run` terminal in the
  * workspace and returns its row; the chat shows its live stream, status, exit code, Stop and
  * Clear. `outputFor` reads the live screen, keeps the text of a finished terminal in memory, and
@@ -77,12 +79,16 @@ import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 import type { Loadable } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import { LOCAL_TERMINAL_UNAVAILABLE_LABEL } from "../cloud/file-sync.ts";
 import { openCloudTerminal } from "../cloud/terminal.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { checkHost } from "../host.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 import { zshIntegrationDir } from "./shell-integration.ts";
+
+/** The one message a Mac terminal in a cloud workspace says when its mirror is not ready (CLOUD-11). */
+export const LOCAL_TERMINAL_MESSAGE = LOCAL_TERMINAL_UNAVAILABLE_LABEL;
 
 /** The files of the zsh shim, in the order zsh reads them. */
 export const ZSH_INTEGRATION_FILE_NAMES = [".zshenv", ".zprofile", ".zshrc", ".zlogin"] as const;
@@ -385,6 +391,11 @@ export interface TerminalsServiceDeps {
 	setTimer?: (callback: () => void, ms: number) => () => void;
 	/** The folder to put first on PATH (SET-13). Without it, a terminal gets no path prefix. */
 	pathPrefixFor?: () => Promise<Result<string>>;
+	/**
+	 * The mirrored folder of a cloud workspace on this Mac (CLOUD-11). A Mac terminal in a cloud
+	 * workspace runs there. Without it, such a terminal cannot start.
+	 */
+	localFolderFor?: (workspaceId: WorkspaceId) => Promise<Result<string>>;
 }
 
 /** Milliseconds a stop waits for the process to exit before it reports "not confirmed". */
@@ -855,6 +866,23 @@ export class TerminalsService {
 		}));
 	}
 
+	/** The mirrored folder a Mac terminal of a cloud workspace runs in (CLOUD-11). */
+	async #localFolder(workspaceId: WorkspaceId): Promise<Result<string>> {
+		const folder = this.#deps.localFolderFor;
+		if (folder === undefined) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE));
+		}
+		const mirrored = await folder(workspaceId);
+		if (!mirrored.ok) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE, mirrored.error));
+		}
+		const stat = await this.#deps.platform.fs.stat(mirrored.value);
+		if (!stat.ok || !stat.value.isDirectory) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE));
+		}
+		return ok(mirrored.value);
+	}
+
 	/** The sandbox a workspace's terminal runs in, or null when it runs on the Mac. */
 	async #cloudHost(workspaceId: WorkspaceId): Promise<CloudHost | null> {
 		const workspace = await this.#deps.repos.workspaces.get(workspaceId);
@@ -928,14 +956,21 @@ export class TerminalsService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.terminals.create`: an interactive login shell in the workspace folder. */
-	create(workspaceId: WorkspaceId, options?: { command?: string }): Promise<Result<Terminal>> {
+	/**
+	 * Backs `Actions.terminals.create`: an interactive login shell in the workspace folder. In a
+	 * cloud workspace `hostKind` picks the sandbox (the default) or the Mac in the local mirror
+	 * (CLOUD-11).
+	 */
+	create(
+		workspaceId: WorkspaceId,
+		options?: { command?: string; hostKind?: "local" | "cloud" },
+	): Promise<Result<Terminal>> {
 		return this.#creates.run(workspaceId, () => this.#create(workspaceId, options));
 	}
 
 	async #create(
 		workspaceId: WorkspaceId,
-		options?: { command?: string },
+		options?: { command?: string; hostKind?: "local" | "cloud" },
 	): Promise<Result<Terminal>> {
 		const workspace = await this.#deps.repos.workspaces.get(workspaceId);
 		if (!workspace.ok) return workspace;
@@ -943,9 +978,18 @@ export class TerminalsService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		checkHost(workspace.value.host, "terminals");
-		const cloud = workspace.value.host.kind === "cloud" ? workspace.value.host : null;
 		if (workspace.value.state !== "ready") {
 			return err(appError("workspace_not_ready", "Workspace is not ready for local terminals."));
+		}
+		const hostKind: "local" | "cloud" =
+			workspace.value.host.kind === "cloud" && options?.hostKind !== "local" ? "cloud" : "local";
+		const cloud =
+			hostKind === "cloud" && workspace.value.host.kind === "cloud" ? workspace.value.host : null;
+		let cwd = workspace.value.path;
+		if (hostKind === "local" && workspace.value.host.kind === "cloud") {
+			const mirrored = await this.#localFolder(workspaceId);
+			if (!mirrored.ok) return mirrored;
+			cwd = mirrored.value;
 		}
 
 		const listed = await this.#deps.repos.terminals.listByWorkspace(workspaceId);
@@ -958,7 +1002,7 @@ export class TerminalsService {
 		if (liveCount >= limit) {
 			return err(appError("terminal_limit", `Maximum ${limit} terminals allowed`));
 		}
-		const folder = await this.#requireFolder(workspace.value.path);
+		const folder = await this.#requireFolder(cwd);
 		if (!folder.ok) return folder;
 		const environment = cloud === null ? await this.#withPathPrefix() : ok(undefined);
 		if (!environment.ok) return environment;
@@ -969,7 +1013,8 @@ export class TerminalsService {
 			repoId: null,
 			kind: "terminal",
 			title: nextTerminalTitle(existing),
-			cwd: workspace.value.path,
+			cwd,
+			hostKind,
 			startCommand: options?.command ?? null,
 		});
 		if (!started.ok) return started;
@@ -1048,6 +1093,8 @@ export class TerminalsService {
 		command: string;
 		cwd: string;
 		env: Readonly<Record<string, string>>;
+		/** Where it runs. A cloud workspace defaults to its sandbox (CLOUD-11). */
+		hostKind?: "local" | "cloud";
 		/** Receives the script's output as text, for URL detection. */
 		onOutput?: (text: string) => void;
 	}): Promise<Result<ScriptRun>> {
@@ -1057,7 +1104,10 @@ export class TerminalsService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		checkHost(workspace.value.host, "terminals");
-		const cloud = workspace.value.host.kind === "cloud" ? workspace.value.host : null;
+		const hostKind: "local" | "cloud" =
+			workspace.value.host.kind === "cloud" && input.hostKind !== "local" ? "cloud" : "local";
+		const cloud =
+			hostKind === "cloud" && workspace.value.host.kind === "cloud" ? workspace.value.host : null;
 		const folder = await this.#requireFolder(input.cwd);
 		if (!folder.ok) return folder;
 		const environment = cloud === null ? await this.#withPathPrefix(input.env) : ok(input.env);
@@ -1069,6 +1119,7 @@ export class TerminalsService {
 			kind: input.kind,
 			title: input.title,
 			cwd: input.cwd,
+			hostKind,
 			startCommand: null,
 		});
 		if (!started.ok) return started;
@@ -1359,7 +1410,9 @@ export class TerminalsService {
 		const folder = await this.#requireFolder(terminal.cwd);
 		if (!folder.ok) return folder;
 		const cloud =
-			terminal.workspaceId === null ? null : await this.#cloudHost(terminal.workspaceId);
+			terminal.hostKind === "cloud" && terminal.workspaceId !== null
+				? await this.#cloudHost(terminal.workspaceId)
+				: null;
 		const environment = cloud === null ? await this.#withPathPrefix() : ok(undefined);
 		if (!environment.ok) return environment;
 
