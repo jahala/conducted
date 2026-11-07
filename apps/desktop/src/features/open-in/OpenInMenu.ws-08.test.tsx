@@ -83,6 +83,32 @@ describe("WS-08 OpenInMenu", () => {
 		expect(menuLabels(menu)).toEqual(["Cursor", "Finder", "Copy path"]);
 	});
 
+	it("WS-08 shows the default app's own icon, and the app's kind for an app with no icon", async () => {
+		const { workspace } = await setup({ installed: ["Finder", "Cursor"], recents: "Cursor" });
+		if (test === undefined) throw new Error("Create the test container first.");
+		const cursorIcon = "data:image/png;base64,iVBORw0KGgo=";
+		const appIcon = vi
+			.spyOn(test.container.platform.opener, "appIcon")
+			.mockImplementation(async (appName) => ok(appName === "Cursor" ? cursorIcon : null));
+		renderMenu(workspace.id);
+
+		const button = await screen.findByRole("button", { name: "Open in Cursor" });
+		const icon = await within(button).findByRole("img", { name: "Cursor icon" });
+		expect(icon.getAttribute("src")).toBe(cursorIcon);
+		expect(appIcon).toHaveBeenCalledWith("Cursor");
+
+		const menu = await openMenu();
+		const finder = within(menu).getByRole("menuitem", { name: /Finder/ });
+		await waitFor(() => expect(appIcon).toHaveBeenCalledWith("Finder"));
+		expect(within(finder).queryByRole("img")).toBeNull();
+		expect(finder.querySelector("svg")).not.toBeNull();
+		expect(
+			await within(within(menu).getByRole("menuitem", { name: /Cursor/ })).findByRole("img", {
+				name: "Cursor icon",
+			}),
+		).toBeTruthy();
+	});
+
 	it("WS-08 opens the default app and remembers it as the most recent", async () => {
 		const { workspace } = await setup({ installed: ["Finder", "Cursor"], recents: "" });
 		if (test === undefined) throw new Error("Create the test container first.");

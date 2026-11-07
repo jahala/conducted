@@ -172,6 +172,23 @@ describe("routes", () => {
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});
 
+	it("puts Back and the settings top bar in the title bar row, with no strip above them", async () => {
+		await openApp("/settings/general");
+		const settings = await screen.findByTestId("settings-screen");
+		await screen.findByRole("heading", { name: "General" });
+
+		// Conductor's settings screen draws its own drag regions: the row holding Back at the top of
+		// the nav, and the 40 px top bar of the page column. Nothing sits above them.
+		const regions = [...document.querySelectorAll("[data-tauri-drag-region]")];
+		expect(regions.length).toBeGreaterThan(0);
+		expect(regions.every((region) => settings.contains(region))).toBe(true);
+		const back = screen.getByRole("button", { name: "Back" });
+		expect(regions.some((region) => region.contains(back))).toBe(true);
+		expect(screen.getByTestId("settings-top-bar").hasAttribute("data-tauri-drag-region")).toBe(
+			true,
+		);
+	});
+
 	it("/diagnostics renders without the sidebar", async () => {
 		await openApp("/diagnostics");
 		expect(await screen.findByRole("heading", { name: "Diagnostics" })).toBeTruthy();

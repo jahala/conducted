@@ -20,7 +20,6 @@
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
 import { useState } from "react";
-import { useServices } from "../../../core/context.tsx";
 import {
 	useActions,
 	useAgentPrograms,
@@ -35,7 +34,7 @@ import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { FolderIcon } from "../../../ui/icons.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
-import { programPathCheck, programPathWarning } from "../program-path.tsx";
+import { PROGRAM_PATHS, ProgramPathRow } from "../program-path.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -43,7 +42,6 @@ const ROOT_PATH_KEY = "conducted_root_path";
 
 export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
-	const { platform } = useServices();
 	const actions = useActions();
 	const saves = useSettingSaves();
 	const rootPath = useSetting<string>(ROOT_PATH_KEY);
@@ -101,12 +99,20 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				</div>
 			</SettingRow>
 
+			{PROGRAM_PATHS.map((program) => (
+				<ProgramPathRow
+					key={program.key}
+					settingKey={program.key}
+					label={program.label}
+					binary={program.binary}
+					focusSettingKey={focusSettingKey}
+				/>
+			))}
+
 			<RegistrySettingRows
 				page="advanced"
 				focusSettingKey={focusSettingKey}
-				exclude={[ROOT_PATH_KEY]}
-				beforeSave={programPathCheck((path) => platform.fs.exists(path))}
-				extraFor={programPathWarning}
+				exclude={[ROOT_PATH_KEY, ...PROGRAM_PATHS.map((program) => program.key)]}
 			/>
 
 			<AgentBinaries />

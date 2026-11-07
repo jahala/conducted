@@ -1,9 +1,11 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { ok, type RepoId } from "@conducted/shared";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
-import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { createTestContainer, seedRepo, type TestContainer } from "../../test/container.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
 import { SettingsScreen } from "./SettingsScreen.tsx";
 
@@ -15,11 +17,27 @@ afterEach(() => {
 	test = undefined;
 });
 
-async function mount(ui: ReactNode) {
+async function mount(ui: ReactNode, before?: (mounted: TestContainer) => Promise<void>) {
 	test = createTestContainer();
 	await test.container.services.settings.start();
-	renderWithRouter(<ServicesProvider container={test.container}>{ui}</ServicesProvider>);
+	await before?.(test);
+	renderWithRouter(
+		<ServicesProvider container={test.container}>
+			<AppProviders client={createQueryClient(() => {})}>{ui}</AppProviders>
+		</ServicesProvider>,
+	);
 	return test.container;
+}
+
+/** Cursor is installed and is the default Open in app. */
+async function withCursorDefault(mounted: TestContainer) {
+	vi.spyOn(mounted.container.platform.opener, "installedApps").mockResolvedValue([
+		"Finder",
+		"Cursor",
+	]);
+	mounted.container.services.settings.store.setState((state) => ({
+		values: { ...state.values, default_open_in: "Cursor" },
+	}));
 }
 
 describe("SET-02 SettingsScreen", () => {
@@ -28,6 +46,57 @@ describe("SET-02 SettingsScreen", () => {
 		expect(await screen.findByRole("heading", { name: "Git" })).toBeTruthy();
 		// Conductor's branch name prefix is a group of radios.
 		expect(screen.getByRole("group", { name: "Branch name prefix" })).toBeTruthy();
+	});
+
+	it("opens settings.toml in the default app from the top bar", async () => {
+		const container = await mount(<SettingsScreen page="general" />, withCursorDefault);
+		const openFile = vi
+			.spyOn(container.actions.settings, "openFile")
+			.mockResolvedValue(ok(undefined));
+		const topBar = await screen.findByTestId("settings-top-bar");
+		expect(topBar.hasAttribute("data-tauri-drag-region")).toBe(true);
+
+		fireEvent.click(await within(topBar).findByRole("button", { name: "Open settings.toml" }));
+
+		await waitFor(() => expect(openFile).toHaveBeenCalledWith("user", "Cursor"));
+	});
+
+	it("opens a repository's settings.local.toml, and copies its path from the menu", async () => {
+		let repoId = "" as RepoId;
+		const container = await mount(<SettingsScreen page="general" />, async (mounted) => {
+			await withCursorDefault(mounted);
+			repoId = (await seedRepo(mounted.container, { name: "atlas" })).id;
+		});
+		cleanup();
+		renderWithRouter(
+			<ServicesProvider container={container}>
+				<AppProviders client={createQueryClient(() => {})}>
+					<SettingsScreen page={`repo:${repoId}:scripts`} />
+				</AppProviders>
+			</ServicesProvider>,
+		);
+		const openFile = vi
+			.spyOn(container.actions.settings, "openFile")
+			.mockResolvedValue(ok(undefined));
+		const filePath = vi
+			.spyOn(container.actions.settings, "filePath")
+			.mockResolvedValue(ok("/repos/atlas/.conducted/settings.local.toml"));
+		const copyText = vi.spyOn(container.actions.app, "copyText").mockResolvedValue(ok(undefined));
+		const topBar = await screen.findByTestId("settings-top-bar");
+
+		fireEvent.click(
+			await within(topBar).findByRole("button", { name: "Open settings.local.toml" }),
+		);
+		await waitFor(() => expect(openFile).toHaveBeenCalledWith({ repoId }, "Cursor"));
+
+		fireEvent.click(within(topBar).getByRole("button", { name: "Open in..." }));
+		const menu = await screen.findByRole("menu", { name: "Open in" });
+		expect(within(menu).getByRole("menuitem", { name: /Finder/ })).toBeTruthy();
+		fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy path" }));
+		await waitFor(() =>
+			expect(copyText).toHaveBeenCalledWith("/repos/atlas/.conducted/settings.local.toml"),
+		);
+		expect(filePath).toHaveBeenCalledWith({ repoId });
 	});
 
 	it("renders the page-not-found state for an unknown page", async () => {

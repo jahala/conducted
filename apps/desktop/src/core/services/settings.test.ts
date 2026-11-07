@@ -125,6 +125,8 @@ interface Harness {
 	emitFocus: (focused: boolean) => void;
 	logs: { level: string; message: string; data?: unknown }[];
 	git: { calls: GitCommand[]; answer: (command: GitCommand) => Result<string> | null };
+	/** Each `openWith` call the service made, in order. */
+	opened: { appName: string; path: string }[];
 }
 
 /** Projects by id, answering the two reads the settings service makes of the repository table. */
@@ -158,6 +160,7 @@ const harness = (
 	let unsubscribed = false;
 	let focusListener: ((focused: boolean) => void) | null = null;
 	const logs: Harness["logs"] = [];
+	const opened: Harness["opened"] = [];
 	const git = {
 		calls: [] as GitCommand[],
 		answer: (_command: GitCommand): Result<string> | null => null,
@@ -178,6 +181,12 @@ const harness = (
 		app: {
 			writeLog(level: string, message: string, data?: unknown) {
 				logs.push({ level, message, data });
+			},
+		},
+		opener: {
+			async openWith(appName: string, path: string) {
+				opened.push({ appName, path });
+				return ok(undefined);
 			},
 		},
 		...(options.withWindow === true
@@ -220,6 +229,7 @@ const harness = (
 		emitFocus: (focused) => focusListener?.(focused),
 		logs,
 		git,
+		opened,
 	};
 };
 
@@ -759,6 +769,34 @@ describe("DATA-05 writing settings", () => {
 		);
 		const after = await test.service.getForRepo("delete_branch_on_archive", "/repo", null);
 		expect(after.ok && after.value).toMatchObject({ value: true, source: "repo-shared" });
+	});
+
+	it("creates the user settings file when it is missing and opens it in the chosen app", async () => {
+		const test = harness();
+		expect(await test.service.openFile("user", "Cursor")).toEqual(ok(undefined));
+		expect(test.fs.files.get(userFile())).toBe("");
+		expect(test.opened).toEqual([{ appName: "Cursor", path: userFile() }]);
+	});
+
+	it("opens a project's local settings file without changing one that exists", async () => {
+		const test = harness({ repoRoots: { r1: "/repo" } });
+		test.fs.files.set("/repo/.conducted/settings.local.toml", "[git]\n");
+		const file = { repoId: "r1" as RepoId };
+		expect(await test.service.filePath(file)).toEqual(ok("/repo/.conducted/settings.local.toml"));
+		expect(await test.service.openFile(file, "Finder")).toEqual(ok(undefined));
+		expect(test.fs.files.get("/repo/.conducted/settings.local.toml")).toBe("[git]\n");
+		expect(test.opened).toEqual([
+			{ appName: "Finder", path: "/repo/.conducted/settings.local.toml" },
+		]);
+	});
+
+	it("opens nothing when the settings file cannot be created", async () => {
+		const test = harness();
+		test.fs.failWrites.add(userFile());
+		const opened = await test.service.openFile("user", "Cursor");
+		expect(opened.ok).toBe(false);
+		if (!opened.ok) expect(opened.error.code).toBe("open_in_prepare_failed");
+		expect(test.opened).toEqual([]);
 	});
 
 	it("refuses a reset for a project that no longer exists", async () => {

@@ -6,14 +6,35 @@
  * Test first: choosing the item calls onOpen with the app, and "Set as default" calls onSetDefault.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
+import { ServicesProvider } from "../../core/context.tsx";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { Menu, MenuContent, MenuTrigger } from "../../ui/Menu.tsx";
 import { OpenInItem } from "./OpenInItem.tsx";
 import type { OpenInApp } from "./open-in-apps.ts";
 
 const cursor: OpenInApp = { appName: "Cursor", label: "Cursor", category: "editor" };
 
-afterEach(cleanup);
+let test: TestContainer | undefined;
+
+afterEach(() => {
+	cleanup();
+	test?.close();
+	test = undefined;
+});
+
+/** The real container around the control, which reads each app's icon through it. */
+function providers() {
+	const mounted = createTestContainer();
+	test = mounted;
+	return ({ children }: { children: ReactNode }) => (
+		<ServicesProvider container={mounted.container}>
+			<AppProviders client={createQueryClient(() => {})}>{children}</AppProviders>
+		</ServicesProvider>
+	);
+}
 
 function renderItem(isDefault: boolean, onOpen = vi.fn(), onSetDefault = vi.fn()) {
 	render(
@@ -30,6 +51,7 @@ function renderItem(isDefault: boolean, onOpen = vi.fn(), onSetDefault = vi.fn()
 				/>
 			</MenuContent>
 		</Menu>,
+		{ wrapper: providers() },
 	);
 	fireEvent.keyDown(screen.getByRole("button", { name: "Applications" }), { key: "Enter" });
 	return { onOpen, onSetDefault };

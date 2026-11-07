@@ -2,7 +2,8 @@
  * @feature SET-02 Experimental settings page
  * Owns: the Experimental page of Settings: switches for features that are still changing, under
  * Conductor's subtitle and in its order (renderApp, the experimental tab): Auto permission mode
- * first and Graphite stack support last. Ours sit beside their kin (D098): the big terminal's
+ * first, its text followed by "Learn more" (Claude's page on auto mode, the registry's learnMoreUrl), and Graphite stack support
+ * last. Ours sit beside their kin (D098): the big terminal's
  * preset and command list after Big terminal mode, Unstarted workspaces after New workspace page.
  * Behaviour: ui-map.md 6, "Experimental" table; services-map.md 4.1.5 and 4.2.3 (experimental
  * keys). Rows come from the settings registry (SET-01). "Auto-run after setup" is on this page as a user

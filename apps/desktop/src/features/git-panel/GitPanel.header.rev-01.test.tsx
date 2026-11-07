@@ -65,17 +65,27 @@ const OPEN_PULL_REQUEST: PullRequest = {
 	updatedAt: 0,
 };
 
-/** Mounts the panel for a seeded workspace whose polled git state is `value`. */
-async function mountPanel(test: ReturnType<typeof createTestContainer>, value: ChangesSnapshot) {
+/**
+ * Mounts the panel for a seeded workspace whose polled git state is `value`. Conductor offers
+ * Commit and push once a pull request is open; before that the header offers Create PR. Most tests
+ * here are about Commit and push, so the branch has an open one unless `pullRequest` says not.
+ */
+async function mountPanel(
+	test: ReturnType<typeof createTestContainer>,
+	value: ChangesSnapshot,
+	pullRequest: PullRequest | null = OPEN_PULL_REQUEST,
+) {
 	const workspace = await seedWorkspace(test.container);
 	test.container.services.git.store.setState({
 		byWorkspace: { [workspace.id]: { snapshot: value, error: null, refreshedAt: 1 } },
 	});
-	// Conductor offers Commit and push once a pull request is open; before that the header
-	// offers Create PR. These tests are about Commit and push, so the branch has an open one.
 	test.container.services.github.store.setState({
 		byWorkspace: {
-			[workspace.id]: { pullRequest: OPEN_PULL_REQUEST, unavailable: "none", fetchedAt: 1 },
+			[workspace.id]: {
+				pullRequest,
+				unavailable: pullRequest === null ? "no_pr" : "none",
+				fetchedAt: 1,
+			},
 		},
 	});
 	const rootRoute = createRootRoute();
@@ -168,6 +178,65 @@ describe("REV-01 git panel header over the real container", () => {
 			fireEvent.keyDown(document.body, { key: "y", metaKey: true, shiftKey: true });
 			await Promise.resolve();
 			expect(commitAndPush).not.toHaveBeenCalled();
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("shows an empty header on a GitHub branch with no pull request and no changes", async () => {
+		const test = createTestContainer();
+		try {
+			await mountPanel(
+				test,
+				snapshot({
+					uncommittedFiles: 2,
+					changedFiles: 0,
+					sync: { ahead: 3, behind: 0, rewritten: false, hasUpstream: true },
+				}),
+				null,
+			);
+			await screen.findByRole("tablist");
+
+			expect(screen.queryByText("Uncommitted changes")).toBeNull();
+			expect(screen.queryByText("No changes")).toBeNull();
+			expect(screen.queryByText(/Ahead by/)).toBeNull();
+			expect(screen.queryByRole("button", { name: "PR status details" })).toBeNull();
+			expect(screen.queryByRole("button", { name: "Commit and push" })).toBeNull();
+			expect(screen.queryByRole("button", { name: "Push" })).toBeNull();
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("offers Create PR as an outlined button whose menu creates a draft or opens GitHub", async () => {
+		const test = createTestContainer();
+		try {
+			const create = vi
+				.spyOn(test.container.actions.pullRequests, "create")
+				.mockResolvedValue(ok(undefined));
+			const openOnGithub = vi
+				.spyOn(test.container.actions.pullRequests, "openOnGithub")
+				.mockResolvedValue(ok(undefined));
+			const workspace = await mountPanel(test, snapshot({ changedFiles: 2 }), null);
+
+			const button = await screen.findByRole("button", { name: "Create PR" });
+			expect(button.getAttribute("data-variant")).toBe("outline");
+			expect(screen.queryByRole("button", { name: "PR status details" })).toBeNull();
+
+			fireEvent.click(button);
+			await waitFor(() => expect(create).toHaveBeenCalledWith(workspace.id, { draft: false }));
+
+			fireEvent.click(screen.getByRole("button", { name: "More ways to create a PR" }));
+			fireEvent.click(await screen.findByRole("menuitem", { name: "Create draft PR" }));
+			await waitFor(() => expect(create).toHaveBeenCalledWith(workspace.id, { draft: true }));
+
+			fireEvent.click(screen.getByRole("button", { name: "More ways to create a PR" }));
+			fireEvent.click(await screen.findByRole("menuitem", { name: "Create PR manually" }));
+			await waitFor(() => expect(openOnGithub).toHaveBeenCalledWith(workspace.id));
 		} finally {
 			cleanup();
 			await test.container.stop();
