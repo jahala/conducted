@@ -452,8 +452,9 @@ describe("PRJ-04 repo config reads", () => {
 			prompts: { general: "shared prompt" },
 		});
 		const config = must(await ctx.service.loadConfig(repoId));
+		expect(config.previewUrls).toEqual(["http://localhost:3000"]);
 		config.copyFiles = [];
-		config.previewUrlTemplate = null;
+		config.previewUrls = [];
 		config.setupScript = null;
 		config.prompts.general = null;
 
@@ -465,9 +466,33 @@ describe("PRJ-04 repo config reads", () => {
 
 		const reloaded = must(await ctx.service.loadConfig(repoId));
 		expect(reloaded.copyFiles).toEqual([]);
-		expect(reloaded.previewUrlTemplate).toBeNull();
+		expect(reloaded.previewUrls).toEqual([]);
 		expect(reloaded.setupScript).toBeNull();
 		expect(reloaded.prompts.general).toBeNull();
+	});
+
+	it("keeps every preview URL in order and writes the list back", async () => {
+		const ctx = makeService();
+		write(ctx.files, sharedPath, {
+			preview_urls: ["http://localhost:3000", "https://example.test/preview"],
+		});
+
+		const config = must(await ctx.service.loadConfig(repoId));
+		expect(config.previewUrls).toEqual(["http://localhost:3000", "https://example.test/preview"]);
+
+		config.previewUrls = [
+			"https://example.test/preview",
+			"http://localhost:3000",
+			"http://localhost:3001",
+		];
+		must(await ctx.service.updateConfig(repoId, config));
+
+		const reloaded = must(await ctx.service.loadConfig(repoId));
+		expect(reloaded.previewUrls).toEqual([
+			"https://example.test/preview",
+			"http://localhost:3000",
+			"http://localhost:3001",
+		]);
 	});
 
 	it("reports a wrongly typed value and falls back to the registry default", () => {

@@ -1445,7 +1445,8 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
-	// Our design choice: the list holds URLs only; the file reader keeps the optional name of each entry.
+	// Our design choice: the list holds URLs only. Conductor also stores an optional name per entry;
+	// that name is not read or written here.
 	{
 		key: "open_url_template",
 		page: "misc",

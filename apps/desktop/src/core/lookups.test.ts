@@ -53,7 +53,7 @@ const repoConfig = (createPr: string | null, remoteName: string | null = null): 
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName,

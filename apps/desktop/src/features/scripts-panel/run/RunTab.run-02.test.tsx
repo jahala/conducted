@@ -34,7 +34,7 @@ const config = (spotlightTesting: boolean): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting,
 	autoRunAfterSetup: false,
 	remoteName: "origin",

@@ -67,7 +67,7 @@ const baseConfig: RepoConfig = {
 	runMode: "concurrent",
 	archiveScript: "bun run clean",
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",
