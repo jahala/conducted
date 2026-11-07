@@ -29,7 +29,7 @@
 
 import type { Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
@@ -314,9 +314,12 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	// The user's own open or closed choice per main group. A group the user has not toggled starts
 	// closed unless it holds the open workspace, as in Conductor (renderApp's sidebar groups).
 	const [chosen, setChosen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-	const isCollapsed = (group: SidebarGroup): boolean =>
-		chosen.get(groupKey(group)) ??
-		!(selectedId !== null && group.workspaceIds.includes(selectedId));
+	const isCollapsed = useCallback(
+		(group: SidebarGroup): boolean =>
+			chosen.get(groupKey(group)) ??
+			!(selectedId !== null && group.workspaceIds.includes(selectedId)),
+		[chosen, selectedId],
+	);
 	const setGroupOpen = (key: string, open: boolean) => {
 		setChosen((previous) => new Map(previous).set(key, !open));
 	};
@@ -333,7 +336,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 			return true;
 		});
 		return orderedWorkspaceIds(visible);
-	}, [groups, sections, chosen, selectedId]);
+	}, [groups, sections, isCollapsed]);
 
 	const shortcutIndexes = useMemo(() => {
 		const result = new Map<WorkspaceId, number>();
