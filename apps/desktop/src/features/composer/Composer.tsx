@@ -427,9 +427,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			}
 			// The command may have edited the agent's own files (/mcp adds or removes a server), so
 			// the chat's cached MCP list is out of date until the next look reads the config again.
+			// Conductor clears its list and has no wording of its own for a failure, so the error's
+			// own message is shown, as Conductor does for its other command-bar errors.
 			const forgotten = await actions.mcp.forget(sessionId);
 			if (!forgotten.ok) {
-				toastError("Couldn't refresh the MCP servers", forgotten.error);
+				toast.error(forgotten.error.message);
 				return;
 			}
 			toast.success("Configuration refreshed.");
