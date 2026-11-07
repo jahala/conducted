@@ -51,8 +51,17 @@ type SandboxMode = CodexThreadSettings["sandbox"];
  * From the fewest actions without asking to the most. `on-failure` is not in codex-cli 0.154.0's
  * protocol; it sits where older Codex versions declared it, between `untrusted` and `on-request`.
  */
-const APPROVAL_ORDER: readonly ApprovalPolicy[] = ["untrusted", "on-failure", "on-request", "never"];
-const SANDBOX_ORDER: readonly SandboxMode[] = ["read-only", "workspace-write", "danger-full-access"];
+const APPROVAL_ORDER: readonly ApprovalPolicy[] = [
+	"untrusted",
+	"on-failure",
+	"on-request",
+	"never",
+];
+const SANDBOX_ORDER: readonly SandboxMode[] = [
+	"read-only",
+	"workspace-write",
+	"danger-full-access",
+];
 
 /** The choices of `order` that a requirements list allows. Null: the list sets no limit. */
 function allowedOf<T extends string>(list: unknown[] | null, order: readonly T[]): T[] | null {

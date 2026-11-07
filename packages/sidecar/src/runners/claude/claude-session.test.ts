@@ -1239,16 +1239,13 @@ describe("AGENT-02 Claude session", () => {
 		test("AGENT-16 a model without adaptive thinking starts with a thinking budget", async () => {
 			const { query, script } = scriptedQuery();
 			const looked: string[] = [];
-			const session = new ClaudeSession(
-				makeDeps({ query }),
-				{
-					...start(),
-					lookUpModel: async (model) => {
-						looked.push(model);
-						return catalogModel(model, false);
-					},
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				lookUpModel: async (model) => {
+					looked.push(model);
+					return catalogModel(model, false);
 				},
-			);
+			});
 			await session.warm();
 
 			expect(looked).toEqual(["claude-sonnet-5"]);

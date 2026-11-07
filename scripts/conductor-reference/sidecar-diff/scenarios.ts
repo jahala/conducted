@@ -194,7 +194,8 @@ export const SCENARIOS: Scenario[] = [
 	},
 	{
 		id: "codex-requirements",
-		title: "A Codex message under managed requirements that refuse the requested policy and sandbox",
+		title:
+			"A Codex message under managed requirements that refuse the requested policy and sandbox",
 		agent: "codex",
 		codexRequirements: requirements(["untrusted", "on-request"], ["read-only", "workspace-write"]),
 		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
@@ -216,7 +217,8 @@ export const SCENARIOS: Scenario[] = [
 	},
 	{
 		id: "codex-requirements-middle",
-		title: "Managed requirements that refuse a middle policy and sandbox, with one choice on each side",
+		title:
+			"Managed requirements that refuse a middle policy and sandbox, with one choice on each side",
 		agent: "codex",
 		codexPolicy: { approval: "on-request", sandbox: "workspace-write" },
 		codexRequirements: requirements(["untrusted", "never"], ["read-only", "danger-full-access"]),
@@ -235,7 +237,10 @@ export const SCENARIOS: Scenario[] = [
 		title: "Managed requirements that allow only more permissive choices than the chat asks for",
 		agent: "codex",
 		codexPolicy: { approval: "untrusted", sandbox: "read-only" },
-		codexRequirements: requirements(["on-request", "never"], ["workspace-write", "danger-full-access"]),
+		codexRequirements: requirements(
+			["on-request", "never"],
+			["workspace-write", "danger-full-access"],
+		),
 		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
 	},
 	{
@@ -243,7 +248,10 @@ export const SCENARIOS: Scenario[] = [
 		title: "The stricter case, each list in the other order",
 		agent: "codex",
 		codexPolicy: { approval: "untrusted", sandbox: "read-only" },
-		codexRequirements: requirements(["never", "on-request"], ["danger-full-access", "workspace-write"]),
+		codexRequirements: requirements(
+			["never", "on-request"],
+			["danger-full-access", "workspace-write"],
+		),
 		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
 	},
 	{

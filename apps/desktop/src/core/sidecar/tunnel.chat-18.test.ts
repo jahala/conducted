@@ -306,9 +306,7 @@ describe("CHAT-18 tunnel", () => {
 	it("hands the transport each message as one line without a newline", async () => {
 		const h = harness();
 		h.fake.setResponder((message) =>
-			h.fake.emitLine(
-				JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { known: false } }),
-			),
+			h.fake.emitLine(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { known: false } })),
 		);
 		await h.tunnel.start();
 

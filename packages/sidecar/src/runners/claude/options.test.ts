@@ -209,7 +209,11 @@ describe("AGENT-02 Claude SDK options", () => {
 			...input({ start: start({ config: config({ effort: "high" }) }) }),
 			adaptiveThinking: false,
 		});
-		expect(options.thinking).toEqual({ type: "enabled", budgetTokens: 16_000, display: "summarized" });
+		expect(options.thinking).toEqual({
+			type: "enabled",
+			budgetTokens: 16_000,
+			display: "summarized",
+		});
 	});
 
 	test("options the research leaves unset are absent", () => {

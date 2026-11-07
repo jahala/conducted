@@ -156,7 +156,10 @@ describe("AGENT-16 Codex managed requirements narrow the approval policy and san
 			});
 		}
 		expect(
-			narrowToRequirements(ask("on-request", "workspace-write"), allowed(["never"], ["danger-full-access"])),
+			narrowToRequirements(
+				ask("on-request", "workspace-write"),
+				allowed(["never"], ["danger-full-access"]),
+			),
 		).toMatchObject({ approvalPolicy: "never", sandbox: "workspace-write" });
 	});
 });

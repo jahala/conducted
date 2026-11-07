@@ -77,7 +77,9 @@ async function runSide(side: Side, scenario: Scenario): Promise<SideRun> {
 	const adapter: Adapter = ADAPTERS[side];
 	const seal = makeSeal(
 		side === "conductor" ? "c" : "o",
-		scenario.codexRequirements === undefined ? {} : { codexRequirements: scenario.codexRequirements },
+		scenario.codexRequirements === undefined
+			? {}
+			: { codexRequirements: scenario.codexRequirements },
 	);
 	const run: SideRun = {
 		side,

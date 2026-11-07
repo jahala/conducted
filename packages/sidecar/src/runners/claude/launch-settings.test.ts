@@ -49,7 +49,10 @@ describe("AGENT-16 Claude effort and thinking options", () => {
 	test("effort none disables thinking and every other level is adaptive and summarised", () => {
 		expect(claudeThinkingOption("none", true)).toEqual({ type: "disabled" });
 		for (const level of ["low", "medium", "high", "xhigh", "max", "ultra", "ultracode"] as const) {
-			expect(claudeThinkingOption(level, true)).toEqual({ type: "adaptive", display: "summarized" });
+			expect(claudeThinkingOption(level, true)).toEqual({
+				type: "adaptive",
+				display: "summarized",
+			});
 		}
 	});
 

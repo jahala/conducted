@@ -14,8 +14,9 @@ import { APP_TOOL_SERVER } from "@conducted/protocol";
  * catalog defaults (`thinkingBudgets` in its bundled Claude catalog); the sidecar differential run
  * saw `--max-thinking-tokens=16000` for Sonnet 4.6 at high effort.
  */
-export const CLAUDE_THINKING_BUDGETS: Readonly<Record<"low" | "medium" | "high" | "xhigh" | "max", number>> =
-	{ low: 1024, medium: 8192, high: 16_000, xhigh: 63_999, max: 63_999 };
+export const CLAUDE_THINKING_BUDGETS: Readonly<
+	Record<"low" | "medium" | "high" | "xhigh" | "max", number>
+> = { low: 1024, medium: 8192, high: 16_000, xhigh: 63_999, max: 63_999 };
 
 /** Upper bound on agent turns per user message. Conductor passes 1000. */
 export const CLAUDE_MAX_TURNS = 1000;

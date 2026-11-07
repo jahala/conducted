@@ -1115,7 +1115,8 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		const storage = new MemoryStorage();
 		storage.beforeWrite = async (text) => {
 			if (!text.includes("toolu_1")) return;
-			for (let turn = 0; turn < 50; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			for (let turn = 0; turn < 50; turn += 1)
+				await new Promise((resolve) => setTimeout(resolve, 0));
 		};
 		const h = await harness(folder, { claude: approvingClaude(), storage });
 		const sessionId = "session-1" as SessionId;

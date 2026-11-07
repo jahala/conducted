@@ -290,7 +290,11 @@ export class SidecarTunnel implements SidecarClient {
 				return err(appError("rpc_timeout", cause.message));
 			}
 			return err(
-				appError("rpc_failed", `The ${method} call to the sidecar failed: ${messageOf(cause)}`, cause),
+				appError(
+					"rpc_failed",
+					`The ${method} call to the sidecar failed: ${messageOf(cause)}`,
+					cause,
+				),
 			);
 		} finally {
 			cancelTimer();
