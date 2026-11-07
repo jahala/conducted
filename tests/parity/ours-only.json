@@ -19,7 +19,7 @@
 	{
 		"text": "Checking the saved pairing…",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
@@ -37,7 +37,7 @@
 	{
 		"text": "Cloud Workspaces",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
@@ -107,7 +107,7 @@
 	{
 		"text": "Not paired",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
@@ -124,19 +124,19 @@
 	{
 		"text": "Pair",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Pair this Mac with the Worker you deployed to your Cloudflare account. Its URL and pairing token come from the deployment. The token is kept in the Keychain and is never shown again.",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Pairing token",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
@@ -218,13 +218,13 @@
 	{
 		"text": "Unpair",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Worker URL",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
@@ -247,7 +247,7 @@
 	{
 		"text": "https://conducted.example.workers.dev",
 		"state": "settings-connections",
-		"decision": "D104",
+		"decision": "D106",
 		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	}
 ]

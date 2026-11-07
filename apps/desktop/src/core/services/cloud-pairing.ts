@@ -10,7 +10,7 @@
  * the token, whose message is shown and whose old pairing is kept; a failed removal, whose
  * message is shown and whose state does not claim the pairing is gone.
  * Our design choice: the service keeps the pairing in its store so the Connections page and any
- * later cloud setting read one answer. D104 records the pairing. The token goes only to Rust.
+ * later cloud setting read one answer. D106 records the pairing. The token goes only to Rust.
  * Test first: a plain-http URL leaves the saved pairing alone.
  */
 import { type AppError, err, ok, type Result } from "@conducted/shared";

@@ -32,7 +32,7 @@
 //! - Unpairing removes both items; a Mac that was never paired succeeds.
 //!
 //! Our design choice: one pairing per Mac, stored under `cloud-pairing-token` and
-//! `cloud-pairing-url`. D101 and D104 record this.
+//! `cloud-pairing-url`. D101 and D106 record this.
 //!
 //! Test first: a request path that names another host or climbs with `..` is refused, a relay
 //! line with a newline is refused before anything is sent, and a pairing answer with another

@@ -9,7 +9,7 @@
  * names no host; a trailing slash, which is dropped so the Worker URL has one spelling; a token
  * pasted with a newline around it (trimmed), and a blank token (refused).
  * Our design choice: the same URL rules as the Rust shell's `checked_worker_url`, repeated here so
- * the form can answer before a round trip; the shell still checks again. D104 records the pairing.
+ * the form can answer before a round trip; the shell still checks again. D106 records the pairing.
  * Test first: a plain-http URL is refused and a token of spaces is refused.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";

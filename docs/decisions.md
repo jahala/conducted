@@ -516,7 +516,7 @@ Chosen:
 Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
 Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.
 
-## D104. Pairing a Mac with a Worker keeps one URL and one token, checked before they are saved (2026-11-07)
+## D106. Pairing a Mac with a Worker keeps one URL and one token, checked before they are saved (2026-11-07)
 
 Proposed by the CLOUD-07 PR; not yet ruled on by the owner.
 Context: D101 stores one pairing token per Mac under `cloud-pairing-token` and leaves the pairing flow to this row. The CLOUD-02 spike kept the token in a mode-600 file and named the Keychain as the product's home (question 4). Conductor has no self-hosted Worker to pair with, so its screens give no place or wording to copy; the flow and its form are ours (D098, D020: report the gap).

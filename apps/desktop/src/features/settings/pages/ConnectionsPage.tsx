@@ -9,7 +9,7 @@
  * Keychain; the page shows which Worker this Mac is paired with and can remove the pairing.
  * Our design choice: the range is validated here, and port 22 is always refused because SSH
  * uses it. The pairing form sits on Connections because it connects this Mac to a Worker; it is
- * ours, since Conductor has no self-hosted Worker (D098, D104).
+ * ours, since Conductor has no self-hosted Worker (D098, D106).
  * Must handle: a range whose first port is above its last, ports below 1024 or above 65535, and
  * port 22 inside the range (rejected). The range is stored under two registry keys; while the
  * settings registry has no such keys, the page says so instead of writing an unknown key. A
