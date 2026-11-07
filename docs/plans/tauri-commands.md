@@ -54,6 +54,7 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `opener.revealInFinder`                          | `reveal_in_finder`                                                           | open_with.rs        |                                        |
 | `opener.openWith`                                | `open_with`                                                                  | open_with.rs        |                                        |
 | `opener.installedApps`                           | `installed_apps`                                                             | open_with.rs        |                                        |
+| `opener.appIcon`                                 | `app_icon`                                                                   | open_with.rs        |                                        |
 | `speech.available`, `.start`, `.stop`, `.cancel` | `speech_available`, `speech_start` (Channel), `speech_stop`, `speech_cancel` | speech.rs           |                                        |
 | `updater.check`, `.install`, `.relaunch`         | `updater_check`, `updater_install`, `updater_relaunch`                       | updater.rs          | `updater://status`                     |
 | `updater.installedUpdate`                        | `updater_installed_update`                                                   | updater.rs          |                                        |

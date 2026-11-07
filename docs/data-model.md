@@ -66,6 +66,7 @@ The generated rows quote each migration's comment. Some comments in earlier migr
 | Last workspace location | the web view's `localStorage`, key `conducted.workspace-location-v1` | Replaced on every route change; removed when the route has no workspace to reopen. | NAV-02 |
 | Dismissed macOS warning | the web view's `localStorage`, key `conducted.macos-version-warning-dismissed` | The app version whose "macOS is too old" warning the user dismissed; the warning returns after an update, which replaces the value. | APP-08 |
 | Cached changes and PR info | app data `git-cache/changes/<workspace>.json` and `git-cache/pr-info/<workspace>.json` | 25 MB for changes and 5 MB for PR info in total; the oldest files go first. Removed with the workspace. | DATA-07 |
+| App icons | app data `app-icons/<app>.png` | One 64 px PNG per app of the Open in catalogue that has an icon file, about 30 at most. A copy is rewritten when the app's own icon file is newer, so the folder never grows past the catalogue. | PLAT-19 |
 | Terminal shell integration | app data `terminal-shell-integration/zsh/` | Four small files, rewritten at every app start. | RUN-09 |
 | Setup script logs | app data `setup-logs/<workspace>.log` | Removed with the workspace. | WS-10 |
 | "Viewed" ticks in the diff | app data `viewed-files/<workspace>.json` | Removed with the workspace. | WS-10 |

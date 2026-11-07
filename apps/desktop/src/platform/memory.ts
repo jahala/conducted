@@ -950,6 +950,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		revealInFinder: async () => {},
 		openWith: async () => ok(undefined),
 		installedApps: async () => [],
+		// The in-memory Mac has no app bundles, so no app has an icon to read.
+		appIcon: async () => ok(null),
 	};
 
 	const clipboard: Clipboard = {

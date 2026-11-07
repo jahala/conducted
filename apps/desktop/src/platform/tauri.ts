@@ -364,6 +364,7 @@ export const COMMANDS = {
 	revealInFinder: "reveal_in_finder",
 	openWith: "open_with",
 	installedApps: "installed_apps",
+	appIcon: "app_icon",
 	speechAvailable: "speech_available",
 	speechStart: "speech_start",
 	speechStop: "speech_stop",
@@ -1091,7 +1092,10 @@ export function createTauriDialogs(bindings: TauriBindings = realTauriBindings):
 	};
 }
 
-/** plugin-opener: `openUrl`; `reveal_in_finder { path }`, `open_with { appName, path }`, `installed_apps`. */
+/**
+ * plugin-opener: `openUrl`; `reveal_in_finder { path }`, `open_with { appName, path }`,
+ * `installed_apps`, `app_icon { appName }`.
+ */
 export function createTauriOpener(bindings: TauriBindings = realTauriBindings): Opener {
 	return {
 		openUrl: (url) => requireBinding(bindings.opener, "opener").openUrl(url),
@@ -1105,6 +1109,7 @@ export function createTauriOpener(bindings: TauriBindings = realTauriBindings): 
 			if (!result.ok) throw result.error;
 			return result.value;
 		},
+		appIcon: (appName) => invokeResult<string | null>(bindings, COMMANDS.appIcon, { appName }),
 	};
 }
 

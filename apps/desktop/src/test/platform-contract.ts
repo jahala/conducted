@@ -397,6 +397,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"os",
 	),
 	c(
+		"opener",
+		"app-icon",
+		"appIcon answers with a PNG or no icon",
+		"Finder's icon is a PNG data URL or null, and a name outside the catalogue is refused.",
+		"os",
+	),
+	c(
 		"speech",
 		"available",
 		"available reports support",
@@ -1636,6 +1643,17 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"opener.app-icon": async (ctx) => {
+		const icon = await ctx.platform.opener.appIcon("Finder");
+		ctx.assert(icon.ok, `appIcon failed for Finder: ${icon.ok ? "" : icon.error.message}`);
+		if (icon.ok && icon.value !== null) {
+			ctx.assert(
+				icon.value.startsWith("data:image/png;base64,"),
+				`appIcon did not return a PNG data URL: ${icon.value.slice(0, 40)}`,
+			);
+		}
+	},
+
 	"speech.available": async (ctx) => {
 		const available = await ctx.platform.speech.available();
 		ctx.assert(typeof available === "boolean", `available returned ${String(available)}`);
@@ -2023,6 +2041,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"dialogs.pick-files": ["dialogs.pickFiles"],
 	"dialogs.confirm": ["dialogs.confirm"],
 	"opener.installed-apps": ["opener.installedApps"],
+	"opener.app-icon": ["opener.appIcon"],
 	"speech.available": ["speech.available"],
 	"speech.stop-ends": ["speech.start", "speech.stop"],
 	"updater.check": ["updater.check"],
