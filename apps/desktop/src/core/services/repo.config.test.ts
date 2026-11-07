@@ -2,6 +2,7 @@ import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Dialogs, FileSystem, Opener, Shell, ShellOutput } from "../../platform/platform.ts";
 import { createTestIds } from "../../test/ids.ts";
+import { tomlText } from "../../test/toml-text.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { GitRunner } from "../git/runner.ts";
@@ -224,7 +225,7 @@ const write = (
 	path: string,
 	document: Record<string, unknown>,
 ): void => {
-	files.set(path, tomlCodec.stringify(document));
+	files.set(path, tomlText(document));
 };
 
 const must = <T>(result: Result<T>): T => {
@@ -687,7 +688,7 @@ describe("CLOUD-04 a cloud repo's shared clone", () => {
 	it("reads the shared settings from the clone's branch, not the working tree", async () => {
 		const { git, calls } = gitAnswers({
 			lsTree: ".conducted/settings.toml\n",
-			show: tomlCodec.stringify({
+			show: tomlText({
 				scripts: { setup: "npm ci" },
 				prompts: { general: "shared prompt" },
 			}),

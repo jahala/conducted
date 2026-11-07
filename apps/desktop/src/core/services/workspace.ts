@@ -32,7 +32,9 @@
  * name stops creation with its error, while a failed read of the file list or the default config
  * is shown as a warning; the file commands reach a folder outside `~/conducted` only once it is
  * registered (PLAT-02), so a start registers the workspaces folder and every saved workspace's
- * folder, and a create or unarchive registers the workspaces folder before it looks in it.
+ * folder, and a create or unarchive registers the workspaces folder before it looks in it; a start
+ * that cannot read the table keeps its error in `loadError`, so the sidebar shows the failure
+ * instead of an empty list (DATA-01).
  * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
  * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
  * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
@@ -635,6 +637,12 @@ export interface SetupRun {
 
 export interface WorkspaceState {
 	loaded: boolean;
+	/**
+	 * The error that stopped the workspace table from loading. A failed start keeps no rows, so without
+	 * this the sidebar would show "No workspaces yet" for a database failure (DATA-01). A retry clears
+	 * it.
+	 */
+	loadError: AppError | null;
 	/** Workspaces saved to the backlog, not started yet (WS-11). */
 	backlogLoaded: boolean;
 	backlogById: Readonly<Record<string, BacklogWorkspace>>;
@@ -754,6 +762,7 @@ export class WorkspaceService {
 		this.#deps = deps;
 		this.store = createStore<WorkspaceState>(() => ({
 			loaded: false,
+			loadError: null,
 			backlogLoaded: false,
 			backlogById: {},
 			workspacesById: {},
@@ -770,7 +779,7 @@ export class WorkspaceService {
 	async start(): Promise<Result<void>> {
 		const listed = await this.#deps.repos.workspaces.listAll();
 		if (!listed.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true }));
+			this.store.setState((state) => ({ ...state, loaded: true, loadError: listed.error }));
 			return listed;
 		}
 		// The file commands reach a workspace folder only once it is registered, on every start.
@@ -783,7 +792,7 @@ export class WorkspaceService {
 			...local.map((workspace) => workspace.path),
 		]);
 		if (!reachable.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true }));
+			this.store.setState((state) => ({ ...state, loaded: true, loadError: reachable.error }));
 			return reachable;
 		}
 		const workspacesById: Record<string, Workspace> = {};
@@ -814,7 +823,12 @@ export class WorkspaceService {
 		}
 		const backlog = await this.#deps.repos.backlogWorkspaces.list();
 		if (!backlog.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true, backlogLoaded: true }));
+			this.store.setState((state) => ({
+				...state,
+				loaded: true,
+				loadError: backlog.error,
+				backlogLoaded: true,
+			}));
 			return backlog;
 		}
 		const backlogById: Record<string, BacklogWorkspace> = {};
@@ -822,6 +836,7 @@ export class WorkspaceService {
 		this.store.setState((state) => ({
 			...state,
 			loaded: true,
+			loadError: null,
 			backlogLoaded: true,
 			backlogById,
 			workspacesById,

@@ -75,4 +75,25 @@ describe("WS-08 OpenInItem", () => {
 		expect(await screen.findByRole("menuitem", { name: "Cursor" })).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Set as default" })).toBeNull();
 	});
+
+	it("WS-08 draws a plain folder for an app of the folder kind (APP-05)", async () => {
+		const finder: OpenInApp = { appName: "Finder", label: "Finder", category: "finder" };
+		render(
+			<Menu>
+				<MenuTrigger asChild>
+					<button type="button">Applications</button>
+				</MenuTrigger>
+				<MenuContent>
+					<OpenInItem app={finder} isDefault={false} onOpen={vi.fn()} onSetDefault={vi.fn()} />
+				</MenuContent>
+			</Menu>,
+			{ wrapper: providers() },
+		);
+		fireEvent.keyDown(screen.getByRole("button", { name: "Applications" }), { key: "Enter" });
+		const item = await screen.findByRole("menuitem", { name: "Finder" });
+		expect(item.querySelector('svg path[d="M2 4.5h4l1.5 1.5H14v6.5H2z"]')).not.toBeNull();
+		expect(
+			item.querySelector('svg path[d="M2 4.5h4l1.5 1.5H14v6.5H2zM8 8v3M6.5 9.5h3"]'),
+		).toBeNull();
+	});
 });

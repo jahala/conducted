@@ -790,3 +790,13 @@ Chosen:
 - **Left out, and why.** Conductor's internal diagnostics items (Copy sandbox id, Open sandbox logs, Copy workspace public URL) are not CLOUD-12 and stay out under D004/D098. A second per-app config file and importing other `*.config` files in `conducted_config.d` are not built: only the file this app writes exists in our flow.
 
 Why: the tunnel, the authenticated WebSocket and the pairing token already exist (D110), so SSH rides the same door with one extra Worker route instead of a public port or a second transport. Keeping the key and config generation on the Mac matches Conductor's client half, and the Durable Object alarm is the one keep-alive the Worker already trusts. The whole door is tested without Docker in the Worker's runtime and in the desktop's composition root; the live run is recorded in `docs/research/cloud-spike-2026-11-06.md`.
+
+## D123. The sandbox image carries Cursor's Linux SDK, and the loader follows the running platform (2026-11-07)
+
+Proposed by the fixer; not yet ruled on by the owner.
+
+Context: D118 recorded that a Cursor chat could not run in a cloud workspace: CLOUD-04's image had no Cursor SDK, and AGENT-09's loader named only `@cursor/sdk-darwin-<cpu>`. Issue #450 asked first whether Cursor publishes a Linux build. `npm view @cursor/sdk@1.3.1 optionalDependencies`, read 2026-11-07, lists `@cursor/sdk-linux-x64` and `@cursor/sdk-linux-arm64` at 1.3.1. `npm view @cursor/sdk-linux-x64` shows `os: ["linux"]`, `cpu: ["x64"]`, and the ripgrep binary and tree-sitter folder the loader already points the SDK at. The image builds for linux/amd64.
+
+Chosen: CLOUD-04's Dockerfile installs `@cursor/sdk` 1.3.1 and `@cursor/sdk-linux-x64` 1.3.1, with the app's release feed's exact dependency tree, into the managed-program layout the app uses (`agent-binaries/cursor/1.3.1/node_modules/`) and links `cursor/current`. AGENT-09's loader takes the platform as a process fact and names `@cursor/sdk-<platform>-<cpu>`, so the Mac keeps the darwin package and the sandbox picks the Linux one. This supersedes D118's "A Cursor chat still cannot run in a cloud workspace" note.
+
+Why: Cursor publishes the Linux build at the same version, so the sandbox runs the same SDK as the Mac and the Worker's `api2.cursor.sh` key swap reaches it. No live model run was needed to verify the layout: the image test checks the Dockerfile against the loader's own platform rule, and a composition test starts a Cursor chat with the sandbox's Linux facts.

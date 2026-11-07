@@ -12,6 +12,7 @@ import {
 	bundleProblems,
 	createDiskImage,
 	diskImagePath,
+	diskImageSizeMegabytes,
 	ENTITLEMENTS_PATH,
 	NOTARY_PROFILE_ENV,
 	notariseBundle,
@@ -343,6 +344,25 @@ describe("PLAT-25 release bundle", () => {
 		expect(submit?.args).toContain("conducted-notary");
 		expect(submit?.args).not.toContain("--password");
 		expect(submit?.args).not.toContain("--apple-id");
+	});
+
+	it("PLAT-25 sizes the disk image from the app's own bytes, with headroom", () => {
+		// hdiutil's own guess from -srcfolder ran out of room on CI once the app carried the cloud
+		// sandbox's build (v0.3.0): "No space left on device".
+		expect(diskImageSizeMegabytes(0)).toBe(64);
+		expect(diskImageSizeMegabytes(500 * 1024 * 1024)).toBe(664);
+		expect(diskImageSizeMegabytes(1)).toBe(65);
+	});
+
+	it("PLAT-25 tells hdiutil the image's size instead of letting it guess", async () => {
+		const { run, calls } = scripted(() => ok({ stdout: "", stderr: "", exitCode: 0 }));
+
+		await createDiskImage(run, APP, DMG);
+
+		const create = calls.find((call) => call.program === "hdiutil" && call.args[0] === "create");
+		const at = create?.args.indexOf("-size") ?? -1;
+		expect(at).toBeGreaterThan(-1);
+		expect(create?.args[at + 1]).toMatch(/^\d+m$/);
 	});
 
 	it("PLAT-25 makes the disk image from the verified app and the Applications shortcut", async () => {
