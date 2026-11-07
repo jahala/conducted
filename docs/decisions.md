@@ -463,5 +463,6 @@ Chosen:
 - **A cloud "trash" removes the file**, because a sandbox has no macOS Trash. The file commands in the Worker use the Sandbox SDK's own operations.
 - **The Worker's tests run in workerd without a container.** `@cloudflare/vitest-plugin` exercises the token, the routes, the Durable Object's state and alarm, and the relay's turn reading. Container-backed route execution needs the image and Docker, so the live run above is its verification until CLOUD-04's image has a CI job.
 - **The relay frames lines.** The Rust relay appends the newline and the cloud transport splits incoming frames on newlines, because the sidecar's Unix socket speaks NDJSON and the WebSocket does not.
+- **The doors CLOUD-03 does not own keep their own row's placeholder.** A cloud workspace's file search stops at CLOUD-11, Open in at CLOUD-12, and archive, unarchive and delete at CLOUD-08, each through the same `checkHost` check that stops terminals at CLOUD-09. The alternative was letting those calls reach the Mac with a sandbox path, which D092 forbids and which would run the wrong operation on the wrong machine.
 
 Why: each choice either uses the spike's own finding or is the smallest thing that makes the desktop's existing calls work unchanged. The live run on the owner's account passed with these choices (numbers in the research note).

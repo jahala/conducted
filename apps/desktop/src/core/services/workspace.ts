@@ -1382,7 +1382,7 @@ export class WorkspaceService {
 		const workspace = found.value;
 		if (workspace === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
-		checkHost(workspace.host, "git");
+		checkHost(workspace.host, "lifecycle");
 		if (workspace.state === "archived") return ok(undefined);
 		if (workspace.state === "archiving") {
 			return err(appError("workspace_archiving", "This workspace is already being archived."));
@@ -1565,7 +1565,7 @@ export class WorkspaceService {
 		if (workspace === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
-		checkHost(workspace.host, "git");
+		checkHost(workspace.host, "lifecycle");
 		if (workspace.state !== "archived") {
 			return err(appError("workspace_not_archived", "This workspace is not archived."));
 		}
@@ -1786,7 +1786,7 @@ export class WorkspaceService {
 		const workspace = found.value;
 		// Deleting a workspace that is already gone changes nothing.
 		if (workspace === null) return ok(undefined);
-		checkHost(workspace.host, "files");
+		checkHost(workspace.host, "lifecycle");
 
 		const repo = await this.#deps.repos.repos.get(workspace.repoId);
 		if (!repo.ok) return repo;
@@ -2038,7 +2038,7 @@ export class WorkspaceService {
 		const workspace = this.store.getState().workspacesById[id];
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
-		checkHost(workspace.host, "files");
+		checkHost(workspace.host, "open-in");
 		if (appName === KALEIDOSCOPE_APP) {
 			const cwd = workspace.path;
 			const changed = await this.#deps.git.runChecked(diffQuietHead(), { cwd });

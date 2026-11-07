@@ -1015,6 +1015,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		shell: platform.shell,
 		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
+		searchOn: async (id) => {
+			const found = lookups.workspaceOn(id, "search");
+			return found.ok ? ok(undefined) : found;
+		},
 		opener: platform.opener,
 	});
 	const review = new ReviewService({

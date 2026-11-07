@@ -15,6 +15,7 @@ function serviceFor(test: ReturnType<typeof createTestContainer>) {
 		shell: test.memory.platform.shell,
 		git: unusedGit(),
 		opener: test.memory.platform.opener,
+		searchOn: async () => ok(undefined),
 		rootsOf: async () => ok([root]),
 	});
 }
@@ -102,6 +103,7 @@ describe("REV-06 workspace files service", () => {
 				shell: test.memory.platform.shell,
 				git: unusedGit(),
 				opener: test.memory.platform.opener,
+				searchOn: async () => ok(undefined),
 				rootsOf: async () => ok([]),
 			});
 			const tree = await service.tree(workspaceId);

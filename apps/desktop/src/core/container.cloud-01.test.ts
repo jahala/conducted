@@ -190,6 +190,40 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				"CLOUD-09",
 			);
 
+			// The doors CLOUD-03 does not own stop at their own row, before anything reaches the
+			// Mac: file search at CLOUD-11, Open in at CLOUD-12, lifecycle at CLOUD-08.
+			const shells = cloud.shellCalls.length;
+			const ptys = cloud.ptySpawns.length;
+			const filesOnDisk = new Map(cloud.files);
+			expect(await stoppedAt(() => services.workspaceFiles.tree(workspace.id))).toBe("CLOUD-11");
+			expect(
+				await stoppedAt(() => services.workspaceFiles.quickOpen(workspace.id, "read", 10)),
+			).toBe("CLOUD-11");
+			expect(
+				await stoppedAt(() =>
+					services.workspaceFiles.grep(workspace.id, "hello", {
+						caseSensitive: false,
+						wholeWord: false,
+						regex: false,
+					}),
+				),
+			).toBe("CLOUD-11");
+			expect(await stoppedAt(() => services.workspace.openIn(workspace.id, "Finder"))).toBe(
+				"CLOUD-12",
+			);
+			expect(
+				await stoppedAt(() => services.workspace.archive(workspace.id, { deleteBranch: false })),
+			).toBe("CLOUD-08");
+			expect(
+				await stoppedAt(() =>
+					services.workspace.unarchive(workspace.id, { branchName: null, clearChats: false }),
+				),
+			).toBe("CLOUD-08");
+			expect(await stoppedAt(() => services.workspace.remove(workspace.id))).toBe("CLOUD-08");
+			expect(cloud.shellCalls.length).toBe(shells);
+			expect(cloud.ptySpawns.length).toBe(ptys);
+			expect(new Map(cloud.files)).toEqual(filesOnDisk);
+
 			const session = must(await services.sessions.create(workspace.id, CONFIG));
 			const sending = services.sessions.send(session.id, "hello", [], "auto");
 			const line = await waitForSent(cloud, "sendMessage");
