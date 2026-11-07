@@ -72,7 +72,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use base64::Engine as _;
 use ring::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use ring::rand::{SecureRandom, SystemRandom};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::blocking;
 use crate::error::{CommandError, CommandResult};
@@ -312,7 +312,7 @@ impl HistoryRecorder {
 }
 
 /// `<app data>/terminal-history`, created with mode 0700 when missing.
-pub fn history_dir(app: &AppHandle) -> CommandResult<PathBuf> {
+pub fn history_dir<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
     let data = app
         .path()
         .app_data_dir()
