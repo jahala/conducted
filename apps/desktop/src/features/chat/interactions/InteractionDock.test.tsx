@@ -60,6 +60,22 @@ describe("CHAT-10 interaction dock", () => {
 		expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
 	});
 
+	it("leaves a tool approval to the composer, which draws it in place of its text box", () => {
+		state.chat = {
+			state: "ready",
+			data: {
+				openInteraction: {
+					interactionId,
+					interaction: { kind: "tool_approval", toolUseId: "t1", toolName: "Bash", input: {} },
+				},
+			},
+		} as never;
+
+		const { container } = render(<InteractionDock sessionId={sessionId} />);
+
+		expect(container.innerHTML).toBe("");
+	});
+
 	it("renders nothing when no interaction is open", () => {
 		state.chat = { state: "ready", data: { openInteraction: null } } as never;
 

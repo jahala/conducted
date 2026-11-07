@@ -207,6 +207,24 @@ describe("CHAT-11 tool approval card", () => {
 		await waitFor(() => expect(sent()?.decision).toBe("allow_with_suggested_rules"));
 	});
 
+	it("names the suggested rule only in its button, with no rules list or wrench icon", async () => {
+		await renderCard({ suggestedRules: ["Bash(npm test:*)", "Bash(npm run lint)"] });
+
+		// Conductor's card names the first rule in its button (renderApp @105007) and shows no list (D098).
+		expect(screen.queryByText("The agent suggests these rules:")).toBeNull();
+		expect(screen.queryByText("Bash(npm run lint)")).toBeNull();
+		expect(card().querySelector("svg + p")).toBeNull();
+	});
+
+	it("puts the optional deny message right under No, with no label of its own", async () => {
+		await renderCard();
+
+		const no = screen.getByRole("button", { name: "No" });
+		const message = screen.getByRole("textbox", { name: "Message to the agent" });
+		expect(no.nextElementSibling).toBe(message);
+		expect(screen.queryByText("Message to the agent (optional)")).toBeNull();
+	});
+
 	it("cuts a long suggested rule at 40 characters, as Conductor does", async () => {
 		const rule = `Bash(${"a".repeat(50)})`;
 		await renderCard({ suggestedRules: [rule] });
