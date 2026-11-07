@@ -1,78 +1,64 @@
+/**
+ * @feature SET-03 Agents page
+ * Owns: tests for the Agents page over the real container: install help, search, the sign-in flows
+ * and their toasts. The sidecar's sign-in calls are the seam: the catalogue's login, finish,
+ * cancel and refresh are spied, and the install list goes through the catalogue's own store.
+ * Test first: starts a sign-in and shows the agent's instructions.
+ */
 import type { AgentInstall } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Container } from "../../../core/container.ts";
+import { ServicesProvider } from "../../../core/context.tsx";
+import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
+import { AgentsPage } from "./AgentsPage.tsx";
 
-const state = vi.hoisted(() => {
-	const login = vi.fn();
-	const refresh = vi.fn();
-	const finishLogin = vi.fn();
-	const cancelLogin = vi.fn();
-	const copyText = vi.fn();
-	const openUrl = vi.fn();
-	return {
-		installs: { state: "ready", data: [] } as {
-			state: "ready";
-			data: AgentInstall[];
-		},
-		login,
-		refresh,
-		finishLogin,
-		cancelLogin,
-		copyText,
-		openUrl,
-		toast: vi.fn(),
-		toastError: vi.fn(),
-		actions: {
-			agents: { login, refresh, finishLogin, cancelLogin },
-			app: { copyText, openUrl },
-		},
-	};
+let test: TestContainer | undefined;
+
+afterEach(() => {
+	cleanup();
+	toast.dismiss();
+	vi.restoreAllMocks();
+	test?.close();
+	test = undefined;
 });
-
-vi.mock("../../../core/hooks.ts", () => ({
-	useAgentInstalls: () => state.installs,
-	useActions: () => state.actions,
-	useViewingSessionId: () => null,
-	useMcpServers: () => ({ state: "ready", data: [] }),
-	useSetting: () => false,
-}));
-
-vi.mock("../../../ui/Toast.tsx", () => ({
-	toast: state.toast,
-	toastError: state.toastError,
-}));
-
-const { AgentsPage } = await import("./AgentsPage.tsx");
 
 const install = (changes: Partial<AgentInstall> & Pick<AgentInstall, "agent">): AgentInstall => ({
 	installed: true,
 	...changes,
 });
 
-beforeEach(() => {
-	state.installs = { state: "ready", data: [] };
-	state.login
-		.mockReset()
-		.mockResolvedValue(ok({ loginId: "login-1", instructions: "Open the page and sign in." }));
-	state.refresh.mockReset().mockResolvedValue(ok(undefined));
-	state.finishLogin.mockReset().mockResolvedValue(ok({ outcome: "signed_in", message: null }));
-	state.cancelLogin.mockReset().mockResolvedValue(ok(undefined));
-	state.copyText.mockReset().mockResolvedValue(ok(undefined));
-	state.openUrl.mockReset().mockResolvedValue(ok(undefined));
-	state.toast.mockReset();
-	state.toastError.mockReset();
-});
-
-afterEach(cleanup);
+/** The real container with the sidecar's sign-in calls spied, showing `installs`. */
+function harness(installs: AgentInstall[]) {
+	test = createTestContainer();
+	const container: Container = test.container;
+	const catalog = container.services.agentCatalog;
+	const spies = {
+		login: vi
+			.spyOn(catalog, "login")
+			.mockResolvedValue(ok({ loginId: "login-1", instructions: "Open the page and sign in." })),
+		refresh: vi.spyOn(catalog, "refresh").mockResolvedValue(ok(undefined)),
+		finishLogin: vi
+			.spyOn(catalog, "finishLogin")
+			.mockResolvedValue(ok({ outcome: "signed_in", message: null })),
+		cancelLogin: vi.spyOn(catalog, "cancelLogin").mockResolvedValue(ok(undefined)),
+	};
+	catalog.setInstalls(installs);
+	const page = () => (
+		<ServicesProvider container={container}>
+			<AgentsPage />
+			<Toaster />
+		</ServicesProvider>
+	);
+	return { container, catalog, spies, page };
+}
 
 describe("SET-03 AgentsPage", () => {
 	it("shows install help and no sign-in button for Codex when it is not installed", () => {
-		state.installs = {
-			state: "ready",
-			data: [install({ agent: "codex", installed: false })],
-		};
-		render(<AgentsPage />);
+		const { page } = harness([install({ agent: "codex", installed: false })]);
+		render(page());
 
 		expect(screen.getByRole("heading", { name: "Codex" })).toBeTruthy();
 		expect(screen.getByText("Install Codex on this Mac, then choose Refresh.")).toBeTruthy();
@@ -80,14 +66,11 @@ describe("SET-03 AgentsPage", () => {
 	});
 
 	it("filters the cards by name and says when nothing matches", () => {
-		state.installs = {
-			state: "ready",
-			data: [
-				install({ agent: "claude", authenticated: false }),
-				install({ agent: "codex", authenticated: false }),
-			],
-		};
-		render(<AgentsPage />);
+		const { page } = harness([
+			install({ agent: "claude", authenticated: false }),
+			install({ agent: "codex", authenticated: false }),
+		]);
+		render(page());
 		const search = screen.getByLabelText("Search providers");
 
 		fireEvent.change(search, { target: { value: "codex" } });
@@ -99,37 +82,32 @@ describe("SET-03 AgentsPage", () => {
 	});
 
 	it("starts a sign-in and shows the agent's instructions", async () => {
-		state.installs = {
-			state: "ready",
-			data: [install({ agent: "claude", authenticated: false })],
-		};
-		render(<AgentsPage />);
+		const { page, spies } = harness([install({ agent: "claude", authenticated: false })]);
+		render(page());
 
 		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
 
-		await waitFor(() => expect(state.login).toHaveBeenCalledWith("claude", undefined));
+		await waitFor(() => expect(spies.login).toHaveBeenCalledWith("claude", undefined));
 		expect(await screen.findByText("Open the page and sign in.")).toBeTruthy();
 	});
 
 	it("checks the install list when it opens", () => {
-		render(<AgentsPage />);
+		const { page, spies } = harness([]);
+		render(page());
 
-		expect(state.refresh).toHaveBeenCalled();
+		expect(spies.refresh).toHaveBeenCalled();
 	});
 
 	it("leads with install help when no agent program is found", () => {
-		state.installs = { state: "ready", data: [] };
-		render(<AgentsPage />);
+		const { page } = harness([]);
+		render(page());
 
 		expect(screen.getByText("No agent programs found")).toBeTruthy();
 	});
 
 	it("does not cancel a sign-in that already finished", async () => {
-		state.installs = {
-			state: "ready",
-			data: [install({ agent: "claude", authenticated: false })],
-		};
-		state.login.mockResolvedValue(
+		const { page, spies, catalog } = harness([install({ agent: "claude", authenticated: false })]);
+		spies.login.mockResolvedValue(
 			ok({
 				loginId: "login-1",
 				instructions: "Run claude setup-token, then paste the code.",
@@ -137,21 +115,16 @@ describe("SET-03 AgentsPage", () => {
 			}),
 		);
 		let finished = false;
-		state.finishLogin.mockImplementation(async () => {
+		spies.finishLogin.mockImplementation(async () => {
 			finished = true;
 			return ok({ outcome: "signed_in", message: null });
 		});
-		state.refresh.mockImplementation(async () => {
-			if (finished) {
-				state.installs = {
-					state: "ready",
-					data: [install({ agent: "claude", authenticated: true })],
-				};
-			}
+		spies.refresh.mockImplementation(async () => {
+			if (finished) catalog.setInstalls([install({ agent: "claude", authenticated: true })]);
 			return ok(undefined);
 		});
 
-		const { rerender } = render(<AgentsPage />);
+		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
 		expect(await screen.findByText("claude setup-token")).toBeTruthy();
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
@@ -159,20 +132,17 @@ describe("SET-03 AgentsPage", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
 
-		await waitFor(() => expect(state.finishLogin).toHaveBeenCalledWith("login-1", "code-123"));
-		await waitFor(() => expect(state.refresh).toHaveBeenCalledTimes(2));
-		rerender(<AgentsPage />);
+		await waitFor(() => expect(spies.finishLogin).toHaveBeenCalledWith("login-1", "code-123"));
+		// Opening the page, finishing the sign-in, and the dialog closing once the agent is signed in.
+		await waitFor(() => expect(spies.refresh).toHaveBeenCalledTimes(3));
 		await waitFor(() => expect(screen.queryByText("Sign in to Claude Code")).toBeNull());
 
-		expect(state.cancelLogin).not.toHaveBeenCalled();
+		expect(spies.cancelLogin).not.toHaveBeenCalled();
 	});
 
 	it("shows the Codex device code, its copy message and the ChatGPT toast", async () => {
-		state.installs = {
-			state: "ready",
-			data: [install({ agent: "codex", authenticated: false })],
-		};
-		state.login.mockResolvedValue(
+		const { page, spies, catalog } = harness([install({ agent: "codex", authenticated: false })]);
+		spies.login.mockResolvedValue(
 			ok({
 				loginId: "login-codex",
 				instructions: "Open the page and enter this code.",
@@ -180,53 +150,45 @@ describe("SET-03 AgentsPage", () => {
 				verificationUrl: "https://example.com/device",
 			}),
 		);
-		let finish: ((value: unknown) => void) | undefined;
-		state.finishLogin.mockImplementation(
+		let finish: ((value: Awaited<ReturnType<typeof catalog.finishLogin>>) => void) | undefined;
+		spies.finishLogin.mockImplementation(
 			() =>
 				new Promise((resolve) => {
 					finish = resolve;
 				}),
 		);
 		let signedIn = false;
-		state.refresh.mockImplementation(async () => {
+		spies.refresh.mockImplementation(async () => {
 			if (signedIn) {
-				state.installs = {
-					state: "ready",
-					data: [install({ agent: "codex", authenticated: true, authMethod: "chatgpt" })],
-				};
+				catalog.setInstalls([
+					install({ agent: "codex", authenticated: true, authMethod: "chatgpt" }),
+				]);
 			}
 			return ok(undefined);
 		});
 
-		const { rerender } = render(<AgentsPage />);
+		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("ABCD-1234")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
-		await waitFor(() =>
-			expect(state.toast).toHaveBeenCalledWith("Copied Codex verification code."),
-		);
+		expect(await screen.findByText("Copied Codex verification code.")).toBeTruthy();
 
 		signedIn = true;
 		finish?.(ok({ outcome: "signed_in", message: null }));
-		await waitFor(() => expect(state.finishLogin).toHaveBeenCalledWith("login-codex", undefined));
-		await waitFor(() => expect(state.refresh).toHaveBeenCalledTimes(2));
-		rerender(<AgentsPage />);
-		await waitFor(() =>
-			expect(state.toast).toHaveBeenCalledWith("Codex now uses your ChatGPT plan"),
-		);
+		await waitFor(() => expect(spies.finishLogin).toHaveBeenCalledWith("login-codex", undefined));
+		// Opening the page, finishing the sign-in, and the dialog closing once the agent is signed in.
+		await waitFor(() => expect(spies.refresh).toHaveBeenCalledTimes(3));
+		expect(await screen.findByText("Codex now uses your ChatGPT plan")).toBeTruthy();
 
-		expect(state.cancelLogin).not.toHaveBeenCalled();
+		expect(spies.cancelLogin).not.toHaveBeenCalled();
 	});
 
 	it("does not claim nothing is installed when the search hides the installed agents", () => {
-		state.installs = {
-			state: "ready",
-			data: [
-				install({ agent: "claude", authenticated: false }),
-				install({ agent: "codex", installed: false }),
-			],
-		};
-		render(<AgentsPage />);
+		const { page } = harness([
+			install({ agent: "claude", authenticated: false }),
+			install({ agent: "codex", installed: false }),
+		]);
+		render(page());
 
 		fireEvent.change(screen.getByLabelText("Search providers"), { target: { value: "codex" } });
 
@@ -234,29 +196,26 @@ describe("SET-03 AgentsPage", () => {
 	});
 
 	it("cancels the first sign-in before a retry starts another", async () => {
-		state.installs = {
-			state: "ready",
-			data: [install({ agent: "codex", authenticated: false })],
-		};
-		state.login
+		const { page, spies } = harness([install({ agent: "codex", authenticated: false })]);
+		spies.login
 			.mockReset()
 			.mockResolvedValueOnce(ok({ loginId: "login-1", instructions: "Enter the code." }))
 			.mockResolvedValueOnce(ok({ loginId: "login-2", instructions: "Enter the new code." }));
-		state.finishLogin
+		spies.finishLogin
 			.mockReset()
 			.mockResolvedValueOnce(err(appError("login_timeout", "The sign-in timed out.")))
 			.mockReturnValue(new Promise(() => {}));
 
-		render(<AgentsPage />);
+		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("The sign-in timed out.")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-		await waitFor(() => expect(state.cancelLogin).toHaveBeenCalledWith("login-1"));
-		await waitFor(() => expect(state.login).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(spies.cancelLogin).toHaveBeenCalledWith("login-1"));
+		await waitFor(() => expect(spies.login).toHaveBeenCalledTimes(2));
 		expect(await screen.findByText("Enter the new code.")).toBeTruthy();
-		expect(state.cancelLogin.mock.invocationCallOrder[0]).toBeLessThan(
-			state.login.mock.invocationCallOrder[1] ?? 0,
+		expect(spies.cancelLogin.mock.invocationCallOrder[0]).toBeLessThan(
+			spies.login.mock.invocationCallOrder[1] ?? 0,
 		);
 	});
 });

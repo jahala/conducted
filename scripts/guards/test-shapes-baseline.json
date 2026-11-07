@@ -86,7 +86,6 @@
 		"apps/desktop/src/features/git-panel/rev-01-panel.test.tsx": 4,
 		"apps/desktop/src/features/git-panel/rev-01.test.tsx": 1,
 		"apps/desktop/src/features/scripts-panel/setup/SetupTab.test.tsx": 2,
-		"apps/desktop/src/features/settings/pages/AgentsPage.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/AddProjectButton.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/GroupedWorkspaces.nav-03.test.tsx": 3,
 		"apps/desktop/src/features/sidebar/SidebarNav.nav-03.test.tsx": 1,
