@@ -4,6 +4,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
@@ -163,6 +164,8 @@ export interface CloudFileStat {
 const STORAGE_TURN_ACTIVE = "turnActive";
 const STORAGE_STARTED_AT = "startedAt";
 const STORAGE_BACKUPS = "backups";
+const STORAGE_SSH_KEY = "sshPublicKey";
+const STORAGE_SSH_ACTIVE = "sshActive";
 
 export class Workspace extends DurableObject<Env> {
 	private readonly container: Container | undefined;
@@ -226,6 +229,12 @@ export class Workspace extends DurableObject<Env> {
 			});
 			this.restore = null;
 			await this.ctx.storage.put(STORAGE_STARTED_AT, Date.now());
+			// CLOUD-12: the Mac's public key is installed at every start, so the SSH door opens
+			// without a second request and a replaced sandbox gets the same key.
+			const publicKey = await this.ctx.storage.get<string>(STORAGE_SSH_KEY);
+			if (publicKey !== undefined && publicKey !== "") {
+				await this.writeAuthorizedKey(publicKey);
+			}
 		}
 		try {
 			await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS);
@@ -444,6 +453,107 @@ export class Workspace extends DurableObject<Env> {
 		});
 	}
 
+	/**
+	 * Stores the Mac's SSH public key and installs it as root's authorized key. A stopped sandbox
+	 * is started, because this is the call that opens the workspace's SSH door (CLOUD-12). A key
+	 * is stored first, so the next start installs it even if this sandbox stops in between.
+	 */
+	async installSshKey(publicKey: string): Promise<{ installed: true }> {
+		await this.ctx.storage.put(STORAGE_SSH_KEY, publicKey);
+		await this.ensureSetUp();
+		if (this.requireContainer().running) await this.writeAuthorizedKey(publicKey);
+		return { installed: true };
+	}
+
+	/** Writes the authorized key with the permissions OpenSSH wants, inside the sandbox. */
+	private async writeAuthorizedKey(publicKey: string): Promise<void> {
+		const files = this.fileOperations();
+		await files.mkdir("/root/.ssh", { recursive: true });
+		await files.writeFile("/root/.ssh/authorized_keys", `${publicKey}\n`);
+		await this.requireContainer().exec(["chmod", "700", "/root/.ssh"]);
+		await this.requireContainer().exec(["chmod", "600", "/root/.ssh/authorized_keys"]);
+	}
+
+	/**
+	 * Notes one SSH session opening or closing and starts or stops the keep-alive alarm. While a
+	 * session is open the sandbox must not sleep, exactly as while a turn runs (D119). The answer
+	 * is the state a test reads; the alarm itself is storage's.
+	 */
+	async noteSsh(open: boolean): Promise<{ sshActive: number; alarmAt: number | null }> {
+		const current = (await this.ctx.storage.get<number>(STORAGE_SSH_ACTIVE)) ?? 0;
+		const next = open ? current + 1 : Math.max(0, current - 1);
+		await this.ctx.storage.put(STORAGE_SSH_ACTIVE, next);
+		if (next > 0) {
+			await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
+		} else {
+			const turnActive = (await this.ctx.storage.get<boolean>(STORAGE_TURN_ACTIVE)) ?? false;
+			if (!turnActive) await this.ctx.storage.deleteAlarm();
+		}
+		return { sshActive: next, alarmAt: await this.ctx.storage.getAlarm() };
+	}
+
+	/**
+	 * The SSH tunnel (CLOUD-12). The Worker authenticated this WebSocket with the pairing token and
+	 * hands it to the sandbox entry's `/ssh` route, which reaches loopback port 22 only. The
+	 * connection keeps the Durable Object and its container awake until the last one closes.
+	 */
+	async ssh(request: Request): Promise<Response> {
+		if (this.container === undefined) {
+			return new Response("This workspace has no sandbox configured", { status: 503 });
+		}
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return new Response("Expected a WebSocket", { status: 426 });
+		}
+		await this.start();
+		const upstreamResponse = await this.requireContainer()
+			.getTcpPort(SIDECAR_PORT)
+			.fetch(new Request("http://container/ssh", request));
+		const upstream = upstreamResponse.webSocket;
+		if (upstream === null) {
+			return new Response(`The sandbox refused the SSH connection: ${upstreamResponse.status}`, {
+				status: 502,
+			});
+		}
+		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
+		upstream.binaryType = "arraybuffer";
+		server.binaryType = "arraybuffer";
+		upstream.accept();
+		server.accept();
+		await this.noteSsh(true);
+		let finished = false;
+		const finish = (): void => {
+			if (finished) return;
+			finished = true;
+			void this.noteSsh(false);
+		};
+		for (const socket of [server, upstream]) {
+			socket.addEventListener("close", finish);
+			socket.addEventListener("error", finish);
+		}
+		this.pumpRaw(server, upstream);
+		this.pumpRaw(upstream, server);
+		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/** Copies frames from one side to the other without reading them. */
+	private pumpRaw(from: WebSocket, to: WebSocket): void {
+		from.addEventListener("message", (event: MessageEvent) => {
+			try {
+				to.send(event.data);
+			} catch {
+				from.close(1011, "The other side closed");
+			}
+		});
+		from.addEventListener("close", (event: CloseEvent) => {
+			const code = event.code === 1005 || event.code === 1006 ? 1000 : event.code;
+			try {
+				to.close(code, event.reason);
+			} catch {
+				// The other side is already closed.
+			}
+		});
+	}
+
 	/** Polls the bridge's health endpoint until it answers or the deadline passes. */
 	private async waitForSidecar(began: number): Promise<unknown> {
 		const container = this.requireContainer();
@@ -595,16 +705,18 @@ export class Workspace extends DurableObject<Env> {
 	}
 
 	/**
-	 * The alarm that keeps a turn alive. While a turn runs it touches the sandbox's health endpoint,
-	 * which resets the container's inactivity timer; once the turn is over the alarm stays off and
-	 * the sandbox is free to sleep. A sandbox that stopped under a turn has lost the work since its
-	 * last backup (CLOUD-06), so the alarm clears.
+	 * The alarm that keeps a turn or an SSH session alive. While either is active it touches the
+	 * sandbox's health endpoint, which resets the container's inactivity timer; once both are
+	 * over the alarm stays off and the sandbox is free to sleep. A sandbox that stopped under a
+	 * turn has lost the work since its last backup (CLOUD-06), so the alarm clears.
 	 */
 	override async alarm(): Promise<void> {
 		const turnActive = (await this.ctx.storage.get<boolean>(STORAGE_TURN_ACTIVE)) ?? false;
+		const sshActive = (await this.ctx.storage.get<number>(STORAGE_SSH_ACTIVE)) ?? 0;
 		const container = this.container;
-		if (!turnActive || container === undefined || !container.running) {
+		if ((!turnActive && sshActive === 0) || container === undefined || !container.running) {
 			await this.ctx.storage.put(STORAGE_TURN_ACTIVE, false);
+			await this.ctx.storage.put(STORAGE_SSH_ACTIVE, 0);
 			await this.ctx.storage.deleteAlarm();
 			return;
 		}
@@ -664,6 +776,7 @@ export class Workspace extends DurableObject<Env> {
 		const path = new URL(request.url).pathname;
 		if (path.endsWith("/terminal")) return this.terminal(request);
 		if (path.endsWith("/tunnel")) return this.tunnel(request);
+		if (path.endsWith("/ssh")) return this.ssh(request);
 		const preview = PREVIEW_IN_WORKSPACE.exec(path);
 		if (preview !== null) {
 			return this.preview(request, Number(preview[1]), preview[2] ?? "/");

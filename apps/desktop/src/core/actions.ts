@@ -58,6 +58,7 @@ export function createActions(
 			setTargetBranch: (id, branch) => services.git.setTargetBranch(id, branch),
 			setLinkedPaths: (id, paths) => services.workspace.setLinkedPaths(id, paths),
 			openIn: (id, appName) => services.workspace.openIn(id, appName),
+			copySshCommand: (id) => services.workspace.copySshCommand(id),
 			markRead: (id) => services.sessions.markAllRead(id),
 			markUnread: (id) => services.sessions.markWorkspaceUnread(id),
 			setActiveSession: (id, sessionId) => services.workspace.setActiveSession(id, sessionId),

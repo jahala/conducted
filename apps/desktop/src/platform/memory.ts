@@ -165,6 +165,8 @@ export interface MemoryPlatformControls {
 	failFullDiskAccessCheck(message: string | null): void;
 	/** Makes `system.openFullDiskAccessSettings` fail with this message; null restores success. */
 	failOpenFullDiskAccessSettings(message: string | null): void;
+	/** Every remote editor open the app asked for, in order (CLOUD-12). */
+	readonly remoteOpens: readonly { appName: string; host: string; path: string }[];
 	/** Every command given to `shell.run` and `shell.start`, in order. */
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
@@ -970,10 +972,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		confirm: async () => takeAnswer("confirm")?.confirm ?? false,
 	};
 
+	const remoteOpens: { appName: string; host: string; path: string }[] = [];
 	const opener: Opener = {
 		openUrl: async () => {},
 		revealInFinder: async () => {},
 		openWith: async () => ok(undefined),
+		openRemote: async (input) => {
+			remoteOpens.push(input);
+			return ok(undefined);
+		},
 		installedApps: async () => [],
 		// The in-memory Mac has no app bundles, so no app has an icon to read.
 		appIcon: async () => ok(null),
@@ -1310,6 +1317,16 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			emitForward({ forwardId: input.forwardId, kind: "started", message: null });
 			return ok(info);
 		},
+		startSsh: async (input) => {
+			const info: PortForwardInfo = {
+				forwardId: input.forwardId,
+				localPort: input.localPort,
+				remotePort: 22,
+			};
+			runningForwards.set(input.forwardId, info);
+			emitForward({ forwardId: input.forwardId, kind: "started", message: null });
+			return ok(info);
+		},
 		stop: async (forwardId) => {
 			if (runningForwards.delete(forwardId)) {
 				emitForward({ forwardId, kind: "stopped", message: null });
@@ -1368,6 +1385,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get cloudRequests() {
 			return cloudRequests;
+		},
+		get remoteOpens() {
+			return remoteOpens;
 		},
 		get cloudSent() {
 			return cloudSent;

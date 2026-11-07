@@ -4,6 +4,7 @@
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
  * Owns: the checks every request passes after the unauthenticated preview path and before a
@@ -38,6 +39,8 @@ export type CloudAction =
 	| "rpc"
 	| "terminal"
 	| "tunnel"
+	| "ssh"
+	| "ssh-key"
 	| "preview-url";
 
 export interface CloudRoute {
@@ -56,7 +59,7 @@ export type FrontDoor =
 export const SETTINGS_PATH = "/settings";
 
 const ROUTE =
-	/^\/w\/([^/]+)\/(start|stop|restart|remove|git|exec|files|state|ports|rpc|terminal|tunnel|preview-url)$/;
+	/^\/w\/([^/]+)\/(start|stop|restart|remove|git|exec|files|state|ports|rpc|terminal|tunnel|ssh|ssh-key|preview-url)$/;
 
 const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	state: "GET",
@@ -64,6 +67,8 @@ const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	rpc: "GET",
 	terminal: "GET",
 	tunnel: "GET",
+	ssh: "GET",
+	"ssh-key": "POST",
 	"preview-url": "POST",
 	start: "POST",
 	stop: "POST",
@@ -75,7 +80,7 @@ const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 };
 
 /** The streams that must arrive as a WebSocket, never a plain GET. */
-const STREAMS: ReadonlySet<CloudAction> = new Set(["rpc", "terminal", "tunnel"]);
+const STREAMS: ReadonlySet<CloudAction> = new Set(["rpc", "terminal", "tunnel", "ssh"]);
 
 /**
  * The route a request may reach, or the response that refuses it. A refusal is a finished answer:
