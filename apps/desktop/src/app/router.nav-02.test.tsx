@@ -50,6 +50,7 @@ function workspace({
 		path: `/repos/${id}`,
 		branch: `branch-${id}`,
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
 		state: "ready",

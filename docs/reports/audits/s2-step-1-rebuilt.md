@@ -10,7 +10,9 @@ Line numbers are for the checked-out tree. `git.ts` is `apps/desktop/src/core/se
 - MUST: `git.ts:987-1004`: Cmd+Shift+Y (`GitPanel.tsx`, `useCommandHandler("git.commitAndPush")`) calls `runAction("commit_and_push")` whatever the header state is. With a clean tree or an open PR it still sends the agent a "commit everything" turn, which costs model budget for nothing. The button only appears for uncommitted files without a PR (git-header.ts:235). Fix: have the handler run only when the header model's action is `commit_and_push`, and add a test for a clean workspace.
 - MUST: checklist "The app commits directly only for the empty initial commit." has no test. The only guard is "runs no git commit itself" in `git.git-05.test.ts:96`, which covers `commitAndPush` alone. Nothing exercises the initial commit path (workspace creation). Fix: a test on the initial-commit path, naming `--allow-empty -m "Initial commit"`, or point the item at the feature that owns it.
 - LATER: `git.git-05.test.ts` checks `toContain("commit")` and `toContain("push")` (lines 96-110). The text always contains both words, so the test would pass with a wrong instruction. Compare the whole built-in text instead.
+  Outcome: fixed already, 470e25c1 adds `expect(text).toBe("Commit all the changes ... Check that the push succeeded.")` (git.git-05.test.ts:81-84) above the weaker toContain checks.
 - LATER: the instruction wording differs from Conductor's one-liner ("Commit and push all changes", services-map 3.5). The header says wording is our own. Fine, but the commit instruction does not say "all changes" explicitly in the test. Low risk.
+  Outcome: fixed already, 470e25c1. The instruction now says "Commit all the changes in this workspace" (agent-instructions.ts:55-58), and the whole text is asserted (git.git-05.test.ts:81-84).
 
 ## GIT-06 Pull and push
 
@@ -24,10 +26,15 @@ Line numbers are for the checked-out tree. `git.ts` is `apps/desktop/src/core/se
 - MUST: checklist "Rename, push, pull, merge, approve, ready, auto-merge, edit and sync each ignore a second request while one is running." Only push and pull are guarded (`git.ts:1009-1011`, key per workspace, which matches Conductor's per-action dedupe). The other seven actions are not in this feature's code. Move them to their owners in `docs/plans/items/` or reword the item, so it does not read as done.
 - MUST: `git.ts:1013-1080` (`push`) ignores the `worktree_push_auto_setup_remote` setting at push time. It is only read by `workspace.ts:847`, at workspace creation. The item "Set upstream on plain git push sets the upstream automatically" is therefore a setting with a registry row and no behaviour in this feature. The registry row is tagged `GIT-06` (settings.ts:1384), and no GIT-06 test touches it. Fix: either test and document that workspace creation is the single consumer (and say so in the GIT-06 header), or read it in the plain-push path.
 - LATER: `git.ts:1020-1027`: a push with no remote or branch runs `pushPlain()` with no lock-failure toast text. Errors reach `toastError("Couldn't push")`. Acceptable.
+  Outcome: wrong. The audit calls this acceptable; push errors reach the panel's `run(actions.git.push(...), "Couldn't push")` (GitPanel.tsx:336).
 - LATER: `git.git-06.test.ts:208`, `:382`: the single-flight tests prove two overlapping calls run once. There is no test that a second call after the first has finished runs again.
+  Outcome: open, item GIT-06. git.git-06.test.ts still only covers two overlapping calls (lines 201-203, 413-415); no test starts a second call after the first settled.
 - LATER: no test with a real git repository (real `git push -u`, real ff-merge). All tests use `fakeRunner`. The fake accepts commands by name, so a wrong refspec would pass. A contract test in a temp repo (the engineering rules ask for stand-ins checked against the real thing) would catch it.
+  Outcome: open, item GIT-06. git.git-06.test.ts uses fakeRunner only; no temp-repo contract test exists for push or a fast-forward merge.
 - LATER: Settings page: the registry puts the setting on `advanced`; the item also wants a key in the Git page header (ui-map 6). Not built.
+  Outcome: open, item GIT-06. The registry still puts worktree_push_auto_setup_remote on page "advanced" (registries/settings.ts:1461); the Git-page control is absent (items system.tsv:2467 and ui.tsv:807 say partly).
 - LATER: `PLAT-18` says Cmd+Shift+L belongs to Pull latest. After the handler is added, check there is no double binding with the sidecar-logs command.
+  Outcome: fixed already, 470e25c1. GitPanel.tsx:432 registers useCommandHandler("git.pullLatest"), and app.openSidecarLogs has no default shortcut (registries/commands.ts:157-161).
 
 ## GIT-07 Resolve conflicts, done by the agent on request
 
@@ -36,8 +43,11 @@ Line numbers are for the checked-out tree. `git.ts` is `apps/desktop/src/core/se
 - MUST: `agent-instructions.ts:115-147` and `:186-218`: `resolveConflictsInstruction` and `reconcileInstruction` build the same rebase and merge steps with the same wording ("Rebase this branch onto", "Update the remote branch with `git push --force-with-lease`...", "Push the branch with `git push`"). Duplicated logic inside the batch. Fix: one `rebaseOrMergeSteps({strategy, remote, remoteTarget})` used by both.
 - MUST: checklist "When the branch has diverged from its target, rebase or merge is chosen by pull.rebase and the agent does it." The Resolve conflicts button (`git.ts:1161`) does not check divergence. That is correct (the button shows only when the header says conflicts), but no test shows that the header offers "resolve" only for a conflicted PR. The git-header tests are outside this batch; add one on the `resolve` action to make the item testable.
 - LATER: `agent-instructions.git-07.test.ts:58` repeats the list of accepted `pull.rebase` values as a table. Git itself accepts only `true`, `false`, `merges`, `interactive`; `yes`, `on`, `1`, `preserve` are boolean aliases or older values. Matches services-map 3.6.4, keep.
+  Outcome: wrong. The audit itself says the table matches services-map 3.6.4 and should be kept; there is no defect.
 - LATER: `git.git-07.test.ts` has `makeService` with a hand-cast set of deps. Prefer `createTestContainer`, as `engineering.md` asks.
+  Outcome: open, item GIT-07. git.git-07.test.ts:63-90 still builds GitService from a hand-cast deps object rather than createTestContainer.
 - LATER: a rebase of a pushed branch ends with `--force-with-lease`. The header of `git.ts` says the app never force-pushes. That is true (the agent pushes), but say so in the header.
+  Outcome: fixed already, 470e25c1. git.ts:37-38 now says "The app itself never force-pushes: a resolve-conflicts rebase names `--force-with-lease` for the agent to run."
 
 ## SIDE-20 Tell the app when the agent changes a chat's mode
 
@@ -48,8 +58,12 @@ Line numbers are for the checked-out tree. `git.ts` is `apps/desktop/src/core/se
 - MUST: no test for the `exit plan then agent re-enters in the same turn` order, and none for two `agentConfigChanged` notifications arriving out of order. `sessions.chat-02.test.ts:619` covers two overlapping `applyAgentConfig` writes in the service. The tunnel and `handlers.ts` keep no order guard, so the service's keyed queue is the only protection, and a user-made config write (`#setConfig` from the composer) does not go through `#agentConfigWrites`. Check that a composer change cannot be overwritten by an older agent notification; add a test.
 - MUST: header claim, `manager.ts` Must handle: "a config the agent changes by itself (plan mode) updates the chat's state". The code updates `state.config` and `state.agentConfig` (manager.ts:838-846). The test (`manager.test.ts:1000-1030`) only checks the notification content; it never reads `state.config` back. Add an assertion that the next `sendMessage` without a config uses the new mode.
 - LATER: `packages/protocol` has no schema test for `agentConfigChanged` (the reason enum). Add one in `events.test.ts` style.
+  Outcome: open, item SIDE-20. rpc.ts:461-470 defines agentConfigChanged, but events.test.ts and the other protocol tests never parse it.
 - LATER: only the Claude runner implements `onConfigChanged`. Codex and the ACP runners never tell the app when they change mode. The checklist lists "Callback onEnterPlanMode ... (other-runners 1)". Say in the issue that other runners are not covered.
+  Outcome: open, item SIDE-20. Only claude-session.ts:713 calls onConfigChanged; the Codex and ACP runners never do, and items system.tsv:476 and :542 still say missing/partly.
 - LATER: `handlers.side-20.test.ts` builds ports with a cast (`overrides as unknown as SidecarHandlerPorts`). Fine for a handler, but nothing tests the real wiring `container.ts:212` to `sessions.applyAgentConfig` end to end.
+  Outcome: open, item SIDE-20. handlers.side-20.test.ts still casts its ports, and no container-level test exercises applyAgentConfig end to end.
 - LATER: backlog rows for GIT-05, GIT-06, GIT-07 and SIDE-20 are still `stub` (docs/plans/backlog.md lines 75, 238-240). The issues ask to set `done` in the closing PR; `pnpm stubs` will need it once the MUST items above are fixed.
+  Outcome: fixed already, 904a23d4 sets GIT-05, GIT-06, GIT-07 and SIDE-20 to `done` (docs/plans/backlog.md:238-240 and :75).
 
 Summary: GIT-05 4 MUST + 2 LATER; GIT-06 9 MUST + 5 LATER; GIT-07 4 MUST + 3 LATER; SIDE-20 6 MUST + 4 LATER (23 MUST, 14 LATER, 37 in all).

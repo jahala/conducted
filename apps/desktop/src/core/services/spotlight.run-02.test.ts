@@ -50,6 +50,7 @@ const baseWorkspace = (id: WorkspaceId = WORKSPACE_ID, path = WORKSPACE_PATH): W
 	path,
 	branch: "feature/oslo",
 	branchIsPlaceholder: false,
+	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "origin/main",
 	state: "ready",

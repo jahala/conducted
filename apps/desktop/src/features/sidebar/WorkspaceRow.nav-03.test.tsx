@@ -64,6 +64,7 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 		path: "/workspaces/one",
 		branch: "fix-login",
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
 		state: "ready",

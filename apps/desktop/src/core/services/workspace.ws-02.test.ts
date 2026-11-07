@@ -172,6 +172,7 @@ function makeHarness(options: HarnessOptions = {}) {
 				path: input.path,
 				branch: input.branch,
 				branchIsPlaceholder: input.branchIsPlaceholder,
+				host: { kind: "local" },
 				displayName: null,
 				targetBranch: input.targetBranch,
 				state: "initializing",

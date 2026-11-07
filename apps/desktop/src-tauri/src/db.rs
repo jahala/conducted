@@ -97,6 +97,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0008_backlog_repo_optional.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "workspace_host",
+            sql: include_str!("../migrations/0009_workspace_host.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

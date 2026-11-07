@@ -1060,3 +1060,43 @@ SET-04	rule	The Environment page shows environment_variable_files and marks it w
 REV-08	shortcut	The file editor has undo, redo, the default key map and Tab indent (needs the @codemirror/commands 6.x dependency, not installed overnight).	ui-map 3.2	missing
 REV-08	action	Reveal in Finder and Open in another app from a preview that cannot show (files.reveal and files.openInApp in core/api.ts; the default "Open in" app opens the file).	ui-map 3.2	covered
 CHAT-04	action	Retry a failed queued message goes through Actions (needs sessions.queue.retry in core/api.ts and actions.ts; QueueBox calls the service directly until then).	ui-map 3.4	partly
+APP-15	rule	Move the hand-written substring filters (ModelPicker, ChatHistoryButton, TargetBranchPicker, AgentsPage, changed-file-tree) onto rankFuzzy.	docs/reports/audits/s2-step-1-core-1	missing
+APP-14	rule	The APP-14 contrast matrix never sets data-vibrancy, so sidebar text on the translucent surface is unchecked (ui/app-14.test.tsx).	docs/reports/audits/s2-step-1-ui-1	missing
+APP-14	rule	Markdown and PR text have no link style and no test for one; style links through the shared kit (AssistantText.tsx, ExternalLink.tsx).	docs/reports/audits/s2-step-1-ui-1	missing
+APP-14	rule	search-highlight tokens carry the same values as highlight, and the test checks class names only; give them measured values and assert the colour (styles.css:113-117).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-09	rule	TodoBlock titles the block "Todo" and shows "N of M done", while the checklist names "No todos", "Todo started", "Todo completed"; decide one wording for the block and the card (TodoBlock.tsx:26-31).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-09	rule	TodoCard falls back to the generic card when the input has no list and drops unlabelled entries silently (TodoCard.tsx:35-44,62-65).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-09	operation	Add tests for very long thinking text, TodoList row identity on reorder, and TodoCard unknown-status and unlabelled entries.	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-27	rule	Retry now cancels (which pauses the follow-up queue) and never resumes it, so queued follow-ups can stay paused (TurnItem.tsx:124-142).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-27	rule	ChatBanner opens a session tab with an `as never` navigation and is the third copy of that helper; use one helper (ChatBanner.tsx:87-92).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-27	rule	ChatRetryBanner uses the destructive tone while the agent is still retrying, against the error-colour rule (ChatBanner.tsx:103-105).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-27	operation	Add tests for Retry now on a turn without a user message, the queue state after Retry now, and a failed send after a successful create.	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-22	rule	The visualization frame runs for every .html file Codex writes, not only a file it marked as a visualization; confirm Conductor's trigger (CodexVisualization.tsx:236-241).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-22	rule	The "inside the workspace" check is lexical, so a symlink out of the workspace is read as inside (CodexVisualization.tsx:73-83).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-23	rule	A user's Stop shows "Stopped" even when the command had already exited with code 0; use the exit event first (CodeBlock.tsx:75-78).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-23	rule	Output produced before CommandRunView subscribes may be lost; check against useTerminalConnection's replay and test a print-and-exit command (CodeBlock.tsx:104-121).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-23	rule	CodeBlock's header says it is memoised on the text but it is not wrapped in memo; fix the claim or add memo.	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-23	rule	The run terminal keeps running when the block unmounts; state that as a design choice or stop it (CodeBlock.tsx:115-121).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-24	rule	The "web address, not loaded" message is almost unreachable because AssistantText turns http(s) targets into links first, and non-http schemes are untested (ChatVideo.tsx:88).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-24	rule	"Open in another app" for a path outside the workspace passes a file path to openUrl; check openUrl accepts one (ChatVideo.tsx:88).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-24	rule	The ChatVideo workspace check is lexical, so a symlink out of the workspace is not caught (ChatVideo.tsx:38-46).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-24	rule	sanitizeSvg keeps remote image href and use href references; handle them and test them (MermaidDiagram.tsx:58-76).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-24	rule	mermaid.initialize is global and called per diagram, so two themes can race (MermaidDiagram.tsx:121).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-24	operation	Add tests for the Mermaid zoom limits, Escape closing the expanded view, and the licence claim.	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-25	rule	The current-turn highlight uses rangeChanged.startIndex, which includes the 600 px overscan; use the first visible item (MessageList.tsx:167-175).	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-25	operation	Test the virtualised jump list at 2,000 turns, not only its tick count.	docs/reports/audits/s3-1d-ui-1	missing
+CHAT-25	rule	TurnOutline imports radix-ui directly for the close button instead of the shared ui/Popover (TurnOutline.tsx:24).	docs/reports/audits/s3-1d-ui-1	missing
+APP-04	rule	PrEmptyState's header names a "gh missing" case that PrEmptyKind does not have; add the kind or drop the claim (PrEmptyState.tsx:7,15-21).	docs/reports/audits/step-3-s1-ui	missing
+APP-04	rule	NoWorkspaceSelected still wraps the built AddProjectButton in NotBuiltYet, and its header text is stale (NoWorkspaceSelected.tsx:29-35).	docs/reports/audits/step-3-s1-ui	missing
+APP-04	rule	The terminal's LoadableView has no onRetry, so its error state has no "Try again" (TerminalView.tsx:327-330).	docs/reports/audits/step-3-s1-ui	missing
+APP-04	rule	The not-built-yet overlay Close button is a raw button instead of Button (ui/not-built-yet.tsx:76-82).	docs/reports/audits/step-3-s1-ui	missing
+APP-12	rule	Switch and Checkbox add their own Space/Enter handlers on top of Radix; drop them and test with userEvent, or say why they stay (Switch.tsx:35-40, Checkbox.tsx:41-46).	docs/reports/audits/step-3-s1-ui	missing
+APP-12	rule	Input tracks focus in React state only to switch the accent border, and Input/Textarea repeat the same handlers; use one CSS rule and a shared field wrapper (Input.tsx:43-66,93-116).	docs/reports/audits/step-3-s1-ui	missing
+APP-12	rule	Select item classes copy menuItemClass instead of using it (Select.tsx:90-98).	docs/reports/audits/step-3-s1-ui	missing
+APP-12	rule	Slider's disabled:cursor-not-allowed on a span does nothing, and the thumb focus ring relies on the global rule (Slider.tsx:59).	docs/reports/audits/step-3-s1-ui	missing
+APP-12	rule	Select casts Radix's string with `decode(next) as T`; remove the unchecked cast or guard it (Select.tsx:70).	docs/reports/audits/step-3-s1-ui	missing
+APP-13	rule	The small Toggle carries both rounded-md and rounded-sm because cn does not merge; build the class by size or merge classes (ui/Toggle.tsx:22-25).	docs/reports/audits/step-4-s1-ui	missing
+APP-13	rule	AlertDialog and Dialog cite the 200 ms fade and 0.95 scale but apply no motion; add the motion once or drop the claim (ui/AlertDialog.tsx:5).	docs/reports/audits/step-4-s1-ui	missing
+APP-13	rule	Card and Separator are still imported by no feature; use them or record why the kit keeps them (ui/Card.tsx, ui/Separator.tsx).	docs/reports/audits/step-4-s1-ui	missing
+APP-13	rule	system-app-13.test.ts casts a bare clipboard object to the Platform type; check the stand-in against the real Platform clipboard (core/services/system-app-13.test.ts:5-9).	docs/reports/audits/step-4-s1-ui	missing
+APP-13	operation	The TruncatedText test checks the title and Copy click but not that the shown text is shortened inside the component.	docs/reports/audits/step-4-s1-ui	missing

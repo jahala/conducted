@@ -39,6 +39,8 @@
  * its next turn remembers them although the chat no longer shows them. Rewinding it (the sidecar's
  * `resetAgent`, then a resume at the chosen turn with `resume.atNativeMessageId`) is an open item
  * on CHAT-15's checklist. The same-tab fork belongs to CHAT-16 and lives in the sessions service.
+ * CLOUD-01: the chat's folder comes from the host-checked lookup, and a fork to a new workspace
+ * checks the source workspace's host before its git runs (core/host.ts).
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
  * For CHAT-21, a fork creates the workspace at the turn checkpoint's head and moves a copy of the
  * chat into it.
@@ -75,6 +77,7 @@ import {
 } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { mergeChanges, parseNameStatus, parseNumstat } from "../git/status.ts";
+import { checkHost } from "../host.ts";
 import type { Session, Workspace } from "../model.ts";
 
 /** How long a finished turn's change list waits for its two checkpoint refs. */
@@ -543,6 +546,7 @@ export class CheckpointService {
 		if (source === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		checkHost(source.host, "git");
 
 		const checkpoint = await forkCheckpointOf(sessionId, turnId);
 		if (!checkpoint.ok) return checkpoint;

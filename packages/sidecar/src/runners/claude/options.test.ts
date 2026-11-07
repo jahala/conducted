@@ -33,6 +33,7 @@ function workspace(): WorkspaceContext {
 		repoRootPath: "/work/repo",
 		targetBranch: "origin/main",
 		placeholderBranch: false,
+		host: { kind: "local" },
 		port: 4100,
 	};
 }

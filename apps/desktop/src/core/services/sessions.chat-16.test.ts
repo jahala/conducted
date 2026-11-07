@@ -39,6 +39,7 @@ const workspaceContext: WorkspaceContext = {
 	repoRootPath: "/code/project",
 	targetBranch: "origin/main",
 	placeholderBranch: true,
+	host: { kind: "local" },
 	port: 55_000,
 };
 
@@ -162,6 +163,7 @@ async function seedChat(): Promise<{ workspaceId: WorkspaceId }> {
 		path: "/code/workspace",
 		branch: "jahala/workspace",
 		branchIsPlaceholder: true,
+		host: { kind: "local" },
 		targetBranch: "origin/main",
 		port: 55_000,
 		linkedPaths: [],

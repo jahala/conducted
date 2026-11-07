@@ -3,6 +3,7 @@
 Read on branch slice2/step-1 at 808d632. Nothing was run; every finding comes from reading the code, the merge diffs and the tests. Paths are under `apps/desktop/src` unless noted.
 
 Batch-wide: all five backlog rows in `docs/plans/backlog.md` still say `stub` (lines 132, 220, 224, 268, 274). Their placeholders are gone, so `pnpm stubs` will refuse them (CI would catch it; listed once here, LATER).
+Outcome: fixed already, 904a23d4 the five rows read `done` in `docs/plans/backlog.md:132,220,224,268,274`.
 
 ## REV-05 AI code review in a new chat
 
@@ -10,6 +11,7 @@ Batch-wide: all five backlog rows in `docs/plans/backlog.md` still say `stub` (l
 - MUST `core/services/sessions.ts:1196` and `core/lookups.ts:178-188`: `reviewConfigFrom` copies the effort-parse step and the exact "is not one a chat can use. Pick another in Settings." error from `defaultSessionConfig`. Two homes for one rule. Fix: extract one `parseEffortSetting(key, value)` helper in `lookups.ts` (or beside `zEffort`) and call it from both.
 - MUST `core/services/sessions.ts:1189-1197`: `startReviewChat` creates the chat, then `send` can fail; the function returns the send error but leaves the empty chat open in the workspace, so a retry makes a second empty chat. The same create-then-send shape is repeated in `createFirstChat` (line 1109) and the retry path (line 1541). Fix: one `createAndSend` helper that closes or deletes the new chat when the send fails; test the failure.
 - LATER `core/services/sessions.rev-05.test.ts`: no test for the Codex effort key (`review_codex_thinking_level`), none for a failed `send` after create, none for `review_fast_mode: false` overriding a fast default.
+  Outcome: fixed already, 470e25c1 the test file now covers the Codex effort key, a failed send after create, and `review_fast_mode: false` overriding a fast default (`sessions.rev-05.test.ts:166,192,213`).
 - LATER `features/git-panel/GitPanel.tsx:220-232`: on success `startReview` only closes the dialog and never uses `result.value`, so the user is not taken to the new review chat (Conductor opens it). Check what the chat list does with a new session; if it does not select it, select it here.
 - Checklist vs tests: "Review button / tooltip", "Edit before sending" and "Review model" have tests from REV-01/COMP-02 files, not from this batch. "Cmd+Shift+R start review" has no test and no code (see MUST above). "Repo-level custom prompt replaces the default" is tested (`review.rev-05.test.ts`).
 
@@ -19,9 +21,13 @@ Batch-wide: all five backlog rows in `docs/plans/backlog.md` still say `stub` (l
 - MUST `features/chat/TurnChanges.tsx` header and `docs/plans/items/system.tsv:2055`: the header says the file list "asks the caller to show the Changes view scoped to this turn", but `Actions` has no turn-scope path and the Changes tab "Turn" scope, the "Diff scope: per turn" menu and "Diff view mode turn" are not built (items covered in `ui.tsv:467,595`, `system.tsv:1375`). The component is shown disabled when `onOpenDiff` is missing, which is what every real caller gets today.
 - MUST (unbuilt items in the issue): "Discarding changes to one file writes a revert note" (system.tsv:2055), "Failed to attach revert context" toast, and "Restore one file from a checkpoint tree" have no code and no test. The issue lists them as part of REV-09. Move them to a named feature or build them.
 - LATER `core/services/checkpoint.ts:91-93`: two parallel calls for one turn both run the two git diffs; use `createSingleFlight` keyed by session and turn.
+  Outcome: open, item REV-09 - `changesForTurn` still runs both diffs with `Promise.all` and there is no single-flight (`core/services/checkpoint.ts:207-215`).
 - LATER `core/services/checkpoint.ts:120`: the first call returns the same `files` array it stores in the cache, while a cache hit returns copies. A caller that mutates the first result corrupts the cache. Return a copy on the miss too.
+  Outcome: fixed already, 470e25c1 the miss now returns `copyChanges(files)` (`core/services/checkpoint.ts:225`).
 - LATER `core/services/checkpoint.ts` cache: no removal when a chat is deleted or pruned, so the cache keeps entries for a deleted chat until 5 MB evicts them.
+  Outcome: fixed already, 075e4b4e `pruneForChat` now calls `#forgetTurnChanges` (`core/services/checkpoint.ts:307`).
 - LATER `core/services/checkpoint.rev-09.test.ts`: the tests use a fake `GitRunner` answering canned output; nothing runs `bin/checkpointer.sh diff` for real, so the argument shape (`diff a b -- --name-status`) is not proven against the script. Add one test over a temp repo.
+  Outcome: open, item REV-09 - the suite still builds a `FakeGitRunner` (`core/services/checkpoint.rev-09.test.ts:9,29-36`).
 - Headers: `TurnChanges.tsx` "opening a diff hands the caller the turn scope so the URL can carry turn:<session>:<turn>" is kept only by the callback; the URL part has no code.
 
 ## RUN-01 Run actions with start and stop, concurrent or exclusive
@@ -35,24 +41,38 @@ Batch-wide: all five backlog rows in `docs/plans/backlog.md` still say `stub` (l
 - MUST (Spotlight rule): checklist "Spotlight is always exclusive" and header "run mode exclusive also stops other workspaces' actions" cover only run actions. Nothing stops a Spotlight terminal or is stopped by one. RunState always reports `spotlight: { active: false }` (`run-scripts.ts:149`). Mark it as RUN-04's, or build it.
 - MUST (plausible, from code only) `core/services/terminals.ts:399,466-470`: `record.history` is created empty and never filled, and `onData` hands the chunks held in `pending` to the first listener. `runScript` adds the URL listener first, so it takes them. A `TerminalView` that mounts after the run started (the Run tab renders it only after `active` appears) misses everything printed before it mounted and after any remount. Verify by starting a run that prints once and then waits, then opening the tab; if confirmed, keep a bounded history in the record and replay it.
 - LATER `run-scripts.ts:326-352`: `runArchive` hard-codes `zsh -lc`, while run actions use `platform.shell.loginEnv().shell`. A user on another login shell gets a different shell for archive scripts. Use the same login shell. It also has no timeout.
+  Outcome: open, item RUN-01 - `runArchive` still runs `program: "zsh", args: ["-lc", script]` with no timeout (`core/services/run-scripts.ts:436-442`).
 - LATER `run-scripts.ts` `buildScriptEnv({... userEnv: {}})` appears three times (setup, archive, launch); the header acknowledges the empty `userEnv`. One private `envFor(workspace, repo)` would remove the copies and give SET-04 one place to change.
+  Outcome: fixed already, e4149c1d `#userEnv` now supplies the stored variables to all three `buildScriptEnv` calls (`core/services/run-scripts.ts:358,425,765`).
 - LATER `features/scripts-panel/run/RunTab.tsx:145`: `canAskAgent={false}` is fixed, so "Ask agent" is always disabled; `RunEmptyState.tsx` wires "Add action manually" and "Configure actions" to the same handler (`onConfigure`). The research lists three controls with different jobs. Open `AddActionDialog` (exists) for the manual route.
+  Outcome: open, item RUN-01 - `RunTab.tsx:251` still passes `canAskAgent={false}`, and "Add action manually" and "Configure actions" both use `onConfigure` (`RunTab.tsx:256-257`).
 - LATER `features/scripts-panel/run/RunTab.tsx:111`: a failed Stop shows the title "Couldn't run the action". Use a title that matches the effect.
+  Outcome: fixed already, 470e25c1 a failed stop now shows "Couldn't stop the action" (`RunTab.tsx:213`).
 - LATER `run/RunTab.tsx` `phaseFor`: the stored phase is per workspace, so with action B selected while A stops, B's button reads "Stopping...".
+  Outcome: fixed already, 04c95175 `phaseFor` now takes the active action id and compares it with the selected one (`RunTab.tsx:52,168`).
 - LATER `run-scripts.ts:80-85` `detectLocalUrl` and `features/scripts-panel/run/preview-urls.ts` (RUN-03, header repeats the same `0.0.0.0` / `[::]` rewrite rule): two homes planned for one rule. Have RUN-03 call `detectLocalUrl`.
+  Outcome: fixed already, 075e4b4e `preview-urls.ts` no longer has its own rewrite and takes the detected URL as input (`preview-urls.ts:16-44`); `detectLocalUrl` has one definition (`run-scripts.ts:79`).
 - LATER `ScriptsPanel.tsx` header says Cmd+J toggles the panel (Behaviour line only); no handler. Check which feature owns it.
+  Outcome: fixed already, 5957792a Cmd+J is the `view.toggleTerminalPanel` command (`core/registries/commands.ts:311-317`) and the shell registers it.
 - Checklist items with no test: "Run environment carries ... path prefix" (only `CONDUCTED_PATH_PREFIX` set in `#launch`, no assertion), "Run output is never written to disk" (covered for the screen save only), "Kill ... a task waiting for setup is just stopped" (header-level, one parked-stop test missing), "Add-action dialog icon picker" (tests exist in `AddActionDialog.test.tsx`, pre-batch), "Scripts: Run script and run mode setting" (no test that `run_script_mode` is read), "Auto-run after setup (one home)": the key has two homes (`autoRunAfterSetup` on `RepoConfig` and the settings registry) per the checklist itself; not resolved.
+  Outcome: open, item RUN-01 - the path-prefix, run-output, parked-stop, icon-picker and run-mode tests now exist, but `auto_run_after_setup` still lives both on `RepoConfig` (`core/services/repo.ts:421`) and in the settings registry (`core/registries/settings.ts:1342`).
 
 ## RUN-07 Terminal output for the GetTerminalOutput tool
 
 - MUST `core/sidecar/handlers.ts` (getTerminalOutput): on error the handler returns `{ output: <error message>, source: "", running: false }`, which gives the agent an error dressed as terminal output with an invented empty `source`. The checklist asks for "fixed error sentences" only for the no-terminal cases (already handled by `outputFor`). Fix: return a protocol error for a real failure, or add an explicit error field to the response schema in `packages/protocol`.
 - MUST `core/services/terminals.ts:893`: an ended terminal with no kept text and no saved screen returns `{ output: "", running: false }`. A run script never saves its screen (by design), so after a restart `GetTerminalOutput` returns an empty string for a run that did print. That is a made-up success. Return the plain sentence the agent can read (for example "No saved output for this process") or an error.
 - LATER `core/services/terminals.ts:791-797` (`stop`): the `onExit` listener added for the watchdog is never removed when the timer wins (`unsubscribe` is only called from the exit callback). Keep the unsubscribe and call it when `timedOut`.
+  Outcome: fixed already, 04c95175 the timeout now calls `unsubscribeExit()` before returning (`core/services/terminals.ts:1131-1133`).
 - LATER `core/services/terminals.ts:60+` header: the long RUN-09 paragraph on shell integration (OSC 633, `ZDOTDIR`) sits in the file header and the "Must handle" list although `installShellIntegration` is a placeholder. The "Built now" paragraph says so, but a reader of "Must handle" is told the opposite. Move that text to RUN-09.
+  Outcome: fixed already, 62f7c047 `installShellIntegration` is built and the header's claim is now true (`core/services/terminals.ts:869`).
 - LATER `terminals.ts` `pickTerminal` for "auto": takes the newest terminal of the first kind that has any row, including an ended Spotlight one, even when a run terminal is live. Header says "picks the Spotlight terminal, then the run terminal, then the newest interactive one". An ended Spotlight beats a running action. Prefer live terminals first, or state the rule.
+  Outcome: open, item RUN-07 - `pickTerminal` still orders by kind only and does not prefer a live terminal (`core/services/terminals.ts:334-348`).
 - LATER `terminals.ts` `runScript`: when `#records.get(...)` is undefined after a successful spawn (line ~735) it returns an error while the process runs on. Unreachable today; kill the handle first.
+  Outcome: open, item RUN-07 - the path still returns `terminal_unknown` after the spawn succeeded (`core/services/terminals.ts:1064-1068`).
 - LATER tests: `terminals-run07.test.ts` and `handlers.run-07.test.ts` use fake ptys and a fake port; the default is exercised ("asks for 1000 lines"). No test covers `source: "terminal"` with `ended` rows, and `container.ts:250-256` (`lookups.workspaceOfSession` to `outputFor`) has no test at all.
+  Outcome: fixed already, 470e25c1 an ended `source: "terminal"` row is now tested, and `handlers.run-07.test.ts` covers the session-to-port path.
 - Checklist: "Replay the saved screen and restart once (moved from RUN-06)" has no code in this batch and no test; RUN-06's `restart` exists, the "once" rule is not tested here.
+  Outcome: open, item PLAT-08 - the service reads saved history once through `historyLoaded`, but no test asserts that a second open does not read it again.
 
 ## WS-05 Archive: snapshot, archive ref, archive script, remove worktree
 
@@ -63,9 +83,13 @@ Batch-wide: all five backlog rows in `docs/plans/backlog.md` still say `stub` (l
 - MUST header claim `app/layout-persistence.ts:15`: says `clearPanelLayout` is "called by WS-05 when it deletes or archives a workspace". Nothing calls it (the only code hit is the definition). The checklist item for it is unbuilt. Call it from `#archiveNow` after `markArchived`, or fix the header.
 - MUST `core/api.ts:361` vs `core/services/workspace.ts:1059`: `Actions.archive` takes `{ deleteBranch }` only, so `discardGitOperationState` can never be set from a screen. The checklist item "A checkpoint save that exits with 101 or 102 offers to discard ... then retries" therefore ends at a refusal message with no way forward for the user. The header discloses the missing dialog; the type is the part to fix now (add the option to the Action type and its caller), the dialog can follow as its own item.
 - LATER (disclosed in the `workspace.ts` header as not built, still open in the issue): the stack rule for archive-on-merge, the open-PR check message, the write-access refusal, Cmd+Shift+A (the command exists in `commands.ts:526`; check it has a handler), "Archive on merge" and "Delete branch on archive" controls on the repo settings page, `symlinks_pending_deletion`, `~/conductor/archived-contexts`. Each needs a named owner item so nothing is dropped.
+  Outcome: fixed already, 3e3d6498 each listed piece now has an items row (`system.tsv:819,934,1474,1706,2122,2123,2999`, `ui.tsv:803,804`).
 - LATER `core/git/worktree.ts` `discardGitOperationState`: moves git's `rebase-merge`/`sequencer` folders to the Trash; the research says remove. Fine under the trash rule, but then `git status` may still list a stale `rebase-apply`; the test uses fakes only. Add one real temp-repo test with a conflicted merge.
+  Outcome: open, item WS-05 - `core/git/worktree.ws-05.test.ts:12-45` still uses a hand-built fake runner.
 - LATER `core/services/workspace.ts:1112-1118`: on rollback `rollBack` swallows a failed `transitionState` back (`back.ok && back.value` is ignored otherwise), leaving the row in `archiving` with no message. Return the secondary error with the first.
+  Outcome: open, item WS-05 - `rollBack` still ignores a failed `transitionState` (`core/services/workspace.ts:1389-1398`).
 - LATER `core/services/workspace.ts:1066-1077`: the whole `archive` flow (snapshot, pin, script, remove) is tested with fake git; nothing runs the six steps over a real repo with a real checkpointer, which is the thing most likely to break.
+  Outcome: open, item WS-05 - `workspace.ws-05.test.ts` still drives the flow through the harness's fake git, not a real repository.
 - Header check: `workspace.ts` "Built now (WS-05)" lines match the code except "records the archive commit and time" being correct and the stack rule being absent (stated). `worktree.ts` header claims "removal fallback" and it exists. `run-scripts.ts` header says `runArchive` "runs the repository's archive script once through the shell before the worktree is removed": kept.
 
 Summary: REV-05 3 MUST + 2 LATER; REV-09 3 MUST + 4 LATER; RUN-01 8 MUST + 8 LATER; RUN-07 2 MUST + 5 LATER; WS-05 6 MUST + 4 LATER.

@@ -8,7 +8,7 @@
  * draws a half-seeded screen.
  * Test first: not applicable; the screenshot run opens every state on it.
  */
-import type { SessionConfig, SessionEvent } from "@conducted/protocol";
+import { LOCAL_HOST, type SessionConfig, type SessionEvent } from "@conducted/protocol";
 import type { Result, SessionId } from "@conducted/shared";
 import type { Repo, Session, Workspace } from "../core/model.ts";
 import { HOME, type World } from "./world.ts";
@@ -85,6 +85,7 @@ export async function addWorkspace(
 			port: 55_000 + 10 * taken.length,
 			linkedPaths: [],
 			setupLogPath: null,
+			host: LOCAL_HOST,
 		}),
 	);
 	const state = seed.state ?? "ready";

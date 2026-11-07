@@ -35,6 +35,7 @@ function workspace(id: string, repoId: string): Workspace {
 		path: `/repos/${id}`,
 		branch: `jahala/${id}`,
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "origin/main",
 		state: "ready",

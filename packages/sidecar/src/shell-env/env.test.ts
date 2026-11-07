@@ -19,6 +19,7 @@ const workspace: WorkspaceContext = {
 	repoRootPath: "/repos/conducted",
 	targetBranch: "origin/main",
 	placeholderBranch: false,
+	host: { kind: "local" },
 	port: 5100,
 };
 

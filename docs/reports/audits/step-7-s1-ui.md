@@ -31,18 +31,31 @@ Read-only audit. Files are under `apps/desktop/src/features/workspace/` unless a
 ### LATER
 
 1. TabStrip.tsx:206 sets `lastClosed` before the close is known to have worked; after a failed close, Cmd+Shift+T reopens a chat that never closed.
+   Outcome: open, item NAV-10 - `lastClosed.current` is still set before the close request resolves (`TabStrip.tsx:254-255`).
 2. TabStrip.tsx:46-52 `hostOf` returns the raw URL when parsing fails (a silent fallback). Show the string as-is only on purpose and say so in the header.
+   Outcome: open, item NAV-10 - `hostOf` still returns the raw URL on a parse failure (`TabStrip.tsx:57-63`).
 3. TabStrip.tsx:333 and TabItem.tsx:73: inactive tabs have `tabIndex={-1}` and there is no arrow-key handling, so a keyboard user can only reach inactive tabs by their close button. Add roving focus with arrow keys.
+   Outcome: open, item NAV-10 - inactive tabs still have `tabIndex={-1}` and there is no arrow-key handling (`TabStrip.tsx:333`, `TabItem.tsx:73`).
 4. The URL holds one file/comment/PR/browser tab at a time (TabStrip header, "Our design choice"). Opening a second file replaces the first. The issue lists them as tabs, plural. Acknowledged in the header; decide whether it matches Conductor.
+   Outcome: open, item NAV-10 - the URL (and so the tab model) still holds one file/comment/PR/browser tab at a time; the design choice still needs a decision against Conductor.
 5. WorkspaceHeader.tsx:55-57: the effect resets `target` whenever `data` changes, which overwrites text typed in the open Target branch dialog on any workspace update. RenameDialog.tsx:35-39 does the same when `initialName` changes. Reset only on open.
+   Outcome: open, item NAV-10 - both effects still reset the field on every data change (`WorkspaceHeader.tsx:55-57`, `RenameDialog.tsx:35-39`).
 6. WorkspaceHeader.tsx:217-255: the "Target branch picker" is a free-text dialog with no check that the branch exists. The header says why (the branch list is WS-02). Add a link to WS-02 in the backlog row.
+   Outcome: open, item NAV-10 - the target branch is still free text with no existence check (`WorkspaceHeader.tsx:217-255`).
 7. WorkspaceActionsMenu.tsx:89-98: `run` casts `result.error as { message: string }` and also wraps `Result` calls in try/catch. Type `action` as `() => Promise<Result<unknown>>`.
+   Outcome: open, item NAV-10 - the cast and try/catch are still there (`WorkspaceActionsMenu.tsx:89-98`).
 8. WorkspaceActionsMenu.tsx:105-108 `moveTo` always places at index 0; `archive` passes `deleteBranch: false`. Both are invented defaults. Confirm against ui-map 3.1.
+   Outcome: open, item NAV-10 - `moveTo` still places at index 0 and archive still passes `deleteBranch: false` (`WorkspaceActionsMenu.tsx:90-98,196`).
 9. WorkspaceGate.tsx:32-40: `setUnarchiving(false)` is not in a `finally`.
+   Outcome: fixed already, 6982cda3 `setUnarchiving(false)` now runs in a `finally` (`WorkspaceGate.tsx:44-48`).
 10. NewTabMenu.tsx:39: "newest chat" is `openChats.data[0]`; nothing shows that index 0 is the newest.
+    Outcome: stale, `NewTabMenu` no longer reads `openChats.data[0]`; the menu no longer offers a newest-chat shortcut.
 11. WorkspaceHeader.tsx:175: the folder-path chip uses `FolderPlusIcon`, which reads as "add folder". Use a folder or copy icon.
+    Outcome: open, item NAV-10 - the chip still uses `FolderPlusIcon` (`WorkspaceHeader.tsx:172`).
 12. TabStrip.tsx:295: Retry calls `sessions.start()` on the whole service. Check that a second `start()` does not add a second subscription (docs/engineering.md, "Whatever subscribes, unsubscribes").
+    Outcome: open, item NAV-10 - the retry still calls the whole `sessions.start()`, with no test that a second start waits rather than subscribing twice (`TabStrip.tsx:295`).
 13. active-tab.ts header: clean. The nested-ternary `activeRef` in TabStrip should call `activeTabKey` once item 9 is done.
+    Outcome: fixed already, 59393e00 `TabStrip` now builds the active ref with `tabRef(resolveActiveTab(search))` (`TabStrip.tsx:223`).
 
 ### Look and behaviour against Conductor (D020, D022)
 

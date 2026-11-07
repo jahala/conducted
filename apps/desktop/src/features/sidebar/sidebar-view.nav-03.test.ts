@@ -33,6 +33,7 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 		path: `/workspaces/${id}`,
 		branch: `branch-${id}`,
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
 		state: "ready",

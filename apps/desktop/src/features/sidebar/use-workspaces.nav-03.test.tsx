@@ -15,6 +15,7 @@ function workspace(id: string, createdAt: number): Workspace {
 		path: `/workspaces/${id}`,
 		branch: id,
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
 		state: "ready",

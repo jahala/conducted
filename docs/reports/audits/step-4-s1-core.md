@@ -9,9 +9,13 @@ Read-only audit of `overnight/step-4`. I did not run tests or Rust. Where I say 
 3. MUST `turn-builder.ts:200-215` (`finalize`): a parent cycle (A's parent is B, B's parent is A) puts both calls under each other and neither reaches `blocks`. Both disappear from the chat without any notice. The self-parent case is guarded, longer cycles are not. Fix: walk the parent chain and keep the call at the top level when it loops. Add a test.
 4. MUST `turn-builder.ts:112-113`: a `tool_result` whose call never arrives stays in `draft.results` and is never shown. Header says unknown things get a notice, never a silent drop. Fix: emit an error or notice block for results without a call at `finalize`, and test it.
 5. LATER `turn-builder.ts:116-125`: only tool calls carry `parentToolUseId` in the protocol (`packages/protocol/src/agent-message.ts:30`). A sub-agent's own text and thinking therefore stay at the top level, but the issue says "Sub-agent messages are grouped under the parent tool call". Either extend the protocol (`parentToolUseId` on text and thinking items) and nest them, or record the limit in the header.
+   Outcome: fixed already, aad02f59 the header records the limit: "Only tool calls carry `parentToolUseId` in the protocol, so a sub-agent's text and thinking stay at the top level" (`turn-builder.ts:15-16`).
 6. LATER `turn-builder.ts:355-368` (`classifyTurnsChange`): a streaming tail that finishes while a new turn is appended returns `inserted` (common < previous.length, lengths differ), not `appended` or `tail_changed`. `reuseTurns` handles it the same way, so there is no bug today, but the names mislead. Add a test for "last turn changed and one turn appended".
+   Outcome: open, item CHAT-07 (`classifyTurnsChange` still returns `inserted` for that case (`turn-builder.ts:402-415`) and no test covers it).
 7. LATER `turn-builder.test.ts:390`: the "20,000 events" test only asserts the turn count. It has no time bound or check that the differ stays fast at that size (engineering.md "test at real size"). Add a differ call on 5,000 turns.
+   Outcome: open, item CHAT-07 (`turn-builder.test.ts:434-458` still asserts only the turn count and one `classifyTurnsChange` result, with no size or time check on the build).
 8. LATER Checklist "Data model: turn_id groups events into turns" is covered. "Incremental turn builder" is covered only for the differ output, not for build cost (see 2).
+   Outcome: fixed already, aad02f59 the header now says every call walks all events and rebuilds the turns, so the claim matches the build cost (`turn-builder.ts:17-19`).
 
 ## NAV-07 Command registry and default shortcuts
 
@@ -22,10 +26,15 @@ Read-only audit of `overnight/step-4`. I did not run tests or Rust. Where I say 
 5. MUST Checklist "Key-cap hint component reads the live binding of a command" has no component. `ui/Kbd.tsx` takes `children`, `Tooltip` takes a `shortcut` string, and `GitHeader.tsx:50-54` reads `defaultShortcuts[0]` from the registry, which ignores the user's overrides. Only the helper `liveShortcut` exists, and nothing outside its test calls it. Fix: add a hook or component that takes a command id, reads `useSetting("keybinding_overrides_v1")` and calls `liveShortcut`. Switch `GitHeader` to it. Add a test that a rebind changes the shown key.
 6. MUST `docs/plans/backlog.md:150` sets NAV-07 to `done` although items 1, 2 and 5 are open.
 7. LATER `commands.ts:1634` (`findShortcutConflicts`): only the first holder of a slot is paired, so a third command on the same keys is reported against the first only. Fine for the guard, but a rebinding screen that reads "pairs that name the edited command" gets one pair, not all. Add a three-way test.
+   Outcome: fixed already, 1cea0c3f `commands.test.ts:290-301` now asserts a third holder is paired with the first.
 8. LATER `commands.ts:1496-1499`: the modifier order is Ctrl, Alt, Cmd, Shift ("⌃⌥⌘⇧"). Conductor's research (ui-map.md 737) writes "⌘⇧T", which matches. macOS menus use ⌃⌥⇧⌘. The header says this follows `api.ts`. Record the choice in `docs/design.md` so D020 is traceable.
+   Outcome: open, item NAV-07 (`docs/design.md` has no modifier-order note).
 9. LATER `commands.test.ts`: no test compares the registry with ui-map.md 5.4 (176 entries in Conductor's registry, 145 ids here). A missing command would pass the suite. Add a check against the research table, or list the known gaps in the test.
+   Outcome: open, item NAV-07 (`commands.test.ts` still has no ui-map comparison or gap list).
 10. LATER `command-runner.ts:67`: `Promise.resolve(handler())` does not catch a synchronous throw from a handler. A handler that throws instead of returning an Err breaks the "returns its Err" promise. Fix: wrap in `try/catch` or an async function.
+    Outcome: fixed already, 30a388db the handler runs in a `try`/`catch` (`command-runner.ts:92-94`).
 11. LATER `command-runner.ts:55-66`: `commandRequirement` repeats the command-id prefixes of the registry in a second place (`NO_WORKSPACE_NEEDED` and the prefix list). Header calls this deliberate. A new `workspace.*` command that should not need a workspace stays enabled only after someone edits this list. Put the requirement in `CommandDef` instead (one home), or add a test that every prefix in use is covered.
+    Outcome: open, item NAV-07 (`commandRequirement` still uses id prefixes (`command-runner.ts:73-90`); the test covers five ids, not every prefix in the registry).
 
 ## PRJ-04 Per-repo config
 
@@ -36,9 +45,13 @@ Read-only audit of `overnight/step-4`. I did not run tests or Rust. Where I say 
 5. MUST `repo.ts` (`asRunMode`, `asFlag`, `repoConfigFrom`): the defaults `"concurrent"` and `false` are written again here, while `registries/settings.ts:960-986` already holds them. A wrong-type value falls back silently. Fix: take defaults from `getSettingDef(key).default`, and report wrong-type values the way `readSettingsFile` reports dropped entries.
 6. MUST `repo.ts` (`#ensureConfigReloading`): `#unsubscribeFocus` is stored and never called. There is no dispose on the service, so the focus listener lives for the process. Fix: add a `dispose()` that calls it, and have the container and the tests call it.
 7. LATER Research services-map.md 4.2 lists a remote default-branch copy of `settings.toml` and a workspace-level shared file below the local file. Only the repo shared and local files are read. Record the gap in the header, or add the layers.
+   Outcome: fixed already, aad02f59 the header names the gap: "the remote default-branch copy of `settings.toml` and the workspace-level shared file are not read" (`repo.ts:42-44`).
 8. LATER The git exclusion (`/.conducted/*` with `!.conducted/settings.toml`) and linking `settings.local.toml` into every worktree (services-map.md 4.2) are not part of the diff. If another feature owns them, name it in the header.
+   Outcome: fixed already, aad02f59 the same header paragraph names the owners: keeping `settings.local.toml` out of git is DATA-05's and linking it into every worktree is WS-01's (`repo.ts:44-45`).
 9. LATER `hooks.repo-config.test.tsx`: the three tests do not cover a reload after an error or a re-render after `updateConfig`. Add them with finding 1.
+   Outcome: open, item PRJ-04 (`hooks.repo-config.test.tsx` still has only the three tests: loaded, loading, and file error).
 10. LATER `useRepoConfig` (`hooks.ts:183-193`): once an error is stored, nothing retries the load except a manual call. Pair with finding 1.
+    Outcome: fixed already, aad02f59 `useRepoConfig` retries through an effect whenever the config is still undefined (`hooks/repos.ts:32-34`).
 
 ## Duplicated logic across the batch
 

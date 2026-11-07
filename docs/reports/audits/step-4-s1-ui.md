@@ -5,12 +5,19 @@ Branch `overnight/step-4`, committed state. Paths are relative to `apps/desktop/
 ## APP-13 Display components
 
 - LATER `ui/Toggle.tsx:22-25`: `cn` only joins strings (`ui/cn.ts`), so the small size carries both `rounded-md` and `rounded-sm`. The generated CSS order decides which wins, and `rounded-md` probably does. The spec (ui-dimensions 6.1) says the small toggle has a 4px radius. Fix: build the class by size, with no base radius, or make `cn` resolve conflicts. Add a test on the radius class.
+  Outcome: open, item APP-13 - the base class still has `rounded-md` and the `sm` size adds `rounded-sm` (`ui/Toggle.tsx:22-25`).
 - LATER `ui/AlertDialog.tsx:4-5`: the header cites the 200ms fade and the scale from 0.95 (ui-dimensions 1.7), but the content has no animation classes. `ui/Dialog.tsx` has none either, so this is consistent. Fix: add the motion once for both, or drop the claim from the header.
+  Outcome: open, item APP-13 - the header still cites the 200 ms fade and 0.95 scale, and neither dialog applies animation classes (`ui/AlertDialog.tsx:5`).
 - LATER `ui/CopyButton.tsx:49-53`: a failed copy resets the label and says nothing. The kit does not claim success, but the user sees no error. The caller (`SystemService.copyText`) returns a `Result`, and `onCopy` ignores it. Fix: let `onCopy` return a `Result` and show a short "Couldn't copy" label.
+  Outcome: fixed already, fefdb6d5 a failed copy now leaves the label and shows an error toast (`ui/CopyButton.tsx:6-19`).
 - LATER `ui/HighlightedText.tsx:25-27`: indexes found in `text.toLowerCase()` are used to slice the original `text`. Characters whose lowercase has a different length (for example "İ") shift every later match. Fix: compare with a length-preserving fold, or match per code point.
+  Outcome: fixed already, fefdb6d5 the matcher now runs `iu` over the original text, so offsets stay correct (`HighlightedText.tsx:22-33`).
 - LATER (no consumer): none of Alert, AlertDialog, Card, Collapsible, HighlightedText, Separator, Table, Toggle and TruncatedText is imported outside its own test. Only CopyButton is used, and only by TruncatedText. The kit is not wired into the batch's own screens (see the duplicates under REV-01 and SET-03). Nothing asserts that the "Copied" path reaches `Actions.app.copyText`.
+  Outcome: open, item APP-13 - most of the kit now has consumers, but `Card` and `Separator` still have none.
 - LATER `core/services/system-app-13.test.ts:5-9`: the test builds `platform` as `{ clipboard } as unknown as ...`. It exercises the real `SystemService`, but the stand-in is not checked against the real Platform clipboard type.
+  Outcome: open, item APP-13 - the test still casts a bare clipboard object to the Platform type (`core/services/system-app-13.test.ts:5-9`).
 - LATER (item 3, tests): every checklist item has a test that fails without it, except "Truncated text with middle truncation and copy". Its component test checks `title` and the Copy click, but nothing checks that the shown text is shortened inside the component.
+  Outcome: open, item APP-13 - the TruncatedText test still checks the title and copy click, not the shortened text (`ui/app-13.test.tsx`).
 
 ## COMP-02 Model picker: agent, model, effort, fast mode, favourites
 
@@ -26,12 +33,19 @@ Branch `overnight/step-4`, committed state. Paths are relative to `apps/desktop/
 - MUST (item 5) issue item "Slash /fast toggles Fast mode through the same config update as the model picker": no code and no test. `/fast` is not in the repo outside the banner header, and `core/hooks.ts` `useSlashCommands` is still `notImplemented("COMP-06")`. Fix: move the row to COMP-06, or build it.
 - MUST (item 5) issue item "Query payload carries fast mode, thinking and agent parameters": no change or test in this batch's files points at it. Fix: name the file and test that cover it, or move the row.
 - LATER `features/composer/ModelPicker.tsx:316-421`: Agent, Model and Effort are flat lists in one popover. Conductor (ui-map 3.5) has them as submenus, so this is a visible difference (D020) with no decision entry. Fix: build the submenus, or record the difference in `docs/decisions.md`.
+  Outcome: fixed already, 6982cda3 the picker now uses Agent, Model and Effort submenus (`ModelPicker.tsx:6,13`).
 - LATER `features/composer/ModelPicker.tsx:131-134`: "Opens in new chat" is shown as a toast after a new chat was already created. Conductor marks the item before the click. No test covers it, nor the mid-chat "slower and costs more" toast (lines 136-144).
+  Outcome: open, item COMP-02 - "Opens in new chat" is still shown after the chat exists, and neither toast has a test (`ModelPicker.tsx:136,431`).
 - LATER `features/composer/ModelPicker.tsx:170,171,204`: `config?.effort ?? "high"` and `?? false` are invented defaults. `config` cannot be undefined at those points, so they hide a bug if it ever is. Fix: return early.
+  Outcome: fixed already, 762ec2f0 the invented `?? "high"` / `?? false` defaults are gone (`ModelPicker.tsx:586,611`).
 - LATER `features/composer/ModelPicker.tsx:380-381`: "Not supported for this model" also shows while the model list is loading or failed to load, when `currentModel` is undefined. Fix: show it only when the list is ready.
+  Outcome: open, item COMP-02 - "Not supported for this model" still renders from the model's own flags while the list can still be loading (`ModelPicker.tsx:582,613`).
 - LATER `features/composer/ModelPicker.tsx:74-87`: `visible_provider_models` is parsed as comma or space separated ids or labels. The setting is a plain string with no documented format (`core/registries/settings.ts:638-646`). `modelsForPicker` has no test. Fix: document the format and test the filter.
+  Outcome: open, item COMP-02 - the setting still has no documented format and `modelsForPicker` has no test (`ModelPicker.tsx:198`).
 - LATER (item 3, no test) for: the agent-not-installed disabled state; the "Loading models" and "Couldn't load models" rows; Fast hidden for a model without fast mode; the `visible_provider_models` filter; an unavailable favourite; Cmd+Ctrl+N with an unavailable favourite; "Opens in new chat".
+  Outcome: open, item COMP-02 - these cases still have no tests.
 - LATER `core/services/favorite-models.test.ts`, `FavoriteModels.test.tsx`: both use a hand-written fake repository (`as unknown as`). The fake is not checked against `createFavoriteModelRepository`, for example for the shifting positions after `delete`. Fix: run the service tests once against the real repository on an in-memory database.
+  Outcome: open, item COMP-02 - both suites still use a hand-written fake repository.
 
 ## REV-01 Changes list and diff scopes
 
@@ -52,15 +66,25 @@ Branch `overnight/step-4`, committed state. Paths are relative to `apps/desktop/
 - MUST (item 5, unfinished) issue items with no implementation or test in this batch: "Reverting a file can restore it from a checkpoint tree" (`discardFile` only restores from the merge base); "Step 6 reads the modified time and size of each changed file"; "No TanStack query exists yet; keys ship with the first query" and "Same first query" (`core/hooks.ts:254-270` has a local `changedFilesKey`, no shared key module); "The git and workspace query subtree is invalidated on turn end, setup end, file revert and git action" (`invalidateQueries` appears nowhere, and `useChangedFiles` polls with `refetchInterval: 5_000`, so a discard shows up only on the next poll); Cmd+Shift+D beyond the window listener (below). Fix: build each, or move the row with a note in the backlog.
 - MUST (item 3, test quality) `features/git-panel/rev-01-panel.test.tsx:32-46` mocks `computeGitHeader`, so "the header reads Uncommitted changes and the action is Commit and push" tests the mock, not the feature. The same file mocks hooks, context and the three tab bodies. `changes/rev-01-components.test.tsx:16` mocks `DiffScopeMenu`. Fix: use the real `computeGitHeader` and the real `GitHeader`.
 - LATER `features/git-panel/GitPanel.tsx:90-101` and `changes/ChangesTab.tsx:82-92`: Cmd+Alt+U and Cmd+Shift+D are hard-coded window listeners that ignore rebinding. The registry has `review.showUncommitted` and `review.openDiff`, and the command runner has no handlers for them. The GitPanel effect has no dependency array. `GitHeader.tsx:50-54`, `ReviewButton.tsx:27` and `DiffScopeMenu.tsx:61` show the default shortcut, not the live one. Cmd+Shift+R (`review.start`) is shown in the tooltip, and no handler runs it.
+  Outcome: fixed already, fefdb6d5 both shortcuts now go through the command dispatcher and the panels have tests that a raw key press is ignored (`rev-01-panel.test.tsx:162`).
 - LATER `features/git-panel/changes/ChangedFileRow.tsx:19,165-185`: the discard confirmation is a hand-built `Dialog`. `ui/AlertDialog.tsx` (APP-13, "Alert dialog for confirm and destructive actions") is the component for this. Fix: use it.
+  Outcome: open, item REV-01 - the discard confirmation is still a hand-built `Dialog` (`features/git-panel/files/FileRowMenu.tsx:85-105`).
 - LATER `features/git-panel/changes/ChangesTab.tsx:122-124`: any error from `useChangedFiles` shows "No git status", including "no common ancestor" or a bad ref. The message is lost. Fix: pass the error text to `ChangesEmpty`.
+  Outcome: fixed already, fefdb6d5 `ChangesEmpty` now receives the error message (`ChangesTab.tsx:268-277`).
 - LATER `features/git-panel/changes/ChangesTab.tsx:115,159`: the back bar shows for commit and turn scopes only. A target or uncommitted scope has no way back except the menu. The ui-map says "a back button returns to All changes" without limiting it. `scopeTitle` shows "One turn" for any turn.
+  Outcome: open, item REV-01 - the back bar still shows only for commit and turn scopes (`ChangesTab.tsx:257,358`).
 - LATER `features/git-panel/changes/DiffScopeMenu.tsx:130-159`: the `target` scope has no radio item, so nothing is marked as selected for it. "Current branch" is a label, while Conductor has it as an entry. The submenu trigger sits inside a radio group.
+  Outcome: open, item REV-01 - "Current branch" is still a label and the target scope still has no radio item (`DiffScopeMenu.tsx:150-183`).
 - LATER `features/git-panel/GitHeader.tsx:81-101`: the title is drawn twice (badge and text beside it). The popover prints `model.kind.replaceAll("_", " ")` ("Status: ready to merge"), which is internal wording, not Conductor's.
+  Outcome: open, item REV-01 - the title is still drawn twice and the popover still prints the internal kind wording (`GitHeader.tsx:81-101`).
 - LATER `features/git-panel/ReviewPromptDialog.tsx:25`: the typed text stays after a successful send, so the next open shows the old text. The header promises the dialog "stays open with the error and the typed text intact" on failure, and that works only because `GitPanel` closes it on success.
+  Outcome: fixed already, aad02f59 the text is cleared when the dialog closes (`ReviewPromptDialog.tsx:29-31`).
 - LATER `features/git-panel/changes/ChangedFileList.tsx:20-21,51,57`: production code falls back to a 560px viewport when the element has no layout, which is a test accommodation. A hidden panel also gets this fallback.
+  Outcome: open, item REV-01 - the 560 px fallback is still in production code (`ChangedFileList.tsx:21`).
 - LATER `features/git-panel/changes/ChangedFileRow.tsx:80`: every row uses `FileTextIcon`. Conductor uses Material file icons (ui-map 8). The row menu has no Copy path items because `ChangesTab` does not pass `onCopyPath`, although `Actions.app.copyText` now exists. The Viewed shortcut (Ctrl+V) in the header has no code.
+  Outcome: open, item REV-01 - rows still use `FileTextIcon` and the Viewed shortcut still has no code (`ChangedFileRow.tsx:80`).
 - LATER (item 3, no test) for: "No files match this filter" and "No git status" empty states; the untracked-truncated note; loading and error states; the target-branch flow end to end; Cmd+Shift+D; discarding an added file; the conflict badge from `changedFiles`; a stale commit scope. Passing tests exist for the rest of the list.
+  Outcome: open, item REV-01 - these cases still have no tests.
 
 ## SET-03 Agents page: install status, versions, sign-in
 
@@ -72,11 +96,17 @@ Branch `overnight/step-4`, committed state. Paths are relative to `apps/desktop/
 - MUST `features/settings/pages/AgentsPage.tsx:58` duplicates `core/services/agent-catalog.ts:35` (`agentKey`). `features/composer/ModelPicker.tsx:181-182,278` builds the same string inline twice. Fix: one exported function.
 - MUST `features/settings/agents/AgentCard.tsx:32-41` duplicates `features/composer/FavoriteModels.tsx:22-27` (`agentDisplayName`, built in COMP-02 in this batch). `ModelPicker.tsx:43-49` holds a third list of the same labels. The two functions differ on an unknown ACP agent ("ACP agent" against "OpenCode"). Fix: one function in `core/`, used by all.
 - LATER `features/settings/agents/AgentCard.tsx:117-131`, `AgentLoginDialog.tsx:105-124`: the path, the code and the command each use a plain "Copy" button, and `middleTruncate` instead of `ui/CopyButton.tsx` and `ui/TruncatedText.tsx`. `Card` and `Alert` from APP-13 are not used either (`AgentCard.tsx:85` is a hand-built card with a 6px radius, where design.md says 8px for cards). The user never sees a "Copied" state on the card.
+  Outcome: open, item SET-03 - the card still uses a plain Copy button and its own `middleTruncate`, and the hand-built 6 px card (`AgentCard.tsx:85,216-218`).
 - LATER `features/settings/agents/AgentCard.tsx:48`: `source === "login_path"` is shown as "Loaded from env". A program found on the login PATH is not an environment key. The ui-map names "Loaded from env" for provider keys. Check the mapping against `docs/research/conductor/ui-map.md` section 6.
+  Outcome: open, item SET-03 - a login-PATH program is still labelled "Loaded from env" (`AgentCard.tsx:76`).
 - LATER `features/settings/pages/AgentsPage.tsx:260`: `anyInstalled` is computed on the filtered list, so a search that shows only a missing agent prints "No agent programs were found" while others are installed.
+  Outcome: fixed already, aad02f59 `anyInstalled` now checks the whole list (`AgentsPage.tsx:264`).
 - LATER `features/settings/pages/AgentsPage.tsx:65`: `needsPastedCode` hard-codes Claude, and `AgentLoginDialog.tsx:129` tests `agentName === "Claude Code"`, a display string, to choose the label. Fix: pass the label.
+  Outcome: open, item SET-03 - `needsPastedCode` still compares the agent kind to `"claude"` and the dialog still compares the display string (`AgentsPage.tsx:76`, `AgentLoginDialog.tsx:129`).
 - LATER `core/services/agent-catalog.ts:7-9`: the header says that when the sidecar is not up, requests "wait for the tunnel" and the state stays "loading". The service only awaits `sidecar.request`. If the request fails at start-up, `installs` becomes `error`. No test covers the not-yet-up case.
+  Outcome: fixed already, aad02f59 the header now states the real rule (loading until the request answers, then its error) (`core/services/agent-catalog.ts:13-15`).
 - LATER (item 3, tests) missing: the model-list race ("two requests for one agent key, answered out of order" is the Test-first line in the issue, and `agent-catalog.test.ts` covers only installs); the toasts "Codex now uses your ChatGPT plan" and "Copied Codex verification code."; the full sign-in through close and cancel; the "claude setup-token" command path through the page; the `agentInstallsChanged` handler (`core/sidecar/handlers.ts`). `AgentsPage.test.tsx` mocks the hooks and the toast module.
+  Outcome: open, item SET-03 - these cases still have no tests.
 
 ## Summary
 

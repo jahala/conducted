@@ -14,8 +14,11 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `core/services/sessions.ts` (header, lines 1-28): the header's "Must handle" list describes the whole service (send returns when the turn starts, steer or queue, cancel, unread, late live state dropped, one open interaction). Those live in placeholders (CHAT-02, CHAT-05, CHAT-10, CHAT-18, NAV-11). A header may not claim what the code does not do. Fix: trim the header to what CHAT-01 builds (list, create, close, reopen, rename, delete, open) and let the owning features carry the rest.
 - MUST — "Rename a chat, or set its title only when empty": the service has `rename` only. `repositories.sessions.setTitleIfEmpty` exists (`core/db/sessions.ts:140`) but nothing in `SessionsService` exposes it and nothing has a test. Fix: add `setTitleIfEmpty` to the service with a test, or move the item to the title generator (D030).
 - LATER — `core/services/sessions.ts` `delete`: the store drops `sessions`, `liveStates`, `events` and the `byWorkspace` entry, but leaves `progress`, `sending`, `openInteractions` and `cancelling` for the deleted chat. Fix: remove those keys too, with a test.
+  Outcome: open, item CHAT-01 (`sending`, `openInteractions`, `cancelling` and `failedSends` are now removed, but `progress` is still left behind, `sessions.ts:680-710`).
 - LATER — `core/services/sessions.ts` `reopen` / `create`: a reopened chat goes to the front of `byWorkspace`, but `start()` orders by `compareNewest`. The order differs before and after a restart. Fix: insert with `compareNewest`.
+  Outcome: open, item CHAT-01 (`reopen` still prepends `[id, ...ids]` (`sessions.ts:603-615`) while `compareNewest` orders by `lastUserMessageAt ?? createdAt` (`sessions.ts:315-322`), so a restart reorders it).
 - LATER — `features/workspace/ChatHistoryButton.test.tsx` and `TabContextMenu.test.tsx` replace `core/hooks.ts` with `vi.mock`. They check the calls but not the real hooks. The sessions service tests (`core/services/sessions.test.ts`) use real SQLite and are good.
+  Outcome: open, item CHAT-01 (both test files still mock `core/hooks.ts`, `ChatHistoryButton.test.tsx:15`, `TabContextMenu.test.tsx:16`).
 - Checklist items with no test: Cmd+T, auto-create of the first chat, `setTitleIfEmpty`, "Copy link" with a missing `workspaceId` (the item is disabled, untested), Mark as read/unread against the real service.
 
 ## DATA-03 Startup repair
@@ -23,8 +26,11 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `core/db/repair.ts:130,142` and `core/container.ts:440`: `RepairDeps.fs` is required and passed in but never used. The item "The repair report acts on workspaces left in archiving" is not done: the report lists them (`archivingWorkspaces`) and nothing in `container.ts` reads the report. Fix: either act on them (finish or fail the archive, using `fs`) or drop `fs` and move the item to the archive feature (WS-05 or similar) with a visible row.
 - MUST — Replay after repair (`core/db/repair.ts` `findInterruptedTurns` step, with the sidecar's write-ahead log, D007): repair appends an `interrupted` `turn_ended` for every turn with a `user_message` and no stored `turn_ended`. The sidecar starts after repair (`container.ts` step order) and replays unacknowledged events. If the real `turn_ended` (or later agent events) of that turn is still in the log, it is stored after the `interrupted` one. The turn then has two ends, or events after its end. No test covers this order. Fix: have ingest skip or flag events for a turn that already has a `turn_ended`, or make repair skip turns the sidecar log still holds. Add a test for "repair, then replay".
 - LATER — `core/db/repair.ts:36` `resetLiveStates`: `json_extract(live_state, '$.status') <> 'idle'` is NULL for a row with unreadable JSON, so that row is never reset. Fix: `IS NOT 'idle'`, with a test row.
+  Outcome: fixed already, 68f5cf36 the query now uses `IS NOT 'idle'` (`repair.ts:51-57`) and the unreadable-JSON row is tested (`repair.test.ts:268, 284`).
 - LATER — `findInterruptedTurns` (`core/db/session-events.ts:119`) only finds turns that have a `user_message`. A turn the agent started itself (AGENT-15) is never closed. Note in the header, or cover it when AGENT-15 lands.
+  Outcome: fixed already, 68f5cf36 the `repair.ts` header now notes it (`repair.ts:19-21`).
 - LATER — `core/db/repair.test.ts` uses real SQLite and covers atomicity. There is no test of the startup order against `container.ts` ("live state reset before any screen reads it"). The order is only visible in `container.ts:436-460`.
+  Outcome: open, item DATA-03 (`repair.test.ts` still has no test through the container's startup order).
 - Checklist items with no test: "Retry" for failed workspaces (UI, other feature), the order guarantee, acting on archiving workspaces.
 
 ## DATA-04 Event ingest
@@ -32,7 +38,9 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `core/container.ts:174` and `platform/tauri.ts:353`: ingest logs through `platform.app.writeLog`, which is `notImplemented("PLAT-18")` and throws. Both `catch` branches of `EventIngest#store` and `#acknowledge` call `log`, so a failed write throws `NotImplemented` out of the catch. `ingest()` rejects instead of returning `err(...)`, and the sidecar's `deliverEvent` handler throws. Fix: do not ship `log` as a throwing placeholder (build PLAT-18 first, or have the container wrap it), and add a test where `log` throws.
 - MUST — Same replay case as in DATA-03: `ingest.ts` `#store` stores any event, including events for a turn that already has a `turn_ended`. See the DATA-03 finding.
 - LATER — `core/sidecar/handlers.ts:110,128`: `deliverEvent` and the `sessionEvent` notification both call `ingest`. The notification path ignores the result. Harmless because the event is stored idempotently and not acknowledged on failure, but there are two entry points for one rule. Name which one the sidecar uses.
+  Outcome: wrong, both are used on purpose: live events arrive as the `sessionEvent` notification (`packages/sidecar/src/session/event-batcher.ts:411`) and replay uses the `deliverEvent` request (`packages/sidecar/src/outbox/replay.ts:89`), so `handlers.ts:150` and `:210` each own one path.
 - LATER — `core/sidecar/ingest.test.ts` runs the transaction through a `NodeDatabase` that holds one connection. The "other chat in parallel" test cannot show the pooled-connection problem described under PLAT-02.
+  Outcome: open, item DATA-04 (`ingest.test.ts` still runs one local SQLite connection).
 - Checklist items with no test: none missing. The "sidecar never writes the database" rule has no guard on this side. The sidecar package has no database dependency, which a boundary check could prove.
 
 ## GIT-02 Status polling
@@ -44,10 +52,15 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `core/services/git.ts:245-280`: the header says "a refresh in flight when the branch changed is dropped" and the checklist says "an answer for a branch that has since changed is dropped". The code only drops an answer when a newer refresh of the same workspace started (`createLatestWins`). It never compares `result.value.branch` with `found.branch`. Fix: compare the branch of the answer with the branch the request was made for, and drop it on a mismatch. Add a test.
 - MUST — Items with no code: "Worktree file changes are found by polling every 30 seconds", "Query keys live in one file", "One place lists query key factories and what invalidates each key", "The git and workspace query subtree is invalidated on turn end, setup end, file revert and git action", "Status refreshes after any git action" (every git action is a placeholder, so there is none to hook). Fix: build them or move each to its owner in `docs/plans/items/`.
 - LATER — `core/services/git.ts:146,167` and `core/services/github.ts:316`: `cache: GitCache` is a required dependency of both services and neither uses it (DATA-07 owns the behaviour). Remove it until DATA-07, or the header's "shown before the first poll answers" is false.
+  Outcome: fixed already, 1a638b00 neither service takes a `cache` dependency any more; the header names DATA-07 instead (`git.ts:59`).
 - LATER — `core/services/git.ts:199-206` `watch`: if `contextOf` throws, `tick` ends without scheduling the next poll, and polling stops silently. A second `watch` with a different depth overwrites the first one's depth and an `unwatch` never restores it.
+  Outcome: fixed already, 1cea0c3f `watch` shares one timer, keeps the deepest depth (`git.ts:666-690`), and a `contextOf` failure is a `Result` that does not stop `tick`.
 - LATER — `core/services/git.ts:281-288`: a `metadata` poll with no previous snapshot stores an empty-file snapshot with `operation: "none"`, which the UI reads as "clean". Store nothing instead.
+  Outcome: open, item GIT-02 (`refreshWorkspaceChanges` still returns the empty metadata snapshot (`status.ts:761-776`) and `#refreshNow` stores it when there is no previous entry).
 - LATER — `core/git/status.ts:117-135` `untrackedCountBatches`: the batches are only used to group `Promise.all` calls. Each file still runs its own `stat` and `diff` process (up to 200 processes for 100 files), so the 200,000-byte cap bounds nothing about the commands. Say so in the header or batch the paths into one command.
+  Outcome: fixed already, 1cea0c3f the header now says a batch "only limits how many files are counted at the same time" (`status.ts:49-53`).
 - LATER — `core/git/status.ts` tests (`changesRunner`) use a scripted runner, not a real git repository. Engineering says stand-ins are checked against the real thing. Add one test against a temp repo under `TMPDIR` for quoted names, renames and an untracked file.
+  Outcome: fixed already, e0907670 `status.real-git.test.ts` runs the real commands in a temp repository.
 - Checklist items with no test: untracked non-ASCII paths, polling every 30 seconds, query-key invalidation, branch-changed drop, "No git status" empty state and the conflict badge (UI, not covered by this feature's tests).
 
 ## PLAT-02 Tauri implementation of the Platform interface
@@ -58,7 +71,9 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `platform/tauri.ts:917-923`: the slow-statement logger swallows every error from `app.writeLog`. `writeLog` is `notImplemented("PLAT-18")` (line 353), so "A SQLite call slower than 1000 ms is written to the log" never writes and nothing says so. That is a fake success. Fix: build PLAT-18, or leave the logger off and the item open.
 - MUST — Items listed in the issue with no implementation: "Open the web inspector" (`window.toggleInspector` is `notImplemented("PLAT-15")`, line 828, and there is no `window_toggle_inspector` Rust command), "An app command returns the database location" (no command), "The Platform contract test also runs against the Tauri implementation", "A slow-invoke logger for Tauri commands". Fix: build them or move them to their owners in `docs/plans/items/`.
 - LATER — `platform/tauri.ts` clipboard image: the image is decoded in the web view (`decodeImageToRgba`) and the plugin writes RGBA. The checklist item names the Rust command `write_encoded_image_to_clipboard`. The header explains the choice, but the item text and tauri-commands.md should say so.
+  Outcome: open, item PLAT-02 (`docs/plans/tauri-commands.md:7` now says the plugins are used directly, but the item still names `write_encoded_image_to_clipboard`, `docs/plans/items/system.tsv:668`).
 - LATER — `platform/tauri.ts:372`: `transaction` passes the whole `database` to `work`, so a nested `transaction` call inside `work` waits on its own queue entry and deadlocks. Detect and refuse nesting with an `Err`.
+  Outcome: fixed already, a3b3891b a nested transaction now rejects with `transaction_nested` (`platform/queued-database.ts:156`, tested at `tauri-platform.test.ts:537-540`).
 - Checklist items with no test: pooled-connection behaviour, statements outside a transaction during one, read-after-write for merged selects, the contract test, inspector, database location command.
 
 ## PR-01 GitHub access through `gh`
@@ -72,7 +87,9 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `core/services/github.ts` `isGithubRemoteUrl`, `forgeForRemoteUrl` and the `apiUserLogin` result: no code outside tests calls `forgeForRemoteUrl` / `isGithubRemoteUrl`, and nothing uses the login for the branch prefix. "Only github.com remotes get the GitHub forge" and "The branch prefix defaults to the user's login" are therefore not wired. Fix: wire them or move to WS-02 / PR-02 in `docs/plans/items/`.
 - MUST — `core/services/github.ts:204-211` `accessFromFailure`: any non-zero `gh auth status` that is not unauthorized or offline becomes `signed_out`. A missing-scope or SSO answer is shown as "signed out". The items "saml-sso-required tells the user to authorize SSO" and "missing-scope tells which scope" exist only as message helpers (`githubFailureMessage`) used in `merge`; the Account page that would show them is SET-02 (placeholder). Fix: keep the class on the access state, or move those two items to SET-02 explicitly.
 - LATER — `core/services/github.ts:325-331`: `probeCwd ?? "/"` is an invented default. The header calls it a design choice; use the home folder or require the caller to give it.
+  Outcome: fixed already, 68f5cf36 `probeCwd` is now a required dependency documented as the user's home folder (`github.ts:1256`), with no `"/"` fallback.
 - LATER — `core/services/github.ts:535`: the merge-methods query is run through `git.stdout` and its result is not given to `recordGhResult`, so "Access health is updated on every gh call" is not true for it.
+  Outcome: fixed already, 1a638b00 every `gh` call goes through `#runGh`, which records the result (`github.ts:2846-2854`), and the merge-methods query uses it (`github.ts:2905`).
 - Checklist items with no test through the container: PAT use, `gh_auth_method`, merge with token. Item "gh config get git_protocol" is covered by `checkAccess` tests.
 
 ## PRJ-01 Add a project from a local folder
@@ -84,9 +101,13 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — `core/services/repo.ts:161`: "is this a repository" is `fs.exists(path/.git)`. A subfolder of an existing repository gets the "turn into a Git repository" prompt and `git init` creates a nested repository. Fix: ask git (`rev-parse --is-inside-work-tree`), and add a test with a subfolder.
 - MUST — "Advanced: root directory" (`conducted_root_path`) exists in the registry, but its page is not built here, and nothing connects the setting to `addLocal`. Confirm the owner (SET page) and move the item.
 - LATER — `core/services/repo.ts:296-299`: `#readRemoteUrl` returns `ok(null)` for any error, not just "no origin". A real git failure reads as "no remote".
+  Outcome: open, item PRJ-01 (`#readRemoteUrl` still returns `ok(null)` for every failed read, `repo.ts:1681-1683`).
 - LATER — `core/services/repo.ts:44-47` `normaliseRootPath` only strips trailing slashes. `/code/app/.` or a symlink gives a second project for the same folder. Resolve the real path before the lookup.
+  Outcome: open, item PRJ-01 (`normaliseRootPath` still only trims and strips trailing slashes, `repo.ts:130-133`).
 - LATER — `features/sidebar/AddProjectButton.tsx:47`: the label ("Open project" or "Add a project") is chosen from the `variant` and `size` styling props. Pass a `label` prop.
+  Outcome: open, item PRJ-01 (the label is still `variant === "default" && size === "lg" ? "Open project" : "Add a project"`, `AddProjectButton.tsx:134`).
 - LATER — `core/services/repo.test.ts` uses a `FakeGit`, not a real repository (`git init`, `remote set-url`, default-branch detection). Add one test on a temp repo under `TMPDIR`.
+  Outcome: open, item PRJ-01 (the repo tests still use the scripted git fake; no real-repository test exists).
 - Checklist items with no test: Cmd+Alt+A, a real Recents list, subfolder of a repository, root directory setting.
 
 ## SET-01 Settings registry
@@ -95,7 +116,9 @@ Checklist rows in `docs/plans/items/*.tsv` still carry their scaffold status (co
 - MUST — Item "Settings layers: default, user file, repo shared, workspace shared, repo local, plus the remote default-branch copy" is only a header comment in the registry (`core/registries/settings.ts:10-14`). `fileLayers` is `"user" | "user-and-repo"` and cannot say "workspace shared" or "remote copy". The real order lives in `core/services/settings.ts:49` (`SETTING_LAYERS`). The same list is written in both headers. Fix: keep the list in one place (DATA-05) and point to it from the registry header; add a test that the registry header's keys and `SETTING_LAYERS` agree, or delete the prose.
 - MUST — `gh_auth_method` (PR-01 item that names this registry) is still not declared. See PR-01.
 - LATER — `core/registries/settings.test.ts` "can preload a default for every key" only checks `defaultValueOf(key) !== undefined`. A `null` default passes. Check the type matches the declared `type`.
+  Outcome: fixed already, 68f5cf36 the test now checks the value against the declared `type` (`settings.test.ts:364-384`).
 - LATER — `pull_request_open_target` is tested for its options only. No test shows the Git page offers it or that anything reads it (PR-07 owns the behaviour).
+  Outcome: open, item SET-01 (`PrTab.tsx:92` and `GitPanel.tsx:198` now read it and `PrTab.pr-07.test.tsx` sets it, but no Git settings page offers the control).
 - Checklist items with no test: layers (no test in this feature), startup preload (covered by the container order, not by a test here).
 
 ## Cross-batch duplication

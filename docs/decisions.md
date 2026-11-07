@@ -430,6 +430,20 @@ Context: the sidecar comparison (docs/reports/sidecar-diff-2026-11-07.md) ran Co
 Chosen: ours flushes a turn's events before every approval request (#361), plan mode included.
 Why: the user sees the plan's text before the card that asks to approve it; one rule for every approval is easier to keep correct than a special case for one tool, and the visible difference is an ordering of a few milliseconds.
 
+## D092. A workspace's host is a value, checked where its folder is handed out (2026-11-07)
+
+Proposed by the CLOUD-01 PR; not yet ruled on by the owner.
+Context: the cloud rows need each workspace to say where it lives, and every git, shell, file, terminal and chat call to respect it (services-map 1.2, frontend 3c). Conductor's host is `{ hostingServerUrl, vmId }`, with `"/"` and `""` for the Mac, and a guard runs before shell and git use. D018 planned a `Host` interface with a local and a cloud implementation.
+Chosen:
+
+- `Host` is a value in `packages/protocol`: `{ kind: "local" }` or `{ kind: "cloud", url, vmId }`, where `url` is the user's Worker and `vmId` the sandbox. A tag reads more plainly than comparing a URL with a sentinel.
+- `Workspace.host` is required. Migration 0009 adds `host_kind`, `host_url` and `host_vm_id`; rows from before it are local, and a half-written cloud row is a read error, never local. A workspace made on the Mac stores the local host.
+- The chat's `WorkspaceContext` carries the host to the sidecar, as Conductor's query options do.
+- One check, `checkHost(host, door)` in `core/host.ts`, runs where a workspace becomes the folder a call runs in: the lookups (git and pull request contexts, the chat context, file roots, a chat's folder, `workspaceOn`), the terminal service, and the workspace service's setup, branch rename, archive, unarchive, delete and Open in. A local host passes and the call goes to the Platform exactly as before. A cloud host stops at the placeholder of the row that owns that door: CLOUD-03 for git, shell, files and chats (the Worker's routes and relay), CLOUD-09 for terminals and run commands. Nothing falls back to the Mac.
+- There is no local host object. It would only pass calls on to the Platform. When CLOUD-03 builds the cloud doors, the check becomes the place that picks them.
+
+Why: the smallest seam that the cloud rows can build on, with no change to what a local workspace does. Every existing test passes with only `host: { kind: "local" }` added to its fixtures.
+
 ## D093. The harness spec commits Conductor's on-screen wording and identifiers (2026-11-07)
 
 Context: the parity harness (#347) runs on GitHub, so its spec must be in the repository. D002 forbids copying Conductor's code, prompt text and assets.

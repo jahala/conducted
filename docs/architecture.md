@@ -50,6 +50,7 @@ How they talk:
 | Sidecar process, file, socket and environment edges | `packages/sidecar/src/adapters`                    | `modes/sidecar-mode.ts` wires them; each adapter's test uses the real thing  |
 | Turn grouping for display                           | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
 | Database schema                                     | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
+| Which host a workspace's calls may use (D092)       | `apps/desktop/src/core/host.ts` (`checkHost`)      | lookups, terminals, workspace lifecycle; the chat context carries it         |
 
 ## Shared helpers
 

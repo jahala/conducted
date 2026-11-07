@@ -29,6 +29,7 @@ const workspace: Workspace = {
 	path: "/workspaces/w1",
 	branch: "branch-w1",
 	branchIsPlaceholder: true,
+	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
 	state: "ready",

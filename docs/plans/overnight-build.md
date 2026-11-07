@@ -48,7 +48,9 @@ for each step:
   5. audit: one fresh audit agent per batch reviews the batch and marks each
      finding MUST or LATER (D045); MUST findings go to fresh fixer agents, one
      per finding group; LATER findings are committed in docs/reports/audits/;
-     push; CI again
+     push; CI again. A slice's hardening (D051) then gives each of that slice's
+     LATER findings an `Outcome:` line with its evidence (fixed already with the
+     commit, stale, wrong, or open as a checklist item on its feature), as #351 did
   6. merge on green. Before the first CI run the step branch sets each finished
      feature's backlog row to done, and the PR body closes their issues with
      `Closes #N` lines (D041); sync.ts --check confirms; pleach clean
