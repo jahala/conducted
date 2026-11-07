@@ -66,6 +66,10 @@ import type {
 	ArtifactPage,
 	AttachmentFiles,
 	Clipboard,
+	Cloud,
+	CloudRelay,
+	CloudRequest,
+	CloudResponse,
 	Database,
 	Dialogs,
 	FileDropEvent,
@@ -97,6 +101,7 @@ import type {
 	Unsubscribe,
 	Updater,
 } from "./platform.ts";
+import { platformError } from "./platform.ts";
 import {
 	createQueuedDatabase,
 	DATABASE_PRAGMAS,
@@ -382,6 +387,11 @@ export const COMMANDS = {
 	httpFetch: "http_fetch", // PLAT-30
 	httpDownload: "http_download", // PLAT-30
 	httpCancel: "http_cancel", // PLAT-30
+	cloudPaired: "cloud_paired", // CLOUD-03
+	cloudRequest: "cloud_request", // CLOUD-03
+	cloudRelayOpen: "cloud_relay_open", // CLOUD-03
+	cloudRelaySend: "cloud_relay_send", // CLOUD-03
+	cloudRelayClose: "cloud_relay_close", // CLOUD-03
 } as const;
 
 /** Events emitted by the Rust shell and by Tauri's own window. */
@@ -401,6 +411,8 @@ export const EVENTS = {
 	networkChanged: "network://changed",
 	programsStatus: "programs://status",
 	programsVerificationErrors: "programs://verification-errors",
+	cloudLine: "cloud://line", // CLOUD-03
+	cloudClosed: "cloud://closed", // CLOUD-03
 } as const;
 
 /** The answer of `deep_link_launch`: the links that launched the app, sorted by deep_link.rs. */
@@ -417,9 +429,13 @@ export function toAppError(error: unknown): AppError {
 		const { code, message } = error as { code: unknown; message: unknown };
 		if (typeof code === "string" && typeof message === "string") return appError(code, message);
 	}
-	if (typeof error === "string") return appError("tauri_error", error);
-	if (error instanceof Error) return appError("tauri_error", error.message, error);
-	return appError("tauri_error", "The Rust shell returned an error that could not be read.", error);
+	if (typeof error === "string") return platformError("tauri_error", error);
+	if (error instanceof Error) return platformError("tauri_error", error.message, error);
+	return platformError(
+		"tauri_error",
+		"The Rust shell returned an error that could not be read.",
+		error,
+	);
 }
 
 /** Calls a command and turns a rejection into an `Err`. The one place that catches. */
@@ -442,7 +458,7 @@ export async function checkHealth(bindings: Pick<TauriBindings, "invoke">): Prom
 	return result.value === "ok"
 		? ok(undefined)
 		: err(
-				appError(
+				platformError(
 					"health_unexpected",
 					`The Rust shell answered "${result.value}" to the health check.`,
 				),
@@ -475,7 +491,7 @@ export function createTauriAppInfo(
 			if (state === "database_newer") {
 				if (dbVersion === null) {
 					return err(
-						appError(
+						platformError(
 							"db_version_unreadable",
 							message ?? "The database version could not be read, so startup cannot continue.",
 						),
@@ -485,7 +501,7 @@ export function createTauriAppInfo(
 			}
 			if (state === "failed_migration") {
 				return err(
-					appError(
+					platformError(
 						"db_migration_failed",
 						message ?? "A database upgrade did not finish, so startup cannot continue.",
 					),
@@ -598,7 +614,7 @@ export async function createTauriDatabase(
 	const plugin = bindings.sql;
 	if (plugin === undefined) {
 		return err(
-			appError(
+			platformError(
 				"tauri_binding_missing",
 				"The Tauri SQL plugin binding is required to open the database.",
 			),
@@ -680,7 +696,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				if (!payload.output) {
 					resolve(
 						err(
-							appError(
+							platformError(
 								"shell_done_incomplete",
 								"The shell command ended without an output or an error.",
 							),
@@ -772,7 +788,7 @@ export function createTauriFileSystem(
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
 			if (!result.ok) return result;
 			if (result.value === null) {
-				return err(appError("fs_not_found", `${path} does not exist.`));
+				return err(platformError("fs_not_found", `${path} does not exist.`));
 			}
 			return ok(result.value);
 		},
@@ -1298,6 +1314,86 @@ export function createTauriHttp(bindings: TauriBindings): Http {
 	};
 }
 
+/** The payload of `cloud://line` from cloud.rs. */
+interface CloudLinePayload {
+	relayId: string;
+	line: string;
+}
+
+/** The payload of `cloud://closed` from cloud.rs. */
+interface CloudClosedPayload {
+	relayId: string;
+	reason: string;
+}
+
+/**
+ * `cloud_paired`, `cloud_request`, `cloud_relay_open`, `cloud_relay_send`, `cloud_relay_close`,
+ * and the `cloud://line` and `cloud://closed` events (CLOUD-03). The pairing token is read in Rust
+ * and never crosses into the web view. One relay's listeners filter the shared events by its id.
+ */
+export function createTauriCloud(bindings: TauriBindings): Cloud {
+	return {
+		paired: () => invokeResult<boolean>(bindings, COMMANDS.cloudPaired),
+		request: (request: CloudRequest) =>
+			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
+		openRelay: async (input) => {
+			const opened = await invokeResult<string>(bindings, COMMANDS.cloudRelayOpen, {
+				url: input.url,
+				vmId: input.vmId,
+			});
+			if (!opened.ok) return opened;
+			const id = opened.value;
+			const lineListeners = new Set<(line: string) => void>();
+			const closedListeners = new Set<(reason: string) => void>();
+			let closedReason: string | null = null;
+			const stopLine = onEvent<CloudLinePayload>(bindings, EVENTS.cloudLine, (payload) => {
+				if (payload.relayId !== id) return;
+				for (const listener of lineListeners) listener(payload.line);
+			});
+			const stopClosed = onEvent<CloudClosedPayload>(bindings, EVENTS.cloudClosed, (payload) => {
+				if (payload.relayId !== id || closedReason !== null) return;
+				closedReason = payload.reason;
+				stopLine();
+				stopClosed();
+				for (const listener of closedListeners) listener(payload.reason);
+			});
+			const relay: CloudRelay = {
+				id,
+				send: async (line) => {
+					if (closedReason !== null) {
+						return err(
+							appError("cloud_relay_closed", "The relay to the cloud Workspace is closed."),
+						);
+					}
+					return invokeResult<void>(bindings, COMMANDS.cloudRelaySend, { relayId: id, line });
+				},
+				onLine: (listener) => {
+					lineListeners.add(listener);
+					return () => lineListeners.delete(listener);
+				},
+				onClosed: (listener) => {
+					if (closedReason !== null) {
+						queueMicrotask(() => listener(closedReason as string));
+						return () => {};
+					}
+					closedListeners.add(listener);
+					return () => closedListeners.delete(listener);
+				},
+				close: async () => {
+					const result = await invokeResult<void>(bindings, COMMANDS.cloudRelayClose, {
+						relayId: id,
+					});
+					stopLine();
+					stopClosed();
+					if (closedReason === null) closedReason = "The relay was closed.";
+					if (!result.ok) throw result.error;
+				},
+			};
+			return ok(relay);
+		},
+	};
+}
+
 interface AppInfoPayload {
 	version: string;
 	channel: "dev" | "release";
@@ -1350,6 +1446,7 @@ export async function createTauriPlatform(
 		attachments: createTauriAttachments(bindings),
 		programs: createTauriPrograms(bindings),
 		http: createTauriHttp(bindings),
+		cloud: createTauriCloud(bindings),
 	};
 	return ok(platform);
 }

@@ -10,7 +10,7 @@ import {
 	runPlatformContract,
 	UNCOVERED_METHODS,
 } from "../test/platform-contract.ts";
-import type { Database, Platform } from "./platform.ts";
+import type { Platform } from "./platform.ts";
 
 function missingContractGroups(
 	groups: readonly string[],
@@ -113,7 +113,7 @@ describe("PLAT-01 platform contract method coverage", () => {
 		expect(Object.keys(CASE_METHODS).sort()).toEqual(ids);
 	});
 
-	it("lists the methods of the handles that spawn, start and download return", async () => {
+	it("lists the methods of the handles that spawn, start, download and relay return", async () => {
 		const platform = memoryPlatformForShape();
 		const pty = await platform.pty.spawn({
 			terminalId: "contract-terminal",
@@ -127,11 +127,19 @@ describe("PLAT-01 platform contract method coverage", () => {
 			url: "https://example.invalid/x",
 			destinationPath: "/x",
 		});
+		const relay = await platform.cloud.openRelay({
+			url: "https://w.example.dev",
+			vmId: "oslo",
+		});
+		if (!relay.ok) throw new Error(relay.error.message);
 		const listed = HANDLE_METHODS.map((name) => name.split(".").slice(-1)[0]).sort();
 		const actual = [
 			...Object.keys(pty.value).filter((key) => typeof (pty.value as never)[key] === "function"),
 			...Object.keys(running).filter((key) => typeof (running as never)[key] === "function"),
 			...Object.keys(download).filter((key) => typeof (download as never)[key] === "function"),
+			...Object.keys(relay.value).filter(
+				(key) => typeof (relay.value as never)[key] === "function",
+			),
 		].sort();
 		expect(listed).toEqual(actual);
 	});

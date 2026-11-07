@@ -566,7 +566,8 @@ export function createCommandRegistry(): CommandRegistry {
 
 /**
  * The registry the no-argument helpers use. The app's real registry is created by `CommandDispatcher`
- * and provided to the hooks; APP-01 moves this last shared instance into the container.
+ * and provided to the hooks. This fallback exists only for a screen rendered without its provider,
+ * which hides a missing provider in tests; APP-16 moves it into the container.
  */
 const defaultRegistry = createCommandRegistry();
 

@@ -174,6 +174,15 @@ async function statOf(path: string): Promise<FileStat | null> {
 	}
 }
 
+/** A missing file or folder is `fs_not_found`, as files.rs answers it; other failures are `fs_io`. */
+const fsFailure = (error: Error, path: string): never => {
+	const code = (error as NodeJS.ErrnoException).code;
+	if (code === "ENOENT" || code === "ENOTDIR") {
+		return fail("fs_not_found", `${path} does not exist.`);
+	}
+	return fail("fs_io", error.message);
+};
+
 const requirePath = (args: Record<string, unknown> | undefined): string => {
 	const path = args?.path;
 	if (typeof path !== "string" || !isAbsolute(path)) {
@@ -302,10 +311,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				}
 				return fail("http_offline", "The Node-backed contract bindings make no network requests.");
 			}
-			case COMMANDS.fsReadText:
-				return readFile(scopedPath(args), "utf8").catch((error: Error) =>
-					fail("fs_io", error.message),
-				);
+			case COMMANDS.fsReadText: {
+				const requested = scopedPath(args);
+				return readFile(requested, "utf8").catch((error: Error) => fsFailure(error, requested));
+			}
 			case COMMANDS.fsWriteTextAtomic:
 				return writeAtomic(scopedPath(args), String(args.text));
 			case COMMANDS.fsStat:
@@ -322,7 +331,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			}
 			case COMMANDS.fsReadDir: {
 				const folder = scopedPath(args);
-				const names = await readdir(folder).catch((error: Error) => fail("fs_io", error.message));
+				const names = await readdir(folder).catch((error: Error) => fsFailure(error, folder));
 				const entries = await Promise.all(names.map((name) => statOf(join(folder, name))));
 				return entries.filter((entry): entry is FileStat => entry !== null);
 			}
