@@ -423,3 +423,17 @@ Proposed by the sidecar-diff fix PR; not yet ruled on by the owner.
 Context: the agent's own session id (Codex's thread id, an ACP session id, Claude's session id) is what a chat resumes with. In Conductor the sidecar reads it off each agent payload (`thread_id`, `session_id`, other-runners.md 3) and every payload carries it to the app. Ours translates payloads into our own format (D005), which has no such field, and the sidecar differential run listed our `agentSessionId` notification as a difference that no decision records.
 Chosen: when the agent's session id first becomes known, or changes, the session manager sends one `agentSessionId` notification (`sessionId`, `agentSessionId`). The app stores it in `sessions.agent_session_id` and passes it back as `resume` when it starts the chat's agent again.
 Why: the id is a fact about the chat, not about each message, so it travels once; the stored events stay in our neutral format; and the user sees no difference, since resume works the same way.
+
+## D092. A workspace's host is a value, checked where its folder is handed out (2026-11-07)
+
+Proposed by the CLOUD-01 PR; not yet ruled on by the owner.
+Context: the cloud rows need each workspace to say where it lives, and every git, shell, file, terminal and chat call to respect it (services-map 1.2, frontend 3c). Conductor's host is `{ hostingServerUrl, vmId }`, with `"/"` and `""` for the Mac, and a guard runs before shell and git use. D018 planned a `Host` interface with a local and a cloud implementation.
+Chosen:
+
+- `Host` is a value in `packages/protocol`: `{ kind: "local" }` or `{ kind: "cloud", url, vmId }`, where `url` is the user's Worker and `vmId` the sandbox. A tag reads more plainly than comparing a URL with a sentinel.
+- `Workspace.host` is required. Migration 0009 adds `host_kind`, `host_url` and `host_vm_id`; rows from before it are local, and a half-written cloud row is a read error, never local. A workspace made on the Mac stores the local host.
+- The chat's `WorkspaceContext` carries the host to the sidecar, as Conductor's query options do.
+- One check, `checkHost(host, door)` in `core/host.ts`, runs where a workspace becomes the folder a call runs in: the lookups (git and pull request contexts, the chat context, file roots, a chat's folder, `workspaceOn`), the terminal service, and the workspace service's setup, branch rename, archive, unarchive, delete and Open in. A local host passes and the call goes to the Platform exactly as before. A cloud host stops at the placeholder of the row that owns that door: CLOUD-03 for git, shell, files and chats (the Worker's routes and relay), CLOUD-09 for terminals and run commands. Nothing falls back to the Mac.
+- There is no local host object. It would only pass calls on to the Platform. When CLOUD-03 builds the cloud doors, the check becomes the place that picks them.
+
+Why: the smallest seam that the cloud rows can build on, with no change to what a local workspace does. Every existing test passes with only `host: { kind: "local" }` added to its fixtures.

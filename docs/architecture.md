@@ -49,6 +49,7 @@ How they talk:
 | Session lifecycle (queue, steer, cancel, idle)    | `packages/sidecar/src/session`                     | every runner                                                                 |
 | Turn grouping for display                         | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
 | Database schema                                   | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
+| Which host a workspace's calls may use (D092)     | `apps/desktop/src/core/host.ts` (`checkHost`)      | lookups, terminals, workspace lifecycle; the chat context carries it         |
 
 ## Shared helpers
 
