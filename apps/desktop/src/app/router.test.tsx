@@ -163,15 +163,15 @@ describe("routes", () => {
 		expect(await within(main).findByRole("tab", { name: "All files" })).toBeTruthy();
 	});
 
-	it("/settings/general renders without the sidebar", async () => {
-		await openApp("/settings/general");
+	it("/settings/user/general renders without the sidebar", async () => {
+		await openApp("/settings/user/general");
 		expect(await screen.findByRole("navigation", { name: "Settings" })).toBeTruthy();
 		expect(await screen.findByRole("heading", { name: "General" })).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});
 
 	it("puts Back and the settings top bar in the title bar row, with no strip above them", async () => {
-		await openApp("/settings/general");
+		await openApp("/settings/user/general");
 		const settings = await screen.findByTestId("settings-screen");
 		await screen.findByRole("heading", { name: "General" });
 
@@ -208,7 +208,7 @@ describe("routes", () => {
 	it("sends /settings to the general page", async () => {
 		const router = await openApp("/settings");
 		expect(await screen.findByRole("heading", { name: "General" })).toBeTruthy();
-		expect(router.state.location.pathname).toBe("/settings/general");
+		expect(router.state.location.pathname).toBe("/settings/user/general");
 	});
 
 	it("shows a designed screen for an unknown address", async () => {

@@ -78,7 +78,7 @@ function UserPage({
 			return <AccountPage focusSettingKey={focusSettingKey} />;
 		case "key-bindings":
 			return <KeyboardShortcutsPage focusSettingKey={focusSettingKey} />;
-		case "default-models":
+		case "models":
 			return <DefaultModelsPage focusSettingKey={focusSettingKey} />;
 		case "git":
 			return <GitPage focusSettingKey={focusSettingKey} />;
@@ -149,7 +149,7 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 			return;
 		}
 		if (next.kind === "user") {
-			void navigate({ to: "/settings/$page", params: { page: next.page } });
+			void navigate({ to: "/settings/user/$page", params: { page: next.page } });
 		} else {
 			void navigate({
 				to: "/settings/repos/$repoId/$page",

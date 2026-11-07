@@ -5,14 +5,24 @@
  * ui-dimensions.md 6.2 (shortcut chip: 16px tall, at least 20px wide, 4px sides, 10px text, 4px radius, muted
  * fill, 1px border).
  * Must handle: the text comes from the command registry (core/registries), never typed by hand in a screen.
+ * Must handle: an optional aria-label naming the shortcut for assistive technology.
  * Test first: renders its children inside a <kbd> element.
  */
 import type { ReactNode } from "react";
 import { cn } from "./cn.ts";
 
-export function Kbd({ children, className }: { children: ReactNode; className?: string }) {
+export function Kbd({
+	children,
+	className,
+	"aria-label": ariaLabel,
+}: {
+	children: ReactNode;
+	className?: string;
+	"aria-label"?: string;
+}) {
 	return (
 		<kbd
+			aria-label={ariaLabel}
 			className={cn(
 				"inline-flex h-4 min-w-5 items-center justify-center rounded-sm border border-border",
 				"bg-muted px-1 font-sans text-3xs text-fg-muted",

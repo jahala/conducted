@@ -5,14 +5,15 @@
  * Behaviour: ui-map.md 6 ("Search settings", Cmd+F, fuzzy over labels, descriptions and keywords,
  * top 30 results, arrow keys and Enter). The index comes from the settings and command registries.
  * Children: uses searchSettings from settings-search.ts.
- * Must handle: an empty query (no list), no result (designed empty text), arrow keys wrapping,
+ * Must handle: an empty query (no list), no result (designed empty text), the shortcut hint named
+ * for assistive technology, a clear button that empties the query, arrow keys wrapping,
  * Enter on no selection doing nothing, and Escape clearing the query before the settings screen
  * handles the next press.
  * Test first: typing "zoom" lists the zoom setting first and Enter calls onOpen with its id.
  */
 import { type RefObject, useMemo, useRef, useState } from "react";
 import { Input } from "../../ui/Input.tsx";
-import { SearchIcon } from "../../ui/icons.tsx";
+import { CloseIcon, SearchIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { type SearchableSetting, searchSettings } from "./settings-search.ts";
 
@@ -46,13 +47,24 @@ export function SettingsSearch({
 		<div className="flex flex-col gap-2">
 			<div className="relative">
 				<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-fg-muted" />
-				{searchShortcut === null ? null : (
-					<span
-						aria-hidden="true"
-						className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2"
-					>
-						<Kbd>{searchShortcut}</Kbd>
+				{searchShortcut === null || query !== "" ? null : (
+					<span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+						<Kbd aria-label="Search settings shortcut">{searchShortcut}</Kbd>
 					</span>
+				)}
+				{query === "" ? null : (
+					<button
+						type="button"
+						aria-label="Clear settings search"
+						className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-fg-muted hover:text-fg"
+						onClick={() => {
+							setQuery("");
+							setActive(0);
+							ref.current?.focus();
+						}}
+					>
+						<CloseIcon className="size-3.5" />
+					</button>
 				)}
 				<Input
 					ref={ref}

@@ -246,7 +246,9 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 					hasScript={false}
 					canAskAgent={canSendToChat}
 					onAskAgent={() => send(ADD_SETUP_PROMPT)}
-					onAddManually={() => void navigate({ to: "/settings/$page", params: { page: "repos" } })}
+					onAddManually={() =>
+						void navigate({ to: "/settings/user/$page", params: { page: "repos" } })
+					}
 				/>
 			) : null}
 

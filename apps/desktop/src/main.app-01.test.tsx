@@ -122,12 +122,14 @@ describe("APP-01 entry inputs", () => {
 				installHandlers: false,
 				clock,
 				ids,
-				history: createMemoryHistory({ initialEntries: ["/settings/general"] }),
+				history: createMemoryHistory({ initialEntries: ["/settings/user/general"] }),
 			});
 		});
 		try {
 			expect(await app.started).toEqual(ok(undefined));
-			await waitFor(() => expect(app.router.state.location.pathname).toBe("/settings/general"));
+			await waitFor(() =>
+				expect(app.router.state.location.pathname).toBe("/settings/user/general"),
+			);
 
 			const section = await app.container.actions.sections.create("Review", null);
 			expect(section.ok && section.value.id.startsWith("entry-")).toBe(true);
@@ -160,14 +162,14 @@ describe("NAV-17 notification clicks from the entry", () => {
 				memory.controls.emitNotificationClick("conducted://settings/experimental");
 			});
 			await waitFor(() =>
-				expect(app.router.state.location.pathname).toBe("/settings/experimental"),
+				expect(app.router.state.location.pathname).toBe("/settings/user/experimental"),
 			);
 
 			act(() => {
 				memory.controls.emitNotificationClick("conducted://workspace?id=gone&session=s1");
 			});
 			expect(await screen.findByText("Couldn't open workspace")).toBeTruthy();
-			expect(app.router.state.location.pathname).toBe("/settings/experimental");
+			expect(app.router.state.location.pathname).toBe("/settings/user/experimental");
 		} finally {
 			await stopApp(app, root);
 			window.history.replaceState(null, "", "/");
