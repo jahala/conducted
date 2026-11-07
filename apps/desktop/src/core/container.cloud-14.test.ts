@@ -35,6 +35,18 @@ const CONFIG: SessionConfig = {
 	},
 };
 
+/** A card the agent in the sandbox opens through the sidecar. */
+const BASH_CARD = {
+	kind: "tool_approval",
+	toolUseId: "tool-bash",
+	toolName: "Bash",
+	input: { command: "ls" },
+} as const;
+
+const isMacCard = (interaction: unknown): boolean =>
+	(interaction as { toolName?: string } | undefined)?.toolName ===
+	"mcp__conducted__RunLocalCommand";
+
 /** Waits for a condition, and fails the test rather than hanging when it never holds. */
 async function waitFor(what: string, check: () => boolean): Promise<void> {
 	for (let attempt = 0; attempt < 500; attempt++) {
@@ -249,6 +261,119 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 			expect(test.memory.controls.shellCalls.some((call) => call.program === "/bin/bash")).toBe(
 				false,
 			);
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+	it("the Mac's card covers the agent's open card, which comes back when it closes", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.sidecar.start();
+			const seeded = await readyCloudWorkspace(test);
+			const session = await test.container.services.sessions.create(seeded.id, CONFIG);
+			if (!session.ok) throw new Error(session.error.message);
+			test.memory.controls.scriptShell((command) =>
+				command.program === "/bin/bash" ? ok({ exitCode: 0, stdout: "", stderr: "" }) : null,
+			);
+			const relay = await cloudRelay(test, session.value.id);
+			const openCard = () =>
+				test.container.services.sessions.store.getState().openInteractions[session.value.id];
+
+			relay.emit({
+				jsonrpc: "2.0",
+				id: 30,
+				method: "requestInteraction",
+				params: { sessionId: session.value.id, interactionId: "bash-1", interaction: BASH_CARD },
+			});
+			await waitFor("the agent's card", () => openCard()?.interactionId === "bash-1");
+
+			relay.emit({
+				jsonrpc: "2.0",
+				id: 31,
+				method: "runLocalCommand",
+				params: { sessionId: session.value.id, command: "whoami" },
+			});
+			await waitFor("the Mac's card", () => isMacCard(openCard()?.interaction));
+			expect(relay.answered(30)).toBeUndefined();
+
+			const mac = openCard();
+			if (mac === undefined) throw new Error("no card");
+			await test.container.services.sessions.answer(session.value.id, mac.interactionId, {
+				kind: "tool_approval",
+				decision: "allow",
+			});
+			await waitFor("the command's answer", () => relay.answered(31) !== undefined);
+			expect(openCard()?.interactionId).toBe("bash-1");
+			expect(relay.answered(30)).toBeUndefined();
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+
+	it("an agent's card that arrives under the Mac's card waits, then shows", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.sidecar.start();
+			const seeded = await readyCloudWorkspace(test);
+			const session = await test.container.services.sessions.create(seeded.id, CONFIG);
+			if (!session.ok) throw new Error(session.error.message);
+			test.memory.controls.scriptShell((command) =>
+				command.program === "/bin/bash" ? ok({ exitCode: 0, stdout: "mac\n", stderr: "" }) : null,
+			);
+			const relay = await cloudRelay(test, session.value.id);
+			const openCard = () =>
+				test.container.services.sessions.store.getState().openInteractions[session.value.id];
+
+			relay.emit({
+				jsonrpc: "2.0",
+				id: 40,
+				method: "runLocalCommand",
+				params: { sessionId: session.value.id, command: "whoami" },
+			});
+			await waitFor("the Mac's card", () => isMacCard(openCard()?.interaction));
+			const mac = openCard();
+			if (mac === undefined) throw new Error("no card");
+
+			relay.emit({
+				jsonrpc: "2.0",
+				id: 41,
+				method: "requestInteraction",
+				params: { sessionId: session.value.id, interactionId: "bash-2", interaction: BASH_CARD },
+			});
+			// The sidecar's live state follows its request; once it is shown, the request was handled.
+			relay.emit({
+				jsonrpc: "2.0",
+				method: "liveState",
+				params: {
+					sessionId: session.value.id,
+					liveState: {
+						...idleLiveState,
+						status: "working",
+						openInteraction: { interactionId: "bash-2", interaction: BASH_CARD, since: 0 },
+					},
+				},
+			});
+			await waitFor(
+				"the live state",
+				() =>
+					test.container.services.sessions.store.getState().liveStates[session.value.id]?.status ===
+					"working",
+			);
+			expect(openCard()?.interactionId).toBe(mac.interactionId);
+			expect(relay.answered(40)).toBeUndefined();
+			expect(relay.answered(41)).toBeUndefined();
+
+			await test.container.services.sessions.answer(session.value.id, mac.interactionId, {
+				kind: "tool_approval",
+				decision: "allow",
+			});
+			await waitFor("the command's answer", () => relay.answered(40) !== undefined);
+			const parsed = JSON.parse(relay.answered(40) ?? "{}") as { result?: { stdout?: string } };
+			expect(parsed.result?.stdout).toBe("mac\n");
+			expect(openCard()?.interactionId).toBe("bash-2");
+			expect(relay.answered(41)).toBeUndefined();
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();
