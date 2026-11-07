@@ -45,6 +45,25 @@ describe("CLOUD-05 the outbound handler's credentials and allow-list", () => {
 		expect(sent.redirect).toBe("manual");
 	});
 
+	it("swaps the Anthropic key when the launch sent it as the OAuth bearer header", () => {
+		const sent = prepared("https://api.anthropic.com/v1/messages", {
+			authorization: "Bearer provided-by-worker",
+		});
+		expect(sent.headers.get("authorization")).toBeNull();
+		expect(sent.headers.get("x-api-key")).toBe("sk-ant-real");
+	});
+
+	it("reads the Worker's current secret on the next request, so a changed credential takes effect", () => {
+		const first = prepared("https://api.anthropic.com/v1/messages");
+		expect(first.headers.get("x-api-key")).toBe("sk-ant-real");
+		const changed = outboundRequest(request("https://api.anthropic.com/v1/messages"), {
+			...SECRETS,
+			ANTHROPIC_API_KEY: "sk-ant-changed",
+		});
+		if (changed instanceof Response) throw new Error("Expected a request");
+		expect(changed.headers.get("x-api-key")).toBe("sk-ant-changed");
+	});
+
 	it("refuses a model request when the Worker holds no key for that provider", () => {
 		const response = refusal("https://api.anthropic.com/v1/messages", {});
 		expect(response.status).toBe(503);
@@ -76,6 +95,16 @@ describe("CLOUD-05 the outbound handler's credentials and allow-list", () => {
 		const expected = `Basic ${btoa("x-access-token:ghp-real")}`;
 		expect(sent.headers.get("authorization")).toBe(expected);
 		expect(sent.redirect).toBe("manual");
+	});
+
+	it("replaces the placeholder GitHub token the sandbox's git environment sends", () => {
+		const sent = prepared(
+			"https://github.com/jahala/conducted.git/info/refs?service=git-upload-pack",
+			{
+				authorization: `Basic ${btoa("x-access-token:provided-by-worker")}`,
+			},
+		);
+		expect(sent.headers.get("authorization")).toBe(`Basic ${btoa("x-access-token:ghp-real")}`);
 	});
 
 	it("forwards GitHub without a token when the Worker holds none", () => {
