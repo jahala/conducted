@@ -60,6 +60,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"bytes-round-trip",
+		"write then read returns the same bytes",
+		"writeBytes then readBytes gives back every byte value, with no text decoding (CLOUD-11).",
+	),
+	c(
+		"fs",
 		"atomic-no-partial",
 		"a failed write leaves the old file whole",
 		"If the write fails, readText still returns the previous content and no temp file remains in the folder.",
@@ -683,6 +689,18 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(read === text, `readText returned ${JSON.stringify(read)}`);
 	},
 
+	"fs.bytes-round-trip": async (ctx) => {
+		// Every byte value, so a text decoding anywhere on the way would change something (CLOUD-11).
+		const bytes = Uint8Array.from({ length: 256 }, (_, index) => index);
+		const path = ctx.path("bytes/all.bin");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("bytes")), "mkdirp");
+		expectOk(ctx, await ctx.platform.fs.writeBytes(path, bytes), "writeBytes");
+		const read = expectOk(ctx, await ctx.platform.fs.readBytes(path), "readBytes");
+		ctx.assert(
+			read.length === bytes.length && read.every((value, index) => value === bytes[index]),
+			`readBytes returned ${read.length} bytes that differ from the ${bytes.length} written`,
+		);
+	},
 	"fs.atomic-no-partial": async (ctx) => {
 		const folder = ctx.path("atomic");
 		const target = joinPath(folder, "keep.txt");
@@ -2034,6 +2052,7 @@ const HANDLE_OF: Readonly<Record<string, string>> = {
  */
 export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.write-read": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readText"],
+	"fs.bytes-round-trip": ["fs.mkdirp", "fs.writeBytes", "fs.readBytes"],
 	"fs.atomic-no-partial": ["fs.writeTextAtomic", "fs.mkdirp", "fs.readText", "fs.readDir"],
 	"fs.missing-file": ["fs.readText"],
 	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],

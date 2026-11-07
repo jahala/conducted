@@ -72,6 +72,7 @@ export const PLATFORM_ERROR_CODES = [
 	"deep_link_unavailable",
 	"dock_badge_failed",
 	"fs_asset_scope_failed",
+	"fs_bad_data",
 	"fs_bad_path",
 	"fs_file_too_large",
 	"fs_is_a_directory",
