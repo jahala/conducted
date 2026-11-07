@@ -63,7 +63,7 @@ describe("REV-07 QuickOpen", () => {
 				<QuickOpen open onOpenChange={onOpenChange} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			const field = screen.getByRole("textbox", { name: "Search files by name" });
+			const field = screen.getByRole("textbox", { name: "Search files..." });
 			fireEvent.change(field, { target: { value: "appshell" } });
 			const row = await screen.findByRole("button", { name: "src/app/AppShell.tsx" });
 			fireEvent.keyDown(field, { key: "Enter" });
@@ -91,7 +91,7 @@ describe("REV-07 QuickOpen", () => {
 				<QuickOpen open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			const field = screen.getByRole("textbox", { name: "Search files by name" });
+			const field = screen.getByRole("textbox", { name: "Search files..." });
 			fireEvent.change(field, { target: { value: "alpha" } });
 			await screen.findByRole("button", { name: "src/alpha.ts" });
 			fireEvent.keyDown(field, { key: "ArrowDown" });
@@ -119,7 +119,7 @@ describe("REV-07 QuickOpen", () => {
 				<QuickOpen open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
 			);
-			fireEvent.change(screen.getByRole("textbox", { name: "Search files by name" }), {
+			fireEvent.change(screen.getByRole("textbox", { name: "Search files..." }), {
 				target: { value: "match" },
 			});
 			await screen.findByRole("button", { name: "src/match-00.ts" });

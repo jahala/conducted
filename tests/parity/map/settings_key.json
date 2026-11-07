@@ -544,7 +544,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our General setting stores the same choice under `expand_tool_calls` (core/registries/settings.ts)."
+		"note": "Our General setting now stores this choice under the same key; migration 0014 moves rows written under our earlier name."
 	},
 	"settings_key:gh_auth_method": {
 		"status": "matched",

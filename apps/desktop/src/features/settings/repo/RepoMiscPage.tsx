@@ -123,7 +123,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 						<LoadableView
 							value={config}
 							loadingLabel="Loading repository settings"
-							errorTitle="Couldn't load the repository settings"
+							errorTitle="Couldn't load repository settings. Try again."
 							loading={
 								<div className="flex flex-col gap-4">
 									{[0, 1, 2].map((index) => (

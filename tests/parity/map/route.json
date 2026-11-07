@@ -243,7 +243,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our router serves this page through `/settings/repos/$repoId/$page` (app/router.tsx)."
+		"note": "Conductor's full route is `/settings/repos/$repoId/misc`; our router serves it through `/settings/repos/$repoId/$page` (app/router.tsx). The seed compares the parameterised spec text with a state's literal route, so it cannot match."
 	},
 	"route:R9253487": {
 		"status": "gap",
@@ -252,7 +252,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our page is `/settings/default-models` (settings-pages.ts)."
+		"note": "Our user settings pages live under `/settings/<page>`, with the page id `default-models`; Conductor's is `/settings/user/models`. The same page opens, but the route identifier differs."
 	},
 	"route:R9524664": {
 		"status": "decided",
@@ -336,7 +336,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our page is `/settings/git`."
+		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/git`. The same page opens, but the route identifier differs."
 	},
 	"route:R11312381": {
 		"status": "decided",
@@ -363,7 +363,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our page is `/settings/experimental`."
+		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/experimental`. The same page opens, but the route identifier differs."
 	},
 	"route:R11736341": {
 		"status": "decided",
@@ -411,7 +411,7 @@
 		"class": "wording",
 		"backlog": "SET-09",
 		"owner": "hand",
-		"note": "Our agent providers are a dialog on `/settings/agents` (AgentProvidersDialog.tsx)."
+		"note": "Our provider setup is a dialog on `/settings/agents` (AgentProvidersDialog.tsx), not a page route. Conductor's `/providers` page has no route in ours."
 	},
 	"route:R11784032": {
 		"status": "gap",
@@ -420,7 +420,7 @@
 		"class": "wording",
 		"backlog": "SET-04",
 		"owner": "hand",
-		"note": "Our page is `/settings/environment`."
+		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/environment`. A segment cannot equal a state's full route."
 	},
 	"route:R11784112": {
 		"status": "gap",
@@ -429,7 +429,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our page is `/settings/connections`."
+		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/connections`. A segment cannot equal a state's full route."
 	},
 	"route:R11784178": {
 		"status": "decided",
@@ -444,7 +444,7 @@
 		"class": "wording",
 		"backlog": "SET-02",
 		"owner": "hand",
-		"note": "Our page is `/settings/connections`."
+		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/connections`. The same page opens, but the route identifier differs."
 	},
 	"route:R11784338": {
 		"status": "decided",
@@ -459,7 +459,7 @@
 		"class": "wording",
 		"backlog": "NAV-09",
 		"owner": "hand",
-		"note": "Our page is `/settings/key-bindings`."
+		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/key-bindings`. A segment cannot equal a state's full route."
 	},
 	"route:R11784537": {
 		"status": "gap",
@@ -498,7 +498,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our repo Git page is `/settings/repos/$repoId/git`."
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11785995": {
 		"status": "gap",
@@ -507,7 +507,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our repo Scripts page is `/settings/repos/$repoId/scripts`."
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11786057": {
 		"status": "gap",
@@ -516,7 +516,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our repo Actions page is `/settings/repos/$repoId/actions`."
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11786119": {
 		"status": "gap",
@@ -525,7 +525,7 @@
 		"class": "wording",
 		"backlog": "SET-07",
 		"owner": "hand",
-		"note": "Our repo Misc page is `/settings/repos/$repoId/misc`."
+		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
 	},
 	"route:R11786178": {
 		"status": "decided",

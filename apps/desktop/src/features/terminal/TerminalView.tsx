@@ -383,8 +383,8 @@ export function TerminalView({
 				}}
 			>
 				<DialogContent
-					title="Open this terminal link?"
-					description={pendingLink ?? undefined}
+					title="Open link?"
+					description={`Open this terminal link? ${pendingLink ?? ""}`}
 					size="sm"
 				>
 					<DialogFooter>

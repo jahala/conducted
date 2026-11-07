@@ -180,7 +180,6 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 
 	const model = usage?.model ?? session.config.model;
 	const fastMode = usage?.fastMode ?? (session.config.fastMode ? true : null);
-	const label = percent === null ? "Context usage: not available" : `Context usage: ${percent}%`;
 
 	return (
 		<Popover
@@ -191,7 +190,7 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 				if (open && usageAgent !== null) void readPlanUsage();
 			}}
 			trigger={
-				<Button variant="ghost" size="xs" className="px-0" aria-label={label}>
+				<Button variant="ghost" size="xs" className="px-0" aria-label="Context usage">
 					<span className={toneFor(percent)}>
 						<RadialProgress percent={percent} />
 					</span>

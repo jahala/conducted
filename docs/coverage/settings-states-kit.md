@@ -10,8 +10,8 @@ Rows audited: 484. Each named item has one row. Two groups are summarised in a s
 
 | Class           | Rows |
 | --------------- | ---- |
-| Covered         | 225  |
-| Partly          | 70   |
+| Covered         | 226  |
+| Partly          | 69   |
 | Missing         | 40   |
 | Out of scope    | 47   |
 | Planned (cloud) | 22   |
@@ -22,7 +22,7 @@ By part of the report:
 | Part                                          | Covered | Partly | Missing | Out of scope | Planned (cloud) | Not needed | Total |
 | --------------------------------------------- | ------- | ------ | ------- | ------------ | --------------- | ---------- | ----- |
 | Settings shell and navigation                 | 23      | 4      | 0       | 4            | 0               | 2          | 33    |
-| Settings by page                              | 88      | 30     | 7       | 14           | 6               | 39         | 184   |
+| Settings by page                              | 89      | 29     | 7       | 14           | 6               | 39         | 184   |
 | Organization pages and server settings        | 0       | 0      | 0       | 10           | 10              | 0          | 20    |
 | Feature flags                                 | 0       | 2      | 0       | 6            | 1               | 14         | 23    |
 | Settings keys with no row in ui-map section 6 | 14      | 11     | 3       | 5            | 1               | 11         | 45    |
@@ -34,7 +34,7 @@ By part of the report:
 
 1. **The UI kit has no form controls.** There is no Input, Textarea, Select, Switch, Checkbox, Slider or Label in `D/ui/`. Every settings page, the onboarding forms and the environment table need them. Add them before the settings pages are built (APP-12).
 2. **No screen owns the start-up states.** `D/app/startup.ts` returns `running`, `blocked`, `failed` and `ready`, but no component draws "Starting", "Database from a newer version", "Failed to start agents" or "Wrong version for this Mac". `D/main.tsx` is not wired to it. The Platform has no OS version or CPU architecture either (APP-08, PLAT-22).
-3. **The registry and the page headers disagree in about a dozen places.** Each is a row below, marked Partly. The main ones: `garry_mode` against `expand_tool_calls`, `enterprise_data_privacy`, `experimental_show_agent_cost`, `graphite_disabled`, `worktree_push_auto_setup_remote`, `auto_run_after_setup`, the Bedrock, Vertex and provider keys that the Agents page says it leaves out, and the send-key value `cmd-enter` against `mod_enter` in `D/features/composer/send-key.ts`.
+3. **The registry and the page headers disagree in about a dozen places.** Each is a row below, marked Partly. The main ones: `enterprise_data_privacy`, `experimental_show_agent_cost`, `graphite_disabled`, `worktree_push_auto_setup_remote`, `auto_run_after_setup`, the Bedrock, Vertex and provider keys that the Agents page says it leaves out, and the send-key value `cmd-enter` against `mod_enter` in `D/features/composer/send-key.ts`.
 4. **Registry page ids are not route page ids.** The registry uses `models`, `state`, `scripts`, `actions` and `misc`. The router uses `default-models`, `key-bindings` and `repo:<id>:<page>`, with a separate `prompts` page. Search needs a mapping from one to the other, and nothing owns it (SET-02).
 5. **Three rules have two homes.** Settings search exists in the registry (`searchSettings`, real, tested) and in `D/features/settings/settings-search.ts` (placeholder). The shortcut recorder exists in `settings/keyboard/ShortcutRecorder.tsx` and `palette/KeybindingEditor.tsx`. The palette says it shares "the same fuzzy matcher as settings search", but no shared matcher file exists (APP-15).
 6. **Some settings control behaviour that nobody owns.** Keep the Mac awake, Full Disk Access, app zoom and window vibrancy have no Platform door. "Sync agent configs" and "Use Claude Code with Chrome" have no owner at all.
@@ -99,7 +99,7 @@ By part of the report:
 | Workspace API access                                   | ui-map 6 General                                      | Out of scope | none                                                                                                       | Conductor's hosted API token for new workspaces.                                                                                                                                                                                |
 | Restart automatically on update                        | ui-map 6 General                                      | Covered      | Registry `auto_restart_on_update_when_idle` (APP-06); `UpdateNotice.tsx`                                   | -                                                                                                                                                                                                                               |
 | Show Artifacts tab                                     | ui-map 6 General                                      | Out of scope | none                                                                                                       | Team artifacts.                                                                                                                                                                                                                 |
-| Don't collapse tool calls (Garry Mode)                 | ui-map 6 General                                      | Partly       | Registry `expand_tool_calls` (CHAT-08); `GeneralPage.tsx` header names the key `garry_mode`                | Header and registry disagree. Change the header to `expand_tool_calls`. The `Ctrl+o` toggle in commands.ts must write the same key.                                                                                             |
+| Don't collapse tool calls (Garry Mode)                 | ui-map 6 General                                      | Covered      | Registry `garry_mode` (CHAT-08); `GeneralPage.tsx` and the `Ctrl+o` toggle use the same key                | -                                                                                                                                                                                                                               |
 | Sync agent configs                                     | ui-map 6 General, "Not verified"                      | Missing      | `GeneralPage.tsx` header row "key set by SET-01" but the registry has no key                               | Add registry key and a behaviour owner. See SET-08.                                                                                                                                                                             |
 
 ### Account
@@ -445,7 +445,7 @@ Keys already shown under "Settings by page" are not repeated.
 | `chrome_mode_enabled`                                                                                                                    | services-map 4.2.3 | Missing      | none                                                                 | See Agents.                                                                                                |
 | `experimental_agent_progress`                                                                                                            | services-map 4.2.3 | Not needed   | none                                                                 | Progress tracker always on (CHAT-13).                                                                      |
 | `unstarted_workspaces_enabled`, `internal_*` keys (about 25 listed in services-map 4.2.3)                                                | services-map 4.2.3 | Not needed   | none                                                                 | Internal. One row per name is under "Settings by page", in "Big terminal, Remote control and Internal".    |
-| `react_profiler_enabled`, `sidecar_inspect`, `sidecar_inspect_brk`, `garry_mode`                                                         | services-map 4.2.3 | Partly       | `garry_mode` is `expand_tool_calls` (General). Others are debug aids | Debug aids are not needed.                                                                                 |
+| `react_profiler_enabled`, `sidecar_inspect`, `sidecar_inspect_brk`, `garry_mode`                                                         | services-map 4.2.3 | Partly       | `garry_mode` is the General setting that expands tool calls (CHAT-08). Others are debug aids | Debug aids are not needed.                                                                                 |
 | Sensitive-key list (no logging, no analytics event)                                                                                      | services-map 4.2.3 | Partly       | `settings.ts` "env var values never reach a log"                     | Name the list of keys redacted in logs (executable paths, tokens) in DATA-05.                              |
 | UI persistence stores (`main-tabs-v2`, `terminal-panel-tabs-v1`, and others)                                                             | services-map 4.2.9 | Out of scope | other areas                                                          | Not a settings key. Owned by workspace and terminal features.                                              |
 
@@ -709,7 +709,7 @@ Rows follow the table format of `docs/plans/backlog.md`. Priority: 1 first slice
 Small fixes to existing rows that need no new id:
 
 - SET-01: add registry keys `pr_workspace_link_enabled`, `workspace_port_start`, `workspace_port_end`, `reserved_ports`, `cursor_executable_path`, `pi_executable_path`, `gh_auth_method`. Move `worktree_push_auto_setup_remote` to page `git` and `auto_run_after_setup` to page `scripts`. Point `caffeinate_while_agents_running` at PLAT-21. Settle `graphite_disabled` (positive key, one home).
-- SET-02: add `pageOfSetting` to `settings-pages.ts`; correct the headers of `GeneralPage.tsx` (`expand_tool_calls`, data privacy row), `ExperimentalPage.tsx` (drop legacy preview and "add projects without GitHub", fix agent cost and Graphite), `AgentsPage.tsx` and `AdvancedPage.tsx` (provider keys, Pi and Cursor paths).
+- SET-02: add `pageOfSetting` to `settings-pages.ts`; correct the headers of `GeneralPage.tsx` (data privacy row), `ExperimentalPage.tsx` (drop legacy preview and "add projects without GitHub", fix agent cost and Graphite), `AgentsPage.tsx` and `AdvancedPage.tsx` (provider keys, Pi and Cursor paths).
 - COMP-01: one send-key value set shared by the registry and `send-key.ts`.
 - NAV-09 and SET-02: one shortcut recorder, not two.
 - DATA-05: add the remote default-branch settings layer; list the redacted-key names; add the Keychain key table to `docs/data-model.md`.

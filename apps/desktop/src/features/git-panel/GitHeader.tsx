@@ -151,7 +151,7 @@ export function GitHeader({
 						trigger={
 							<button
 								type="button"
-								aria-label="PR status details"
+								aria-label="View PR status"
 								className={cn(
 									"min-w-0 truncate rounded-sm px-1 text-left text-sm font-medium hover:bg-hover",
 									tint.word,
