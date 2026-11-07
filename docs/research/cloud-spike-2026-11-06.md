@@ -262,3 +262,27 @@ and the image `conducted-dev-c05-1310-workspace-sandbox:wrangler-mw6f5zvp`. Both
 `wrangler containers list` and `wrangler containers images list` then held no `conducted` entry.
 The local `apps/cloud/sandbox/build/` folder and the driver, its JSON record and the pairing-token
 file in `/tmp` were trashed. No local Docker image was built.
+
+### CLOUD-05 second run: the sandbox's git environment (2026-11-07)
+
+Run after the container environment gained the `GH_TOKEN` placeholder and the `GIT_*` scrub.
+Worker `conducted-dev-c05-1320`, the same product image and `basic` instance.
+
+- **Cold start:** 6,897 ms, with the sidecar ready 500 ms after the container's main process
+  started. **Warm start:** 4 ms (58 ms round trip).
+- **The environment:** `GH_TOKEN` had length 18 (the `provided-by-worker` placeholder), and
+  `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` were absent.
+- **`gh` with no per-command environment:** `gh api user` exited 0 and matched the Mac's login.
+- **Git over an SSH remote:** `git ls-remote git@github.com:jahala/conducted.git HEAD` exited 0
+  and returned `67075a2b513e6b99d66f8c007dc0932bed393f24`, so `url.https://github.com/.insteadOf`
+  rewrote the SSH URL to HTTPS and the Worker added the token.
+- **The rest of the scrub:** `git config --get core.hooksPath` printed `/dev/null`;
+  `git config --get credential.helper` was empty; `git config --get-regexp '^url\.'` printed both
+  the `git@github.com:` and `ssh://git@github.com/` rewrites.
+- **The swaps:** Anthropic `/v1/models` answered 200 (0.23 s at the server); npm answered 200;
+  `example.com` answered 403.
+
+Everything was deleted: the Worker `conducted-dev-c05-1320` (URL 404), its container application
+`conducted-cloud-sandbox` (`81addf386f7146a3a8816216b51e103f`), and the image
+`conducted-dev-c05-1320-workspace-sandbox:wrangler-mw6fjhw5`. Both container lists then held no
+`conducted` entry. The local build folder and `/tmp` files were trashed.
