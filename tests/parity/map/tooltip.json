@@ -96,7 +96,7 @@
 		"class": "wording",
 		"backlog": "REV-08",
 		"owner": "hand",
-		"note": "Our file tab's copy button reads 'Copy file contents' (FileTabHeader.tsx)."
+		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"tooltip:R8922004": {
 		"status": "decided",
