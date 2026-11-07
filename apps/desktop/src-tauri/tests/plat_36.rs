@@ -46,6 +46,10 @@ impl TempDir {
             std::process::id()
         ));
         fs::create_dir_all(&path).expect("create test folder");
+        // Tauri refuses a starting binary whose path has a symlink ancestor on macOS, and
+        // `/var` (where `temp_dir` lives) is one. The resolved path has none, and the tests
+        // must resolve the same exe path the app does.
+        let path = path.canonicalize().expect("resolve the test folder");
         Self { path }
     }
 
