@@ -17,6 +17,12 @@
 		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
 	},
 	{
+		"text": "Checking the saved pairing…",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
 		"text": "Choose how the app signs in to GitHub. Automatic uses a saved personal access token when there is one, and the gh command's own login otherwise.",
 		"state": "settings-account",
 		"decision": "D098",
@@ -27,6 +33,12 @@
 		"state": "composer-model-picker",
 		"decision": "D098",
 		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
+	},
+	{
+		"text": "Cloud Workspaces",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Create a local folder from a template and add it as a project.",
@@ -93,6 +105,12 @@
 		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
+		"text": "Not paired",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
 		"text": "Open a chat to see its MCP servers.",
 		"decision": "D098",
 		"note": "Ours, placed in Conductor's layout: the MCP servers block on Agents (docs/design.md)."
@@ -102,6 +120,24 @@
 		"state": "settings-account",
 		"decision": "D098",
 		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+	},
+	{
+		"text": "Pair",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
+		"text": "Pair this Mac with the Worker you deployed to your Cloudflare account. Its URL and pairing token come from the deployment. The token is kept in the Keychain and is never shown again.",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
+		"text": "Pairing token",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Prevent sleep while a Remote Control session is connected and this Mac is plugged in.",
@@ -180,6 +216,18 @@
 		"note": "Ours (D019), placed in Conductor's layout: a \"+\" item, a chip while on, and its page under Agents & environment (docs/design.md)."
 	},
 	{
+		"text": "Unpair",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
+		"text": "Worker URL",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
 		"text": "Workspace port range",
 		"state": "settings-connections",
 		"decision": "D098",
@@ -195,5 +243,11 @@
 		"state": "settings-account",
 		"decision": "D098",
 		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+	},
+	{
+		"text": "https://conducted.example.workers.dev",
+		"state": "settings-connections",
+		"decision": "D104",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	}
 ]

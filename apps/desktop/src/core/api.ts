@@ -35,6 +35,7 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
+import type { CloudPairInput, CloudPairing } from "../platform/platform.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -359,6 +360,8 @@ export interface Queries {
 	useRepoNameCheck(owner: string, name: string): Loadable<RepoNameCheck>;
 	/** Whether a Linear key is set and accepted. */
 	useLinearAccess(): Loadable<LinearAccess>;
+	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
+	useCloudPairing(): Loadable<CloudPairing>;
 	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
 	useRepoTerminals(repoId: RepoId): Loadable<Terminal[]>;
 	/** The macOS version and CPU, for the old-system and wrong-build warnings. */
@@ -688,6 +691,12 @@ export interface Actions {
 		setGitHubToken: Act<[token: string | null]>;
 		/** Stores the personal Linear API key (D035), or removes it with null. */
 		setLinearKey: Act<[key: string | null]>;
+	};
+	cloud: {
+		/** Checks the URL and token with the Worker, then keeps them in the Keychain (CLOUD-07). */
+		pair: Act<[input: CloudPairInput], CloudPairing>;
+		/** Removes this Mac's pairing with its Worker. */
+		unpair: Act<[], void>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
