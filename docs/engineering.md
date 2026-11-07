@@ -70,6 +70,16 @@ Rules every test follows:
 - **A guard proves it can fail.** A check that reads source text includes a sample it must flag.
 - **Five guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, real time or leaked state, and tests that cannot pass. A test cannot pass when a Testing Library query looks for text with whitespace at an end or doubled (the library trims and collapses the page's text first), or when a `vi.mock` factory leaves out a name that a module the test reaches imports (Vitest throws when that code runs; start the factory from `importOriginal()` or use `createTestContainer`). Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
 
+## CI
+
+Every workflow runs on GitHub-hosted runners. A push costs this Mac nothing, and no job runs on the owner's Mac. Every job has `timeout-minutes`, so a hung runner stops at a known time rather than GitHub's six-hour default (`pnpm guards` checks this). A newer push cancels the older run of the same pull request; a push to main never cancels the run of the commit before it.
+
+- `ci.yml` runs the fast checks on every ready pull request and on each push to main.
+- `codeql.yml` scans the TypeScript and the Rust with CodeQL on ready pull requests to main, on pushes to main, and weekly. Rust is scanned in build mode `none`, so the scan needs no build and no macOS runner. Results appear under Security > Code scanning; the workflow asks only for `security-events: write`.
+- `coverage.yml`, `parity.yml`, `catalogue-shots.yml` and `dependency-review.yml` run the measurements, the parity harness, the screenshots and the dependency review described in [States catalogue](#states-catalogue).
+
+`main` takes changes only through pull requests whose `typescript`, `rust` and `harness` checks pass. `pnpm repo-rules` reads `main`'s branch protection with `gh api` and fails, naming each missing part: the pull request requirement, or one of the three required checks. The rule is data in `scripts/repo-rules.ts`; the comparison is a pure function tested in `scripts/repo-rules.test.ts`. `pnpm repo-rules --apply` prints the settings it will write, then sets exactly those rules with `gh api -X PUT`; it needs a `gh` login with repository admin.
+
 ## States catalogue
 
 The catalogue draws the real app in a browser, one screen state at a time, with no Tauri, no real repository, no agent and no network. It runs the real entry (`startApp`) on the in-memory Platform over a real SQLite (sql.js), with a fixed clock and counting ids, so a state looks the same on every run.
