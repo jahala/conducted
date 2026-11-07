@@ -121,6 +121,7 @@ First runs on #347, 7 November 2026. The full gap list is `docs/reports/parity-g
 
 - Step 5's first pass (#363), from run 42330292848's dump of e996940e: 1,007 matched, 847 decided, 771 unshown, 6 wording, 1,183 feature gaps; 64 catalogue states; 514 distinct strings of ours unaccounted for, listed for the owner in the gap report; all 7 drivable flows pass. The instrument check passed on every run.
 - Step 5's second pass (#366), from run 42333992371's dump of 3871650d, with the spec rebuilt (3,821 entries): 1,018 matched, 847 decided, 770 unshown, 6 wording, 1,180 feature gaps; 68 catalogue states; 507 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
+- Step 5's third pass (#372), from run 42346834589's dump of ad27eee3: 1,070 matched, 865 decided, 721 unshown, 0 wording, 1,165 feature gaps. Of the 1,886 gaps, 710 are owned by a backlog row and its item, 298 by a row only, and 878 have no owner (section 2, "Owning a gap"). 79 catalogue states; 536 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
 
 Not checked yet:
 
