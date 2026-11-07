@@ -32,6 +32,7 @@
 import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
+import { Dialog as Radix } from "radix-ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import {
@@ -69,23 +70,29 @@ const groupClass =
 
 export function LinkIssueDialog(props: LinkIssueDialogProps) {
 	const { open, onOpenChange, onFocusEditor } = props;
-	// However the dialog closes (a choice, Escape, a click outside), the editor takes focus again.
-	const changeOpen = (next: boolean) => {
-		onOpenChange(next);
-		if (!next) onFocusEditor();
-	};
 	return (
-		<Command.Dialog
-			open={open}
-			onOpenChange={changeOpen}
-			label="Link issue"
-			shouldFilter={false}
-			overlayClassName="fixed inset-0 z-40 bg-overlay"
-			contentClassName="fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex w-(--palette-width) max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-border bg-raised text-fg shadow-palette"
-		>
-			<h2 className="sr-only">Link issue</h2>
-			{open ? <LinkIssueContent {...props} onOpenChange={changeOpen} /> : null}
-		</Command.Dialog>
+		<Radix.Root open={open} onOpenChange={onOpenChange}>
+			<Radix.Portal>
+				<Radix.Overlay className="fixed inset-0 z-40 bg-overlay" />
+				<Radix.Content
+					aria-label="Link issue"
+					aria-describedby={undefined}
+					className="fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex w-(--palette-width) max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-border bg-raised text-fg shadow-palette"
+					// However the dialog closes (a choice, Escape, a click outside), the editor takes
+					// focus. It is done in the dialog's own close event, after its focus restore, so a
+					// busy main thread cannot leave the editor unfocused.
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						onFocusEditor();
+					}}
+				>
+					<h2 className="sr-only">Link issue</h2>
+					<Command label="Link issue" shouldFilter={false}>
+						{open ? <LinkIssueContent {...props} onOpenChange={onOpenChange} /> : null}
+					</Command>
+				</Radix.Content>
+			</Radix.Portal>
+		</Radix.Root>
 	);
 }
 
