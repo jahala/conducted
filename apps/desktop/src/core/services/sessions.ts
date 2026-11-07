@@ -84,6 +84,9 @@
  * WS-07 owns the linked folders a chat runs with: `withLinkedPaths` reads them from the workspace
  * row for every send, warm and config update, so a chat stores no copy and one whose tab is closed
  * gets the current folders too.
+ * CLOUD-14 owns `withLocalExecution` (the RunLocalCommand switch in the config each send and warm
+ * carries), the local marker on interactions the app opens itself, `withdrawInteraction`, and the
+ * rule that a sidecar live state cannot take such a card away.
  * RC-02 owns the `remoteControl` part of the store: each Claude chat's Remote Control link as the
  * sidecar reports it (`applyRemoteControlState`, from the remoteControlState notification) or
  * answers it (`refreshRemoteControl`, through getSessionStatus; a chat the sidecar does not know is
@@ -103,6 +106,7 @@ import {
 	type AgentLaunch,
 	type appToSidecarRequests,
 	type CodexGoal,
+	type Host,
 	type Interaction,
 	type InteractionAnswer,
 	type InteractionRequest,
@@ -157,6 +161,7 @@ import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { parseAgentKey } from "./agent-catalog.ts";
 import type { ComposerService } from "./composer.ts";
 import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
+import { localExecutionForHost } from "./local-command.ts";
 import type { NotificationService } from "./notifications.ts";
 import {
 	createHistorySearch,
@@ -356,6 +361,22 @@ function withLinkedPaths(config: SessionConfig, linkedPaths: readonly string[]):
 	return { ...config, additionalDirectories: [...linkedPaths] };
 }
 
+/**
+ * The config the sidecar receives also says whether RunLocalCommand exists for this chat (CLOUD-14):
+ * only a cloud workspace, and only while "Remote execution MCP" is on. Read at each send, so a
+ * setting change reaches the next message; the sidecar restarts the agent when the switch changes.
+ */
+function withLocalExecution(
+	config: SessionConfig,
+	host: Host,
+	setting: <T>(key: string) => T,
+): SessionConfig {
+	return {
+		...config,
+		appTools: { ...config.appTools, localExecution: localExecutionForHost(host, setting) },
+	};
+}
+
 /** The config stored on a chat row: linked folders belong to the workspace, not the chat (WS-07). */
 function storedConfig(config: SessionConfig): SessionConfig {
 	return config.additionalDirectories.length === 0
@@ -483,6 +504,11 @@ export class SessionsService implements AgentMessenger {
 	/** Resolvers for the sidecar's open interaction requests, keyed by interaction id. */
 	readonly #interactionResolvers = new Map<string, (answer: InteractionAnswer) => void>();
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
+	/**
+	 * Cards the app itself opened, such as a local command's approval (CLOUD-14). Their answer
+	 * settles here: no sidecar request waits for it.
+	 */
+	readonly #localInteractions = new Set<InteractionId>();
 	/** Bumped by cancel, so a send that finishes afterwards returns to the draft instead of running. */
 	readonly #cancelVersions = new Map<string, number>();
 	/**
@@ -892,7 +918,11 @@ export class SessionsService implements AgentMessenger {
 			attachmentPaths: pending.attachmentPaths,
 			delivery: pending.delivery,
 			firstMessage,
-			config: withLinkedPaths(session.config, linked.value),
+			config: withLocalExecution(
+				withLinkedPaths(session.config, linked.value),
+				workspace.value.host,
+				this.#deps.setting,
+			),
 			workspace: workspace.value,
 			launch: launch.value,
 			...(resume === null ? {} : { resume }),
@@ -1195,6 +1225,10 @@ export class SessionsService implements AgentMessenger {
 		interactionId: InteractionId,
 		answer: InteractionAnswer,
 	): Promise<Result<void>> {
+		if (this.#localInteractions.has(interactionId)) {
+			this.#settleInteraction(interactionId, answer);
+			return ok(undefined);
+		}
 		const result = await this.#deps.sidecar.request("answerInteraction", {
 			sessionId,
 			interactionId,
@@ -1243,8 +1277,16 @@ export class SessionsService implements AgentMessenger {
 		this.#resolveInteraction(params.interactionId, { kind: "withdrawn" });
 	}
 
-	/** Called by the `requestInteraction` handler. Resolves when the user answers or it is withdrawn. */
-	requestInteraction(request: InteractionRequest): Promise<InteractionAnswer> {
+	/**
+	 * Called by the `requestInteraction` handler. Resolves when the user answers or it is withdrawn.
+	 * A local card (`options.local`) is one the app opened itself; its answer comes from the app's
+	 * own action and never reaches the sidecar.
+	 */
+	requestInteraction(
+		request: InteractionRequest,
+		options?: { local?: boolean },
+	): Promise<InteractionAnswer> {
+		if (options?.local === true) this.#localInteractions.add(request.interactionId);
 		const existing = this.#interactionPromises.get(request.interactionId);
 		if (existing !== undefined) {
 			this.#showInteraction(request);
@@ -1301,7 +1343,13 @@ export class SessionsService implements AgentMessenger {
 		const resolve = this.#interactionResolvers.get(interactionId);
 		this.#interactionResolvers.delete(interactionId);
 		this.#interactionPromises.delete(interactionId);
+		this.#localInteractions.delete(interactionId);
 		resolve?.(answer);
+	}
+
+	/** Removes a card the app opened itself, as its wait gave up (CLOUD-14). */
+	withdrawInteraction(interactionId: InteractionId): void {
+		this.#settleInteraction(interactionId, { kind: "withdrawn" });
 	}
 
 	/**
@@ -1434,11 +1482,17 @@ export class SessionsService implements AgentMessenger {
 
 			this.#setConfig(id, nextConfig, at);
 			if (!notifySidecar) return ok(undefined);
+			const context = await this.#workspaceContext(session.workspaceId);
+			if (!context.ok) return context;
 			const linked = await this.#linkedPaths(session.workspaceId);
 			if (!linked.ok) return linked;
 			const applied = await this.#deps.sidecar.request("updateConfig", {
 				sessionId: id,
-				config: withLinkedPaths(nextConfig, linked.value),
+				config: withLocalExecution(
+					withLinkedPaths(nextConfig, linked.value),
+					context.value.host,
+					this.#deps.setting,
+				),
 			});
 			return applied.ok ? ok(undefined) : applied;
 		})();
@@ -1739,6 +1793,10 @@ export class SessionsService implements AgentMessenger {
 	): Promise<Result<void>> {
 		const at = this.#deps.now();
 		const previous = this.store.getState().openInteractions[sessionId];
+		// A card the app opened itself (a command on the Mac, CLOUD-14) is not the sidecar's, so a
+		// live state that carries no interaction must not take it away.
+		const previousIsLocal =
+			previous !== undefined && this.#localInteractions.has(previous.interactionId);
 		const nextOpen = liveState.openInteraction;
 		this.store.setState((state) => {
 			const next: Partial<SessionsState> = {
@@ -1746,7 +1804,9 @@ export class SessionsService implements AgentMessenger {
 			};
 			const openInteractions = { ...state.openInteractions };
 			let changed = false;
-			if (nextOpen !== undefined) {
+			if (previousIsLocal) {
+				// Keep the app's own card on screen; the sidecar does not know about it.
+			} else if (nextOpen !== undefined) {
 				const same = previous?.interactionId === nextOpen.interactionId;
 				openInteractions[sessionId] = {
 					interactionId: nextOpen.interactionId,
@@ -1762,7 +1822,11 @@ export class SessionsService implements AgentMessenger {
 			if (changed) next.openInteractions = openInteractions;
 			return next;
 		});
-		if (previous !== undefined && previous.interactionId !== nextOpen?.interactionId) {
+		if (
+			previous !== undefined &&
+			!previousIsLocal &&
+			previous.interactionId !== nextOpen?.interactionId
+		) {
 			this.#settleInteraction(previous.interactionId, { kind: "withdrawn" });
 		}
 		if (options.notify !== false) this.#deps.notifications.onLiveStateChanged(sessionId);
@@ -2379,7 +2443,11 @@ export class SessionsService implements AgentMessenger {
 		if (!linked.ok) return linked;
 		const warm = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: id,
-			config: withLinkedPaths(session.config, linked.value),
+			config: withLocalExecution(
+				withLinkedPaths(session.config, linked.value),
+				workspace.value.host,
+				this.#deps.setting,
+			),
 			workspace: workspace.value,
 			launch: built.value,
 			...(resume === null ? {} : { resume }),
@@ -2523,7 +2591,11 @@ export class SessionsService implements AgentMessenger {
 		if (!linked.ok) return linked;
 		const warmed = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: session.id,
-			config: withLinkedPaths(session.config, linked.value),
+			config: withLocalExecution(
+				withLinkedPaths(session.config, linked.value),
+				workspace.value.host,
+				this.#deps.setting,
+			),
 			workspace: workspace.value,
 			launch: launch.value,
 			...(resume === null ? {} : { resume }),

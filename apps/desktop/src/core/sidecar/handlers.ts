@@ -15,6 +15,7 @@
  * config the agent chose; a failed write is retried through the
  * same single writer, and one that still fails is thrown so the tunnel logs it;
  * `interactionClosed` marks a timed-out card and settles the pending request;
+ * `runLocalCommand` hands a cloud agent's command to the local-command service (CLOUD-14);
  * `shellEnvFailed` logs the folder, kind and message; `remoteControlState` shows a Claude chat's
  * Remote Control link (RC-02); `goalChanged` shows a Codex chat's goal in its goal bar (COMP-10);
  * a failed workspace diff is answered as an
@@ -122,6 +123,13 @@ export interface GoalPort {
 	setGoal(params: SidecarToAppNotificationParams<"goalChanged">): void;
 }
 
+/** Backs the RunLocalCommand tool: the app approves and runs a command on the Mac (CLOUD-14). */
+export interface LocalCommandPort {
+	run(
+		params: SidecarToAppParams<"runLocalCommand">,
+	): Promise<SidecarToAppResult<"runLocalCommand">>;
+}
+
 export interface ShellEnvPort {
 	/** Logs that a folder's login-shell environment could not be captured. */
 	captureFailed(params: SidecarToAppNotificationParams<"shellEnvFailed">): void;
@@ -137,6 +145,7 @@ export interface SidecarHandlerPorts {
 	diffComments: DiffCommentsPort;
 	terminalOutput: TerminalOutputPort;
 	targetBranch: TargetBranchPort;
+	localCommand: LocalCommandPort;
 	shellEnv: ShellEnvPort;
 	remoteControl: RemoteControlPort;
 	goal: GoalPort;
@@ -197,6 +206,7 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 				? { ok: true, message: `The target branch is now ${params.branch}.` }
 				: { ok: false, message: result.error.message };
 		},
+		runLocalCommand: (params) => ports.localCommand.run(params),
 	};
 }
 

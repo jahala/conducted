@@ -91,6 +91,7 @@ import {
 	REMOTE_KEEP_AWAKE_SETTING_KEY,
 } from "./services/keep-awake.ts";
 import { createLinearHttp, LinearService } from "./services/linear.ts";
+import { LocalCommandService } from "./services/local-command.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
@@ -429,6 +430,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 			setForSession: async (sessionId, branch) => {
 				const found = lookups.workspaceOfSession(sessionId);
 				return found.ok ? git.setTargetBranchFromAgent(found.value.id, branch) : found;
+			},
+		},
+		localCommand: {
+			run: async (params) => {
+				const answer = await localCommand.run(params);
+				return answer;
 			},
 		},
 		shellEnv: {
@@ -850,6 +857,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 				: (capture) => writeDiagnosticsReport(capture, ids.uuid()),
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
+	});
+	// CLOUD-14: a cloud agent's command runs on the Mac, so its shell is the raw platform's, not
+	// the host-routed one; its long output is written through the routed file system, which puts a
+	// cloud workspace's file in its sandbox.
+	const localCommand = new LocalCommandService({
+		workspaceOfSession: (sessionId) => lookups.workspaceOfSession(sessionId),
+		shell: inputs.platform.shell,
+		fs: platform.fs,
+		homePath: () => platform.fs.paths.home,
+		openApproval: (request) => sessions.requestInteraction(request, { local: true }),
+		withdrawApproval: (interactionId) => sessions.withdrawInteraction(interactionId),
+		notify: (input) => notifications.notify(input),
+		setting,
+		setSetting: (key, value) => settings.set(key, value),
+		newId: () => ids.uuid(),
+		log,
 	});
 	const anyChatWorking = (): boolean =>
 		Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working");
