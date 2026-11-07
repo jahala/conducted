@@ -682,6 +682,7 @@ const STEPS: Record<string, ContractStep> = {
 	"fs.missing-file": async (ctx) => {
 		const result = await ctx.platform.fs.readText(ctx.path("no-such-file.txt"));
 		const error = expectErr(ctx, result, "readText of a missing file");
+		ctx.assert(error.code === "fs_not_found", `the error code was ${error.code}`);
 		ctx.assert(error.message.length > 0, "the error has a message");
 	},
 

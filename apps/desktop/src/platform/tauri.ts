@@ -101,6 +101,7 @@ import type {
 	Unsubscribe,
 	Updater,
 } from "./platform.ts";
+import { platformError } from "./platform.ts";
 import {
 	createQueuedDatabase,
 	DATABASE_PRAGMAS,
@@ -428,9 +429,13 @@ export function toAppError(error: unknown): AppError {
 		const { code, message } = error as { code: unknown; message: unknown };
 		if (typeof code === "string" && typeof message === "string") return appError(code, message);
 	}
-	if (typeof error === "string") return appError("tauri_error", error);
-	if (error instanceof Error) return appError("tauri_error", error.message, error);
-	return appError("tauri_error", "The Rust shell returned an error that could not be read.", error);
+	if (typeof error === "string") return platformError("tauri_error", error);
+	if (error instanceof Error) return platformError("tauri_error", error.message, error);
+	return platformError(
+		"tauri_error",
+		"The Rust shell returned an error that could not be read.",
+		error,
+	);
 }
 
 /** Calls a command and turns a rejection into an `Err`. The one place that catches. */
@@ -453,7 +458,7 @@ export async function checkHealth(bindings: Pick<TauriBindings, "invoke">): Prom
 	return result.value === "ok"
 		? ok(undefined)
 		: err(
-				appError(
+				platformError(
 					"health_unexpected",
 					`The Rust shell answered "${result.value}" to the health check.`,
 				),
@@ -486,7 +491,7 @@ export function createTauriAppInfo(
 			if (state === "database_newer") {
 				if (dbVersion === null) {
 					return err(
-						appError(
+						platformError(
 							"db_version_unreadable",
 							message ?? "The database version could not be read, so startup cannot continue.",
 						),
@@ -496,7 +501,7 @@ export function createTauriAppInfo(
 			}
 			if (state === "failed_migration") {
 				return err(
-					appError(
+					platformError(
 						"db_migration_failed",
 						message ?? "A database upgrade did not finish, so startup cannot continue.",
 					),
@@ -609,7 +614,7 @@ export async function createTauriDatabase(
 	const plugin = bindings.sql;
 	if (plugin === undefined) {
 		return err(
-			appError(
+			platformError(
 				"tauri_binding_missing",
 				"The Tauri SQL plugin binding is required to open the database.",
 			),
@@ -691,7 +696,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				if (!payload.output) {
 					resolve(
 						err(
-							appError(
+							platformError(
 								"shell_done_incomplete",
 								"The shell command ended without an output or an error.",
 							),
@@ -783,7 +788,7 @@ export function createTauriFileSystem(
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
 			if (!result.ok) return result;
 			if (result.value === null) {
-				return err(appError("fs_not_found", `${path} does not exist.`));
+				return err(platformError("fs_not_found", `${path} does not exist.`));
 			}
 			return ok(result.value);
 		},
