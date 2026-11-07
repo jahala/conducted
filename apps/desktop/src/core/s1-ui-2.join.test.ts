@@ -134,17 +134,17 @@ describe("s1-ui-2 join", () => {
 			);
 
 			fireEvent.keyDown(document.body, { key: "p", metaKey: true });
-			const quickOpen = await screen.findByRole("textbox", { name: "Search files by name" });
+			const quickOpen = await screen.findByRole("textbox", { name: "Search files..." });
 			fireEvent.change(quickOpen, { target: { value: "appshell" } });
 			expect(await screen.findByRole("button", { name: "src/app/AppShell.tsx" })).toBeTruthy();
 
 			fireEvent.keyDown(quickOpen, { key: "Escape" });
 			await waitFor(() =>
-				expect(screen.queryByRole("textbox", { name: "Search files by name" })).toBeNull(),
+				expect(screen.queryByRole("textbox", { name: "Search files..." })).toBeNull(),
 			);
 
 			fireEvent.keyDown(document.body, { key: "f", metaKey: true, shiftKey: true });
-			const search = await screen.findByRole("searchbox", { name: "Search file contents" });
+			const search = await screen.findByRole("searchbox", { name: "Search in files..." });
 			fireEvent.change(search, { target: { value: "retry" } });
 			expect(await screen.findByRole("region", { name: "src/retry.ts" })).toBeTruthy();
 			fireEvent.click(screen.getByRole("button", { name: "src/retry.ts:1" }));
@@ -153,7 +153,7 @@ describe("s1-ui-2 join", () => {
 			);
 
 			fireEvent.keyDown(document.body, { key: "p", metaKey: true });
-			const again = await screen.findByRole("textbox", { name: "Search files by name" });
+			const again = await screen.findByRole("textbox", { name: "Search files..." });
 			fireEvent.change(again, { target: { value: "appshell" } });
 			await screen.findByRole("button", { name: "src/app/AppShell.tsx" });
 			fireEvent.keyDown(again, { key: "Enter" });

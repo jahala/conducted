@@ -140,7 +140,7 @@ describe("PR-01 gh failure classification", () => {
 	});
 
 	it("turns each class into the sentence the user needs", () => {
-		expect(githubFailureMessage("unauthorized", "")).toContain("gh auth login");
+		expect(githubFailureMessage("unauthorized", "")).toContain("Reconnect GitHub in Settings");
 		expect(githubFailureMessage("saml-sso-required", "")).toBe(GITHUB_SAML_SSO_MESSAGE);
 		expect(githubFailureMessage("saml-sso-required", "")).toMatch(/single sign-on/i);
 		expect(githubFailureMessage("missing-scope", 'needs the "read:org" scope')).toContain(

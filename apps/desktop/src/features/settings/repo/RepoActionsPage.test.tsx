@@ -55,7 +55,7 @@ describe("SET-07 RepoActionsPage", () => {
 			.mockResolvedValue(ok(undefined));
 
 		const row = await screen.findByRole("listitem", { name: "Dev" });
-		fireEvent.click(within(row).getByRole("button", { name: "Hide" }));
+		fireEvent.click(within(row).getByRole("button", { name: "Hide action" }));
 
 		await waitFor(() =>
 			expect(localStorage.getItem(hiddenRunActionsStorageKey(repo.id))).toBe('["dev"]'),
@@ -64,7 +64,7 @@ describe("SET-07 RepoActionsPage", () => {
 		expect(must(await container.platform.fs.readText(sharedSettingsFile(repo.rootPath)))).toBe(
 			toml,
 		);
-		expect(await screen.findByRole("button", { name: "Show" })).toBeTruthy();
+		expect(await screen.findByRole("button", { name: "Show action" })).toBeTruthy();
 	});
 
 	it("shows the designed empty state when there are no actions", async () => {
@@ -107,7 +107,7 @@ describe("SET-07 RepoActionsPage", () => {
 			.mockResolvedValue(ok(undefined));
 
 		const row = await screen.findByRole("listitem", { name: "Docs" });
-		fireEvent.click(within(row).getByRole("button", { name: "Hide" }));
+		fireEvent.click(within(row).getByRole("button", { name: "Hide action" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
 		expect(updateConfig.mock.calls[0]?.[1]?.runScripts).toMatchObject([

@@ -198,19 +198,25 @@ export function WorkspaceRow({
 					INDENT_CLASS[indent],
 					selected && "bg-hover",
 				)}
+				data-testid="left-sidebar-workspace-item"
 			>
-				{showRepo ? (
-					<span className="mt-0.5 mr-0.5 flex size-4 shrink-0 items-center justify-center">
-						<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
-					</span>
-				) : null}
 				<span
-					{...(statusWords === ""
-						? {}
-						: { role: "img", "aria-label": statusWords, title: statusWords })}
-					className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+					data-testid="workspace-leading-visual"
+					className="mt-0.5 flex shrink-0 items-center gap-1.5"
 				>
-					<WorkspaceStatusIcon status={status} decorative />
+					{showRepo ? (
+						<span className="mr-0.5 flex size-4 shrink-0 items-center justify-center">
+							<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
+						</span>
+					) : null}
+					<span
+						{...(statusWords === ""
+							? {}
+							: { role: "img", "aria-label": statusWords, title: statusWords })}
+						className="flex size-4 shrink-0 items-center justify-center overflow-hidden"
+					>
+						<WorkspaceStatusIcon status={status} decorative />
+					</span>
 				</span>
 				<span className="flex min-w-0 flex-1 flex-col">
 					<span className="flex h-5 min-w-0 items-center gap-1.5">

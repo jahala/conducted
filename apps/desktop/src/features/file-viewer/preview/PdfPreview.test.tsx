@@ -15,7 +15,7 @@ describe("REV-08 PdfPreview", () => {
 		expect(object).not.toBeNull();
 		if (object !== null) fireEvent.error(object);
 		expect(container.querySelector("object")).toBeNull();
-		expect(screen.getByText("Preview not available")).toBeTruthy();
+		expect(screen.getByText("Preview unavailable. Open the file to try again.")).toBeTruthy();
 		expect(screen.getByText(/Failed to load PDF/)).toBeTruthy();
 	});
 

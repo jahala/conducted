@@ -47,7 +47,7 @@ export function useAddProject() {
 		flight.run("add-project", async () => {
 			setBusy(true);
 			try {
-				const picked = await actions.app.pickFolder("Add a project");
+				const picked = await actions.app.pickFolder("Select project directory");
 				if (!picked.ok) {
 					toastError("Couldn't open the folder dialog", picked.error);
 					return;

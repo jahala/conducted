@@ -113,9 +113,10 @@ export function ResizablePanel(props: ResizablePanelProps) {
 	return <Panel {...props} />;
 }
 
-export function ResizeHandle({ className }: { className?: string }) {
+export function ResizeHandle({ className, label }: { className?: string; label?: string }) {
 	return (
 		<Separator
+			aria-label={label}
 			className={cn(
 				"relative bg-separator outline-none transition-colors",
 				"data-[separator=hover]:bg-focus data-[separator=active]:bg-focus",
