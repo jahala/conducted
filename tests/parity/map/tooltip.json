@@ -35,9 +35,10 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5608488": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"tooltip:R8048058": {
 		"status": "gap",

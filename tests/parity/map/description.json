@@ -10,49 +10,58 @@
 		"screen": "Unplaced"
 	},
 	"description:M1183257": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:M1183350": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:M1183514": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:M1603794": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1607472": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1623894": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1627482": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1635994": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1637432": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M3096133": {
 		"status": "gap",
@@ -169,254 +178,304 @@
 		"screen": "Unplaced"
 	},
 	"description:R7860847": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861034": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861197": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861338": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861498": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861646": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861781": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861906": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862032": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862145": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862243": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862369": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862478": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862688": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862845": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863003": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863190": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863385": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863558": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863758": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863930": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864037": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864200": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864381": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864555": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864722": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864887": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865038": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865416": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865557": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865703": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865867": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866025": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866169": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866334": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866498": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866648": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866800": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866957": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867115": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867280": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867441": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867612": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867782": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867934": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868081": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868238": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868393": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868501": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868651": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R8679569": {
 		"status": "gap",
@@ -535,9 +594,12 @@
 		"by": "seed"
 	},
 	"description:R10584822": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "onboarding",
+		"via": "text",
+		"role": "span",
+		"selector": "div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > ol > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10678507": {
 		"status": "gap",
@@ -640,29 +702,34 @@
 		"screen": "inventory-controls Settings"
 	},
 	"description:R10890728": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R10891786": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared cloud computer, environment and members pages. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"description:R10896035": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R10900096": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R10910914": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared prompts page. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"description:R10921020": {
 		"status": "gap",
@@ -690,9 +757,10 @@
 		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11092256": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11095863": {
 		"status": "matched",
@@ -711,9 +779,10 @@
 		"by": "seed"
 	},
 	"description:R11097928": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11098377": {
 		"status": "gap",
@@ -831,9 +900,10 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11110037": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11110399": {
 		"status": "gap",
@@ -865,9 +935,10 @@
 		"by": "seed"
 	},
 	"description:R11118889": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11119185": {
 		"status": "matched",
@@ -904,9 +975,10 @@
 		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11122227": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11123526": {
 		"status": "gap",
@@ -977,114 +1049,136 @@
 		"screen": "Unplaced"
 	},
 	"description:R11194342": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay page: pairing a device and the device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"description:R11206406": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11206509": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11206628": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11207716": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11211130": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11211949": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11212688": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11217010": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11217649": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11218682": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11219033": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11220223": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11221327": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11221748": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11222168": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11222570": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11222925": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11223775": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11224292": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11224993": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11225732": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11262744": {
 		"status": "gap",
@@ -1163,7 +1257,7 @@
 	},
 	"description:R11297883": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11298888": {
@@ -1257,14 +1351,16 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11303228": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11303436": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11303660": {
 		"status": "gap",
@@ -1402,9 +1498,10 @@
 		"screen": "inventory-controls App shell"
 	},
 	"description:R11709576": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11709706": {
 		"status": "gap",
@@ -1422,9 +1519,10 @@
 		"screen": "Unplaced"
 	},
 	"description:R11730099": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Shared agent credentials of an organisation. Team features stay out.",
+		"by": "hand"
 	},
 	"description:R11737185": {
 		"status": "gap",
@@ -1442,8 +1540,11 @@
 		"screen": "Unplaced"
 	},
 	"description:R12119124": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "startup-failed",
+		"via": "text",
+		"role": "p",
+		"selector": "div > div > div:nth-of-type(2) > section > p",
+		"by": "seed"
 	}
 }

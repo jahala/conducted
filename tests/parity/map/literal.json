@@ -513,39 +513,46 @@
 		"screen": "Unplaced"
 	},
 	"literal:M2127772": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128258": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128298": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128475": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128654": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128823": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2136907": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2277052": {
 		"status": "matched",
@@ -574,14 +581,16 @@
 		"by": "seed"
 	},
 	"literal:M2375276": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2515566": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2515610": {
 		"status": "gap",
@@ -637,19 +646,22 @@
 		"screen": "Unplaced"
 	},
 	"literal:M3777807": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Shortcuts"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M3809603": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M3809609": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M3815626": {
 		"status": "matched",
@@ -993,29 +1005,34 @@
 		"by": "seed"
 	},
 	"literal:R2826600": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2826688": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2826700": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2827004": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2827190": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2972645": {
 		"status": "gap",
@@ -1095,9 +1112,10 @@
 		"screen": "Unplaced"
 	},
 	"literal:R3352892": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R3396439": {
 		"status": "matched",
@@ -1210,9 +1228,10 @@
 		"by": "seed"
 	},
 	"literal:R3897624": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R4011805": {
 		"status": "gap",
@@ -1382,9 +1401,10 @@
 		"by": "seed"
 	},
 	"literal:R8418352": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R8684721": {
 		"status": "gap",
@@ -1977,7 +1997,7 @@
 		"state": "command-palette",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(8) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(9) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11376885": {
@@ -1985,7 +2005,7 @@
 		"state": "command-palette",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(11) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(12) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11378588": {

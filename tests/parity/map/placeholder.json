@@ -47,9 +47,10 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R3015224": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Workspace chat, a team feature, stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"placeholder:R4379343": {
 		"status": "gap",
@@ -78,7 +79,7 @@
 	},
 	"placeholder:R5533685": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Workspaces"
 	},
 	"placeholder:R5645838": {
@@ -218,9 +219,10 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R10807790": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "The GitHub App's repository and organisation picker. GitHub App sign-in stays out.",
+		"by": "hand"
 	},
 	"placeholder:R10944937": {
 		"status": "matched",
@@ -274,14 +276,16 @@
 		"screen": "inventory-controls Settings: General"
 	},
 	"placeholder:R11204617": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"placeholder:R11208176": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"placeholder:R11267721": {
 		"status": "gap",

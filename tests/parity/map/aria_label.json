@@ -87,9 +87,10 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R3015261": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Workspace chat, a team feature, stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"aria_label:R3015628": {
 		"status": "matched",
@@ -197,19 +198,22 @@
 		"by": "seed"
 	},
 	"aria_label:R5501496": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"aria_label:R5503843": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Sharing a workspace with people. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"aria_label:R5509389": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Sharing a workspace with people. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"aria_label:R5521072": {
 		"status": "matched",
@@ -536,9 +540,10 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R10311628": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"aria_label:R10329806": {
 		"status": "gap",
@@ -559,19 +564,22 @@
 		"by": "seed"
 	},
 	"aria_label:R10375692": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"aria_label:R10381913": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account and organisation menu: its account, plans and single sign-on.",
+		"by": "hand"
 	},
 	"aria_label:R10424742": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"aria_label:R10432418": {
 		"status": "matched",
@@ -586,13 +594,14 @@
 		"state": "command-palette",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(15) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(16) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"aria_label:R10434319": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Admin rights on a shared workspace. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"aria_label:R10434919": {
 		"status": "gap",
@@ -662,9 +671,10 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R10808801": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"aria_label:R10822492": {
 		"status": "gap",
@@ -685,9 +695,10 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R10864060": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"aria_label:R10876245": {
 		"status": "gap",
@@ -804,9 +815,10 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R11201189": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"aria_label:R11269882": {
 		"status": "gap",
@@ -1072,8 +1084,11 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R12050608": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "startup-loading",
+		"via": "text",
+		"role": "p",
+		"selector": "div > div > div:nth-of-type(2) > p:nth-of-type(1)",
+		"by": "seed"
 	}
 }

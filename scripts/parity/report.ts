@@ -8,6 +8,17 @@
 import type { Finding } from "./checks.ts";
 import type { Inventory, MapFile, SpecFile } from "./lib.ts";
 
+/** Decided entries per decision id, for the sorting table. */
+export function countDecisions(maps: Map<Inventory, MapFile>): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const map of maps.values()) {
+		for (const entry of Object.values(map)) {
+			if (entry.status === "decided") counts[entry.decision] = (counts[entry.decision] ?? 0) + 1;
+		}
+	}
+	return counts;
+}
+
 export interface InventoryCount {
 	inventory: Inventory;
 	entries: number;
@@ -21,8 +32,16 @@ export interface Report {
 	commit: string;
 	mode: "report" | "enforce";
 	counts: InventoryCount[];
+	/** Decided entries per decision id: sorting class a. */
+	decisions: Record<string, number>;
 	findings: Finding[];
 }
+
+const CLASS_NAMES: Record<NonNullable<Finding["class"]>, string> = {
+	unshown: "b. Unshown: our source has it, no catalogue state draws it",
+	wording: "c. Wording or placement differs on a screen we draw",
+	feature: "d. A feature or behaviour we lack",
+};
 
 export function countInventories(
 	specs: Map<Inventory, SpecFile>,
@@ -88,6 +107,20 @@ export function renderReport(report: Report): string {
 		`| Total | ${total.entries} | ${total.matched} | ${total.unsure} | ${total.decided} | ${total.gaps} |`,
 		"",
 	);
+	lines.push("## Gaps by class", "");
+	lines.push("| Class | Entries |", "| --- | ---: |");
+	const decided = Object.entries(report.decisions).sort(([a], [b]) => a.localeCompare(b));
+	const decidedTotal = decided.reduce((sum, [, count]) => sum + count, 0);
+	lines.push(
+		`| a. Decided (${decided.map(([id, count]) => `${id} ${count}`).join(", ")}) | ${decidedTotal} |`,
+	);
+	for (const [key, name] of Object.entries(CLASS_NAMES)) {
+		const count = report.findings.filter(
+			(finding) => finding.check === "a" && finding.class === key,
+		).length;
+		lines.push(`| ${name} | ${count} |`);
+	}
+	lines.push("");
 	lines.push("## Findings by check", "");
 	lines.push("| Check | Code | Gaps | Broken |", "| --- | --- | ---: | ---: |");
 	const byCode = new Map<string, { gap: number; broken: number }>();
@@ -129,8 +162,12 @@ export function renderReport(report: Report): string {
 			lines.push(`| b | ours-only | ${cell(states)} | ${cell(text)} | ${cell(same[0]?.detail)} |`);
 		}
 		for (const finding of list.filter((item) => item.code !== "ours-only")) {
+			const code =
+				finding.class === undefined ? finding.code : `${finding.code} (${finding.class})`;
+			const detail =
+				finding.backlog === undefined ? finding.detail : `${finding.backlog}: ${finding.detail}`;
 			lines.push(
-				`| ${finding.check} | ${finding.code} | ${cell(finding.id ?? finding.state)} | ${cell(finding.text)} | ${cell(finding.detail)} |`,
+				`| ${finding.check} | ${code} | ${cell(finding.id ?? finding.state)} | ${cell(finding.text)} | ${cell(detail)} |`,
 			);
 		}
 		lines.push("");

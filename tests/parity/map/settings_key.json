@@ -300,9 +300,10 @@
 		"screen": "Backend"
 	},
 	"settings_key:client_instance_id": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:codex_goals_disabled": {
 		"status": "gap",
@@ -330,9 +331,10 @@
 		"by": "seed"
 	},
 	"settings_key:cloud_in_data_privacy_mode_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:queue_messages_disabled": {
 		"status": "gap",
@@ -345,9 +347,10 @@
 		"screen": "Backend"
 	},
 	"settings_key:pr_roundhouse_state_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:user_message_footer_enabled": {
 		"status": "gap",
@@ -410,14 +413,16 @@
 		"screen": "Backend"
 	},
 	"settings_key:disable_external_logging": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:kill_switch_presence_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:experimental_agent_progress": {
 		"status": "gap",
@@ -525,39 +530,46 @@
 		"screen": "Backend"
 	},
 	"settings_key:gh_cloud_auth_method": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:gh_cloud_pat_expires_at": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:gh_cloud_pat_token": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:gh_cloud_token": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:gh_cloud_token_app_client_id": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:gh_cloud_token_expires_at": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:gh_cloud_token_source": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:graphite_disabled": {
 		"status": "matched",
@@ -575,134 +587,160 @@
 		"screen": "Backend"
 	},
 	"settings_key:internal_codex_message_log": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_desktop_remote_access": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_developer_metrics": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_codex_initial_permission_config": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_frame_drop_logging": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_session_transcript_prefetch_disabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_claude_token_usage_tracking": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_claude_initial_permission_mode": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_cloud_workspaces_independent_of_local_repos": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_pull_requests_page": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_principals": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_workspace_chat": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_native_fork": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_verbose_logging": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_sidecar_exp_session_log": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_terminal_render_debug_log": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_remote_local_execution_mcp": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_request_metadata": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_prompt_snippets": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_team_artifacts": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_pic_agent_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_muse_code_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_settings_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_settings_use_defaults": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_tauri_http_proxy_url": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_workspace_tabs": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:internal_workspace_status_matrix": {
 		"status": "matched",
@@ -825,9 +863,10 @@
 		"by": "seed"
 	},
 	"settings_key:react_profiler_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:review_thinking_enabled": {
 		"status": "gap",
@@ -840,19 +879,22 @@
 		"by": "seed"
 	},
 	"settings_key:roundhouse_client_url_override": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:roundhouse_client_user_id": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:roundhouse_credentials": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:repo_conductor_config_file_migration_complete": {
 		"status": "gap",
@@ -895,14 +937,16 @@
 		"by": "seed"
 	},
 	"settings_key:sidecar_inspect": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:sidecar_inspect_brk": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"settings_key:sidebar_resource_usage": {
 		"status": "matched",

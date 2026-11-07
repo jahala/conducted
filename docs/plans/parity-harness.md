@@ -37,6 +37,17 @@ The `conductor-code` guard holds the rule that the spec carries no code: it runs
 
 A gap is closed in step 5 of the goal in one of two ways: fix our screen (and add the catalogue state that shows it, for an unshown gap), or add a decision to `docs/decisions.md` and name it in the map. Removing or hiding anything people see needs the owner's yes per item.
 
+### Sorting the gaps
+
+Every entry that is not matched falls in one of four classes. The report counts each class (`## Gaps by class`), and a later run sorts the same way by these rules:
+
+- **a. Decided.** The entry belongs to something a decision leaves out: team features (D004, kept out by D018), Conductor's own service, hosted computers, phone relay, staff tools and Muse Code (D025), GitHub App sign-in (D029), Linear's account sign-in (D035), Conductor's assets (D002), or strings that are not wording (D086). Cloud workspaces are not decided: D075 builds them, so their entries are class d with a CLOUD row. It is written as `"status": "decided"` in one of two ways:
+  - A named rule in `scripts/parity/rules.ts` when the entry's own words say what it is for: a route of an organisation, routine or onboarding page; a team word (organisation, teammate, single sign-on, shared access, poke); a word naming Conductor's service (Conductor Pro, account, API, Roundhouse, billing, PostHog, Sentry); a bundled sound or logo path; a key name; a backend name of telemetry, the phone relay or hosted computers.
+  - By hand (`"by": "hand"`) for a whole bundle region whose component a person read and found to be one left-out feature, such as the Internal settings page, the profile and activity page, the sharing dialog or the hosted sandbox's details. Only missing UI entries are decided this way: a string our UI source also holds is something of ours, so it stays a gap.
+- **b. Unshown.** Our UI source holds the string but no catalogue state draws it (`"reason": "unshown"`). It closes when a catalogue state draws the screen it is on, or when the map names an existing state that already draws it.
+- **c. Wording or placement.** One of our screens does the same job in other words or in another place. A person marks it `"class": "wording"` with a note naming our string, and closes it by changing our screen to Conductor's wording, so the next seed matches it. Our product name stands for Conductor's: the harness reads "Conductor" as "Conducted" when it compares (D012).
+- **d. Feature.** Everything else that is missing: a control, message or behaviour we lack. `"backlog"` names its row in `docs/plans/backlog.md`, or `"new"` when none owns it; the gap report lists them by screen.
+
 ## 3. The checks
 
 Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.json>]` runs a, b, c and e (`--no-dump` runs a and e only) and writes `report.json` and `report.md`; the flows are their own command.

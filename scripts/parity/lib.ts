@@ -86,12 +86,27 @@ export type MapEntry =
 			status: "gap";
 			reason: "missing" | "unshown";
 			screen: string;
+			/**
+			 * The sorting class (docs/plans/parity-harness.md section 2). Absent means the class follows
+			 * from the reason: "unshown" for an unshown gap, "feature" for a missing one. A person writes
+			 * "wording" when one of our screens does the same job in other words or in another place.
+			 */
+			class?: GapClass;
+			/** A feature gap's backlog row in docs/plans/backlog.md, or "new" when none owns it yet. */
+			backlog?: string;
 			note?: string;
 			/** "hand" when a person checked it; the seeder then keeps it. */
 			by?: "hand";
 	  };
 
 export type MapFile = Record<string, MapEntry>;
+
+/** How a gap is closed: a catalogue state, a fix to our wording or placement, or a feature. */
+export type GapClass = "unshown" | "wording" | "feature";
+
+export function gapClass(entry: Extract<MapEntry, { status: "gap" }>): GapClass {
+	return entry.class ?? (entry.reason === "unshown" ? "unshown" : "feature");
+}
 
 /** A name of ours the check accepts with no Conductor entry: a decision, or the owner's keep ruling. */
 export interface OursOnly {
@@ -139,9 +154,14 @@ export interface Dump {
 	states: DumpState[];
 }
 
-/** Wording compared across apps: trimmed, one space, `…` as `...`, straight quotes. */
+/**
+ * Wording compared across apps: trimmed, one space, `…` as `...`, straight quotes, and Conductor's
+ * name for itself read as ours (D012), so "Where Conductor stores ..." matches "Where Conducted
+ * stores ...".
+ */
 export function normalise(text: string): string {
 	return text
+		.replace(/\bConductor\b/g, "Conducted")
 		.replace(/…/g, "...")
 		.replace(/[‘’]/g, "'")
 		.replace(/[“”]/g, '"')

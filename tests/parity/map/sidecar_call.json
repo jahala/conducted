@@ -135,9 +135,10 @@
 		"by": "seed"
 	},
 	"sidecar_call:remoteControlPairedDevicesChanged": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of the phone relay: pairing a device and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "rule:phone-relay-backend"
 	},
 	"sidecar_call:query": {
 		"status": "gap",
@@ -175,24 +176,28 @@
 		"screen": "Backend"
 	},
 	"sidecar_call:setInternalUser": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"sidecar_call:setAppLoggerUrl": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"sidecar_call:setPostHogDistinctId": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"sidecar_call:setExternalLoggingDisabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"sidecar_call:setModelCatalog": {
 		"status": "gap",
@@ -210,29 +215,34 @@
 		"screen": "Backend"
 	},
 	"sidecar_call:codexCloudAuthStart": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_call:codexCloudAuthFinish": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_call:cursorCloudAuthStart": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_call:cursorCloudAuthFinish": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_call:cursorCloudAuthCancel": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_call:fetchAvailableMCP": {
 		"status": "gap",
@@ -310,24 +320,28 @@
 		"screen": "Backend"
 	},
 	"sidecar_call:remoteControlCreatePairingOffer": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of the phone relay: pairing a device and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "rule:phone-relay-backend"
 	},
 	"sidecar_call:remoteControlClearPairingOffer": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of the phone relay: pairing a device and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "rule:phone-relay-backend"
 	},
 	"sidecar_call:remoteControlListPairedDevices": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of the phone relay: pairing a device and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "rule:phone-relay-backend"
 	},
 	"sidecar_call:remoteControlRemovePairedDevice": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of the phone relay: pairing a device and the paired device list. Remote control is D019's claude.ai route.",
+		"by": "rule:phone-relay-backend"
 	},
 	"sidecar_call:codexRollback": {
 		"status": "gap",
@@ -385,8 +399,9 @@
 		"screen": "Backend"
 	},
 	"sidecar_call:crashTest": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	}
 }

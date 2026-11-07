@@ -20,119 +20,142 @@
 		"screen": "Unplaced"
 	},
 	"label:M315960": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M316257": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M316505": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M316687": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M316847": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317006": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317144": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317234": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317368": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317635": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317802": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M317994": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M318166": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M318281": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M318970": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M319218": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M319672": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M320573": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M320655": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M320727": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M320801": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M320953": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321106": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321253": {
 		"status": "gap",
@@ -142,49 +165,58 @@
 		"by": "hand"
 	},
 	"label:M321304": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321359": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321446": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321530": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321603": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321670": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M321734": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M322182": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M322308": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M322421": {
 		"status": "gap",
@@ -192,69 +224,82 @@
 		"screen": "inventory-controls Agents"
 	},
 	"label:M322496": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M322553": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M322674": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M333632": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A model of the Muse Code agent, which stays out.",
+		"by": "hand"
 	},
 	"label:M333678": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A model of the Muse Code agent, which stays out.",
+		"by": "hand"
 	},
 	"label:M333726": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A model of the Muse Code agent, which stays out.",
+		"by": "hand"
 	},
 	"label:M333773": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A model of the Muse Code agent, which stays out.",
+		"by": "hand"
 	},
 	"label:M335172": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335235": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335380": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335459": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335535": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335616": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335764": {
 		"status": "matched",
@@ -273,274 +318,328 @@
 		"by": "seed"
 	},
 	"label:M335927": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M335994": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336060": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336129": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336197": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336259": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336340": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336430": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336495": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336564": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336664": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336737": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336816": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336896": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M336966": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337100": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337174": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337257": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337333": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337402": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337466": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337576": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337644": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337706": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337768": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337830": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337905": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M337968": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338035": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338108": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338186": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338250": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338315": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338381": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338461": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338556": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338622": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338697": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338769": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338846": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M338915": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339152": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339220": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339287": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339353": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339427": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339537": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339601": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339668": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339750": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339820": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339880": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M339949": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340013": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340089": {
 		"status": "matched",
@@ -551,149 +650,178 @@
 		"by": "seed"
 	},
 	"label:M340155": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340259": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340333": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340418": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340525": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340583": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340649": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340714": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340786": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340854": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340923": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M340996": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341078": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341231": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341382": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341465": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341573": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341660": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341736": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341810": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341928": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M341996": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342061": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342122": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342186": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342256": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342314": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342538": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M342601": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A provider name from the provider catalogue Conductor bundles for OpenCode. Our list comes from OpenCode itself, so these are data, not wording.",
+		"by": "hand"
 	},
 	"label:M363480": {
 		"status": "gap",
@@ -759,24 +887,28 @@
 		"screen": "Unplaced"
 	},
 	"label:M2477618": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A code identifier the label pattern caught.",
+		"by": "hand"
 	},
 	"label:M2477823": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A code identifier the label pattern caught.",
+		"by": "hand"
 	},
 	"label:M2683114": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683200": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683302": {
 		"status": "gap",
@@ -784,64 +916,76 @@
 		"screen": "ui-map 6. Settings"
 	},
 	"label:M2683334": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683399": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683477": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683559": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683622": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683705": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683802": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683884": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2683978": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2684062": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2684241": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M2684350": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D002",
+		"note": "Conductor's bundled sounds and transit logos. Its sounds and assets never enter our product; ours offers its own chime.",
+		"by": "hand"
 	},
 	"label:M3072009": {
 		"status": "gap",
@@ -854,24 +998,28 @@
 		"screen": "Unplaced"
 	},
 	"label:M3222818": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A code identifier the label pattern caught.",
+		"by": "hand"
 	},
 	"label:M3238505": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A code identifier the label pattern caught.",
+		"by": "hand"
 	},
 	"label:M3238672": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A code identifier the label pattern caught.",
+		"by": "hand"
 	},
 	"label:M3239277": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A code identifier the label pattern caught.",
+		"by": "hand"
 	},
 	"label:M3753682": {
 		"status": "matched",
@@ -892,49 +1040,58 @@
 		"screen": "Unplaced"
 	},
 	"label:R97098": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97174": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97245": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97327": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97401": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97472": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97550": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97634": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R97715": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App permission. GitHub App sign-in stays out; the app uses gh with the user's own sign-in.",
+		"by": "hand"
 	},
 	"label:R104487": {
 		"status": "gap",
@@ -1312,9 +1469,10 @@
 		"screen": "Unplaced"
 	},
 	"label:R2960475": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"label:R2960659": {
 		"status": "gap",
@@ -1447,14 +1605,16 @@
 		"by": "seed"
 	},
 	"label:R5599862": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5600011": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"label:R5600192": {
 		"status": "gap",
@@ -1462,99 +1622,118 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"label:R5600277": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"label:R5600416": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5600662": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5600755": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5600870": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"label:R5601055": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"label:R5601147": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"label:R5601303": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5601441": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5601569": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5601752": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"label:R5601935": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5602042": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5602151": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5602250": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5602470": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5615314": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5615533": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5616392": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"label:R5628664": {
 		"status": "matched",
@@ -2078,34 +2257,40 @@
 		"by": "hand"
 	},
 	"label:R10300655": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10300679": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10300703": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10301044": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10301248": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10301398": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10301562": {
 		"status": "matched",
@@ -2116,9 +2301,10 @@
 		"by": "seed"
 	},
 	"label:R10301707": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A person's profile and activity in an organisation. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10363007": {
 		"status": "matched",
@@ -2134,14 +2320,16 @@
 		"screen": "inventory-controls App shell"
 	},
 	"label:R10382819": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"label:R10384295": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"label:R10415253": {
 		"status": "gap",
@@ -2164,9 +2352,10 @@
 		"screen": "Unplaced"
 	},
 	"label:R10481109": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The team sidebar's My workspaces and Following groups. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10488895": {
 		"status": "gap",
@@ -2205,9 +2394,10 @@
 		"by": "seed"
 	},
 	"label:R10569570": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"label:R10570025": {
 		"status": "gap",
@@ -2312,14 +2502,16 @@
 		"screen": "Unplaced"
 	},
 	"label:R10787831": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Building the hosted cloud computer's snapshot. Conductor's hosted computers stay out.",
+		"by": "hand"
 	},
 	"label:R10787880": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Building the hosted cloud computer's snapshot. Conductor's hosted computers stay out.",
+		"by": "hand"
 	},
 	"label:R10787975": {
 		"status": "gap",
@@ -2327,9 +2519,10 @@
 		"screen": "Unplaced"
 	},
 	"label:R10808274": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"label:R10818359": {
 		"status": "gap",
@@ -2337,9 +2530,10 @@
 		"screen": "Unplaced"
 	},
 	"label:R10819213": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"label:R10853717": {
 		"status": "gap",
@@ -2347,9 +2541,10 @@
 		"screen": "Unplaced"
 	},
 	"label:R10855109": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared cloud computer, environment and members pages. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10918784": {
 		"status": "gap",
@@ -2390,19 +2585,22 @@
 		"screen": "inventory-ui-text Settings and agents"
 	},
 	"label:R11035888": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App action. GitHub App sign-in stays out.",
+		"by": "hand"
 	},
 	"label:R11035944": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App action. GitHub App sign-in stays out.",
+		"by": "hand"
 	},
 	"label:R11036008": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"status": "decided",
+		"decision": "D029",
+		"note": "A GitHub App action. GitHub App sign-in stays out.",
+		"by": "hand"
 	},
 	"label:R11117682": {
 		"status": "matched",
@@ -2456,34 +2654,40 @@
 		"screen": "Unplaced"
 	},
 	"label:R11206388": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"label:R11206484": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"label:R11206592": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"label:R11216739": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"label:R11216801": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"label:R11216862": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"label:R11252763": {
 		"status": "gap",
@@ -2666,9 +2870,10 @@
 		"screen": "inventory-controls App shell"
 	},
 	"label:R11670134": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"label:R11723671": {
 		"status": "gap",
@@ -2676,14 +2881,16 @@
 		"screen": "Unplaced"
 	},
 	"label:R11748740": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account settings: API keys and billing.",
+		"by": "hand"
 	},
 	"label:R11748795": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"label:R11902518": {
 		"status": "gap",

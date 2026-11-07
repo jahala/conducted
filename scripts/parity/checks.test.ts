@@ -81,6 +81,25 @@ describe("check a, map completeness", () => {
 		]);
 	});
 
+	test("a gap carries its class: unshown and missing by reason, wording when a person says so", () => {
+		const maps = new Map<Inventory, MapFile>([
+			[
+				"label",
+				{
+					"label:R1": { status: "gap", reason: "unshown", screen: "S" },
+					"label:R2": { status: "gap", reason: "missing", screen: "S", backlog: "SET-01" },
+					"label:R3": { status: "gap", reason: "missing", screen: "S", class: "wording" },
+					"label:R4": { status: "matched", state: "sidebar", by: "seed" },
+				},
+			],
+		]);
+		const found = checkCompleteness(inputs({ maps }));
+		const classOf = (id: string) => found.find((finding) => finding.id === id);
+		expect(classOf("label:R1")).toMatchObject({ code: "gap-unshown", class: "unshown" });
+		expect(classOf("label:R2")).toMatchObject({ class: "feature", backlog: "SET-01" });
+		expect(classOf("label:R3")).toMatchObject({ code: "gap-missing", class: "wording" });
+	});
+
 	test("an unknown decision, an unknown state and a map id with no spec entry are broken", () => {
 		const maps = new Map<Inventory, MapFile>([
 			[

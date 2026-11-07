@@ -98,7 +98,8 @@ describe("seeding the map from a dump", () => {
 					"label",
 					label([
 						["label:R1", "Open draft"],
-						["label:R2", "Invite teammates"],
+						// Not a team string: the team-wording rule would decide that one.
+						["label:R2", "Merge stack"],
 					]),
 				],
 			]),
@@ -146,6 +147,79 @@ describe("seeding the map from a dump", () => {
 			decision: "D086",
 			by: "rule:place-name",
 		});
+	});
+
+	test("a team, service or asset entry is decided by its rule; another organisation is not", () => {
+		const specs = new Map<Inventory, SpecFile>([
+			[
+				"label",
+				label([
+					["label:R1", "Create organization"],
+					["label:R2", "Manage your Conductor Pro plan and payment details."],
+					["label:R3", "Organization"],
+					["label:R4", "Associates Codex API requests with an OpenAI organization."],
+				]),
+			],
+			[
+				"route",
+				{
+					...label([
+						["route:R5", "/chime.mp3"],
+						["route:R6", "/settings/organization/prompts"],
+					]),
+					inventory: "route",
+				},
+			],
+		]);
+		const seeded = seed(specs);
+		expect(seeded.get("label")?.["label:R1"]).toMatchObject({
+			decision: "D004",
+			by: "rule:team-wording",
+		});
+		expect(seeded.get("label")?.["label:R2"]).toMatchObject({
+			decision: "D025",
+			by: "rule:conductor-service",
+		});
+		expect(seeded.get("label")?.["label:R3"]).toMatchObject({ status: "gap" });
+		expect(seeded.get("label")?.["label:R4"]).toMatchObject({ status: "gap" });
+		expect(seeded.get("route")?.["route:R5"]).toMatchObject({ by: "rule:bundled-asset" });
+		expect(seeded.get("route")?.["route:R6"]).toMatchObject({ by: "rule:team-route" });
+	});
+
+	test("Conductor's name for itself matches ours", () => {
+		const specs = new Map<Inventory, SpecFile>([
+			["label", label([["label:R1", "Review, comment, and merge from Conductor."]])],
+		]);
+		const named: Dump = {
+			...dump,
+			states: [
+				{
+					id: "onboarding",
+					group: "App shell",
+					route: "/",
+					error: null,
+					layout: [],
+					names: [
+						{
+							text: "Review, comment, and merge from Conducted.",
+							via: "text",
+							role: "span",
+							selector: "li span",
+						},
+					],
+				},
+			],
+		};
+		const seeded = seedMaps({
+			specs,
+			maps: new Map(),
+			dump: named,
+			ours: noBackend,
+			ourStrings: new Set(),
+			screenFor: () => "x",
+			rules: { places: new Set() },
+		});
+		expect(seeded.get("label")?.["label:R1"]).toMatchObject({ status: "matched", by: "seed" });
 	});
 
 	test("backend names match ours by name, and a plugin command by its plugin", () => {

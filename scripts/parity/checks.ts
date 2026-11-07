@@ -14,6 +14,8 @@ import {
 	type BackendInventory,
 	type Dump,
 	type DumpState,
+	type GapClass,
+	gapClass,
 	type Inventory,
 	isUiInventory,
 	type MapEntry,
@@ -36,6 +38,10 @@ export interface Finding {
 	id?: string;
 	state?: string;
 	text?: string;
+	/** Check a's gaps: how the gap is closed (docs/plans/parity-harness.md section 2). */
+	class?: GapClass;
+	/** A feature gap's backlog row, when the map names one. */
+	backlog?: string;
 }
 
 export interface Inputs {
@@ -142,6 +148,8 @@ function entryProblems(
 				severity: "gap",
 				code: `gap-${mapped.reason}`,
 				screen: mapped.screen,
+				class: gapClass(mapped),
+				...(mapped.backlog === undefined ? {} : { backlog: mapped.backlog }),
 				detail:
 					mapped.note ??
 					(mapped.reason === "unshown" ? "no catalogue state shows it" : "not in our UI"),

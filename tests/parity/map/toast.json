@@ -20,9 +20,10 @@
 		"screen": "Unplaced"
 	},
 	"toast:M408967": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:M409156": {
 		"status": "gap",
@@ -120,9 +121,10 @@
 		"screen": "Unplaced"
 	},
 	"toast:M3753291": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:M3756589": {
 		"status": "gap",
@@ -360,9 +362,10 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"toast:R5557313": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer and its sandbox details. Our cloud is D018's, on the user's own account.",
+		"by": "rule:hosted-computer"
 	},
 	"toast:R5563508": {
 		"status": "gap",
@@ -380,9 +383,10 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"toast:R5643247": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:R8137573": {
 		"status": "gap",
@@ -595,9 +599,10 @@
 		"screen": "inventory-controls Composer"
 	},
 	"toast:R9513466": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:R9513542": {
 		"status": "gap",
@@ -680,14 +685,16 @@
 		"screen": "Unplaced"
 	},
 	"toast:R10395535": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:R10395595": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:R10477591": {
 		"status": "gap",
@@ -740,14 +747,16 @@
 		"screen": "Unplaced"
 	},
 	"toast:R10892009": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared cloud computer, environment and members pages. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"toast:R10902670": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared prompts page. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"toast:R10918731": {
 		"status": "gap",
@@ -905,14 +914,16 @@
 		"screen": "Unplaced"
 	},
 	"toast:R11190917": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay page: pairing a device and the device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"toast:R11191010": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay page: pairing a device and the device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"toast:R11203171": {
 		"status": "gap",
@@ -925,19 +936,22 @@
 		"screen": "Unplaced"
 	},
 	"toast:R11204862": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"toast:R11216327": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"toast:R11216449": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"toast:R11248595": {
 		"status": "gap",
@@ -996,7 +1010,7 @@
 	},
 	"toast:R11392647": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"toast:R11404745": {
@@ -1215,9 +1229,10 @@
 		"screen": "Unplaced"
 	},
 	"toast:R11752107": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's own settings-file migration pull request, for its earlier config format.",
+		"by": "hand"
 	},
 	"toast:R11931729": {
 		"status": "gap",
@@ -1250,9 +1265,10 @@
 		"screen": "Unplaced"
 	},
 	"toast:R12056127": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"toast:R12096061": {
 		"status": "gap",
