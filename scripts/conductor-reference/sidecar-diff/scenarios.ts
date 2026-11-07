@@ -31,8 +31,49 @@ export interface Scenario {
 	requireToolApproval?: boolean;
 	/** How the app answers a tool or plan approval. */
 	approve?: boolean;
+	/** The Codex approval policy and sandbox the chat asks for. Missing: each sidecar's default. */
+	codexPolicy?: { approval: string; sandbox: string };
+	/** Managed requirements the fake Codex reports (`configRequirements/read`). Missing: none. */
+	codexRequirements?: Record<string, unknown>;
 	steps: Step[];
 }
+
+/**
+ * A `ConfigRequirements` value of codex-cli 0.154.0 (`codex app-server generate-ts`): every field
+ * null except the allowed approval policies and sandbox modes.
+ */
+const requirements = (
+	allowedApprovalPolicies: string[],
+	allowedSandboxModes: string[],
+): Record<string, unknown> => ({
+	cliAuthCredentialsStore: null,
+	chatgptBaseUrl: null,
+	additionalDeveloperInstructions: null,
+	allowedApprovalPolicies,
+	allowedSandboxModes,
+	allowedWindowsSandboxImplementations: null,
+	allowedPermissionProfiles: null,
+	defaultPermissions: null,
+	allowedWebSearchModes: null,
+	allowManagedHooksOnly: null,
+	allowBrowserAndComputerUse: null,
+	allowAppshots: null,
+	allowRemoteControl: null,
+	computerUse: null,
+	browserUse: null,
+	inAppBrowser: null,
+	featureRequirements: null,
+	enforceResidency: null,
+	autoReview: null,
+	models: null,
+	sqliteHome: null,
+	logDir: null,
+	modelCatalogJson: null,
+	checkForUpdateOnStartup: null,
+	allowLoginShell: null,
+	feedback: null,
+	windowsSandboxPrivateDesktop: null,
+});
 
 const say = (turn: string, words: string): Step => ({
 	do: "send",
@@ -150,6 +191,68 @@ export const SCENARIOS: Scenario[] = [
 		requireToolApproval: true,
 		approve: true,
 		steps: [say("approval", "Create a file."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements",
+		title: "A Codex message under managed requirements that refuse the requested policy and sandbox",
+		agent: "codex",
+		codexRequirements: requirements(["untrusted", "on-request"], ["read-only", "workspace-write"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-reversed",
+		title: "The same requirements, each list in the other order",
+		agent: "codex",
+		codexRequirements: requirements(["on-request", "untrusted"], ["workspace-write", "read-only"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-allowed",
+		title: "A Codex approval chat under managed requirements that allow what it asks for",
+		agent: "codex",
+		requireToolApproval: true,
+		codexRequirements: requirements(["on-request", "never"], ["danger-full-access"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-middle",
+		title: "Managed requirements that refuse a middle policy and sandbox, with one choice on each side",
+		agent: "codex",
+		codexPolicy: { approval: "on-request", sandbox: "workspace-write" },
+		codexRequirements: requirements(["untrusted", "never"], ["read-only", "danger-full-access"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-middle-reversed",
+		title: "The same middle case, each list in the other order",
+		agent: "codex",
+		codexPolicy: { approval: "on-request", sandbox: "workspace-write" },
+		codexRequirements: requirements(["never", "untrusted"], ["danger-full-access", "read-only"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-stricter",
+		title: "Managed requirements that allow only more permissive choices than the chat asks for",
+		agent: "codex",
+		codexPolicy: { approval: "untrusted", sandbox: "read-only" },
+		codexRequirements: requirements(["on-request", "never"], ["workspace-write", "danger-full-access"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-stricter-reversed",
+		title: "The stricter case, each list in the other order",
+		agent: "codex",
+		codexPolicy: { approval: "untrusted", sandbox: "read-only" },
+		codexRequirements: requirements(["never", "on-request"], ["danger-full-access", "workspace-write"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
+	},
+	{
+		id: "codex-requirements-only-wider",
+		title: "Managed requirements that allow one choice each, wider than the chat's middle request",
+		agent: "codex",
+		codexPolicy: { approval: "on-request", sandbox: "workspace-write" },
+		codexRequirements: requirements(["never"], ["danger-full-access"]),
+		steps: [say("plain", "Say hello."), { do: "waitTurnEnd" }],
 	},
 	{
 		id: "codex-cancel",

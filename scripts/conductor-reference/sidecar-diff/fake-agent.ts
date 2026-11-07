@@ -7,7 +7,8 @@
  *   else with an empty success), asks the SDK for tool permission with `can_use_tool`, and answers
  *   each user message with a scripted turn of `system`, `assistant`, `user` and `result` messages.
  * - `codex`: `codex app-server`, JSON-RPC 2.0 over stdio. It answers `initialize`, `thread/start`,
- *   `thread/resume`, `turn/start`, `turn/interrupt`, `model/list`, `account/read` and a few reads,
+ *   `thread/resume`, `turn/start`, `turn/interrupt`, `model/list`, `account/read`,
+ *   `configRequirements/read` (null, or the scenario's requirements) and a few reads,
  *   streams the turn as `turn/started`, `item/*` and `turn/completed` notifications, and asks for
  *   command approval with `item/commandExecution/requestApproval`.
  *
@@ -602,6 +603,12 @@ function runCodex(): void {
 			case "experimentalFeature/enablement/set":
 				reply(id, {});
 				return;
+			case "configRequirements/read": {
+				// codex-cli answers null when no requirements.toml or MDM entry is configured.
+				const managed = process.env.SDIFF_CODEX_REQUIREMENTS;
+				reply(id, { requirements: managed === undefined ? null : (JSON.parse(managed) as Json) });
+				return;
+			}
 			case "skills/list":
 				reply(id, { data: [] });
 				return;

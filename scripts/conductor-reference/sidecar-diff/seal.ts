@@ -65,12 +65,29 @@ function profileText(ownerHome: string): string {
 	].join("\n");
 }
 
-function wrapper(agent: "claude" | "codex", agentLog: string): string {
+/** What a scenario sets up for the fake agents beyond the defaults. */
+export interface SealOptions {
+	/** The managed requirements the fake Codex answers `configRequirements/read` with. */
+	codexRequirements?: Record<string, unknown>;
+}
+
+/** A value quoted for a POSIX shell, so JSON passes through unchanged. */
+const shellQuote = (value: string): string => `'${value.replaceAll("'", `'"'"'`)}'`;
+
+function wrapper(agent: "claude" | "codex", agentLog: string, options: SealOptions): string {
+	const requirements =
+		options.codexRequirements === undefined
+			? []
+			: [
+					`SDIFF_CODEX_REQUIREMENTS=${shellQuote(JSON.stringify(options.codexRequirements))}`,
+					"export SDIFF_CODEX_REQUIREMENTS",
+				];
 	return [
 		"#!/bin/sh",
 		"# The fake agent program of the sidecar differential run.",
 		`SDIFF_AGENT_LOG=${JSON.stringify(agentLog)}`,
 		"export SDIFF_AGENT_LOG",
+		...requirements,
 		`exec ${JSON.stringify(process.execPath)} ${JSON.stringify(FAKE_AGENT)} ${agent} "$@"`,
 		"",
 	].join("\n");
@@ -94,7 +111,7 @@ function git(cwd: string, env: Record<string, string>, ...args: string[]): void 
 	if (done.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${done.stderr}`);
 }
 
-export function makeSeal(label: string): Seal {
+export function makeSeal(label: string, options: SealOptions = {}): Seal {
 	const root = realpathSync(mkdtempSync(`/tmp/sdiff-${label}-`));
 	const home = join(root, "home");
 	const tmp = join(root, "tmp");
@@ -107,7 +124,7 @@ export function makeSeal(label: string): Seal {
 	writeFileSync(agentLog, "");
 	for (const agent of ["claude", "codex"] as const) {
 		const file = join(fakeBin, agent);
-		writeFileSync(file, wrapper(agent, agentLog));
+		writeFileSync(file, wrapper(agent, agentLog, options));
 		chmodSync(file, 0o755);
 	}
 	const shell = join(shellDir, "zsh");
