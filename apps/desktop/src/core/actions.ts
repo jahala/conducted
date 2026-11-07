@@ -262,6 +262,10 @@ export function createActions(
 			saveGitIdentity: (identity) => services.cloudSettings.saveGitIdentity(identity),
 			setCloudEnvVar: (name, value) => services.cloudSettings.setEnvVar(name, value),
 			removeCloudEnvVar: (name) => services.cloudSettings.removeEnvVar(name),
+			saveMcpServer: (name, server) => services.cloudSettings.saveMcpServer(name, server),
+			removeMcpServer: (name) => services.cloudSettings.removeMcpServer(name),
+			importMcpServers: (servers) => services.cloudSettings.importMcpServers(servers),
+			scanLocalMcpServers: () => services.cloudMcpImport.scan(),
 		},
 		portForwards: {
 			setForwarding: (workspaceId, enabled) =>

@@ -61,6 +61,7 @@ import { type CloudDeployService, createCloudDeploy } from "./cloud/deploy.ts";
 import { FileSyncService } from "./cloud/file-sync.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
+import { type CloudMcpImport, createCloudMcpImport } from "./cloud/mcp-import.ts";
 import {
 	CLOUD_DATA_PRIVACY_MESSAGE,
 	cloudRequestRuns,
@@ -177,6 +178,7 @@ export interface Services {
 	cloudPairing: CloudPairingService;
 	cloudDeploy: CloudDeployService;
 	cloudSettings: CloudSettingsService;
+	cloudMcpImport: CloudMcpImport;
 	cloudFileSync: FileSyncService;
 	git: GitService;
 	graphite: GraphiteService;
@@ -1003,6 +1005,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return state.state === "ready" ? state.pairing : { paired: false, url: null };
 		},
 	});
+	const cloudMcpImport = createCloudMcpImport({
+		files: platform.fs,
+		toml: inputs.toml,
+		home: platform.fs.paths.home,
+		repoRoots: () =>
+			Object.values(repo.store.getState().reposById).map((project) => project.rootPath),
+	});
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,
@@ -1210,6 +1219,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cloudDeploy,
 		portForwards,
 		cloudSettings,
+		cloudMcpImport,
 		cloudFileSync,
 		git,
 		graphite,

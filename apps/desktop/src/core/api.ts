@@ -37,7 +37,8 @@ import type {
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
 import type { FileSyncView } from "./cloud/file-sync.ts";
-import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
+import type { LocalMcpScan } from "./cloud/mcp-import.ts";
+import type { CloudGitIdentity, CloudMcpServer, CloudSettings } from "./cloud/settings.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -760,6 +761,14 @@ export interface Actions {
 		setCloudEnvVar: Act<[name: string, value: string], CloudSettings>;
 		/** Removes one personal cloud variable (CLOUD-17). */
 		removeCloudEnvVar: Act<[name: string], CloudSettings>;
+		/** Adds or replaces one cloud MCP server (CLOUD-17). */
+		saveMcpServer: Act<[name: string, server: CloudMcpServer], CloudSettings>;
+		/** Removes one cloud MCP server (CLOUD-17). */
+		removeMcpServer: Act<[name: string], CloudSettings>;
+		/** Adds the MCP servers an import chose, keeping the saved ones (CLOUD-17). */
+		importMcpServers: Act<[servers: Record<string, CloudMcpServer>], CloudSettings>;
+		/** Scans this Mac's agent configs for remote MCP servers to import (CLOUD-17). */
+		scanLocalMcpServers: Act<[], LocalMcpScan>;
 	};
 	portForwards: {
 		/** The workspace's Start forwarding switch (Cmd+Y). Exclusive mode turns others off first. */
