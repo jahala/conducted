@@ -72,6 +72,7 @@ import type { DiagnosticsCapture, Session } from "./model.ts";
 import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
+import { type CloudPairingService, createCloudPairing } from "./services/cloud-pairing.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { ContextWindowService } from "./services/context-windows.ts";
@@ -119,6 +120,7 @@ import {
 import { EventIngest } from "./sidecar/ingest.ts";
 import { SessionResume } from "./sidecar/resume.ts";
 import { type SidecarClient, SidecarTunnel } from "./sidecar/tunnel.ts";
+import { isArchivedWorkspace } from "./status/archived.ts";
 
 /**
  * How long a quit waits for the container to stop before the app quits anyway. Our choice (D064):
@@ -163,6 +165,7 @@ export interface Services {
 	agentCatalog: AgentCatalogService;
 	mcp: McpService;
 	linear: LinearService;
+	cloudPairing: CloudPairingService;
 	git: GitService;
 	graphite: GraphiteService;
 	gitCache: GitCache;
@@ -916,6 +919,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		now: () => clock.now(),
 	});
+	const cloudPairing = createCloudPairing(platform.cloud);
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,
@@ -1101,6 +1105,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agentCatalog,
 		mcp,
 		linear,
+		cloudPairing,
 		git,
 		graphite,
 		gitCache,
@@ -1153,7 +1158,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			run: () =>
 				gitCacheConnection.paint(
 					Object.values(workspace.store.getState().workspacesById)
-						.filter((found) => found.state !== "archived")
+						.filter((found) => !isArchivedWorkspace(found))
 						.map((found) => ({ id: found.id, branch: found.branch })),
 				),
 		},
@@ -1164,6 +1169,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
 		{ name: "linear access", phase: "services", fatal: false, run: () => linear.start() },
+		{ name: "cloud pairing", phase: "services", fatal: false, run: () => cloudPairing.start() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },

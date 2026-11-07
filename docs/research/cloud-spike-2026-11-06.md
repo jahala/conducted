@@ -304,6 +304,38 @@ Everything was deleted: the Worker `conducted-dev-c05-1320` (URL 404), its conta
 `conducted-dev-c05-1320-workspace-sandbox:wrangler-mw6fjhw5`. Both container lists then held no
 `conducted` entry. The local build folder and `/tmp` files were trashed.
 
+## Follow-up: pairing with the Worker (CLOUD-07, 2026-11-07)
+
+A throwaway Worker under the owner's account, named `conducted-dev-c07-131515`, deployed from
+`apps/cloud` with the product sandbox image (`conducted-dev-c07-131515-workspace-sandbox`,
+`wrangler-mw6feown`, digest `sha256:28d8ad87fee6…`). No sandbox was started: the pairing route
+touches no Durable Object, so this run cost no sandbox time.
+
+| Check (`GET /pair` unless noted)                         | Answer                                                    | Time     |
+| -------------------------------------------------------- | --------------------------------------------------------- | -------- |
+| a bearer token that is the Worker's `PAIRING_TOKEN`       | 200, `{"service":"conducted-cloud","paired":true}`         | 0.099 s  |
+| no token                                                 | 401                                                       | 0.425 s  |
+| a wrong token                                            | 401                                                       | 0.052 s  |
+| `POST` with the right token                              | 405                                                       | 0.051 s  |
+| the shell's own `ask_worker_for_pairing` (temporary Rust integration test) | good token accepted, wrong token refused | 0.09 s   |
+
+The 0.425 s on the first request is the Worker's cold start; every later answer was about 0.05 s.
+The deploy took 17.5 s to upload and 2.1 s to publish its triggers; the image was cached from the
+CLOUD-04 local build. The Rust test used `cloud::ask_worker_for_pairing`, the function
+`cloud_pair` calls; it was removed after the run.
+
+Not exercised in this live run: the macOS Keychain writes of `cloud_pair`/`cloud_unpair` (their
+storage is the same `keychain.rs` round trip PLAT-10 tests, and the save order is the ordering
+`cloud.rs`'s unit test describes), and the Connections form in a running app window (the container
+test over the real composition root and the Connections page test cover it).
+
+Everything the run created was deleted: Worker `conducted-dev-c07-131515` (its URL now answers
+404), container application `conducted-dev-c07-sandbox-131515` (`4cea4f9a…`), registry image
+`conducted-dev-c07-131515-workspace-sandbox:wrangler-mw6feown`, and the local Docker tag. Final
+`wrangler containers list` and `wrangler containers images list` hold no `c07` entry. The local
+`apps/cloud/sandbox/build/` folder was removed, and the token file and run notes under `/tmp` were
+trashed.
+
 ## Follow-up: cloud terminals, run scripts and previews (CLOUD-09, 2026-11-07)
 
 Built the terminal WebSocket and the preview proxy on the owner's account with the product image,

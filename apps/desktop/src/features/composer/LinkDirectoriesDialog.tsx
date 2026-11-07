@@ -16,6 +16,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
 import { useActions, useWorkspace, useWorkspaces } from "../../core/hooks.ts";
 import { normaliseLinkedPaths } from "../../core/services/workspace.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
@@ -100,7 +101,7 @@ export function LinkDirectoriesDialog({
 
 	const otherWorkspaces =
 		workspaces.state === "ready"
-			? workspaces.data.filter((entry) => entry.id !== workspaceId && entry.state !== "archived")
+			? workspaces.data.filter((entry) => entry.id !== workspaceId && !isArchivedWorkspace(entry))
 			: [];
 
 	return (

@@ -12,6 +12,7 @@
  * Test first: Five workspaces with five different statuses give one card in each column.
  */
 import type { KanbanStatus, Workspace } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 
 export const KANBAN_COLUMNS: Record<KanbanStatus, { label: string; position: number }> = {
 	backlog: { label: "Backlog", position: 0 },
@@ -40,7 +41,7 @@ export const KANBAN_DRAG_TYPE = "application/x-conducted-workspace";
 
 /** True when a workspace belongs on the board: an archived one does not. */
 function isOnBoard(workspace: Workspace): boolean {
-	return workspace.state !== "archived" && workspace.archivedAt === null;
+	return !isArchivedWorkspace(workspace);
 }
 
 /**

@@ -106,11 +106,11 @@ describe("NAV-05 WorkspaceCard", () => {
 		expect(screen.queryByRole("link", { name: /Old work/ })).toBeNull();
 	});
 
-	it("treats a workspace with an archived date as archived before its state catches up", async () => {
+	it("shows a workspace being restored as a live card, not archived", async () => {
 		const { repo, workspace } = await seedCard({ displayName: "Old work" });
-		renderCard({ ...workspace, state: "ready", archivedAt: 10 }, repo);
-		expect(await screen.findByRole("button", { name: "Unarchive" })).toBeTruthy();
-		expect(screen.queryByRole("link", { name: /Old work/ })).toBeNull();
+		renderCard({ ...workspace, state: "initializing", archivedAt: 10 }, repo);
+		expect(await screen.findByRole("link", { name: /Old work/ })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Unarchive" })).toBeNull();
 	});
 
 	it("calls unarchive from the archived card", async () => {

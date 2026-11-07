@@ -19,6 +19,8 @@
  */
 
 import { ok, type Result } from "@conducted/shared";
+import type { Workspace } from "../core/model.ts";
+import { isArchivedWorkspace } from "../core/status/archived.ts";
 import {
 	sidebarSize,
 	workspaceLayoutGroupId,
@@ -163,7 +165,7 @@ export function clearPanelLayout(
 
 /** The workspace list as the layout cleanup reads it. */
 interface WorkspaceList {
-	workspacesById: Readonly<Record<string, { archivedAt: number | null }>>;
+	workspacesById: Readonly<Record<string, Pick<Workspace, "state">>>;
 }
 
 /** The workspace service's store, which tells each change with the state before it. */
@@ -175,9 +177,9 @@ export interface WorkspaceListStore {
 export function workspacesClosed(previous: WorkspaceList, next: WorkspaceList): string[] {
 	const closed: string[] = [];
 	for (const [id, workspace] of Object.entries(previous.workspacesById)) {
-		if (workspace.archivedAt !== null) continue;
+		if (isArchivedWorkspace(workspace)) continue;
 		const now = next.workspacesById[id];
-		if (now === undefined || now.archivedAt !== null) closed.push(id);
+		if (now === undefined || isArchivedWorkspace(now)) closed.push(id);
 	}
 	return closed;
 }

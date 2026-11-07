@@ -81,6 +81,24 @@ describe("CHAT-23 run a shell code block through the real container", () => {
 		}
 	});
 
+	it("does not call a workspace being restored archived", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			await test.database.execute(
+				"UPDATE workspaces SET state = 'initializing', archived_at = 6000 WHERE id = $1",
+				[workspace.id],
+			);
+
+			const run = await test.container.services.terminals.runCommand(workspace.id, "echo hello");
+
+			expect(run).toMatchObject({ ok: false, error: { code: "workspace_not_ready" } });
+			expect(test.memory.controls.ptySpawns).toHaveLength(0);
+		} finally {
+			test.close();
+		}
+	});
+
 	it("refuses a workspace that is not ready and starts nothing", async () => {
 		const test = createTestContainer();
 		try {

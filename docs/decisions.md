@@ -564,6 +564,20 @@ Chosen:
 Why not container snapshots: the spike found no API that lists or deletes them and they expire after 30 days, so they cannot meet the "delete everything" rule (`docs/research/cloud-spike-2026-11-06.md`).
 Why: this is the spike's own method, extended to the second agent's transcript store and to the signal the spike said was missing. The bucket's size is bounded by the number of workspaces, not the number of turns.
 
+## D106. Pairing a Mac with a Worker keeps one URL and one token, checked before they are saved (2026-11-07)
+
+Proposed by the CLOUD-07 PR; not yet ruled on by the owner.
+Context: D101 stores one pairing token per Mac under `cloud-pairing-token` and leaves the pairing flow to this row. The CLOUD-02 spike kept the token in a mode-600 file and named the Keychain as the product's home (question 4). Conductor has no self-hosted Worker to pair with, so its screens give no place or wording to copy; the flow and its form are ours (D098, D020: report the gap).
+Chosen:
+
+- A pairing is a Worker URL and its token. The app sends both to the Worker's `GET /pair` before it saves either. The answer must name the service `conducted-cloud` and report `paired: true`; anything else is refused, so a URL that answers any request is not taken for a Worker. A 401 is its own message.
+- The Worker URL is kept in the Keychain under `cloud-pairing-url` and the token under `cloud-pairing-token`, both in the app's service. The URL is written before the token, and only a non-empty token counts as paired. The token never returns to the web view, a log or an event; the URL does, so the app can show which Worker the Mac is paired with.
+- One pairing per Mac: pairing another Worker replaces the URL and token. A cloud workspace still names its own Worker URL on its host (D092), so a workspace whose Worker is not the paired one fails with the Worker's own refusal rather than falling back to the Mac.
+- The form lives in a "Cloud Workspaces" block on the Connections page, our own page (D098). Unpair removes both items; a Mac that was never paired succeeds.
+- The Worker's `/pair` route sits behind the same token check as every other route and touches no Durable Object, so a Mac can pair before the first workspace exists.
+
+Why: the user can check the token with the Worker at the moment they paste it, and a wrong URL or token changes nothing. Keeping the URL makes the state after a restart readable. Per-Worker tokens stay possible later; the Keychain keys can gain a Worker suffix when a second Worker needs its own token.
+
 ## D107. Conductor's account controls stay out of the matched screens (2026-11-07)
 
 Context: the second round of D098 found two more Conductor controls that only work with a Conductor account: the organisation switcher at the top of the sidebar and of Settings ("Sam Rivera's Mac", whose menu holds the organisations, "Create organization", "Upgrade to Pro" and "Log out"), and the Loadout's "Share" button on Default models ("Sign in to share a loadout"; it opens a page on Conductor's service).

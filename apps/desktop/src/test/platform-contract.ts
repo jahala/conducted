@@ -513,7 +513,14 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"cloud",
 		"request-scripted",
 		"a scripted Worker answer reaches the caller",
-		"cloud.request returns the status and body a scripted Worker answered, and cloud.paired reports the saved pairing.",
+		"cloud.request returns the status and body a scripted Worker answered, and cloud.status reports the saved pairing.",
+		"controls",
+	),
+	c(
+		"cloud",
+		"pairing",
+		"a pairing is kept and removed",
+		"cloud.status reports no Worker, cloud.pair keeps the URL the form gave, and cloud.unpair removes it.",
 		"controls",
 	),
 	c(
@@ -547,8 +554,8 @@ export interface ContractControls {
 	setClipboardFilePaths?(paths: readonly string[]): void;
 	/** Adds a scripted Worker answer (CLOUD-03). */
 	scriptCloud?(script: CloudScript): void;
-	/** Changes what `cloud.paired` reports. */
-	setCloudPaired?(paired: boolean): void;
+	/** Changes what `cloud.status` reports (CLOUD-07). */
+	setCloudPairing?(pairing: { paired: boolean; url: string | null }): void;
 	/** Delivers one line to a cloud relay. False when the relay is not open. */
 	emitCloudLine?(relayId: string, line: string): boolean;
 	/** Ends a cloud relay. False when the relay is not open. */
@@ -1848,12 +1855,12 @@ const STEPS: Record<string, ContractStep> = {
 		const script = ctx.controls?.scriptCloud;
 		ctx.assert(script !== undefined, "the controls do not script a cloud request");
 		if (script === undefined) return;
-		ctx.controls?.setCloudPaired?.(true);
+		ctx.controls?.setCloudPairing?.({ paired: true, url: "https://w.example.dev" });
 		script((request) =>
 			request.path === "/w/oslo/state" ? ok({ status: 200, body: '{"running":true}' }) : null,
 		);
-		const paired = expectOk(ctx, await ctx.platform.cloud.paired(), "paired");
-		ctx.assert(paired, "paired was false");
+		const pairing = expectOk(ctx, await ctx.platform.cloud.status(), "status");
+		ctx.assert(pairing.paired, "paired was false");
 		const answer = expectOk(
 			ctx,
 			await ctx.platform.cloud.request({
@@ -1865,6 +1872,28 @@ const STEPS: Record<string, ContractStep> = {
 		);
 		ctx.assert(answer.status === 200, `the status was ${answer.status}`);
 		ctx.assert(answer.body === '{"running":true}', `the body was ${answer.body}`);
+	},
+
+	"cloud.pairing": async (ctx) => {
+		const set = ctx.controls?.setCloudPairing;
+		ctx.assert(set !== undefined, "the controls do not change the pairing");
+		if (set === undefined) return;
+		set({ paired: false, url: null });
+		const before = expectOk(ctx, await ctx.platform.cloud.status(), "status before");
+		ctx.assert(!before.paired && before.url === null, "an unpaired Mac reports a Worker");
+		const paired = expectOk(
+			ctx,
+			await ctx.platform.cloud.pair({
+				url: "https://w.example.dev",
+				token: "a-token",
+			}),
+			"pair",
+		);
+		ctx.assert(paired.paired, "pair did not report a pairing");
+		ctx.assert(paired.url === "https://w.example.dev", `pair kept ${String(paired.url)}`);
+		expectOk(ctx, await ctx.platform.cloud.unpair(), "unpair");
+		const after = expectOk(ctx, await ctx.platform.cloud.status(), "status after");
+		ctx.assert(!after.paired && after.url === null, "unpair kept the pairing");
 	},
 
 	"cloud.relay": async (ctx) => {
@@ -2056,7 +2085,8 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"programs.install-status": ["programs.onStatus", "programs.install", "programs.statuses"],
 	"programs.remove-status": ["programs.install", "programs.remove", "programs.statuses"],
 	"http.invalid-url": ["http.fetch"],
-	"cloud.request-scripted": ["cloud.paired", "cloud.request"],
+	"cloud.request-scripted": ["cloud.status", "cloud.request"],
+	"cloud.pairing": ["cloud.status", "cloud.pair", "cloud.unpair"],
 	"cloud.relay": [
 		"cloud.openRelay",
 		"cloud.relay.onLine",

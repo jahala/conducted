@@ -187,25 +187,25 @@ describe("NAV-05 home-query", () => {
 		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
 	});
 
-	it("treats a workspace with an archived date as archived before its state catches up", () => {
-		const staleState = workspace("old", { state: "ready", archivedAt: 10 });
+	it("shows a workspace being restored as active, not archived", () => {
+		const restoring = workspace("old", { state: "initializing", archivedAt: 10 });
 		const active = queryHome({
-			workspaces: [staleState],
+			workspaces: [restoring],
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 1,
 			branchPrefix: "",
 		});
-		expect(active.items).toEqual([]);
+		expect(active.items.map((row) => row.id)).toEqual(["old"]);
 
 		const archived = queryHome({
-			workspaces: [staleState],
+			workspaces: [restoring],
 			repos: [repo("app")],
 			filters: { ...FILTERS, archive: "archived" },
 			pageCount: 1,
 			branchPrefix: "",
 		});
-		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
+		expect(archived.items).toEqual([]);
 	});
 
 	it("filters to the chosen projects", () => {

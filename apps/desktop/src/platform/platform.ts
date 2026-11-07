@@ -7,7 +7,8 @@
  *
  * Research: services-map.md 1.1 (Conductor's `vn()` Platform object), native-and-sidecar-map.md A2
  * (the Rust commands behind each group). The `cloud` group is the Rust shell's side of a cloud
- * workspace's connection (CLOUD-03). Keeping the Mac awake has no door of its own: PLAT-21 runs
+ * workspace's connection (CLOUD-03) and of pairing this Mac with its Worker (CLOUD-07). Keeping the
+ * Mac awake has no door of its own: PLAT-21 runs
  * `caffeinate` through `shell.start`.
  *
  * Every error code a method can answer with is in `PLATFORM_ERROR_CODES`, one list shared by the
@@ -42,13 +43,16 @@ export const PLATFORM_ERROR_CODES = [
 	"clipboard_unavailable",
 	"cloud_bad_line",
 	"cloud_method_not_allowed",
+	"cloud_not_a_worker",
 	"cloud_not_paired",
+	"cloud_pair_refused",
 	"cloud_path_not_allowed",
 	"cloud_relay_closed",
 	"cloud_relay_failed",
 	"cloud_relay_unknown",
 	"cloud_request_failed",
 	"cloud_response_too_large",
+	"cloud_token_invalid",
 	"cloud_token_unreadable",
 	"cloud_unscripted",
 	"cloud_url_not_allowed",
@@ -748,6 +752,20 @@ export interface CloudResponse {
 	body: string;
 }
 
+/** What the Mac knows about its pairing. The token is never part of it. */
+export interface CloudPairing {
+	/** True when the Keychain holds a pairing token. */
+	paired: boolean;
+	/** The Worker the Mac paired with. Null when it is not paired. */
+	url: string | null;
+}
+
+/** A Worker URL and its token, as the pairing form typed them. */
+export interface CloudPairInput {
+	url: string;
+	token: string;
+}
+
 /** The line transport to the sidecar inside one workspace's sandbox (CLOUD-03). */
 export interface CloudRelay {
 	readonly id: string;
@@ -765,8 +783,15 @@ export interface CloudRelay {
  * header (CLOUD-03). The pairing token never reaches the web view.
  */
 export interface Cloud {
-	/** True when the Keychain holds a pairing token. */
-	paired(): Promise<Result<boolean>>;
+	/** The saved pairing: whether there is a token and the Worker it belongs to (CLOUD-07). */
+	status(): Promise<Result<CloudPairing>>;
+	/**
+	 * Checks the URL and token with the Worker, then keeps both in the Keychain. The token is
+	 * never returned, logged or put in an event (CLOUD-07).
+	 */
+	pair(input: CloudPairInput): Promise<Result<CloudPairing>>;
+	/** Removes the saved pairing. A Mac that is not paired succeeds. */
+	unpair(): Promise<Result<void>>;
 	request(request: CloudRequest): Promise<Result<CloudResponse>>;
 	/**
 	 * Opens one line stream into the workspace's Durable Object. `channel` selects the sidecar

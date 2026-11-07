@@ -34,6 +34,7 @@ import {
 	useWorkspace,
 } from "../../core/hooks.ts";
 import type { PrActivityEntry, PullRequest } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { PrActivityList } from "./PrActivityList.tsx";
@@ -237,7 +238,7 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 		return <PrEmptyState kind={kind} onAction={onAction} />;
 	}
 
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const editable = !archived && (pullRequest.state === "open" || pullRequest.state === "draft");
 	const pending = git.data.pendingPullRequestAction;
 	const busy =

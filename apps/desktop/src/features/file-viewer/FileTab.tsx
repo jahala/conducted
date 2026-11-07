@@ -35,6 +35,7 @@ import {
 	useSetting,
 	useWorkspace,
 } from "../../core/hooks.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { toastError } from "../../ui/Toast.tsx";
 import type { DiffPreferences } from "../diff/diff-types.ts";
 import { FileDiffPane } from "./FileDiffPane.tsx";
@@ -87,7 +88,7 @@ export function FileTab({ workspaceId, path, mode, scope, onOpenFile }: FileTabP
 		return () => observer.disconnect();
 	}, []);
 
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const changedEntry =
 		changedFiles.state === "ready"
 			? changedFiles.data.find((file) => file.path === path)
