@@ -398,6 +398,7 @@ describe("CHAT-03 steering through the send path", () => {
 			workspace.workspacePath,
 			"queued-7",
 			["/draft/a.txt"],
+			"local",
 		);
 	});
 
