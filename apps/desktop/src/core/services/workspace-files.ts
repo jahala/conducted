@@ -1,4 +1,5 @@
 /**
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature REV-06 Workspace files: tree, quick open, search, read and write
  * @feature REV-08 File content for the viewer, the editor's unsaved drafts and the open-in-tab request
  * @feature REV-10 Artifacts tab: the workspace's `.context` files, more pages and uploads
@@ -87,9 +88,23 @@ export interface WorkspaceFilesServiceDeps {
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
 	/**
 	 * Checks the search door before a workspace's own files are searched (CLOUD-11). A cloud
-	 * workspace's search belongs to its Worker, not the Mac.
+	 * workspace's search runs against its local mirror, so this also makes sure the mirror is
+	 * filled before it is used.
 	 */
 	searchOn: (workspaceId: WorkspaceId) => Promise<Result<void>>;
+	/**
+	 * The folder a search reads (CLOUD-11): the workspace folder on the Mac, or the local mirror of
+	 * a cloud workspace.
+	 */
+	searchRootOf?: (workspaceId: WorkspaceId) => Promise<Result<string>>;
+	/** Where a cloud workspace's file tab gets a file (CLOUD-11). Null for a Mac workspace. */
+	cloudOpen?: (
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		options?: { reveal?: boolean },
+	) => Promise<Result<{ path: string; downloaded: boolean }>>;
+	/** Which host a workspace is on, for the open and download branch (CLOUD-11). */
+	hostKindOf?: (workspaceId: WorkspaceId) => "local" | "cloud";
 	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
 	opener: Pick<Opener, "revealInFinder" | "openWith">;
 }
@@ -377,7 +392,7 @@ export class WorkspaceFilesService {
 	async tree(workspaceId: WorkspaceId): Promise<Result<FileEntry[]>> {
 		const search = await this.#deps.searchOn(workspaceId);
 		if (!search.ok) return search;
-		const root = await this.#rootOf(workspaceId);
+		const root = await this.#searchRootOf(workspaceId);
 		if (!root.ok) return root;
 		const listed = await this.#deps.search.listTree(root.value);
 		if (!listed.ok) return listed;
@@ -625,13 +640,28 @@ export class WorkspaceFilesService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.files.reveal`: shows the file selected in a Finder window. */
-	async reveal(workspaceId: WorkspaceId, relativePath: string): Promise<Result<void>> {
+	/**
+	 * Backs `Actions.files.reveal`: shows the file selected in a Finder window. A cloud workspace
+	 * reveals the mirror's copy, or downloads the file to Downloads first (CLOUD-11).
+	 */
+	async reveal(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+	): Promise<Result<{ path: string; downloaded: boolean }>> {
+		const cloud =
+			this.#deps.hostKindOf?.(workspaceId) === "cloud" ? this.#deps.cloudOpen : undefined;
+		if (cloud !== undefined) {
+			const opened = await cloud(workspaceId, relativePath);
+			if (!opened.ok) return opened;
+			if (opened.value.downloaded || opened.value.path.includes("/remote-workspace-sync/")) {
+				return opened;
+			}
+		}
 		const resolved = await this.#resolve(workspaceId, relativePath);
 		if (!resolved.ok) return resolved;
 		try {
 			await this.#deps.opener.revealInFinder(resolved.value.absolute);
-			return ok(undefined);
+			return ok({ path: resolved.value.absolute, downloaded: false });
 		} catch (cause) {
 			return err(appError("reveal_failed", "Finder could not show the file.", cause));
 		}
@@ -646,6 +676,15 @@ export class WorkspaceFilesService {
 		relativePath: string,
 		appName: string,
 	): Promise<Result<void>> {
+		const cloud =
+			this.#deps.hostKindOf?.(workspaceId) === "cloud" ? this.#deps.cloudOpen : undefined;
+		if (cloud !== undefined) {
+			const opened = await cloud(workspaceId, relativePath, { reveal: false });
+			if (!opened.ok) return opened;
+			if (opened.value.downloaded || opened.value.path.includes("/remote-workspace-sync/")) {
+				return this.#deps.opener.openWith(appName, opened.value.path);
+			}
+		}
 		const resolved = await this.#resolve(workspaceId, relativePath);
 		if (!resolved.ok) return resolved;
 		return this.#deps.opener.openWith(appName, resolved.value.absolute);
@@ -905,6 +944,16 @@ export class WorkspaceFilesService {
 	#removeDraft(key: string): void {
 		const { [key]: _removed, ...rest } = this.drafts.getState().drafts;
 		this.drafts.setState({ drafts: rest });
+	}
+
+	async #searchRootOf(workspaceId: WorkspaceId): Promise<Result<string>> {
+		if (this.#deps.searchRootOf === undefined) return this.#rootOf(workspaceId);
+		const root = await this.#deps.searchRootOf(workspaceId);
+		if (!root.ok) return root;
+		if (root.value.length === 0) {
+			return err(appError("workspace_path_missing", "That workspace has no folder on this Mac."));
+		}
+		return root;
 	}
 
 	async #rootOf(workspaceId: WorkspaceId): Promise<Result<string>> {

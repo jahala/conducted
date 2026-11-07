@@ -1,4 +1,5 @@
 /**
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature RUN-01 Scripts panel tab strip
  * Owns: the tab buttons of the scripts panel and the collapse button. Fixed tabs Setup, Run and
  * Ports; one tab per terminal; a "new terminal" button.
@@ -11,6 +12,7 @@
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";
+import type { FileSyncView } from "../../core/cloud/file-sync.ts";
 import { cn } from "../../ui/cn.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
@@ -29,6 +31,8 @@ export interface ScriptsPanelTabsProps {
 	showPorts: boolean;
 	terminalLimit: number;
 	collapsed: boolean;
+	/** A cloud workspace's file-sync state; undefined on a Mac workspace (CLOUD-11). */
+	fileSync?: FileSyncView;
 	onSelect: (tab: ScriptsPanelTabId) => void;
 	onNewTerminal: () => void;
 	onCloseTerminal: (id: TerminalId) => void;
@@ -61,6 +65,7 @@ export function ScriptsPanelTabs({
 	showPorts,
 	terminalLimit,
 	collapsed,
+	fileSync,
 	onSelect,
 	onNewTerminal,
 	onCloseTerminal,
@@ -106,6 +111,21 @@ export function ScriptsPanelTabs({
 				className="text-fg-muted"
 				onClick={onToggleCollapsed}
 			/>
+			{fileSync !== undefined && fileSync.state !== "local" && fileSync.state !== "synced" ? (
+				<span
+					data-file-sync-state={fileSync.state}
+					title={
+						fileSync.state === "unavailable"
+							? fileSync.localTerminalLabel
+							: fileSync.state === "failed"
+								? fileSync.message
+								: undefined
+					}
+					className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-fg-muted"
+				>
+					{fileSync.label}
+				</span>
+			) : null}
 			<div role="tablist" className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
 				{tab(
 					{ kind: "setup" },
