@@ -69,7 +69,13 @@ jobs:
       - name: Build the web UI that ships inside the app
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm build
-      - name: Guards (docs, data model, migrations, headers, markers, versions)
+      # The workflows guard runs actionlint, which the runner image does not ship.
+      - name: Install actionlint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Guards (docs, data model, migrations, headers, markers, versions, workflows)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm guards
       - name: Placeholders match the backlog

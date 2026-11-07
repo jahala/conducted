@@ -1,10 +1,14 @@
 /**
- * Guard: every job in .github/workflows has a `timeout-minutes`, so a hung runner stops at a
- * known time instead of GitHub's default of six hours.
+ * Guards over the workflows and shell scripts that run in CI:
+ *  - every job in .github/workflows has a `timeout-minutes`, so a hung runner stops at a known
+ *    time instead of GitHub's default of six hours;
+ *  - actionlint accepts every workflow, including the shell inside its `run:` steps;
+ *  - shellcheck accepts every shell script under bin/ and scripts/.
  */
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import { type Problem, read } from "./lib.ts";
+import { join, relative } from "node:path";
+import { type Problem, read, walk } from "./lib.ts";
 
 const DIR = ".github/workflows";
 
@@ -26,14 +30,74 @@ export function jobsWithoutTimeout(workflow: string): string[] {
 	return jobs.filter((job) => !job.hasTimeout).map((job) => job.name);
 }
 
-export function checkWorkflows(root: string): Problem[] {
-	if (!existsSync(join(root, DIR))) return [];
-	return readdirSync(join(root, DIR))
+function workflowFiles(root: string): string[] {
+	const dir = join(root, DIR);
+	if (!existsSync(dir)) return [];
+	return readdirSync(dir)
 		.filter((name) => /\.ya?ml$/.test(name))
-		.flatMap((name) =>
-			jobsWithoutTimeout(read(join(root, DIR, name))).map((job) => ({
+		.sort()
+		.map((name) => `${DIR}/${name}`);
+}
+
+/** A tool's findings, or one problem when the tool is not installed or gave no readable line. */
+function toolOutput(
+	program: string,
+	args: readonly string[],
+	root: string,
+): { error: Problem | null; lines: string[] } {
+	const result = spawnSync(program, [...args], { cwd: root, encoding: "utf8" });
+	if (result.error !== undefined) {
+		return {
+			error: {
 				guard: "workflows",
-				message: `${DIR}/${name}: job ${job} has no timeout-minutes`,
+				message: `${program} is not installed; pnpm guards needs it`,
+			},
+			lines: [],
+		};
+	}
+	const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+	const lines = output
+		.split("\n")
+		.filter((line) => /:\d+:\d+: /.test(line))
+		.map((line) => line.trim());
+	if (result.status !== 0 && lines.length === 0 && output !== "") {
+		return { error: null, lines: [output] };
+	}
+	return { error: null, lines };
+}
+
+/** Problems actionlint reports across every workflow. */
+export function actionlintProblems(root: string): Problem[] {
+	const files = workflowFiles(root);
+	if (files.length === 0) return [];
+	const { error, lines } = toolOutput("actionlint", ["-no-color", ...files], root);
+	if (error !== null) return [error];
+	return lines.map((message) => ({ guard: "workflows", message }));
+}
+
+/** Problems shellcheck reports across bin/ and scripts/. */
+export function shellcheckProblems(root: string): Problem[] {
+	const files = [
+		...walk(root, join(root, "bin"), /\.sh$/),
+		...walk(root, join(root, "scripts"), /\.sh$/),
+	]
+		.map((path) => relative(root, path))
+		.sort();
+	if (files.length === 0) return [];
+	const { error, lines } = toolOutput("shellcheck", ["--format=gcc", ...files], root);
+	if (error !== null) return [error];
+	return lines.map((message) => ({ guard: "workflows", message }));
+}
+
+export function checkWorkflows(root: string): Problem[] {
+	return [
+		...workflowFiles(root).flatMap((file) =>
+			jobsWithoutTimeout(read(join(root, file))).map((job) => ({
+				guard: "workflows",
+				message: `${file}: job ${job} has no timeout-minutes`,
 			})),
-		);
+		),
+		...actionlintProblems(root),
+		...shellcheckProblems(root),
+	];
 }
