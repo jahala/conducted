@@ -618,54 +618,84 @@
 		"backlog": "RUN-06"
 	},
 	"description:R10708838": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10708911": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10708982": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > ul > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709071": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709163": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709245": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709343": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709429": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709509": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > ul > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709605": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(4) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709703": {
 		"status": "gap",
@@ -673,24 +703,36 @@
 		"screen": "inventory-controls Settings"
 	},
 	"description:R10709805": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(4) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709909": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(5) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710015": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(6) > ul > li > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710098": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(7) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710192": {
 		"status": "gap",
@@ -708,9 +750,12 @@
 		"screen": "inventory-controls Settings"
 	},
 	"description:R10719274": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > header > p",
+		"by": "seed"
 	},
 	"description:R10890728": {
 		"status": "decided",
@@ -753,27 +798,26 @@
 		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11026691": {
-		"status": "matched",
-		"state": "settings-repo-scripts",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
-		"by": "hand",
-		"note": "Conductor has this wording twice, with and without the full stop (@11725533); ours shows the one with it."
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor has this wording twice, with and without the full stop (@11725533); ours shows the one with it.)"
 	},
 	"description:R11027029": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor has this wording with and without the full stop; ours shows the one with it.)"
+	},
+	"description:R11028884": {
 		"status": "matched",
 		"state": "settings-repo-scripts",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > p",
-		"by": "hand",
-		"note": "Conductor has this wording with and without the full stop; ours shows the one with it."
-	},
-	"description:R11028884": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11092256": {
 		"status": "decided",
@@ -1311,13 +1355,11 @@
 		"by": "seed"
 	},
 	"description:R11264866": {
-		"status": "matched",
-		"state": "settings-repo-actions",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(1) > p",
-		"by": "hand",
-		"note": "Conductor has this wording with and without the full stop; ours shows the one with it."
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor has this wording with and without the full stop; ours shows the one with it.)"
 	},
 	"description:R11265371": {
 		"status": "matched",
@@ -1353,9 +1395,12 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11267436": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-prompts",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11295038": {
 		"status": "matched",
@@ -1366,19 +1411,28 @@
 		"by": "seed"
 	},
 	"description:R11295423": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11296071": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11297407": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11297883": {
 		"status": "matched",
@@ -1442,22 +1496,18 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11300514": {
-		"status": "matched",
-		"state": "settings-appearance",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(2) > div > div > p",
-		"by": "hand",
-		"note": "Conductor's page text (@10668720) has no full stop and ours shows that one; this is its settings-list copy."
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor's page text (@10668720) has no full stop and ours shows that one; this is its settings-list copy.)"
 	},
 	"description:R11300742": {
-		"status": "matched",
-		"state": "settings-appearance",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(4) > div > div > p",
-		"by": "hand",
-		"note": "Conductor's page text (@10671665) has no full stop and ours shows that one; this is its settings-list copy."
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop (Conductor's page text (@10671665) has no full stop and ours shows that one; this is its settings-list copy.)"
 	},
 	"description:R11300941": {
 		"status": "gap",
@@ -1663,9 +1713,12 @@
 		"screen": "Unplaced"
 	},
 	"description:R11709825": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11725533": {
 		"status": "matched",

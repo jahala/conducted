@@ -65,9 +65,12 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R4978748": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(38) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"placeholder:R4987113": {
 		"status": "gap",
@@ -203,9 +206,12 @@
 		"backlog": "RUN-06"
 	},
 	"placeholder:R10696051": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R10770889": {
 		"status": "gap",
