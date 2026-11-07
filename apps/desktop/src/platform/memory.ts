@@ -1048,10 +1048,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			const source = sourcePath.startsWith("/") ? conductorDatabases.get(sourcePath) : undefined;
 			if (source === undefined) {
 				return err(
-					platformError(
-						"conductor_import_missing",
-						`No database was found at ${sourcePath}.`,
-					),
+					platformError("conductor_import_missing", `No database was found at ${sourcePath}.`),
 				);
 			}
 			const copyPath = `${copyFolder}/conductor-${clock.now()}-${++conductorCopies}.db`;

@@ -365,7 +365,10 @@ describe("our name", () => {
 			'//! r\nconst M: &str = "The database of Conductor";\n',
 		);
 		put("apps/desktop/src/core/conductor-importer.ts", '/** e */\nexport const m = "Conductor";\n');
-		put("apps/desktop/src/core/not-conductor-import/x.ts", '/** x */\nexport const m = "Conductor";\n');
+		put(
+			"apps/desktop/src/core/not-conductor-import/x.ts",
+			'/** x */\nexport const m = "Conductor";\n',
+		);
 		const messages = checkOurName(root).map((p) => p.message);
 		expect(messages).toEqual([
 			"apps/desktop/src/core/conductor-importer.ts:2 names Conductor in a product string; our app is Conducted",
