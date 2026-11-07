@@ -133,8 +133,9 @@
 		"screen": "inventory-ui-text Settings and agents"
 	},
 	"tooltip:R11916650": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	}
 }
