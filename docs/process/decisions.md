@@ -214,3 +214,21 @@ Chosen: these 24 rows stay open, each for the reason named.
 - APP-16 (`planned`): it gathers the hardening findings on done features. The slice-3 hardening did not start today. Its inputs are in docs/reports/day-2026-11-06.md, "Findings by area", and in D071, D084 and D078.
 - CLOUD-01 and CLOUD-03 to CLOUD-18 (`planned`): the cloud spike passed (D075), and the rows are built through the loop, starting with CLOUD-01, the host seam. None started today, because the spike, Remote Control and the priority-3 rows came first in the goal's order.
   Why: each reason is a dependency or the goal's own order and time rule. No row is held for a missing input from the owner.
+
+## D094. The night of 6 to 7 November runs audits and fixers on DeepSeek when the Claude slot is taken (2026-11-07)
+
+Context: the owner's rule for the night was "run one claude agent at a time max", and DeepSeek builders run outside it (D077). The loop asks for a Sonnet audit and an Opus fixer per batch, while the one Claude slot held the parity, harness and comparison work.
+Chosen: step 2's audit and fixer, the hardening issues (#348, #349, #350, #352), PLAT-36, SIDE-25 and the LATER sweep (#351) ran on DeepSeek V4.1 Flash. The lead read every diff, compared test and assertion counts where tests changed, and merged only on green CI.
+Why: the owner's cap comes first; the lead's review and CI carry the quality check the Claude audit would have given.
+
+## D095. Overnight order: the parity harness before stage 2 (2026-11-07)
+
+Context: the goal put Conductor's frontend on our backend (stage 2) before the harness. Stage 2 needs Conductor's frontend loaded in a window, which is a browser run, and the owner's ruling says "Browser and screenshot runs on this Mac wait for 08:00", which is also when the goal ends.
+Chosen: stage 1's code (the stand-in, the server, the guard and the run script) was built overnight; its first run, stage 2 and the paired screenshots (3c) wait for the morning. The harness, which runs on GitHub, was built first.
+Why: the work that could run at night ran; nothing broke the quiet rule.
+
+## D096. Conductor's frontend and sidecar run only sealed, on this Mac (2026-11-07)
+
+Context: the owner said "Go: run Conductor's own frontend on this Mac only, from the git-ignored folder, network cut off, never committed, pushed or shipped; a check fails if any of it reaches our app or repo", and later "yes" to running Conductor's sidecar beside ours under the same boundaries.
+Chosen: Conductor's frontend runs from `.context/` through a stand-in on 127.0.0.1 with every other origin refused. Its sidecar runs in place under `sandbox-exec` with a fresh temporary home, no IP traffic beyond loopback, no writes in the owner's home and fake agent programs only. Their outputs stay in `.context/`. The `conductor-code` guard fails on any copy of Conductor's code in the repository, by SHA-256 fingerprints.
+Why: the owner's rulings; the comparison reads Conductor's behaviour without taking anything of it into the product.
