@@ -1153,7 +1153,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				const answer = await script(request);
 				if (answer !== null) return answer;
 			}
-			return err(platformError("cloud_unscripted", "No cloud answer was scripted for this request."));
+			return err(
+				platformError("cloud_unscripted", "No cloud answer was scripted for this request."),
+			);
 		},
 		openRelay: async (input) => {
 			const id = ids.uuid();
