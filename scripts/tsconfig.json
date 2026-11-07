@@ -1,5 +1,5 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": { "types": ["bun"] },
-	"include": ["**/*.ts", "../apps/desktop/src-tauri/release/*.ts"]
+	"include": ["**/*.ts", "../apps/cloud/sandbox/**/*.ts", "../apps/desktop/src-tauri/release/*.ts"]
 }
