@@ -5,6 +5,8 @@ since the last tag, and the GitHub release body is cut from that section (PLAT-3
 
 ## 0.3.1 (2026-11-07)
 
+The first published 0.3 release. v0.3.0 was tagged but its build failed before publishing, so this release carries everything listed under 0.3.0 below.
+
 ### Fixes
 
 - the release's disk image is sized from the app, and the sandbox image's version is bumped with it (#470)
