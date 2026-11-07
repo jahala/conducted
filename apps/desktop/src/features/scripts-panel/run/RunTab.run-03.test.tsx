@@ -1,9 +1,10 @@
 /**
  * @feature RUN-03 One port per workspace, port detection and preview URLs
- * Owns: tests that the Run tab's Open menu is built from the run output, the detected ports and
- * the repository template, that Cmd+Shift+B opens the first localhost URL, that Open follows the
- * in-app browser setting, and that a template entry that is not a URL is named.
- * Test first: the menu lists the run output, a detected port and the expanded template.
+ * Owns: tests that the Run tab's Open menu lists the repository's preview URL entries, or the
+ * run-output URL when none are set, that detected ports stay out of it, that Cmd+Shift+B opens the
+ * first URL, that Open follows the in-app browser setting, and that a template entry that is not a
+ * URL is named.
+ * Test first: a template is labelled by its name, or by its expanded URL when the name is empty.
  */
 import type { TerminalId } from "@conducted/shared";
 import {
@@ -19,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher, createCommandRegistry } from "../../../app/command-dispatcher.ts";
 import type { RunState } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
+import type { PreviewUrlEntry, RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { renderWithRouter } from "../../../test/render-with-router.tsx";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
@@ -35,15 +36,16 @@ const dev: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
-const config = (previewUrlTemplate: string | null): RepoConfig => ({
+const config = (previewUrls: PreviewUrlEntry[]): RepoConfig => ({
 	setupScript: null,
 	runScripts: [dev],
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate,
+	previewUrls,
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",
@@ -71,15 +73,12 @@ afterEach(() => {
 	for (const test of containers.splice(0)) test.close();
 });
 
-async function setup(previewUrlTemplate: string | null = null) {
+async function setup(previewUrls: PreviewUrlEntry[] = []) {
 	const test = createTestContainer();
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id, port: 55_000 });
-	const updated = await test.container.services.repo.updateConfig(
-		repo.id,
-		config(previewUrlTemplate),
-	);
+	const updated = await test.container.services.repo.updateConfig(repo.id, config(previewUrls));
 	if (!updated.ok) throw new Error(updated.error.message);
 	const run: RunState = {
 		actions: [dev],
@@ -115,8 +114,11 @@ function renderTab(test: ReturnType<typeof createTestContainer>, workspace: Work
 }
 
 describe("RUN-03 run tab preview URLs", () => {
-	it("lists the run output, the detected ports and the expanded template", async () => {
-		const { test, workspace } = await setup("http://localhost:$PORT/app");
+	it("lists only the templates when they are set, and keeps detected ports out", async () => {
+		const { test, workspace } = await setup([
+			{ name: "App", url: "http://localhost:$PORT/app" },
+			{ name: "", url: "https://example.test/preview" },
+		]);
 
 		renderTab(test, workspace);
 		await screen.findByRole("button", { name: "Open" });
@@ -125,19 +127,43 @@ describe("RUN-03 run tab preview URLs", () => {
 			key: "Enter",
 		});
 
-		expect(await screen.findByText("Run output")).toBeTruthy();
-		expect(await screen.findByText("Port 5173")).toBeTruthy();
-		expect(await screen.findByText("Preview URL")).toBeTruthy();
+		expect(await screen.findByText("App")).toBeTruthy();
+		expect(await screen.findByText("https://example.test/preview")).toBeTruthy();
+		expect(screen.queryByText("Run output")).toBeNull();
+		expect(screen.queryByText("Port 5173")).toBeNull();
+		expect(screen.queryByText("http://localhost:3000")).toBeNull();
 	});
 
-	it("opens the run output URL with Open", async () => {
-		const { test, workspace } = await setup();
+	it("opens the first template URL with Open, and lists the others in the menu", async () => {
+		const { test, workspace } = await setup([
+			{ name: "First", url: "http://localhost:$PORT/first" },
+			{ name: "Second", url: "http://localhost:$PORT/second" },
+		]);
 		const openUrl = vi.spyOn(test.container.platform.opener, "openUrl");
 
 		renderTab(test, workspace);
 		fireEvent.click(await screen.findByRole("button", { name: "Open" }));
 
+		expect(openUrl).toHaveBeenCalledWith("http://localhost:55000/first");
+
+		fireEvent.keyDown(screen.getByRole("button", { name: "Choose preview URL" }), {
+			key: "Enter",
+		});
+
+		expect(await screen.findByText("Second")).toBeTruthy();
+	});
+
+	it("opens the run output URL with Open when no template is set", async () => {
+		const { test, workspace } = await setup();
+		const openUrl = vi.spyOn(test.container.platform.opener, "openUrl");
+
+		renderTab(test, workspace);
+		const open = await screen.findByRole("button", { name: "Open" });
+		expect(open.title).toBe("http://localhost:3000");
+		fireEvent.click(open);
+
 		expect(openUrl).toHaveBeenCalledWith("http://localhost:3000");
+		expect(screen.queryByRole("button", { name: "Choose preview URL" })).toBeNull();
 	});
 
 	it("opens the localhost URL from Cmd+Shift+B", async () => {
@@ -163,7 +189,7 @@ describe("RUN-03 run tab preview URLs", () => {
 	});
 
 	it("names a template entry that is not a valid URL instead of dropping it silently", async () => {
-		const { test, workspace } = await setup("http://$HOST:$PORT/app");
+		const { test, workspace } = await setup([{ name: "Broken", url: "http://$HOST:$PORT/app" }]);
 
 		renderTab(test, workspace);
 		await screen.findByRole("button", { name: "Open" });

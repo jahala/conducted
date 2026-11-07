@@ -122,6 +122,15 @@ Anyone can check that a published file came from this repository's code:
 
     gh attestation verify <file> --repo jahala/conducted
 
+## The product page
+
+The product page is served by GitHub Pages from a build, never from a folder in the repository. Its sources are in `docs/site/`: `index.html`, `changelog.html` (published as `changelog/index.html`), `style.css` and the screenshots in `docs/site/images/`. The fonts are the app's own, copied from `apps/desktop/src/assets/fonts/` with their licence.
+
+- `bun scripts/site/build.ts <out-dir>` builds it into a new or empty folder. It writes the Changelog page from `CHANGELOG.md`, newest release first, each release under the anchor `#vX.Y.Z` that the app's update notice can link to. It asks GitHub for the latest release, and the Download button points at that release's `.dmg`; with none, the page says no signed build is published yet and points at building from source.
+- `.github/workflows/pages.yml` runs the build and publishes it on each push to main that touches the page or `CHANGELOG.md`, and when the release workflow's `pages` job asks after publishing a release. A pull request that touches the page builds it without publishing.
+- `bun scripts/site/screens.ts` captures the page's catalogue states and copies them into `docs/site/images/`.
+- `pnpm guards` builds the page in memory and fails on a local link, image, font or anchor that does not resolve, an image no page uses, or a link to a repository path or README heading that does not exist (`scripts/guards/site.ts`). The docs guard does the same for the README's links and images. `scripts/site/site.test.ts` checks that every colour in `docs/site/style.css` is one of the app's token values.
+
 ## Commits and pull requests
 
 - Conventional commit subjects (`feat:`, `fix:`, `refactor:`, `docs:`). The body explains why.

@@ -98,11 +98,16 @@ export const zInteractionAnswer = z.discriminatedUnion("kind", [
 	}),
 	z.object({
 		kind: z.literal("tool_approval"),
-		/** allow_with_suggested_rules: allow, and add the rules the agent proposed (`suggestedRules`). */
+		/**
+		 * allow_with_suggested_rules: allow, and add the rules the agent proposed (`suggestedRules`).
+		 * allow_for_session: allow for the rest of this chat; offered for a command on the Mac
+		 * (CLOUD-14).
+		 */
 		decision: z.enum([
 			"allow",
 			"allow_edits_for_session",
 			"allow_with_suggested_rules",
+			"allow_for_session",
 			"always_allow",
 			"deny",
 		]),

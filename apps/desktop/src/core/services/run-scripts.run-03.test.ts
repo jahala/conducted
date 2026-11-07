@@ -69,6 +69,7 @@ const action: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
 const config: RepoConfig = {
@@ -77,7 +78,7 @@ const config: RepoConfig = {
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",

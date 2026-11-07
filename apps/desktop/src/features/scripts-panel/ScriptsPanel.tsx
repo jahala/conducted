@@ -53,10 +53,13 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const all = terminals.state === "ready" ? terminals.data : [];
 	const interactive = all.filter((terminal) => terminal.kind === "terminal");
+	// Only a cloud workspace shows a host beside each terminal's name (CLOUD-09).
+	const cloudWorkspace = workspace.state === "ready" && workspace.data.host.kind === "cloud";
 	const terminalTabs = interactive.map((terminal) => ({
 		id: terminal.id,
 		title: terminal.title,
 		ended: terminal.endedAt !== null,
+		...(cloudWorkspace ? { hostKind: "cloud" as const } : {}),
 	}));
 	const limit = terminalLimit(Boolean(tabFreakMode));
 	const atLimit = terminalTabs.length >= limit;

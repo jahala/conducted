@@ -15,12 +15,12 @@ test("switches remove tools, and the bridge list leaves out AskUserQuestion", ()
 	expect(off.map((tool) => tool.name)).not.toContain("GetDiffComments");
 	expect(off.map((tool) => tool.name)).not.toContain("SetTargetBranch");
 	const all = enabledTools(
-		{ diffComments: true, progressUpdates: true, setTargetBranch: true },
+		{ diffComments: true, progressUpdates: true, setTargetBranch: true, localExecution: true },
 		{ includeAskUserQuestion: true },
 	);
 	expect(all.map((tool) => tool.name)).toEqual([...APP_TOOLS]);
 	const bridged = enabledTools(
-		{ diffComments: true, progressUpdates: true, setTargetBranch: true },
+		{ diffComments: true, progressUpdates: true, setTargetBranch: true, localExecution: true },
 		{ includeAskUserQuestion: false },
 	);
 	expect(bridged.map((tool) => tool.name)).not.toContain("AskUserQuestion");

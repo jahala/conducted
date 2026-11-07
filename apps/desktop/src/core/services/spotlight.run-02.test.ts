@@ -89,7 +89,7 @@ const baseConfig = (overrides: Partial<RepoConfig> = {}): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: true,
 	autoRunAfterSetup: false,
 	remoteName: null,
@@ -650,7 +650,12 @@ describe("RUN-02 the run list", () => {
 				hidden: false,
 				icon: "lamp-desk",
 				origin: "local",
+				availableIn: ["local"],
 			},
 		]);
+	});
+
+	it("leaves Spotlight out of a cloud workspace's run list", () => {
+		expect(runListFor(baseConfig({ spotlightTesting: true }), "cloud")).toEqual([]);
 	});
 });

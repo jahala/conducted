@@ -122,4 +122,66 @@ describe("plantOnDisk", () => {
 		expect(git(project, "status", "--porcelain")).toBe("");
 		expect(existsSync(join(workspace, "old.ts"))).toBe(false);
 	});
+
+	/** One project with one workspace described by `workspace`. */
+	function plantOne(workspace: Omit<ScriptedRepo, "path" | "target">): string {
+		const root = scratch();
+		const project = join(root, "home/code/atlas");
+		const path = join(root, "home/workspaces/atlas/arbor");
+		plantOnDisk({
+			root,
+			home: join(root, "home"),
+			repos: [
+				{
+					path: project,
+					branch: "main",
+					target: "origin/main",
+					files: [],
+					commits: [],
+					upstream: { ahead: 0, behind: 0 },
+					behindTarget: 0,
+				},
+				{ ...workspace, path, target: "origin/main" },
+			],
+			files: new Map(),
+			projects: [{ path: project, defaultBranch: "main" }],
+			workspaces: [{ path, projectPath: project }],
+			author: { name: "Sam Rivera", email: "sam@example.com" },
+		});
+		return path;
+	}
+
+	test("leaves a workspace described with no branch on a detached HEAD", () => {
+		const workspace = plantOne({
+			branch: "",
+			files: [],
+			commits: [{ sha: "s1", subject: "First", at: 1_700_000_100 }],
+			upstream: { ahead: 0, behind: 0 },
+			behindTarget: 0,
+		});
+
+		expect(git(workspace, "branch", "--show-current").trim()).toBe("");
+		expect(git(workspace, "log", "--format=%s", "origin/main..HEAD").trim()).toBe("First");
+	});
+
+	test("force-pushes the remote branch of a workspace whose remote was rewritten", () => {
+		const workspace = plantOne({
+			branch: "sam/arbor",
+			files: [],
+			commits: [
+				{ sha: "s2", subject: "Second", at: 1_700_000_200 },
+				{ sha: "s1", subject: "First", at: 1_700_000_100 },
+			],
+			upstream: { ahead: 1, behind: 2 },
+			behindTarget: 0,
+			remoteRewritten: true,
+		});
+
+		expect(git(workspace, "rev-list", "--left-right", "--count", "HEAD...@{u}").trim()).toBe(
+			"1\t2",
+		);
+		const head = git(workspace, "rev-parse", "HEAD").trim();
+		const reflog = git(workspace, "reflog", "show", "--format=%H", "refs/remotes/origin/sam/arbor");
+		expect(reflog.split("\n")).toContain(head);
+	});
 });

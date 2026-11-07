@@ -26,6 +26,7 @@ const dev: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
 const config = (spotlightTesting: boolean): RepoConfig => ({
@@ -34,7 +35,7 @@ const config = (spotlightTesting: boolean): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting,
 	autoRunAfterSetup: false,
 	remoteName: "origin",

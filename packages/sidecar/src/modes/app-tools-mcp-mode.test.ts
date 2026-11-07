@@ -69,7 +69,12 @@ describe("SIDE-13 app-tools-mcp mode", () => {
 			sessionId: "s1" as SessionId,
 			socketPath: "/tmp/s",
 			workspaceDir: "/tmp/w",
-			appTools: { diffComments: true, progressUpdates: false, setTargetBranch: false },
+			appTools: {
+				diffComments: true,
+				progressUpdates: false,
+				setTargetBranch: false,
+				localExecution: false,
+			},
 		});
 		expect(received?.token).toBe("secret");
 	});

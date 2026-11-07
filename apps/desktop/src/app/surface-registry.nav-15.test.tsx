@@ -240,6 +240,7 @@ const DEV_ACTION: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
 /** Two ready workspaces of one repository with a "Dev server" action, opened on the first. */

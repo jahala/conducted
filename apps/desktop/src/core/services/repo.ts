@@ -96,7 +96,13 @@ import {
 import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
-import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
+import {
+	coerceSettingValue,
+	getSettingDef,
+	previewUrlsFrom,
+	previewUrlsToText,
+	type SettingValue,
+} from "../registries/settings.ts";
 import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.ts";
 import { isGithubRemoteUrl } from "./github.ts";
 import {
@@ -473,6 +479,7 @@ function runActionsFrom(shared: SettingsFileContents, local: SettingsFileContent
 			hidden: action.hidden,
 			icon: action.icon,
 			origin: inLocal ? (inShared ? "changed_locally" : "local") : "shared",
+			availableIn: [...action.availableIn],
 		};
 	});
 }
@@ -515,7 +522,7 @@ export function repoConfigFrom(
 			runMode: runMode(),
 			archiveScript: asText(value("archive_script")),
 			copyFiles: list("file_include_globs"),
-			previewUrlTemplate: list("open_url_template")[0] ?? null,
+			previewUrls: previewUrlsFrom(value("open_url_template")) ?? [],
 			spotlightTesting: flag("spotlight_testing"),
 			autoRunAfterSetup: flag("auto_run_after_setup"),
 			remoteName: asText(value("remote_name")),
@@ -603,6 +610,10 @@ function writeList(
 	else contents.values[key] = [...value];
 }
 
+/** The default availability: both this Mac and a cloud workspace. */
+const availableEverywhere = (targets: readonly string[]): boolean =>
+	targets.includes("local") && targets.includes("cloud") && targets.length === 2;
+
 function actionsMatch(left: RunAction, right: RunAction): boolean {
 	return (
 		left.command === right.command &&
@@ -610,7 +621,8 @@ function actionsMatch(left: RunAction, right: RunAction): boolean {
 		left.cwd === right.cwd &&
 		left.isDefault === right.isDefault &&
 		left.hidden === right.hidden &&
-		left.icon === right.icon
+		left.icon === right.icon &&
+		sameStrings(left.availableIn, right.availableIn)
 	);
 }
 
@@ -636,6 +648,8 @@ function localActionsFrom(
 			isDefault: action.isDefault,
 			hidden: action.hidden,
 			icon: action.icon,
+			// The file leaves the field out when the action runs everywhere, which is its default.
+			...(availableEverywhere(action.availableIn) ? {} : { availableIn: [...action.availableIn] }),
 		};
 	}
 	return result;
@@ -1122,11 +1136,11 @@ export class RepoService {
 			writeText(contents, "archive_script", config.archiveScript, sharedConfig.archiveScript);
 			writeIfDifferent(contents, "run_script_mode", config.runMode, sharedConfig.runMode);
 			writeList(contents, "file_include_globs", config.copyFiles, sharedConfig.copyFiles);
-			writeList(
+			writeText(
 				contents,
 				"open_url_template",
-				config.previewUrlTemplate === null ? [] : [config.previewUrlTemplate],
-				sharedConfig.previewUrlTemplate === null ? [] : [sharedConfig.previewUrlTemplate],
+				previewUrlsToText(config.previewUrls),
+				previewUrlsToText(sharedConfig.previewUrls),
 			);
 			writeIfDifferent(
 				contents,

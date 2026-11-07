@@ -36,7 +36,10 @@ const state = vi.hoisted(() => {
 	return {
 		sessions: { state: "ready", data: [] } as Loadable<Session[]>,
 		terminals: { state: "ready", data: [] } as unknown as Loadable<unknown[]>,
-		workspace: { state: "ready", data: { prNumber: null } } as unknown as Loadable<unknown>,
+		workspace: {
+			state: "ready",
+			data: { prNumber: null, host: { kind: "local" } },
+		} as unknown as Loadable<unknown>,
 		freak: false,
 		close: vi.fn(),
 		closeTerminal: vi.fn(),
@@ -129,7 +132,7 @@ const renderStrip = ({
 beforeEach(() => {
 	state.sessions = { state: "ready", data: [] };
 	state.terminals = { state: "ready", data: [] };
-	state.workspace = { state: "ready", data: { prNumber: null } };
+	state.workspace = { state: "ready", data: { prNumber: null, host: { kind: "local" } } };
 	state.freak = false;
 	state.sessionsSnapshot.liveStates = {};
 	state.sessionsSnapshot.cancelling = {};

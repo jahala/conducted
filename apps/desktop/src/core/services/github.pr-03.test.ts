@@ -544,6 +544,20 @@ describe("PR-03 live poll rules", () => {
 		expect(git.runCommands.some((command) => command.args[1] === "graphql")).toBe(false);
 	});
 
+	it("says offline when GitHub is offline before the workspace's first poll answered", async () => {
+		const git = fakeGit({ graphql: () => output(answer(prNode())) });
+		const service = makeService(git);
+		service.store.setState({ access: { status: "offline" } });
+
+		await service.pollNow(workspaceId);
+
+		expect(service.store.getState().byWorkspace[workspaceId]).toEqual({
+			pullRequest: null,
+			unavailable: "offline",
+			fetchedAt: expect.any(Number),
+		});
+	});
+
 	it("batches watched siblings of one repository into one query", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(Date.parse("2026-01-02T00:00:00Z"));

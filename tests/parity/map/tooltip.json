@@ -8,11 +8,12 @@
 		"owner": "rule:quote"
 	},
 	"tooltip:M2690256": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-map 6. Settings",
-		"backlog": "CHAT-12",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"by": "seed"
 	},
 	"tooltip:R1717507": {
 		"status": "gap",
@@ -84,19 +85,18 @@
 	"tooltip:R8821619": {
 		"status": "matched",
 		"state": "home-archived",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(4) > span",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(4)",
 		"by": "seed"
 	},
 	"tooltip:R8843427": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"class": "wording",
-		"backlog": "REV-08",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"tooltip:R8922004": {
 		"status": "decided",
@@ -148,12 +148,13 @@
 		"by": "seed"
 	},
 	"tooltip:R9642788": {
-		"status": "matched",
-		"state": "git-diff",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"tooltip:R10033594": {
 		"status": "gap",
