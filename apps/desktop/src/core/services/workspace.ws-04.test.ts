@@ -61,7 +61,6 @@ function sampleSession(changes: Partial<Session> = {}): Session {
 		forkResumeNativeMessageId: null,
 		unreadCount: 0,
 		contextUsedTokens: null,
-		contextWindowTokens: null,
 		queuePausedAt: null,
 		closedAt: null,
 		lastUserMessageAt: null,

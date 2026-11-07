@@ -95,7 +95,6 @@ export const sampleSession: Session = {
 	forkResumeNativeMessageId: null,
 	unreadCount: 3,
 	contextUsedTokens: 1200,
-	contextWindowTokens: null,
 	queuePausedAt: null,
 	closedAt: null,
 	lastUserMessageAt: 4000,

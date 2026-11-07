@@ -54,8 +54,6 @@ export function sessionFromRow(row: SessionRow): Result<Session> {
 			agentSessionId: row.agent_session_id,
 			unreadCount: row.unread_count,
 			contextUsedTokens: row.context_used_tokens,
-			// The window size lives in model_context_windows, keyed by agent and model (CHAT-14).
-			contextWindowTokens: null,
 			queuePausedAt: row.queue_paused_at,
 			closedAt: row.closed_at,
 			lastUserMessageAt: row.last_user_message_at,
@@ -200,7 +198,6 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 					forkResumeNativeMessageId: null,
 					unreadCount: 0,
 					contextUsedTokens: null,
-					contextWindowTokens: null,
 					queuePausedAt: null,
 					closedAt: null,
 					lastUserMessageAt: null,

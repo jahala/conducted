@@ -348,7 +348,6 @@ describe("DATA-04 event ingest", () => {
 		session = must(await harness.repositories.sessions.get(sessionId));
 		expect(session?.contextUsedTokens).toBe(1200);
 		// The window has one home, the per-model table; the chat keeps only the last used count.
-		expect(session?.contextWindowTokens).toBeNull();
 		expect(must(await harness.repositories.modelContextWindows.list())).toEqual([
 			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000, updatedAt: 1000 },
 		]);
@@ -400,7 +399,6 @@ describe("CHAT-14 event ingest remembers each model's context window", () => {
 
 		const session = must(await harness.repositories.sessions.get(sessionId));
 		expect(session?.contextUsedTokens).toBe(2400);
-		expect(session?.contextWindowTokens).toBeNull();
 		expect(must(await harness.repositories.modelContextWindows.list())).toEqual([
 			{ agent: "claude", model: sessionConfig.model, windowTokens: 200000, updatedAt: 1000 },
 		]);

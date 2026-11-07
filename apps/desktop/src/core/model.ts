@@ -166,11 +166,6 @@ export interface Session {
 	unreadCount: number;
 	/** The last used token count an agent reported: a cache of the newest usage event (CHAT-14). */
 	contextUsedTokens: number | null;
-	/**
-	 * Always null. A model's window size lives in `model_context_windows`, which the context wheel
-	 * reads through `ContextWindowService`; migration 0013 dropped the chat's old copy.
-	 */
-	contextWindowTokens: number | null;
 	queuePausedAt: number | null;
 	closedAt: number | null;
 	lastUserMessageAt: number | null;
