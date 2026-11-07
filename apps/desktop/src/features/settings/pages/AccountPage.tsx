@@ -15,10 +15,13 @@
  * "Manage" with a check or "Connect", that opens the "GitHub" dialog ("Choose how Conducted
  * authenticates GitHub operations on your machine."); ours holds the sign-in state with Check again,
  * the sign-in method, the token field and Disconnect there. The Linear key field opens under the
- * Linear row from "Connect"; the service marks are our own glyphs (D002).
+ * Linear row from "Connect"; the service marks are our own glyphs (D002). The Linear row has
+ * Conductor's Refresh before its button (renderApp YVe), which asks Linear again whether the stored
+ * key works; a request that fails is a toast.
  * Data: useGitHubAccess() for the `gh` status, useLinearAccess() for the Linear connection, the
  * GitHub store for the failure class,
- * RegistrySettingRowByKey for stored values, Actions.accounts for the token and Linear key.
+ * RegistrySettingRowByKey for stored values, Actions.accounts for the token, the Linear key and the
+ * Linear Refresh.
  * Our design choice: the page never starts `gh auth login`, because it is interactive. It shows the
  * command with a copy button and a "Check again" action. A token that does not look like a GitHub
  * token is saved only after the user confirms the warning.
@@ -40,6 +43,7 @@ import { Input, Label } from "../../../ui/Input.tsx";
 import { CheckIcon, GitBranchIcon, ListTodoIcon, RefreshIcon } from "../../../ui/icons.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
+import { RefreshButton } from "../RefreshButton.tsx";
 import { RegistrySettingRowByKey } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -60,6 +64,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const [disconnectLinear, setDisconnectLinear] = useState(false);
 	const [savingLinear, setSavingLinear] = useState(false);
 	const [linearFormOpen, setLinearFormOpen] = useState(false);
+	const [refreshingLinear, setRefreshingLinear] = useState(false);
 	const [avatarFailed, setAvatarFailed] = useState(false);
 
 	const failure = raw.status === "signed_out" ? raw.failure : undefined;
@@ -68,6 +73,14 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const checkAgain = async () => {
 		const result = await actions.app.recheckGitHubAccess();
 		if (!result.ok) toastError("Couldn't check GitHub access", result.error);
+	};
+
+	/** The Linear row's Refresh: asks Linear again whether the stored key works. */
+	const refreshLinear = async () => {
+		setRefreshingLinear(true);
+		const result = await actions.accounts.recheckLinear();
+		setRefreshingLinear(false);
+		if (!result.ok) toastError("Couldn't check Linear access", result.error);
 	};
 
 	const copy = async (text: string, message: string) => {
@@ -159,26 +172,29 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				title="Linear"
 				description="Connect Linear so Conducted can use issue context from your account."
 				actions={
-					linearAccess.state === "ready" &&
-					(linearAccess.data.state === "signed_in" ||
-						linearAccess.data.state === "key_rejected") ? (
-						<Button
-							variant="outlineDestructive"
-							size="sm"
-							onClick={() => setDisconnectLinear(true)}
-						>
-							Disconnect Linear
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							aria-expanded={linearFormOpen}
-							aria-controls="linear-key-form"
-							onClick={() => setLinearFormOpen((open) => !open)}
-						>
-							Connect
-						</Button>
-					)
+					<>
+						<RefreshButton refreshing={refreshingLinear} onRefresh={() => void refreshLinear()} />
+						{linearAccess.state === "ready" &&
+						(linearAccess.data.state === "signed_in" ||
+							linearAccess.data.state === "key_rejected") ? (
+							<Button
+								variant="outlineDestructive"
+								size="sm"
+								onClick={() => setDisconnectLinear(true)}
+							>
+								Disconnect Linear
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								aria-expanded={linearFormOpen}
+								aria-controls="linear-key-form"
+								onClick={() => setLinearFormOpen((open) => !open)}
+							>
+								Connect
+							</Button>
+						)}
+					</>
 				}
 			>
 				{linearAccess.state === "loading" ? <Skeleton className="h-5 w-56" /> : null}

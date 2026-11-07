@@ -32,8 +32,9 @@ import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { cn } from "../../../ui/cn.ts";
-import { CheckIcon, KeyIcon, PlayIcon, RefreshIcon, TerminalIcon } from "../../../ui/icons.tsx";
+import { CheckIcon, KeyIcon, PlayIcon, TerminalIcon } from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
+import { RefreshButton } from "../RefreshButton.tsx";
 
 /** Characters of a program path shown before the middle is cut. */
 const PATH_LENGTH = 52;
@@ -203,16 +204,7 @@ export function AgentCard({
 					<span className="text-sm text-fg">{status.label}</span>
 					{state ? <Badge tone={state.tone}>{state.label}</Badge> : null}
 					<span className="flex-1" />
-					<Button
-						size="sm"
-						variant="ghost"
-						className="h-7 px-2"
-						disabled={refreshing}
-						onClick={onRefresh}
-					>
-						<RefreshIcon className={cn("mr-1 size-3", refreshing && "animate-spin")} />
-						Refresh
-					</Button>
+					<RefreshButton refreshing={refreshing} onRefresh={onRefresh} />
 				</div>
 
 				{notInstalled ? (
