@@ -64,33 +64,55 @@ export function sessionFromRow(row: SessionRow): Result<Session> {
 	};
 }
 
-/** Parameters for SESSIONS_SQL.insert, in column order. */
+/**
+ * The sessions table's columns, in the order every statement names them. The array is the one
+ * home for the column list: the SELECT, the INSERT placeholders and the tests all use it, so a
+ * dropped column (migration 0013 dropped context_window_tokens) cannot leave a positional list
+ * out of step.
+ */
+export const SESSION_COLUMNS = [
+	"id",
+	"workspace_id",
+	"title",
+	"config",
+	"agent_session_id",
+	"unread_count",
+	"context_used_tokens",
+	"queue_paused_at",
+	"closed_at",
+	"last_user_message_at",
+	"created_at",
+	"updated_at",
+	"fork_resume_native_message_id",
+] as const;
+
+type SessionColumn = (typeof SESSION_COLUMNS)[number];
+
+/** Parameters for SESSIONS_SQL.insert, in `SESSION_COLUMNS` order. */
 export function sessionToParams(session: Session): Result<readonly unknown[]> {
 	const config = stringifyJson(session.config, "sessions.config");
 	if (!config.ok) return config;
-	return {
-		ok: true,
-		value: [
-			session.id,
-			session.workspaceId,
-			session.title,
-			config.value,
-			session.agentSessionId,
-			session.unreadCount,
-			session.contextUsedTokens,
-			session.queuePausedAt,
-			session.closedAt,
-			session.lastUserMessageAt,
-			session.createdAt,
-			session.updatedAt,
-			session.forkResumeNativeMessageId,
-		],
+	// The values are named first, so a column added or removed from SESSION_COLUMNS is a type error
+	// here rather than a value landing in the wrong column.
+	const values: Record<SessionColumn, unknown> = {
+		id: session.id,
+		workspace_id: session.workspaceId,
+		title: session.title,
+		config: config.value,
+		agent_session_id: session.agentSessionId,
+		unread_count: session.unreadCount,
+		context_used_tokens: session.contextUsedTokens,
+		queue_paused_at: session.queuePausedAt,
+		closed_at: session.closedAt,
+		last_user_message_at: session.lastUserMessageAt,
+		created_at: session.createdAt,
+		updated_at: session.updatedAt,
+		fork_resume_native_message_id: session.forkResumeNativeMessageId,
 	};
+	return { ok: true, value: SESSION_COLUMNS.map((column) => values[column]) };
 }
 
-const COLUMNS = `id, workspace_id, title, config, agent_session_id, unread_count,
-	context_used_tokens, queue_paused_at, closed_at, last_user_message_at,
-	created_at, updated_at, fork_resume_native_message_id`;
+const COLUMNS = SESSION_COLUMNS.join(", ");
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSIONS_SQL = {
@@ -100,7 +122,7 @@ export const SESSIONS_SQL = {
 		AND closed_at IS NULL ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM sessions WHERE id = $1`,
 	insert: `INSERT INTO sessions (${COLUMNS})
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		VALUES (${SESSION_COLUMNS.map((_, index) => `$${index + 1}`).join(", ")})`,
 	setTitle: "UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3",
 	setTitleIfEmpty:
 		"UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3 AND title IS NULL",
