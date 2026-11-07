@@ -923,7 +923,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 	});
 	const cloudPairing = createCloudPairing(platform.cloud);
-	const cloudDeploy = createCloudDeploy({ cloud: platform.cloud, fs: platform.fs });
+	const cloudDeploy = createCloudDeploy(platform.cloud);
 	const graphite = new GraphiteService({
 		git: gitRunner,
 		setting,

@@ -1515,17 +1515,6 @@ const SETTINGS_TABLE = [
 		max: 1000000000,
 	},
 	{
-		key: "cloud_worker_source_dir",
-		page: "state",
-		scopes: ["user"],
-		title: "Worker source folder",
-		description: "The folder the Cloud Workspaces deploy reads its Worker from.",
-		searchTerms: ["cloud", "worker", "deploy", "wrangler"],
-		feature: "CLOUD-08",
-		type: "string",
-		default: "",
-	},
-	{
 		key: "left_panel_visible",
 		page: "state",
 		scopes: ["user"],

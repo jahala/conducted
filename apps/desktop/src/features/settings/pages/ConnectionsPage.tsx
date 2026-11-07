@@ -8,9 +8,9 @@
  * forwarding, which is left out) and backlog RUN-03 (one port per workspace, detection, preview
  * URLs). CLOUD-07: the Worker URL and token are checked with the Worker and then kept in the
  * Keychain; the page shows which Worker this Mac is paired with and can remove the pairing.
- * CLOUD-08: the deploy runs `wrangler` with the user's own login from a chosen copy of the Worker's
- * source, pairs this Mac, and can delete the Worker, its container application and its bucket with
- * Remove deployment.
+ * CLOUD-08: the deploy runs `wrangler` with the user's own login from the Worker and image inputs
+ * the app carries, pairs this Mac, and can delete the Worker, its container application and its
+ * bucket with Remove deployment.
  * Our design choice: the range is validated here, and port 22 is always refused because SSH
  * uses it. The pairing form sits on Connections because it connects this Mac to a Worker; it is
  * ours, since Conductor has no self-hosted Worker (D098, D106).
@@ -23,7 +23,7 @@
  * Test first: a range of 3000 to 2000 shows an error and does not call settings.set.
  */
 import { useState } from "react";
-import { useActions, useCloudPairing, useSetting } from "../../../core/hooks.ts";
+import { useActions, useCloudPairing } from "../../../core/hooks.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
@@ -67,8 +67,6 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const [pairingToken, setPairingToken] = useState("");
 	const [pairingError, setPairingError] = useState<string | null>(null);
 	const [pairingBusy, setPairingBusy] = useState(false);
-	const savedSourceDir = useSetting<string>("cloud_worker_source_dir");
-	const [sourceDir, setSourceDir] = useState(savedSourceDir);
 	const [deployBusy, setDeployBusy] = useState(false);
 	const [deployError, setDeployError] = useState<string | null>(null);
 	const [deployNote, setDeployNote] = useState<string | null>(null);
@@ -99,25 +97,16 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 		toast("Unpaired from the Worker");
 	};
 
-	const chooseFolder = async () => {
-		const picked = await actions.app.pickFolder("Worker source folder");
-		if (picked.ok && picked.value !== null) {
-			setSourceDir(picked.value);
-			setDeployError(null);
-		}
-	};
-
 	const deployWorker = async () => {
 		setDeployError(null);
 		setDeployNote(null);
 		setDeployBusy(true);
-		const result = await actions.cloud.deploy(sourceDir);
+		const result = await actions.cloud.deploy();
 		setDeployBusy(false);
 		if (!result.ok) {
 			setDeployError(result.error.message);
 			return;
 		}
-		await actions.settings.set("cloud_worker_source_dir", sourceDir.trim());
 		setDeployNote(`Deployed and paired with ${result.value.url}.`);
 		toast("Deployed the Worker and paired this Mac");
 	};
@@ -126,7 +115,7 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 		setDeployError(null);
 		setDeployNote(null);
 		setDeployBusy(true);
-		const result = await actions.cloud.uninstall(sourceDir);
+		const result = await actions.cloud.uninstall();
 		setDeployBusy(false);
 		if (!result.ok) {
 			setDeployError(result.error.message);
@@ -257,20 +246,6 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 							your Cloudflare account. It also unpairs this Mac.
 						</p>
 						<div className="flex items-end gap-3">
-							<div className="flex flex-col gap-1">
-								<Label htmlFor="cloud-worker-source-paired">Worker source folder</Label>
-								<Input
-									id="cloud-worker-source-paired"
-									value={sourceDir}
-									placeholder="/path/to/conducted/apps/cloud"
-									autoComplete="off"
-									className="w-96"
-									onChange={(event) => {
-										setSourceDir(event.target.value);
-										setDeployError(null);
-									}}
-								/>
-							</div>
 							<Button variant="secondary" loading={deployBusy} onClick={() => void deployWorker()}>
 								Deploy to Cloudflare
 							</Button>
@@ -306,23 +281,6 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 							Worker secret, and pairs this Mac.
 						</p>
 						<div className="flex items-end gap-3">
-							<div className="flex flex-col gap-1">
-								<Label htmlFor="cloud-worker-source">Worker source folder</Label>
-								<Input
-									id="cloud-worker-source"
-									value={sourceDir}
-									placeholder="/path/to/conducted/apps/cloud"
-									autoComplete="off"
-									className="w-96"
-									onChange={(event) => {
-										setSourceDir(event.target.value);
-										setDeployError(null);
-									}}
-								/>
-							</div>
-							<Button variant="secondary" onClick={() => void chooseFolder()}>
-								Choose folder…
-							</Button>
 							<Button loading={deployBusy} onClick={() => void deployWorker()}>
 								Deploy to Cloudflare
 							</Button>
@@ -338,7 +296,7 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 							</p>
 						) : null}
 						<p className="text-xs text-fg-subtle">
-							Already deployed? The same folder deploys again, and Remove deployment deletes it.
+							Already deployed? Deploying again updates it, and Remove deployment deletes it.
 						</p>
 						<p className="text-sm font-medium text-fg">Pair a Worker you deployed already</p>
 						<div className="flex flex-col gap-1">

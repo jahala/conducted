@@ -57,7 +57,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::mpsc;
 use tokio_tungstenite::Connector;
 use tokio_tungstenite::tungstenite::Message;
@@ -116,23 +116,34 @@ pub struct RelayClosed {
     pub reason: String,
 }
 
-/// The resource folder the deploy expects: the Worker's `wrangler.jsonc` sits in it.
-pub const WRANGLER_CONFIG: &str = "wrangler.jsonc";
+/// The bundled deploy folder inside the app's resources, and the file its build wrote.
+pub const CLOUD_RESOURCES: &str = "cloud";
+/// The fact file `scripts/cloud/prepare-deploy.ts` writes from the Worker's own config.
+pub const DEPLOY_FACT_FILE: &str = "deploy.json";
+/// The pre-bundled Worker the app uploads.
+pub const DEPLOY_WORKER_FILE: &str = "worker.js";
+/// The sandbox Dockerfile the user's Docker builds the image from.
+pub const DEPLOY_DOCKERFILE: &str = "sandbox/Dockerfile";
 /// The program that deploys into the user's own Cloudflare account, from their login.
 pub const WRANGLER_PROGRAM: &str = "wrangler";
 /// The Worker secret the pairing token is stored as. `apps/cloud/src/auth.ts` reads it.
 pub const PAIRING_SECRET_NAME: &str = "PAIRING_TOKEN";
+/// What the user sees when wrangler is not installed. It names the exact steps (D088, D109).
+pub const WRANGLER_MISSING_HELP: &str = "wrangler is not installed. Install Node.js from https://nodejs.org, then run `npm install -g wrangler` and `wrangler login`, and deploy again.";
+/// What the user sees when Docker is not running. A Dockerfile image is built locally (D109).
+pub const DOCKER_MISSING_HELP: &str = "Docker is needed to build the sandbox image from the app's Dockerfile. Install Docker Desktop from https://www.docker.com/products/docker-desktop/, start it, and deploy again.";
+/// The oldest wrangler that reads the sandbox's `durable_object` container config. The repository
+/// pins and verifies 4.158.0; 4.128.0 refuses the same config (D109).
+pub const MIN_WRANGLER_VERSION: (u32, u32, u32) = (4, 158, 0);
+/// What the user sees when wrangler is older than the container config needs.
+pub const WRANGLER_OLD_HELP: &str = "wrangler 4.158 or newer is needed for the sandbox's container configuration. Run `npm install -g wrangler@latest` and deploy again.";
 
-/// What the app needs to deploy the Worker to the user's account (CLOUD-08). The names come from
-/// the Worker's own `wrangler.jsonc`, so there is one home for them.
-#[derive(Debug, Clone, Deserialize)]
+/// What a deploy may override (CLOUD-08). The UI sends none, so the bundled name is used; the live
+/// verification sends a `conducted-dev-c08-<time>` name and deletes everything after.
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloudDeployInput {
-    /// The folder that holds `wrangler.jsonc` and the sandbox `Dockerfile`.
-    pub source_dir: String,
-    pub worker_name: String,
-    pub bucket_name: String,
-    pub container_app: String,
+    pub worker_name: Option<String>,
 }
 
 /// What a deploy leaves behind: the Worker's URL, now paired with this Mac.
@@ -142,14 +153,26 @@ pub struct CloudDeployPayload {
     pub url: String,
 }
 
-/// What the uninstall needs. The same names a deploy used.
-#[derive(Debug, Clone, Deserialize)]
+/// What the uninstall overrides. The same optional name a deploy used.
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloudUninstallInput {
-    pub source_dir: String,
-    pub worker_name: String,
-    pub bucket_name: String,
-    pub container_app: String,
+    pub worker_name: Option<String>,
+}
+
+/// The facts the deploy inputs state: read from `deploy.json`, which the release build writes from
+/// the Worker's own `wrangler.jsonc`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeployFacts {
+    pub name: String,
+    pub compatibility_date: String,
+    pub compatibility_flags: Vec<String>,
+    pub instance: String,
+    pub class_name: String,
+    pub image_key: String,
+    pub object_binding: String,
+    pub backup_binding: String,
 }
 
 /// A program's answer, as the deploy reads it.
@@ -195,10 +218,12 @@ impl Wrangler {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| {
-                refused(
-                    "cloud_wrangler_missing",
-                    format!("`{}` could not start: {error}", self.program),
-                )
+                let message = if error.kind() == std::io::ErrorKind::NotFound {
+                    String::from(WRANGLER_MISSING_HELP)
+                } else {
+                    format!("`{}` could not start: {error}", self.program)
+                };
+                refused("cloud_wrangler_missing", message)
             })?;
         if let Some(text) = stdin {
             let mut pipe = child.stdin.take().ok_or_else(|| {
@@ -618,22 +643,143 @@ fn checked_resource_name(code: &'static str, what: &str, name: &str) -> CommandR
     ))
 }
 
-/// The Worker's source folder: absolute, and holding the config that names its resources.
-fn checked_source_dir(raw: &str) -> CommandResult<PathBuf> {
-    let path = PathBuf::from(raw);
-    if !path.is_absolute() {
-        return Err(refused(
-            "cloud_source_invalid",
-            "The Worker's source folder must be an absolute path.",
-        ));
+/// The deploy folder inside the app's resources. A packaged app always has it; a dev run reads the
+/// folder `pnpm cloud:prepare` built, and a dev run without it gets a named error, never a guess.
+pub fn deploy_resources(resource_dir: &Path) -> CommandResult<PathBuf> {
+    let bundled = resource_dir.join(CLOUD_RESOURCES);
+    if bundled.is_dir() {
+        return Ok(bundled);
     }
-    if !path.join(WRANGLER_CONFIG).is_file() {
-        return Err(refused(
-            "cloud_source_invalid",
-            format!("The folder holds no {WRANGLER_CONFIG}."),
-        ));
+    if cfg!(debug_assertions) {
+        let prepared = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join(CLOUD_RESOURCES);
+        if prepared.is_dir() {
+            return Ok(prepared);
+        }
     }
-    Ok(path)
+    Err(refused(
+        "cloud_resources_missing",
+        "This build carries no deploy inputs. Run `pnpm cloud:prepare` and start the app again.",
+    ))
+}
+
+/// The facts the deploy inputs state, from `deploy.json`.
+pub fn read_deploy_facts(resources: &Path) -> CommandResult<DeployFacts> {
+    let path = resources.join(DEPLOY_FACT_FILE);
+    let text = std::fs::read_to_string(&path).map_err(|error| {
+        refused(
+            "cloud_resources_invalid",
+            format!("The deploy inputs are unreadable: {error}"),
+        )
+    })?;
+    serde_json::from_str(&text).map_err(|error| {
+        refused(
+            "cloud_resources_invalid",
+            format!("The deploy inputs are not valid: {error}"),
+        )
+    })
+}
+
+/// The name a deploy uses: the input's override, or the bundled default.
+pub fn deploy_name(input: Option<&CloudDeployInput>, facts: &DeployFacts) -> String {
+    input
+        .and_then(|value| value.worker_name.clone())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| facts.name.clone())
+}
+
+/// The container application and bucket a Worker name owns. One rule for deploy and uninstall.
+pub fn container_name(worker: &str) -> String {
+    format!("{worker}-sandbox")
+}
+
+/// The first `major.minor.patch` in wrangler's `--version` output.
+pub fn parse_wrangler_version(text: &str) -> Option<(u32, u32, u32)> {
+    let token = text.split_whitespace().find_map(|word| {
+        let clean = word.trim_start_matches('v');
+        let mut parts = clean.split('.');
+        let major = parts.next()?.parse::<u32>().ok()?;
+        let minor = parts.next()?.parse::<u32>().ok()?;
+        let patch = parts
+            .next()?
+            .trim_end_matches(|c: char| !c.is_ascii_digit());
+        let patch = patch.parse::<u32>().ok()?;
+        Some((major, minor, patch))
+    })?;
+    Some(token)
+}
+
+/// Refuses a wrangler too old for the sandbox's container config, before anything is created.
+fn require_wrangler_version(wrangler: &Wrangler, cwd: &Path) -> CommandResult<()> {
+    let output = wrangler.run(&[String::from("--version")], cwd, None, WRANGLER_TIMEOUT)?;
+    let version = parse_wrangler_version(&output.stdout).ok_or_else(|| {
+        refused(
+            "cloud_wrangler_failed",
+            "wrangler did not say its version. Run `npm install -g wrangler@latest` and deploy again.",
+        )
+    })?;
+    if version < MIN_WRANGLER_VERSION {
+        return Err(refused("cloud_wrangler_too_old", WRANGLER_OLD_HELP));
+    }
+    Ok(())
+}
+
+/// The writable temp folder one deploy uses for its config and secret file.
+fn deploy_temp_folder() -> CommandResult<PathBuf> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or_default();
+    let folder =
+        std::env::temp_dir().join(format!("conducted-deploy-{}-{nanos}", std::process::id()));
+    std::fs::create_dir_all(&folder).map_err(|error| {
+        refused(
+            "cloud_wrangler_failed",
+            format!("The deploy's temp folder could not be made: {error}"),
+        )
+    })?;
+    Ok(folder)
+}
+
+/// The wrangler config for one deploy: the bundled worker and Dockerfile, and the names derived
+/// from the Worker name. Written to the deploy's temp folder.
+pub fn deploy_config(facts: &DeployFacts, resources: &Path, worker: &str) -> serde_json::Value {
+    let mut images = serde_json::Map::new();
+    images.insert(
+        facts.image_key.clone(),
+        serde_json::json!({ "dockerfile": resources.join(DEPLOY_DOCKERFILE) }),
+    );
+    let mut exports = serde_json::Map::new();
+    exports.insert(
+        facts.class_name.clone(),
+        serde_json::json!({ "type": "durable-object", "storage": "sqlite" }),
+    );
+    serde_json::json!({
+        "name": worker,
+        "main": resources.join(DEPLOY_WORKER_FILE),
+        "no_bundle": true,
+        "compatibility_date": facts.compatibility_date,
+        "compatibility_flags": facts.compatibility_flags,
+        "vars": { "INSTANCE_TYPE": facts.instance },
+        "containers": [{
+            "name": container_name(worker),
+            "class_name": facts.class_name,
+            "scheduling_policy": "durable_object",
+            "images": images
+        }],
+        "durable_objects": { "bindings": [{ "class_name": facts.class_name, "name": facts.object_binding }] },
+        "exports": exports,
+        "r2_buckets": [{ "binding": facts.backup_binding, "bucket_name": worker }]
+    })
+}
+
+/// Docker must be installed and running, because a Dockerfile image is built locally (D109).
+fn require_docker() -> CommandResult<()> {
+    match Command::new("docker").arg("info").output() {
+        Ok(output) if output.status.success() => Ok(()),
+        _ => Err(refused("cloud_docker_missing", DOCKER_MISSING_HELP)),
+    }
 }
 
 /// 32 random bytes, base64url without padding: what the CLOUD-02 spike made at setup (question 4).
@@ -794,39 +940,92 @@ fn write_secret_file(token: &str) -> CommandResult<PathBuf> {
     Ok(path)
 }
 
-/// The steps of a deploy, run off the async runtime: the bucket, the Worker with its token, and
-/// the URL it printed. The secret file is removed whatever the deploy did.
-fn deploy_worker(
+/// The steps of a deploy, run off the async runtime: the shipped inputs, Docker, the bucket, the
+/// generated config, the Worker with its token, and the URL it printed. The temp folder and the
+/// secret file are removed whatever the deploy did.
+pub fn deploy_worker(
     wrangler: &Wrangler,
-    input: &CloudDeployInput,
+    resources: &Path,
+    worker: &str,
     token: &str,
 ) -> CommandResult<String> {
-    let source = checked_source_dir(&input.source_dir)?;
-    checked_resource_name("cloud_worker_name_invalid", "Worker", &input.worker_name)?;
-    checked_resource_name("cloud_bucket_name_invalid", "bucket", &input.bucket_name)?;
+    deploy_worker_with(wrangler, resources, worker, token, require_docker)
+}
+
+/// The deploy's steps with the Docker check passed in, so a test can run them without Docker.
+fn deploy_worker_with<F>(
+    wrangler: &Wrangler,
+    resources: &Path,
+    worker: &str,
+    token: &str,
+    docker: F,
+) -> CommandResult<String>
+where
+    F: FnOnce() -> CommandResult<()>,
+{
+    checked_resource_name("cloud_worker_name_invalid", "Worker", worker)?;
+    checked_resource_name("cloud_bucket_name_invalid", "bucket", worker)?;
     checked_resource_name(
         "cloud_container_name_invalid",
         "container application",
-        &input.container_app,
+        &container_name(worker),
     )?;
-    ensure_bucket(wrangler, &source, &input.bucket_name)?;
-    let secrets = write_secret_file(token)?;
+    let facts = read_deploy_facts(resources)?;
+    if !resources.join(DEPLOY_WORKER_FILE).is_file() {
+        return Err(refused(
+            "cloud_resources_invalid",
+            "This build's deploy inputs hold no worker.js. Run `pnpm cloud:prepare`.",
+        ));
+    }
+    if !resources.join(DEPLOY_DOCKERFILE).is_file() {
+        return Err(refused(
+            "cloud_resources_invalid",
+            "This build's deploy inputs hold no sandbox Dockerfile. Run `pnpm cloud:prepare`.",
+        ));
+    }
+    require_wrangler_version(wrangler, resources)?;
+    // The docs build a Dockerfile image at deploy time; say so before anything is created.
+    docker()?;
+    // wrangler writes its own state under the working folder; use the deploy's temp folder so the
+    // app bundle is never written to.
+    let folder = deploy_temp_folder()?;
+    ensure_bucket(wrangler, &folder, worker)?;
+    let config = folder.join("wrangler.jsonc");
+    if let Err(error) = std::fs::write(
+        &config,
+        deploy_config(&facts, resources, worker).to_string(),
+    ) {
+        let _ = std::fs::remove_dir_all(&folder);
+        return Err(refused(
+            "cloud_wrangler_failed",
+            format!("The deploy config could not be written: {error}"),
+        ));
+    }
+    let secrets = match write_secret_file(token) {
+        Ok(path) => path,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&folder);
+            return Err(error);
+        }
+    };
+    let config = config.to_string_lossy().into_owned();
     let secrets_arg = secrets.to_string_lossy().into_owned();
-    let deployed = run_checked(
+    let result = run_checked(
         wrangler,
         &[
             "deploy",
-            "--name",
-            &input.worker_name,
+            "--config",
+            &config,
             "--secrets-file",
             &secrets_arg,
         ],
-        &source,
+        &folder,
         None,
         DEPLOY_TIMEOUT,
     );
     let _ = std::fs::remove_file(&secrets);
-    let output = deployed?;
+    let _ = std::fs::remove_dir_all(&folder);
+    let output = result?;
     deployed_url(&output.stdout).ok_or_else(|| {
         refused(
             "cloud_deploy_no_url",
@@ -835,16 +1034,34 @@ fn deploy_worker(
     })
 }
 
+/// The resources folder for the running app.
+fn app_deploy_resources(app: &AppHandle) -> CommandResult<PathBuf> {
+    let resources = app
+        .path()
+        .resource_dir()
+        .map_err(|error| CommandError::Failed {
+            code: "cloud_resources_missing",
+            message: format!("Could not find the app resources folder: {error}"),
+        })?;
+    deploy_resources(&resources)
+}
+
 /// Deploys the Worker, its container application and its R2 bucket to the user's account, sets the
-/// pairing token as a Worker secret, and pairs this Mac with the result (CLOUD-08).
+/// pairing token as a Worker secret, and pairs this Mac with the result (CLOUD-08). The inputs are
+/// the app's own bundled copy, so the user chooses no folder.
 #[tauri::command]
-pub async fn cloud_deploy(input: CloudDeployInput) -> CommandResult<CloudDeployPayload> {
+pub async fn cloud_deploy(
+    app: AppHandle,
+    input: Option<CloudDeployInput>,
+) -> CommandResult<CloudDeployPayload> {
+    let resources = app_deploy_resources(&app)?;
+    let facts = read_deploy_facts(&resources)?;
+    let worker = deploy_name(input.as_ref(), &facts);
     let token = make_pairing_token()?;
     let wrangler = Wrangler::new();
-    let for_blocking = input.clone();
     let with_token = token.clone();
     let url = blocking("cloud_deploy_failed", move || {
-        deploy_worker(&wrangler, &for_blocking, &with_token)
+        deploy_worker(&wrangler, &resources, &worker, &with_token)
     })
     .await?;
     let base = checked_worker_url(&url)?;
@@ -867,17 +1084,16 @@ pub async fn cloud_deploy(input: CloudDeployInput) -> CommandResult<CloudDeployP
 
 /// The steps of an uninstall: the Worker, then its container application and images, then the
 /// bucket. A resource the account does not have is skipped, so a second uninstall succeeds.
-fn uninstall_worker(wrangler: &Wrangler, input: &CloudUninstallInput) -> CommandResult<()> {
-    let source = checked_source_dir(&input.source_dir)?;
-    checked_resource_name("cloud_worker_name_invalid", "Worker", &input.worker_name)?;
+pub fn uninstall_worker(wrangler: &Wrangler, resources: &Path, worker: &str) -> CommandResult<()> {
+    checked_resource_name("cloud_worker_name_invalid", "Worker", worker)?;
     let removed = wrangler.run(
         &[
             String::from("delete"),
             String::from("--name"),
-            input.worker_name.clone(),
+            worker.to_string(),
             String::from("--force"),
         ],
-        &source,
+        resources,
         None,
         WRANGLER_TIMEOUT,
     )?;
@@ -898,19 +1114,19 @@ fn uninstall_worker(wrangler: &Wrangler, input: &CloudUninstallInput) -> Command
             String::from("list"),
             String::from("--json"),
         ],
-        &source,
+        resources,
         None,
         WRANGLER_TIMEOUT,
     )?;
     if let Some(id) = containers
         .success
-        .then(|| container_id(&containers.stdout, &input.container_app))
+        .then(|| container_id(&containers.stdout, &container_name(worker)))
         .flatten()
     {
         run_checked(
             wrangler,
             &["containers", "delete", &id],
-            &source,
+            resources,
             None,
             WRANGLER_TIMEOUT,
         )?;
@@ -923,16 +1139,16 @@ fn uninstall_worker(wrangler: &Wrangler, input: &CloudUninstallInput) -> Command
             String::from("list"),
             String::from("--json"),
         ],
-        &source,
+        resources,
         None,
         WRANGLER_TIMEOUT,
     )?;
     if images.success {
-        for reference in image_refs(&images.stdout, &input.worker_name) {
+        for reference in image_refs(&images.stdout, worker) {
             run_checked(
                 wrangler,
                 &["containers", "images", "delete", &reference, "-y"],
-                &source,
+                resources,
                 None,
                 WRANGLER_TIMEOUT,
             )?;
@@ -945,19 +1161,19 @@ fn uninstall_worker(wrangler: &Wrangler, input: &CloudUninstallInput) -> Command
             String::from("bucket"),
             String::from("list"),
         ],
-        &source,
+        resources,
         None,
         WRANGLER_TIMEOUT,
     )?;
     if buckets.success
         && bucket_names(&buckets.stdout)
             .iter()
-            .any(|name| name == &input.bucket_name)
+            .any(|name| name == worker)
     {
         run_checked(
             wrangler,
-            &["r2", "bucket", "delete", &input.bucket_name],
-            &source,
+            &["r2", "bucket", "delete", worker],
+            resources,
             None,
             WRANGLER_TIMEOUT,
         )?;
@@ -968,11 +1184,20 @@ fn uninstall_worker(wrangler: &Wrangler, input: &CloudUninstallInput) -> Command
 /// Deletes what a deploy made, in the order that stops billing: the Worker, its container
 /// application and images, then the R2 bucket. It also removes this Mac's pairing.
 #[tauri::command]
-pub async fn cloud_uninstall(input: CloudUninstallInput) -> CommandResult<()> {
+pub async fn cloud_uninstall(
+    app: AppHandle,
+    input: Option<CloudUninstallInput>,
+) -> CommandResult<()> {
+    let resources = app_deploy_resources(&app)?;
+    let facts = read_deploy_facts(&resources)?;
+    let worker = input
+        .as_ref()
+        .and_then(|value| value.worker_name.clone())
+        .filter(|name| !name.is_empty())
+        .unwrap_or(facts.name);
     let wrangler = Wrangler::new();
-    let for_blocking = input.clone();
     blocking("cloud_uninstall_failed", move || {
-        uninstall_worker(&wrangler, &for_blocking)
+        uninstall_worker(&wrangler, &resources, &worker)
     })
     .await?;
     cloud_unpair().await
@@ -1459,41 +1684,86 @@ mod tests {
         (folder, wrangler, record)
     }
 
-    fn source_folder(folder: &TestFolder) -> PathBuf {
-        let source = folder.path().join("cloud");
-        std::fs::create_dir_all(&source).expect("the source folder");
-        std::fs::write(source.join(WRANGLER_CONFIG), "{}").expect("the config");
-        source
+    /// The deploy inputs as `scripts/cloud/prepare-deploy.ts` leaves them.
+    fn resources_folder(folder: &TestFolder) -> PathBuf {
+        let resources = folder.path().join("cloud");
+        std::fs::create_dir_all(resources.join("sandbox")).expect("the sandbox folder");
+        std::fs::write(
+            resources.join(DEPLOY_FACT_FILE),
+            serde_json::json!({
+                "name": "conducted-cloud",
+                "compatibilityDate": "2026-11-06",
+                "compatibilityFlags": ["nodejs_compat"],
+                "instance": "basic",
+                "className": "Workspace",
+                "imageKey": "sandbox",
+                "objectBinding": "WORKSPACE",
+                "backupBinding": "BACKUPS"
+            })
+            .to_string(),
+        )
+        .expect("the fact file");
+        std::fs::write(resources.join(DEPLOY_WORKER_FILE), "export default {}")
+            .expect("the bundle");
+        std::fs::write(resources.join(DEPLOY_DOCKERFILE), "FROM scratch").expect("the Dockerfile");
+        resources
     }
 
     #[test]
-    fn a_deploy_writes_the_bucket_and_the_secret_and_finds_the_url() {
+    fn a_deploy_uses_the_bundled_inputs_and_its_own_names() {
         let (folder, wrangler, record) = fake_wrangler(
             "#!/bin/sh\n\
              case \"$1\" in\n\
+             --version) echo \"4.158.0\"; exit 0 ;;\n\
              r2) if [ \"$3\" = \"list\" ]; then echo \"name:           other\"; exit 0; fi\n\
                  if [ \"$3\" = \"create\" ]; then echo \"bucket $4\" >> RECORD; exit 0; fi\n\
                  exit 1 ;;\n\
-             deploy) echo \"deploy $*\" >> RECORD; cat \"$5\" >> RECORD;\n\
-                 echo \"  https://conducted-cloud.example.workers.dev\"; exit 0 ;;\n\
+             deploy) cfg=\"\"; sec=\"\"; prev=\"\"\n\
+                 for a in \"$@\"; do\n\
+                   [ \"$prev\" = \"--config\" ] && cfg=\"$a\"\n\
+                   [ \"$prev\" = \"--secrets-file\" ] && sec=\"$a\"\n\
+                   prev=\"$a\"\n\
+                 done\n\
+                 echo \"deploy\" >> RECORD; cat \"$cfg\" >> RECORD; cat \"$sec\" >> RECORD\n\
+                 echo \"  https://conducted-dev-c08-test.example.workers.dev\"; exit 0 ;;\n\
              esac\n\
              exit 1\n",
         );
-        let source = source_folder(&folder);
-        let input = CloudDeployInput {
-            source_dir: source.to_string_lossy().into_owned(),
-            worker_name: String::from("conducted-cloud"),
-            bucket_name: String::from("conducted-cloud-backups"),
-            container_app: String::from("conducted-cloud-sandbox"),
-        };
-        let url = deploy_worker(&wrangler, &input, "the-token").expect("a deploy");
-        assert_eq!(url, "https://conducted-cloud.example.workers.dev");
+        let resources = resources_folder(&folder);
+        let url = deploy_worker_with(
+            &wrangler,
+            &resources,
+            "conducted-dev-c08-test",
+            "the-token",
+            || Ok(()),
+        )
+        .expect("a deploy");
+        assert_eq!(url, "https://conducted-dev-c08-test.example.workers.dev");
         let calls = std::fs::read_to_string(&record).expect("the record");
-        assert!(calls.contains("bucket conducted-cloud-backups"));
-        assert!(calls.contains("--secrets-file"));
+        assert!(calls.contains("bucket conducted-dev-c08-test"));
+        assert!(calls.contains("\"name\":\"conducted-dev-c08-test\""));
+        assert!(calls.contains("\"bucket_name\":\"conducted-dev-c08-test\""));
+        assert!(calls.contains("\"name\":\"conducted-dev-c08-test-sandbox\""));
+        // The worker and Dockerfile are the app's own bundled files, by absolute path.
+        assert!(
+            calls.contains(
+                &resources
+                    .join(DEPLOY_WORKER_FILE)
+                    .to_string_lossy()
+                    .into_owned()
+            )
+        );
+        assert!(
+            calls.contains(
+                &resources
+                    .join(DEPLOY_DOCKERFILE)
+                    .to_string_lossy()
+                    .into_owned()
+            )
+        );
         // The token reaches the deploy's secret file and nothing else.
         assert!(calls.contains("\"PAIRING_TOKEN\":\"the-token\""));
-        // The secret file is gone when the deploy returns.
+        // The temp folder and the secret file are gone when the deploy returns.
         let leftovers = std::fs::read_dir(std::env::temp_dir())
             .expect("the temp folder")
             .filter_map(|entry| entry.ok())
@@ -1517,17 +1787,11 @@ mod tests {
              if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"images\" ] && [ \"$3\" = \"list\" ]; then\n\
                echo '[{\"name\":\"conducted-cloud-workspace-sandbox\",\"tags\":[\"wrangler-a\"]}]'; exit 0; fi\n\
              if [ \"$1\" = \"r2\" ] && [ \"$3\" = \"list\" ]; then\n\
-               echo 'name:           conducted-cloud-backups'; exit 0; fi\n\
+               echo 'name:           conducted-cloud'; exit 0; fi\n\
              exit 0\n",
         );
-        let source = source_folder(&folder);
-        let input = CloudUninstallInput {
-            source_dir: source.to_string_lossy().into_owned(),
-            worker_name: String::from("conducted-cloud"),
-            bucket_name: String::from("conducted-cloud-backups"),
-            container_app: String::from("conducted-cloud-sandbox"),
-        };
-        uninstall_worker(&wrangler, &input).expect("an uninstall");
+        let resources = resources_folder(&folder);
+        uninstall_worker(&wrangler, &resources, "conducted-cloud").expect("an uninstall");
         let calls = std::fs::read_to_string(&record).expect("the record");
         let lines: Vec<&str> = calls.lines().collect();
         assert_eq!(lines[0], "delete --name conducted-cloud --force");
@@ -1537,7 +1801,36 @@ mod tests {
                 &"containers images delete conducted-cloud-workspace-sandbox:wrangler-a -y"
             )
         );
-        assert!(lines.contains(&"r2 bucket delete conducted-cloud-backups"));
+        assert!(lines.contains(&"r2 bucket delete conducted-cloud"));
+    }
+
+    #[test]
+    fn the_deploy_config_names_the_derived_resources() {
+        let folder = TestFolder::new();
+        let resources = resources_folder(&folder);
+        let facts = read_deploy_facts(&resources).expect("the facts");
+        let config = deploy_config(&facts, &resources, "conducted-dev-c08-x");
+        assert_eq!(config["name"], "conducted-dev-c08-x");
+        assert_eq!(
+            config["containers"][0]["name"],
+            "conducted-dev-c08-x-sandbox"
+        );
+        assert_eq!(
+            config["containers"][0]["images"]["sandbox"]["dockerfile"],
+            resources
+                .join(DEPLOY_DOCKERFILE)
+                .to_string_lossy()
+                .into_owned()
+        );
+        assert_eq!(
+            config["durable_objects"]["bindings"][0]["name"],
+            "WORKSPACE"
+        );
+        assert_eq!(
+            config["r2_buckets"][0]["bucket_name"],
+            "conducted-dev-c08-x"
+        );
+        assert_eq!(config["no_bundle"], true);
     }
 
     #[test]

@@ -86,33 +86,15 @@ describe("SET-02 ConnectionsPage", () => {
 		expect(status.ok && status.value.paired).toBe(false);
 	});
 
-	it("deploys the Worker from a folder and pairs this Mac", async () => {
+	it("deploys the app's Worker and pairs this Mac", async () => {
 		const { container } = await mountPage();
 		if (test === undefined) throw new Error("no test container");
-		test.memory.controls.files.set(
-			"/w/cloud/wrangler.jsonc",
-			JSON.stringify({
-				name: "conducted-cloud",
-				containers: [{ name: "conducted-cloud-sandbox" }],
-				r2_buckets: [{ binding: "BACKUPS", bucket_name: "conducted-cloud-backups" }],
-			}),
-		);
-		fireEvent.change(screen.getByLabelText("Worker source folder"), {
-			target: { value: "/w/cloud/" },
-		});
 		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
 
 		expect(
 			await screen.findByText("Paired with https://conducted-cloud.example.workers.dev."),
 		).toBeTruthy();
-		expect(test.memory.controls.cloudDeploys).toEqual([
-			{
-				sourceDir: "/w/cloud",
-				workerName: "conducted-cloud",
-				bucketName: "conducted-cloud-backups",
-				containerApp: "conducted-cloud-sandbox",
-			},
-		]);
+		expect(test.memory.controls.cloudDeploys).toEqual([{}]);
 		expect((await container.platform.cloud.status()).ok).toBe(true);
 	});
 });

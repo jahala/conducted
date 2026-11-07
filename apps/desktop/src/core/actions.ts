@@ -252,13 +252,13 @@ export function createActions(
 		cloud: {
 			pair: (input) => services.cloudPairing.pair(input),
 			unpair: () => services.cloudPairing.unpair(),
-			deploy: async (sourceDir) => {
-				const result = await services.cloudDeploy.deploy(sourceDir);
+			deploy: async () => {
+				const result = await services.cloudDeploy.deploy();
 				if (result.ok) await services.cloudPairing.start();
 				return result;
 			},
-			uninstall: async (sourceDir) => {
-				const result = await services.cloudDeploy.uninstall(sourceDir);
+			uninstall: async () => {
+				const result = await services.cloudDeploy.uninstall();
 				if (result.ok) await services.cloudPairing.start();
 				return result;
 			},

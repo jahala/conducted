@@ -1184,19 +1184,21 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			cloudPairing = { paired: false, url: null };
 			return ok(undefined);
 		},
-		deploy: async (input) => {
+		deploy: async (input = {}) => {
 			cloudDeploys.push(input);
 			let answer: Result<CloudDeployResult> | null = null;
 			for (const script of cloudDeployScripts) {
 				answer = await script(input);
 				if (answer !== null) break;
 			}
-			const result = answer ?? ok({ url: `https://${input.workerName}.example.workers.dev` });
+			const result =
+				answer ??
+				ok({ url: `https://${input.workerName ?? "conducted-cloud"}.example.workers.dev` });
 			// The real deploy writes the pairing in Rust; the stand-in keeps the same two facts.
 			if (result.ok) cloudPairing = { paired: true, url: result.value.url };
 			return result;
 		},
-		uninstall: async (input) => {
+		uninstall: async (input = {}) => {
 			cloudUninstalls.push(input);
 			return ok(undefined);
 		},
