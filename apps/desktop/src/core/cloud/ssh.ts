@@ -43,6 +43,8 @@ export const SSH_KEY_FOLDER = ".conducted/ssh";
 export const SSH_KEY_NAME = "id_ed25519";
 /** The SSH config files this app owns under `~/.ssh`. */
 export const SSH_CONFIG_NAME = "conducted_config";
+/** The setting that chooses the private key; empty means the auto-generated one. */
+export const SSH_KEY_PATH_SETTING = "ssh_key_path";
 export const SSH_CONFIG_DIR_NAME = "conducted_config.d";
 export const SSH_APP_CONFIG_NAME = "ssh.config";
 
@@ -186,6 +188,8 @@ export interface SshDeps {
 	opener: Pick<Opener, "openRemote">;
 	portForward: PortForwarding;
 	cloud: Cloud;
+	/** The `ssh_key_path` setting; empty means the auto-generated key. */
+	sshKeyPath: () => string;
 }
 
 /** Picks a host name no other running SSH forward uses. */
@@ -199,8 +203,37 @@ function uniqueHostname(workspace: Workspace, taken: ReadonlySet<string>): strin
 	}
 }
 
-/** The key path and its public text, generated once when the Mac has none. */
-async function ensureKey(deps: SshDeps): Promise<Result<{ keyPath: string; publicKey: string }>> {
+/** Expands a leading `~` in `ssh_key_path`, as Conductor does, so no shell is needed. */
+export function expandSshKeyPath(value: string, home: string): string {
+	const trimmed = value.trim();
+	if (trimmed === "~") return home;
+	if (trimmed.startsWith("~/")) return `${home}/${trimmed.slice(2)}`;
+	return trimmed;
+}
+
+/** Conductor's error when a custom key's `.pub` half cannot be read. */
+export function customSshKeyMissing(keyPath: string): string {
+	return `Custom SSH public key not found at ${keyPath}.pub`;
+}
+
+/** The key path and its public text: the chosen key, or generated once when none is chosen. */
+async function ensureKey(
+	deps: SshDeps,
+	customKeyPath: string,
+): Promise<Result<{ keyPath: string; publicKey: string }>> {
+	const custom = customKeyPath.trim();
+	if (custom !== "") {
+		const keyPath = expandSshKeyPath(custom, deps.fs.paths.home);
+		const privateExists = await deps.fs.exists(keyPath);
+		const publicExists = await deps.fs.exists(`${keyPath}.pub`);
+		if (!privateExists || !publicExists) {
+			return err(appError("ssh_key_missing", customSshKeyMissing(keyPath)));
+		}
+		const publicKey = await deps.fs.readText(`${keyPath}.pub`);
+		const text = publicKey.ok ? publicKey.value.trim() : "";
+		if (text === "") return err(appError("ssh_key_missing", customSshKeyMissing(keyPath)));
+		return ok({ keyPath, publicKey: text });
+	}
 	const folder = `${deps.fs.paths.home}/${SSH_KEY_FOLDER}`;
 	const keyPath = `${folder}/${SSH_KEY_NAME}`;
 	if (!(await deps.fs.exists(keyPath))) {
@@ -305,7 +338,7 @@ export async function ensureSshSession(
 		return err(appError("ssh_not_cloud", "Only a cloud workspace can be opened over SSH."));
 	}
 	const host: CloudHost = workspace.host;
-	const key = await ensureKey(deps);
+	const key = await ensureKey(deps, deps.sshKeyPath());
 	if (!key.ok) return key;
 
 	const installed = await cloudJson(deps.cloud, host, "/ssh-key", {

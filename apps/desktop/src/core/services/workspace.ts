@@ -2306,6 +2306,7 @@ export class WorkspaceService {
 			opener: this.#deps.platform.opener,
 			portForward: this.#deps.platform.portForward,
 			cloud,
+			sshKeyPath: () => this.#deps.setting<string>("ssh_key_path"),
 		};
 	}
 

@@ -101,6 +101,61 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 		}
 	});
 
+	it("uses the key named by ssh_key_path and names it in the config", async () => {
+		const test = createTestContainer();
+		try {
+			const { workspace, paths } = await cloudWorkspaceWithKey(test);
+			const home = test.memory.platform.fs.paths.home;
+			const custom = `${home}/keys/custom`;
+			test.memory.controls.files.set(custom, "");
+			test.memory.controls.files.set(`${custom}.pub`, "ssh-ed25519 CUSTOMKEY conducted\n");
+			test.container.services.settings.store.setState({
+				values: { ssh_key_path: custom },
+			});
+
+			const opened = await test.container.services.workspace.openIn(workspace.id, "Cursor");
+			expect(opened).toMatchObject({ ok: true });
+
+			const install = test.memory.controls.cloudRequests.find(
+				(request) => request.path === "/w/vm-1/ssh-key",
+			);
+			expect(install?.body).toEqual({ publicKey: "ssh-ed25519 CUSTOMKEY conducted" });
+			const config = test.memory.controls.files.get(paths.app) ?? "";
+			expect(config).toContain(`IdentityFile ${custom}`);
+			expect(test.memory.controls.files.has(paths.keyPath)).toBe(false);
+			expect(
+				test.memory.controls.shellCalls.filter((call) => call.program === "ssh-keygen"),
+			).toHaveLength(0);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("refuses a custom key with no .pub file in Conductor's words", async () => {
+		const test = createTestContainer();
+		try {
+			const { workspace } = await cloudWorkspaceWithKey(test);
+			const home = test.memory.platform.fs.paths.home;
+			const missing = `${home}/keys/missing`;
+			test.memory.controls.files.set(missing, "");
+			test.container.services.settings.store.setState({
+				values: { ssh_key_path: missing },
+			});
+
+			const opened = await test.container.services.workspace.openIn(workspace.id, "Cursor");
+			expect(opened).toMatchObject({
+				ok: false,
+				error: {
+					code: "ssh_key_missing",
+					message: `Custom SSH public key not found at ${missing}.pub`,
+				},
+			});
+			expect(test.memory.controls.cloudRequests).toHaveLength(0);
+		} finally {
+			test.close();
+		}
+	});
+
 	it("adds the include to an existing config without replacing it", async () => {
 		const test = createTestContainer();
 		try {

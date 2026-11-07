@@ -1541,6 +1541,18 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
+	{
+		key: "ssh_key_path",
+		page: "advanced",
+		scopes: ["user"],
+		title: "SSH private key path",
+		description:
+			"Use your own SSH key for cloud workspace access. Leave empty to auto-generate a key.",
+		searchTerms: ["ssh", "key", "cloud", "workspace", "path", "private"],
+		feature: "CLOUD-12",
+		type: "string",
+		default: "",
+	},
 	// Our design choice: on, as the setting's description says that turning it off is the exception; the research gives no default.
 	{
 		key: "worktree_push_auto_setup_remote",

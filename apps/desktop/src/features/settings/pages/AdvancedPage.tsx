@@ -1,7 +1,8 @@
 /**
  * @feature SET-02 Advanced settings page
- * Owns: the Advanced page of Settings: where files live, agent program paths, and terminal
- * history size.
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
+ * Owns: the Advanced page of Settings: where files live, agent program paths, the SSH private key
+ * path, and terminal history size.
  * Behaviour: ui-map.md 6, "Advanced" table; services-map.md 4.2.3. The "set upstream on plain
  * push" row stays on the Git page (one home per setting). Rows come from the settings registry
  * (SET-01).
@@ -37,6 +38,7 @@ import { toast, toastError } from "../../../ui/Toast.tsx";
 import { PROGRAM_PATHS, ProgramPathRow } from "../program-path.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
+import { SshKeyPathRow } from "../ssh-key-path.tsx";
 
 const ROOT_PATH_KEY = "conducted_root_path";
 
@@ -109,10 +111,12 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				/>
 			))}
 
+			<SshKeyPathRow focusSettingKey={focusSettingKey} />
+
 			<RegistrySettingRows
 				page="advanced"
 				focusSettingKey={focusSettingKey}
-				exclude={[ROOT_PATH_KEY, ...PROGRAM_PATHS.map((program) => program.key)]}
+				exclude={[ROOT_PATH_KEY, "ssh_key_path", ...PROGRAM_PATHS.map((program) => program.key)]}
 			/>
 
 			<AgentBinaries />
