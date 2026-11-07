@@ -26,9 +26,16 @@ async function settle<T>(code: string, message: string, run: () => Promise<T>): 
 	}
 }
 
+/** What only the container can do for an action: quitting goes through its one quit path. */
+export interface AppLifecycle {
+	/** Asks to quit as the menu's Quit does: confirms while agents work, then stops and quits. */
+	requestQuit(): void;
+}
+
 export function createActions(
 	services: Services,
 	platform: Pick<Platform, "app" | "opener" | "dialogs">,
+	lifecycle: AppLifecycle,
 ): Actions {
 	return {
 		projects: {
@@ -280,6 +287,10 @@ export function createActions(
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
+			quit: () => {
+				lifecycle.requestQuit();
+				return Promise.resolve(ok(undefined));
+			},
 			checkForUpdates: () => services.updates.check(),
 			installUpdate: () => services.updates.install(),
 			exportLogs: () => platform.app.exportLogs(),

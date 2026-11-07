@@ -44,6 +44,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
+import { useActions } from "../core/hooks.ts";
 import { canShowWorkspaceRoute } from "../core/workspace-open.ts";
 import { NextUnreadController } from "../features/chat/NextUnreadButton.tsx";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
@@ -69,11 +70,13 @@ import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 
 /**
  * The window controls' keyboard shortcuts, which follow the same history the buttons use, and the
- * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings.
+ * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings. Cmd+Q
+ * (and Quit in the palette) quits the way the menu's Quit does, asking first while agents work.
  */
 function NavigationShortcuts() {
 	const router = useRouter();
 	const navigate = useNavigate();
+	const actions = useActions();
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	useCommandHandler("app.openDiagnostics", "base", () => {
 		void navigate({ to: "/diagnostics" });
@@ -98,6 +101,10 @@ function NavigationShortcuts() {
 	});
 	useCommandHandler("app.openSettings", "base", () => {
 		void navigate({ to: "/settings/$page", params: { page: "general" } });
+		return true;
+	});
+	useCommandHandler("app.quit", "base", () => {
+		void actions.app.quit();
 		return true;
 	});
 	return null;

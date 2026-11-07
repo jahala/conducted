@@ -799,6 +799,8 @@ export interface Actions {
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
+		/** Quits the app the way the menu's Quit does: asks first while agents are working. */
+		quit: Act;
 		checkForUpdates: Act;
 		installUpdate: Act;
 		exportLogs: Act<[], string>;

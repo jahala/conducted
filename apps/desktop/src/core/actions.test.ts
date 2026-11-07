@@ -58,7 +58,7 @@ function recordingTree(calls: RecordedCall[], path = ""): unknown {
 
 describe("DATA-01 createActions", () => {
 	it("returns an object with every group named in the Actions interface", () => {
-		const actions = createActions({} as Services, {} as never);
+		const actions = createActions({} as Services, {} as never, {} as never);
 		expect(Object.keys(actions).sort()).toEqual([...GROUPS].sort());
 		for (const group of GROUPS) {
 			expect(typeof actions[group as keyof typeof actions]).toBe("object");
@@ -69,7 +69,7 @@ describe("DATA-01 createActions", () => {
 		const calls: RecordedCall[] = [];
 		const services = recordingTree(calls) as Services;
 		const platform = recordingTree(calls) as never;
-		const actions = createActions(services, platform);
+		const actions = createActions(services, platform, {} as never);
 
 		const samples: Record<string, { run: () => Promise<unknown>; path: string }> = {
 			projects: {
@@ -176,7 +176,11 @@ describe("DATA-01 createActions", () => {
 	});
 	it("reaches exactly one service or platform call from every action", async () => {
 		const calls: RecordedCall[] = [];
-		const actions = createActions(recordingTree(calls) as Services, recordingTree(calls) as never);
+		const actions = createActions(
+			recordingTree(calls) as Services,
+			recordingTree(calls) as never,
+			recordingTree(calls) as never,
+		);
 		const leaves: { name: string; run: () => unknown }[] = [];
 		const collect = (node: object, path: string): void => {
 			for (const [key, value] of Object.entries(node)) {
@@ -214,7 +218,7 @@ describe("DATA-01 createActions", () => {
 				},
 			},
 		};
-		const actions = createActions({} as Services, refusing as never);
+		const actions = createActions({} as Services, refusing as never, {} as never);
 
 		await expect(actions.app.openUrl("weird://x")).resolves.toMatchObject({
 			ok: false,
@@ -232,7 +236,7 @@ describe("DATA-01 createActions", () => {
 			opener: { openUrl: async () => {} },
 			dialogs: { pickFolder: async () => answers.shift() ?? null },
 		};
-		const actions = createActions({} as Services, platform as never);
+		const actions = createActions({} as Services, platform as never, {} as never);
 
 		await expect(actions.app.pickFolder("Pick")).resolves.toEqual(ok("/code/app"));
 		await expect(actions.app.pickFolder("Pick")).resolves.toEqual(ok(null));
@@ -250,7 +254,7 @@ describe("DATA-01 createActions", () => {
 				},
 			},
 		};
-		const actions = createActions({} as Services, platform as never);
+		const actions = createActions({} as Services, platform as never, {} as never);
 
 		await expect(actions.app.pickFile("Select Claude Code executable")).resolves.toEqual(
 			ok("/usr/local/bin/claude"),
