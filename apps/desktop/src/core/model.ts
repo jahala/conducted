@@ -1,12 +1,13 @@
 /**
  * The app's domain types, shared by services (src/core) and screens (src/features).
- * Rows mirror the migrations (0001 to 0008) after parsing; view models are what screens render.
+ * Rows mirror the migrations (0001 to 0009) after parsing; view models are what screens render.
  * Screens never read the database: they get these types from services through hooks.
  */
 import type {
 	AgentItem,
 	CodexGoal,
 	FileChange,
+	Host,
 	Interaction,
 	LiveState,
 	Progress,
@@ -123,6 +124,11 @@ export interface Workspace {
 	activeSessionId: SessionId | null;
 	/** How many files were copied into the new worktree during setup, for the Setup tab. */
 	filesCopied: number | null;
+	/**
+	 * Where its git, shell, files, terminals and chats run: this Mac, or a cloud sandbox (CLOUD-01).
+	 * Every call checks it first (core/host.ts).
+	 */
+	host: Host;
 	lastActivityAt: number;
 	createdAt: number;
 	updatedAt: number;

@@ -110,6 +110,7 @@ function workspaceFor(folder: string): WorkspaceContext {
 		repoRootPath: folder,
 		targetBranch: "origin/main",
 		placeholderBranch: false,
+		host: { kind: "local" },
 		port: 5123,
 	};
 }

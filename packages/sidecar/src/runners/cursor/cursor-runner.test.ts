@@ -75,6 +75,7 @@ function startOptions(env: Record<string, string>, workspacePath: string): Start
 			repoRootPath: "/repo",
 			targetBranch: "origin/main",
 			placeholderBranch: false,
+			host: { kind: "local" },
 			port: 4310,
 		},
 		env,

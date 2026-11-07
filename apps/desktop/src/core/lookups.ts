@@ -167,6 +167,7 @@ export function createLookups(sources: LookupSources): Lookups {
 				targetBranch: ws.value.targetBranch,
 				placeholderBranch: ws.value.branchIsPlaceholder,
 				port: ws.value.port,
+				host: ws.value.host,
 				...(userPreferences === undefined ? {} : { userPreferences }),
 			});
 		},

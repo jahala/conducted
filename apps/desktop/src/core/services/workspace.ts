@@ -87,7 +87,7 @@
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
  * the archive time; a branch checked out elsewhere asks for a new name.
  */
-import type { SessionConfig } from "@conducted/protocol";
+import { LOCAL_HOST, type SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -925,6 +925,9 @@ export class WorkspaceService {
 			port: port.value,
 			linkedPaths: [],
 			setupLogPath: null,
+			// Creating a workspace makes a worktree on this Mac. A cloud workspace is made by its
+			// Worker (CLOUD-03).
+			host: LOCAL_HOST,
 		});
 		if (!row.ok) return row;
 		this.#upsert(row.value);

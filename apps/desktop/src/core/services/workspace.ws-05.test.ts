@@ -40,6 +40,7 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
 		path: "/worktrees/oslo",
 		branch: "feature/oslo",
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
 		state: "ready",

@@ -5,6 +5,7 @@
  * sections 1 and 4 (Codex approval policy and sandbox).
  */
 import { z } from "zod";
+import { zHost } from "./host.ts";
 import { zAcpAgent, zAgentKind, zWorkspaceId } from "./ids.ts";
 
 /**
@@ -119,6 +120,11 @@ export const zWorkspaceContext = z.object({
 	port: z.number().int().positive(),
 	/** User preferences text appended to messages, from settings. */
 	userPreferences: z.string().optional(),
+	/**
+	 * Where the workspace lives: the Mac, or a cloud sandbox (CLOUD-01). The `host` of Conductor's
+	 * query options (frontend.md 3c), so a chat runs locally or in the cloud.
+	 */
+	host: zHost,
 });
 export type WorkspaceContext = z.infer<typeof zWorkspaceContext>;
 

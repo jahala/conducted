@@ -8,9 +8,14 @@
  * cannot both win; a bad linked_paths column returns an error Result; a setter on a missing
  * workspace returns `db.not_found`; last_activity_at only moves forward; deleting cascades to
  * sessions, comments, terminals and section members.
+ * CLOUD-01: the host columns (migration 0009) read back as the workspace's `host`. A local row has
+ * no URL or sandbox id and a cloud row has both; any other mix is an error Result, so a half-written
+ * cloud row is never read as local.
  * Test first: workspaceFromRow returns an error Result when linked_paths is not a JSON list.
  */
+import type { Host } from "@conducted/protocol";
 import {
+	appError,
 	err,
 	ok,
 	type RepoId,
@@ -57,6 +62,9 @@ export interface WorkspaceRow {
 	archived_at: number | null;
 	active_session_id: SessionId | null;
 	files_copied: number | null;
+	host_kind: Host["kind"];
+	host_url: string | null;
+	host_vm_id: string | null;
 	last_activity_at: number;
 	created_at: number;
 	updated_at: number;
@@ -68,9 +76,39 @@ export interface WorkspaceRow {
  */
 export type WorkspaceInsert = Workspace & { setupLogPath: string | null };
 
+/** The host columns as a `Host`: local has neither URL nor sandbox id, cloud has both. */
+export function hostFromRow(
+	row: Pick<WorkspaceRow, "host_kind" | "host_url" | "host_vm_id">,
+): Result<Host> {
+	if (row.host_kind === "local" && row.host_url === null && row.host_vm_id === null) {
+		return ok({ kind: "local" });
+	}
+	if (
+		row.host_kind === "cloud" &&
+		row.host_url !== null &&
+		row.host_url !== "" &&
+		row.host_vm_id !== null &&
+		row.host_vm_id !== ""
+	) {
+		return ok({ kind: "cloud", url: row.host_url, vmId: row.host_vm_id });
+	}
+	return err(
+		appError(
+			"db.invalid_host",
+			"workspaces.host_* must be local with no URL or sandbox, or cloud with both",
+		),
+	);
+}
+
+/** A `Host` as the three host columns, in column order. */
+const hostToParams = (host: Host): readonly [Host["kind"], string | null, string | null] =>
+	host.kind === "local" ? ["local", null, null] : ["cloud", host.url, host.vmId];
+
 export function workspaceFromRow(row: WorkspaceRow): Result<Workspace> {
 	const linkedPaths = parseStringList(row.linked_paths, "workspaces.linked_paths");
 	if (!linkedPaths.ok) return linkedPaths;
+	const host = hostFromRow(row);
+	if (!host.ok) return host;
 	return {
 		ok: true,
 		value: {
@@ -95,6 +133,7 @@ export function workspaceFromRow(row: WorkspaceRow): Result<Workspace> {
 			archivedAt: row.archived_at,
 			activeSessionId: row.active_session_id,
 			filesCopied: row.files_copied,
+			host: host.value,
 			lastActivityAt: row.last_activity_at,
 			createdAt: row.created_at,
 			updatedAt: row.updated_at,
@@ -131,6 +170,7 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 			workspace.archivedAt,
 			workspace.activeSessionId,
 			workspace.filesCopied,
+			...hostToParams(workspace.host),
 			workspace.lastActivityAt,
 			workspace.createdAt,
 			workspace.updatedAt,
@@ -141,7 +181,7 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 const COLUMNS = `id, repo_id, directory_name, path, branch, branch_is_placeholder, display_name,
 	target_branch, state, kanban_status, port, pinned_at, notes, linked_paths, pr_number, pr_title,
 	pr_description, archive_commit, setup_log_path, archived_at, active_session_id, files_copied,
-	last_activity_at, created_at, updated_at`;
+	host_kind, host_url, host_vm_id, last_activity_at, created_at, updated_at`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const WORKSPACES_SQL = {
@@ -154,7 +194,7 @@ export const WORKSPACES_SQL = {
 	listDirectoryNames: "SELECT directory_name FROM workspaces WHERE repo_id = $1",
 	listPorts: "SELECT port FROM workspaces",
 	insert: `INSERT INTO workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)`,
 	transitionState: "UPDATE workspaces SET state = $1, updated_at = $2 WHERE id = $3 AND state = $4",
 	markArchived: `UPDATE workspaces SET state = 'archived', archive_commit = $1, archived_at = $2,
 		updated_at = $2 WHERE id = $3 AND state = 'archiving'`,
@@ -190,6 +230,8 @@ export interface NewWorkspace {
 	port: number;
 	linkedPaths: string[];
 	setupLogPath: string | null;
+	/** Where it lives (CLOUD-01). A workspace made on the Mac is `LOCAL_HOST`. */
+	host: Host;
 }
 
 export interface WorkspaceRepository {
@@ -354,6 +396,7 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 					archivedAt: null,
 					activeSessionId: null,
 					filesCopied: null,
+					host: input.host,
 					lastActivityAt: at,
 					createdAt: at,
 					updatedAt: at,

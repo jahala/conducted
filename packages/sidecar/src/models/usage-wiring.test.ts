@@ -175,6 +175,7 @@ function workspace(): WorkspaceContext {
 		repoRootPath: "/repo",
 		targetBranch: "origin/main",
 		placeholderBranch: false,
+		host: { kind: "local" },
 		port: 4100,
 	};
 }

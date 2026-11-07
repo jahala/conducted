@@ -91,6 +91,7 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 			repoRootPath: params.cwd,
 			targetBranch: "",
 			placeholderBranch: false,
+			host: { kind: "local" },
 			port: 1,
 		};
 
