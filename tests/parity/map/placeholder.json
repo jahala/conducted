@@ -63,7 +63,9 @@
 	"placeholder:R4379343": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "RUN-06",
+		"owner": "hand"
 	},
 	"placeholder:R4632855": {
 		"status": "gap",
@@ -108,14 +110,20 @@
 	"placeholder:R5645838": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "REV-07",
+		"owner": "hand",
+		"note": "Our quick-open field reads 'Search files by name' (features/palette/QuickOpen.tsx)."
 	},
 	"placeholder:R5652247": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Search in files\" (text) in command-palette.",
-		"by": "hand"
+		"class": "wording",
+		"backlog": "REV-07",
+		"owner": "hand",
+		"note": "Our search-in-files field reads 'Search file contents' (features/palette/SearchInFiles.tsx)."
 	},
 	"placeholder:R5664306": {
 		"status": "gap",
@@ -127,15 +135,18 @@
 	},
 	"placeholder:R5685793": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Search workspaces\" (aria-label) in first-run-home.",
-		"by": "hand"
+		"backlog": "WS-07",
+		"owner": "hand"
 	},
 	"placeholder:R5692826": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
+		"owner": "hand"
 	},
 	"placeholder:R8148331": {
 		"status": "matched",
@@ -148,7 +159,11 @@
 	"placeholder:R8170318": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"class": "wording",
+		"backlog": "AGENT-08",
+		"owner": "hand",
+		"note": "Our MCP form's unset select reads 'Choose...' (features/chat/interactions/McpFormCard.tsx)."
 	},
 	"placeholder:R9000620": {
 		"status": "decided",
@@ -191,7 +206,9 @@
 	"placeholder:R9856436": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"owner": "hand"
 	},
 	"placeholder:R9856783": {
 		"status": "matched",
@@ -205,13 +222,17 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Projects and workspaces",
-		"note": "Checked by hand: the wording differs. Ours reads \"Search\" (text) in first-run.",
-		"by": "hand"
+		"backlog": "WS-01",
+		"item": "Repo picker ('Switch repo', 'Repository on <host>', 'Add repository') with its states",
+		"owner": "hand"
 	},
 	"placeholder:R10189388": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "WS-01",
+		"item": "Repo picker ('Switch repo', 'Repository on <host>', 'Add repository') with its states",
+		"owner": "hand"
 	},
 	"placeholder:R10195168": {
 		"status": "gap",
@@ -224,17 +245,24 @@
 	"placeholder:R10669494": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"owner": "hand"
 	},
 	"placeholder:R10672939": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"owner": "hand"
 	},
 	"placeholder:R10680280": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "Experimental: 'Big terminal mode' with preset and custom commands",
+		"owner": "hand"
 	},
 	"placeholder:R10696051": {
 		"status": "matched",
@@ -245,19 +273,22 @@
 		"by": "seed"
 	},
 	"placeholder:R10770889": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's import dialog.",
+		"by": "hand"
 	},
 	"placeholder:R10779334": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's installed list.",
+		"by": "hand"
 	},
 	"placeholder:R10780577": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's recommended list.",
+		"by": "hand"
 	},
 	"placeholder:R10807790": {
 		"status": "decided",
@@ -284,17 +315,26 @@
 	"placeholder:R10975212": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"placeholder:R11021601": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our action name field reads 'Dev server' (scripts-panel/run/AddActionDialog.tsx)."
 	},
 	"placeholder:R11117637": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"owner": "hand"
 	},
 	"placeholder:R11129925": {
 		"status": "gap",
@@ -319,8 +359,10 @@
 	},
 	"placeholder:R11138955": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"owner": "hand"
 	},
 	"placeholder:R11204617": {
 		"status": "decided",
@@ -410,14 +452,16 @@
 		"by": "seed"
 	},
 	"placeholder:R11661267": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a Prompt form.",
+		"by": "hand"
 	},
 	"placeholder:R11661650": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a Prompt form.",
+		"by": "hand"
 	},
 	"placeholder:R11728075": {
 		"status": "decided",
@@ -452,9 +496,11 @@
 		"by": "hand"
 	},
 	"placeholder:R11951239": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A routine's GitHub trigger filter.",
+		"by": "hand",
+		"reason": "missing"
 	},
 	"placeholder:R11995732": {
 		"status": "decided",

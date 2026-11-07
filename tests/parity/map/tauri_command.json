@@ -1,8 +1,9 @@
 {
 	"tauri_command:get_db_uri": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's shell command for its database file; our UI opens `conducted.db` through the SQL plugin directly.",
+		"by": "hand"
 	},
 	"tauri_command:configure_http_proxy": {
 		"status": "gap",
@@ -13,9 +14,10 @@
 		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:is_cef_runtime": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's check for its CEF runtime; our app always uses the system WebKit view.",
+		"by": "hand"
 	},
 	"tauri_command:native_http_fetch_cancel": {
 		"status": "gap",

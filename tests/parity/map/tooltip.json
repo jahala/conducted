@@ -10,32 +10,48 @@
 	"tooltip:M2690256": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-map 6. Settings"
+		"screen": "ui-map 6. Settings",
+		"backlog": "CHAT-12",
+		"owner": "hand"
 	},
 	"tooltip:R1717507": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"owner": "hand"
 	},
 	"tooltip:R2973448": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "A cloud workspace's setup log block offers 'Copy logs'.",
+		"owner": "hand"
 	},
 	"tooltip:R5588285": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Remote file sync status for cloud workspaces.",
+		"owner": "hand"
 	},
 	"tooltip:R5591578": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Remote file sync status for cloud workspaces.",
+		"owner": "hand"
 	},
 	"tooltip:R5592527": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Remote file sync status for cloud workspaces.",
+		"owner": "hand"
 	},
 	"tooltip:R5608488": {
 		"status": "decided",
@@ -52,9 +68,10 @@
 		"owner": "rule:quote"
 	},
 	"tooltip:R8414164": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A text editor schema's content expression, not wording.",
+		"by": "hand"
 	},
 	"tooltip:R8800031": {
 		"status": "gap",
@@ -75,27 +92,36 @@
 	"tooltip:R8843427": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"class": "wording",
+		"backlog": "REV-08",
+		"owner": "hand",
+		"note": "Our file tab's copy button reads 'Copy file contents' (FileTabHeader.tsx)."
 	},
 	"tooltip:R8922004": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A text editor schema's content expression, not wording.",
+		"by": "hand"
 	},
 	"tooltip:R8925669": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A text editor schema's content expression, not wording.",
+		"by": "hand"
 	},
 	"tooltip:R8966854": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A text editor schema's content expression, not wording.",
+		"by": "hand"
 	},
 	"tooltip:R9523634": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"owner": "hand"
 	},
 	"tooltip:R9525824": {
 		"status": "gap",
@@ -138,14 +164,17 @@
 		"owner": "rule:quote"
 	},
 	"tooltip:R10720405": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's OAuth client setup.",
+		"by": "hand"
 	},
 	"tooltip:R11579984": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-03",
+		"owner": "hand"
 	},
 	"tooltip:R11916650": {
 		"status": "decided",

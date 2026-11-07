@@ -2,12 +2,18 @@
 	"title:M948377": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-01",
+		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
+		"owner": "hand"
 	},
 	"title:M952355": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-01",
+		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
+		"owner": "hand"
 	},
 	"title:M1183209": {
 		"status": "gap",
@@ -36,12 +42,18 @@
 	"title:M3096088": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-08",
+		"item": "A shell environment that cannot be captured shows a notice with a Learn more link.",
+		"owner": "hand"
 	},
 	"title:M3096230": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-08",
+		"item": "A shell environment that cannot be captured shows a notice with a Learn more link.",
+		"owner": "hand"
 	},
 	"title:M3645197": {
 		"status": "decided",
@@ -186,9 +198,10 @@
 		"by": "seed"
 	},
 	"title:M3781724": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Shortcuts"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3781876": {
 		"status": "matched",
@@ -447,7 +460,10 @@
 	"title:M3788154": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-map 4. Left sidebar"
+		"screen": "ui-map 4. Left sidebar",
+		"backlog": "CLOUD-12",
+		"item": "Cmd+Alt+O open cloud workspace remotely in an app",
+		"owner": "hand"
 	},
 	"title:M3788318": {
 		"status": "matched",
@@ -666,9 +682,10 @@
 		"by": "seed"
 	},
 	"title:M3792513": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3792660": {
 		"status": "matched",
@@ -703,49 +720,58 @@
 		"by": "seed"
 	},
 	"title:M3793241": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3793390": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3793539": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3793688": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3793837": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3793986": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3794135": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3794284": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3794433": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3794576": {
 		"status": "matched",
@@ -1020,9 +1046,10 @@
 		"by": "seed"
 	},
 	"title:M3799889": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:M3800071": {
 		"status": "matched",
@@ -1033,9 +1060,10 @@
 		"by": "seed"
 	},
 	"title:M3800221": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3800362": {
 		"status": "matched",
@@ -1088,47 +1116,74 @@
 	"title:M3801366": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: Space or K play and pause",
+		"owner": "hand"
 	},
 	"title:M3801514": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: J back 10 seconds, L forward 10 seconds",
+		"owner": "hand"
 	},
 	"title:M3801662": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: J back 10 seconds, L forward 10 seconds",
+		"owner": "hand"
 	},
 	"title:M3801856": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: ArrowLeft or comma previous frame, ArrowRight or period next frame",
+		"owner": "hand"
 	},
 	"title:M3802039": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: ArrowLeft or comma previous frame, ArrowRight or period next frame",
+		"owner": "hand"
 	},
 	"title:M3802186": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: less-than slows down, greater-than speeds up playback",
+		"owner": "hand"
 	},
 	"title:M3802346": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: less-than slows down, greater-than speeds up playback",
+		"owner": "hand"
 	},
 	"title:M3802500": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: M mute and F fullscreen",
+		"owner": "hand"
 	},
 	"title:M3802657": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "REV-08",
+		"item": "Video player: M mute and F fullscreen",
+		"owner": "hand"
 	},
 	"title:M3802816": {
 		"status": "matched",
@@ -1139,9 +1194,10 @@
 		"by": "seed"
 	},
 	"title:M3802979": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3803126": {
 		"status": "matched",
@@ -1232,79 +1288,102 @@
 		"by": "seed"
 	},
 	"title:M3805156": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3805321": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3805477": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:M3805636": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3805769": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3805902": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3806035": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3806168": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3806301": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3806434": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3806567": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3806700": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A hidden keyboard shortcut title that no screen shows; our command ids differ, so it is not wording.",
+		"by": "hand"
 	},
 	"title:M3847163": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10",
+		"item": "Forward to localhost and Auto-forwarding choose which ports reach the Mac automatically.",
+		"owner": "hand"
 	},
 	"title:M3847315": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10",
+		"item": "Forward to localhost and Auto-forwarding choose which ports reach the Mac automatically.",
+		"owner": "hand"
 	},
 	"title:R1717947": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-01",
+		"item": "Sidebar footer 'Add project...' button and menu",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours uses the folder-dialog title \"Add a project\"."
 	},
 	"title:R1892068": {
 		"status": "gap",
@@ -1317,7 +1396,10 @@
 	"title:R2031302": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-03",
+		"item": "'Create project' dialog: Project name, Parent folder, Template",
+		"owner": "hand"
 	},
 	"title:R2093263": {
 		"status": "gap",
@@ -1481,7 +1563,10 @@
 	"title:R2667864": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"item": "Diff view mode range shows a PR or stack range.",
+		"owner": "hand"
 	},
 	"title:R2987339": {
 		"status": "decided",
@@ -1514,14 +1599,20 @@
 		"owner": "rule:cite"
 	},
 	"title:R3621572": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A language definition string from the bundled p5 syntax highlighter, not wording.",
+		"by": "hand"
 	},
 	"title:R3975899": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "REV-08",
+		"item": "'Empty CSV' and 'Preview not available'",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours reads \"Preview not available\" in the file preview."
 	},
 	"title:R3989871": {
 		"status": "gap",
@@ -1534,7 +1625,10 @@
 	"title:R3990668": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "CLOUD-10",
+		"item": "The Forward ports popover lists ports detected and ports unavailable in a cloud workspace.",
+		"owner": "hand"
 	},
 	"title:R3991091": {
 		"status": "gap",
@@ -1547,7 +1641,12 @@
 	"title:R4363426": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "RUN-06",
+		"item": "Confirm 'Open this terminal link?' with Cancel and Open",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours reads \"Open this terminal link?\" in the terminal link confirm."
 	},
 	"title:R4405982": {
 		"status": "gap",
@@ -1590,7 +1689,12 @@
 	"title:R5685048": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours uses the folder-dialog title \"Select working directories\"."
 	},
 	"title:R8048580": {
 		"status": "gap",
@@ -1619,7 +1723,10 @@
 	"title:R8050707": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-24",
+		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
+		"owner": "hand"
 	},
 	"title:R8062343": {
 		"status": "matched",
@@ -1632,32 +1739,50 @@
 	"title:R8062469": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-06",
+		"item": "Callouts Note, Tip, Important, Warning, Caution",
+		"owner": "hand"
 	},
 	"title:R8062604": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-06",
+		"item": "Callouts Note, Tip, Important, Warning, Caution",
+		"owner": "hand"
 	},
 	"title:R8062746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-06",
+		"item": "Callouts Note, Tip, Important, Warning, Caution",
+		"owner": "hand"
 	},
 	"title:R8062882": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-06",
+		"item": "Callouts Note, Tip, Important, Warning, Caution",
+		"owner": "hand"
 	},
 	"title:R8864204": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"title:R8864972": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"title:R9608858": {
 		"status": "gap",
@@ -1670,7 +1795,10 @@
 	"title:R9617731": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CHAT-06",
+		"item": "Chat tab content: message list and composer",
+		"owner": "hand"
 	},
 	"title:R9949267": {
 		"status": "gap",
@@ -1699,17 +1827,26 @@
 	"title:R9999611": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "The PR activity list shows commits and comments (renderApp l6a @9996475; D078).",
+		"owner": "hand"
 	},
 	"title:R10001462": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "The PR activity list shows commits and comments (renderApp l6a @9996475; D078).",
+		"owner": "hand"
 	},
 	"title:R10009303": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "The PR activity list shows commits and comments (renderApp l6a @9996475; D078).",
+		"owner": "hand"
 	},
 	"title:R10045277": {
 		"status": "gap",
@@ -1870,7 +2007,10 @@
 	"title:R10691516": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Env files list and 'Cancel adding env file'",
+		"owner": "hand"
 	},
 	"title:R10693409": {
 		"status": "gap",
@@ -1891,12 +2031,18 @@
 	"title:R10718705": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Environment files are listed and parsed as dotenv files with resolved paths.",
+		"owner": "hand"
 	},
 	"title:R10718848": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Environment files are listed and parsed as dotenv files with resolved paths.",
+		"owner": "hand"
 	},
 	"title:R10719254": {
 		"status": "matched",
@@ -1955,22 +2101,36 @@
 	"title:R10967435": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"item": "The user can move the app's data folder; success shows \"Conductor root path changed successfully\".",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours reads \"Select Conducted root directory\" (D012)."
 	},
 	"title:R10970126": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-03",
+		"item": "Advanced: Claude Code, Codex and OpenCode executable paths",
+		"owner": "hand"
 	},
 	"title:R10975658": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"title:R10976627": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"title:R10993925": {
 		"status": "matched",
@@ -2039,7 +2199,10 @@
 	"title:R11057103": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "PR-01",
+		"item": "Account: GitHub through the gh CLI",
+		"owner": "hand"
 	},
 	"title:R11058782": {
 		"status": "matched",
@@ -2050,9 +2213,10 @@
 		"by": "seed"
 	},
 	"title:R11092223": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account page: its account, billing and integrations. There is no Conducted account.",
+		"by": "hand"
 	},
 	"title:R11095831": {
 		"status": "matched",
@@ -2119,7 +2283,10 @@
 	"title:R11099567": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"title:R11099826": {
 		"status": "gap",
@@ -2162,9 +2329,10 @@
 		"by": "seed"
 	},
 	"title:R11103087": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"title:R11103522": {
 		"status": "matched",
@@ -2225,7 +2393,10 @@
 	"title:R11106695": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "REV-08",
+		"item": "Experimental: use the legacy file preview and editor.",
+		"owner": "hand"
 	},
 	"title:R11107135": {
 		"status": "matched",
@@ -2330,9 +2501,10 @@
 		"by": "seed"
 	},
 	"title:R11118865": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Notifications when a teammate mentions you. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R11119160": {
 		"status": "matched",
@@ -2391,9 +2563,10 @@
 		"by": "seed"
 	},
 	"title:R11122198": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Workspace access to Conductor's API. There is no Conducted service API.",
+		"by": "hand"
 	},
 	"title:R11122788": {
 		"status": "matched",
@@ -3097,7 +3270,12 @@
 	"title:R11302969": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-06",
+		"item": "Experimental: 'Big terminal mode' with preset and custom commands",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours reads \"Big terminal mode\" in Experimental settings."
 	},
 	"title:R11303199": {
 		"status": "decided",
@@ -3112,9 +3290,10 @@
 		"by": "rule:hosted-computer"
 	},
 	"title:R11304233": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's MCP servers for its shared cloud computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R11343023": {
 		"status": "decided",
@@ -3127,7 +3306,10 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"note": "Checked by hand: the wording differs. Ours reads \"Archive workspace\" (text) in command-palette.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "WS-05",
+		"item": "Archiving a workspace with running agents asks 'Archive workspace?' first.",
+		"owner": "hand"
 	},
 	"title:R11415774": {
 		"status": "matched",
@@ -3156,7 +3338,10 @@
 	"title:R11425962": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "CHAT-15",
+		"item": "A restore whose branch is taken asks 'Restore to new branch?'.",
+		"owner": "hand"
 	},
 	"title:R11557358": {
 		"status": "gap",
@@ -3197,19 +3382,22 @@
 		"owner": "rule:quote"
 	},
 	"title:R11608905": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R11624198": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R11624393": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Onboarding to Conductor's cloud organisations and their shared computer. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R11669096": {
 		"status": "decided",
@@ -3312,8 +3500,9 @@
 		"by": "seed"
 	},
 	"title:R12038786": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's database-rollback terminal, a staff tool.",
+		"by": "hand"
 	}
 }
