@@ -1,13 +1,13 @@
 /**
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat), the composer with a draft and two attached
- * files, and the composer with the model picker open.
+ * files, the composer with the model picker open, and the slash command menu after typing "/".
  * Behaviour: ui-map.md 3.5 (composer), COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, refreshGit, seedCast } from "../cast.ts";
-import { click, shows } from "../dom.ts";
+import { click, find, shows } from "../dom.ts";
 import { addChat } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
@@ -42,6 +42,13 @@ const LOG = `09:12:04 GET /login?next=%2Fbilling 200
 09:12:09 GET / 200
 `;
 
+/** Types into the composer as a keyboard does: the editor reads the browser's own text input. */
+async function typeInComposer(document: Document, text: string): Promise<void> {
+	const editor = await find(document, '[contenteditable="true"]', "composer");
+	editor.focus();
+	document.execCommand("insertText", false, text);
+}
+
 export const COMPOSER_STATES: CatalogueState[] = [
 	{
 		id: "composer-empty",
@@ -71,6 +78,17 @@ export const COMPOSER_STATES: CatalogueState[] = [
 					});
 				},
 				(document) => shows(document, "server.log"),
+			),
+	},
+	{
+		id: "composer-slash-menu",
+		group: "Composer",
+		title: "Composer with the slash command menu open",
+		seed: (world) =>
+			newChat(
+				world,
+				({ document }) => typeInComposer(document, "/"),
+				(document) => shows(document, "Compact the context window"),
 			),
 	},
 	{
