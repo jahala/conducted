@@ -7,6 +7,7 @@ What the app stores, where, and for how long. The schema itself lives in `apps/d
 - The **web UI** reads and writes `conducted.db` through `apps/desktop/src/core/db`. Screens never touch it directly (lint-enforced).
 - The **Rust shell** creates the schema (migrations) and refuses to start when the database is newer than the app (PLAT-17).
 - The **sidecar** never writes the database. It keeps its own write-ahead log until the UI confirms it stored each event.
+- A row that belongs to a cloud workspace is kept here as a local copy, marked with the same `host_kind`, `host_url` and `host_vm_id` columns as its workspace (migration 0010, D103). Local work reads local rows only; removing a cloud host removes all of its rows together (`core/db/host-copy.ts`).
 - Ids are UUID text, times are milliseconds since the epoch, JSON columns hold data validated by `packages/protocol`.
 
 ## Tables

@@ -449,3 +449,18 @@ Why: the smallest seam that the cloud rows can build on, with no change to what 
 Context: the parity harness (#347) runs on GitHub, so its spec must be in the repository. D002 forbids copying Conductor's code, prompt text and assets.
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
+
+## D103. Cloud rows are a marked local copy, not a second database (2026-11-07)
+
+Proposed by the CLOUD-13 PR; not yet ruled on by the owner.
+Context: Conductor keeps every row that belongs to a remote host in a second database, `cache.db`, and one rule, `Dn({db, cacheDb}, host)`, picks it (services-map 1.2 and 2.6.2). D038 chose one database for us and no `cache.db`; D092 then put the host on the workspace as three columns. The issue's text still describes Conductor's second file, placeholder repositories, identity associations, session feed segments and the startup mover.
+Chosen:
+
+- We keep one database. A row that belongs to a cloud workspace is a local copy in `conducted.db`, marked with the same three host columns as its workspace. Migration 0010 adds them to `sessions`, `session_events`, `session_live_state`, `diff_comments` and `terminals`.
+- The host is copied from the owning workspace in the insert itself, never passed by a caller, so a row cannot be marked with a host its workspace does not have. A half-written host is a read error, never local.
+- Queries that local work runs over read local rows only: the port allocator, the workspace folder-name generator, the archive scan and startup repair. The merged workspace list and the sidebar's unread counts still hold both hosts, as Conductor merges its two database lists.
+- Removing a cloud host deletes its rows in every marked table and its workspaces in one transaction (`host-copy.ts`). The local host is refused.
+- Because every host has always used one database, no startup mover is needed: no older version stored a cloud row anywhere else.
+
+Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
+Why: it follows D038 and D092, keeps a local query from ever returning a cloud row, and needs no second file, second migrator or second statement queue.
