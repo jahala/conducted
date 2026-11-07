@@ -11,10 +11,18 @@ describe("DATA-05 TOML codec", () => {
 			scripts: { run: { test: { command: "pnpm test", args: ["--watch"] } } },
 			environment_variables: { local: { API_URL: "http://localhost" } },
 		};
-		const text = tomlCodec.stringify(document);
+		const written = tomlCodec.stringify(document);
+		if (!written.ok) throw new Error(written.error.message);
+		const text = written.value;
 		expect(text).toContain('"$schema"');
 		const parsed = tomlCodec.parse(text);
 		expect(parsed.ok && parsed.value).toEqual(document);
+	});
+
+	it("returns an error for a value TOML cannot hold, instead of throwing", () => {
+		const written = tomlCodec.stringify({ hook: () => undefined });
+		expect(written.ok).toBe(false);
+		expect(!written.ok && written.error.code).toBe("toml_invalid");
 	});
 
 	it("returns an error for text that is not TOML", () => {

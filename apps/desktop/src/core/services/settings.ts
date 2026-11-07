@@ -83,7 +83,7 @@ import { parseDotenv, resolveEnvFilePath } from "./dotenv.ts";
 
 export interface TomlCodec {
 	parse(text: string): Result<Record<string, unknown>>;
-	stringify(value: Record<string, unknown>): string;
+	stringify(value: Record<string, unknown>): Result<string>;
 	/** Edits `text` so it holds `value`, changing only entries whose values differ (SET-14). */
 	patch(text: string, value: Record<string, unknown>): Result<string>;
 	/** Every comment of `text` in order, from its `#` to the end of its line. */
@@ -1304,13 +1304,17 @@ export class SettingsService {
 			const next = buildSettingsDocument(contents, scope);
 			const patched = shaped?.ok === true ? toml.patch(shaped.value, next) : null;
 			if (source === null) {
-				text = toml.stringify(next);
+				const written = toml.stringify(next);
+				if (!written.ok) return err(written.error);
+				text = written.value;
 			} else if (shaped?.ok === true && patched?.ok === true) {
 				text = patched.value;
 				lost = droppedComments(toml.comments(source), toml.comments(shaped.value));
 			} else {
 				// The file cannot be edited in place, so it is written whole.
-				text = toml.stringify(next);
+				const written = toml.stringify(next);
+				if (!written.ok) return err(written.error);
+				text = written.value;
 				lost = droppedComments(toml.comments(source), toml.comments(text));
 			}
 		} catch (cause) {
