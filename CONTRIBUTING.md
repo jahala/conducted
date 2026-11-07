@@ -1,6 +1,18 @@
 # Contributing
 
-Thanks for your interest. Conducted is early: most of the app is a scaffold of placeholders, each tied to a feature in [docs/plans/backlog.md](docs/plans/backlog.md). Picking one up and building it is the most useful contribution.
+Thanks for your interest. Every feature has an id in [docs/plans/backlog.md](docs/plans/backlog.md), for example `CHAT-03 Steer a running turn`. The files that own a feature carry its id in their header, with what to build, the research behind it, and the first test to write. A row that is not `done` yet is the most useful thing to pick up.
+
+## Set up
+
+You need macOS, [Rust](https://rustup.rs), [Node.js](https://nodejs.org), [pnpm](https://pnpm.io) and [Bun](https://bun.sh). The exact versions are pinned in `.node-version`, `.bun-version`, `package.json` and `apps/desktop/src-tauri/rust-toolchain.toml`; `pnpm test` checks them first.
+
+```bash
+pnpm install
+pnpm dev      # builds the sidecar and opens the app
+pnpm check    # typecheck, lint, tests, build, guards, placeholders
+```
+
+How the parts fit together is in [docs/architecture.md](docs/architecture.md), and how code is written and tested in [docs/engineering.md](docs/engineering.md).
 
 ## Workflow
 
