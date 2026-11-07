@@ -3,8 +3,8 @@
  * @feature SIDE-10 Login-shell environment capture
  * @feature SIDE-01 Entry point and modes
  * Owns: the sidecar's environment edge: the launcher environment, the process facts (pid, parent
- * pid, executable, arch), a snapshot of the live process environment, and the login-shell capture
- * provider built from them.
+ * pid, executable, platform, arch), a snapshot of the live process environment, and the login-shell
+ * capture provider built from them.
  * Behaviour: research/conductor/native-and-sidecar-map.md B1, B3 "Shell env capture" and A6 step
  * 6. The parent pid comes from `CONDUCTED_PARENT_PID`, else the real parent. The login shell is
  * the user's `SHELL`, else `/bin/zsh`.
@@ -33,6 +33,7 @@ export interface ProcessFacts {
 	pid(): number;
 	ppid(): number;
 	execPath(): string;
+	platform(): string;
 	arch(): string;
 }
 
@@ -42,6 +43,7 @@ export const nodeProcessFacts: ProcessFacts = {
 	pid: () => process.pid,
 	ppid: () => process.ppid,
 	execPath: () => process.execPath,
+	platform: () => process.platform,
 	arch: () => process.arch,
 };
 
@@ -49,6 +51,7 @@ export interface ProcessEnvironment {
 	readonly pid: number;
 	readonly ppid: number;
 	readonly execPath: string;
+	readonly platform: string;
 	readonly arch: string;
 	/** One snapshot of the live process environment as plain strings. */
 	snapshot(): Record<string, string>;
@@ -69,6 +72,9 @@ export function createProcessEnvironment(facts: ProcessFacts): ProcessEnvironmen
 		},
 		get execPath() {
 			return facts.execPath();
+		},
+		get platform() {
+			return facts.platform();
 		},
 		get arch() {
 			return facts.arch();
