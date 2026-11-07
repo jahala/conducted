@@ -1,5 +1,5 @@
 /**
- * @feature APP-17 The chat history spike: does Conductor's history map whole?
+ * @feature APP-18 The chat history spike: does Conductor's history map whole?
  * Owns: `bun scripts/conductor-import/spike.ts <path-to-a-conductor-db-copy> [--sample N]`. It
  * clones the copy into a folder of its own, opens the clone read-only, maps the events of a sample
  * of chats with the mapping the import will use (packages/sidecar/src/import/conductor-events.ts),

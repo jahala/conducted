@@ -112,7 +112,7 @@ const LINE = new RegExp(
 	].join("|"),
 );
 
-describe("APP-17 the chat history spike", () => {
+describe("APP-18 the chat history spike", () => {
 	test("prints counts only, never a value from the database", () => {
 		const { path } = fixture();
 		const { code, out } = runSpike([path]);

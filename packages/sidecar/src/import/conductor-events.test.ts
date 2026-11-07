@@ -43,7 +43,7 @@ const assistant = (text: string) => ({
 	},
 });
 
-describe("APP-17 Conductor's chat events as ours", () => {
+describe("APP-18 Conductor's chat events as ours", () => {
 	test("a Claude assistant payload maps to one agent event whose items are its text", () => {
 		const mapped = mapConductorEvents([row("agent", assistant("Hello there"))], {
 			agent: "claude",

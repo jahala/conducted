@@ -115,6 +115,7 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - The Experimental and Advanced pages are Conductor's; the rows of ours on them (the backlog switch, the big terminal command list, the program rows above) sit in Conductor's row style.
 - The MCP servers block and "Search providers" on Agents: the search at the right of the agent tabs, the servers under the tabs, as Conductor's providers page lists its parts.
 - The onboarding agent check and first project: under the step list, above Continue, while their step is current, in Conductor's left column.
+- Import from Conductor (APP-17): a row on General after Sync agent configs, which also brings things in from elsewhere, and an outlined "Import from Conductor" button beside "Add a project" on the first-run project step when Conductor's database is on this Mac. Its dry run is a dialog in Conductor's dialog frame.
 - Create project's description and "Creates folder" line: in Conductor's places, worded for our flow, which creates the folder first and offers the GitHub repository after.
 - The plan file link: at the start of the plan bar's one row, before "Sending to"; Conductor's bar has only its controls and shows the plan in the chat's plan card.
 - The chat history's search field: at the top of Conductor's closed-chats popover, for a workspace with many closed chats.

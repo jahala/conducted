@@ -1,5 +1,5 @@
 /**
- * @feature APP-17 Conductor's chat events as ours, for the chat history spike
+ * @feature APP-18 Conductor's chat events as ours, for the chat history spike
  * Owns: `mapConductorEvents`, which turns one chat's rows of Conductor's session events table into
  * our session events and counts, per Conductor event type, how many it mapped and how many it could
  * not; `visibleSequence`, the order of user and agent messages a chat shows, on both sides.

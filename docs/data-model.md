@@ -78,6 +78,7 @@ The generated rows quote each migration's comment. Some comments in earlier migr
 | Turn snapshots | `refs/conducted/checkpoints/*` in each repo | Removed when their chat is deleted, and 30 days after their workspace is archived. | DATA-06 |
 | Archive snapshots | `refs/conducted/archive/<workspace>` in each repo | Until the workspace is deleted. | WS-10 |
 | Worktrees | the workspaces folder | Removed when the workspace is archived. | WS-05 |
+| Import copies of Conductor's database | app data `conductor-import/conductor-<time>-<pid>-<n>.db` | One copy while a dry run or an import from Conductor is open. It is removed when the import ends, fails or is cancelled, and at every start, so a crash leaves it for one run at most (D124). | APP-17 |
 | Global settings | `~/.conducted/settings.toml` | Owned by the user; fixed size. | DATA-05 |
 | Repo settings | `<repo>/.conducted/settings.toml` | Owned by the repo; fixed size. | DATA-05 |
 | Repo local settings | `<repo>/.conducted/settings.local.toml` | Owned by the user; git-excluded; fixed size. | DATA-05 |
