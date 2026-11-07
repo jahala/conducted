@@ -128,6 +128,20 @@ describe("CHAT-11 tool approval card", () => {
 		);
 	});
 
+	it("offers Yes for this session and Yes always for a command on the Mac", async () => {
+		await renderCard({
+			toolName: "mcp__conducted__RunLocalCommand",
+			input: { command: "echo hi" },
+		});
+
+		expect(screen.getByText("Do you want to run this command on your Mac?")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Yes for this session" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Yes always" })).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Yes for this session" }));
+
+		await waitFor(() => expect(sent()?.decision).toBe("allow_for_session"));
+	});
+
 	it("offers Yes always for a command and sends it on Cmd+Enter", async () => {
 		await renderCard();
 
@@ -152,6 +166,7 @@ describe("CHAT-11 tool approval card", () => {
 		const cases: Array<[string, string]> = [
 			["Bash", "Do you want to run this command?"],
 			["RunLocalCommand", "Do you want to run this command on your Mac?"],
+			["mcp__conducted__RunLocalCommand", "Do you want to run this command on your Mac?"],
 			["Edit", "Do you want to make these changes?"],
 			["MultiEdit", "Do you want to make these changes?"],
 			["Task", "Do you want to run this agent?"],

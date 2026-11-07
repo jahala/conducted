@@ -518,6 +518,35 @@ export const sidecarToAppRequests = {
 		z.object({ sessionId: zSessionId, branch: z.string() }),
 		z.object({ ok: z.boolean(), message: z.string() }),
 	),
+	/**
+	 * Backs the RunLocalCommand tool (CLOUD-14): a cloud agent asks the app to run a one-shot shell
+	 * command on this Mac. The app asks the user first unless they allowed it already, then runs
+	 * the command and returns its exit code and text.
+	 */
+	runLocalCommand: method(
+		z.object({
+			sessionId: zSessionId,
+			command: z.string().min(1),
+			description: z.string().optional(),
+			reason: z.string().optional(),
+			cwd: z.string().optional(),
+			timeoutMs: z.number().int().positive().optional(),
+			extendedTimeoutReason: z.string().optional(),
+		}),
+		z.object({
+			code: z.number().int().optional(),
+			stdout: z.string().optional(),
+			stderr: z.string().optional(),
+			cwd: z.string().optional(),
+			error: z.string().optional(),
+			timedOut: z.boolean().optional(),
+			denied: z.boolean().optional(),
+			stdoutTruncated: z.boolean().optional(),
+			stderrTruncated: z.boolean().optional(),
+			/** Where the full output was saved when it was too long for the tool result. */
+			outputPath: z.string().optional(),
+		}),
+	),
 } as const;
 
 // ---------------------------------------------------------------- helper types

@@ -35,9 +35,29 @@ describe("SIDE-13 app tools MCP launch", () => {
 				sessionId: "s1" as SessionId,
 				socketPath: "/tmp/x/s",
 				workspaceDir: "/Users/me/Workspace",
-				appTools: { diffComments: true, progressUpdates: false, setTargetBranch: false },
+				appTools: {
+					diffComments: true,
+					progressUpdates: false,
+					setTargetBranch: false,
+					localExecution: false,
+				},
 			},
 		});
+	});
+
+	test("CLOUD-14 the local-execution switch is passed as a flag", () => {
+		const entry = appToolsMcpEntry({
+			...entryInput,
+			appTools: {
+				diffComments: false,
+				progressUpdates: false,
+				setTargetBranch: false,
+				localExecution: true,
+			},
+		});
+		expect(entry.args).toContain("--enable-local-execution");
+		const parsed = parseAppToolsMcpArgs(entry.args.slice(1));
+		expect(parsed.ok && parsed.value.appTools.localExecution).toBe(true);
 	});
 
 	test("SIDE-13 the Codex config names the server and keeps the token out of its arguments", () => {

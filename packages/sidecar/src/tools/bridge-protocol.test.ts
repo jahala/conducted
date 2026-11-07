@@ -19,7 +19,7 @@ describe("SIDE-13 bridge protocol", () => {
 		);
 		expect(call.ok && !isHello(call.value)).toBe(true);
 		const unknown = parseBridgeRequest(
-			JSON.stringify({ authToken: "t", sessionId: "s1", toolName: "RunLocalCommand", args: {} }),
+			JSON.stringify({ authToken: "t", sessionId: "s1", toolName: "NotATool", args: {} }),
 		);
 		expect(unknown.ok).toBe(false);
 	});

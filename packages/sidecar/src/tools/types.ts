@@ -4,8 +4,8 @@
  * may use while it runs.
  * Behaviour: research/conductor/claude-runner.md section 4 "The Conductor MCP server": one tool list
  * exposed three ways (in-process for Claude, socket bridge for Codex and ACP, SDK objects for
- * Cursor). Our tools are the names in packages/protocol/src/tools.ts (APP_TOOLS); the cloud-only
- * tools are left out.
+ * Cursor). Our tools are the names in packages/protocol/src/tools.ts (APP_TOOLS), including the
+ * cloud-only RunLocalCommand (CLOUD-14), which only a cloud chat's config enables.
  * Must handle: nothing at runtime. A tool never touches the file system or git; it asks the app
  * through AppToolBackend and returns text.
  * Test first: none (types only). tools.test.ts checks the registry against APP_TOOLS.
@@ -14,7 +14,9 @@
  */
 import type {
 	AppTool,
+	ResultOf,
 	SessionConfig,
+	sidecarToAppRequests,
 	zDiffCommentInput,
 	zDiffCommentView,
 	zProgress,
@@ -30,6 +32,8 @@ export type Question = z.infer<typeof zQuestion>;
 export type DiffCommentInput = z.infer<typeof zDiffCommentInput>;
 export type DiffCommentView = z.infer<typeof zDiffCommentView>;
 export type ProgressUpdate = z.infer<typeof zProgress>;
+/** What the app answers for RunLocalCommand: the exit code, the text, or why it did not run. */
+export type LocalCommandAnswer = ResultOf<(typeof sidecarToAppRequests)["runLocalCommand"]>;
 
 export interface ToolResult {
 	text: string;
