@@ -515,3 +515,17 @@ Chosen:
 
 Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
 Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.
+
+## D104. Pairing a Mac with a Worker keeps one URL and one token, checked before they are saved (2026-11-07)
+
+Proposed by the CLOUD-07 PR; not yet ruled on by the owner.
+Context: D101 stores one pairing token per Mac under `cloud-pairing-token` and leaves the pairing flow to this row. The CLOUD-02 spike kept the token in a mode-600 file and named the Keychain as the product's home (question 4). Conductor has no self-hosted Worker to pair with, so its screens give no place or wording to copy; the flow and its form are ours (D098, D020: report the gap).
+Chosen:
+
+- A pairing is a Worker URL and its token. The app sends both to the Worker's `GET /pair` before it saves either. The answer must name the service `conducted-cloud` and report `paired: true`; anything else is refused, so a URL that answers any request is not taken for a Worker. A 401 is its own message.
+- The Worker URL is kept in the Keychain under `cloud-pairing-url` and the token under `cloud-pairing-token`, both in the app's service. The URL is written before the token, and only a non-empty token counts as paired. The token never returns to the web view, a log or an event; the URL does, so the app can show which Worker the Mac is paired with.
+- One pairing per Mac: pairing another Worker replaces the URL and token. A cloud workspace still names its own Worker URL on its host (D092), so a workspace whose Worker is not the paired one fails with the Worker's own refusal rather than falling back to the Mac.
+- The form lives in a "Cloud Workspaces" block on the Connections page, our own page (D098). Unpair removes both items; a Mac that was never paired succeeds.
+- The Worker's `/pair` route sits behind the same token check as every other route and touches no Durable Object, so a Mac can pair before the first workspace exists.
+
+Why: the user can check the token with the Worker at the moment they paste it, and a wrong URL or token changes nothing. Keeping the URL makes the state after a restart readable. Per-Worker tokens stay possible later; the Keychain keys can gain a Worker suffix when a second Worker needs its own token.
