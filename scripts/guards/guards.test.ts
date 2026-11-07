@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { checkDataModel, renderTables } from "./data-model.ts";
 import { checkDocs } from "./docs.ts";
+import { compareHeaderClaims, countHeaderClaims, findHeaderClaims } from "./header-claims.ts";
 import { placeholdersIn } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
@@ -126,6 +127,54 @@ describe("headers in nested scripts", () => {
 		const messages = checkHeaders(root).map((p) => p.message);
 		expect(messages).toContain("scripts/overnight/bare.ts has no header comment");
 		expect(messages.some((m) => m.includes("good.ts"))).toBe(false);
+	});
+});
+
+describe("header claims", () => {
+	const backlog = "| ID | Feature |\n| --- | --- |\n| CHAT-01 | One |\n";
+
+	test("flags an unknown @feature, a missing owned name and a Test first with no test", () => {
+		put("docs/plans/backlog.md", backlog);
+		put(
+			"packages/a/src/good.ts",
+			"/**\n * @feature CHAT-01 One\n * Owns: the parser, `parseThing`.\n * Test first: a thing parses to a value.\n */\nexport function parseThing(): number {\n\treturn 1;\n}\n",
+		);
+		put(
+			"packages/a/src/good.test.ts",
+			'/** Tests the parser. */\ntest("a thing parses to a value", () => {});\n',
+		);
+		put(
+			"packages/a/src/plain.ts",
+			"/**\n * @feature catalogue A state\n * Owns: values only.\n * Test first: not applicable; it holds values only.\n */\nexport const value = 1;\n",
+		);
+		put(
+			"packages/a/src/bad.ts",
+			"/**\n * @feature NOPE-99 Gone\n * Owns: `missingThing`.\n * Test first: a witness that no test names.\n */\nexport const other = 1;\n",
+		);
+		const findings = findHeaderClaims(root);
+		expect(findings.map((finding) => finding.message)).toEqual([
+			"@feature NOPE-99 is not a backlog row",
+			"Owns names missingThing, which is not in the file",
+			"Test first names no test: a witness that no test names.",
+		]);
+		expect(findings.some((finding) => finding.file.includes("good.ts"))).toBe(false);
+	});
+
+	test("a baseline that sits above the real count is reported, so it must shrink", () => {
+		put("docs/plans/backlog.md", backlog);
+		put(
+			"packages/a/src/bad.ts",
+			"/**\n * @feature NOPE-99 Gone\n * Owns: `missingThing`.\n */\nexport const other = 1;\n",
+		);
+		const found = findHeaderClaims(root);
+		const baseline = countHeaderClaims(found);
+		baseline["owned-name"]["packages/a/src/bad.ts"] = 3;
+		const problems = compareHeaderClaims(found, baseline);
+		expect(
+			problems.some((problem) =>
+				problem.message.includes("has 1 owned-name findings but the baseline says 3"),
+			),
+		).toBe(true);
 	});
 });
 
