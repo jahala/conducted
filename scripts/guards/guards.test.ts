@@ -214,11 +214,19 @@ describe("workflows", () => {
 	test("flags a job without a timeout and passes one with it", () => {
 		put(
 			".github/workflows/ci.yml",
-			"name: CI\non: push\njobs:\n  fast:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps: []\n  slow:\n    runs-on: macos-latest\n    steps: []\n",
+			"name: CI\non: push\njobs:\n  fast:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps:\n      - run: echo ok\n  slow:\n    runs-on: macos-latest\n    steps:\n      - run: echo ok\n",
 		);
 		expect(checkWorkflows(root).map((p) => p.message)).toEqual([
 			".github/workflows/ci.yml: job slow has no timeout-minutes",
 		]);
+	});
+
+	test("flags a workflow that is not valid YAML or has an invalid job", () => {
+		put(
+			".github/workflows/broken.yml",
+			"name: Broken\non: push\njobs:\n  broken:\n    runs-on: [\n",
+		);
+		expect(checkWorkflows(root).some((p) => p.message.includes("broken.yml"))).toBe(true);
 	});
 });
 

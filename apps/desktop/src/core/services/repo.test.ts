@@ -222,7 +222,9 @@ function makeService(options: Parameters<typeof makePlatform>[0] = {}) {
 		platform: platform.platform,
 		git: git.git,
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
-		settings: {} as RepoServiceDeps["settings"],
+		settings: {
+			removeEnvVarsForRepo: async () => ok(undefined),
+		} as unknown as RepoServiceDeps["settings"],
 		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 		ids: createTestIds(),
 	});

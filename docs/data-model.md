@@ -73,5 +73,5 @@ The generated rows quote each migration's comment. Two comments in `0001_init.sq
 | Global settings | `~/.conducted/settings.toml` | Owned by the user; fixed size. | DATA-05 |
 | Repo settings | `<repo>/.conducted/settings.toml` | Owned by the repo; fixed size. | DATA-05 |
 | Repo local settings | `<repo>/.conducted/settings.local.toml` | Owned by the user; git-excluded; fixed size. | DATA-05 |
-| Environment variable secrets (env vars, tokens) | macOS Keychain, key `env:global:<NAME>` for a global value or `env:repo:<repoId>:<NAME>` for a repository value | Until the user removes the variable or signs out. | SET-04 |
+| Environment variable secrets (env vars, tokens) | macOS Keychain, key `env:global:<NAME>` for a global value or `env:repo:<repoId>:<NAME>` for a repository value | Until the user removes the variable or its project, or signs out. | SET-04 |
 | Agent transcripts | the agent's own folder (for example `~/.claude/projects/`) | Owned by the agent program, not by this app. | none |

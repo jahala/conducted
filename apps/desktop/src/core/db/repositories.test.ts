@@ -200,6 +200,7 @@ describe("DATA-01 workspaces repository", () => {
 			path: "/code/workspaces/Project/oslo-v1",
 			archivedAt: null,
 			archiveCommit: "abc123",
+			lastActivityAt: 7000,
 			updatedAt: 7000,
 		});
 		expect(

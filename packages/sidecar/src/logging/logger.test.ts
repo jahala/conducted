@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { isSecretName } from "@conducted/shared";
 import {
 	createLogger,
 	createRepeatFolder,
-	isSecretName,
 	type LogRecord,
 	type RepeatScheduler,
 	redactRecord,
@@ -94,6 +94,9 @@ describe("SIDE-18 Logger", () => {
 			"STRIPE_KEY",
 			"GH_TOKEN",
 			"GH_PAT",
+			"GITHUB_PAT",
+			"SESSION_COOKIE",
+			"GH_AUTH",
 			"AUTHORIZATION",
 			"COOKIE",
 			"apiKey",
@@ -101,10 +104,14 @@ describe("SIDE-18 Logger", () => {
 			"clientSecret",
 			"DB_PASSWORD",
 			"CONDUCTED_INTERNAL_X",
+			"key",
+			"monkey",
+			"tokens",
+			"tokenBudget",
 		]) {
 			expect({ name, secret: isSecretName(name) }).toEqual({ name, secret: true });
 		}
-		for (const name of ["PATH", "REACT_COMPAT", "key", "monkey", "tokens", "tokenBudget", "HOME"]) {
+		for (const name of ["PATH", "REACT_COMPAT", "HOME", "pat", "keyboard_layout", "keymap"]) {
 			expect({ name, secret: isSecretName(name) }).toEqual({ name, secret: false });
 		}
 	});

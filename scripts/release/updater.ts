@@ -1,7 +1,7 @@
 /**
  * The release's update-feed parts that need no tools (PLAT-13, D079): the archive's name, where
  * GitHub serves each asset, the `latest.json` document Tauri's updater reads, the keychain items
- * that hold the updater key, and the `gh release create` command the release prints.
+ * that hold the updater key, and the `gh release create` command the workflow runs.
  *
  * Tauri's static feed format (v2.tauri.app/plugin/updater, "Static JSON File"): `version`,
  * `notes`, `pub_date` (RFC 3339) and `platforms["<os>-<arch>"]` with `url` and `signature`, where
@@ -79,11 +79,23 @@ function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+/** How the workflow publishes a release: its notes file and whether it is a dry run. */
+export interface ReleaseCommandOptions {
+	/** A file holding the release body, cut from `CHANGELOG.md`. */
+	notesFile?: string;
+	/** A pre-release tag publishes a pre-release. */
+	prerelease?: boolean;
+}
+
 /**
- * The command that publishes a pushed tag's release with the given files. The release prints it
- * and never runs it: publishing stays a separate, deliberate step.
+ * The command that publishes a pushed tag's release with the given files. The workflow runs it
+ * through `scripts/release/publish.ts`; nothing here runs it by itself.
  */
-export function ghReleaseCommand(version: string, files: readonly string[]): string {
+export function ghReleaseCommand(
+	version: string,
+	files: readonly string[],
+	options: ReleaseCommandOptions = {},
+): string {
 	const tag = `v${version}`;
 	return [
 		"gh release create",
@@ -91,7 +103,10 @@ export function ghReleaseCommand(version: string, files: readonly string[]): str
 		`--repo ${RELEASE_REPO}`,
 		"--verify-tag",
 		`--title ${tag}`,
-		`--notes ${tag}`,
+		options.notesFile === undefined
+			? `--notes ${tag}`
+			: `--notes-file ${shellQuote(options.notesFile)}`,
+		...(options.prerelease === true ? ["--prerelease"] : []),
 		...files.map(shellQuote),
 	].join(" ");
 }

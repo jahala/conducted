@@ -39,6 +39,23 @@ describe("APP-03 diagnostics report redaction", () => {
 		expect(redacted.env.PATH).toBe("hashed(/Users/me/bin)");
 	});
 
+	it("hashes SESSION_COOKIE and GH_PAT on the safe list and keeps a keyboard name", async () => {
+		const redacted = await redactCapture(
+			capture({
+				env: { SESSION_COOKIE: "cookie-value", GH_PAT: "pat-value", KEYBOARD_LAYOUT: "us" },
+			}),
+			{
+				safeEnvNames: new Set([...SAFE_ENV_NAMES, "SESSION_COOKIE", "GH_PAT", "KEYBOARD_LAYOUT"]),
+				hash,
+				homeDir: "/Users/me",
+			},
+		);
+
+		expect(redacted.env.SESSION_COOKIE).toBe("hashed(cookie-value)");
+		expect(redacted.env.GH_PAT).toBe("hashed(pat-value)");
+		expect(redacted.env.KEYBOARD_LAYOUT).toBe("us");
+	});
+
 	it("keeps the home folder out of the redacted PATH", async () => {
 		const redacted = await redactCapture(capture(), {
 			safeEnvNames: SAFE_ENV_NAMES,

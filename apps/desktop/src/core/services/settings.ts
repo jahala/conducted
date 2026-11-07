@@ -1,6 +1,7 @@
 /**
  * @feature DATA-05 Settings store and settings files
  * @feature SET-14 Keep comments when the app rewrites a settings file
+ * @feature SET-04 Environment variables, stored in the Keychain
  * Owns: reading and writing settings from their layers (registry default, the `settings` table,
  * `~/.conducted/settings.toml`, `.conducted/settings.toml`, `.conducted/settings.local.toml`),
  * deciding the effective value, and parsing the environment variable tables of a settings file
@@ -23,6 +24,9 @@
  * to `scripts.run`, a file the patch cannot edit) is quoted in a warning that refuses the first
  * such save, and the next save that would drop the same comments goes ahead. Both settings file
  * writers, this service and PRJ-04's repository config, write through `updateSettingsFile`.
+ * SET-04 must handle: removing a project removes its own variables and their Keychain entries as
+ * one step; a Keychain entry that cannot be removed is an error the user sees, and its row stays
+ * so a retry can remove it.
  * Our design choice: file-backed keys (the ones with a `tomlKey` in the registry) live only in
  * TOML files; every other key lives in the `settings` table. There is no legacy `conductor.json`
  * migration. The TOML parser is passed in (`TomlCodec`) so tests and the app can differ. Per-user
@@ -1307,22 +1311,48 @@ export class SettingsService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.settings.removeEnvVar`. The row goes first, then its Keychain entry. */
+	/** Backs `Actions.settings.removeEnvVar`. The row and its Keychain entry go together. */
 	async removeEnvVar(name: string, scope: "global" | { repoId: RepoId }): Promise<Result<void>> {
-		const keychainRef = envVarKeychainKey(scope, name);
-		const removed = await this.#deps.repos.envVars.delete(
-			name,
-			scope === "global" ? "global" : "repo",
-			scope === "global" ? null : scope.repoId,
-		);
-		if (!removed.ok) {
-			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, removed.error));
-		}
-		const deleted = await this.#deps.platform.keychain.delete(keychainRef);
-		if (!deleted.ok) {
-			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, deleted.error));
-		}
+		const removed = await this.#removeEnvVars([
+			{
+				name,
+				scope: scope === "global" ? "global" : "repo",
+				repoId: scope === "global" ? null : scope.repoId,
+				keychainRef: envVarKeychainKey(scope, name),
+			},
+		]);
+		if (!removed.ok) return removed;
 		await this.loadEnvVars(scope);
+		return ok(undefined);
+	}
+
+	/**
+	 * Backs the removal of a project: deletes its own variables and their Keychain entries (SET-04).
+	 * A global variable belongs to every project, so it stays.
+	 */
+	async removeEnvVarsForRepo(repoId: RepoId): Promise<Result<void>> {
+		const listed = await this.#deps.repos.envVars.listByRepo(repoId);
+		if (!listed.ok) {
+			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, listed.error));
+		}
+		return this.#removeEnvVars(listed.value);
+	}
+
+	/**
+	 * Removes each row's Keychain entry before its row. A Keychain failure leaves the row to retry
+	 * and is an error the user sees, never a silent leftover.
+	 */
+	async #removeEnvVars(rows: readonly EnvVar[]): Promise<Result<void>> {
+		for (const row of rows) {
+			const deleted = await this.#deps.platform.keychain.delete(row.keychainRef);
+			if (!deleted.ok) {
+				return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, deleted.error));
+			}
+			const removed = await this.#deps.repos.envVars.delete(row.name, row.scope, row.repoId);
+			if (!removed.ok) {
+				return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, removed.error));
+			}
+		}
 		return ok(undefined);
 	}
 

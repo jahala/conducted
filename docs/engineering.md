@@ -109,6 +109,18 @@ The owner's ruling: Conductor's own frontend runs on this Mac only, from the git
 
 Tests that create git repos, sidecar sockets or temporary files create them under `TMPDIR`, and stop every process they start by the process id they recorded.
 
+## Releases
+
+A release has two homes. On the Mac, `pnpm release X.Y.Z --go` checks that main's CI passed for the commit, bumps every version file, writes the notes into `CHANGELOG.md`, commits and tags `vX.Y.Z`, and prints the push command. It does not build.
+
+Pushing the tag runs `.github/workflows/release.yml` on a GitHub-hosted macOS runner. The workflow checks the tag against every version file, imports the Developer ID certificate into a temporary keychain it always deletes, builds, signs, notarises and staples the app, makes the update archive, its `.sig` and `latest.json`, attests every file with `actions/attest-build-provenance`, and creates the GitHub release with the body cut from that version's `CHANGELOG.md` section. A tag with a suffix after the patch number, such as `v0.2.2-rc.1`, makes a pre-release: the dry run.
+
+The steps live in `scripts/release-ci.ts`, `scripts/release/` and `apps/desktop/src-tauri/release/bundle.ts`. Credentials reach them from one edge: the keychain on the Mac, environment variables from repository secrets in CI. A missing credential names itself and stops the run, so CI never publishes a signed build that was not notarised. The secrets are named in `.github/workflows/release.yml`; set their values by piping, never on a command line.
+
+Anyone can check that a published file came from this repository's code:
+
+    gh attestation verify <file> --repo jahala/conducted
+
 ## Commits and pull requests
 
 - Conventional commit subjects (`feat:`, `fix:`, `refactor:`, `docs:`). The body explains why.
