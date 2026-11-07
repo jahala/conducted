@@ -311,7 +311,7 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 				result.steps.push({
 					step: step.step,
 					ok: false,
-					detail: `${message}${why}; at ${at}${said}`,
+					detail: `${message}${why}${said}`,
 				});
 				break;
 			}
