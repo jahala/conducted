@@ -1,38 +1,52 @@
 /**
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Tests the /proc reader that names a listening port's process, using text captured from a real
- * Linux /proc/net/tcp{,6} in the product image.
- * Test first: the real fixture's port 3456 matches inode 167859 and the process that owns it.
+ * Node process's /proc/net/tcp{,6} and cmdline.
+ * Test first: the real fixture's port 3456 matches inode 172083 and its command line names server.js.
  */
 import { describe, expect, it } from "vitest";
-import { detectedPorts, parseProcTcp, socketInode } from "./ports.ts";
+import { detectedPorts, parseProcTcp, processName, socketInode } from "./ports.ts";
 
-/** Captured from `/proc/net/tcp` of the product image, where a node server listened on 3456. */
+/** Captured from `/proc/net/tcp` of a real Node process: `node /tmp/server.js` on 3456. */
 const PROC_TCP = `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
-   0: 0100007F:0D80 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 167859 1 0000000000000000 100 0 0 10 0
+   0: 0100007F:0D80 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 172083 1 0000000000000000 100 0 0 10 0
 `;
 
-/** Captured from `/proc/net/tcp6` of the same run; node bound both stacks. */
+/** Captured from `/proc/net/tcp6` of the same process; Node bound the IPv4 stack only. */
 const PROC_TCP6 = `  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
-   0: 00000000000000000000000000000000:0D80 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 167859 1 0000000000000000 100 0 0 10 0
 `;
 
 const fixture = (name: string): string => (name === "proc-net-tcp.txt" ? PROC_TCP : PROC_TCP6);
 
 describe("CLOUD-10 /proc port discovery", () => {
 	it("reads the real fixture's listening port and inode", () => {
-		expect(parseProcTcp(fixture("proc-net-tcp.txt"))).toEqual([{ port: 3456, inode: 167859 }]);
-		expect(parseProcTcp(fixture("proc-net-tcp6.txt"))).toEqual([{ port: 3456, inode: 167859 }]);
+		expect(parseProcTcp(fixture("proc-net-tcp.txt"))).toEqual([{ port: 3456, inode: 172083 }]);
+		expect(parseProcTcp(fixture("proc-net-tcp6.txt"))).toEqual([]);
 	});
 
 	it("names the process whose descriptor links to the socket", () => {
 		const listeners = parseProcTcp(fixture("proc-net-tcp.txt"));
+		// The real cmdline is `node\0/tmp/server.js\0`; Conductor shows the script's name.
+		const command = ["node", "/tmp/server.js"];
 		expect(
 			detectedPorts(listeners, [
-				{ pid: 8, name: "MainThread", inodes: [167859] },
+				{ pid: 8, name: processName(command), inodes: [172083] },
 				{ pid: 9, name: "other", inodes: [1] },
 			]),
-		).toEqual([{ port: 3456, processName: "MainThread" }]);
+		).toEqual([{ port: 3456, processName: "server.js" }]);
+	});
+
+	it("summarises a command line as Conductor does", () => {
+		expect(processName(["node", "/tmp/server.js"])).toBe("server.js");
+		expect(processName(["/usr/bin/node", "/x/server.js"])).toBe("server.js");
+		expect(processName(["node", "/workspace/node_modules/.bin/vite", "--port", "3000"])).toBe(
+			"vite",
+		);
+		expect(processName(["node", "/workspace/node_modules/@scope/tool/bin.js"])).toBe("@scope/tool");
+		expect(processName(["bun", "run", "dev"])).toBe("bun dev");
+		expect(processName(["pnpm", "dev"])).toBe("pnpm dev");
+		expect(processName(["python3", "-m", "http.server", "8000"])).toBe("http.server");
+		expect(processName(["/usr/bin/node server.js"])).toBe("node");
 	});
 
 	it("keeps a listener whose process is gone, with no invented name", () => {

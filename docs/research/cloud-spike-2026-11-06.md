@@ -407,8 +407,11 @@ listener with the product's `accept_loop`/`pipe` and fetched through the Worker'
   (exit 0). The server answered on 127.0.0.1 only, so the tunnel had to reach the sandbox's own
   loopback.
 - **Discovery:** `GET /w/c10-live/ports` answered **200** in **71 ms** with
-  `{"ports":[{"port":3456,"processName":"MainThread"}]}`. The name is the kernel `comm`; Node 24
-  names its main thread `MainThread`, so this is the real value, not a friendly command summary.
+  `{"ports":[{"port":3456,"processName":"MainThread"}]}`. The name was the kernel `comm`; Node 24
+  names its main thread `MainThread`. This exposed a mismatch with Conductor, which summarises the
+  process's command line instead. The entry now reads `/proc/<pid>/cmdline` and applies
+  Conductor's rule, so the same `node /tmp/server.js` reports `server.js`; the live value above is
+  the old behaviour, not the shipped one.
 - **The forward:** the real Rust listener accepted the local connection, opened the tunnel
   WebSocket and carried one HTTP `GET /`; the body was `LIVE_OK`, in **255 ms** from the local
   connect.

@@ -27,7 +27,13 @@
 import { mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { turnChangeOf } from "../src/relay.ts";
 import { IMAGE } from "./image.ts";
-import { detectedPorts, type ProcessSockets, parseProcTcp, socketInode } from "./ports.ts";
+import {
+	detectedPorts,
+	type ProcessSockets,
+	parseProcTcp,
+	processName,
+	socketInode,
+} from "./ports.ts";
 import { TurnEndTracker } from "./turn-end.ts";
 
 export interface SandboxDirs {
@@ -247,7 +253,13 @@ function run(): void {
 				if (inode !== null) inodes.push(inode);
 			}
 			if (inodes.length === 0) continue;
-			processes.push({ pid, name: readProc(`/proc/${pid}/comm`).trim(), inodes });
+			// Conductor names a port's process from its command line, not the kernel's `comm`
+			// (Node's main thread is "MainThread"). The empty case is a process with no argv.
+			const argv = readProc(`/proc/${pid}/cmdline`)
+				.split("\u0000")
+				.filter((part) => part !== "");
+			const name = argv.length === 0 ? readProc(`/proc/${pid}/comm`).trim() : processName(argv);
+			processes.push({ pid, name, inodes });
 		}
 		return processes;
 	}

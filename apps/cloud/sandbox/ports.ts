@@ -77,3 +77,88 @@ export function detectedPorts(
 	}
 	return [...byPort.values()].sort((left, right) => left.port - right.port);
 }
+
+/**
+ * Programs whose first argument names the real command, from Conductor's summariser
+ * (`renderApp`, the function exported as `tOt` and defined in `main` as `G_n`).
+ */
+const INTERPRETERS = /^(node|nodejs|bun|deno|python[\d.]*|ruby|php|perl)$/;
+/** Interpreter flags that take the next argument as their value. */
+const FLAGS_WITH_VALUE = new Set([
+	"-r",
+	"--require",
+	"--import",
+	"--loader",
+	"--experimental-loader",
+]);
+/** A bare word that can follow a program name in a friendly label. */
+const BARE_WORD = /^[a-z][\w:-]*$/i;
+
+const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+
+/** Resolves `.` and `..` by spelling, as Conductor's path helper does. */
+function normalize(path: string): string {
+	const parts: string[] = [];
+	for (const part of path.split("/")) {
+		if (part === ".") continue;
+		if (part === ".." && parts.length > 0 && parts.at(-1) !== "..") {
+			parts.pop();
+			continue;
+		}
+		parts.push(part);
+	}
+	return parts.join("/");
+}
+
+/** The package or tool name inside node_modules, as Conductor shows it. */
+function nodeModuleName(path: string): string {
+	const normalized = normalize(path);
+	const marker = "node_modules/";
+	const at = normalized.lastIndexOf(marker);
+	if (at === -1) return basename(normalized);
+	const [scope = "", name = ""] = normalized.slice(at + marker.length).split("/");
+	if (scope === ".bin") return name;
+	return scope.startsWith("@") ? `${scope}/${name}` : scope;
+}
+
+/** A program name followed by a bare word, as Conductor joins them. */
+function withNext(name: string, next: string | undefined): string {
+	return next !== undefined && BARE_WORD.test(next) ? `${name} ${next}` : name;
+}
+
+/** The name for an interpreter whose first argument is a script or a module. */
+function interpreterName(program: string, args: readonly string[]): string {
+	let index = 0;
+	if ((program === "bun" || program === "deno") && args[0] === "run") index = 1;
+	while (index < args.length) {
+		const argument = args[index] ?? "";
+		if (argument === "-m") {
+			const module = args[index + 1];
+			return module === undefined ? program : withNext(module, args[index + 2]);
+		}
+		if (!argument.startsWith("-")) {
+			return !argument.includes("/") && !argument.includes(".")
+				? `${program} ${argument}`
+				: withNext(nodeModuleName(argument), args[index + 1]);
+		}
+		index += FLAGS_WITH_VALUE.has(argument) ? 2 : 1;
+	}
+	return program;
+}
+
+/**
+ * The name a user knows for one process, from its command line (argv). Conductor's rule, ported
+ * from its bundle: a single command string keeps the program's base name; an interpreter names
+ * the script (`server.js`, `node_modules/.bin/vite` as `vite`); any other program is its base
+ * name followed by a bare subcommand (`pnpm dev`).
+ */
+export function processName(command: readonly string[]): string {
+	const [first = ""] = command;
+	if (command.length === 1 && first.includes(" ")) {
+		const [program = ""] = first.split(" ");
+		return basename(program).replace(/:$/, "");
+	}
+	const program = basename(first);
+	const args = command.slice(1);
+	return INTERPRETERS.test(program) ? interpreterName(program, args) : withNext(program, args[0]);
+}
