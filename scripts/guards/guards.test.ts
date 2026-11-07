@@ -265,7 +265,32 @@ describe("versions", () => {
 });
 
 describe("module-state", () => {
+	const doc = (rows: string[]) =>
+		[
+			"# Architecture",
+			"",
+			"### Module-level state",
+			"",
+			"| Kind | Where | Name | Why |",
+			"| --- | --- | --- | --- |",
+			...rows,
+			"",
+			"## Shared helpers",
+			"",
+		].join("\n");
+	const zustand = (file: string, name: string) =>
+		`| zustand store | \`${file}\` | \`${name}\` | the web view's own UI state |`;
+	const rustStatic = (file: string, name: string) =>
+		`| Rust static | \`${file}\` | \`${name}\` | a lock that serialises two threads |`;
+
 	test("flags a new zustand store and a new Rust cache or lock", () => {
+		put(
+			"docs/architecture.md",
+			doc([
+				zustand("apps/desktop/src/ui/Toast.tsx", "useWorkspaceToastStore"),
+				rustStatic("apps/desktop/src-tauri/src/terminal_history.rs", "CACHED_KEY"),
+			]),
+		);
 		put(
 			"apps/desktop/src/ui/Toast.tsx",
 			"export const useWorkspaceToastStore = create<State>()(() => ({}));\n",
@@ -295,10 +320,62 @@ describe("module-state", () => {
 			),
 		).toBe(false);
 	});
+
+	test("a store the doc names passes, even one an earlier copy did not", () => {
+		put(
+			"docs/architecture.md",
+			doc([zustand("apps/desktop/src/features/doc-only/store.ts", "useDocOnlyStore")]),
+		);
+		put(
+			"apps/desktop/src/features/doc-only/store.ts",
+			"export const useDocOnlyStore = create<State>()(() => ({}));\n",
+		);
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/doc-only/store.ts"))).toBe(
+			false,
+		);
+	});
+
+	test("a module the doc leaves out fails, even one an earlier copy allowed", () => {
+		put(
+			"docs/architecture.md",
+			doc([zustand("apps/desktop/src/ui/Toast.tsx", "useWorkspaceToastStore")]),
+		);
+		put(
+			"apps/desktop/src/app/overlay-store.ts",
+			"export const useOverlayStore = create<State>()(() => ({}));\n",
+		);
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src/app/overlay-store.ts"))).toBe(true);
+	});
+
+	test("reports architecture.md when it has no module-level state table", () => {
+		put("docs/architecture.md", "# Architecture\n");
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("Module-level state"))).toBe(true);
+	});
 });
 
 describe("sidecar-edges", () => {
+	const doc = (rows: string[]) =>
+		[
+			"# Architecture",
+			"",
+			"### Sidecar I/O edges",
+			"",
+			"| Module | Why it is the edge |",
+			"| --- | --- |",
+			...rows,
+			"",
+			"## Shared helpers",
+			"",
+		].join("\n");
+
 	test("flags an unnamed module that reads a file, and lets an adapter through", () => {
+		put(
+			"docs/architecture.md",
+			doc(["| `packages/sidecar/src/util/read-text.ts` | the read-a-text-file helper |"]),
+		);
 		put(
 			"packages/sidecar/src/new-thing.ts",
 			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
@@ -321,6 +398,38 @@ describe("sidecar-edges", () => {
 		expect(messages.some((m) => m.startsWith("packages/sidecar/src/util/read-text.ts"))).toBe(
 			false,
 		);
+	});
+
+	test("a module the table names passes, even one an earlier copy did not", () => {
+		put(
+			"docs/architecture.md",
+			doc(["| `packages/sidecar/src/doc-only.ts` | the edge the doc names |"]),
+		);
+		put(
+			"packages/sidecar/src/doc-only.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/doc-only.ts"))).toBe(false);
+	});
+
+	test("a module the table leaves out fails, even one an earlier copy allowed", () => {
+		put(
+			"docs/architecture.md",
+			doc(["| `packages/sidecar/src/doc-only.ts` | the edge the doc names |"]),
+		);
+		put(
+			"packages/sidecar/src/util/read-text.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/util/read-text.ts"))).toBe(true);
+	});
+
+	test("reports architecture.md when it has no sidecar edges table", () => {
+		put("docs/architecture.md", "# Architecture\n");
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("Sidecar I/O edges"))).toBe(true);
 	});
 });
 
