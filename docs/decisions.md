@@ -515,3 +515,18 @@ Chosen:
 
 Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
 Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.
+
+## D104. The outbound handler's allow-list and credential swap, as CLOUD-05 built it (2026-11-07)
+
+Context: CLOUD-05 builds the Worker entrypoint every request from the sandbox passes through. The plan says the allow-list holds GitHub, the model gateway and the package registries; D102 fixed the package hosts. The research names the key variables and Conductor's local GitHub token settings, but not a Worker-side mapping, and Conductor's cloud backend is not in the research (D002). The live run is in `docs/research/cloud-spike-2026-11-06.md`.
+
+Chosen:
+
+- **The request's hostname picks the secret.** `api.anthropic.com` receives `ANTHROPIC_API_KEY` in `x-api-key`; `api.openai.com` receives `OPENAI_API_KEY` as a bearer token. The desktop's provider choice reaches the Worker as the host the agent calls, so the Worker needs no second setting. Any placeholder the sandbox sent in `authorization` or `x-api-key` is removed first.
+- **GitHub's hosts receive the token.** `github.com` and `codeload.github.com` take HTTP basic auth with `x-access-token` and the secret as the password; `api.github.com`, `uploads.github.com`, `raw.githubusercontent.com` and `objects.githubusercontent.com` take a bearer token. The token is added even when the sandbox sent no `authorization`, so `git` and a plain HTTP client reach GitHub without holding it.
+- **Redirects are answered, not followed.** A 3xx goes back to the sandbox, so the next hop comes through the same allow-list and swap instead of carrying a credential somewhere new.
+- **Exact hosts; credentials over HTTPS only.** A model API or GitHub host over plain HTTP is refused. A package host may use HTTP (Debian's apt sources do) or HTTPS. A look-alike name such as `registry.npmjs.org.example.com` is refused.
+- **No Cursor row.** The research names no Cursor API host and CLOUD-04's image has no Cursor SDK, so Cursor's credential swap waits for CLOUD-18, which brings both.
+- **`gh` needs a placeholder value.** `gh` makes no request at all without a `GH_TOKEN` value, so the sandbox's launch environment must set `GH_TOKEN=provided-by-worker` for the swap to be reached. The live run proved both halves: without it `gh` exits 4 asking for `gh auth login`; with it, `gh api user` answers as the Mac's login. The launch environment is CLOUD-03's router and CLOUD-04's image, so this row names it as the follow-up rather than changing another row's file.
+
+Why: the host is the only thing the sandbox's HTTP call states about which provider it is talking to, and keying the swap on it keeps every secret in the Worker without a second channel. The live run on the owner's account passed with these choices: Anthropic's `/v1/models` and GitHub's `/user` both answered 200 from a sandbox holding no credential, and a look-alike and an unlisted host both got 403.
