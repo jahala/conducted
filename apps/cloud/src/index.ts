@@ -3,23 +3,23 @@
  * Owns: the Worker's front door: it checks the pairing token on every request and routes each
  * workspace's git, shell, file and sidecar-relay calls to that workspace's Durable Object.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
- * HTTPS and one WebSocket; the Worker authenticates, routes and swaps the model key outside the
- * sandbox). Route list and measurements: docs/research/cloud-spike-2026-11-06.md.
+ * HTTPS and one WebSocket; the Worker authenticates and routes). The sandbox's outbound
+ * credential swap is outbound.ts (CLOUD-05). Route list and measurements:
+ * docs/research/cloud-spike-2026-11-06.md.
  * Must handle: 401 before any Durable Object for a missing or wrong token; 404 for an unknown
  * route; 400 for a bad workspace name or body; 405 for the wrong method; 426 for a non-WebSocket
- * relay request; the sandbox's own error text in a 500 rather than a stack. The model key is never
- * in a response or a log line.
+ * relay request; the sandbox's own error text in a 500 rather than a stack.
  * Our design choice: the route names are ours (`/w/<name>/<action>`), matching the spike's shape,
  * because the research gives Conductor's cloud backend only as a concept.
  * Test first: every route answers 401 without the token, and a good token reaches the route.
  */
-import { WorkerEntrypoint } from "cloudflare:workers";
 import { INVALID_BODY, zExecBody, zFileBody, zGitBody } from "./args.ts";
 import { isAuthorized } from "./auth.ts";
 import type { Env } from "./env.ts";
+import { Outbound } from "./outbound.ts";
 import { Workspace } from "./workspace.ts";
 
-export { Workspace };
+export { Outbound, Workspace };
 
 const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|rpc)$/;
 /** A sandbox name is safe in a URL and stable across deploys. */
@@ -52,29 +52,6 @@ async function bodyOf<T>(
 	}
 	const result = schema.safeParse(parsed);
 	return result.success ? result.data : null;
-}
-
-/**
- * Every HTTP and HTTPS request from the sandbox's container comes here. Only the model API is
- * reachable, and the placeholder key the sandbox holds is replaced with the real Worker secret.
- * CLOUD-05 extends this to the GitHub token and the package allow-list.
- */
-export class Outbound extends WorkerEntrypoint<Env> {
-	override async fetch(request: Request): Promise<Response> {
-		const url = new URL(request.url);
-		if (url.protocol === "https:" && url.hostname === "api.anthropic.com") {
-			if (this.env.ANTHROPIC_API_KEY === undefined || this.env.ANTHROPIC_API_KEY === "") {
-				return new Response("The Workspace has no model key.\n", { status: 503 });
-			}
-			const headers = new Headers(request.headers);
-			headers.delete("authorization");
-			headers.delete("x-api-key");
-			headers.set("x-api-key", this.env.ANTHROPIC_API_KEY);
-			return fetch(new Request(request, { headers }));
-		}
-		console.log(`outbound refused: ${url.protocol}//${url.hostname}${url.pathname}`);
-		return new Response(`${url.hostname} is not reachable from this sandbox\n`, { status: 403 });
-	}
 }
 
 export default {
