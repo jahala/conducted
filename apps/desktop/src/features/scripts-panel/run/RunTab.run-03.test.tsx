@@ -37,13 +37,13 @@ const dev: RunAction = {
 	origin: "local",
 };
 
-const config = (previewUrlTemplate: string | null): RepoConfig => ({
+const config = (previewUrls: string[]): RepoConfig => ({
 	setupScript: null,
 	runScripts: [dev],
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate,
+	previewUrls,
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",
@@ -71,15 +71,12 @@ afterEach(() => {
 	for (const test of containers.splice(0)) test.close();
 });
 
-async function setup(previewUrlTemplate: string | null = null) {
+async function setup(previewUrls: string[] = []) {
 	const test = createTestContainer();
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id, port: 55_000 });
-	const updated = await test.container.services.repo.updateConfig(
-		repo.id,
-		config(previewUrlTemplate),
-	);
+	const updated = await test.container.services.repo.updateConfig(repo.id, config(previewUrls));
 	if (!updated.ok) throw new Error(updated.error.message);
 	const run: RunState = {
 		actions: [dev],
@@ -116,7 +113,7 @@ function renderTab(test: ReturnType<typeof createTestContainer>, workspace: Work
 
 describe("RUN-03 run tab preview URLs", () => {
 	it("lists the run output, the detected ports and the expanded template", async () => {
-		const { test, workspace } = await setup("http://localhost:$PORT/app");
+		const { test, workspace } = await setup(["http://localhost:$PORT/app"]);
 
 		renderTab(test, workspace);
 		await screen.findByRole("button", { name: "Open" });
@@ -127,7 +124,26 @@ describe("RUN-03 run tab preview URLs", () => {
 
 		expect(await screen.findByText("Run output")).toBeTruthy();
 		expect(await screen.findByText("Port 5173")).toBeTruthy();
-		expect(await screen.findByText("Preview URL")).toBeTruthy();
+		expect(await screen.findByText("http://localhost:55000/app")).toBeTruthy();
+	});
+
+	it("opens the first template URL with Open, and lists the others in the menu", async () => {
+		const { test, workspace } = await setup([
+			"http://localhost:$PORT/first",
+			"http://localhost:$PORT/second",
+		]);
+		const openUrl = vi.spyOn(test.container.platform.opener, "openUrl");
+
+		renderTab(test, workspace);
+		fireEvent.click(await screen.findByRole("button", { name: "Open" }));
+
+		expect(openUrl).toHaveBeenCalledWith("http://localhost:55000/first");
+
+		fireEvent.keyDown(screen.getByRole("button", { name: "Choose preview URL" }), {
+			key: "Enter",
+		});
+
+		expect(await screen.findByText("http://localhost:55000/second")).toBeTruthy();
 	});
 
 	it("opens the run output URL with Open", async () => {
@@ -163,7 +179,7 @@ describe("RUN-03 run tab preview URLs", () => {
 	});
 
 	it("names a template entry that is not a valid URL instead of dropping it silently", async () => {
-		const { test, workspace } = await setup("http://$HOST:$PORT/app");
+		const { test, workspace } = await setup(["http://$HOST:$PORT/app"]);
 
 		renderTab(test, workspace);
 		await screen.findByRole("button", { name: "Open" });

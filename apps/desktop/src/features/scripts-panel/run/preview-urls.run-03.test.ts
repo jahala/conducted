@@ -1,25 +1,24 @@
 /**
  * @feature RUN-03 Preview URL list
  * Owns: tests for building the list of preview URLs from the run output, detected ports and the
- * repository template.
- * Test first: template "http://localhost:$PORT/app" with port 3100 gives that URL with the port
- * substituted, and the same URL found in output is not listed twice.
+ * repository's ordered preview URL list.
+ * Test first: the templates keep their order, so the first is the default.
  */
 import { describe, expect, it } from "vitest";
 import { buildPreviewUrls } from "./preview-urls.ts";
 
 describe("RUN-03 buildPreviewUrls", () => {
-	it("expands the template with the workspace port", () => {
+	it("expands a template with the workspace port", () => {
 		const { urls, problems } = buildPreviewUrls({
 			runOutputUrl: null,
 			detectedPorts: [],
-			template: "http://localhost:$PORT/app",
+			templates: ["http://localhost:$PORT/app"],
 			workspacePort: 3100,
 		});
 
 		expect(problems).toEqual([]);
 		expect(urls).toEqual([
-			{ label: "Preview URL", url: "http://localhost:3100/app", source: "template" },
+			{ label: "http://localhost:3100/app", url: "http://localhost:3100/app", source: "template" },
 		]);
 	});
 
@@ -27,19 +26,36 @@ describe("RUN-03 buildPreviewUrls", () => {
 		const { urls } = buildPreviewUrls({
 			runOutputUrl: "http://localhost:3100",
 			detectedPorts: [],
-			template: "http://localhost:$PORT",
+			templates: ["http://localhost:$PORT"],
 			workspacePort: 3100,
 		});
 
 		expect(urls.map((entry) => entry.url)).toEqual(["http://localhost:3100"]);
-		expect(urls[0]?.source).toBe("run_output");
+		expect(urls[0]?.source).toBe("template");
 	});
 
-	it("puts the run output first, then the detected ports in ascending order", () => {
+	it("keeps the templates in order so the first is the default, then the run output and ports", () => {
 		const { urls } = buildPreviewUrls({
 			runOutputUrl: "http://localhost:4000/app?tab=one",
 			detectedPorts: [5173, 3000, 5173],
-			template: null,
+			templates: ["https://example.test/preview", "http://localhost:$PORT"],
+			workspacePort: 55_000,
+		});
+
+		expect(urls.map((entry) => entry.url)).toEqual([
+			"https://example.test/preview",
+			"http://localhost:55000",
+			"http://localhost:4000/app?tab=one",
+			"http://localhost:3000",
+			"http://localhost:5173",
+		]);
+	});
+
+	it("puts the run output first when no template is set", () => {
+		const { urls } = buildPreviewUrls({
+			runOutputUrl: "http://localhost:4000/app?tab=one",
+			detectedPorts: [5173, 3000],
+			templates: [],
 			workspacePort: 55_000,
 		});
 
@@ -50,25 +66,11 @@ describe("RUN-03 buildPreviewUrls", () => {
 		]);
 	});
 
-	it("keeps every template entry in order so the first is the default", () => {
-		const { urls } = buildPreviewUrls({
-			runOutputUrl: null,
-			detectedPorts: [],
-			template: "http://localhost:$PORT\nhttps://example.test/preview",
-			workspacePort: 55_010,
-		});
-
-		expect(urls.map((entry) => entry.url)).toEqual([
-			"http://localhost:55010",
-			"https://example.test/preview",
-		]);
-	});
-
 	it("drops a template entry that is not a valid address and reports it", () => {
 		const { urls, problems } = buildPreviewUrls({
 			runOutputUrl: null,
 			detectedPorts: [],
-			template: "not a url",
+			templates: ["not a url"],
 			workspacePort: 55_010,
 		});
 
@@ -80,7 +82,7 @@ describe("RUN-03 buildPreviewUrls", () => {
 		const { urls, problems } = buildPreviewUrls({
 			runOutputUrl: null,
 			detectedPorts: [],
-			template: "http://$HOST:$PORT",
+			templates: ["http://$HOST:$PORT"],
 			workspacePort: 55_010,
 		});
 
@@ -92,7 +94,7 @@ describe("RUN-03 buildPreviewUrls", () => {
 		const { urls } = buildPreviewUrls({
 			runOutputUrl: null,
 			detectedPorts: [0, 70_000, 3000],
-			template: null,
+			templates: [],
 			workspacePort: 55_000,
 		});
 

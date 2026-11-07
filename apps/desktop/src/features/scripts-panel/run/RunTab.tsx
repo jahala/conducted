@@ -5,14 +5,14 @@
  * Behaviour: ui-map.md 3.7, "Run" paragraph; services-map.md 5A.1.3 and 5A.1.4 (concurrent or
  * exclusive run mode). The button's words come from run-button-label.ts.
  * Data: useRunState (actions, running, detectedPorts), useWorkspace (archived check, port and repo
- * id), useRepoConfig (the Preview URLs template), useActions().run, useUrlOpeners.
+ * id), useRepoConfig (the ordered Preview URLs list), useActions().run, useUrlOpeners.
  * Children: RunToolbar with PreviewUrlMenu, RunEmptyState, and the output's RunTerminalSlot: the app
  * shell's surface layer draws the terminal over it, so it stays mounted across workspace switches and
  * the workspace's last output shows again (NAV-15, app/surface-registry.tsx).
- * RUN-03: the Open menu lists the Run tab URL, the detected ports and the repository template, and
- * the "Open localhost URL" shortcut (Cmd+Shift+B) opens the first one. Open uses the in-app browser
- * tab when "In-app browser preview" is on, else the system browser. A template entry that is not a
- * valid URL is named in a status line under the toolbar.
+ * RUN-03: the Open menu lists the repository's Preview URLs in order (the first is Open), then the
+ * Run tab URL and the detected ports, and the "Open localhost URL" shortcut (Cmd+Shift+B) opens the
+ * first one. Open uses the in-app browser tab when "In-app browser preview" is on, else the system
+ * browser. A template entry that is not a valid URL is named in a status line under the toolbar.
  * Must handle: no actions (empty state), loading, the picked action disappearing (falls back to the
  * default), a run starting while setup is running (button says Waiting for setup), a stop that is
  * not confirmed (the error is shown, the retained outcome stays in view, and the button returns to
@@ -86,11 +86,11 @@ function RunPreview({
 }: RunPreviewProps) {
 	const config = useRepoConfig(repoId);
 	const open = useUrlOpeners(workspaceId);
-	const template = config.state === "ready" ? config.data.previewUrlTemplate : null;
+	const templates = config.state === "ready" ? config.data.previewUrls : [];
 	const { urls, problems } = buildPreviewUrls({
 		runOutputUrl,
 		detectedPorts,
-		template,
+		templates,
 		workspacePort,
 	});
 
