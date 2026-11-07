@@ -1,6 +1,6 @@
 [package]
 name = "conducted"
-version = "0.3.0"
+version = "0.3.1"
 description = "Run coding agents in parallel, each in its own git worktree"
 authors = ["Jan Hallvard Larsen"]
 license = "MIT"
