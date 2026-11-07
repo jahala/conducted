@@ -85,6 +85,12 @@ const AGENT_INSTALLS: AgentInstall[] = [
 		authenticated: true,
 		authMethod: "chatgpt",
 	},
+	// The sidecar lists every agent it knows, installed or not, so the Agents page has a tab for each,
+	// as Conductor's capture shows Cursor and OpenCode beside Claude Code and Codex.
+	// Not installed, so the model picker's states keep their two agents.
+	{ agent: "cursor", installed: false },
+	{ agent: "acp", acpAgent: "opencode", installed: false },
+	{ agent: "acp", acpAgent: "pi", installed: false },
 ];
 
 const model = (id: string, label: string, options: Partial<ModelInfo> = {}): ModelInfo => ({

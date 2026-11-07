@@ -26,6 +26,7 @@ import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
+import { programPathCheck, programPathWarning } from "../program-path.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -93,13 +94,8 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				page="advanced"
 				focusSettingKey={focusSettingKey}
 				exclude={[ROOT_PATH_KEY]}
-				beforeSave={async (def, value) => {
-					if (!def.key.endsWith("_executable_path")) return null;
-					const text = typeof value === "string" ? value.trim() : "";
-					if (text === "") return null;
-					const exists = await platform.fs.exists(text);
-					return exists ? null : `No program exists at ${text}.`;
-				}}
+				beforeSave={programPathCheck((path) => platform.fs.exists(path))}
+				extraFor={programPathWarning}
 			/>
 
 			<AgentBinaries />
