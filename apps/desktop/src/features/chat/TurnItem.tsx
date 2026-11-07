@@ -13,8 +13,8 @@
  * list's footer (MessageList), not in the turn.
  * Our design choice: Wrapped in the shared ErrorBoundary so one broken turn does not hide the
  * others. Blocks render through ChatBlockView.
- * Must handle: A running turn (nothing folded, no footer yet); a turn that ended in error,
- * cancelled ("Interrupted by user") or cut off by a crash (a different line, since the user did not stop it);
+ * Must handle: A running turn (nothing folded, no footer yet); a turn that ended in error (one banner:
+ * none of its own when an error block of the turn already shows the same error), cancelled ("Interrupted by user") or cut off by a crash (a different line, since the user did not stop it);
  * a block that streams keeps its place on screen (keys come from position, not text); a reverted turn (dimmed, labelled); steers not yet read by the
  * agent (marked pending); footer actions are always visible, on every turn; the agent's retry line names
  * the attempt, Retry now stops the turn and sends the message again, and Retry in new chat hands the turn
@@ -77,6 +77,12 @@ function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "er
 		};
 	}
 	if (turn.outcome === "error") {
+		// The agent's own error block already shows this error, with its retry actions.
+		const shown = turn.blocks.some(
+			(block) =>
+				block.kind === "error" && (turn.error === null || block.item.message === turn.error),
+		);
+		if (shown) return null;
 		return {
 			kind: "error",
 			item: {

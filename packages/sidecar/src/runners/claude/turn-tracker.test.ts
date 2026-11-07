@@ -39,6 +39,7 @@ function resultMessage(options: {
 	numTurns?: number;
 	isError?: boolean;
 	origin?: { kind: string };
+	text?: string;
 }): SDKMessage {
 	return {
 		...(options.origin === undefined ? {} : { origin: options.origin }),
@@ -56,7 +57,7 @@ function resultMessage(options: {
 		modelUsage: {},
 		permission_denials: [],
 		errors: [],
-		result: "",
+		result: options.text ?? "",
 		uuid: "result-uuid",
 		session_id: "s1",
 	} as unknown as SDKMessage;
@@ -207,13 +208,20 @@ describe("AGENT-02 turn tracker", () => {
 		]);
 	});
 
-	test("an is_error result still ends the turn; the translator reports the error", () => {
+	test("an is_error result ends the turn with an error outcome carrying the result's text", () => {
 		const { tracker, outcomes } = makeTracker();
 		tracker.expectTurn("ours");
 
-		const decision = tracker.onSdkMessage(resultMessage({ uuid: "ours", isError: true }));
-		expect(decision.action).toBe("forward_and_settle");
-		expect(outcomes).toEqual([{ kind: "success" }]);
+		const decision = tracker.onSdkMessage(
+			resultMessage({ uuid: "ours", isError: true, text: "API Error: 500 Internal server error" }),
+		);
+		const outcome = {
+			kind: "error",
+			message: "API Error: 500 Internal server error",
+			retryable: false,
+		};
+		expect(decision).toEqual({ action: "forward_and_settle", outcome });
+		expect(outcomes).toEqual([outcome]);
 	});
 
 	test("cancel settles the turn at once and late results are dropped", () => {

@@ -16,7 +16,8 @@
  *  - a "mini result" from a background-task notification (num_turns 0): never a boundary
  *  - a result while steers are unread: held back, watchdog armed, the next result decides
  *  - the CLI reports running again: the watchdog is disarmed
- *  - a result with is_error: the turn ends; the translator reports the error item
+ *  - a result with is_error: the turn ends with an error outcome carrying the result's text (D008);
+ *    the translator reports the error item
  *  - the stream ends or throws before a result: the turn ends with an error outcome
  *  - cancel: the turn ends as cancelled whatever arrives afterwards (late results are dropped)
  *  - watchdog timers come from an injected scheduler, so tests never wait
@@ -27,6 +28,7 @@ import type { SDKMessage, SDKResultMessage } from "@anthropic-ai/claude-agent-sd
 import type { TurnOutcome } from "../runner.ts";
 import { SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
 import type { SteerReceipts } from "./steer-receipts.ts";
+import { resultError } from "./translate.ts";
 
 export interface Scheduler {
 	/** Calls `fn` after `ms`. Returns a function that cancels the call. */
@@ -93,7 +95,9 @@ export class ClaudeTurnTracker {
 			this.armWatchdog();
 			return { action: "hold_back" };
 		}
-		const outcome: TurnOutcome = { kind: "success" };
+		const outcome: TurnOutcome = message.is_error
+			? { kind: "error", ...resultError(message) }
+			: { kind: "success" };
 		this.finish(outcome);
 		return { action: "forward_and_settle", outcome };
 	}

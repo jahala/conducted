@@ -28,7 +28,7 @@ import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./cla
 import { INTERRUPT_GRACE_MS, SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
 import { ClaudePermissionHandler, type PermissionHandlerDeps } from "./permission-handler.ts";
 import { REMOTE_TEXT_ATTEMPTS, REMOTE_TEXT_RETRY_MS } from "./remote-control.ts";
-import type { ClaudeTranslator } from "./translate.ts";
+import { ClaudeTranslator } from "./translate.ts";
 import type { Scheduler } from "./turn-tracker.ts";
 
 interface FakeScheduler extends Scheduler {
@@ -532,6 +532,35 @@ describe("AGENT-02 Claude session", () => {
 		});
 		expect(script.prompts).toHaveLength(1);
 		expect(script.prompts[0]?.message).toMatchObject({ role: "user", content: "hi" });
+		await session.dispose();
+	});
+
+	test("an API error turn shows one error and ends with an error outcome", async () => {
+		const text = "API Error: 500 Internal server error";
+		const { query } = scriptedQuery((user, s) => {
+			s.emit(init());
+			s.emit({
+				...(assistantMessage(text) as object),
+				error: "server_error",
+			} as unknown as SDKMessage);
+			s.emit({
+				...(resultMessage(String(user.uuid)) as object),
+				is_error: true,
+				result: text,
+				stop_reason: null,
+			} as unknown as SDKMessage);
+		});
+		// The real translator, so the error items are the ones the app receives.
+		const realTranslator = new ClaudeTranslator({ logger: fakeLogger() });
+		const session = new ClaudeSession(makeDeps({ query, translator: realTranslator }), start());
+		const messages: AgentMessage[] = [];
+
+		const outcome = await session.runTurn(turnInput(), callbacks(messages));
+
+		expect(outcome).toEqual({ kind: "error", message: text, retryable: false });
+		const errors = messages.flatMap((message) => message.items).filter((i) => i.kind === "error");
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({ kind: "error", message: text });
 		await session.dispose();
 	});
 
