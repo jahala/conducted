@@ -96,7 +96,13 @@ import {
 import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
-import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
+import {
+	coerceSettingValue,
+	getSettingDef,
+	previewUrlsFrom,
+	previewUrlsToText,
+	type SettingValue,
+} from "../registries/settings.ts";
 import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.ts";
 import { isGithubRemoteUrl } from "./github.ts";
 import {
@@ -516,7 +522,7 @@ export function repoConfigFrom(
 			runMode: runMode(),
 			archiveScript: asText(value("archive_script")),
 			copyFiles: list("file_include_globs"),
-			previewUrlTemplate: list("open_url_template")[0] ?? null,
+			previewUrls: previewUrlsFrom(value("open_url_template")) ?? [],
 			spotlightTesting: flag("spotlight_testing"),
 			autoRunAfterSetup: flag("auto_run_after_setup"),
 			remoteName: asText(value("remote_name")),
@@ -1130,11 +1136,11 @@ export class RepoService {
 			writeText(contents, "archive_script", config.archiveScript, sharedConfig.archiveScript);
 			writeIfDifferent(contents, "run_script_mode", config.runMode, sharedConfig.runMode);
 			writeList(contents, "file_include_globs", config.copyFiles, sharedConfig.copyFiles);
-			writeList(
+			writeText(
 				contents,
 				"open_url_template",
-				config.previewUrlTemplate === null ? [] : [config.previewUrlTemplate],
-				sharedConfig.previewUrlTemplate === null ? [] : [sharedConfig.previewUrlTemplate],
+				previewUrlsToText(config.previewUrls),
+				previewUrlsToText(sharedConfig.previewUrls),
 			);
 			writeIfDifferent(
 				contents,

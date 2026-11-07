@@ -37,7 +37,7 @@ const config: RepoConfig = {
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: "http://localhost:$CONDUCTED_PORT",
+	previewUrls: [{ name: "", url: "http://localhost:$CONDUCTED_PORT" }],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",

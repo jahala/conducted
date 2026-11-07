@@ -35,7 +35,12 @@ describe("AGENT-02 Claude constants", () => {
 
 describe("AGENT-02 Claude constants in use", () => {
 	test("the alias that replaces the built-in question tool names a tool the app-tools server really serves", () => {
-		const everything = { diffComments: true, progressUpdates: true, setTargetBranch: true };
+		const everything = {
+			diffComments: true,
+			progressUpdates: true,
+			setTargetBranch: true,
+			localExecution: true,
+		};
 		const served = enabledTools(everything, { includeAskUserQuestion: true }).map(
 			(tool) => `${APP_TOOL_NAME_PREFIX}${tool.name}`,
 		);

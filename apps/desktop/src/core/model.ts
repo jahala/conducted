@@ -82,6 +82,14 @@ export interface RunAction {
 	runAvailability?: ActionTarget;
 }
 
+/** One preview URL template: the name its menu entry shows and the URL with the port variable. */
+export interface PreviewUrlEntry {
+	/** The menu label. Empty means the expanded URL is shown. */
+	name: string;
+	/** The template, such as `http://localhost:$CONDUCTED_PORT`. */
+	url: string;
+}
+
 /** Per-repo configuration from `.conducted/settings.toml` (shared) merged with local settings. */
 export interface RepoConfig {
 	setupScript: string | null;
@@ -90,7 +98,8 @@ export interface RepoConfig {
 	archiveScript: string | null;
 	/** Files copied from the main clone into each new worktree, e.g. ".env". */
 	copyFiles: string[];
-	previewUrlTemplate: string | null;
+	/** The ordered preview URL templates (RUN-03). The first is the terminal panel's Open URL. */
+	previewUrls: PreviewUrlEntry[];
 	spotlightTesting: boolean;
 	/** Start the repository's default run action once the setup script has finished. */
 	autoRunAfterSetup: boolean;

@@ -10,7 +10,9 @@ import {
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
+import { NEW_CHAT_EFFORT_FALLBACK } from "../../../core/services/workspace.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { EFFORT_LABELS } from "../../composer/ModelPicker.tsx";
 import { DefaultModelsPage } from "./DefaultModelsPage.tsx";
 
 let test: TestContainer | undefined;
@@ -261,6 +263,25 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 		expect(keys).not.toContain("review_claude_effort_level");
 		expect(keys).not.toContain("review_fast_mode");
+	});
+
+	it("falls back to the new chat's effort when the default loadout cannot be read (one home per rule)", async () => {
+		const { container } = await renderPage();
+		// A default effort no chat can use leaves the loadout with no default entry, so the review
+		// picker has no model to read its effort from.
+		act(() =>
+			container.services.settings.store.setState((state) => ({
+				...state,
+				values: { ...state.values, default_claude_effort_level: "turbo" },
+			})),
+		);
+		const row = document.querySelector('[data-setting-key="review_model"]');
+		if (!(row instanceof HTMLElement)) throw new Error("no Review model row");
+		expect(
+			within(row).getByRole("button", {
+				name: new RegExp(`Review model: .*, ${EFFORT_LABELS[NEW_CHAT_EFFORT_FALLBACK]}`),
+			}),
+		).toBeTruthy();
 	});
 
 	it("lists every agent's models, and stores the chosen agent with its model", async () => {

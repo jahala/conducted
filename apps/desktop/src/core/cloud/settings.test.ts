@@ -66,7 +66,7 @@ describe("CLOUD-17 the cloud settings service", () => {
 		expect(loaded.ok).toBe(false);
 		if (loaded.ok) return;
 		expect(loaded.error.code).toBe("cloud_settings_unreachable");
-		expect(loaded.error.message).toBe("Conductor could not connect to cloud settings. Try again.");
+		expect(loaded.error.message).toBe("Conducted could not connect to cloud settings. Try again.");
 		expect(service.store.getState()).toMatchObject({ state: "error" });
 	});
 

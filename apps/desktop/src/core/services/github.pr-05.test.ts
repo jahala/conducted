@@ -16,6 +16,7 @@ import {
 	type GitHandler,
 	gitOutput,
 } from "../../test/fake-git-runner.ts";
+import { tomlText } from "../../test/toml-text.ts";
 import { localSettingsFile } from "../app-paths.ts";
 import type { CheckRun, PullRequest } from "../model.ts";
 import {
@@ -25,7 +26,6 @@ import {
 	type GithubServiceDeps,
 } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
-import { tomlCodec } from "./toml-codec.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 
@@ -287,7 +287,7 @@ describe("PR-05 composition root", () => {
 			const repo = await seedRepo(harness.container);
 			harness.memory.controls.files.set(
 				localSettingsFile(repo.rootPath),
-				tomlCodec.stringify({ prompts: { fix_errors: custom } }),
+				tomlText({ prompts: { fix_errors: custom } }),
 			);
 			const loaded = await harness.container.services.repo.loadConfig(repo.id);
 			expect(loaded.ok).toBe(true);

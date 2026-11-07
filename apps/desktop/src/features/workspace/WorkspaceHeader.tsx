@@ -9,10 +9,14 @@
  * renames it; right click offers Copy C and Rename R), and an ellipsis button whose popover holds
  * "Target branch" and its picker; right, the folder name in small muted text when it differs from
  * the branch, the Open in button with no label, and "Toggle right sidebar". Conductor's header has
- * no workspace name, rename button or actions menu: those live on the sidebar row (D098).
- * Our design choice: Follow, avatars and cloud status are cloud features and are left out. The
- * branch is renamed through the shared name dialog. The header starts after <TitleBarInset> and is
- * a window drag region owned by the layout. The branch menu advertises and handles its C and R keys.
+ * no workspace name, rename button or actions menu: those live on the sidebar row (D098) and, for
+ * a cloud workspace, in CLOUD-15's popover.
+ * Our design choice: Follow and avatars are organisation features and are left out. A local
+ * workspace keeps the repository and branch here; for a cloud workspace the left part is CLOUD-15's
+ * one identity button (CloudWorkspaceStatus), which opens its status, meters, agent cost and
+ * Restart popover, as Conductor's cloud header does. The branch is renamed through the shared name
+ * dialog. The header starts after <TitleBarInset> and is a window drag region owned by the layout.
+ * The branch menu advertises and handles its C and R keys.
  * Must handle: Loading and error (small inline states, the rest of the screen stays); placeholder
  * branch name (shown muted until the first message renames it); a long name truncates; archived
  * workspace (no Open in, and the target branch says it cannot change); the toggle button reflects
@@ -43,6 +47,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { TargetBranchPicker } from "../git-panel/changes/TargetBranchPicker.tsx";
 import { OpenInMenu } from "../open-in/OpenInMenu.tsx";
 import { RepoIconAvatar } from "../sidebar/RepoIcon.tsx";
+import { CloudWorkspaceStatus } from "./CloudWorkspaceStatus.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { useBranchPrefix } from "./use-branch-prefix.ts";
 import type { RightPanelControls } from "./WorkspaceLayout.tsx";
@@ -64,6 +69,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const repo = repos.state === "ready" ? repos.data.find((item) => item.id === repoId) : undefined;
 	const archived = data !== null && isArchivedWorkspace(data);
+	const isCloud = data?.host.kind === "cloud";
 	const branch = data?.branch ?? "";
 	// Conductor shows the branch without the user's prefix; Copy and Rename keep the whole name.
 	const shownBranch = branchWithoutPrefix(branch, branchPrefix);
@@ -92,63 +98,70 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 
 	return (
 		<div className="flex h-full min-w-0 items-center gap-2 px-2">
+			{isCloud && data !== null ? (
+				<CloudWorkspaceStatus workspaceId={workspaceId} restartDisabled={data.state !== "ready"} />
+			) : null}
 			<div className="flex min-w-0 shrink items-center gap-2 overflow-hidden">
-				{repo === undefined ? null : <RepoMenu repo={repo} />}
+				{isCloud ? null : (
+					<>
+						{repo === undefined ? null : <RepoMenu repo={repo} />}
 
-				<ChevronRightIcon aria-hidden="true" className="size-3 shrink-0 text-fg-muted" />
+						<ChevronRightIcon aria-hidden="true" className="size-3 shrink-0 text-fg-muted" />
 
-				<ContextMenu
-					items={
-						<>
-							<ContextMenuItem
-								disabled={branch === ""}
-								shortcut="C"
-								onSelect={() => copy("Couldn't copy the branch", branch)}
-								onKeyDown={(event) => {
-									if (event.key.toLowerCase() !== "c" || branch === "") return;
-									event.preventDefault();
-									copy("Couldn't copy the branch", branch);
+						<ContextMenu
+							items={
+								<>
+									<ContextMenuItem
+										disabled={branch === ""}
+										shortcut="C"
+										onSelect={() => copy("Couldn't copy the branch", branch)}
+										onKeyDown={(event) => {
+											if (event.key.toLowerCase() !== "c" || branch === "") return;
+											event.preventDefault();
+											copy("Couldn't copy the branch", branch);
+										}}
+									>
+										Copy
+									</ContextMenuItem>
+									<ContextMenuItem
+										disabled={!canRename}
+										shortcut="R"
+										onSelect={() => setRenamingBranch(true)}
+										onKeyDown={(event) => {
+											if (event.key.toLowerCase() !== "r" || !canRename) return;
+											event.preventDefault();
+											setRenamingBranch(true);
+										}}
+									>
+										Rename
+									</ContextMenuItem>
+								</>
+							}
+						>
+							<button
+								type="button"
+								onClick={() => {
+									if (canRename) setRenamingBranch(true);
 								}}
+								className={cn(
+									"min-w-0 truncate rounded-sm px-1 text-sm font-medium",
+									canRename ? "cursor-pointer" : "cursor-default",
+									data?.branchIsPlaceholder ? "text-fg-subtle" : "text-fg-muted hover:text-fg",
+								)}
+								title={shownBranch}
 							>
-								Copy
-							</ContextMenuItem>
-							<ContextMenuItem
-								disabled={!canRename}
-								shortcut="R"
-								onSelect={() => setRenamingBranch(true)}
-								onKeyDown={(event) => {
-									if (event.key.toLowerCase() !== "r" || !canRename) return;
-									event.preventDefault();
-									setRenamingBranch(true);
-								}}
-							>
-								Rename
-							</ContextMenuItem>
-						</>
-					}
-				>
-					<button
-						type="button"
-						onClick={() => {
-							if (canRename) setRenamingBranch(true);
-						}}
-						className={cn(
-							"min-w-0 truncate rounded-sm px-1 text-sm font-medium",
-							canRename ? "cursor-pointer" : "cursor-default",
-							data?.branchIsPlaceholder ? "text-fg-subtle" : "text-fg-muted hover:text-fg",
-						)}
-						title={shownBranch}
-					>
-						{branch === "" ? "No branch" : shownBranch}
-					</button>
-				</ContextMenu>
+								{branch === "" ? "No branch" : shownBranch}
+							</button>
+						</ContextMenu>
 
-				<TargetBranchPopover
-					workspaceId={workspaceId}
-					repoId={repoId}
-					current={data?.targetBranch ?? ""}
-					archived={archived}
-				/>
+						<TargetBranchPopover
+							workspaceId={workspaceId}
+							repoId={repoId}
+							current={data?.targetBranch ?? ""}
+							archived={archived}
+						/>
+					</>
+				)}
 			</div>
 
 			<div className="ml-auto flex min-w-0 items-center gap-3">

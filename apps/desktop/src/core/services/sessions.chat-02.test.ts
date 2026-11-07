@@ -201,7 +201,11 @@ describe("CHAT-02 sends a message as a new turn", () => {
 			delivery: "new_turn",
 			firstMessage: true,
 			attachmentPaths: ["/ws/.context/a.txt"],
-			config: { ...session.config, additionalDirectories: sampleWorkspace.linkedPaths },
+			config: {
+				...session.config,
+				additionalDirectories: sampleWorkspace.linkedPaths,
+				appTools: { ...session.config.appTools, localExecution: false },
+			},
 			workspace: { ...workspace, userPreferences: "Be brief. Show the diff before editing." },
 		});
 		expect(params.launch).toEqual({ env: {}, providerKeys: {} });
@@ -584,7 +588,11 @@ describe("CHAT-02 config compare-and-set", () => {
 		const call = h.calls.find((entry) => entry.method === "updateConfig");
 		expect(call?.params).toEqual({
 			sessionId: session.id,
-			config: { ...next, additionalDirectories: sampleWorkspace.linkedPaths },
+			config: {
+				...next,
+				additionalDirectories: sampleWorkspace.linkedPaths,
+				appTools: { ...next.appTools, localExecution: false },
+			},
 		});
 	});
 
@@ -754,6 +762,7 @@ describe("SIDE-20 a config the agent changed is stored", () => {
 		expect(call?.params.config).toEqual({
 			...entered,
 			additionalDirectories: sampleWorkspace.linkedPaths,
+			appTools: { ...entered.appTools, localExecution: false },
 		});
 	});
 });

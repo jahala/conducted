@@ -83,7 +83,7 @@ import { parseDotenv, resolveEnvFilePath } from "./dotenv.ts";
 
 export interface TomlCodec {
 	parse(text: string): Result<Record<string, unknown>>;
-	stringify(value: Record<string, unknown>): string;
+	stringify(value: Record<string, unknown>): Result<string>;
 	/** Edits `text` so it holds `value`, changing only entries whose values differ (SET-14). */
 	patch(text: string, value: Record<string, unknown>): Result<string>;
 	/** Every comment of `text` in order, from its `#` to the end of its line. */
@@ -148,7 +148,7 @@ export function resolveSetting(def: SettingDef, layers: readonly LayerValue[]): 
 export const SETTINGS_FILE_INVALID_MESSAGE =
 	"Can't save setting because your settings file is invalid";
 export const SHARED_SETTINGS_READ_ONLY_MESSAGE =
-	"Shared repository settings are read-only in Conductor. Edit the settings file directly.";
+	"Shared repository settings are read-only in Conducted. Edit the settings file directly.";
 export const SETTINGS_LOAD_FAILED_MESSAGE = "Failed to load settings";
 export const SETTINGS_SAVE_FAILED_MESSAGE = "Failed to save setting";
 export const GIT_EXCLUDE_FAILED_MESSAGE =
@@ -1304,13 +1304,17 @@ export class SettingsService {
 			const next = buildSettingsDocument(contents, scope);
 			const patched = shaped?.ok === true ? toml.patch(shaped.value, next) : null;
 			if (source === null) {
-				text = toml.stringify(next);
+				const written = toml.stringify(next);
+				if (!written.ok) return err(written.error);
+				text = written.value;
 			} else if (shaped?.ok === true && patched?.ok === true) {
 				text = patched.value;
 				lost = droppedComments(toml.comments(source), toml.comments(shaped.value));
 			} else {
 				// The file cannot be edited in place, so it is written whole.
-				text = toml.stringify(next);
+				const written = toml.stringify(next);
+				if (!written.ok) return err(written.error);
+				text = written.value;
 				lost = droppedComments(toml.comments(source), toml.comments(text));
 			}
 		} catch (cause) {

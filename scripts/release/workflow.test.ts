@@ -90,3 +90,15 @@ test("makes no update archive in the build, so the build never needs the updater
 	) as { bundle: { createUpdaterArtifacts?: boolean } };
 	expect(config.bundle.createUpdaterArtifacts).toBe(false);
 });
+
+test("asks the Pages workflow to rebuild the product page after the release, from a job of its own", () => {
+	const jobs = (Bun.YAML.parse(workflow) as { jobs: Record<string, unknown> }).jobs as Record<
+		string,
+		{ needs?: string; permissions?: Record<string, string>; steps: Step[] }
+	>;
+	const pages = jobs.pages;
+	expect(pages?.needs).toBe("release");
+	// Only this job's token may start a workflow; the release job's steps run third-party code.
+	expect(pages?.permissions).toEqual({ actions: "write" });
+	expect(pages?.steps.some((step) => step.run?.includes("gh workflow run pages.yml"))).toBe(true);
+});

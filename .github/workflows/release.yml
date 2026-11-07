@@ -122,3 +122,17 @@ jobs:
             security delete-keychain "$KEYCHAIN_PATH"
           fi
           rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/apple-api-key.p8"
+
+  # The product page's Download button and Changelog follow the new release (issue #356). Its own
+  # job, so only this step's token may start a workflow, and the build's steps never can.
+  pages:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Rebuild the product page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

@@ -9,7 +9,7 @@ import { createProcessEnvironment, newEnvironmentMarker, PARENT_PID_ENV } from "
 const TEST_ENV = { HOME: "/Users/someone", PATH: "/usr/bin", UNSET: undefined };
 
 function environment(overrides: Partial<{ pid: number; ppid: number }> = {}) {
-	const state = { pid: overrides.pid ?? 10, ppid: overrides.ppid ?? 20 };
+	const state = { pid: overrides.pid ?? 10, ppid: overrides.ppid ?? 20, platform: "darwin" };
 	return {
 		state,
 		value: createProcessEnvironment({
@@ -17,6 +17,7 @@ function environment(overrides: Partial<{ pid: number; ppid: number }> = {}) {
 			pid: () => state.pid,
 			ppid: () => state.ppid,
 			execPath: () => "/Applications/Conducted.app/Contents/MacOS/sidecar",
+			platform: () => state.platform,
 			arch: () => "arm64",
 		}),
 	};
@@ -49,9 +50,11 @@ describe("SIDE-25 environment edge", () => {
 		const { state, value } = environment();
 		state.pid = 11;
 		state.ppid = 21;
+		state.platform = "linux";
 		expect(value.pid).toBe(11);
 		expect(value.ppid).toBe(21);
 		expect(value.execPath).toContain("sidecar");
+		expect(value.platform).toBe("linux");
 		expect(value.arch).toBe("arm64");
 	});
 

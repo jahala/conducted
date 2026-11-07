@@ -32,7 +32,9 @@
  * name stops creation with its error, while a failed read of the file list or the default config
  * is shown as a warning; the file commands reach a folder outside `~/conducted` only once it is
  * registered (PLAT-02), so a start registers the workspaces folder and every saved workspace's
- * folder, and a create or unarchive registers the workspaces folder before it looks in it.
+ * folder, and a create or unarchive registers the workspaces folder before it looks in it; a start
+ * that cannot read the table keeps its error in `loadError`, so the sidebar shows the failure
+ * instead of an empty list (DATA-01).
  * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
  * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
  * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
@@ -114,7 +116,11 @@ import type { Cloud, Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
-import { removeCloudWorkspace, stopCloudWorkspace } from "../cloud/lifecycle.ts";
+import {
+	removeCloudWorkspace,
+	restartCloudWorkspace,
+	stopCloudWorkspace,
+} from "../cloud/lifecycle.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-helpers.ts";
@@ -628,6 +634,12 @@ export interface SetupRun {
 
 export interface WorkspaceState {
 	loaded: boolean;
+	/**
+	 * The error that stopped the workspace table from loading. A failed start keeps no rows, so without
+	 * this the sidebar would show "No workspaces yet" for a database failure (DATA-01). A retry clears
+	 * it.
+	 */
+	loadError: AppError | null;
 	/** Workspaces saved to the backlog, not started yet (WS-11). */
 	backlogLoaded: boolean;
 	backlogById: Readonly<Record<string, BacklogWorkspace>>;
@@ -693,6 +705,11 @@ export interface WorkspaceServiceDeps {
 	 * composition root passes PortForwardsService.
 	 */
 	portForwards?: { pauseWorkspace(workspaceId: WorkspaceId): Promise<Result<void>> };
+	/**
+	 * CLOUD-15: re-reads a cloud workspace's status after a successful restart, so the header does
+	 * not wait for its next poll. The composition root passes CloudWorkspaceService.
+	 */
+	cloudState?: { refresh(workspaceId: WorkspaceId): Promise<Result<unknown>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
 	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
 	/** Reads a pull request's head from GitHub, for a workspace created from a PR (WS-02). */
@@ -742,6 +759,7 @@ export class WorkspaceService {
 		this.#deps = deps;
 		this.store = createStore<WorkspaceState>(() => ({
 			loaded: false,
+			loadError: null,
 			backlogLoaded: false,
 			backlogById: {},
 			workspacesById: {},
@@ -758,7 +776,7 @@ export class WorkspaceService {
 	async start(): Promise<Result<void>> {
 		const listed = await this.#deps.repos.workspaces.listAll();
 		if (!listed.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true }));
+			this.store.setState((state) => ({ ...state, loaded: true, loadError: listed.error }));
 			return listed;
 		}
 		// The file commands reach a workspace folder only once it is registered, on every start.
@@ -771,7 +789,7 @@ export class WorkspaceService {
 			...local.map((workspace) => workspace.path),
 		]);
 		if (!reachable.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true }));
+			this.store.setState((state) => ({ ...state, loaded: true, loadError: reachable.error }));
 			return reachable;
 		}
 		const workspacesById: Record<string, Workspace> = {};
@@ -802,7 +820,12 @@ export class WorkspaceService {
 		}
 		const backlog = await this.#deps.repos.backlogWorkspaces.list();
 		if (!backlog.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true, backlogLoaded: true }));
+			this.store.setState((state) => ({
+				...state,
+				loaded: true,
+				loadError: backlog.error,
+				backlogLoaded: true,
+			}));
 			return backlog;
 		}
 		const backlogById: Record<string, BacklogWorkspace> = {};
@@ -810,6 +833,7 @@ export class WorkspaceService {
 		this.store.setState((state) => ({
 			...state,
 			loaded: true,
+			loadError: null,
 			backlogLoaded: true,
 			backlogById,
 			workspacesById,
@@ -1376,6 +1400,32 @@ export class WorkspaceService {
 			requestedName,
 			onRenamed: (branch) => this.applyBranchRename(current.id, branch),
 		});
+	}
+
+	/**
+	 * Backs `Actions.workspaces.restart` (CLOUD-15): a cloud workspace's Worker saves its work to
+	 * R2, stops the sandbox and starts a new one, then restores that work. A local workspace has no
+	 * restart here: Conductor restarts only a remote workspace, through its backend.
+	 */
+	async restart(id: WorkspaceId): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (workspace.host.kind !== "cloud") {
+			return err(appError("workspace_not_cloud", "Only a cloud workspace can restart here."));
+		}
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) {
+			return err(
+				appError("cloud_not_paired", "The app cannot reach the Worker for this workspace."),
+			);
+		}
+		const restarted = await restartCloudWorkspace(cloud, workspace.host);
+		if (restarted.ok) await this.#deps.cloudState?.refresh(id);
+		return restarted;
 	}
 
 	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */

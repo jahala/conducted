@@ -1,10 +1,17 @@
 # Conducted
 
-**Run a team of coding agents on your Mac.** Conducted gives every task its own git worktree and branch, its own chats with an agent, and one path from the first diff to a merged pull request. Ten agents can work on one repository at once without touching each other's files.
+[![CI](https://github.com/jahala/conducted/actions/workflows/ci.yml/badge.svg)](https://github.com/jahala/conducted/actions/workflows/ci.yml)
 
-It drives the agents you already use: Claude Code, Codex, Cursor, OpenCode and Pi. They run on your machine, with your own subscriptions and keys. Conducted adds the workspace around them: isolation, review, snapshots of every turn, and the git and GitHub work that follows.
+**Run a team of coding agents on your Mac.** Conducted gives every task its own git worktree and branch, its own chats with an agent, and one path from the first diff to a merged pull request.
 
-> **Status: pre-alpha.** The architecture, the data model and a written spec for every feature are in place, and the features are being built. It does not run agents yet. Progress is tracked in the [milestones](https://github.com/jahala/conducted/milestones).
+It drives the agents you already use: Claude Code, Codex, Cursor, OpenCode and Pi. They run on your machine, with your own subscriptions and keys. Conducted adds the workspace around them: isolation, review, a snapshot of every turn, and the git and GitHub work that follows.
+
+<picture>
+  <source srcset="docs/site/images/chat-tool-calls-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="docs/site/images/chat-tool-calls-light.png" alt="Conducted with a workspace open: the sidebar of workspaces, a chat where the agent fixes a login redirect, and the changed files beside it." width="1440">
+</picture>
+
+Conducted is an independent, open-source rebuild of [Conductor](https://conductor.build). It is not affiliated with Conductor or its makers. See [How it relates to Conductor](#how-it-relates-to-conductor).
 
 ## How a task flows
 
@@ -13,7 +20,7 @@ It drives the agents you already use: Claude Code, Codex, Cursor, OpenCode and P
 3. **Review the change.** Read the diff by branch, by commit or by turn. Leave comments on lines, and send them to the agent to fix. Run your dev server or tests in the workspace, and open a preview in the app.
 4. **Ship it.** Create the pull request, watch its checks, send failing checks back to the agent, and merge, all from the same panel. Archiving the workspace removes the worktree and keeps its history.
 
-## What is in it
+## Features
 
 | Area           | What you get                                                                                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -26,54 +33,53 @@ It drives the agents you already use: Claude Code, Codex, Cursor, OpenCode and P
 | Run and test   | Run scripts per workspace, terminals, port detection, an in-app browser preview, and Spotlight to try changes in your main checkout                                            |
 | The rest       | A command palette, keyboard shortcuts for everything, notifications, dictation, and settings per user and per repository                                                       |
 
-## Why
-
-Coding agents are good enough to work in parallel, but a terminal per agent does not scale. Agents collide in one checkout, their sessions get lost, and reviewing their work means switching tools. Conducted keeps each task isolated and reviewable, and keeps the history of every turn, so you can run many agents and still know what each one did.
-
-## What it does not do
+What it does not do:
 
 - It does not include an agent. It drives the agent programs you install, or downloads their official releases for you.
 - It does not need an account or a server. Everything runs on your Mac.
 - It does not send your code anywhere except to the agent you chose.
-- It runs on macOS only.
 
-## Coming next
+## Install
 
-- **Cloud workspaces on your own Cloudflare account,** so agents keep working while your Mac sleeps. You deploy it to your account; there is no hosted service.
+### Download
 
-It starts with a small test of the idea, described in [docs/plans/cloud-and-remote.md](docs/plans/cloud-and-remote.md).
+Signed and notarised builds are published on the [releases page](https://github.com/jahala/conducted/releases/latest). Download the `.dmg`, open it and drag Conducted to Applications. The app updates itself when a new release is out. If the latest release has no `.dmg` yet, build from source.
 
-## How it is built
+### Build from source
 
-```
-Rust shell (Tauri 2)    windows, terminals, shell commands, Keychain, notifications, updates
-   │  Tauri commands
-React UI                every screen; owns the SQLite database and runs git and gh
-   │  JSON-RPC over a Unix socket
-Sidecar (Bun)           one process per active chat: Claude Agent SDK, Codex app-server, ACP
-```
-
-The parts and their rules are in [docs/architecture.md](docs/architecture.md), the reasons in [docs/decisions.md](docs/decisions.md).
-
-## Build from source
-
-You need macOS, [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 26, [pnpm](https://pnpm.io) 9 and [Bun](https://bun.sh). The exact versions are pinned in `.node-version`, `.bun-version` and `rust-toolchain.toml`.
+You need [Rust](https://rustup.rs), [Node.js](https://nodejs.org), [pnpm](https://pnpm.io) and [Bun](https://bun.sh). Their versions are pinned in `.node-version`, `.bun-version`, `package.json` and `apps/desktop/src-tauri/rust-toolchain.toml`.
 
 ```bash
 git clone https://github.com/jahala/conducted
 cd conducted
 pnpm install
-pnpm dev      # opens the app
-pnpm check    # typecheck, lint, tests, guards
+pnpm dev      # builds the sidecar and opens the app
 ```
 
-## Help build it
+## Requirements
 
-Every feature has an id in the [backlog](docs/plans/backlog.md), for example `CHAT-03 Steer a running turn`. The files that own a feature carry its id in their header, with what to build, the research behind it, and the first test to write. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/engineering.md](docs/engineering.md), and open a draft pull request early.
+- **A Mac with Apple silicon.** Release builds are made for Apple silicon only.
+- **An account for at least one agent.** A Claude subscription, an Anthropic API key or Amazon Bedrock for Claude Code; a ChatGPT plan or an OpenAI API key for Codex; or the keys that Cursor, OpenCode or Pi use. You sign in from the app's Agents settings.
+- **GitHub, for pull requests.** Your own `gh` sign-in, or a personal access token entered in the app. Conducted installs `gh` for you.
 
-## Where the spec comes from
+## How it relates to Conductor
 
-Conducted rebuilds the local features of [Conductor](https://conductor.build), a commercial app for running coding agents in parallel. The research in [docs/research/conductor/](docs/research/conductor/structure-map.md) describes how Conductor behaves. Conducted's code, text and assets are its own; nothing is copied from Conductor ([decision D002](docs/decisions.md)). Conducted is not affiliated with Conductor or its makers.
+Conducted rebuilds the local features of [Conductor](https://conductor.build), a commercial app for running coding agents in parallel. The screens and actions follow Conductor's ([decision D020](docs/decisions.md)). Team features are left out. Cloud workspaces are being built to run on your own Cloudflare account, with no hosted service ([docs/plans/cloud-and-remote.md](docs/plans/cloud-and-remote.md)). The behaviour is written down in [docs/research/conductor/](docs/research/conductor/structure-map.md) and rebuilt from that description. Conducted's code, text and images are its own; nothing is copied from Conductor ([decision D002](docs/decisions.md)).
+
+Conducted is not affiliated with, endorsed by or connected to Conductor or its makers.
+
+## Documentation
+
+- [Architecture](docs/architecture.md): the parts of the app, what each may depend on, and where each kind of logic lives.
+- [Engineering](docs/engineering.md): how the code is written, tested and released.
+- [Decisions](docs/decisions.md): every product and build decision, dated, with its reasons.
+- [Design](docs/design.md): the design tokens and the rules every screen follows.
+- [Data model](docs/data-model.md): the tables and files, and how long each keeps its data.
+- [Changelog](CHANGELOG.md): every release, newest first.
+
+## Contributing
+
+Every feature has an id in the [backlog](docs/plans/backlog.md), and the files that own it name it in their header. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Report a security problem as [SECURITY.md](SECURITY.md) describes, and follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Support
 
@@ -81,4 +87,4 @@ Conducted rebuilds the local features of [Conductor](https://conductor.build), a
 
 ## License
 
-MIT
+[MIT](LICENSE)
