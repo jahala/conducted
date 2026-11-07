@@ -1,7 +1,9 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
- * Owns: the Worker's front door: it checks the pairing token on every request and routes each
- * workspace's git, shell, file and sidecar-relay calls to that workspace's Durable Object.
+ * @feature CLOUD-07 Pair the desktop app with the user's Worker
+ * Owns: the Worker's front door: it checks the pairing token on every request, answers the
+ * desktop's pairing check (`/pair`), and routes each workspace's git, shell, file and
+ * sidecar-relay calls to that workspace's Durable Object.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
  * HTTPS and one WebSocket; the Worker authenticates, routes and swaps the model key outside the
  * sandbox). Route list and measurements: docs/research/cloud-spike-2026-11-06.md.
@@ -15,7 +17,7 @@
  */
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { INVALID_BODY, zExecBody, zFileBody, zGitBody } from "./args.ts";
-import { isAuthorized } from "./auth.ts";
+import { isAuthorized, PAIR_PATH, pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { Workspace } from "./workspace.ts";
 
@@ -83,6 +85,15 @@ export default {
 			return new Response("Unauthorized", { status: 401 });
 		}
 		const url = new URL(request.url);
+		if (url.pathname === PAIR_PATH) {
+			if (request.method !== "GET") {
+				return new Response("Method not allowed", {
+					status: 405,
+					headers: { allow: "GET" },
+				});
+			}
+			return pairAnswer();
+		}
 		const match = ROUTE.exec(url.pathname);
 		if (match === null) return new Response("Not found", { status: 404 });
 		const [, name, action] = match as unknown as [string, string, string];

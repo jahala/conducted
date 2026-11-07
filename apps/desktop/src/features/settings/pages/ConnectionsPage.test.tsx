@@ -14,7 +14,9 @@ afterEach(() => {
 
 async function mountPage() {
 	test = createTestContainer();
+	test.memory.controls.setCloudPairing({ paired: false, url: null });
 	await test.container.services.settings.start();
+	await test.container.services.cloudPairing.start();
 	const set = vi.spyOn(test.container.actions.settings, "set");
 	render(
 		<ServicesProvider container={test.container}>
@@ -48,5 +50,39 @@ describe("SET-02 ConnectionsPage", () => {
 			"Port 22 is reserved for SSH. Choose a range that does not include it.",
 		);
 		expect(set).not.toHaveBeenCalled();
+	});
+
+	it("pairs with a Worker URL and a token, then unpairs", async () => {
+		const { container } = await mountPage();
+		fireEvent.change(screen.getByLabelText("Worker URL"), {
+			target: { value: "https://conducted.example.workers.dev/" },
+		});
+		fireEvent.change(screen.getByLabelText("Pairing token"), {
+			target: { value: "32-random-bytes" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted.example.workers.dev."),
+		).toBeTruthy();
+		expect((await container.platform.cloud.status()).ok).toBe(true);
+
+		fireEvent.click(screen.getByRole("button", { name: "Unpair" }));
+		expect(await screen.findByText("Not paired")).toBeTruthy();
+	});
+
+	it("shows why a Worker URL was refused and does not pair", async () => {
+		const { container } = await mountPage();
+		fireEvent.change(screen.getByLabelText("Worker URL"), {
+			target: { value: "http://conducted.example.workers.dev" },
+		});
+		fireEvent.change(screen.getByLabelText("Pairing token"), {
+			target: { value: "32-random-bytes" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+
+		expect(await screen.findByText("A Worker URL must be https and name a host.")).toBeTruthy();
+		const status = await container.platform.cloud.status();
+		expect(status.ok && status.value.paired).toBe(false);
 	});
 });
