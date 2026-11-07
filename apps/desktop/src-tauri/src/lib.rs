@@ -1176,6 +1176,7 @@ mod startup_tests {
     fn plat_27_closing_the_app_ends_every_terminal() {
         let state = pty::PtyState::default();
         let request = pty::PtySpawnRequest {
+            terminal_id: "plat-27-terminal".to_string(),
             cwd: std::env::temp_dir().to_string_lossy().into_owned(),
             cols: 80,
             rows: 24,
@@ -1231,6 +1232,7 @@ mod startup_tests {
     /// A terminal running `sleep 30`, registered in `state` as the app would.
     fn live_terminal(state: &pty::PtyState, id: &str) -> pty::SpawnedTerminal {
         let request = pty::PtySpawnRequest {
+            terminal_id: id.to_string(),
             cwd: std::env::temp_dir().to_string_lossy().into_owned(),
             cols: 80,
             rows: 24,

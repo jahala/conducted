@@ -43,6 +43,26 @@ describe("PLAT-08 terminal scrollback", () => {
 		}
 	});
 
+	it("a reopened ended terminal replays its saved history", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await readyWorkspace(test);
+			const terminal = must(await test.container.services.terminals.create(workspace.id));
+			must(await test.container.services.terminals.end(terminal.id));
+			// The text a previous app run left for the same terminal row.
+			test.memory.controls.seedPtyHistory(terminal.id, "previous run output\r\n");
+
+			must(await test.container.services.terminals.ensureConnection(terminal.id));
+
+			const connection =
+				test.container.services.terminals.store.getState().connections[terminal.id];
+			if (connection?.state !== "ready") throw new Error("the connection is not ready");
+			expect(new TextDecoder().decode(connection.data.history)).toBe("previous run output\r\n");
+		} finally {
+			test.close();
+		}
+	});
+
 	it("keeps a history the shell could not save as the terminal's error", async () => {
 		const test = createTestContainer();
 		try {

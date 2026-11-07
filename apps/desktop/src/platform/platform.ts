@@ -153,6 +153,8 @@ export interface FileSearch {
 // ---------------------------------------------------------------- terminals
 
 export interface PtySpawn {
+	/** The terminal row's id, which names its saved scrollback so a reopened terminal finds it. */
+	terminalId: string;
 	cwd: string;
 	cols: number;
 	rows: number;

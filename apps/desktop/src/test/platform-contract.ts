@@ -1208,7 +1208,12 @@ const STEPS: Record<string, ContractStep> = {
 	"pty.spawn-echo": async (ctx) => {
 		const handle = expectOk(
 			ctx,
-			await ctx.platform.pty.spawn({ cwd: ctx.root, cols: 80, rows: 24 }),
+			await ctx.platform.pty.spawn({
+				terminalId: "contract-terminal",
+				cwd: ctx.root,
+				cols: 80,
+				rows: 24,
+			}),
 			"pty.spawn",
 		);
 		const decoder = new TextDecoder();
@@ -1232,7 +1237,12 @@ const STEPS: Record<string, ContractStep> = {
 	"pty.exit-code": async (ctx) => {
 		const handle = expectOk(
 			ctx,
-			await ctx.platform.pty.spawn({ cwd: ctx.root, cols: 80, rows: 24 }),
+			await ctx.platform.pty.spawn({
+				terminalId: "contract-terminal",
+				cwd: ctx.root,
+				cols: 80,
+				rows: 24,
+			}),
 			"pty.spawn",
 		);
 		const early: (number | null)[] = [];
@@ -1263,7 +1273,12 @@ const STEPS: Record<string, ContractStep> = {
 	"pty.screen-text": async (ctx) => {
 		const handle = expectOk(
 			ctx,
-			await ctx.platform.pty.spawn({ cwd: ctx.root, cols: 80, rows: 24 }),
+			await ctx.platform.pty.spawn({
+				terminalId: "contract-terminal",
+				cwd: ctx.root,
+				cols: 80,
+				rows: 24,
+			}),
 			"pty.spawn",
 		);
 		const decoder = new TextDecoder();
@@ -1288,7 +1303,12 @@ const STEPS: Record<string, ContractStep> = {
 	"pty.kill": async (ctx) => {
 		const handle = expectOk(
 			ctx,
-			await ctx.platform.pty.spawn({ cwd: ctx.root, cols: 80, rows: 24 }),
+			await ctx.platform.pty.spawn({
+				terminalId: "contract-terminal",
+				cwd: ctx.root,
+				cols: 80,
+				rows: 24,
+			}),
 			"pty.spawn",
 		);
 		const code = await waitForEvent<number | null>(

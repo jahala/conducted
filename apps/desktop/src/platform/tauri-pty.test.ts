@@ -89,7 +89,7 @@ function harness(options: {
 	};
 }
 
-const SPAWN = { cwd: "/work", cols: 80, rows: 24 };
+const SPAWN = { terminalId: "t-1", cwd: "/work", cols: 80, rows: 24 };
 
 describe("PLAT-07 Tauri terminals", () => {
 	it("reports an exit that arrives before the spawn answer", async () => {
@@ -140,11 +140,11 @@ describe("PLAT-07 Tauri terminals", () => {
 		expect(heard).toEqual(["history_write_failed", "The disk is full."]);
 	});
 
-	it("PLAT-08 passes the scrollback limit to the Rust shell", async () => {
+	it("PLAT-08 passes the terminal id and the scrollback limit to the Rust shell", async () => {
 		const h = harness({ onInvoke: () => ({ id: "pty-1", pid: 10 }) });
 		await createTauriPty(h.bindings).spawn({ ...SPAWN, scrollbackLimitBytes: 2_000_000 });
 		const request = h.calls.find((call) => call.command === COMMANDS.ptySpawn)?.args?.request;
-		expect(request).toMatchObject({ scrollbackLimitBytes: 2_000_000 });
+		expect(request).toMatchObject({ terminalId: "t-1", scrollbackLimitBytes: 2_000_000 });
 	});
 
 	it("returns an Err, and spawns nothing, when the exit listener cannot be set up", async () => {

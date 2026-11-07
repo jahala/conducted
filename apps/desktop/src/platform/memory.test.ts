@@ -149,8 +149,18 @@ describe("PLAT-01 in-memory Platform", () => {
 			expect(write.ok).toBe(true);
 			const stat = await memory.platform.fs.stat("/work/file.txt");
 			expect(stat.ok && stat.value.modifiedAt).toBe(42);
-			const first = await memory.platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
-			const second = await memory.platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
+			const first = await memory.platform.pty.spawn({
+				terminalId: "memory-terminal",
+				cwd: "/",
+				cols: 80,
+				rows: 24,
+			});
+			const second = await memory.platform.pty.spawn({
+				terminalId: "memory-terminal",
+				cwd: "/",
+				cols: 80,
+				rows: 24,
+			});
 			const running = memory.platform.shell.start({ program: "/bin/true", args: [], cwd: "/" });
 			const ids = [first.ok && first.value.id, second.ok && second.value.id, running.id];
 			expect(ids.every((id) => typeof id === "string" && /^uuid-\d+$/.test(id))).toBe(true);
