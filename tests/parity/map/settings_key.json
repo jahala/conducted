@@ -1,0 +1,967 @@
+{
+	"settings_key:run_script": {
+		"status": "matched",
+		"ours": "run_script",
+		"by": "seed"
+	},
+	"settings_key:custom_prompt_general": {
+		"status": "matched",
+		"ours": "custom_prompt_general",
+		"by": "seed"
+	},
+	"settings_key:custom_prompt_code_review": {
+		"status": "matched",
+		"ours": "custom_prompt_code_review",
+		"by": "seed"
+	},
+	"settings_key:custom_prompt_create_pr": {
+		"status": "matched",
+		"ours": "custom_prompt_create_pr",
+		"by": "seed"
+	},
+	"settings_key:custom_prompt_fix_errors": {
+		"status": "matched",
+		"ours": "custom_prompt_fix_errors",
+		"by": "seed"
+	},
+	"settings_key:custom_prompt_resolve_merge_conflicts": {
+		"status": "matched",
+		"ours": "custom_prompt_resolve_merge_conflicts",
+		"by": "seed"
+	},
+	"settings_key:custom_prompt_rename_branch": {
+		"status": "matched",
+		"ours": "custom_prompt_rename_branch",
+		"by": "seed"
+	},
+	"settings_key:environment_variable_files": {
+		"status": "matched",
+		"ours": "environment_variable_files",
+		"by": "seed"
+	},
+	"settings_key:default_model": {
+		"status": "matched",
+		"ours": "default_model",
+		"by": "seed"
+	},
+	"settings_key:review_model": {
+		"status": "matched",
+		"ours": "review_model",
+		"by": "seed"
+	},
+	"settings_key:default_fast_mode": {
+		"status": "matched",
+		"ours": "default_fast_mode",
+		"by": "seed"
+	},
+	"settings_key:review_fast_mode": {
+		"status": "matched",
+		"ours": "review_fast_mode",
+		"by": "seed"
+	},
+	"settings_key:default_plan_mode": {
+		"status": "matched",
+		"ours": "default_plan_mode",
+		"by": "seed"
+	},
+	"settings_key:default_codex_thinking_level": {
+		"status": "matched",
+		"ours": "default_codex_thinking_level",
+		"by": "seed"
+	},
+	"settings_key:review_codex_thinking_level": {
+		"status": "matched",
+		"ours": "review_codex_thinking_level",
+		"by": "seed"
+	},
+	"settings_key:default_codex_personality": {
+		"status": "matched",
+		"ours": "default_codex_personality",
+		"by": "seed"
+	},
+	"settings_key:default_claude_personality": {
+		"status": "matched",
+		"ours": "default_claude_personality",
+		"by": "seed"
+	},
+	"settings_key:default_claude_effort_level": {
+		"status": "matched",
+		"ours": "default_claude_effort_level",
+		"by": "seed"
+	},
+	"settings_key:review_claude_effort_level": {
+		"status": "matched",
+		"ours": "review_claude_effort_level",
+		"by": "seed"
+	},
+	"settings_key:visible_provider_models": {
+		"status": "matched",
+		"ours": "visible_provider_models",
+		"by": "seed"
+	},
+	"settings_key:setup_script": {
+		"status": "matched",
+		"ours": "setup_script",
+		"by": "seed"
+	},
+	"settings_key:archive_script": {
+		"status": "matched",
+		"ours": "archive_script",
+		"by": "seed"
+	},
+	"settings_key:run_script_mode": {
+		"status": "matched",
+		"ours": "run_script_mode",
+		"by": "seed"
+	},
+	"settings_key:auto_run_after_setup": {
+		"status": "matched",
+		"ours": "auto_run_after_setup",
+		"by": "seed"
+	},
+	"settings_key:enterprise_data_privacy": {
+		"status": "matched",
+		"ours": "enterprise_data_privacy",
+		"by": "seed"
+	},
+	"settings_key:file_include_globs": {
+		"status": "matched",
+		"ours": "file_include_globs",
+		"by": "seed"
+	},
+	"settings_key:spotlight_testing": {
+		"status": "matched",
+		"ours": "spotlight_testing",
+		"by": "seed"
+	},
+	"settings_key:tool_approvals_enabled": {
+		"status": "matched",
+		"ours": "tool_approvals_enabled",
+		"by": "seed"
+	},
+	"settings_key:codex_tool_approval_policy": {
+		"status": "matched",
+		"ours": "codex_tool_approval_policy",
+		"by": "seed"
+	},
+	"settings_key:claude_executable_path": {
+		"status": "matched",
+		"ours": "claude_executable_path",
+		"by": "seed"
+	},
+	"settings_key:codex_executable_path": {
+		"status": "matched",
+		"ours": "codex_executable_path",
+		"by": "seed"
+	},
+	"settings_key:opencode_executable_path": {
+		"status": "matched",
+		"ours": "opencode_executable_path",
+		"by": "seed"
+	},
+	"settings_key:claude_provider": {
+		"status": "matched",
+		"ours": "claude_provider",
+		"by": "seed"
+	},
+	"settings_key:codex_provider": {
+		"status": "matched",
+		"ours": "codex_provider",
+		"by": "seed"
+	},
+	"settings_key:bedrock_region": {
+		"status": "matched",
+		"ours": "bedrock_region",
+		"by": "seed"
+	},
+	"settings_key:vertex_project_id": {
+		"status": "matched",
+		"ours": "vertex_project_id",
+		"by": "seed"
+	},
+	"settings_key:ssh_key_path": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:delete_branch_on_archive": {
+		"status": "matched",
+		"ours": "delete_branch_on_archive",
+		"by": "seed"
+	},
+	"settings_key:archive_on_merge": {
+		"status": "matched",
+		"ours": "archive_on_merge",
+		"by": "seed"
+	},
+	"settings_key:worktree_push_auto_setup_remote": {
+		"status": "matched",
+		"ours": "worktree_push_auto_setup_remote",
+		"by": "seed"
+	},
+	"settings_key:branch_prefix_type": {
+		"status": "matched",
+		"ours": "branch_prefix_type",
+		"by": "seed"
+	},
+	"settings_key:branch_prefix_custom": {
+		"status": "matched",
+		"ours": "branch_prefix_custom",
+		"by": "seed"
+	},
+	"settings_key:always_allow_local_execution": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:auto_sync_files_in_new_cloud_workspaces": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:always_show_context_wheel": {
+		"status": "matched",
+		"ours": "always_show_context_wheel",
+		"by": "seed"
+	},
+	"settings_key:auto_convert_long_text": {
+		"status": "matched",
+		"ours": "auto_convert_long_text",
+		"by": "seed"
+	},
+	"settings_key:auto_rename_new_branches": {
+		"status": "matched",
+		"ours": "auto_rename_new_branches",
+		"by": "seed"
+	},
+	"settings_key:auto_rename_workspace_on_branch_name_set": {
+		"status": "matched",
+		"ours": "auto_rename_workspace_on_branch_name_set",
+		"by": "seed"
+	},
+	"settings_key:auto_restart_on_update_when_idle": {
+		"status": "matched",
+		"ours": "auto_restart_on_update_when_idle",
+		"by": "seed"
+	},
+	"settings_key:artifacts_tab_enabled": {
+		"status": "matched",
+		"ours": "artifacts_tab_enabled",
+		"by": "seed"
+	},
+	"settings_key:automerge_enabled": {
+		"status": "matched",
+		"ours": "automerge_enabled",
+		"by": "seed"
+	},
+	"settings_key:treat_optional_checks_as_blocking": {
+		"status": "matched",
+		"ours": "treat_optional_checks_as_blocking",
+		"by": "seed"
+	},
+	"settings_key:manual_workspace_order": {
+		"status": "matched",
+		"ours": "manual_workspace_order",
+		"by": "seed"
+	},
+	"settings_key:github_stacked_prs_enabled": {
+		"status": "matched",
+		"ours": "github_stacked_prs_enabled",
+		"by": "seed"
+	},
+	"settings_key:big_terminal_custom_commands": {
+		"status": "matched",
+		"ours": "big_terminal_custom_commands",
+		"by": "seed"
+	},
+	"settings_key:big_terminal_preset": {
+		"status": "matched",
+		"ours": "big_terminal_preset",
+		"by": "seed"
+	},
+	"settings_key:caffeinate_while_agents_running": {
+		"status": "matched",
+		"ours": "caffeinate_while_agents_running",
+		"by": "seed"
+	},
+	"settings_key:remote_control_keep_awake": {
+		"status": "matched",
+		"ours": "remote_control_keep_awake",
+		"by": "seed"
+	},
+	"settings_key:chrome_mode_enabled": {
+		"status": "matched",
+		"ours": "chrome_mode_enabled",
+		"by": "seed"
+	},
+	"settings_key:claude_subscription_sign_in_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:client_instance_id": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:codex_goals_disabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:code_theme": {
+		"status": "matched",
+		"ours": "code_theme",
+		"by": "seed"
+	},
+	"settings_key:codex_api_key": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:codex_base_url": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:color_vision": {
+		"status": "matched",
+		"ours": "color_vision",
+		"by": "seed"
+	},
+	"settings_key:cloud_in_data_privacy_mode_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:queue_messages_disabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:routine_webhook_triggers_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:pr_roundhouse_state_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:user_message_footer_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:read_aloud_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:colored_sidebar_diffs": {
+		"status": "matched",
+		"ours": "colored_sidebar_diffs",
+		"by": "seed"
+	},
+	"settings_key:conductor_api_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:opencode_provider_api_keys": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:conductor_config_repo_root_migration_complete": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:conductor_json_migration_dismissed_repos": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:conductor_root_path": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:dashboard_enabled": {
+		"status": "matched",
+		"ours": "dashboard_enabled",
+		"by": "seed"
+	},
+	"settings_key:default_message_send_mode": {
+		"status": "matched",
+		"ours": "default_message_send_mode",
+		"by": "seed"
+	},
+	"settings_key:default_open_in": {
+		"status": "matched",
+		"ours": "default_open_in",
+		"by": "seed"
+	},
+	"settings_key:default_thinking_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:disable_external_logging": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:kill_switch_presence_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:experimental_agent_progress": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:experimental_auto_permission_mode": {
+		"status": "matched",
+		"ours": "experimental_auto_permission_mode",
+		"by": "seed"
+	},
+	"settings_key:experimental_big_terminal_mode": {
+		"status": "matched",
+		"ours": "experimental_big_terminal_mode",
+		"by": "seed"
+	},
+	"settings_key:experimental_configurable_center_panel": {
+		"status": "matched",
+		"ours": "experimental_configurable_center_panel",
+		"by": "seed"
+	},
+	"settings_key:experimental_new_workspace_page": {
+		"status": "matched",
+		"ours": "experimental_new_workspace_page",
+		"by": "seed"
+	},
+	"settings_key:experimental_fork_to_new_tab": {
+		"status": "matched",
+		"ours": "experimental_fork_to_new_tab",
+		"by": "seed"
+	},
+	"settings_key:experimental_in_app_browser_preview": {
+		"status": "matched",
+		"ours": "experimental_in_app_browser_preview",
+		"by": "seed"
+	},
+	"settings_key:experimental_legacy_file_preview_and_editing": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:experimental_show_agent_cost": {
+		"status": "matched",
+		"ours": "experimental_show_agent_cost",
+		"by": "seed"
+	},
+	"settings_key:experimental_sidebar_transparency": {
+		"status": "matched",
+		"ours": "experimental_sidebar_transparency",
+		"by": "seed"
+	},
+	"settings_key:experimental_tab_freak_mode": {
+		"status": "matched",
+		"ours": "experimental_tab_freak_mode",
+		"by": "seed"
+	},
+	"settings_key:file_ligatures_enabled": {
+		"status": "matched",
+		"ours": "file_ligatures_enabled",
+		"by": "seed"
+	},
+	"settings_key:first_time_onboarding_step": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:garry_mode": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_auth_method": {
+		"status": "matched",
+		"ours": "gh_auth_method",
+		"by": "seed"
+	},
+	"settings_key:gh_pat_expires_at": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_pat_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_token_app_client_id": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_token_expires_at": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_token_source": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_auth_method": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_pat_expires_at": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_pat_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_token_app_client_id": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_token_expires_at": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:gh_cloud_token_source": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:graphite_disabled": {
+		"status": "matched",
+		"ours": "graphite_disabled",
+		"by": "seed"
+	},
+	"settings_key:hide_whitespace_changes": {
+		"status": "matched",
+		"ours": "hide_whitespace_changes",
+		"by": "seed"
+	},
+	"settings_key:http_proxy": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_codex_message_log": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_desktop_remote_access": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_developer_metrics": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_codex_initial_permission_config": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_frame_drop_logging": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_session_transcript_prefetch_disabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_claude_token_usage_tracking": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_claude_initial_permission_mode": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_cloud_workspaces_independent_of_local_repos": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_pull_requests_page": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_principals": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_workspace_chat": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_native_fork": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_verbose_logging": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_sidecar_exp_session_log": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_terminal_render_debug_log": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_remote_local_execution_mcp": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_request_metadata": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_prompt_snippets": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_team_artifacts": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_pic_agent_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_muse_code_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_settings_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_settings_use_defaults": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_tauri_http_proxy_url": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_workspace_tabs": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:internal_workspace_status_matrix": {
+		"status": "matched",
+		"ours": "internal_workspace_status_matrix",
+		"by": "seed"
+	},
+	"settings_key:local_repositories_without_github_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:local_git_forge_enabled": {
+		"status": "matched",
+		"ours": "local_git_forge_enabled",
+		"by": "seed"
+	},
+	"settings_key:local_env_vars_import_banner_dismissed": {
+		"status": "matched",
+		"ours": "local_env_vars_import_banner_dismissed",
+		"by": "seed"
+	},
+	"settings_key:last_clone_directory": {
+		"status": "matched",
+		"ours": "last_clone_directory",
+		"by": "seed"
+	},
+	"settings_key:last_seen_announcement": {
+		"status": "matched",
+		"ours": "last_seen_announcement",
+		"by": "seed"
+	},
+	"settings_key:model_catalog_cache": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:keybinding_overrides_v1": {
+		"status": "matched",
+		"ours": "keybinding_overrides_v1",
+		"by": "seed"
+	},
+	"settings_key:left_panel_visible": {
+		"status": "matched",
+		"ours": "left_panel_visible",
+		"by": "seed"
+	},
+	"settings_key:left_panel_width": {
+		"status": "matched",
+		"ours": "left_panel_width",
+		"by": "seed"
+	},
+	"settings_key:low_contrast_dark_mode": {
+		"status": "matched",
+		"ours": "low_contrast_dark_mode",
+		"by": "seed"
+	},
+	"settings_key:markdown_style": {
+		"status": "matched",
+		"ours": "markdown_style",
+		"by": "seed"
+	},
+	"settings_key:message_send_key": {
+		"status": "matched",
+		"ours": "message_send_key",
+		"by": "seed"
+	},
+	"settings_key:mono_font": {
+		"status": "matched",
+		"ours": "mono_font",
+		"by": "seed"
+	},
+	"settings_key:not_absolutely_right": {
+		"status": "matched",
+		"ours": "not_absolutely_right",
+		"by": "seed"
+	},
+	"settings_key:notifications_enabled": {
+		"status": "matched",
+		"ours": "notifications_enabled",
+		"by": "seed"
+	},
+	"settings_key:mention_notifications_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:onboarding_step": {
+		"status": "matched",
+		"ours": "onboarding_step",
+		"by": "seed"
+	},
+	"settings_key:onboarding_workspace_id": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:open_url_template": {
+		"status": "matched",
+		"ours": "open_url_template",
+		"by": "seed"
+	},
+	"settings_key:open_in_mru_order": {
+		"status": "matched",
+		"ours": "open_in_mru_order",
+		"by": "seed"
+	},
+	"settings_key:pokes_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:pull_request_open_target": {
+		"status": "matched",
+		"ours": "pull_request_open_target",
+		"by": "seed"
+	},
+	"settings_key:pr_activity_sort_order": {
+		"status": "matched",
+		"ours": "pr_activity_sort_order",
+		"by": "seed"
+	},
+	"settings_key:react_profiler_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:review_thinking_enabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:right_panel_visible": {
+		"status": "matched",
+		"ours": "right_panel_visible",
+		"by": "seed"
+	},
+	"settings_key:roundhouse_client_url_override": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:roundhouse_client_user_id": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:roundhouse_credentials": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:repo_conductor_config_file_migration_complete": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:repo_conductor_config_file_migration_v2_complete": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:repo_custom_prompt_file_migration_complete": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:repo_local_settings_file_migration_complete": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:sample_project_onboarding_seed_status": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:sidebar_group_by": {
+		"status": "matched",
+		"ours": "sidebar_group_by",
+		"by": "seed"
+	},
+	"settings_key:sidebar_repo_filter": {
+		"status": "matched",
+		"ours": "sidebar_repo_filter",
+		"by": "seed"
+	},
+	"settings_key:sidebar_sort_by": {
+		"status": "matched",
+		"ours": "sidebar_sort_by",
+		"by": "seed"
+	},
+	"settings_key:sidecar_inspect": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:sidecar_inspect_brk": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:sidebar_resource_usage": {
+		"status": "matched",
+		"ours": "sidebar_resource_usage",
+		"by": "seed"
+	},
+	"settings_key:sound_type": {
+		"status": "matched",
+		"ours": "sound_type",
+		"by": "seed"
+	},
+	"settings_key:terminal_font_family": {
+		"status": "matched",
+		"ours": "terminal_font_family",
+		"by": "seed"
+	},
+	"settings_key:terminal_font_size": {
+		"status": "matched",
+		"ours": "terminal_font_size",
+		"by": "seed"
+	},
+	"settings_key:terminal_max_buffered_lines": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"settings_key:terminal_scrollback_limit_bytes": {
+		"status": "matched",
+		"ours": "terminal_scrollback_limit_bytes",
+		"by": "seed"
+	},
+	"settings_key:using_split_view": {
+		"status": "matched",
+		"ours": "using_split_view",
+		"by": "seed"
+	},
+	"settings_key:voice_mode": {
+		"status": "matched",
+		"ours": "voice_mode",
+		"by": "seed"
+	},
+	"settings_key:unstarted_workspaces_enabled": {
+		"status": "matched",
+		"ours": "unstarted_workspaces_enabled",
+		"by": "seed"
+	},
+	"settings_key:wrap_lines": {
+		"status": "matched",
+		"ours": "wrap_lines",
+		"by": "seed"
+	},
+	"settings_key:zoom_level_v2": {
+		"status": "matched",
+		"ours": "zoom_level_v2",
+		"by": "seed"
+	},
+	"settings_key:file_backed_settings_migration_complete": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

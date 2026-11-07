@@ -1,0 +1,1524 @@
+{
+	"inventory": "toast",
+	"source": ".context/conductor-re/inventory/toast.tsv",
+	"entries": [
+		{
+			"id": "toast:M367652",
+			"text": "Couldn't update Git to ignore your local settings file — it may not be excluded from commits",
+			"file": "main-BE1h_1MP.js",
+			"offset": 367652
+		},
+		{
+			"id": "toast:M389857",
+			"text": "Can't save setting because your settings file is invalid",
+			"file": "main-BE1h_1MP.js",
+			"offset": 389857
+		},
+		{
+			"id": "toast:M390047",
+			"text": "Failed to save setting",
+			"file": "main-BE1h_1MP.js",
+			"offset": 390047
+		},
+		{
+			"id": "toast:M394092",
+			"text": "Failed to load settings",
+			"file": "main-BE1h_1MP.js",
+			"offset": 394092
+		},
+		{
+			"id": "toast:M408967",
+			"text": "Setting is managed by your organization",
+			"file": "main-BE1h_1MP.js",
+			"offset": 408967
+		},
+		{
+			"id": "toast:M409156",
+			"text": "Setting is controlled by a feature flag",
+			"file": "main-BE1h_1MP.js",
+			"offset": 409156
+		},
+		{
+			"id": "toast:M462115",
+			"text": "Shared repository settings are read-only in Conductor. Edit the settings file directly.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 462115
+		},
+		{
+			"id": "toast:M2099774",
+			"text": "Failed to add comment to chat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2099774
+		},
+		{
+			"id": "toast:M2100103",
+			"text": "Failed to save comment",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2100103
+		},
+		{
+			"id": "toast:M3139338",
+			"text": "Signed out successfully",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3139338
+		},
+		{
+			"id": "toast:M3139996",
+			"text": "Authentication failed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3139996
+		},
+		{
+			"id": "toast:M3243420",
+			"text": "Microphone access denied.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3243420
+		},
+		{
+			"id": "toast:M3244635",
+			"text": "Failed to initialize speech-to-text.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3244635
+		},
+		{
+			"id": "toast:M3581318",
+			"text": "Couldn't save template",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3581318
+		},
+		{
+			"id": "toast:M3581736",
+			"text": "Couldn't delete template",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3581736
+		},
+		{
+			"id": "toast:M3582162",
+			"text": "Couldn't delete artifact",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3582162
+		},
+		{
+			"id": "toast:M3582639",
+			"text": "Couldn't add template",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3582639
+		},
+		{
+			"id": "toast:M3636992",
+			"text": "Couldn't reopen chat. Try again.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3636992
+		},
+		{
+			"id": "toast:M3686044",
+			"text": "Pulled latest changes. You're up to date!",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3686044
+		},
+		{
+			"id": "toast:M3686824",
+			"text": "Comment resolved on GitHub",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3686824
+		},
+		{
+			"id": "toast:M3691270",
+			"text": "Please check out a branch before renaming",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3691270
+		},
+		{
+			"id": "toast:M3735892",
+			"text": "Failed to attach setup context",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3735892
+		},
+		{
+			"id": "toast:M3743541",
+			"text": "Setup script failed. Check the setup tab for logs.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3743541
+		},
+		{
+			"id": "toast:M3750302",
+			"text": "Couldn’t check for open pull requests. Close them on GitHub if needed.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3750302
+		},
+		{
+			"id": "toast:M3753291",
+			"text": "Missing write access to archive this workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3753291
+		},
+		{
+			"id": "toast:M3756589",
+			"text": "Restarted workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3756589
+		},
+		{
+			"id": "toast:M3825227",
+			"text": "No terminal emulator found",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3825227
+		},
+		{
+			"id": "toast:R140842",
+			"text": "Couldn't save your default personality. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 140842
+		},
+		{
+			"id": "toast:R227819",
+			"text": "Failed to attach file",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 227819
+		},
+		{
+			"id": "toast:R236876",
+			"text": "Some saved models require a newer version of Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 236876
+		},
+		{
+			"id": "toast:R252371",
+			"text": "Couldn't save loadouts. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 252371
+		},
+		{
+			"id": "toast:R629044",
+			"text": "Xcode license is not accepted",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629044
+		},
+		{
+			"id": "toast:R675642",
+			"text": "Image saved",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 675642
+		},
+		{
+			"id": "toast:R677318",
+			"text": "Copied image to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 677318
+		},
+		{
+			"id": "toast:R677447",
+			"text": "Failed to copy to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 677447
+		},
+		{
+			"id": "toast:R1714656",
+			"text": "Failed to create workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1714656
+		},
+		{
+			"id": "toast:R1717306",
+			"text": "Failed to copy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1717306
+		},
+		{
+			"id": "toast:R2035043",
+			"text": "Project created.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2035043
+		},
+		{
+			"id": "toast:R2213309",
+			"text": "Failed to attach continue context",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2213309
+		},
+		{
+			"id": "toast:R2489534",
+			"text": "File is outside the synced workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2489534
+		},
+		{
+			"id": "toast:R2489876",
+			"text": "Remote open is only supported for VS Code, Cursor, and Zed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2489876
+		},
+		{
+			"id": "toast:R2504857",
+			"text": "No workspace path available",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2504857
+		},
+		{
+			"id": "toast:R2504925",
+			"text": "Workspace is still loading, try again",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2504925
+		},
+		{
+			"id": "toast:R2505067",
+			"text": "This app can't open this path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2505067
+		},
+		{
+			"id": "toast:R2505156",
+			"text": "Failed to prepare file to open",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2505156
+		},
+		{
+			"id": "toast:R2506351",
+			"text": "No default app configured",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2506351
+		},
+		{
+			"id": "toast:R2520921",
+			"text": "No active chat selected.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2520921
+		},
+		{
+			"id": "toast:R2976926",
+			"text": "No active session to attach setup logs to",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2976926
+		},
+		{
+			"id": "toast:R2977083",
+			"text": "Failed to attach setup logs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2977083
+		},
+		{
+			"id": "toast:R2984332",
+			"text": "Failed to copy prompt",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2984332
+		},
+		{
+			"id": "toast:R2984388",
+			"text": "Copied prompt to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2984388
+		},
+		{
+			"id": "toast:R2985423",
+			"text": "Setup script failed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2985423
+		},
+		{
+			"id": "toast:R2994853",
+			"text": "Couldn't send message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2994853
+		},
+		{
+			"id": "toast:R3020329",
+			"text": "Folders can’t be uploaded",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3020329
+		},
+		{
+			"id": "toast:R3992715",
+			"text": "File picker is not available on this device",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3992715
+		},
+		{
+			"id": "toast:R4998666",
+			"text": "Workspace is not ready for local terminals.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4998666
+		},
+		{
+			"id": "toast:R5000520",
+			"text": "No active chat to send setup request to",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5000520
+		},
+		{
+			"id": "toast:R5007891",
+			"text": "Unable to start: workspace or repository not found",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5007891
+		},
+		{
+			"id": "toast:R5432175",
+			"text": "Preview URL copied to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5432175
+		},
+		{
+			"id": "toast:R5443582",
+			"text": "Enter a valid port (1-65535)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5443582
+		},
+		{
+			"id": "toast:R5443642",
+			"text": "Port 22 is reserved for SSH and cannot be forwarded here",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5443642
+		},
+		{
+			"id": "toast:R5453992",
+			"text": "Forwarding ports",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5453992
+		},
+		{
+			"id": "toast:R5493916",
+			"text": "Copied link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5493916
+		},
+		{
+			"id": "toast:R5493957",
+			"text": "Failed to copy link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5493957
+		},
+		{
+			"id": "toast:R5545832",
+			"text": "Couldn't remove workspace from section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5545832
+		},
+		{
+			"id": "toast:R5545905",
+			"text": "Couldn't move workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5545905
+		},
+		{
+			"id": "toast:R5547610",
+			"text": "Workspace created, but couldn't add it to the section. Move it from the sidebar.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5547610
+		},
+		{
+			"id": "toast:R5554252",
+			"text": "No ready repository. Pick one to start this workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5554252
+		},
+		{
+			"id": "toast:R5555455",
+			"text": "Copied workspace info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5555455
+		},
+		{
+			"id": "toast:R5555506",
+			"text": "Failed to copy workspace info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5555506
+		},
+		{
+			"id": "toast:R5555688",
+			"text": "Copied workspace public URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5555688
+		},
+		{
+			"id": "toast:R5555745",
+			"text": "Failed to copy workspace public URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5555745
+		},
+		{
+			"id": "toast:R5557313",
+			"text": "Copied sandbox id",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5557313
+		},
+		{
+			"id": "toast:R5563508",
+			"text": "Copied SSH command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5563508
+		},
+		{
+			"id": "toast:R5563556",
+			"text": "Failed to copy SSH command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5563556
+		},
+		{
+			"id": "toast:R5643180",
+			"text": "No workspace selected to archive",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5643180
+		},
+		{
+			"id": "toast:R5643247",
+			"text": "Missing write access to archive workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5643247
+		},
+		{
+			"id": "toast:R8137573",
+			"text": "Failed to copy message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8137573
+		},
+		{
+			"id": "toast:R8156106",
+			"text": "Could not send answers. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8156106
+		},
+		{
+			"id": "toast:R8191557",
+			"text": "Couldn't save snippet",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8191557
+		},
+		{
+			"id": "toast:R8192988",
+			"text": "Couldn't delete snippet",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8192988
+		},
+		{
+			"id": "toast:R8679526",
+			"text": "Couldn't connect this MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8679526
+		},
+		{
+			"id": "toast:R8680643",
+			"text": "Try connecting the MCP server again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8680643
+		},
+		{
+			"id": "toast:R8684256",
+			"text": "Couldn't stop waiting",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8684256
+		},
+		{
+			"id": "toast:R8684358",
+			"text": "Couldn't open your browser to connect",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8684358
+		},
+		{
+			"id": "toast:R8684476",
+			"text": "Connection timed out",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8684476
+		},
+		{
+			"id": "toast:R8701195",
+			"text": "Failed to reset setting",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8701195
+		},
+		{
+			"id": "toast:R8730441",
+			"text": "Failed to save image",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8730441
+		},
+		{
+			"id": "toast:R8889053",
+			"text": "FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8889053
+		},
+		{
+			"id": "toast:R8889231",
+			"text": "FYI: When you switch models mid-chat, your next response will be slower and use more tokens.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8889231
+		},
+		{
+			"id": "toast:R8920359",
+			"text": "Speech recording failed.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8920359
+		},
+		{
+			"id": "toast:R9088088",
+			"text": "Couldn’t load saved model options",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9088088
+		},
+		{
+			"id": "toast:R9088384",
+			"text": "Some saved model options could not be loaded. Choose those options again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9088384
+		},
+		{
+			"id": "toast:R9100673",
+			"text": "Couldn't update agent credentials",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9100673
+		},
+		{
+			"id": "toast:R9284738",
+			"text": "Attachments not available",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9284738
+		},
+		{
+			"id": "toast:R9291600",
+			"text": "Failed to attach terminal output",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9291600
+		},
+		{
+			"id": "toast:R9292765",
+			"text": "Couldn’t copy attachments into this workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9292765
+		},
+		{
+			"id": "toast:R9294783",
+			"text": "Wait for attachments to finish processing.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9294783
+		},
+		{
+			"id": "toast:R9296109",
+			"text": "Codex goals are not available in this chat.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9296109
+		},
+		{
+			"id": "toast:R9299261",
+			"text": "This command isn't available in this workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9299261
+		},
+		{
+			"id": "toast:R9299441",
+			"text": "Plan mode is not available in this chat.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9299441
+		},
+		{
+			"id": "toast:R9299633",
+			"text": "Session not found",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9299633
+		},
+		{
+			"id": "toast:R9299687",
+			"text": "Enter a goal first.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9299687
+		},
+		{
+			"id": "toast:R9300528",
+			"text": "Configuration refreshed.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9300528
+		},
+		{
+			"id": "toast:R9300822",
+			"text": "No terminal output available for this workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9300822
+		},
+		{
+			"id": "toast:R9310207",
+			"text": "Failed to save PR context",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9310207
+		},
+		{
+			"id": "toast:R9312315",
+			"text": "Failed to copy plan",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9312315
+		},
+		{
+			"id": "toast:R9357302",
+			"text": "Failed to delete queued message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9357302
+		},
+		{
+			"id": "toast:R9357937",
+			"text": "Failed to reorder queued messages",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9357937
+		},
+		{
+			"id": "toast:R9360051",
+			"text": "Failed to resume queue",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9360051
+		},
+		{
+			"id": "toast:R9360203",
+			"text": "Failed to retry message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9360203
+		},
+		{
+			"id": "toast:R9360437",
+			"text": "Failed to steer queued message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9360437
+		},
+		{
+			"id": "toast:R9390844",
+			"text": "Failed to change the message target.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9390844
+		},
+		{
+			"id": "toast:R9392485",
+			"text": "Failed to prepare the message for editing.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9392485
+		},
+		{
+			"id": "toast:R9392792",
+			"text": "Failed to discard attachment changes.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9392792
+		},
+		{
+			"id": "toast:R9405672",
+			"text": "No messages in this chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9405672
+		},
+		{
+			"id": "toast:R9405805",
+			"text": "Failed to attach chat transcript",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9405805
+		},
+		{
+			"id": "toast:R9406094",
+			"text": "Failed to attach plan",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9406094
+		},
+		{
+			"id": "toast:R9510796",
+			"text": "Workspace path unavailable.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9510796
+		},
+		{
+			"id": "toast:R9513466",
+			"text": "Request copied. Send it to your workspace admin.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9513466
+		},
+		{
+			"id": "toast:R9513542",
+			"text": "Failed to copy request",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9513542
+		},
+		{
+			"id": "toast:R9549716",
+			"text": "Failed to copy user info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9549716
+		},
+		{
+			"id": "toast:R9549768",
+			"text": "Copied user info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9549768
+		},
+		{
+			"id": "toast:R9626762",
+			"text": "Could not open Downloads. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9626762
+		},
+		{
+			"id": "toast:R9754440",
+			"text": "Failed to save conflict resolution",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9754440
+		},
+		{
+			"id": "toast:R9948837",
+			"text": "Failed to open editor",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9948837
+		},
+		{
+			"id": "toast:R9953202",
+			"text": "File changed on disk. Keep or discard your edits to save.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9953202
+		},
+		{
+			"id": "toast:R10074815",
+			"text": "Failed to close other chats. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10074815
+		},
+		{
+			"id": "toast:R10074989",
+			"text": "No chat content to copy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10074989
+		},
+		{
+			"id": "toast:R10075328",
+			"text": "Copied session info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10075328
+		},
+		{
+			"id": "toast:R10075377",
+			"text": "Failed to copy session info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10075377
+		},
+		{
+			"id": "toast:R10085340",
+			"text": "Terminal settings are still loading.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10085340
+		},
+		{
+			"id": "toast:R10085400",
+			"text": "Failed to load terminal settings.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10085400
+		},
+		{
+			"id": "toast:R10105621",
+			"text": "Couldn't open preview: local workspace mirror is unavailable.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10105621
+		},
+		{
+			"id": "toast:R10110444",
+			"text": "Failed to close chat. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10110444
+		},
+		{
+			"id": "toast:R10111109",
+			"text": "Workspace is not ready yet.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10111109
+		},
+		{
+			"id": "toast:R10395535",
+			"text": "Failed to copy organization info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10395535
+		},
+		{
+			"id": "toast:R10395595",
+			"text": "Copied organization info",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10395595
+		},
+		{
+			"id": "toast:R10477591",
+			"text": "Couldn't delete section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10477591
+		},
+		{
+			"id": "toast:R10522795",
+			"text": "Couldn't reorder section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10522795
+		},
+		{
+			"id": "toast:R10572663",
+			"text": "Failed to copy report to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572663
+		},
+		{
+			"id": "toast:R10572819",
+			"text": "Console logs copied to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572819
+		},
+		{
+			"id": "toast:R10573129",
+			"text": "No workspace available. Create a workspace first.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10573129
+		},
+		{
+			"id": "toast:R10581997",
+			"text": "Failed to copy logs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10581997
+		},
+		{
+			"id": "toast:R10582102",
+			"text": "App logs copied",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10582102
+		},
+		{
+			"id": "toast:R10588207",
+			"text": "Couldn't finish setup. Please try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10588207
+		},
+		{
+			"id": "toast:R10694452",
+			"text": "Failed to update env files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10694452
+		},
+		{
+			"id": "toast:R10871822",
+			"text": "Couldn't update your environment variables",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10871822
+		},
+		{
+			"id": "toast:R10892009",
+			"text": "Couldn't save shared environment variables",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10892009
+		},
+		{
+			"id": "toast:R10902670",
+			"text": "Couldn't save prompt",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10902670
+		},
+		{
+			"id": "toast:R10918731",
+			"text": "Codex now uses your ChatGPT plan",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10918731
+		},
+		{
+			"id": "toast:R10923050",
+			"text": "Conductor could not connect to cloud settings. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10923050
+		},
+		{
+			"id": "toast:R10925387",
+			"text": "Copied Codex verification code.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10925387
+		},
+		{
+			"id": "toast:R10925446",
+			"text": "Failed to copy Codex verification code.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10925446
+		},
+		{
+			"id": "toast:R10954108",
+			"text": "API key saved",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10954108
+		},
+		{
+			"id": "toast:R10954503",
+			"text": "API key removed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10954503
+		},
+		{
+			"id": "toast:R10966069",
+			"text": "Conductor root path changed successfully",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10966069
+		},
+		{
+			"id": "toast:R10998780",
+			"text": "API key imported from env",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10998780
+		},
+		{
+			"id": "toast:R11014233",
+			"text": "Action names must be unique",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11014233
+		},
+		{
+			"id": "toast:R11015771",
+			"text": "Action names can't be empty",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11015771
+		},
+		{
+			"id": "toast:R11050680",
+			"text": "Couldn't refresh GitHub",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11050680
+		},
+		{
+			"id": "toast:R11050766",
+			"text": "Some GitHub details couldn't be updated",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11050766
+		},
+		{
+			"id": "toast:R11086629",
+			"text": "Select an area of the photo first.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11086629
+		},
+		{
+			"id": "toast:R11087057",
+			"text": "Profile photo updated.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11087057
+		},
+		{
+			"id": "toast:R11088975",
+			"text": "Choose a JPEG, PNG, or WebP image.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11088975
+		},
+		{
+			"id": "toast:R11089075",
+			"text": "Choose a photo smaller than 10 MB.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11089075
+		},
+		{
+			"id": "toast:R11089522",
+			"text": "Could not open that photo.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11089522
+		},
+		{
+			"id": "toast:R11090181",
+			"text": "Display name updated.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11090181
+		},
+		{
+			"id": "toast:R11090230",
+			"text": "Could not update display name. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11090230
+		},
+		{
+			"id": "toast:R11090392",
+			"text": "Enter a display name.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11090392
+		},
+		{
+			"id": "toast:R11090450",
+			"text": "Display names can be at most 100 characters.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11090450
+		},
+		{
+			"id": "toast:R11117343",
+			"text": "Failed to reset message send key",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11117343
+		},
+		{
+			"id": "toast:R11117511",
+			"text": "Failed to update message send key",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11117511
+		},
+		{
+			"id": "toast:R11120183",
+			"text": "Couldn't open System Settings. Go to Privacy & Security > Full Disk Access to grant it manually.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11120183
+		},
+		{
+			"id": "toast:R11126591",
+			"text": "Couldn't update Git identity",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11126591
+		},
+		{
+			"id": "toast:R11128301",
+			"text": "Couldn't update pull request workspace links",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11128301
+		},
+		{
+			"id": "toast:R11146597",
+			"text": "Couldn't update the local port range",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11146597
+		},
+		{
+			"id": "toast:R11150870",
+			"text": "Couldn't update the forwarding strategy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11150870
+		},
+		{
+			"id": "toast:R11153716",
+			"text": "Couldn't update manual overrides",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11153716
+		},
+		{
+			"id": "toast:R11162731",
+			"text": "Couldn't update mobile access",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11162731
+		},
+		{
+			"id": "toast:R11184900",
+			"text": "Couldn't create a pairing code",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11184900
+		},
+		{
+			"id": "toast:R11190917",
+			"text": "Couldn't copy the pairing link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11190917
+		},
+		{
+			"id": "toast:R11191010",
+			"text": "Pairing link copied",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11191010
+		},
+		{
+			"id": "toast:R11203171",
+			"text": "Failed to reset callout dismissals",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11203171
+		},
+		{
+			"id": "toast:R11203233",
+			"text": "Callout dismissals reset",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11203233
+		},
+		{
+			"id": "toast:R11204862",
+			"text": "Injection count must be a non-negative integer.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11204862
+		},
+		{
+			"id": "toast:R11216327",
+			"text": "Sidecar HTTP is healthy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216327
+		},
+		{
+			"id": "toast:R11216449",
+			"text": "Sidecar HTTP health check failed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216449
+		},
+		{
+			"id": "toast:R11248595",
+			"text": "Sign in to share a loadout",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11248595
+		},
+		{
+			"id": "toast:R11249174",
+			"text": "Could not open your loadout. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11249174
+		},
+		{
+			"id": "toast:R11262540",
+			"text": "Claude output style updated. New chats will use it; existing chats won’t change.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11262540
+		},
+		{
+			"id": "toast:R11265782",
+			"text": "Failed to update spotlight testing",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11265782
+		},
+		{
+			"id": "toast:R11290713",
+			"text": "Choose a PNG, JPEG, GIF, WebP, or SVG image",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11290713
+		},
+		{
+			"id": "toast:R11290828",
+			"text": "Image is too large. Choose one under 10MB.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11290828
+		},
+		{
+			"id": "toast:R11291063",
+			"text": "Failed to set the icon. Try a different image.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11291063
+		},
+		{
+			"id": "toast:R11298129",
+			"text": "Repository removed successfully",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11298129
+		},
+		{
+			"id": "toast:R11326426",
+			"text": "Copied the prompt",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11326426
+		},
+		{
+			"id": "toast:R11326469",
+			"text": "Couldn't copy the prompt",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11326469
+		},
+		{
+			"id": "toast:R11334530",
+			"text": "This artifact has no link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11334530
+		},
+		{
+			"id": "toast:R11392647",
+			"text": "An update check is already in progress.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11392647
+		},
+		{
+			"id": "toast:R11404745",
+			"text": "Reverting to a turn is not supported yet.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11404745
+		},
+		{
+			"id": "toast:R11405085",
+			"text": "Failed to attach revert context",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11405085
+		},
+		{
+			"id": "toast:R11429681",
+			"text": "Update Conductor to equip this loadout.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11429681
+		},
+		{
+			"id": "toast:R11429745",
+			"text": "Some models in this loadout need a newer version of Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11429745
+		},
+		{
+			"id": "toast:R11431112",
+			"text": "Loadout equipped",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11431112
+		},
+		{
+			"id": "toast:R11472551",
+			"text": "Could not load that pull request",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11472551
+		},
+		{
+			"id": "toast:R11482621",
+			"text": "Cannot create workspace from this issue",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11482621
+		},
+		{
+			"id": "toast:R11482877",
+			"text": "No repository selected",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11482877
+		},
+		{
+			"id": "toast:R11500137",
+			"text": "Added to backlog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11500137
+		},
+		{
+			"id": "toast:R11511925",
+			"text": "Couldn't edit section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11511925
+		},
+		{
+			"id": "toast:R11512041",
+			"text": "Section no longer exists",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11512041
+		},
+		{
+			"id": "toast:R11512106",
+			"text": "Couldn't create section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11512106
+		},
+		{
+			"id": "toast:R11561701",
+			"text": "Couldn't finish setup",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11561701
+		},
+		{
+			"id": "toast:R11583093",
+			"text": "Enter all required Bedrock fields.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11583093
+		},
+		{
+			"id": "toast:R11608299",
+			"text": "Couldn't create the admin workspace: Your computer has no repositories. Add a repository and try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11608299
+		},
+		{
+			"id": "toast:R11608457",
+			"text": "Couldn't create the admin workspace: Your computer isn't ready yet. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11608457
+		},
+		{
+			"id": "toast:R11632289",
+			"text": "Invalid browser URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632289
+		},
+		{
+			"id": "toast:R11632434",
+			"text": "No workspace selected",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632434
+		},
+		{
+			"id": "toast:R11632825",
+			"text": "Couldn't open browser tab",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632825
+		},
+		{
+			"id": "toast:R11633100",
+			"text": "Sign-in failed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11633100
+		},
+		{
+			"id": "toast:R11633632",
+			"text": "Sign in to equip a loadout",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11633632
+		},
+		{
+			"id": "toast:R11633876",
+			"text": "Setting cannot be enabled by link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11633876
+		},
+		{
+			"id": "toast:R11634162",
+			"text": "Failed to enable setting",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634162
+		},
+		{
+			"id": "toast:R11634668",
+			"text": "Linear integration required",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634668
+		},
+		{
+			"id": "toast:R11634917",
+			"text": "No repository available",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634917
+		},
+		{
+			"id": "toast:R11635178",
+			"text": "Linear issue not found",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11635178
+		},
+		{
+			"id": "toast:R11637313",
+			"text": "Repository not found",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637313
+		},
+		{
+			"id": "toast:R11637490",
+			"text": "Invalid plan data",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637490
+		},
+		{
+			"id": "toast:R11637609",
+			"text": "Empty plan",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637609
+		},
+		{
+			"id": "toast:R11638410",
+			"text": "Couldn't open workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11638410
+		},
+		{
+			"id": "toast:R11639651",
+			"text": "GitHub sign-in failed: invalid or expired request",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11639651
+		},
+		{
+			"id": "toast:R11639957",
+			"text": "GitHub authenticated successfully",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11639957
+		},
+		{
+			"id": "toast:R11640060",
+			"text": "Failed to save GitHub token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11640060
+		},
+		{
+			"id": "toast:R11640519",
+			"text": "Waiting for a GitHub admin to approve the installation",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11640519
+		},
+		{
+			"id": "toast:R11640585",
+			"text": "GitHub connected",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11640585
+		},
+		{
+			"id": "toast:R11641905",
+			"text": "Invalid deep link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11641905
+		},
+		{
+			"id": "toast:R11647565",
+			"text": "GitHub isn't connected yet. Finish the sign-in and try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11647565
+		},
+		{
+			"id": "toast:R11652358",
+			"text": "Thank you for your feedback!",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11652358
+		},
+		{
+			"id": "toast:R11660192",
+			"text": "Please enter a prompt",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11660192
+		},
+		{
+			"id": "toast:R11660369",
+			"text": "Prompt submitted!",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11660369
+		},
+		{
+			"id": "toast:R11660524",
+			"text": "Failed to submit prompt",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11660524
+		},
+		{
+			"id": "toast:R11699632",
+			"text": "Failed to attach terminal selection",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11699632
+		},
+		{
+			"id": "toast:R11739982",
+			"text": "Failed to save keyboard shortcut",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11739982
+		},
+		{
+			"id": "toast:R11752107",
+			"text": "Migration PR created",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11752107
+		},
+		{
+			"id": "toast:R11931729",
+			"text": "Routine deleted",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11931729
+		},
+		{
+			"id": "toast:R11940912",
+			"text": "Couldn't copy command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11940912
+		},
+		{
+			"id": "toast:R11940961",
+			"text": "Copied command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11940961
+		},
+		{
+			"id": "toast:R11948548",
+			"text": "Couldn't copy webhook URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11948548
+		},
+		{
+			"id": "toast:R11948601",
+			"text": "Copied webhook URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11948601
+		},
+		{
+			"id": "toast:R12017623",
+			"text": "Webhook secret rotated",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12017623
+		},
+		{
+			"id": "toast:R12056127",
+			"text": "Remote control is only available in local organizations",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12056127
+		},
+		{
+			"id": "toast:R12096061",
+			"text": "You're up to date!",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12096061
+		},
+		{
+			"id": "toast:R12119091",
+			"text": "Failed to start agents",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119091
+		}
+	]
+}

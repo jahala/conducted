@@ -1,0 +1,912 @@
+{
+	"inventory": "tauri_plugin_command",
+	"source": ".context/day/conductor-ref/call-inventory.json (plugins)",
+	"entries": [
+		{
+			"id": "tauri_plugin_command:resources|close",
+			"text": "resources|close",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3821
+		},
+		{
+			"id": "tauri_plugin_command:image|new",
+			"text": "image|new",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3966
+		},
+		{
+			"id": "tauri_plugin_command:image|from_bytes",
+			"text": "image|from_bytes",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4071
+		},
+		{
+			"id": "tauri_plugin_command:image|from_path",
+			"text": "image|from_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4166
+		},
+		{
+			"id": "tauri_plugin_command:image|rgba",
+			"text": "image|rgba",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4243
+		},
+		{
+			"id": "tauri_plugin_command:image|size",
+			"text": "image|size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4329
+		},
+		{
+			"id": "tauri_plugin_command:app|version",
+			"text": "app|version",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4479
+		},
+		{
+			"id": "tauri_plugin_command:app|name",
+			"text": "app|name",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4532
+		},
+		{
+			"id": "tauri_plugin_command:app|identifier",
+			"text": "app|identifier",
+			"file": "main-BE1h_1MP.js",
+			"offset": 4581
+		},
+		{
+			"id": "tauri_plugin_command:event|unlisten",
+			"text": "event|unlisten",
+			"file": "main-BE1h_1MP.js",
+			"offset": 5206
+		},
+		{
+			"id": "tauri_plugin_command:event|listen",
+			"text": "event|listen",
+			"file": "main-BE1h_1MP.js",
+			"offset": 5408
+		},
+		{
+			"id": "tauri_plugin_command:event|emit",
+			"text": "event|emit",
+			"file": "main-BE1h_1MP.js",
+			"offset": 5588
+		},
+		{
+			"id": "tauri_plugin_command:event|emit_to",
+			"text": "event|emit_to",
+			"file": "main-BE1h_1MP.js",
+			"offset": 5664
+		},
+		{
+			"id": "tauri_plugin_command:window|get_all_windows",
+			"text": "window|get_all_windows",
+			"file": "main-BE1h_1MP.js",
+			"offset": 8226
+		},
+		{
+			"id": "tauri_plugin_command:window|create",
+			"text": "window|create",
+			"file": "main-BE1h_1MP.js",
+			"offset": 8440
+		},
+		{
+			"id": "tauri_plugin_command:window|scale_factor",
+			"text": "window|scale_factor",
+			"file": "main-BE1h_1MP.js",
+			"offset": 9662
+		},
+		{
+			"id": "tauri_plugin_command:window|inner_position",
+			"text": "window|inner_position",
+			"file": "main-BE1h_1MP.js",
+			"offset": 9743
+		},
+		{
+			"id": "tauri_plugin_command:window|outer_position",
+			"text": "window|outer_position",
+			"file": "main-BE1h_1MP.js",
+			"offset": 9845
+		},
+		{
+			"id": "tauri_plugin_command:window|inner_size",
+			"text": "window|inner_size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 9943
+		},
+		{
+			"id": "tauri_plugin_command:window|outer_size",
+			"text": "window|outer_size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10037
+		},
+		{
+			"id": "tauri_plugin_command:window|is_fullscreen",
+			"text": "window|is_fullscreen",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10134
+		},
+		{
+			"id": "tauri_plugin_command:window|is_minimized",
+			"text": "window|is_minimized",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10214
+		},
+		{
+			"id": "tauri_plugin_command:window|is_maximized",
+			"text": "window|is_maximized",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10293
+		},
+		{
+			"id": "tauri_plugin_command:window|is_focused",
+			"text": "window|is_focused",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10370
+		},
+		{
+			"id": "tauri_plugin_command:window|is_decorated",
+			"text": "window|is_decorated",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10447
+		},
+		{
+			"id": "tauri_plugin_command:window|is_resizable",
+			"text": "window|is_resizable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10526
+		},
+		{
+			"id": "tauri_plugin_command:window|is_maximizable",
+			"text": "window|is_maximizable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10607
+		},
+		{
+			"id": "tauri_plugin_command:window|is_minimizable",
+			"text": "window|is_minimizable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10690
+		},
+		{
+			"id": "tauri_plugin_command:window|is_closable",
+			"text": "window|is_closable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10770
+		},
+		{
+			"id": "tauri_plugin_command:window|is_visible",
+			"text": "window|is_visible",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10846
+		},
+		{
+			"id": "tauri_plugin_command:window|title",
+			"text": "window|title",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10917
+		},
+		{
+			"id": "tauri_plugin_command:window|theme",
+			"text": "window|theme",
+			"file": "main-BE1h_1MP.js",
+			"offset": 10983
+		},
+		{
+			"id": "tauri_plugin_command:window|is_always_on_top",
+			"text": "window|is_always_on_top",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11057
+		},
+		{
+			"id": "tauri_plugin_command:window|center",
+			"text": "window|center",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11135
+		},
+		{
+			"id": "tauri_plugin_command:window|request_user_attention",
+			"text": "window|request_user_attention",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11295
+		},
+		{
+			"id": "tauri_plugin_command:window|set_resizable",
+			"text": "window|set_resizable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11394
+		},
+		{
+			"id": "tauri_plugin_command:window|set_enabled",
+			"text": "window|set_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11482
+		},
+		{
+			"id": "tauri_plugin_command:window|is_enabled",
+			"text": "window|is_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11566
+		},
+		{
+			"id": "tauri_plugin_command:window|set_maximizable",
+			"text": "window|set_maximizable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11647
+		},
+		{
+			"id": "tauri_plugin_command:window|set_minimizable",
+			"text": "window|set_minimizable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11741
+		},
+		{
+			"id": "tauri_plugin_command:window|set_closable",
+			"text": "window|set_closable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11832
+		},
+		{
+			"id": "tauri_plugin_command:window|set_title",
+			"text": "window|set_title",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11917
+		},
+		{
+			"id": "tauri_plugin_command:window|maximize",
+			"text": "window|maximize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 11998
+		},
+		{
+			"id": "tauri_plugin_command:window|unmaximize",
+			"text": "window|unmaximize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12072
+		},
+		{
+			"id": "tauri_plugin_command:window|toggle_maximize",
+			"text": "window|toggle_maximize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12152
+		},
+		{
+			"id": "tauri_plugin_command:window|minimize",
+			"text": "window|minimize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12231
+		},
+		{
+			"id": "tauri_plugin_command:window|unminimize",
+			"text": "window|unminimize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12305
+		},
+		{
+			"id": "tauri_plugin_command:window|show",
+			"text": "window|show",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12375
+		},
+		{
+			"id": "tauri_plugin_command:window|hide",
+			"text": "window|hide",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12439
+		},
+		{
+			"id": "tauri_plugin_command:window|close",
+			"text": "window|close",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12504
+		},
+		{
+			"id": "tauri_plugin_command:window|destroy",
+			"text": "window|destroy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12572
+		},
+		{
+			"id": "tauri_plugin_command:window|set_decorations",
+			"text": "window|set_decorations",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12650
+		},
+		{
+			"id": "tauri_plugin_command:window|set_shadow",
+			"text": "window|set_shadow",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12739
+		},
+		{
+			"id": "tauri_plugin_command:window|set_effects",
+			"text": "window|set_effects",
+			"file": "main-BE1h_1MP.js",
+			"offset": 12824
+		},
+		{
+			"id": "tauri_plugin_command:window|set_always_on_top",
+			"text": "window|set_always_on_top",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13004
+		},
+		{
+			"id": "tauri_plugin_command:window|set_always_on_bottom",
+			"text": "window|set_always_on_bottom",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13103
+		},
+		{
+			"id": "tauri_plugin_command:window|set_content_protected",
+			"text": "window|set_content_protected",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13207
+		},
+		{
+			"id": "tauri_plugin_command:window|set_size",
+			"text": "window|set_size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13300
+		},
+		{
+			"id": "tauri_plugin_command:window|set_min_size",
+			"text": "window|set_min_size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13409
+		},
+		{
+			"id": "tauri_plugin_command:window|set_max_size",
+			"text": "window|set_max_size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13529
+		},
+		{
+			"id": "tauri_plugin_command:window|set_size_constraints",
+			"text": "window|set_size_constraints",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13697
+		},
+		{
+			"id": "tauri_plugin_command:window|set_position",
+			"text": "window|set_position",
+			"file": "main-BE1h_1MP.js",
+			"offset": 13893
+		},
+		{
+			"id": "tauri_plugin_command:window|set_fullscreen",
+			"text": "window|set_fullscreen",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14009
+		},
+		{
+			"id": "tauri_plugin_command:window|set_focus",
+			"text": "window|set_focus",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14095
+		},
+		{
+			"id": "tauri_plugin_command:window|set_icon",
+			"text": "window|set_icon",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14168
+		},
+		{
+			"id": "tauri_plugin_command:window|set_skip_taskbar",
+			"text": "window|set_skip_taskbar",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14259
+		},
+		{
+			"id": "tauri_plugin_command:window|set_cursor_grab",
+			"text": "window|set_cursor_grab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14353
+		},
+		{
+			"id": "tauri_plugin_command:window|set_cursor_visible",
+			"text": "window|set_cursor_visible",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14449
+		},
+		{
+			"id": "tauri_plugin_command:window|set_cursor_icon",
+			"text": "window|set_cursor_icon",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14545
+		},
+		{
+			"id": "tauri_plugin_command:window|set_background_color",
+			"text": "window|set_background_color",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14643
+		},
+		{
+			"id": "tauri_plugin_command:window|set_cursor_position",
+			"text": "window|set_cursor_position",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14728
+		},
+		{
+			"id": "tauri_plugin_command:window|set_ignore_cursor_events",
+			"text": "window|set_ignore_cursor_events",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14859
+		},
+		{
+			"id": "tauri_plugin_command:window|start_dragging",
+			"text": "window|start_dragging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 14960
+		},
+		{
+			"id": "tauri_plugin_command:window|start_resize_dragging",
+			"text": "window|start_resize_dragging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15050
+		},
+		{
+			"id": "tauri_plugin_command:window|set_badge_count",
+			"text": "window|set_badge_count",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15149
+		},
+		{
+			"id": "tauri_plugin_command:window|set_badge_label",
+			"text": "window|set_badge_label",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15242
+		},
+		{
+			"id": "tauri_plugin_command:window|set_overlay_icon",
+			"text": "window|set_overlay_icon",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15336
+		},
+		{
+			"id": "tauri_plugin_command:window|set_progress_bar",
+			"text": "window|set_progress_bar",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15444
+		},
+		{
+			"id": "tauri_plugin_command:window|set_visible_on_all_workspaces",
+			"text": "window|set_visible_on_all_workspaces",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15550
+		},
+		{
+			"id": "tauri_plugin_command:window|set_title_bar_style",
+			"text": "window|set_title_bar_style",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15660
+		},
+		{
+			"id": "tauri_plugin_command:window|set_theme",
+			"text": "window|set_theme",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15752
+		},
+		{
+			"id": "tauri_plugin_command:window|cursor_position",
+			"text": "window|cursor_position",
+			"file": "main-BE1h_1MP.js",
+			"offset": 17888
+		},
+		{
+			"id": "tauri_plugin_command:path|resolve_directory",
+			"text": "path|resolve_directory",
+			"file": "main-BE1h_1MP.js",
+			"offset": 18587
+		},
+		{
+			"id": "tauri_plugin_command:path|normalize",
+			"text": "path|normalize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 19112
+		},
+		{
+			"id": "tauri_plugin_command:clipboard-manager|write_text",
+			"text": "clipboard-manager|write_text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 21280
+		},
+		{
+			"id": "tauri_plugin_command:clipboard-manager|read_text",
+			"text": "clipboard-manager|read_text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 21380
+		},
+		{
+			"id": "tauri_plugin_command:clipboard-manager|write_html",
+			"text": "clipboard-manager|write_html",
+			"file": "main-BE1h_1MP.js",
+			"offset": 21451
+		},
+		{
+			"id": "tauri_plugin_command:fs|read",
+			"text": "fs|read",
+			"file": "main-BE1h_1MP.js",
+			"offset": 22839
+		},
+		{
+			"id": "tauri_plugin_command:fs|seek",
+			"text": "fs|seek",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23036
+		},
+		{
+			"id": "tauri_plugin_command:fs|fstat",
+			"text": "fs|fstat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23117
+		},
+		{
+			"id": "tauri_plugin_command:fs|ftruncate",
+			"text": "fs|ftruncate",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23192
+		},
+		{
+			"id": "tauri_plugin_command:fs|write",
+			"text": "fs|write",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23267
+		},
+		{
+			"id": "tauri_plugin_command:fs|open",
+			"text": "fs|open",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23435
+		},
+		{
+			"id": "tauri_plugin_command:fs|copy_file",
+			"text": "fs|copy_file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23680
+		},
+		{
+			"id": "tauri_plugin_command:fs|mkdir",
+			"text": "fs|mkdir",
+			"file": "main-BE1h_1MP.js",
+			"offset": 23913
+		},
+		{
+			"id": "tauri_plugin_command:fs|read_dir",
+			"text": "fs|read_dir",
+			"file": "main-BE1h_1MP.js",
+			"offset": 24106
+		},
+		{
+			"id": "tauri_plugin_command:fs|read_file",
+			"text": "fs|read_file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 24303
+		},
+		{
+			"id": "tauri_plugin_command:fs|read_text_file",
+			"text": "fs|read_text_file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 24570
+		},
+		{
+			"id": "tauri_plugin_command:fs|remove",
+			"text": "fs|remove",
+			"file": "main-BE1h_1MP.js",
+			"offset": 24848
+		},
+		{
+			"id": "tauri_plugin_command:fs|rename",
+			"text": "fs|rename",
+			"file": "main-BE1h_1MP.js",
+			"offset": 25077
+		},
+		{
+			"id": "tauri_plugin_command:fs|stat",
+			"text": "fs|stat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 25230
+		},
+		{
+			"id": "tauri_plugin_command:fs|write_file",
+			"text": "fs|write_file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 25626
+		},
+		{
+			"id": "tauri_plugin_command:fs|write_text_file",
+			"text": "fs|write_text_file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 25891
+		},
+		{
+			"id": "tauri_plugin_command:fs|exists",
+			"text": "fs|exists",
+			"file": "main-BE1h_1MP.js",
+			"offset": 26152
+		},
+		{
+			"id": "tauri_plugin_command:fs|unwatch",
+			"text": "fs|unwatch",
+			"file": "main-BE1h_1MP.js",
+			"offset": 26252
+		},
+		{
+			"id": "tauri_plugin_command:fs|watch",
+			"text": "fs|watch",
+			"file": "main-BE1h_1MP.js",
+			"offset": 26520
+		},
+		{
+			"id": "tauri_plugin_command:shell|stdin_write",
+			"text": "shell|stdin_write",
+			"file": "main-BE1h_1MP.js",
+			"offset": 598385
+		},
+		{
+			"id": "tauri_plugin_command:shell|kill",
+			"text": "shell|kill",
+			"file": "main-BE1h_1MP.js",
+			"offset": 598459
+		},
+		{
+			"id": "tauri_plugin_command:shell|spawn",
+			"text": "shell|spawn",
+			"file": "main-BE1h_1MP.js",
+			"offset": 599162
+		},
+		{
+			"id": "tauri_plugin_command:shell|execute",
+			"text": "shell|execute",
+			"file": "main-BE1h_1MP.js",
+			"offset": 599360
+		},
+		{
+			"id": "tauri_plugin_command:shell|open",
+			"text": "shell|open",
+			"file": "main-BE1h_1MP.js",
+			"offset": 599447
+		},
+		{
+			"id": "tauri_plugin_command:sql|load",
+			"text": "sql|load",
+			"file": "main-BE1h_1MP.js",
+			"offset": 957535
+		},
+		{
+			"id": "tauri_plugin_command:sql|execute",
+			"text": "sql|execute",
+			"file": "main-BE1h_1MP.js",
+			"offset": 957648
+		},
+		{
+			"id": "tauri_plugin_command:sql|select",
+			"text": "sql|select",
+			"file": "main-BE1h_1MP.js",
+			"offset": 957778
+		},
+		{
+			"id": "tauri_plugin_command:sql|close",
+			"text": "sql|close",
+			"file": "main-BE1h_1MP.js",
+			"offset": 957866
+		},
+		{
+			"id": "tauri_plugin_command:http|fetch",
+			"text": "http|fetch",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2021937
+		},
+		{
+			"id": "tauri_plugin_command:http|fetch_cancel",
+			"text": "http|fetch_cancel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2022079
+		},
+		{
+			"id": "tauri_plugin_command:http|fetch_send",
+			"text": "http|fetch_send",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2022252
+		},
+		{
+			"id": "tauri_plugin_command:http|fetch_read_body",
+			"text": "http|fetch_read_body",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2022539
+		},
+		{
+			"id": "tauri_plugin_command:notification|is_permission_granted",
+			"text": "notification|is_permission_granted",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2685220
+		},
+		{
+			"id": "tauri_plugin_command:opener|open_url",
+			"text": "opener|open_url",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2691225
+		},
+		{
+			"id": "tauri_plugin_command:opener|open_path",
+			"text": "opener|open_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2691299
+		},
+		{
+			"id": "tauri_plugin_command:opener|reveal_item_in_dir",
+			"text": "opener|reveal_item_in_dir",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2691374
+		},
+		{
+			"id": "tauri_plugin_command:os|hostname",
+			"text": "os|hostname",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2968737
+		},
+		{
+			"id": "tauri_plugin_command:process|exit",
+			"text": "process|exit",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3898660
+		},
+		{
+			"id": "tauri_plugin_command:process|restart",
+			"text": "process|restart",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3898722
+		},
+		{
+			"id": "tauri_plugin_command:updater|download",
+			"text": "updater|download",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3899003
+		},
+		{
+			"id": "tauri_plugin_command:updater|install",
+			"text": "updater|install",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3899205
+		},
+		{
+			"id": "tauri_plugin_command:updater|download_and_install",
+			"text": "updater|download_and_install",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3899387
+		},
+		{
+			"id": "tauri_plugin_command:updater|check",
+			"text": "updater|check",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3899566
+		},
+		{
+			"id": "tauri_plugin_command:deep-link|get_current",
+			"text": "deep-link|get_current",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3900550
+		},
+		{
+			"id": "tauri_plugin_command:dialog|open",
+			"text": "dialog|open",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3900740
+		},
+		{
+			"id": "tauri_plugin_command:dialog|save",
+			"text": "dialog|save",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3900852
+		},
+		{
+			"id": "tauri_plugin_command:dialog|confirm",
+			"text": "dialog|confirm",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3900965
+		},
+		{
+			"id": "tauri_plugin_command:webview|get_all_webviews",
+			"text": "webview|get_all_webviews",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3992948
+		},
+		{
+			"id": "tauri_plugin_command:webview|create_webview",
+			"text": "webview|create_webview",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3993211
+		},
+		{
+			"id": "tauri_plugin_command:webview|webview_position",
+			"text": "webview|webview_position",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994271
+		},
+		{
+			"id": "tauri_plugin_command:webview|webview_size",
+			"text": "webview|webview_size",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994368
+		},
+		{
+			"id": "tauri_plugin_command:webview|webview_close",
+			"text": "webview|webview_close",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994462
+		},
+		{
+			"id": "tauri_plugin_command:webview|set_webview_size",
+			"text": "webview|set_webview_size",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994540
+		},
+		{
+			"id": "tauri_plugin_command:webview|set_webview_position",
+			"text": "webview|set_webview_position",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994661
+		},
+		{
+			"id": "tauri_plugin_command:webview|set_webview_focus",
+			"text": "webview|set_webview_focus",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994782
+		},
+		{
+			"id": "tauri_plugin_command:webview|webview_hide",
+			"text": "webview|webview_hide",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994860
+		},
+		{
+			"id": "tauri_plugin_command:webview|webview_show",
+			"text": "webview|webview_show",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3994933
+		},
+		{
+			"id": "tauri_plugin_command:webview|set_webview_zoom",
+			"text": "webview|set_webview_zoom",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3995010
+		},
+		{
+			"id": "tauri_plugin_command:webview|reparent",
+			"text": "webview|reparent",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3995100
+		},
+		{
+			"id": "tauri_plugin_command:webview|clear_all_browsing_data",
+			"text": "webview|clear_all_browsing_data",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3995221
+		},
+		{
+			"id": "tauri_plugin_command:webview|set_webview_background_color",
+			"text": "webview|set_webview_background_color",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3995301
+		},
+		{
+			"id": "tauri_plugin_command:webview|create_webview_window",
+			"text": "webview|create_webview_window",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11195835
+		},
+		{
+			"id": "tauri_plugin_command:window|monitor_from_point",
+			"text": "window|monitor_from_point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11668650
+		},
+		{
+			"id": "tauri_plugin_command:window|current_monitor",
+			"text": "window|current_monitor",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11668749
+		}
+	]
+}

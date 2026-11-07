@@ -1,0 +1,4795 @@
+{
+	"rules": {
+		"logger": "A toast-pattern call whose receiver the same bundle file also calls with a logger's methods (warn, debug), or that is not a plain name. Not shown to a person."
+	},
+	"entries": [
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 231852,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 232115,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 232657,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 233810,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 238685,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 253150,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 275617,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 276505,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 295398,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 367552,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 372703,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 376209,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 392372,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 393591,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 393920,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 402328,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 414690,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 417710,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 418192,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 419483,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 506657,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 506970,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 507084,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 514401,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 514459,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 551541,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 554077,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 558648,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 558813,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 562572,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 588357,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 665670,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 666025,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 704546,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 714633,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 716097,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 718294,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 718690,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 733127,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 780948,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 789307,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 790628,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 809364,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 809553,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 810950,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 854699,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 864032,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 864476,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 875337,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 919646,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 954372,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 970941,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 974720,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 974942,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 975154,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 975533,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 976182,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 976373,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 979008,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 987549,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 987770,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 987938,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 988128,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 988395,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 989255,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 991056,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 991249,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 991735,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 992396,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 993597,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 994330,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 994486,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 994856,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1016970,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1017849,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1027312,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1027652,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1032380,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1033414,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1034387,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1036216,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1036483,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1037327,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1038657,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1039960,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1040596,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1041665,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1055838,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1056865,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1057572,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1062418,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1062779,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1067949,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1068562,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1070533,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1071242,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1071334,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1073131,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1081724,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1089850,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1091778,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1095953,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1096075,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1102902,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1113270,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1113525,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1114562,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1115150,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1117526,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1118889,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1132459,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1153583,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1154448,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1154803,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1155354,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1155760,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1158469,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1162114,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1396698,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1397114,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1399045,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1399433,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1399703,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1401041,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1404552,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1416864,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1550097,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1550404,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1565900,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1581309,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1584442,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1584629,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1586550,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1587357,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1587514,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1591371,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1592180,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1593842,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1594004,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1601134,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1601291,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1621678,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1622303,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1622814,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1638962,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1640053,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1646548,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1647995,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1649965,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1656274,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1657928,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1658848,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1705739,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1711416,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1755017,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1767760,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1768281,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1774418,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1785987,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1786225,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1803749,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1804330,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1807593,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1807817,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1830938,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1831141,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1831302,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1831484,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1833183,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1834717,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1835166,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1836210,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1839247,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1840823,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1841712,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1842059,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1843412,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1844607,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1844862,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1845101,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1847055,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1847248,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1847755,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1850576,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1850992,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1851280,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1851965,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1852507,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1865115,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1893590,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1897639,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1905138,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1907693,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1909344,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1910937,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1911827,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1912128,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1930833,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1940522,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1941774,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1942162,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1951291,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1951428,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1967512,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1992240,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1992576,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1992759,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1994651,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1995318,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1995720,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1995862,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2018166,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2018310,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2024409,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2025186,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2059534,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2059621,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2059760,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2060381,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2061465,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2061974,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2062418,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2062572,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2076373,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2077958,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2092744,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2098463,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2098707,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2099476,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2099643,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2100002,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2449193,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2463568,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2464458,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2470105,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2470524,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2470920,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2471032,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2480139,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2489239,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2491297,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2494348,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2494614,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2499126,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2499259,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2500228,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2500317,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2501124,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2501466,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2503670,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2504052,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2505873,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2507637,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2513979,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2514105,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2514696,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2534575,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2535636,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2539135,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2542004,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2542612,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2544450,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2546303,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2546527,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2546706,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2548114,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2548224,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2551939,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2553746,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2553925,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2553989,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2554964,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2555857,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2556189,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2556859,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2564675,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2583390,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2590536,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2590799,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2591610,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2591983,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2592082,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2592585,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2592714,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2594179,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2599001,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2599281,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2599500,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2599636,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2599828,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2599901,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2605837,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2607216,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2609234,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2609537,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2609718,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2609828,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2610245,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2617160,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2621167,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2621355,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2623472,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2625037,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2627062,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2630538,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2632376,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2633043,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2634516,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2637926,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2638230,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2638662,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2647222,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2681522,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2681727,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2682043,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2682120,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2682175,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2682279,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2682684,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2687463,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2687654,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2687979,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2688301,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2688459,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2688541,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2688988,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2689294,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2706279,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2706604,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2707141,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2717174,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2911078,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2919309,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2920115,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2927539,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2928141,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2935060,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2942915,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2948264,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2954209,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2954359,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2954492,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2955079,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2955501,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2955635,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2970888,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2973075,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2978499,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3087667,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3099275,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3099486,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103593,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3105681,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3106615,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3120511,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3124693,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3125063,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3126946,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3128040,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3129205,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3129413,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3130316,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3130545,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3131900,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3131938,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3132762,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3134827,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3134939,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3136249,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3137306,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3137388,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3137810,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3138303,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3139953,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3168103,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3189199,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3192202,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3192524,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3193111,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3193595,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3193875,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3194478,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3194963,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3195501,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3195878,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3196080,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3197065,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3225030,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3225078,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3226373,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3226931,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3227330,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3227479,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3227670,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3227783,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3228362,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3229063,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3229290,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3229444,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3235365,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3235847,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3235935,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3236067,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3236950,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3237911,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3242701,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3242966,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3243228,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3243502,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3243657,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3243985,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3244576,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3245128,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3246003,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3246293,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3246553,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3247079,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3247828,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3248549,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3248809,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3249136,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3566304,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3584103,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3584255,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3617130,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3617423,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3618830,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3619036,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3620079,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3623098,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3635851,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3645158,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3647376,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3653819,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3654043,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3704465,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3723579,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3727557,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3730667,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3739280,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3750700,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3751379,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3751772,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3752394,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3752772,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3753853,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3758009,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3815944,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3821998,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3822146,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3825278,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3829749,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3833545,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3870574,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3877843,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3878635,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3879170,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3879589,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3881013,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3883599,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3884101,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3884668,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3902542,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 85752,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 86091,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 89455,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 91003,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 92306,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 93484,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 95089,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 132818,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 134752,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 135343,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 135867,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 138375,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 139928,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 140758,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 149441,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 226155,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 226835,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 227345,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 227707,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 229510,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 231325,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 232802,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 255085,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 256756,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 256924,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 258190,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 264914,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 292284,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 292505,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 298340,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 298571,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 315716,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 366578,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 367079,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 367817,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 494949,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629290,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 671997,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 672053,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 958131,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 967276,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1009437,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1009649,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1011308,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1011452,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1011678,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1132871,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1133639,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1133811,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1134419,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1136431,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1253945,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1270390,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1271030,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1315572,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1316315,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1316464,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1316658,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1316856,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1317061,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1317227,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1317375,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1317575,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1317732,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1317923,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1350022,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1386106,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1398172,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1714608,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1717275,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1872209,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1892444,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2031601,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2034956,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2055402,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2092865,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2235950,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2485449,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2537191,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2539446,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2539522,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2641983,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2642061,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2722070,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2976775,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3021505,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3023917,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3036877,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4013957,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4060433,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4265444,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4322713,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4364812,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4372035,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5001470,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5002434,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5003879,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5004304,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5006147,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5006466,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5006665,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5007268,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5547558,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5640598,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5642545,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5663311,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5663899,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5696221,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7662122,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7675403,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7770046,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7783518,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7796129,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7796806,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7797878,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7800661,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7803670,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7813981,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7823263,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7858335,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7859535,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7873577,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7889271,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7891831,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7894719,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7894762,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7950285,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7950323,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7950741,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7950951,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7951156,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7951205,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7951244,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7951312,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7951371,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7953849,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8042142,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8042794,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8043767,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8044068,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8044242,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8053168,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8114961,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8137528,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8156033,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8723160,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8730405,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8779255,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8842909,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8865487,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8891016,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8917798,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8918134,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9012516,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9052309,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9054611,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9054742,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9057404,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9059120,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9060868,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9064865,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9076164,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9087670,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9271853,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9272699,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9297146,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9303592,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9303706,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9309507,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9310160,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9313863,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9382625,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9382713,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9385687,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9390794,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9392432,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9392740,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9552054,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9574893,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9574953,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9596828,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9598214,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9607888,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9610873,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9626713,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9882895,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9908668,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9948874,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9948939,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9961645,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9968467,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10141504,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10156767,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10202637,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10365110,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10389579,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10390450,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10444474,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10445299,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10447397,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10468725,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10588152,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10622019,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10622080,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10623270,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10623807,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10623912,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10623962,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10624010,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10625652,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10626128,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10626610,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10627012,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10627772,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10628509,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10629991,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10641597,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10642133,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10642622,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10643599,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10643761,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10756763,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10903950,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10918188,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10918618,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10966189,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11014754,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11014950,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11015877,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11016228,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11049184,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11049465,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11113604,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11114224,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11114301,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11114404,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11197989,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11198050,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11198140,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199070,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199249,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199803,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11200054,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216257,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216379,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11226964,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11228076,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11249126,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11291015,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11306114,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11431360,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11506773,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11611087,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11622898,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11629022,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11630483,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11631065,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632777,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634107,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634602,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11635711,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11635879,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11636795,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637018,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637768,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11638360,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11639241,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11639594,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11640017,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11640213,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11640407,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11641860,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11642069,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11642416,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11642575,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11643226,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11643854,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11644184,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11645032,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11645400,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11649940,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11651823,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11652504,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11652781,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11653865,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11654508,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11660485,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11662571,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11665787,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11665889,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11668228,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11671152,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11704473,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11787962,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12034367,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12040505,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12043572,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12050360,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12051717,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12057176,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12057240,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12057464,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12068656,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12068819,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12071868,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12074992,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12079030,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12079309,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12080337,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12080989,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12081939,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12082066,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12085313,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12086237,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12087741,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12088122,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12088933,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12091438,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12107060,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12107142,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12107310,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12107561,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12111316,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12116635,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12116692,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12117304,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12117558,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12118732,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12118834,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119045,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119226,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119303,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119379,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119543,
+			"rule": "logger"
+		},
+		{
+			"inventory": "toast",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12120461,
+			"rule": "logger"
+		}
+	]
+}

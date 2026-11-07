@@ -1,0 +1,426 @@
+{
+	"inventory": "placeholder",
+	"source": ".context/conductor-re/inventory/placeholder.tsv",
+	"entries": [
+		{
+			"id": "placeholder:R1894594",
+			"text": "Enter path or click to select",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1894594
+		},
+		{
+			"id": "placeholder:R1898620",
+			"text": "Search repositories...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1898620
+		},
+		{
+			"id": "placeholder:R1959277",
+			"text": "Select an owner",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1959277
+		},
+		{
+			"id": "placeholder:R2255965",
+			"text": "PR title",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2255965
+		},
+		{
+			"id": "placeholder:R2256260",
+			"text": "PR description",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2256260
+		},
+		{
+			"id": "placeholder:R2623020",
+			"text": "Filter files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2623020
+		},
+		{
+			"id": "placeholder:R2754036",
+			"text": "Select target branch...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2754036
+		},
+		{
+			"id": "placeholder:R3015224",
+			"text": "Message workspace chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3015224
+		},
+		{
+			"id": "placeholder:R4379343",
+			"text": "Find",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4379343
+		},
+		{
+			"id": "placeholder:R4632855",
+			"text": "Search icons",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4632855
+		},
+		{
+			"id": "placeholder:R4978748",
+			"text": "Find in file",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4978748
+		},
+		{
+			"id": "placeholder:R4987113",
+			"text": "Action name",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4987113
+		},
+		{
+			"id": "placeholder:R5444083",
+			"text": "Remote port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5444083
+		},
+		{
+			"id": "placeholder:R5533685",
+			"text": "PR URL or number",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5533685
+		},
+		{
+			"id": "placeholder:R5645838",
+			"text": "Search files...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5645838
+		},
+		{
+			"id": "placeholder:R5652247",
+			"text": "Search in files...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5652247
+		},
+		{
+			"id": "placeholder:R5664306",
+			"text": "Search issues...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5664306
+		},
+		{
+			"id": "placeholder:R5685793",
+			"text": "Search workspaces...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5685793
+		},
+		{
+			"id": "placeholder:R5692826",
+			"text": "Search directories or type a nested path like apps/web...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5692826
+		},
+		{
+			"id": "placeholder:R8148331",
+			"text": "Other…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8148331
+		},
+		{
+			"id": "placeholder:R8170318",
+			"text": "Select an option",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8170318
+		},
+		{
+			"id": "placeholder:R9000620",
+			"text": "Write something …",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9000620
+		},
+		{
+			"id": "placeholder:R9234039",
+			"text": "Search models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9234039
+		},
+		{
+			"id": "placeholder:R9369318",
+			"text": "Goal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9369318
+		},
+		{
+			"id": "placeholder:R9420608",
+			"text": "Find in messages and thinking",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9420608
+		},
+		{
+			"id": "placeholder:R9730040",
+			"text": "Add a comment for the AI",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9730040
+		},
+		{
+			"id": "placeholder:R9856436",
+			"text": "Replace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9856436
+		},
+		{
+			"id": "placeholder:R9856783",
+			"text": "Search",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9856783
+		},
+		{
+			"id": "placeholder:R10182992",
+			"text": "Search...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10182992
+		},
+		{
+			"id": "placeholder:R10189388",
+			"text": "Select repo",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10189388
+		},
+		{
+			"id": "placeholder:R10195168",
+			"text": "Describe what you want to build",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10195168
+		},
+		{
+			"id": "placeholder:R10669494",
+			"text": "Enter font name...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10669494
+		},
+		{
+			"id": "placeholder:R10672939",
+			"text": "Leave empty for default",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10672939
+		},
+		{
+			"id": "placeholder:R10680280",
+			"text": "my-agent --flag",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10680280
+		},
+		{
+			"id": "placeholder:R10696051",
+			"text": "Use an empty value to set this variable to an empty string.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10696051
+		},
+		{
+			"id": "placeholder:R10770889",
+			"text": "Search MCP servers...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10770889
+		},
+		{
+			"id": "placeholder:R10779334",
+			"text": "Search installed MCPs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10779334
+		},
+		{
+			"id": "placeholder:R10780577",
+			"text": "Search recommended MCPs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10780577
+		},
+		{
+			"id": "placeholder:R10807790",
+			"text": "Search repositories or paste a GitHub URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10807790
+		},
+		{
+			"id": "placeholder:R10944937",
+			"text": "Search providers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10944937
+		},
+		{
+			"id": "placeholder:R10958311",
+			"text": "Filter models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10958311
+		},
+		{
+			"id": "placeholder:R10975212",
+			"text": "~/.ssh/id_ed25519",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10975212
+		},
+		{
+			"id": "placeholder:R11021601",
+			"text": "My action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11021601
+		},
+		{
+			"id": "placeholder:R11117637",
+			"text": "Custom",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11117637
+		},
+		{
+			"id": "placeholder:R11129925",
+			"text": "Select remote...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11129925
+		},
+		{
+			"id": "placeholder:R11133626",
+			"text": "Name",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11133626
+		},
+		{
+			"id": "placeholder:R11133908",
+			"text": "Email",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11133908
+		},
+		{
+			"id": "placeholder:R11138955",
+			"text": "e.g. feature/ or myname-",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11138955
+		},
+		{
+			"id": "placeholder:R11204617",
+			"text": "fail N",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11204617
+		},
+		{
+			"id": "placeholder:R11208176",
+			"text": "Select a cloud workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11208176
+		},
+		{
+			"id": "placeholder:R11267721",
+			"text": "Add custom instructions for all agents working in this repo.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11267721
+		},
+		{
+			"id": "placeholder:R11281056",
+			"text": "Search emoji",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11281056
+		},
+		{
+			"id": "placeholder:R11319420",
+			"text": "Search sections…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11319420
+		},
+		{
+			"id": "placeholder:R11338494",
+			"text": "Search artifacts and templates…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11338494
+		},
+		{
+			"id": "placeholder:R11343051",
+			"text": "Search community artifacts…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11343051
+		},
+		{
+			"id": "placeholder:R11389948",
+			"text": "Search shortcuts...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11389948
+		},
+		{
+			"id": "placeholder:R11503912",
+			"text": "What do you want to work on?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11503912
+		},
+		{
+			"id": "placeholder:R11515575",
+			"text": "Search snippets...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11515575
+		},
+		{
+			"id": "placeholder:R11570753",
+			"text": "Paste here",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11570753
+		},
+		{
+			"id": "placeholder:R11656136",
+			"text": "your.email@example.com",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11656136
+		},
+		{
+			"id": "placeholder:R11661267",
+			"text": "Describe what you'd like to see built...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11661267
+		},
+		{
+			"id": "placeholder:R11661650",
+			"text": "Jane Doe",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11661650
+		},
+		{
+			"id": "placeholder:R11728075",
+			"text": "Repository default",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11728075
+		},
+		{
+			"id": "placeholder:R11761913",
+			"text": "Search settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11761913
+		},
+		{
+			"id": "placeholder:R11944793",
+			"text": "0 9 * * *",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11944793
+		},
+		{
+			"id": "placeholder:R11951077",
+			"text": "Label",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11951077
+		},
+		{
+			"id": "placeholder:R11951147",
+			"text": "Username",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11951147
+		},
+		{
+			"id": "placeholder:R11951239",
+			"text": "Branch",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11951239
+		},
+		{
+			"id": "placeholder:R11995732",
+			"text": "Untitled routine",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11995732
+		},
+		{
+			"id": "placeholder:R12000604",
+			"text": "What should this routine do?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12000604
+		}
+	]
+}

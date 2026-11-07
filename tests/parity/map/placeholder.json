@@ -1,0 +1,392 @@
+{
+	"placeholder:R1894594": {
+		"status": "matched",
+		"state": "create-project",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div > input",
+		"by": "seed"
+	},
+	"placeholder:R1898620": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R1959277": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Projects and workspaces"
+	},
+	"placeholder:R2255965": {
+		"status": "matched",
+		"state": "git-checks",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div > input",
+		"by": "seed"
+	},
+	"placeholder:R2256260": {
+		"status": "matched",
+		"state": "git-checks",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div > textarea",
+		"by": "seed"
+	},
+	"placeholder:R2623020": {
+		"status": "matched",
+		"state": "git-files",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
+	},
+	"placeholder:R2754036": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R3015224": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R4379343": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-ui-text Terminal, run and files"
+	},
+	"placeholder:R4632855": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R4978748": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R4987113": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5444083": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5533685": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Workspaces"
+	},
+	"placeholder:R5645838": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5652247": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"Search in files\" (text) in command-palette.",
+		"by": "hand"
+	},
+	"placeholder:R5664306": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5685793": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced",
+		"note": "Checked by hand: the wording differs. Ours reads \"Search workspaces\" (aria-label) in first-run-home.",
+		"by": "hand"
+	},
+	"placeholder:R5692826": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R8148331": {
+		"status": "matched",
+		"state": "chat-question",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > label > span",
+		"by": "seed"
+	},
+	"placeholder:R8170318": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"placeholder:R9000620": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "The editor library's default placeholder. Conductor replaces it in its composer (renderApp @9294579), so no screen shows it.",
+		"by": "hand"
+	},
+	"placeholder:R9234039": {
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
+		"by": "seed"
+	},
+	"placeholder:R9369318": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"placeholder:R9420608": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Chat view"
+	},
+	"placeholder:R9730040": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9856436": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9856783": {
+		"status": "matched",
+		"state": "first-run",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button > span:nth-of-type(2)",
+		"by": "seed"
+	},
+	"placeholder:R10182992": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Projects and workspaces",
+		"note": "Checked by hand: the wording differs. Ours reads \"Search\" (text) in first-run.",
+		"by": "hand"
+	},
+	"placeholder:R10189388": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Projects and workspaces"
+	},
+	"placeholder:R10195168": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Projects and workspaces"
+	},
+	"placeholder:R10669494": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10672939": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10680280": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10696051": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings"
+	},
+	"placeholder:R10770889": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10779334": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10780577": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10807790": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10944937": {
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > input",
+		"by": "seed"
+	},
+	"placeholder:R10958311": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Agents"
+	},
+	"placeholder:R10975212": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"placeholder:R11021601": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11117637": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General"
+	},
+	"placeholder:R11129925": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"placeholder:R11133626": {
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"by": "seed"
+	},
+	"placeholder:R11133908": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General"
+	},
+	"placeholder:R11138955": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: General"
+	},
+	"placeholder:R11204617": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11208176": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11267721": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"placeholder:R11281056": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: Repository"
+	},
+	"placeholder:R11319420": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11338494": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11343051": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11389948": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"placeholder:R11503912": {
+		"status": "matched",
+		"state": "new-workspace",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > form > div > textarea",
+		"by": "seed"
+	},
+	"placeholder:R11515575": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Composer"
+	},
+	"placeholder:R11570753": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-ui-text Settings and agents"
+	},
+	"placeholder:R11656136": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls App shell"
+	},
+	"placeholder:R11661267": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls App shell"
+	},
+	"placeholder:R11661650": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls App shell"
+	},
+	"placeholder:R11728075": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11761913": {
+		"status": "matched",
+		"state": "settings-general",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(2) > div > div > input",
+		"by": "seed"
+	},
+	"placeholder:R11944793": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11951077": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11951147": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11951239": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11995732": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R12000604": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	}
+}

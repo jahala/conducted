@@ -1,0 +1,636 @@
+{
+	"inventory": "tauri_command",
+	"source": ".context/day/conductor-ref/call-inventory.json (commands)",
+	"entries": [
+		{
+			"id": "tauri_command:get_db_uri",
+			"text": "get_db_uri",
+			"file": "main-BE1h_1MP.js",
+			"offset": 958018
+		},
+		{
+			"id": "tauri_command:configure_http_proxy",
+			"text": "configure_http_proxy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2022866
+		},
+		{
+			"id": "tauri_command:is_cef_runtime",
+			"text": "is_cef_runtime",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2023319
+		},
+		{
+			"id": "tauri_command:native_http_fetch_cancel",
+			"text": "native_http_fetch_cancel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2023918
+		},
+		{
+			"id": "tauri_command:native_http_fetch",
+			"text": "native_http_fetch",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2024125
+		},
+		{
+			"id": "tauri_command:native_http_upload_cancel",
+			"text": "native_http_upload_cancel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2025724
+		},
+		{
+			"id": "tauri_command:native_http_upload_file",
+			"text": "native_http_upload_file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2025949
+		},
+		{
+			"id": "tauri_command:materialize_local_path_attachment",
+			"text": "materialize_local_path_attachment",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2026659
+		},
+		{
+			"id": "tauri_command:list_file_tree",
+			"text": "list_file_tree",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2091389
+		},
+		{
+			"id": "tauri_command:list_workspace_artifacts",
+			"text": "list_workspace_artifacts",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2091651
+		},
+		{
+			"id": "tauri_command:fuzzy_filter_files",
+			"text": "fuzzy_filter_files",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2092613
+		},
+		{
+			"id": "tauri_command:grep_workspace",
+			"text": "grep_workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2093162
+		},
+		{
+			"id": "tauri_command:rpc_to_sidecar",
+			"text": "rpc_to_sidecar",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2681602
+		},
+		{
+			"id": "tauri_command:send_native_notification",
+			"text": "send_native_notification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2687504
+		},
+		{
+			"id": "tauri_command:pty_spawn",
+			"text": "pty_spawn",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2707989
+		},
+		{
+			"id": "tauri_command:pty_resize",
+			"text": "pty_resize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708191
+		},
+		{
+			"id": "tauri_command:pty_write",
+			"text": "pty_write",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708297
+		},
+		{
+			"id": "tauri_command:pty_kill",
+			"text": "pty_kill",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708394
+		},
+		{
+			"id": "tauri_command:pty_ack_bytes",
+			"text": "pty_ack_bytes",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708526
+		},
+		{
+			"id": "tauri_command:pty_screen_snapshot",
+			"text": "pty_screen_snapshot",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708610
+		},
+		{
+			"id": "tauri_command:pty_screen_text",
+			"text": "pty_screen_text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708695
+		},
+		{
+			"id": "tauri_command:pty_write_mirror",
+			"text": "pty_write_mirror",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708778
+		},
+		{
+			"id": "tauri_command:pty_persist_terminal_history",
+			"text": "pty_persist_terminal_history",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2708869
+		},
+		{
+			"id": "tauri_command:pty_create_mirror",
+			"text": "pty_create_mirror",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2937276
+		},
+		{
+			"id": "tauri_command:pty_resize_mirror",
+			"text": "pty_resize_mirror",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2937420
+		},
+		{
+			"id": "tauri_command:pty_delete_mirror",
+			"text": "pty_delete_mirror",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2938045
+		},
+		{
+			"id": "tauri_command:raw_websocket_send_text",
+			"text": "raw_websocket_send_text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2941142
+		},
+		{
+			"id": "tauri_command:raw_websocket_ping",
+			"text": "raw_websocket_ping",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2941261
+		},
+		{
+			"id": "tauri_command:raw_websocket_close",
+			"text": "raw_websocket_close",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2941314
+		},
+		{
+			"id": "tauri_command:raw_websocket_open",
+			"text": "raw_websocket_open",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2941510
+		},
+		{
+			"id": "tauri_command:get_user_shell",
+			"text": "get_user_shell",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2969050
+		},
+		{
+			"id": "tauri_command:pty_load_terminal_history",
+			"text": "pty_load_terminal_history",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2969267
+		},
+		{
+			"id": "tauri_command:set_remote_file_sync_foreground",
+			"text": "set_remote_file_sync_foreground",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3046946
+		},
+		{
+			"id": "tauri_command:start_remote_file_sync",
+			"text": "start_remote_file_sync",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3048000
+		},
+		{
+			"id": "tauri_command:resolve_remote_file_sync_direct_info",
+			"text": "resolve_remote_file_sync_direct_info",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3056074
+		},
+		{
+			"id": "tauri_command:reject_remote_file_sync_direct_info",
+			"text": "reject_remote_file_sync_direct_info",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3056154
+		},
+		{
+			"id": "tauri_command:trigger_remote_file_sync",
+			"text": "trigger_remote_file_sync",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3057150
+		},
+		{
+			"id": "tauri_command:cleanup_remote_file_sync",
+			"text": "cleanup_remote_file_sync",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3057690
+		},
+		{
+			"id": "tauri_command:stop_remote_file_sync",
+			"text": "stop_remote_file_sync",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3065350
+		},
+		{
+			"id": "tauri_command:get_path_env",
+			"text": "get_path_env",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3133034
+		},
+		{
+			"id": "tauri_command:set_posthog_user_context",
+			"text": "set_posthog_user_context",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3137159
+		},
+		{
+			"id": "tauri_command:start_on_device_speech",
+			"text": "start_on_device_speech",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3243867
+		},
+		{
+			"id": "tauri_command:get_deepgram_api_key",
+			"text": "get_deepgram_api_key",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3244500
+		},
+		{
+			"id": "tauri_command:stop_on_device_speech",
+			"text": "stop_on_device_speech",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3246972
+		},
+		{
+			"id": "tauri_command:cancel_on_device_speech",
+			"text": "cancel_on_device_speech",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3250248
+		},
+		{
+			"id": "tauri_command:on_device_speech_available",
+			"text": "on_device_speech_available",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3250540
+		},
+		{
+			"id": "tauri_command:get_agent_binary_state",
+			"text": "get_agent_binary_state",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3584312
+		},
+		{
+			"id": "tauri_command:request_agent_binary_download",
+			"text": "request_agent_binary_download",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3584608
+		},
+		{
+			"id": "tauri_command:execute_shell_command_cancellable",
+			"text": "execute_shell_command_cancellable",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3769924
+		},
+		{
+			"id": "tauri_command:cancel_shell_command",
+			"text": "cancel_shell_command",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3770052
+		},
+		{
+			"id": "tauri_command:execute_shell_command",
+			"text": "execute_shell_command",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3773721
+		},
+		{
+			"id": "tauri_command:ensure_app_logger_started",
+			"text": "ensure_app_logger_started",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3774106
+		},
+		{
+			"id": "tauri_command:get_app_logger_connection",
+			"text": "get_app_logger_connection",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3774189
+		},
+		{
+			"id": "tauri_command:configure_app_logger_persistence",
+			"text": "configure_app_logger_persistence",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3774373
+		},
+		{
+			"id": "tauri_command:configure_sentry_external_logging_disabled",
+			"text": "configure_sentry_external_logging_disabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3774737
+		},
+		{
+			"id": "tauri_command:configure_app_logger_external_logging_disabled",
+			"text": "configure_app_logger_external_logging_disabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3774805
+		},
+		{
+			"id": "tauri_command:configure_verbose_logging",
+			"text": "configure_verbose_logging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3817912
+		},
+		{
+			"id": "tauri_command:configure_sidecar_internal_user",
+			"text": "configure_sidecar_internal_user",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3820006
+		},
+		{
+			"id": "tauri_command:configure_sidecar_inspect",
+			"text": "configure_sidecar_inspect",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3820090
+		},
+		{
+			"id": "tauri_command:write_file_async",
+			"text": "write_file_async",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3839176
+		},
+		{
+			"id": "tauri_command:find_available_local_port",
+			"text": "find_available_local_port",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3853669
+		},
+		{
+			"id": "tauri_command:start_port_forward",
+			"text": "start_port_forward",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3854777
+		},
+		{
+			"id": "tauri_command:stop_port_forward",
+			"text": "stop_port_forward",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3854842
+		},
+		{
+			"id": "tauri_command:resolve_port_forward_token",
+			"text": "resolve_port_forward_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3854932
+		},
+		{
+			"id": "tauri_command:reject_port_forward_token",
+			"text": "reject_port_forward_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3855022
+		},
+		{
+			"id": "tauri_command:list_port_forwards",
+			"text": "list_port_forwards",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3855109
+		},
+		{
+			"id": "tauri_command:get_or_create_local_storage_encryption_key",
+			"text": "get_or_create_local_storage_encryption_key",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3901999
+		},
+		{
+			"id": "tauri_command:get_keychain_setting",
+			"text": "get_keychain_setting",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3902092
+		},
+		{
+			"id": "tauri_command:set_keychain_setting",
+			"text": "set_keychain_setting",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3902185
+		},
+		{
+			"id": "tauri_command:delete_keychain_setting",
+			"text": "delete_keychain_setting",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3902267
+		},
+		{
+			"id": "tauri_command:submit_app_logs",
+			"text": "submit_app_logs",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3903669
+		},
+		{
+			"id": "tauri_command:fuzzy_match_files",
+			"text": "fuzzy_match_files",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3905420
+		},
+		{
+			"id": "tauri_command:get_file_metadata",
+			"text": "get_file_metadata",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3905646
+		},
+		{
+			"id": "tauri_command:set_dock_badge",
+			"text": "set_dock_badge",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3905833
+		},
+		{
+			"id": "tauri_command:update_window_vibrancy",
+			"text": "update_window_vibrancy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3905893
+		},
+		{
+			"id": "tauri_command:open_devtools",
+			"text": "open_devtools",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3905964
+		},
+		{
+			"id": "tauri_command:get_binary_verification_errors",
+			"text": "get_binary_verification_errors",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629365
+		},
+		{
+			"id": "tauri_command:write_encoded_image_to_clipboard",
+			"text": "write_encoded_image_to_clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 674844
+		},
+		{
+			"id": "tauri_command:sync_agent_path_overrides",
+			"text": "sync_agent_path_overrides",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8053071
+		},
+		{
+			"id": "tauri_command:native_http_download_file",
+			"text": "native_http_download_file",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9622388
+		},
+		{
+			"id": "tauri_command:get_resource_usage",
+			"text": "get_resource_usage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10350823
+		},
+		{
+			"id": "tauri_command:export_app_logs",
+			"text": "export_app_logs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572779
+		},
+		{
+			"id": "tauri_command:prefetch_agent_binaries_from_updater_endpoint",
+			"text": "prefetch_agent_binaries_from_updater_endpoint",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10623402
+		},
+		{
+			"id": "tauri_command:get_installed_manual_update",
+			"text": "get_installed_manual_update",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10626262
+		},
+		{
+			"id": "tauri_command:check_for_updates",
+			"text": "check_for_updates",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10628634
+		},
+		{
+			"id": "tauri_command:check_codex_auth",
+			"text": "check_codex_auth",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10914336
+		},
+		{
+			"id": "tauri_command:get_openai_api_key_from_env",
+			"text": "get_openai_api_key_from_env",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10916965
+		},
+		{
+			"id": "tauri_command:get_anthropic_api_key_from_env",
+			"text": "get_anthropic_api_key_from_env",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10917041
+		},
+		{
+			"id": "tauri_command:check_full_disk_access",
+			"text": "check_full_disk_access",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11113565
+		},
+		{
+			"id": "tauri_command:set_agent_binary_failure_injection",
+			"text": "set_agent_binary_failure_injection",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11204935
+		},
+		{
+			"id": "tauri_command:remove_agent_binary",
+			"text": "remove_agent_binary",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11205208
+		},
+		{
+			"id": "tauri_command:redownload_agent_binary",
+			"text": "redownload_agent_binary",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11205449
+		},
+		{
+			"id": "tauri_command:check_sidecar_http_health",
+			"text": "check_sidecar_http_health",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216215
+		},
+		{
+			"id": "tauri_command:crash_rust",
+			"text": "crash_rust",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11224837
+		},
+		{
+			"id": "tauri_command:get_sidecar_log_path",
+			"text": "get_sidecar_log_path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11393653
+		},
+		{
+			"id": "tauri_command:update_traffic_light_position",
+			"text": "update_traffic_light_position",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11395073
+		},
+		{
+			"id": "tauri_command:take_pending_notification_deep_links",
+			"text": "take_pending_notification_deep_links",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11630297
+		},
+		{
+			"id": "tauri_command:quit_app",
+			"text": "quit_app",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11644957
+		},
+		{
+			"id": "tauri_command:set_quit_handler_ready",
+			"text": "set_quit_handler_ready",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11645351
+		},
+		{
+			"id": "tauri_command:get_db_version_warning",
+			"text": "get_db_version_warning",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12034322
+		},
+		{
+			"id": "tauri_command:is_running_under_rosetta",
+			"text": "is_running_under_rosetta",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12040464
+		},
+		{
+			"id": "tauri_command:poll_app_action",
+			"text": "poll_app_action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12106977
+		},
+		{
+			"id": "tauri_command:submit_app_action_result",
+			"text": "submit_app_action_result",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12107229
+		},
+		{
+			"id": "tauri_command:ensure_app_actions_started",
+			"text": "ensure_app_actions_started",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12107462
+		},
+		{
+			"id": "tauri_command:ensure_sidecar_started",
+			"text": "ensure_sidecar_started",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12118958
+		}
+	]
+}
