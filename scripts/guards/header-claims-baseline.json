@@ -24,7 +24,6 @@
 	"test-first": {
 		"apps/desktop/src-tauri/src/navigation.rs": 1,
 		"apps/desktop/src-tauri/src/network.rs": 1,
-		"apps/desktop/src-tauri/src/updater.rs": 1,
 		"apps/desktop/src/app/CreateWorkspacePage.side-22.test.tsx": 1,
 		"apps/desktop/src/app/overlay-store.ts": 1,
 		"apps/desktop/src/app/providers.app-01.test.tsx": 1,

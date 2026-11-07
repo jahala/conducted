@@ -156,7 +156,7 @@ function testTitles(root: string): string[][] {
 		if (!(TEST.test(file) || file.endsWith(".rs"))) continue;
 		const text = read(path);
 		if (file.endsWith(".rs")) {
-			for (const match of text.matchAll(/#\[test\]\s*(?:async\s*)?fn\s+(\w+)/g)) {
+			for (const match of text.matchAll(/#\[(?:tokio::)?test\]\s*(?:async\s*)?fn\s+(\w+)/g)) {
 				titles.push(words(match[1]?.replace(/_/g, " ") ?? ""));
 			}
 			continue;
