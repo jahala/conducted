@@ -75,14 +75,16 @@ describe("SET-06 AppearancePage", () => {
 		expect(screen.getByRole("combobox", { name: "Theme" })).toBeTruthy();
 		expect(screen.getByRole("switch", { name: "Low-contrast dark mode" })).toBeTruthy();
 		expect(screen.getByRole("combobox", { name: "Accessible colors" })).toBeTruthy();
-		expect(screen.getByRole("slider", { name: "App zoom" })).toBeTruthy();
+		// Conductor's page (FOa): App zoom is a percentage picker, the terminal font a text field and
+		// its size a slider.
+		expect(screen.getByRole("combobox", { name: "App zoom" })).toBeTruthy();
 		expect(screen.getByRole("switch", { name: "Colored sidebar diffs" })).toBeTruthy();
 		expect(screen.getByRole("combobox", { name: "Code theme" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Mono Font style" })).toBeTruthy();
+		expect(screen.getByRole("combobox", { name: "Mono Font" })).toBeTruthy();
 		expect(screen.getByRole("switch", { name: "Code ligatures" })).toBeTruthy();
 		expect(screen.getByRole("combobox", { name: "Markdown Style" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Terminal Font style" })).toBeTruthy();
-		expect(screen.getByRole("spinbutton", { name: "Terminal Font Size" })).toBeTruthy();
+		expect(screen.getByRole("textbox", { name: "Terminal Font" })).toBeTruthy();
+		expect(screen.getByRole("slider", { name: "Terminal Font Size" })).toBeTruthy();
 	});
 
 	it("lists the rows in one list in Conductor's order, with no section headings", () => {
@@ -93,7 +95,7 @@ describe("SET-06 AppearancePage", () => {
 		}
 		const order = [
 			screen.getByRole("combobox", { name: "Theme" }),
-			screen.getByRole("slider", { name: "App zoom" }),
+			screen.getByRole("combobox", { name: "App zoom" }),
 			screen.getByRole("combobox", { name: "Accessible colors" }),
 			screen.getByRole("combobox", { name: "Code theme" }),
 		];
@@ -101,6 +103,44 @@ describe("SET-06 AppearancePage", () => {
 			const before = order[index - 1] as HTMLElement;
 			const after = order[index] as HTMLElement;
 			expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		}
+	});
+
+	it("uses the wording of Conductor's page, with the live shortcuts", () => {
+		renderPage();
+		const row = (key: string) => document.querySelector(`[data-setting-key="${key}"]`);
+		expect(row("theme")?.textContent).toContain("Toggle with");
+		expect(row("theme")?.textContent).toContain("⌥⌘T");
+		expect(row("theme")?.textContent).not.toContain("Switch between");
+		expect(row("zoom_level_v2")?.textContent).toMatch(
+			/Adjust with ⌘- \(zoom out\) or ⌘\S+ \(zoom in\)/,
+		);
+		expect(
+			screen.getByText(
+				"Enter font name exactly as installed, e.g. Arial, Papyrus, FiraCode Nerd Font",
+			),
+		).toBeTruthy();
+		expect(screen.getByText("12px")).toBeTruthy();
+	});
+
+	it("puts each preview under its own row: code theme, mono font, Markdown style, terminal", () => {
+		renderPage();
+		const previewAfter = (key: string, name: string) => {
+			const row = document.querySelector(`[data-setting-key="${key}"]`) as HTMLElement;
+			const preview = screen.getByRole("figure", { name });
+			expect(row.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+			return preview;
+		};
+		const code = previewAfter("code_theme", "Code preview");
+		const mono = previewAfter("mono_font", "Mono font preview");
+		const markdown = previewAfter("markdown_style", "Markdown preview");
+		const terminal = previewAfter("terminal_font_family", "Terminal preview");
+		for (const [first, second] of [
+			[code, mono],
+			[mono, markdown],
+			[markdown, terminal],
+		] as const) {
+			expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		}
 	});
 
@@ -163,22 +203,21 @@ describe("SET-06 AppearancePage", () => {
 	it("saves a custom code font, terminal font and terminal size", async () => {
 		const test = renderPage();
 
-		await choose("Mono Font style", "Custom...");
+		await choose("Mono Font", "Custom...");
 		const codeFont = screen.getByLabelText("Mono Font family");
 		fireEvent.change(codeFont, { target: { value: "Berkeley Mono" } });
 		fireEvent.blur(codeFont);
 		await waitFor(() => expect(values(test).mono_font).toBe("Berkeley Mono"));
 
-		await choose("Terminal Font style", "Custom...");
-		const terminalFont = screen.getByLabelText("Terminal Font family");
+		const terminalFont = screen.getByRole("textbox", { name: "Terminal Font" });
 		fireEvent.change(terminalFont, { target: { value: "Menlo" } });
 		fireEvent.blur(terminalFont);
 		await waitFor(() => expect(values(test).terminal_font_family).toBe("Menlo"));
 
-		const size = screen.getByLabelText("Terminal Font Size");
-		fireEvent.change(size, { target: { value: "18" } });
-		fireEvent.blur(size);
-		await waitFor(() => expect(values(test).terminal_font_size).toBe(18));
+		fireEvent.keyDown(screen.getByRole("slider", { name: "Terminal Font Size" }), {
+			key: "ArrowRight",
+		});
+		await waitFor(() => expect(values(test).terminal_font_size).toBe(13));
 	});
 
 	it("shows the settings store failure", () => {
@@ -244,20 +283,30 @@ describe("SET-06 AppearancePage", () => {
 	});
 
 	it("puts the stored terminal font size back when the save is refused", async () => {
-		renderPage();
-		const size = screen.getByLabelText("Terminal Font Size") as HTMLInputElement;
-		const stored = size.value;
+		const test = loadedContainer();
+		vi.spyOn(test.container.actions.settings, "set").mockResolvedValue(
+			err(appError("setting_save_failed", "Couldn't save the setting")),
+		);
+		render(
+			<ServicesProvider container={test.container}>
+				<AppearancePage />
+			</ServicesProvider>,
+		);
+		const size = screen.getByRole("slider", { name: "Terminal Font Size" });
+		const stored = size.getAttribute("aria-valuenow");
 
-		fireEvent.change(size, { target: { value: "99" } });
-		fireEvent.blur(size);
+		fireEvent.keyDown(size, { key: "ArrowRight" });
 
-		expect(await screen.findByText(/at most 32/)).toBeTruthy();
-		await waitFor(() => expect(size.value).toBe(stored));
+		expect(await screen.findByText("Couldn't save the setting")).toBeTruthy();
+		await waitFor(() => expect(size.getAttribute("aria-valuenow")).toBe(stored));
+		expect(screen.getByText(`${stored}px`)).toBeTruthy();
 	});
 
 	it("takes the zoom range from the settings registry", () => {
 		const def = getSettingDef("zoom_level_v2");
-		if (def?.type !== "number") throw new Error("zoom_level_v2 must be a number setting.");
+		if (def?.type !== "number" || def.min === undefined || def.max === undefined) {
+			throw new Error("zoom_level_v2 must be a number setting with limits.");
+		}
 		const test = loadedContainer();
 		test.container.services.settings.store.setState((state) => ({
 			values: { ...state.values, zoom_level_v2: 2.5 },
@@ -268,11 +317,13 @@ describe("SET-06 AppearancePage", () => {
 			</ServicesProvider>,
 		);
 
-		const slider = screen.getByRole("slider", { name: "App zoom" });
-		expect(slider.getAttribute("aria-valuemin")).toBe(String(def.min));
-		expect(slider.getAttribute("aria-valuemax")).toBe(String(def.max));
-		expect(slider.getAttribute("aria-valuenow")).toBe("2.5");
-		expect(screen.getByText("250%")).toBeTruthy();
+		const picker = screen.getByRole("combobox", { name: "App zoom" });
+		expect(picker.textContent).toContain("250%");
+		fireEvent.keyDown(picker, { key: "Enter" });
+		const choices = screen.getAllByRole("option").map((option) => option.textContent);
+		expect(choices[0]).toBe(`${Math.round(def.min * 100)}%`);
+		expect(choices.at(-1)).toBe(`${Math.round(def.max * 100)}%`);
+		expect(choices).toHaveLength(Math.round((def.max - def.min) * 10) + 1);
 	});
 
 	it("highlights the setting a search opened", () => {
