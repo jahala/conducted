@@ -19,7 +19,7 @@ Each sidecar ran these 16: start a chat (warm, then status), send a message, a t
 1. **A result without `user_message_uuid` hangs the turn.** Older Claude programs send results without that field. `turn-tracker.ts` treats such a result as foreign, so the chat stays working until the 120 s watchdog fires: no `turn_ended` and no end checkpoint. Conductor takes it as the turn's end unless `origin.kind` is `task-notification`. Scenario `legacy-result`.
 2. **An API-error turn shows its error twice and ends as `success`.** The assistant message carries `error: server_error`, and the result carries `is_error: true`. `translate.ts` makes an error item from each, with the same text, once retryable and once not. `turn_ended` then says `success`, though D008 defines an `error` outcome. Scenario `error`. The fake's shape follows the SDK types, not a recorded failure.
 3. **Every model is asked for adaptive thinking.** `claudeThinkingOption` in `launch-settings.ts` always sends adaptive thinking. claude-runner.md 1.2 and Conductor give models without adaptive thinking a token budget instead. For Sonnet 4.6 at high effort, Conductor sent `--max-thinking-tokens=16000` and ours sent `--thinking=adaptive`.
-4. **An approval request arrives before the events that led to it.** `requestInteraction` reached the app 1 to 3 ms before the `system/init` and `tool_use` events. Live state waits for the event batcher to flush, and interactions do not. Conductor sends the events first. Scenarios `approval`, `approval-denied` and `plan-mode`; in Codex chats both sidecars ask first.
+4. **An approval request arrives before the events that led to it.** `requestInteraction` reached the app 1 to 3 ms before the `system/init` and `tool_use` events. Live state waits for the event batcher to flush, and interactions do not. Conductor sends the events first for Claude tool approvals. Scenarios `approval`, `approval-denied` and `plan-mode`. #361 made ours send every interaction after its events; the plan and Codex cases are measured again below, in "Event order, measured again".
 5. **Codex's managed requirements are ignored.** Before a thread starts, Conductor calls `configRequirements/read`. It then narrows the approval policy and the sandbox to what the managed requirements allow. Ours sends the requested values unchecked. The research does not mention this.
 
 ## Gaps to research, not judged
@@ -40,6 +40,19 @@ Each sidecar ran these 16: start a chat (warm, then status), send a message, a t
 ## What matched
 
 Agent output reached the app in the same order in every Claude scenario. Approvals and denials reached the agent the same way. A message sent mid-turn reached the agent only after the first turn on both. Slash command and Codex model lists matched by name. Codex message text and usage matched.
+
+## Event order, measured again
+
+Four runs of `plan-mode`, `approval`, `approval-denied` and `codex-approval` on 7 November 2026 (one run of three scenarios, then three of all four), with ours at #361's order. Where the interaction reached the app:
+
+| Scenario | Conductor, in each run | Ours |
+| --- | --- | --- |
+| `approval`, `approval-denied` | after the Bash `tool_use`, every run | after the `tool_use`, every run |
+| `plan-mode` | after "Here is my plan." and before ExitPlanMode's `tool_use`, every run | after the `tool_use` |
+| `codex-approval` | before `item.started` (two runs), after it (one run), before `turn.started` (one run) | after `item.started`, every run |
+
+- Codex: Conductor's order changes from run to run, so it is timing, not a rule. Ours keeps the events-first order, which is one of the orders Conductor produces.
+- Plan mode: Conductor's order is stable but sits between two events: the plan approval goes out one event ahead of its own `tool_use`. A trial that sent the plan approval without waiting for the flush put ours before `system/init` and the plan's text, which raised the scenario's differences from 9 to 11, so it was not kept. Matching Conductor here would mean holding back only the ExitPlanMode `tool_use` event, a rule fitted to one tool. The likely cause is Conductor's in-process SDK answering `can_use_tool` at once for ExitPlanMode, while its message loop is one message behind; for Bash its permission path waits first. Ours keeps events first for every interaction. Left for the owner to rule on.
 
 ## Next
 

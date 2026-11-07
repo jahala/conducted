@@ -29,8 +29,11 @@
  *  - the live state shows the open interaction and clears it when the answer arrives
  *  - order: the request goes to the app only after the chat's events queued before it have been
  *    sent (`flushed`, the event publisher's flush that the live state waits on too), so the app
- *    has the tool call an approval is about before the approval, as Conductor sends them. An
- *    interaction withdrawn or answered meanwhile is never sent
+ *    has the tool call an approval is about before the approval, as Conductor sends Claude tool
+ *    approvals. Conductor sends a plan approval one event ahead of ExitPlanMode's tool_use, and its
+ *    Codex approvals vary from run to run; ours keeps events first for both
+ *    (docs/reports/sidecar-diff-2026-11-07.md, "Event order, measured again"). An interaction
+ *    withdrawn or answered meanwhile is never sent
  * Our design choice: a stale or unknown answer is reported by interaction id as
  * { accepted: false, superseded: true }; there is no separate sessionGone reply, because the
  * interaction id identifies the request and a missing chat cannot answer it either.
