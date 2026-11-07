@@ -45,11 +45,11 @@ Agent output reached the app in the same order in every Claude scenario. Approva
 
 Four runs of `plan-mode`, `approval`, `approval-denied` and `codex-approval` on 7 November 2026 (one run of three scenarios, then three of all four), with ours at #361's order. Where the interaction reached the app:
 
-| Scenario | Conductor, in each run | Ours |
-| --- | --- | --- |
-| `approval`, `approval-denied` | after the Bash `tool_use`, every run | after the `tool_use`, every run |
-| `plan-mode` | after "Here is my plan." and before ExitPlanMode's `tool_use`, every run | after the `tool_use` |
-| `codex-approval` | before `item.started` (two runs), after it (one run), before `turn.started` (one run) | after `item.started`, every run |
+| Scenario                      | Conductor, in each run                                                                | Ours                            |
+| ----------------------------- | ------------------------------------------------------------------------------------- | ------------------------------- |
+| `approval`, `approval-denied` | after the Bash `tool_use`, every run                                                  | after the `tool_use`, every run |
+| `plan-mode`                   | after "Here is my plan." and before ExitPlanMode's `tool_use`, every run              | after the `tool_use`            |
+| `codex-approval`              | before `item.started` (two runs), after it (one run), before `turn.started` (one run) | after `item.started`, every run |
 
 - Codex: Conductor's order changes from run to run, so it is timing, not a rule. Ours keeps the events-first order, which is one of the orders Conductor produces.
 - Plan mode: Conductor's order is stable but sits between two events: the plan approval goes out one event ahead of its own `tool_use`. A trial that sent the plan approval without waiting for the flush put ours before `system/init` and the plan's text, which raised the scenario's differences from 9 to 11, so it was not kept. Matching Conductor here would mean holding back only the ExitPlanMode `tool_use` event, a rule fitted to one tool. The likely cause is Conductor's in-process SDK answering `can_use_tool` at once for ExitPlanMode, while its message loop is one message behind; for Bash its permission path waits first. Ours keeps events first for every interaction. Left for the owner to rule on.
