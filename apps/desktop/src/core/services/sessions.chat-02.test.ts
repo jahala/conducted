@@ -201,7 +201,7 @@ describe("CHAT-02 sends a message as a new turn", () => {
 			delivery: "new_turn",
 			firstMessage: true,
 			attachmentPaths: ["/ws/.context/a.txt"],
-			config: session.config,
+			config: { ...session.config, additionalDirectories: sampleWorkspace.linkedPaths },
 			workspace: { ...workspace, userPreferences: "Be brief. Show the diff before editing." },
 		});
 		expect(params.launch).toEqual({ env: {}, providerKeys: {} });
@@ -386,6 +386,21 @@ describe("CHAT-03 steering through the send path", () => {
 		expect(call?.params.delivery).toBe("steer");
 	});
 
+	it("materialises the attachments the message carries, not the draft's", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+
+		await h.service.send(session.id, "Queued", ["/draft/a.txt"], "auto", "queued-7" as MessageId);
+
+		expect(h.composer.materializeForSend).toHaveBeenCalledWith(
+			session.id,
+			workspace.workspacePath,
+			"queued-7",
+			["/draft/a.txt"],
+		);
+	});
+
 	it("refuses a steer asked for by name when the agent cannot steer, and queues nothing", async () => {
 		seedWorkspace();
 		const h = harness();
@@ -566,7 +581,10 @@ describe("CHAT-02 config compare-and-set", () => {
 		expect(must(await repositories.sessions.get(session.id))?.config.model).toBe("haiku");
 		expect(h.service.store.getState().sessions[session.id]?.config.model).toBe("haiku");
 		const call = h.calls.find((entry) => entry.method === "updateConfig");
-		expect(call?.params).toEqual({ sessionId: session.id, config: next });
+		expect(call?.params).toEqual({
+			sessionId: session.id,
+			config: { ...next, additionalDirectories: sampleWorkspace.linkedPaths },
+		});
 	});
 
 	it("stores the agent session id for resume", async () => {
@@ -732,6 +750,9 @@ describe("SIDE-20 a config the agent changed is stored", () => {
 		must(await h.service.send(session.id, "next", [], "auto"));
 
 		const [call] = sendMessageCalls(h.calls);
-		expect(call?.params.config).toEqual(entered);
+		expect(call?.params.config).toEqual({
+			...entered,
+			additionalDirectories: sampleWorkspace.linkedPaths,
+		});
 	});
 });
