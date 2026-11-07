@@ -516,6 +516,39 @@ Chosen:
 Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
 Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.
 
+## D104. The outbound handler's allow-list and credential swap, as CLOUD-05 built it (2026-11-07)
+
+Context: CLOUD-05 builds the Worker entrypoint every request from the sandbox passes through. The plan says the allow-list holds GitHub, the model gateway and the package registries; D102 fixed the package hosts. The research names the key variables and Conductor's local GitHub token settings, but not a Worker-side mapping, and Conductor's cloud backend is not in the research (D002). The live run is in `docs/research/cloud-spike-2026-11-06.md`.
+
+Chosen:
+
+- **The request's hostname picks the secret.** `api.anthropic.com` receives `ANTHROPIC_API_KEY` in `x-api-key`; `api.openai.com` receives `OPENAI_API_KEY` as a bearer token. The desktop's provider choice reaches the Worker as the host the agent calls, so the Worker needs no second setting. Any placeholder the sandbox sent in `authorization` or `x-api-key` is removed first.
+- **GitHub's hosts receive the token.** `github.com` and `codeload.github.com` take HTTP basic auth with `x-access-token` and the secret as the password; `api.github.com`, `uploads.github.com`, `raw.githubusercontent.com` and `objects.githubusercontent.com` take a bearer token. The token is added even when the sandbox sent no `authorization`, so `git` and a plain HTTP client reach GitHub without holding it.
+- **Redirects are answered, not followed.** A 3xx goes back to the sandbox, so the next hop comes through the same allow-list and swap instead of carrying a credential somewhere new.
+- **Exact hosts; credentials over HTTPS only.** A model API or GitHub host over plain HTTP is refused. A package host may use HTTP (Debian's apt sources do) or HTTPS. A look-alike name such as `registry.npmjs.org.example.com` is refused.
+- **No Cursor row.** The research names no Cursor API host and CLOUD-04's image has no Cursor SDK, so Cursor's credential swap waits for CLOUD-18, which brings both.
+- **`gh` gets a placeholder value.** `gh` makes no request at all without a `GH_TOKEN` value, so the container environment sets `GH_TOKEN=provided-by-worker` (`sandbox-git-env.ts`, spread into `CONTAINER_ENV`). The live run proved both halves: without it `gh` exits 4 asking for `gh auth login`; with it, `gh api user` answers as the Mac's login.
+- **Git gets a scrubbed environment.** `SANDBOX_GIT_ENV` also sets `GIT_TERMINAL_PROMPT=0`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, an empty `credential.helper` and `credential.https://github.com.helper`, `core.hooksPath=/dev/null`, and `url.https://github.com/.insteadOf` for `git@github.com:` and `ssh://git@github.com/`. The rewrite sends an SSH remote through the Worker, where the token is added; the rest keeps the user's config, prompts and hooks out of the sandbox.
+
+Why: the host is the only thing the sandbox's HTTP call states about which provider it is talking to, and keying the swap on it keeps every secret in the Worker without a second channel. The live run on the owner's account passed with these choices: Anthropic's `/v1/models` and GitHub's `/user` both answered 200 from a sandbox holding no credential, and a look-alike and an unlisted host both got 403.
+
+### Issue #247's checklist, item by item
+
+Twelve items. (a) is built here, (b) is Conductor's organisation or team UI, which D004 and D018 keep out, and (c) is owned by another open row.
+
+1. **Environment: variable scopes for local and cloud contexts** — (c) CLOUD-17 (#259) lists "Variable scopes include a cloud context beside the local ones" (services-map 4.2.8).
+2. **Auth reaches Claude by env or by a brokered OAuth token injected on each spawn** — (a) for the env path: the Worker swaps the Anthropic key whether the launch sent it as `x-api-key` or as the OAuth bearer header. The brokered OAuth token is CLOUD-18 (#260).
+3. **A rejected OAuth token, changed credentials or a token expiring in 5 minutes forces a respawn** — (a) for the part a Worker-swapped key has: the handler reads the secret on every request, so a changed credential takes effect on the next one. An API key has no expiry, and a rejected key is returned to the client as the provider sent it. The OAuth token's respawn is CLOUD-18.
+4. **An expired token is flagged and refreshed on the next spawn** — (a) for the part a Worker-swapped key has: an API key does not expire and is never cached, and the provider's 401 reaches the client for the app to flag. Refreshing an OAuth token is CLOUD-18.
+5. **Internal mode uses brokers for secrets** — (a) the Worker is the broker: the container environment holds no model key, and the outbound handler inserts it per request.
+6. **A cloud workspace reaches GitHub without a token inside the sandbox** — (a) `GH_TOKEN` is only the placeholder; the Worker adds the real token to GitHub's hosts.
+7. **Git in a sandbox runs with a scrubbed environment** — (a) `SANDBOX_GIT_ENV` in the container environment.
+8. **The cloud GitHub token is entered once and kept in the Worker, with a Disconnect** — (b) the entry form and Disconnect are Conductor's organisation GitHub page (ui-map 6 Organization), a team feature kept out by D004 and D018. The Worker secret itself exists and is swapped.
+9. **Personal and shared cloud variables go to the Worker as secrets** — (b) for the shared half, which is an organisation feature (D004, D018). The personal half is CLOUD-17 (#259), whose "cloud environment variables" item stores them.
+10. **The server keys for Claude, Codex and Cursor credential selection decide which model key the Worker swaps in** — (c) CLOUD-17 (#259) lists "Which model key the Worker uses for cloud runs". The Worker swaps by API host, and Cursor's host is CLOUD-18's.
+11. **The server key personalCloudEnvVars holds the user's cloud environment variables** — (c) CLOUD-17 (#259) lists the cloud environment variables.
+12. **The gh_cloud token keys are handled by the Worker's outbound token swap** — (a) the Worker's `GITHUB_TOKEN` replaces the `gh_cloud` token for GitHub's hosts, including the placeholder the sandbox's git environment sends.
+
 ## D105. A cloud workspace saves its work to R2 at each turn end and restores it when it starts (2026-11-07)
 
 Context: the CLOUD-02 spike proved that the sandbox disk is wiped when it stops, and that an R2 directory backup of `/workspace` and `/root/.claude`, taken explicitly before a restart, brought back the uncommitted work and the transcript Claude resumed (`docs/research/cloud-spike-2026-11-06.md`, criterion 4). It also named two gaps: the backup must run at every turn end, and the Durable Object must learn about a turn end from the sandbox rather than only from a connected desktop. CLOUD-06 builds those parts.

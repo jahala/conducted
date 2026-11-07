@@ -238,3 +238,68 @@ A bug the run found, fixed before the restart check: the Durable Object read eac
 Everything was deleted: Worker `conducted-dev-c06-131323`, its container application `conducted-dev-c06-sandbox-131323` (`4340dbfde03a49c7a55a3261d076546a`), the image `conducted-dev-c06-131323-workspace-sandbox:wrangler-mw6fcmcq` (`sha256:d2dd8adf…`), the R2 bucket `conducted-dev-c06-131323` and its 3 objects, and the local Docker image by id `d2dd8adfc27e`. Final `wrangler containers list`, `containers images list` and `r2 bucket list` each have no `conducted-dev-c06` entry.
 
 Not measured or not built: a turn that ends while the desktop is disconnected (the entry sees sidecar lines only through the app's WebSocket, so that turn is saved at the next connected turn end); the sidecar's write-ahead event log is not part of the backup, as the spike's loss list has it.
+
+## CLOUD-05 follow-up run (2026-11-07)
+
+The Worker's outbound handler was run on the owner's account to show the sandbox reaching the
+model API and GitHub without holding either credential. Worker `conducted-dev-c05-1310`, the
+product image from CLOUD-04, the `basic` instance, and the same route and Durable Object as the
+CLOUD-03 run. The driver called `/w/ws1/start` and `/w/ws1/exec` with the pairing token; every
+command ran inside the container. Secrets were put with `wrangler secret put` from the Keychain
+and `gh auth token` by pipe. The Anthropic check used `/v1/models`, so no model tokens were spent.
+
+- **Deploy:** 77.8 s to upload and deploy, including the image build and "ready to run". The
+  container application was `conducted-cloud-sandbox`; the image tag was `wrangler-mw6f5zvp`.
+- **Cold start:** `POST /w/ws1/start` answered in **11,128 ms**, with the sidecar ready **867 ms**
+  after the container's main process started.
+- **Warm start:** the next `POST /w/ws1/start` answered in **9 ms** (`started: false`), 91 ms
+  including the round trip.
+- **No credential in the sandbox:** `sh -c` printing the lengths of `GH_TOKEN`,
+  `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` printed 0, 0 and 0.
+- **Anthropic swap:** `curl` to `https://api.anthropic.com/v1/models` with
+  `x-api-key: provided-by-worker` answered **200** (0.18 s at the server; 250 ms round trip).
+- **GitHub swap:** `curl` to `https://api.github.com/user` with no `Authorization` header
+  answered **200** (0.32 s at the server; 369 ms round trip).
+- **`gh` with the placeholder:** `gh api user` exited 4 with "gh auth login" when the sandbox
+  held no `GH_TOKEN`. With `GH_TOKEN=provided-by-worker` in the command's environment it exited 0
+  and printed the same login as the Mac's `gh`. This is the placeholder D104 names.
+- **Git:** `git ls-remote https://github.com/jahala/conducted.git HEAD` exited 0 and returned
+  `a21e71b1b7e53c54cf044f3f956e85b6045d66d3`.
+- **Package registries:** `https://registry.npmjs.org/left-pad` answered **200** (0.02 s);
+  `https://registry.npmjs.org.example.com/` answered **403**.
+- **Outside the allow-list:** `https://example.com/` answered **403** and the Worker logged the
+  refusal without a credential.
+- **Not measured:** the OpenAI key swap live, because this Mac has no `api.openai.com` Keychain
+  entry; it is covered by the workerd tests. The Anthropic check proves the key swap, not a model
+  turn.
+
+Everything the run created was deleted: the Worker `conducted-dev-c05-1310` (the URL then answered
+404), its container application `conducted-cloud-sandbox` (`00e188fedf75462081861c171b970576`),
+and the image `conducted-dev-c05-1310-workspace-sandbox:wrangler-mw6f5zvp`. Both
+`wrangler containers list` and `wrangler containers images list` then held no `conducted` entry.
+The local `apps/cloud/sandbox/build/` folder and the driver, its JSON record and the pairing-token
+file in `/tmp` were trashed. No local Docker image was built.
+
+### CLOUD-05 second run: the sandbox's git environment (2026-11-07)
+
+Run after the container environment gained the `GH_TOKEN` placeholder and the `GIT_*` scrub.
+Worker `conducted-dev-c05-1320`, the same product image and `basic` instance.
+
+- **Cold start:** 6,897 ms, with the sidecar ready 500 ms after the container's main process
+  started. **Warm start:** 4 ms (58 ms round trip).
+- **The environment:** `GH_TOKEN` had length 18 (the `provided-by-worker` placeholder), and
+  `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` were absent.
+- **`gh` with no per-command environment:** `gh api user` exited 0 and matched the Mac's login.
+- **Git over an SSH remote:** `git ls-remote git@github.com:jahala/conducted.git HEAD` exited 0
+  and returned `67075a2b513e6b99d66f8c007dc0932bed393f24`, so `url.https://github.com/.insteadOf`
+  rewrote the SSH URL to HTTPS and the Worker added the token.
+- **The rest of the scrub:** `git config --get core.hooksPath` printed `/dev/null`;
+  `git config --get credential.helper` was empty; `git config --get-regexp '^url\.'` printed both
+  the `git@github.com:` and `ssh://git@github.com/` rewrites.
+- **The swaps:** Anthropic `/v1/models` answered 200 (0.23 s at the server); npm answered 200;
+  `example.com` answered 403.
+
+Everything was deleted: the Worker `conducted-dev-c05-1320` (URL 404), its container application
+`conducted-cloud-sandbox` (`81addf386f7146a3a8816216b51e103f`), and the image
+`conducted-dev-c05-1320-workspace-sandbox:wrangler-mw6fjhw5`. Both container lists then held no
+`conducted` entry. The local build folder and `/tmp` files were trashed.

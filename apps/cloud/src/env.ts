@@ -28,9 +28,11 @@ export interface Env {
 	WORKSPACE: DurableObjectNamespace<Workspace>;
 	/** Shared secret made when the Worker is deployed; every route checks it. */
 	PAIRING_TOKEN: string;
-	/** The model key the outbound handler swaps into the sandbox's placeholder. */
+	/** Claude Code's model key, which the outbound handler swaps into the sandbox's placeholder. */
 	ANTHROPIC_API_KEY: string;
-	/** The GitHub token the outbound handler holds for `git` and `gh` (CLOUD-05 extends this). */
+	/** Codex's model key, which the outbound handler swaps into the sandbox's placeholder. */
+	OPENAI_API_KEY?: string;
+	/** The GitHub token the outbound handler holds for `git` and `gh` (CLOUD-05). */
 	GITHUB_TOKEN?: string;
 	/** The container size the sandbox starts in. */
 	INSTANCE_TYPE: InstanceType;
