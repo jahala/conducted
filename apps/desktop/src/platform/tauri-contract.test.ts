@@ -127,7 +127,7 @@ function rustErrorCodes(source: string): string[] {
 	for (const match of production.matchAll(/\bcode:\s*"([a-z0-9_]+)"/g)) {
 		if (match[1] !== undefined) codes.add(match[1]);
 	}
-	for (const match of production.matchAll(/\bfailed\s*\(\s*"([a-z0-9_]+)"/g)) {
+	for (const match of production.matchAll(/\b(?:failed|blocking)\s*\(\s*"([a-z0-9_]+)"/g)) {
 		if (match[1] !== undefined) codes.add(match[1]);
 	}
 	return [...codes];
