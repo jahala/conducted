@@ -1,6 +1,7 @@
 /**
  * @feature NAV-10 Workspace actions menu
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * Owns: The right-click menu of a workspace's sidebar row.
  * Behaviour: ui-map.md 3.1 ('Workspace actions' menu: mark as read or unread, pin or unpin, set
  * status, move to section, rename, copy link, link a pull request, archive or unarchive; the same
@@ -46,7 +47,7 @@ import {
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
 } from "../../ui/ContextMenu.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
 import { SectionDialog } from "../sidebar/SectionDialog.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
@@ -196,6 +197,21 @@ function WorkspaceActionItems({
 
 	// The dialog's handler is registered by the workspace screen, so a menu pick runs it the
 	// same way the key press would. Only a command with no screen handler goes to the service.
+	/** Conductor's "Copy SSH command" on a cloud workspace's row (CLOUD-12). */
+	const copySsh = async (): Promise<void> => {
+		const command = await actions.workspaces.copySshCommand(workspaceId);
+		if (!command.ok) {
+			toastError("Failed to copy SSH command", command.error);
+			return;
+		}
+		const copied = await actions.app.copyText(command.value);
+		if (!copied.ok) {
+			toastError("Failed to copy SSH command", copied.error);
+			return;
+		}
+		toast.success("Copied SSH command");
+	};
+
 	const linkPullRequest = async (): Promise<Result<void>> => {
 		if (runCommand("pr.link")) return ok(undefined);
 		return actions.app.runCommand("pr.link");
@@ -279,6 +295,9 @@ function WorkspaceActionItems({
 					>
 						Link pull request
 					</ContextMenuItem>
+					{data?.host.kind === "cloud" ? (
+						<ContextMenuItem onSelect={() => void copySsh()}>Copy SSH command</ContextMenuItem>
+					) : null}
 					{data?.host.kind === "cloud" && forwarding.forwardingEnabled ? (
 						<ContextMenuItem onSelect={onPauseForwarding}>Pause port forwarding</ContextMenuItem>
 					) : null}

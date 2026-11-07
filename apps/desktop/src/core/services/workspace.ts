@@ -89,6 +89,8 @@
  * CLOUD-10: archive and delete stop the workspace's port forwards first, since its sandbox sleeps
  * (D110). Every path that archives or deletes one does this: the menu, archive-on-merge and a
  * repository removal.
+ * CLOUD-12: Open in on a cloud workspace runs VS Code, Cursor or Zed over its SSH door, and
+ * `copySshCommand` returns Conductor's `ssh <name>.conducted`. Both live in `core/cloud/ssh.ts`.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
  * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix;
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
@@ -115,6 +117,7 @@ import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import { removeCloudWorkspace, stopCloudWorkspace } from "../cloud/lifecycle.ts";
+import { ensureSshSession, openRemoteWorkspace, type SshDeps, sshCommand } from "../cloud/ssh.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-helpers.ts";
@@ -671,7 +674,7 @@ export interface BranchNameSuggester {
 }
 
 export interface WorkspaceServiceDeps {
-	platform: Pick<Platform, "fs" | "opener" | "shell">;
+	platform: Pick<Platform, "fs" | "opener" | "shell" | "portForward">;
 	/** The Worker door a cloud workspace's archive and delete use (CLOUD-08). */
 	cloud?: Cloud;
 	/**
@@ -2246,6 +2249,8 @@ export class WorkspaceService {
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		checkHost(workspace.host, "open-in");
+		// A cloud workspace has no folder on this Mac: its editor opens over SSH (CLOUD-12).
+		if (workspace.host.kind === "cloud") return this.openRemoteIn(id, appName);
 		if (appName === KALEIDOSCOPE_APP) {
 			const cwd = workspace.path;
 			const changed = await this.#deps.git.runChecked(diffQuietHead(), { cwd });
@@ -2256,6 +2261,52 @@ export class WorkspaceService {
 			}
 		}
 		return this.#deps.platform.opener.openWith(appName, workspace.path);
+	}
+
+	/**
+	 * Backs `Actions.workspaces.openRemoteIn` (CLOUD-12): opens a cloud workspace's folder in VS
+	 * Code, Cursor or Zed over its SSH door. Another app gets Conductor's refusal.
+	 */
+	async openRemoteIn(id: WorkspaceId, appName: string): Promise<Result<void>> {
+		const workspace = this.store.getState().workspacesById[id];
+		if (workspace === undefined)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (workspace.host.kind === "local") return this.openIn(id, appName);
+		const deps = this.#sshDeps();
+		if (deps === null)
+			return err(appError("cloud_not_paired", "This Mac is not paired with a cloud Workspace."));
+		return openRemoteWorkspace(deps, workspace, appName);
+	}
+
+	/**
+	 * Backs `Actions.workspaces.copySshCommand`: opens the workspace's SSH door and returns
+	 * Conductor's `ssh <name>.conducted` text for the clipboard.
+	 */
+	async copySshCommand(id: WorkspaceId): Promise<Result<string>> {
+		const workspace = this.store.getState().workspacesById[id];
+		if (workspace === undefined)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (workspace.host.kind === "local")
+			return err(appError("ssh_not_cloud", "Only a cloud workspace can be opened over SSH."));
+		const deps = this.#sshDeps();
+		if (deps === null)
+			return err(appError("cloud_not_paired", "This Mac is not paired with a cloud Workspace."));
+		const session = await ensureSshSession(deps, workspace);
+		if (!session.ok) return session;
+		return ok(sshCommand(session.value.hostname));
+	}
+
+	/** The Platform slice the SSH door uses, or null when the composition root kept the Worker out. */
+	#sshDeps(): SshDeps | null {
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) return null;
+		return {
+			fs: this.#deps.platform.fs,
+			shell: this.#deps.platform.shell,
+			opener: this.#deps.platform.opener,
+			portForward: this.#deps.platform.portForward,
+			cloud,
+		};
 	}
 
 	/** Backs `Actions.workspaces.setActiveSession`: remembers the chat tab for the next launch. */

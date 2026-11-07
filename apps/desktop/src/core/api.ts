@@ -449,6 +449,8 @@ export interface Actions {
 		setTargetBranch: Act<[id: WorkspaceId, branch: string]>;
 		setLinkedPaths: Act<[id: WorkspaceId, paths: string[]]>;
 		openIn: Act<[id: WorkspaceId, appName: string]>;
+		/** A cloud workspace's SSH door: `ssh <name>.conducted`, for the clipboard (CLOUD-12). */
+		copySshCommand: Act<[id: WorkspaceId], string>;
 		markRead: Act<[id: WorkspaceId]>;
 		markUnread: Act<[id: WorkspaceId]>;
 		/** Remembers the open chat tab, so it is open again after a restart. */

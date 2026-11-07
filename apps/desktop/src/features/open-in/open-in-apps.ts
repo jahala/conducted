@@ -69,6 +69,17 @@ export function openInCatalog(): readonly OpenInApp[] {
 	return CATALOG;
 }
 
+/**
+ * The apps Conductor opens a cloud workspace in over SSH (CLOUD-12). A cloud workspace has no
+ * folder on this Mac, so Finder and the other editors are not offered.
+ */
+export const REMOTE_OPEN_APP_NAMES: readonly string[] = ["Cursor", "Visual Studio Code", "Zed"];
+
+/** The installed apps that can open a cloud workspace remotely. */
+export function remoteOpenInApps(apps: readonly OpenInApp[]): OpenInApp[] {
+	return apps.filter((app) => REMOTE_OPEN_APP_NAMES.includes(app.appName));
+}
+
 export function visibleOpenInApps(
 	catalog: readonly OpenInApp[],
 	installedAppNames: readonly string[],
@@ -124,6 +135,10 @@ export function openInFailureTitle(error: AppError): string {
 			return "Failed to prepare file to open";
 		case "open_in_no_default_app":
 			return "No default app configured";
+		case "remote_open_unsupported":
+			return "Couldn't open the cloud workspace";
+		case "remote_open_failed":
+			return "Failed to open editor";
 		default:
 			return "Failed to open the workspace";
 	}
