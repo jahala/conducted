@@ -795,6 +795,7 @@ describe("DATA-05 writing settings", () => {
 		test.fs.failWrites.add(userFile());
 		const opened = await test.service.openFile("user", "Cursor");
 		expect(opened.ok).toBe(false);
+		if (!opened.ok) expect(opened.error.code).toBe("open_in_prepare_failed");
 		expect(test.opened).toEqual([]);
 	});
 

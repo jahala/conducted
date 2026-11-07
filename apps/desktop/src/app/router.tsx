@@ -376,12 +376,11 @@ const settingsRoute = createRoute({
 	path: "/settings/$page",
 	component: function SettingsRoute() {
 		const { page } = settingsRoute.useParams();
+		// Settings draws its own title bar row (Back and its top bar), so no FullPage strip.
 		return (
-			<FullPage>
-				<NotBuiltYet area="Settings" resetKey={page}>
-					<SettingsScreen page={page} />
-				</NotBuiltYet>
-			</FullPage>
+			<NotBuiltYet area="Settings" resetKey={page}>
+				<SettingsScreen page={page} />
+			</NotBuiltYet>
 		);
 	},
 });
@@ -392,11 +391,9 @@ const repoSettingsRoute = createRoute({
 	component: function RepoSettingsRoute() {
 		const { repoId, page } = repoSettingsRoute.useParams();
 		return (
-			<FullPage>
-				<NotBuiltYet area="Settings" resetKey={`${repoId}:${page}`}>
-					<SettingsScreen page={`repo:${repoId}:${page}`} />
-				</NotBuiltYet>
-			</FullPage>
+			<NotBuiltYet area="Settings" resetKey={`${repoId}:${page}`}>
+				<SettingsScreen page={`repo:${repoId}:${page}`} />
+			</NotBuiltYet>
 		);
 	},
 });

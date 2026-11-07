@@ -29,7 +29,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { OpenInButton } from "./OpenInButton.tsx";
 import { OpenInItem } from "./OpenInItem.tsx";
 import { type OpenInApp, openInFailureTitle } from "./open-in-apps.ts";
-import { useOpenInApps } from "./use-open-in-apps.ts";
+import { useOpenInApps, useOpenInChoices } from "./use-open-in-apps.ts";
 
 export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const workspace = useWorkspace(workspaceId);
@@ -40,6 +40,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const flight = useRef(createSingleFlight<"open">()).current;
 
 	const { apps, defaultApp, storedDefault, recentNames, listFailed } = useOpenInApps();
+	const { remember, setDefault } = useOpenInChoices(recentNames);
 
 	const archived = workspace.state === "ready" && workspace.data.state === "archived";
 	const disabledReason =
@@ -65,24 +66,13 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 						toastError(openInFailureTitle(opened.error), opened.error);
 						return;
 					}
-					const next = [app.appName, ...recentNames.filter((name) => name !== app.appName)];
-					const written = await actions.settings.set("open_in_mru_order", next.join(","));
-					if (!written.ok) toastError("Couldn't remember the last app", written.error);
+					await remember(app);
 				} finally {
 					setBusy(false);
 				}
 			});
 		},
-		[actions, flight, workspace, workspaceId, recentNames],
-	);
-
-	const setDefault = useCallback(
-		(app: OpenInApp) => {
-			void actions.settings.set("default_open_in", app.appName).then((result) => {
-				if (!result.ok) toastError("Couldn't set the default app", result.error);
-			});
-		},
-		[actions],
+		[actions, flight, workspace, workspaceId, remember],
 	);
 
 	const copyPath = () => {
@@ -125,21 +115,52 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 				menuOpen={menuOpen}
 				onMenuOpenChange={setMenuOpen}
 			/>
-			<MenuContent aria-label="Open in">
-				{apps.map((app) => (
-					<OpenInItem
-						key={app.appName}
-						app={app}
-						isDefault={app.appName === defaultApp?.appName}
-						onOpen={(chosen) => void open(chosen)}
-						onSetDefault={setDefault}
-					/>
-				))}
-				{listFailed ? <MenuLabel>Could not list the apps on this Mac.</MenuLabel> : null}
-				<MenuItem icon={<CopyIcon />} onSelect={copyPath}>
-					Copy path
-				</MenuItem>
-			</MenuContent>
+			<OpenInMenuContent
+				apps={apps}
+				defaultApp={defaultApp}
+				listFailed={listFailed}
+				onOpen={(chosen) => void open(chosen)}
+				onSetDefault={setDefault}
+				onCopyPath={copyPath}
+			/>
 		</Menu>
+	);
+}
+
+/**
+ * The menu every Open in control shows: the apps, then Conductor's "Copy path" (wWn, renderApp
+ * @2508600), shared by the workspace header and Settings' "Open settings.toml".
+ */
+export function OpenInMenuContent({
+	apps,
+	defaultApp,
+	listFailed,
+	onOpen,
+	onSetDefault,
+	onCopyPath,
+}: {
+	apps: readonly OpenInApp[];
+	defaultApp: OpenInApp | null;
+	listFailed: boolean;
+	onOpen: (app: OpenInApp) => void;
+	onSetDefault: (app: OpenInApp) => void;
+	onCopyPath: () => void;
+}) {
+	return (
+		<MenuContent align="end" aria-label="Open in">
+			{apps.map((app) => (
+				<OpenInItem
+					key={app.appName}
+					app={app}
+					isDefault={app.appName === defaultApp?.appName}
+					onOpen={onOpen}
+					onSetDefault={onSetDefault}
+				/>
+			))}
+			{listFailed ? <MenuLabel>Could not list the apps on this Mac.</MenuLabel> : null}
+			<MenuItem icon={<CopyIcon />} onSelect={onCopyPath}>
+				Copy path
+			</MenuItem>
+		</MenuContent>
 	);
 }

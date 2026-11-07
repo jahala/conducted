@@ -12,6 +12,7 @@
  */
 
 import { useAppIcon } from "../../core/hooks.ts";
+import { cn } from "../../ui/cn.ts";
 import {
 	CheckIcon,
 	FileTextIcon,
@@ -43,13 +44,28 @@ const iconFor = (category: OpenInCategory) => {
 	}
 };
 
-/** The app's own icon from its bundle, or its kind's line icon when it has none (yet). */
-export function OpenInAppIcon({ app }: { app: OpenInApp }) {
+/**
+ * The app's own icon from its bundle, or its kind's line icon when it has none (yet). A
+ * `decorative` picture sits beside text that already names the action, so it has no alt text.
+ */
+export function OpenInAppIcon({
+	app,
+	className = "size-4",
+	decorative = false,
+}: {
+	app: OpenInApp;
+	className?: string;
+	decorative?: boolean;
+}) {
 	const icon = useAppIcon(app.appName);
 	if (icon.state === "ready" && icon.data !== null) {
 		return (
-			<span className="relative size-4 shrink-0 rounded-xs">
-				<img src={icon.data} alt={`${app.label} icon`} className="size-full rounded-xs" />
+			<span className={cn("relative shrink-0 rounded-xs", className)}>
+				<img
+					src={icon.data}
+					alt={decorative ? "" : `${app.label} icon`}
+					className="size-full rounded-xs"
+				/>
 				<span
 					aria-hidden="true"
 					className="pointer-events-none absolute inset-0 rounded-xs border border-border mix-blend-darken dark:mix-blend-lighten"
@@ -58,7 +74,8 @@ export function OpenInAppIcon({ app }: { app: OpenInApp }) {
 		);
 	}
 	const Icon = iconFor(app.category);
-	return <Icon />;
+	// The line icons are always aria-hidden; the row or button names the app.
+	return <Icon className={className} />;
 }
 
 export function OpenInItem({ app, isDefault, onOpen, onSetDefault }: OpenInItemProps) {

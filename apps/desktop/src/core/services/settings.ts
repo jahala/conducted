@@ -1132,7 +1132,10 @@ export class SettingsService {
 			if (!folder.ok) return folder;
 			return fs.writeTextAtomic(path.value, "");
 		});
-		if (!made.ok) return made;
+		if (!made.ok) {
+			// Conductor's title for this failure is "Failed to prepare file to open".
+			return err(appError("open_in_prepare_failed", `Couldn't create ${path.value}.`, made.error));
+		}
 		return this.#deps.platform.opener.openWith(appName, path.value);
 	}
 
