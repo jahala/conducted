@@ -276,7 +276,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 
 							<div className="flex items-center justify-between gap-4 border-t border-border pt-4">
 								<div>
-									<p className="text-sm font-medium text-fg">Use Spotlight testing</p>
+									<p className="text-sm font-medium text-fg">Use spotlight testing</p>
 									<p className="text-sm text-fg-muted">
 										Replace Run with Spotlight for this repository so workspace changes are tested
 										in the repository root.
@@ -284,7 +284,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 								</div>
 								<Switch
 									checked={config.spotlightTesting}
-									aria-label="Use Spotlight testing"
+									aria-label="Use spotlight testing"
 									onCheckedChange={(checked) => void setSpotlight(checked)}
 								/>
 							</div>

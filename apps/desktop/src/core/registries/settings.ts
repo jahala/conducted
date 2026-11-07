@@ -1064,9 +1064,9 @@ const SETTINGS_TABLE = [
 		key: "spotlight_testing",
 		page: "actions",
 		scopes: ["repo"],
-		title: "Use Spotlight testing",
+		title: "Use spotlight testing",
 		description:
-			"Replace Run with Spotlight, which tests workspace changes in the repository root.",
+			"Replace Run with Spotlight for this repository so workspace changes are tested in the repository root.",
 		searchTerms: ["spotlight", "test", "root", "sync"],
 		tomlKey: "spotlight_testing",
 		fileLayers: "user-and-repo",
