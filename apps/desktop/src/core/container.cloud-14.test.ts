@@ -54,6 +54,34 @@ async function readyCloudWorkspace(test: TestContainer) {
 	return workspace;
 }
 
+/**
+ * Opens the cloud workspace's sidecar tunnel the way a chat does, by sending a message, and
+ * returns a line writer and reader for that tunnel's relay.
+ */
+async function cloudRelay(test: TestContainer, sessionId: string) {
+	const cloud = test.memory.controls;
+	const sending = test.container.services.sessions.send(sessionId as never, "hello", [], "auto");
+	await waitFor("the cloud relay", () =>
+		cloud.cloudSent.some((sent) => sent.line.includes('"sendMessage"')),
+	);
+	const first = cloud.cloudSent.find((sent) => sent.line.includes('"sendMessage"'));
+	if (first === undefined) throw new Error("no relay");
+	const { id } = JSON.parse(first.line) as { id: number };
+	cloud.emitCloudLine(
+		first.relayId,
+		`${JSON.stringify({ jsonrpc: "2.0", id, result: { deliveredAs: "new_turn" } })}\n`,
+	);
+	await sending;
+	return {
+		emit: (message: unknown) => cloud.emitCloudLine(first.relayId, `${JSON.stringify(message)}\n`),
+		answered: (requestId: number) =>
+			cloud.cloudSent
+				.filter((sent) => sent.relayId === first.relayId)
+				.map((sent) => sent.line)
+				.find((line) => line.includes(`"id":${requestId}`) && line.includes('"result"')),
+	};
+}
+
 describe("CLOUD-14 RunLocalCommand through the real container", () => {
 	it("a request shows the card, and Allow runs the command on the Mac and answers", async () => {
 		const test = createTestContainer();
@@ -69,14 +97,13 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 					: null,
 			);
 
-			test.memory.controls.emitSidecarLine(
-				JSON.stringify({
-					jsonrpc: "2.0",
-					id: 7,
-					method: "runLocalCommand",
-					params: { sessionId: session.value.id, command: "echo from the mac" },
-				}),
-			);
+			const relay = await cloudRelay(test, session.value.id);
+			relay.emit({
+				jsonrpc: "2.0",
+				id: 7,
+				method: "runLocalCommand",
+				params: { sessionId: session.value.id, command: "echo from the mac" },
+			});
 
 			await waitFor(
 				"the approval card",
@@ -97,16 +124,14 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 
 			// A live state the sidecar sends while the card is open carries no interaction; it must
 			// not take the app's own card away.
-			test.memory.controls.emitSidecarLine(
-				JSON.stringify({
-					jsonrpc: "2.0",
-					method: "liveState",
-					params: {
-						sessionId: session.value.id,
-						liveState: { ...idleLiveState, status: "working" },
-					},
-				}),
-			);
+			relay.emit({
+				jsonrpc: "2.0",
+				method: "liveState",
+				params: {
+					sessionId: session.value.id,
+					liveState: { ...idleLiveState, status: "working" },
+				},
+			});
 			await waitFor(
 				"the sidecar's live state",
 				() =>
@@ -125,11 +150,8 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 			);
 			expect(answered.ok).toBe(true);
 
-			await waitFor("the sidecar's answer", () =>
-				test.memory.controls.sidecarSent.some((line) => line.includes('"id":7')),
-			);
-			const sent = test.memory.controls.sidecarSent.find((line) => line.includes('"id":7'));
-			const parsed = JSON.parse(sent ?? "{}") as {
+			await waitFor("the sidecar's answer", () => relay.answered(7) !== undefined);
+			const parsed = JSON.parse(relay.answered(7) ?? "{}") as {
 				result?: { code?: number; stdout?: string; cwd?: string };
 			};
 			expect(parsed.result?.code).toBe(0);
@@ -161,15 +183,14 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 				command.program === "/bin/bash" ? ok({ exitCode: 0, stdout: "", stderr: "" }) : null,
 			);
 
+			const relay = await cloudRelay(test, session.value.id);
 			const send = (id: number) =>
-				test.memory.controls.emitSidecarLine(
-					JSON.stringify({
-						jsonrpc: "2.0",
-						id,
-						method: "runLocalCommand",
-						params: { sessionId: session.value.id, command: "whoami" },
-					}),
-				);
+				relay.emit({
+					jsonrpc: "2.0",
+					id,
+					method: "runLocalCommand",
+					params: { sessionId: session.value.id, command: "whoami" },
+				});
 
 			send(8);
 			await waitFor(
@@ -185,20 +206,49 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 				kind: "tool_approval",
 				decision: "always_allow",
 			});
-			await waitFor("the first answer", () =>
-				test.memory.controls.sidecarSent.some((line) => line.includes('"id":8')),
-			);
+			await waitFor("the first answer", () => relay.answered(8) !== undefined);
 			expect(test.container.services.settings.get<boolean>("always_allow_local_execution")).toBe(
 				true,
 			);
 
 			send(9);
-			await waitFor("the second answer", () =>
-				test.memory.controls.sidecarSent.some((line) => line.includes('"id":9')),
-			);
+			await waitFor("the second answer", () => relay.answered(9) !== undefined);
 			expect(
 				test.container.services.sessions.store.getState().openInteractions[session.value.id],
 			).toBeUndefined();
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+	it("the same request over the Mac's own sidecar is refused, with no card", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.sidecar.start();
+			const seeded = await readyCloudWorkspace(test);
+			const session = await test.container.services.sessions.create(seeded.id, CONFIG);
+			if (!session.ok) throw new Error(session.error.message);
+
+			test.memory.controls.emitSidecarLine(
+				JSON.stringify({
+					jsonrpc: "2.0",
+					id: 10,
+					method: "runLocalCommand",
+					params: { sessionId: session.value.id, command: "whoami" },
+				}),
+			);
+			await waitFor("the refusal", () =>
+				test.memory.controls.sidecarSent.some((line) => line.includes('"id":10')),
+			);
+			const sent = test.memory.controls.sidecarSent.find((line) => line.includes('"id":10'));
+			const parsed = JSON.parse(sent ?? "{}") as { result?: { denied?: boolean } };
+			expect(parsed.result?.denied).toBe(true);
+			expect(
+				test.container.services.sessions.store.getState().openInteractions[session.value.id],
+			).toBeUndefined();
+			expect(test.memory.controls.shellCalls.some((call) => call.program === "/bin/bash")).toBe(
+				false,
+			);
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();

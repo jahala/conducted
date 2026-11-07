@@ -117,6 +117,7 @@ import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-progra
 import {
 	createSidecarNotificationHandlers,
 	createSidecarRequestHandlers,
+	type LocalCommandPort,
 	type SidecarHandlerPorts,
 } from "./sidecar/handlers.ts";
 import { EventIngest } from "./sidecar/ingest.ts";
@@ -362,6 +363,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		log: (level, message, data) => platform.app.writeLog(level, message, data),
 	});
+	// CLOUD-14: the local-command port is bound to the host whose tunnel carries the request.
+	const localCommandFrom = (origin: Host | null): LocalCommandPort => ({
+		run: (params) => localCommand.run(params, origin),
+	});
 	const handlerPorts: SidecarHandlerPorts = {
 		interactions: {
 			request: (request) => sessions.requestInteraction(request),
@@ -432,12 +437,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				return found.ok ? git.setTargetBranchFromAgent(found.value.id, branch) : found;
 			},
 		},
-		localCommand: {
-			run: async (params) => {
-				const answer = await localCommand.run(params);
-				return answer;
-			},
-		},
+		localCommand: localCommandFrom(null),
 		shellEnv: {
 			captureFailed: (params) => {
 				log(
@@ -475,7 +475,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		const existing = cloudTunnels.get(key);
 		if (existing !== undefined) return clientOf(existing);
 		const transport = createCloudTransport(platform.cloud, host);
-		const cloudTunnel = new SidecarTunnel({ transport, ...tunnelDeps });
+		const cloudTunnel = new SidecarTunnel({
+			transport,
+			...tunnelDeps,
+			requestHandlers: createSidecarRequestHandlers({
+				...handlerPorts,
+				localCommand: localCommandFrom(host),
+			}),
+		});
 		cloudTransports.push(transport);
 		cloudTunnels.set(key, cloudTunnel);
 		void cloudTunnel.start().then((started) => {

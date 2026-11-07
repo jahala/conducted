@@ -16,12 +16,10 @@ const SESSION = "session-1" as SessionId;
 const WORKSPACE = "workspace-1" as WorkspaceId;
 const HOME = "/Users/me";
 
+const ORIGIN = { kind: "cloud", url: "https://w.example.dev", vmId: "vm-1" } as const;
+
 function cloudWorkspace(): Workspace {
-	return {
-		id: WORKSPACE,
-		path: "/workspace",
-		host: { kind: "cloud", url: "https://w.example.dev", vmId: "vm-1" },
-	} as Workspace;
+	return { id: WORKSPACE, path: "/workspace", host: ORIGIN } as Workspace;
 }
 
 interface Harness {
@@ -90,9 +88,29 @@ function harness(options: { workspace?: Workspace; home?: string } = {}): Harnes
 describe("CLOUD-14 local command approvals and output", () => {
 	it("a command on a local workspace is refused before any card is shown", async () => {
 		const h = harness({ workspace: { ...cloudWorkspace(), host: { kind: "local" } } as Workspace });
-		const answer = await h.service.run({ sessionId: SESSION, command: "ls" });
+		const answer = await h.service.run({ sessionId: SESSION, command: "ls" }, ORIGIN);
 		expect(answer.denied).toBe(true);
 		expect(answer.error).toContain("not available");
+		expect(h.cards).toEqual([]);
+		expect(h.shells).toEqual([]);
+	});
+
+	it("a sandbox cannot ask for a chat in another cloud workspace", async () => {
+		const h = harness();
+		h.answerWith = { kind: "tool_approval", decision: "allow_for_session" };
+		await h.service.run({ sessionId: SESSION, command: "ls" }, ORIGIN);
+		const other = { kind: "cloud", url: "https://w.example.dev", vmId: "vm-2" } as const;
+		const answer = await h.service.run({ sessionId: SESSION, command: "ls" }, other);
+		expect(answer.denied).toBe(true);
+		expect(answer.error).toContain("not available");
+		expect(h.cards).toHaveLength(1);
+		expect(h.shells).toHaveLength(1);
+	});
+
+	it("the Mac's own sidecar cannot ask the Mac to run a command", async () => {
+		const h = harness();
+		const answer = await h.service.run({ sessionId: SESSION, command: "ls" }, null);
+		expect(answer.denied).toBe(true);
 		expect(h.cards).toEqual([]);
 		expect(h.shells).toEqual([]);
 	});
@@ -100,7 +118,7 @@ describe("CLOUD-14 local command approvals and output", () => {
 	it("denying the card runs nothing and reports the refusal", async () => {
 		const h = harness();
 		h.answerWith = { kind: "tool_approval", decision: "deny" };
-		const answer = await h.service.run({ sessionId: SESSION, command: "rm -rf /" });
+		const answer = await h.service.run({ sessionId: SESSION, command: "rm -rf /" }, ORIGIN);
 		expect(answer.denied).toBe(true);
 		expect(answer.error).toBe("The user denied local command execution.");
 		expect(h.shells).toEqual([]);
@@ -108,7 +126,7 @@ describe("CLOUD-14 local command approvals and output", () => {
 
 	it("the card names the command, the reason it shows, and the notification", async () => {
 		const h = harness();
-		await h.service.run({ sessionId: SESSION, command: "git status" });
+		await h.service.run({ sessionId: SESSION, command: "git status" }, ORIGIN);
 		const card = h.cards[0]?.interaction;
 		expect(card?.kind).toBe("tool_approval");
 		if (card?.kind === "tool_approval") {
@@ -124,9 +142,9 @@ describe("CLOUD-14 local command approvals and output", () => {
 	it("Yes always turns on the setting and skips the next card", async () => {
 		const h = harness();
 		h.answerWith = { kind: "tool_approval", decision: "always_allow" };
-		await h.service.run({ sessionId: SESSION, command: "ls" });
+		await h.service.run({ sessionId: SESSION, command: "ls" }, ORIGIN);
 		expect(h.settings.get("always_allow_local_execution")).toBe(true);
-		const again = await h.service.run({ sessionId: SESSION, command: "ls" });
+		const again = await h.service.run({ sessionId: SESSION, command: "ls" }, ORIGIN);
 		expect(again.denied).toBeUndefined();
 		expect(h.cards).toHaveLength(1);
 	});
@@ -134,15 +152,15 @@ describe("CLOUD-14 local command approvals and output", () => {
 	it("Yes for this session skips the card for the same chat", async () => {
 		const h = harness();
 		h.answerWith = { kind: "tool_approval", decision: "allow_for_session" };
-		await h.service.run({ sessionId: SESSION, command: "ls" });
-		await h.service.run({ sessionId: SESSION, command: "ls" });
+		await h.service.run({ sessionId: SESSION, command: "ls" }, ORIGIN);
+		await h.service.run({ sessionId: SESSION, command: "ls" }, ORIGIN);
 		expect(h.cards).toHaveLength(1);
 	});
 
 	it("a command that times out is reported as timed out", async () => {
 		const h = harness();
 		h.shellAnswer = err(appError("shell_timeout", "The command timed out after 60000 ms."));
-		const answer = await h.service.run({ sessionId: SESSION, command: "sleep 99" });
+		const answer = await h.service.run({ sessionId: SESSION, command: "sleep 99" }, ORIGIN);
 		expect(answer.timedOut).toBe(true);
 		expect(answer.code).toBeUndefined();
 	});
@@ -150,7 +168,7 @@ describe("CLOUD-14 local command approvals and output", () => {
 	it("a long output is saved in the workspace and the answer points at it", async () => {
 		const h = harness();
 		h.shellAnswer = ok({ exitCode: 0, stdout: "x".repeat(40_000), stderr: "" });
-		const answer = await h.service.run({ sessionId: SESSION, command: "yes" });
+		const answer = await h.service.run({ sessionId: SESSION, command: "yes" }, ORIGIN);
 		expect(answer.outputPath).toBe(
 			"/workspace/.context/conductor/run-local-command-output-id-2.txt",
 		);

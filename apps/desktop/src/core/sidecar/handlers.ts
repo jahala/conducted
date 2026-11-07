@@ -123,7 +123,10 @@ export interface GoalPort {
 	setGoal(params: SidecarToAppNotificationParams<"goalChanged">): void;
 }
 
-/** Backs the RunLocalCommand tool: the app approves and runs a command on the Mac (CLOUD-14). */
+/**
+ * Backs the RunLocalCommand tool: the app approves and runs a command on the Mac (CLOUD-14). Each
+ * tunnel gets its own port, bound to the host it talks to, so the service knows who asked.
+ */
 export interface LocalCommandPort {
 	run(
 		params: SidecarToAppParams<"runLocalCommand">,

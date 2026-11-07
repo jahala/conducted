@@ -57,6 +57,15 @@ export function offersLocalExecution(
 	return localExecutionForHost(workspace.host, setting);
 }
 
+function sameCloudHost(host: Host, origin: Host | null): boolean {
+	return (
+		host.kind === "cloud" &&
+		origin?.kind === "cloud" &&
+		origin.url === host.url &&
+		origin.vmId === host.vmId
+	);
+}
+
 /** A RunLocalCommand request from the sidecar. */
 export interface LocalCommandRequest {
 	sessionId: SessionId;
@@ -151,11 +160,15 @@ export class LocalCommandService {
 		this.#deps = deps;
 	}
 
-	async run(request: LocalCommandRequest): Promise<LocalCommandAnswer> {
+	/**
+	 * `origin` is the host whose tunnel sent the request, or null for the Mac's own sidecar. A
+	 * sandbox may only ask for a chat in its own workspace, so it cannot use another chat's approval.
+	 */
+	async run(request: LocalCommandRequest, origin: Host | null): Promise<LocalCommandAnswer> {
 		const found = this.#deps.workspaceOfSession(request.sessionId);
 		if (!found.ok) return { denied: true, error: found.error.message };
 		const workspace = found.value;
-		if (workspace.host.kind !== "cloud") {
+		if (workspace.host.kind !== "cloud" || !sameCloudHost(workspace.host, origin)) {
 			return { denied: true, error: "Local execution is not available for this workspace." };
 		}
 		if (this.#deps.setting<boolean>(REMOTE_EXECUTION_SETTING) === false) {
