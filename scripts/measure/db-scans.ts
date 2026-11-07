@@ -7,7 +7,7 @@
  * workspaces.active_session_id.
  *
  * It builds a file database through the app's real migrations, with the same pragmas the app and
- * the test database use, in a folder this run creates and then moves to the Trash.
+ * the test database use, in a folder this run creates and deletes at the end, even on failure.
  *
  * The volume and why, so a later run can be compared with this one:
  * - 20 repositories, 500 workspaces, 5,000 chats, 2,000,000 events. Conductor's database reached
@@ -29,7 +29,7 @@
  * The output is also written to docs/research/db-scans-2026-11-07.md by hand.
  */
 import { Database } from "bun:sqlite";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ATTACHMENTS_SQL } from "../../apps/desktop/src/core/db/attachments.ts";
@@ -536,11 +536,12 @@ function checkInstrument(db: Database): void {
 	}
 }
 
-function trash(path: string): void {
-	const result = Bun.spawnSync(["trash", path], { stdio: ["ignore", "ignore", "inherit"] });
-	if (result.exitCode !== 0) {
-		console.error(`Could not move ${path} to the Trash; leaving it for inspection.`);
-	}
+/**
+ * Deletes the folder this run made. It holds only the scratch database (several GB), so moving it to
+ * the Trash would fill the disk run after run; a run may delete a temp folder it created itself.
+ */
+function removeRunFolder(path: string): void {
+	rmSync(path, { recursive: true, force: true });
 }
 
 function main(): void {
@@ -579,7 +580,7 @@ function main(): void {
 		);
 	} finally {
 		db.close();
-		trash(folder);
+		removeRunFolder(folder);
 	}
 }
 
