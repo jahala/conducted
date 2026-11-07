@@ -611,6 +611,7 @@ describe("PLAT-02 Tauri Platform build", () => {
 				"notifications",
 				"dialogs",
 				"opener",
+				"portForward",
 				"clipboard",
 				"cloud",
 				"speech",
