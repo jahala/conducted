@@ -180,19 +180,25 @@ describe("NAV-12 view commands in the real shell", () => {
 				name: "Changes and scripts",
 			});
 			expect(right.getAttribute("data-right-panel-open")).toBe("true");
-			expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: true }),
+			).toBeTruthy();
 
 			fireEvent.keyDown(document, { key: ".", metaKey: true });
 			await waitFor(() => {
 				expect(right.getAttribute("data-right-panel-open")).toBe("false");
 			});
-			expect(screen.getByRole("button", { name: "Show sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: false }),
+			).toBeTruthy();
 
 			fireEvent.keyDown(document, { key: ".", metaKey: true });
 			await waitFor(() => {
 				expect(right.getAttribute("data-right-panel-open")).toBe("true");
 			});
-			expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: true }),
+			).toBeTruthy();
 		} finally {
 			cleanup();
 			await test.container.stop();
@@ -206,7 +212,9 @@ describe("NAV-12 view commands in the real shell", () => {
 
 		fireEvent.keyDown(document, { key: "b", metaKey: true });
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Show sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: false }),
+			).toBeTruthy();
 		});
 		expect(settingsWrites).toContainEqual({ key: "left_panel_visible", value: false });
 
@@ -236,13 +244,17 @@ describe("NAV-12 view commands in the real shell", () => {
 
 		fireEvent.keyDown(document, { key: ".", metaKey: true });
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Show sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: false }),
+			).toBeTruthy();
 		});
 		expect(right.getAttribute("data-right-panel-open")).toBe("false");
 
 		fireEvent.keyDown(document, { key: ".", metaKey: true });
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: true }),
+			).toBeTruthy();
 		});
 		expect(right.getAttribute("data-right-panel-open")).toBe("false");
 	});
@@ -253,12 +265,16 @@ describe("NAV-12 view commands in the real shell", () => {
 
 		fireEvent.keyDown(document, { key: ".", metaKey: true });
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Show sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: false }),
+			).toBeTruthy();
 		});
 
 		fireEvent.keyDown(document, { key: "b", metaKey: true });
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+			expect(
+				screen.getByRole("button", { name: "Toggle left sidebar", expanded: true }),
+			).toBeTruthy();
 		});
 		expect(right.getAttribute("data-right-panel-open")).toBe("true");
 	});

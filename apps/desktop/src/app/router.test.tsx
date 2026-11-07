@@ -85,7 +85,9 @@ describe("app shell", () => {
 	it("keeps the window controls and navigation when a feature is not built", async () => {
 		await openApp("/");
 		await screen.findByRole("heading", { name: "Run agents side by side" });
-		expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+		expect(
+			screen.getByRole("button", { name: "Toggle left sidebar", expanded: true }),
+		).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Go forward" })).toBeTruthy();
 		const nav = screen.getByRole("navigation", { name: "Main" });
