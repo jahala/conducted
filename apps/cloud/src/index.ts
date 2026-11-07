@@ -4,10 +4,12 @@
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * @feature CLOUD-17 Cloud settings page
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
- * desktop's pairing check (`/pair`), and routes each workspace's git, shell, file, terminal,
- * preview and sidecar-relay calls to that workspace's Durable Object. Its outbound handler also
- * carries the sandbox entry's turn-end backup call.
+ * desktop's pairing check (`/pair`), reads and writes the Mac's personal cloud settings at
+ * `/settings`, and routes each workspace's git, shell, file, terminal, preview and sidecar-relay
+ * calls to that workspace's Durable Object. Its outbound handler also carries the sandbox entry's
+ * turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
  * HTTPS and one WebSocket; the Worker authenticates and routes). The sandbox's outbound
  * credential swap is outbound.ts (CLOUD-05), which also carries the sandbox entry's turn-end
@@ -35,6 +37,7 @@ import { pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { routeRequest } from "./front-door.ts";
 import { Outbound } from "./outbound.ts";
+import { readCloudSettings, writeCloudSettings, zCloudSettings } from "./settings.ts";
 import { previewToken, previewTokenMatches } from "./terminal.ts";
 import { Workspace } from "./workspace.ts";
 
@@ -109,6 +112,35 @@ export default {
 		const routed = routeRequest(request, env.PAIRING_TOKEN);
 		if ("refusal" in routed) return routed.refusal;
 		if ("pair" in routed) return pairAnswer();
+		if ("settings" in routed) {
+			if (routed.settings === "read") {
+				try {
+					return Response.json(await readCloudSettings(env));
+				} catch (error) {
+					return failure(error);
+				}
+			}
+			let parsed: unknown;
+			try {
+				parsed = await request.json();
+			} catch {
+				return new Response(INVALID_BODY, { status: 400 });
+			}
+			const body = zCloudSettings.safeParse(parsed);
+			if (!body.success) {
+				// The page shows the reason, so a refused name says what to change.
+				return Response.json(
+					{ error: body.error.issues[0]?.message ?? INVALID_BODY },
+					{ status: 400 },
+				);
+			}
+			try {
+				await writeCloudSettings(env, body.data);
+				return Response.json(body.data);
+			} catch (error) {
+				return failure(error);
+			}
+		}
 		const { name, action } = routed.route;
 		const workspace = env.WORKSPACE.getByName(name);
 		try {
