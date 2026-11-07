@@ -253,6 +253,8 @@ export function createActions(
 		cloud: {
 			pair: (input) => services.cloudPairing.pair(input),
 			unpair: () => services.cloudPairing.unpair(),
+			deploy: () => services.cloudDeploy.deploy(),
+			uninstall: () => services.cloudDeploy.uninstall(),
 		},
 		portForwards: {
 			setForwarding: (workspaceId, enabled) =>

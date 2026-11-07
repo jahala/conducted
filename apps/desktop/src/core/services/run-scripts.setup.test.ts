@@ -85,7 +85,7 @@ function harness(
 		setupScript?: string | null;
 		exitCode?: number | null;
 		host?: Host;
-		environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
+		environmentFor?: (repo: Repo, workspace: Workspace) => Promise<Result<Record<string, string>>>;
 	} = {},
 ) {
 	let started = 0;
@@ -138,8 +138,12 @@ function harness(
 describe("SET-04 environment variables reach scripts", () => {
 	it("gives the setup, archive and run scripts the repository's saved variables", async () => {
 		const seen: Record<string, string>[] = [];
+		const asked: { repo: Repo; workspace: Workspace }[] = [];
 		const { service, runScript } = harness({
-			environmentFor: async () => ok({ TOKEN: "secret" }),
+			environmentFor: async (fromRepo, fromWorkspace) => {
+				asked.push({ repo: fromRepo, workspace: fromWorkspace });
+				return ok({ TOKEN: "secret" });
+			},
 		});
 		runScript.mockImplementation(async (input: { env: Record<string, string> }) => {
 			seen.push({ ...input.env });
@@ -150,6 +154,8 @@ describe("SET-04 environment variables reach scripts", () => {
 
 		expect(runScript).toHaveBeenCalledTimes(1);
 		expect(seen[0]?.TOKEN).toBe("secret");
+		// The rule needs both folders, so it can read the repository's and the workspace's files.
+		expect(asked).toEqual([{ repo, workspace }]);
 	});
 });
 

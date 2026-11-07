@@ -42,7 +42,6 @@ import {
 	appError,
 	err,
 	ok,
-	type RepoId,
 	type Result,
 	type TerminalId,
 	type WorkspaceId,
@@ -165,10 +164,11 @@ export interface RunScriptsServiceDeps {
 	/** Receives a failed port scan so a detection problem is not silent. */
 	log?: (level: "warn" | "info", message: string) => void;
 	/**
-	 * The Environment page's variables for one repository (SET-04). The composition root supplies
-	 * it; a test of another path may leave it out, and no extra variables are then passed.
+	 * The Environment page's variables and env files for one workspace (SET-04). The composition
+	 * root supplies it; a test of another path may leave it out, and no extra variables are then
+	 * passed.
 	 */
-	environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
+	environmentFor?: (repo: Repo, workspace: Workspace) => Promise<Result<Record<string, string>>>;
 	/**
 	 * The folder to put first on PATH (SET-13). The composition root supplies it; a test of
 	 * another path may leave it out, and the app's bin folder is then used.
@@ -356,7 +356,7 @@ export class RunScriptsService {
 			this.#lastTerminal.delete(workspaceId);
 		}
 
-		const userEnv = await this.#userEnv(repo.value.id);
+		const userEnv = await this.#userEnv(repo.value, workspace.value);
 		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace: workspace.value,
@@ -426,7 +426,7 @@ export class RunScriptsService {
 			);
 		}
 
-		const userEnv = await this.#userEnv(repo.value.id);
+		const userEnv = await this.#userEnv(repo.value, workspace.value);
 		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace: workspace.value,
@@ -695,10 +695,10 @@ export class RunScriptsService {
 		}
 	}
 
-	/** The variables saved on the Environment page for a repository, or none when it is not wired. */
-	async #userEnv(repoId: RepoId): Promise<Result<Record<string, string>>> {
+	/** The Environment page's variables and env files for a workspace, or none when not wired. */
+	async #userEnv(repo: Repo, workspace: Workspace): Promise<Result<Record<string, string>>> {
 		if (this.#deps.environmentFor === undefined) return ok({});
-		return this.#deps.environmentFor(repoId);
+		return this.#deps.environmentFor(repo, workspace);
 	}
 
 	/** The folder to put first on PATH, or the bundled bin folder when no source is wired. */
@@ -766,7 +766,7 @@ export class RunScriptsService {
 			if (!stoppedOthers.ok) return stoppedOthers;
 		}
 
-		const userEnv = await this.#userEnv(repo.id);
+		const userEnv = await this.#userEnv(repo, workspace);
 		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace,

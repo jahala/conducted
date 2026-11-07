@@ -1235,7 +1235,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user", "repo"],
 		title: "Env files",
 		description:
-			"Dotenv files to read into the environment of scripts and terminals. Paths may be relative to the settings folder or repository.",
+			"Dotenv files to read into the environment of scripts and agents. Paths may be relative to the settings folder or repository.",
 		searchTerms: ["env", "dotenv", ".env", "variables", "files"],
 		tomlKey: "environment_variable_files",
 		fileLayers: "user-and-repo",

@@ -215,6 +215,27 @@ describe("PR-09 Link issue dialog: opening it", () => {
 		);
 	});
 
+	it("gives the editor focus after a choice, even when its own focus lands first", async () => {
+		const { test } = await setup({ linearKey: true });
+		linearStandIn(test, {
+			Viewer: viewer,
+			MyActiveIssues: myIssues([linearIssue()]),
+			GetIssueById: { issue: linearIssue({ branchName: null }) },
+		});
+		// The editor asks for focus in an animation frame. Run that at once, so the dialog's own
+		// close focus (a timer) comes after it, as it can when the main thread is busy.
+		vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+			callback(0);
+			return 0;
+		});
+		pressCmdI();
+		fireEvent.click(await screen.findByRole("option", { name: /ENG-12/ }));
+		await waitFor(() => expect(attachmentNames()).toEqual(["[LINEAR]-ENG-12.md"]));
+		await waitFor(() =>
+			expect(screen.getByLabelText("composer").contains(document.activeElement)).toBe(true),
+		);
+	});
+
 	it("opens from the '+' menu's Link issue", async () => {
 		await setup();
 		const trigger = screen.getByRole("button", { name: "Add attachments, link issues, and more" });

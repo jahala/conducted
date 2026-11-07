@@ -2,6 +2,7 @@
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
@@ -359,6 +360,44 @@ export class Workspace extends DurableObject<Env> {
 			}
 		}
 		return { ports: [...byPort.values()].sort((left, right) => left.port - right.port) };
+	}
+
+	/**
+	 * Stops a workspace's sandbox the way an archive does (CLOUD-08): the work and the transcripts
+	 * are saved to R2 first, then the container stops. A sandbox that is already stopped is left
+	 * alone, and nothing is started to save it. Returning the archive to a running workspace is
+	 * `start`, which restores those backups (CLOUD-06).
+	 */
+	async stop(): Promise<BackupReport & { running: false }> {
+		return this.exclusive(async () => {
+			if (this.container === undefined || !this.container.running) {
+				return { running: false, ran: false, saved: [], skipped: [] };
+			}
+			if (this.setup === null) await this.setUp();
+			const result = await saveWorkspace(this.backupStore(), this.backupLedger());
+			await this.container.destroy();
+			return { running: false, ran: true, saved: result.saved, skipped: result.skipped };
+		});
+	}
+
+	/**
+	 * Deletes everything a workspace keeps (CLOUD-08): its R2 backups, its sandbox and the storage
+	 * this Durable Object holds. The container application itself belongs to the Worker's deploy
+	 * and is removed by the uninstall (CLOUD-07). A sandbox that is already stopped is not started
+	 * to be deleted. Deleting the same workspace twice succeeds, because every step tolerates work
+	 * that is already gone.
+	 */
+	async remove(): Promise<{ deletedBackups: number }> {
+		return this.exclusive(async () => {
+			const records = (await this.ctx.storage.get<DirectoryBackupRecord[]>(STORAGE_BACKUPS)) ?? [];
+			if (this.container !== undefined) {
+				const store = this.backupStore();
+				for (const record of records) await store.delete(record);
+				await this.container.destroy();
+			}
+			await this.ctx.storage.deleteAll();
+			return { deletedBackups: records.length };
+		});
 	}
 
 	/** Polls the bridge's health endpoint until it answers or the deadline passes. */

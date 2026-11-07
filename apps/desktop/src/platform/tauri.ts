@@ -67,6 +67,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployResult,
 	CloudPairing,
 	CloudRelay,
 	CloudRequest,
@@ -395,6 +396,8 @@ export const COMMANDS = {
 	cloudPairing: "cloud_pairing", // CLOUD-07
 	cloudPair: "cloud_pair", // CLOUD-07
 	cloudUnpair: "cloud_unpair", // CLOUD-07
+	cloudDeploy: "cloud_deploy", // CLOUD-08
+	cloudUninstall: "cloud_uninstall", // CLOUD-08
 	cloudRequest: "cloud_request", // CLOUD-03
 	cloudRelayOpen: "cloud_relay_open", // CLOUD-03
 	cloudRelaySend: "cloud_relay_send", // CLOUD-03
@@ -1353,6 +1356,12 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 		status: () => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPairing),
 		pair: (input) => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPair, { input }),
 		unpair: () => invokeResult<void>(bindings, COMMANDS.cloudUnpair),
+		// The command takes an optional override; an empty object keeps the argument present, which
+		// Tauri's deserializer needs for the `Option` field.
+		deploy: (input) =>
+			invokeResult<CloudDeployResult>(bindings, COMMANDS.cloudDeploy, { input: input ?? {} }),
+		uninstall: (input) =>
+			invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
 		request: (request: CloudRequest) =>
 			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
 		openRelay: async (input) => {

@@ -124,6 +124,9 @@ function unsignedBuildEnv(): Record<string, string | undefined> {
 try {
 	// The sidecar binary is built first because the release config lists it as an external binary.
 	sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
+	// The deploy inputs the app carries (D109): the bundled Worker, the sandbox Dockerfile and the
+	// image's build output. `tauri build` copies them from `src-tauri/resources/cloud`.
+	sh(["bun", "scripts/cloud/prepare-deploy.ts"]);
 	// The build gets no credential: it runs the packages' build code. The release config makes no
 	// update archive, because the archive must be made from the notarised app; only `tauri signer
 	// sign` below sees the updater key.

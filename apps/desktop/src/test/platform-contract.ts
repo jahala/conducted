@@ -2208,6 +2208,10 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"http.download":
 		"Streams to a file in Rust; the Rust download tests own progress, checksum and cancel.",
 	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",
+	"cloud.deploy":
+		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
+	"cloud.uninstall":
+		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
 };
 
 /** Methods that are neither covered by a case nor listed with a reason. */

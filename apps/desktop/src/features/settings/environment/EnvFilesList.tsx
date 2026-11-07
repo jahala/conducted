@@ -5,8 +5,8 @@
  * services-map.md 4.2.3 (environment_variable_files).
  * Must handle: no files, a file that does not exist (marked), a path outside the repository
  * (refused), adding by picking from a list of dotenv-style files found in the repository, and
- * removing an entry without touching the file.
- * The dotenv reader here only reads names and values; the caller decides what to save.
+ * removing an entry without touching the file. The dotenv reader itself is core/services/dotenv,
+ * because the launch reads the same files (SET-04).
  * Test first: adding a path outside the repository root is refused.
  */
 import { useState } from "react";
@@ -36,25 +36,6 @@ export function pathInsideRepository(root: string, path: string): string | null 
 	const resolved = normalize(value.startsWith("/") ? value : `${base}/${value}`);
 	if (resolved === base) return null;
 	return resolved.startsWith(`${base}/`) ? resolved.slice(base.length + 1) : null;
-}
-
-/** A dotenv file's name and value pairs. Quotes around a value are removed; `#` starts a comment. */
-export function parseDotenv(text: string): { name: string; value: string }[] {
-	const pairs: { name: string; value: string }[] = [];
-	for (const raw of text.split("\n")) {
-		const line = raw.trim();
-		if (line === "" || line.startsWith("#")) continue;
-		const withoutExport = line.startsWith("export ") ? line.slice("export ".length) : line;
-		const at = withoutExport.indexOf("=");
-		if (at <= 0) continue;
-		const name = withoutExport.slice(0, at).trim();
-		let value = withoutExport.slice(at + 1).trim();
-		const quoted = value.match(/^(['"])(.*)\1$/);
-		if (quoted !== null) value = quoted[2] ?? "";
-		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
-		pairs.push({ name, value });
-	}
-	return pairs;
 }
 
 export interface EnvFilesListProps {

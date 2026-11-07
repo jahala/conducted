@@ -35,7 +35,7 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
-import type { CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -739,6 +739,10 @@ export interface Actions {
 		pair: Act<[input: CloudPairInput], CloudPairing>;
 		/** Removes this Mac's pairing with its Worker. */
 		unpair: Act<[], void>;
+		/** Deploys the app's bundled Worker to the user's account and pairs this Mac (CLOUD-08). */
+		deploy: Act<[], CloudDeployResult>;
+		/** Deletes the Worker, its container application and its bucket, and unpairs (CLOUD-08). */
+		uninstall: Act<[], void>;
 	};
 	portForwards: {
 		/** The workspace's Start forwarding switch (Cmd+Y). Exclusive mode turns others off first. */
