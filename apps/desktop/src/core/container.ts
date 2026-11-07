@@ -13,8 +13,9 @@
  * path in `app/startup.ts`); `start` runs once (a second call returns the first result); after the
  * steps it wires the dock badge, notification clicks, the hourly update check, the keep-awake scan
  * and its 10-second timer, the quit guard and the Spotlight heal; a quit (asked for, or confirmed
- * while agents work) runs `stop` first and then quits, because the Rust shell exits at once; editor
- * drafts of a workspace that left the store are dropped; deep links have one subscriber,
+ * while agents work) runs `stop` first and then quits, because the Rust shell exits at once, and
+ * `quit` gives a screen that cannot reach the quit listener (a failed or wrong-CPU start) that same
+ * path; editor drafts of a workspace that left the store are dropped; deep links have one subscriber,
  * the command dispatcher (NAV-14), which is mounted with the app root and hands them to NAV-17's
  * opener, so this file does not listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
@@ -233,6 +234,12 @@ export interface Container {
 	 * is logged. Safe to call twice. A quit request runs it before the app quits.
 	 */
 	stop(): Promise<void>;
+	/**
+	 * Stops the app and then quits, with the same time limit as a quit request (D064). A screen
+	 * that cannot reach the quit listener (a failed or wrong-CPU start) calls this instead of
+	 * quitting straight away, so no work in flight is left behind. Safe before `start`.
+	 */
+	quit(): void;
 }
 
 interface StartStep {
@@ -1669,6 +1676,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return started;
 		},
 		stop,
+		quit: stopThenQuit,
 	};
 }
 

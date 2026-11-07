@@ -454,6 +454,28 @@ describe("APP-01 after start", () => {
 		expect(detachedAt).toBeLessThan(quitAt ?? 0);
 	});
 
+	it("quits through the same stop-first path for a screen that cannot send the quit request", async () => {
+		const harness = build();
+		stubStartup(harness);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const flush = vi.spyOn(harness.container.services.composer, "flush");
+		const detach = vi.mocked(harness.container.sidecar.stop);
+
+		await harness.container.start();
+		harness.container.quit();
+		// A second call while the first one stops the app does not stop or quit twice.
+		harness.container.quit();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		expect(flush).toHaveBeenCalledTimes(1);
+		expect(detach).toHaveBeenCalledTimes(1);
+		const [flushedAt] = flush.mock.invocationCallOrder;
+		const [detachedAt] = detach.mock.invocationCallOrder;
+		const [quitAt] = quit.mock.invocationCallOrder;
+		expect(flushedAt).toBeLessThan(quitAt ?? 0);
+		expect(detachedAt).toBeLessThan(quitAt ?? 0);
+	});
+
 	it("asks the user before quitting while agents are working", async () => {
 		const harness = build();
 		stubStartup(harness);
