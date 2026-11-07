@@ -2,10 +2,13 @@
  * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
+ * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * Owns: the container's main process. It sets the sidecar's folders and the sandbox flag, starts
  * the compiled sidecar, reads its `SOCKET_PATH=` handshake, and relays each WebSocket on the
- * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens. It also reads
- * each relayed sidecar line for the turn end and asks the Worker to save the workspace (D105).
+ * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens, `GET /ports`
+ * lists the listening TCP ports (CLOUD-10) and `GET /resources` reports CPU, memory and disk
+ * (CLOUD-15). It also reads each relayed sidecar line for the turn end and asks the Worker to save
+ * the workspace (D105).
  * Behaviour: cloud-and-remote.md Part 1 ("The sidecar runs inside the sandbox unchanged") and the
  * CLOUD-02 spike's bridge, which showed the same relay working in a Cloudflare sandbox
  * (cloud-spike-2026-11-06.md); claude-runner.md 1.3 says a cloud sandbox adds
@@ -24,7 +27,7 @@
  * Test first: `sandboxEnvironment` puts `CONDUCTED_BIN_DIR` first on PATH and sets
  * `CLAUDE_CODE_SANDBOXED=1`.
  */
-import { mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, readlinkSync, statfsSync } from "node:fs";
 import { turnChangeOf } from "../src/relay.ts";
 import { IMAGE } from "./image.ts";
 import {
@@ -34,6 +37,7 @@ import {
 	processName,
 	socketInode,
 } from "./ports.ts";
+import { type CpuSample, resourcesFrom, type SandboxResources } from "./resources.ts";
 import { TurnEndTracker } from "./turn-end.ts";
 
 export interface SandboxDirs {
@@ -276,6 +280,32 @@ function run(): void {
 		return detectedPorts(listeners, scanProcesses());
 	}
 
+	/** The previous CPU reading, so the next one reports a share over the interval (CLOUD-15). */
+	let previousCpu: CpuSample | null = null;
+
+	/** The running sandbox's CPU, memory and disk, read from its cgroup and the filesystem. */
+	function resourceReading(): SandboxResources {
+		let disk: { bsize: number; blocks: number; bavail: number } | null = null;
+		try {
+			const stat = statfsSync(workspace);
+			disk = { bsize: stat.bsize, blocks: stat.blocks, bavail: stat.bavail };
+		} catch {
+			// The workspace folder is not there yet; the reading is left out.
+		}
+		const reading = resourcesFrom({
+			cpuMax: readProc("/sys/fs/cgroup/cpu.max"),
+			cpuStat: readProc("/sys/fs/cgroup/cpu.stat"),
+			memoryMax: readProc("/sys/fs/cgroup/memory.max"),
+			memoryCurrent: readProc("/sys/fs/cgroup/memory.current"),
+			meminfo: readProc("/proc/meminfo"),
+			disk,
+			now: Date.now(),
+			previous: previousCpu,
+		});
+		previousCpu = reading.cpuSample;
+		return reading.resources;
+	}
+
 	/** The port a tunnel asks for, or null when it is not one a forward may use. */
 	function tunnelPort(raw: string | null): number | null {
 		if (raw === null || !/^\d{1,5}$/.test(raw)) return null;
@@ -339,6 +369,9 @@ function run(): void {
 			}
 			if (url.pathname === "/ports") {
 				return Response.json({ ports: listeningPorts() });
+			}
+			if (url.pathname === "/resources") {
+				return Response.json(resourceReading());
 			}
 			if (url.pathname === "/tunnel") {
 				const port = tunnelPort(url.searchParams.get("port"));
