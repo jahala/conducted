@@ -18,6 +18,7 @@
  */
 import type { Host } from "@conducted/protocol";
 import {
+	appError,
 	err,
 	ok,
 	type RepoId,
@@ -28,7 +29,6 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { KanbanStatus, Workspace, WorkspaceState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { hostFromRow, hostToParams } from "./host-rows.ts";
 import {
 	collectResults,
 	executeExisting,
@@ -78,6 +78,34 @@ export interface WorkspaceRow {
  * through `getSetupLogPath` and written at insert, so the shared model type does not change.
  */
 export type WorkspaceInsert = Workspace & { setupLogPath: string | null };
+
+/** The host columns as a `Host`: local has neither URL nor sandbox id, cloud has both. */
+export function hostFromRow(
+	row: Pick<WorkspaceRow, "host_kind" | "host_url" | "host_vm_id">,
+): Result<Host> {
+	if (row.host_kind === "local" && row.host_url === null && row.host_vm_id === null) {
+		return ok({ kind: "local" });
+	}
+	if (
+		row.host_kind === "cloud" &&
+		row.host_url !== null &&
+		row.host_url !== "" &&
+		row.host_vm_id !== null &&
+		row.host_vm_id !== ""
+	) {
+		return ok({ kind: "cloud", url: row.host_url, vmId: row.host_vm_id });
+	}
+	return err(
+		appError(
+			"db.invalid_host",
+			"workspaces.host_* must be local with no URL or sandbox, or cloud with both",
+		),
+	);
+}
+
+/** A `Host` as the three host columns, in column order. */
+const hostToParams = (host: Host): readonly [Host["kind"], string | null, string | null] =>
+	host.kind === "local" ? ["local", null, null] : ["cloud", host.url, host.vmId];
 
 export function workspaceFromRow(row: WorkspaceRow): Result<Workspace> {
 	const linkedPaths = parseStringList(row.linked_paths, "workspaces.linked_paths");

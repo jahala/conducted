@@ -103,12 +103,6 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0009_workspace_host.sql"),
             kind: MigrationKind::Up,
         },
-        Migration {
-            version: 10,
-            description: "cloud_rows_by_host",
-            sql: include_str!("../migrations/0010_cloud_rows_by_host.sql"),
-            kind: MigrationKind::Up,
-        },
     ]
 }
 

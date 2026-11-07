@@ -12,7 +12,6 @@ import { type LiveState, zLiveState } from "@conducted/protocol";
 import { err, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { hostFromRow, sessionHostExpressions } from "./host-rows.ts";
 import {
 	collectResults,
 	executeStatement,
@@ -24,9 +23,6 @@ import {
 
 export interface SessionLiveStateRow {
 	session_id: SessionId;
-	host_kind: "local" | "cloud";
-	host_url: string | null;
-	host_vm_id: string | null;
 	live_state: string;
 	updated_at: number;
 }
@@ -40,15 +36,13 @@ export interface StoredLiveState {
 export function liveStateFromRow(row: SessionLiveStateRow): Result<StoredLiveState> {
 	const liveState = parseJsonColumn(row.live_state, zLiveState, "session_live_state.live_state");
 	if (!liveState.ok) return liveState;
-	const host = hostFromRow(row);
-	if (!host.ok) return host;
 	return {
 		ok: true,
 		value: { sessionId: row.session_id, liveState: liveState.value, updatedAt: row.updated_at },
 	};
 }
 
-/** Parameters for SESSION_LIVE_STATE_SQL.upsert. The host columns come from the workspace, so they are not here. */
+/** Parameters for SESSION_LIVE_STATE_SQL.upsert, in column order. */
 export function liveStateToParams(
 	sessionId: SessionId,
 	liveState: LiveState,
@@ -61,17 +55,11 @@ export function liveStateToParams(
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSION_LIVE_STATE_SQL = {
-	get: `SELECT session_id, host_kind, host_url, host_vm_id, live_state, updated_at
-		FROM session_live_state WHERE session_id = $1`,
-	listAll: `SELECT session_id, host_kind, host_url, host_vm_id, live_state, updated_at
-		FROM session_live_state ORDER BY session_id`,
-	/**
-	 * The WHERE clause on the conflict branch drops a write that is older than the stored one.
-	 * The host is copied from the chat's workspace, so no caller can mark it (CLOUD-13).
-	 */
-	upsert: `INSERT INTO session_live_state (session_id, host_kind, host_url, host_vm_id, live_state,
-		updated_at)
-		VALUES ($1, ${sessionHostExpressions(1)}, $2, $3)
+	get: "SELECT session_id, live_state, updated_at FROM session_live_state WHERE session_id = $1",
+	listAll: "SELECT session_id, live_state, updated_at FROM session_live_state ORDER BY session_id",
+	/** The WHERE clause on the conflict branch drops a write that is older than the stored one. */
+	upsert: `INSERT INTO session_live_state (session_id, live_state, updated_at)
+		VALUES ($1, $2, $3)
 		ON CONFLICT (session_id) DO UPDATE
 		SET live_state = excluded.live_state, updated_at = excluded.updated_at
 		WHERE excluded.updated_at >= session_live_state.updated_at`,

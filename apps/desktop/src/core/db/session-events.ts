@@ -14,7 +14,6 @@ import { type SessionEvent, zSessionEvent } from "@conducted/protocol";
 import { type EventId, err, ok, type Result, type SessionId, type TurnId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { hostFromRow, sessionHostExpressions } from "./host-rows.ts";
 import {
 	collectResults,
 	executeStatement,
@@ -25,9 +24,6 @@ import {
 
 export interface SessionEventRow {
 	session_id: SessionId;
-	host_kind: "local" | "cloud";
-	host_url: string | null;
-	host_vm_id: string | null;
 	idx: number;
 	event_id: EventId;
 	type: SessionEvent["type"];
@@ -54,8 +50,6 @@ export type AppendOutcome = { kind: "appended"; idx: number } | { kind: "duplica
 export function sessionEventFromRow(row: SessionEventRow): Result<StoredSessionEvent> {
 	const event = parseJsonColumn(row.content, zSessionEvent, "session_events.content");
 	if (!event.ok) return event;
-	const host = hostFromRow(row);
-	if (!host.ok) return host;
 	return {
 		ok: true,
 		value: {
@@ -70,7 +64,7 @@ export function sessionEventFromRow(row: SessionEventRow): Result<StoredSessionE
 	};
 }
 
-/** Parameters for SESSION_EVENTS_SQL.append: session, event id, type, turn id, content, time. The host columns come from the chat's workspace. */
+/** Parameters for SESSION_EVENTS_SQL.append: session, event id, type, turn id, content, time. */
 export function sessionEventToParams(
 	sessionId: SessionId,
 	event: SessionEvent,
@@ -84,8 +78,7 @@ export function sessionEventToParams(
 	};
 }
 
-const COLUMNS = `session_id, host_kind, host_url, host_vm_id, idx, event_id, type, turn_id,
-	content, received_at, reverted_at`;
+const COLUMNS = "session_id, idx, event_id, type, turn_id, content, received_at, reverted_at";
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSION_EVENTS_SQL = {
@@ -94,12 +87,9 @@ export const SESSION_EVENTS_SQL = {
 	 * once; the conflict clause drops it when the event id exists, and RETURNING then gives no row.
 	 * The WHERE clause also keeps the parser from reading ON CONFLICT as a join condition.
 	 * Run it with `select`, not `execute`, because the answer is in the returned row.
-	 * The host is copied from the chat's workspace, so an event is stored under its chat's host
-	 * (CLOUD-13).
 	 */
-	append: `INSERT INTO session_events (session_id, idx, host_kind, host_url, host_vm_id, event_id,
-		type, turn_id, content, received_at)
-		SELECT $1, COALESCE(MAX(idx), -1) + 1, ${sessionHostExpressions(1)}, $2, $3, $4, $5, $6
+	append: `INSERT INTO session_events (session_id, idx, event_id, type, turn_id, content, received_at)
+		SELECT $1, COALESCE(MAX(idx), -1) + 1, $2, $3, $4, $5, $6
 		FROM session_events WHERE session_id = $1
 		ON CONFLICT (session_id, event_id) DO NOTHING
 		RETURNING idx`,
@@ -125,11 +115,12 @@ export const SESSION_EVENTS_SQL = {
 	 * history, not work cut off by a crash, so they are left out. An event with no turn is not a
 	 * turn either. Our design choice: a steer message carries the turn id of the turn it steers,
 	 * so it does not start a second turn. This is the startup repair query, so it reads local
-	 * chats only (CLOUD-13).
+	 * chats only, through their workspace's host (CLOUD-13).
 	 */
 	findInterruptedTurns: `SELECT session_id, turn_id FROM session_events
 		WHERE reverted_at IS NULL AND turn_id IS NOT NULL
-			AND session_id IN (SELECT id FROM sessions WHERE host_kind = 'local')
+			AND session_id IN (SELECT s.id FROM sessions s
+				JOIN workspaces w ON w.id = s.workspace_id WHERE w.host_kind = 'local')
 		GROUP BY session_id, turn_id
 		HAVING SUM(type = 'user_message') > 0 AND SUM(type = 'turn_ended') = 0
 		ORDER BY session_id, MIN(idx)`,
