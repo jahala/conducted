@@ -4,12 +4,20 @@
 //! a restart, and keeping the folder within its size and age limits.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 (`terminal_history_storage.rs`:
-//! `pty_load_terminal_history`, `pty_persist_terminal_history`, the 50 MiB limit with eviction of
-//! the oldest entries) and D1 (`local-storage.entries/terminal-history`, directory mode 0700).
+//! `pty_load_terminal_history`, `pty_persist_terminal_history`, `get_or_create_local_storage_encryption_key`,
+//! the 50 MiB limit with eviction of the oldest entries), D1 (`local-storage.entries/terminal-history`,
+//! encrypted entries, directory mode 0700) and services-map.md 4.2.9 (the local-storage entry scheme:
+//! a 32-byte key in the Keychain under `local-storage-entry-encryption-key-v1`, AES-256-GCM with a
+//! random 12-byte nonce and the entry's subsystem, id and version as additional authenticated data).
 //!
 //! Must handle:
-//! - Files live in `<app data>/terminal-history/<terminal id>.bin`. The folder has mode 0700 and
-//!   each file mode 0600.
+//! - Files live in `<app data>/terminal-history/<terminal id>.bin`. The terminal id is the row id
+//!   the UI stores, which `PtySpawn.terminalId` carries into `pty_spawn`, so a reopened terminal
+//!   finds its history. The folder has mode 0700 and each file mode 0600.
+//! - Each file is encrypted. Its first bytes are `ENTRY_MAGIC`, then a random 12-byte nonce, then
+//!   the AES-256-GCM ciphertext and tag. The key is created in the macOS Keychain on first use and
+//!   reused after that. A file that does not start with `ENTRY_MAGIC` is never returned as text: a
+//!   plain file left by an earlier version is encrypted by the migration below before any read.
 //! - A terminal that never received user input is not saved: a finished setup script has its log
 //!   file already. The recorder tracks `has_received_input`.
 //! - Each file holds at most the terminal's scrollback limit, and never more than
@@ -25,14 +33,18 @@
 //! - Eviction runs whenever the folder is opened for a load and after each save. It removes
 //!   entries older than `MAX_AGE_DAYS`, then the oldest entries until the folder is under
 //!   `MAX_TOTAL_BYTES`.
+//! - Existing plain entries are encrypted by `migrate_plain_entries` on the first start that opens
+//!   the folder. An entry that cannot be encrypted stays as it is and the error is logged; nothing
+//!   is deleted, so a later start tries again.
 //! - Loading a missing file fails with `history_not_found`. A bad id (path separators, `..`)
-//!   fails with `history_bad_id`, so an id can never point outside the folder.
-//! - The terminal id is the PTY id from pty.rs.
+//!   fails with `history_bad_id`, so an id can never point outside the folder. A file that is not
+//!   encrypted fails with `history_unencrypted`; a file whose tag or key does not match fails with
+//!   `history_decrypt_failed`.
 //!
-//! Our design choice: files are plain, not encrypted. Terminal output can hold secrets, but the
-//! data folder is private to the user and an encryption key in the Keychain would add a prompt and
-//! a failure mode. Revisit if shared machines matter. The 14-day age limit matches the lifetime
-//! of the `terminals` table rows in migration 0001.
+//! Our design choice: the scheme follows Conductor's local-storage entries, as the issue asks
+//! (D087 replaces D014). The key is a generic password in the Keychain under `keychain::SERVICE`
+//! and the account `local-storage-entry-encryption-key-v1`, the name Conductor uses. The 14-day
+//! age limit matches the lifetime of the `terminals` table rows in migration 0001.
 //!
 //! Our design choice: one record holds at most 20 MiB and the whole folder at most 50 MiB, so the
 //! 60 MiB test below evicts the oldest terminal.
@@ -46,18 +58,25 @@
 //! app quits, so there is no debounce timer and no UI persist call.
 //!
 //! Test first: saving 60 MiB of entries over three terminals leaves the folder at or under
-//! 50 MiB, and the oldest terminal is the one that is gone.
+//! 50 MiB, and the oldest terminal is the one that is gone. The file on disk does not hold the
+//! terminal's text in plain form, and loading it returns the same text; a plain entry left by an
+//! earlier version is encrypted by the migration and reads back unchanged.
 
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use base64::Engine as _;
+use ring::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
+use ring::rand::{SecureRandom, SystemRandom};
 use tauri::{AppHandle, Manager};
 
 use crate::error::blocking;
 use crate::error::{CommandError, CommandResult};
+use crate::keychain;
 
 /// Folder name under the app data folder.
 pub const HISTORY_DIR: &str = "terminal-history";
@@ -70,8 +89,157 @@ pub const MAX_AGE_DAYS: u64 = 14;
 /// A temp file left by a crashed write is removed after this long.
 pub const TEMP_MAX_AGE_MS: i64 = 86_400_000;
 
+/// The Keychain account that holds the scrollback encryption key. Conductor's name for the same
+/// key (services-map.md 4.2.9).
+pub const ENCRYPTION_KEY_ACCOUNT: &str = "local-storage-entry-encryption-key-v1";
+/// Bytes in the AES-256-GCM key.
+pub const KEY_BYTES: usize = 32;
+/// Bytes in the GCM nonce.
+pub const NONCE_BYTES: usize = 12;
+/// Marks an encrypted entry and its format version.
+pub const ENTRY_MAGIC: &[u8] = b"CONDUCTED-SCROLLBACK\x00\x01";
+/// The version included in the entry's additional authenticated data.
+const ENTRY_VERSION: u64 = 1;
+
 /// Counter that keeps two temp files in one process apart.
 static TEMP_SERIAL: AtomicU64 = AtomicU64::new(0);
+/// The key is read from the Keychain once per process.
+static CACHED_KEY: OnceLock<[u8; KEY_BYTES]> = OnceLock::new();
+/// Serializes the key's read-or-create, so two threads never make two keys.
+static KEY_LOCK: Mutex<()> = Mutex::new(());
+
+/// The scrollback encryption key, read from the Keychain or created there on first use. The key
+/// stays in memory after the first read.
+pub(crate) fn entry_key() -> CommandResult<[u8; KEY_BYTES]> {
+    if let Some(key) = CACHED_KEY.get() {
+        return Ok(*key);
+    }
+    let _guard = crate::error::lock(&KEY_LOCK);
+    if let Some(key) = CACHED_KEY.get() {
+        return Ok(*key);
+    }
+    let key = load_or_create_key(keychain::SERVICE, ENCRYPTION_KEY_ACCOUNT)?;
+    CACHED_KEY
+        .set(key)
+        .expect("the key is only set under KEY_LOCK");
+    Ok(key)
+}
+
+/// Reads the key in one service, or makes a random one and stores it there. The service and
+/// account are parameters so a test can use an item of its own.
+fn load_or_create_key(service: &str, account: &str) -> CommandResult<[u8; KEY_BYTES]> {
+    if let Some(stored) = keychain::read_secret(service, account)? {
+        return decode_key(&stored);
+    }
+    let mut key = [0u8; KEY_BYTES];
+    SystemRandom::new()
+        .fill(&mut key)
+        .map_err(|_| CommandError::Failed {
+            code: "history_key_random",
+            message: "Could not make a random scrollback encryption key.".to_string(),
+        })?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+    keychain::write_secret(service, account, &encoded)?;
+    Ok(key)
+}
+
+/// Turns the base64 value stored in the Keychain into the key, refusing any other length.
+fn decode_key(stored: &str) -> CommandResult<[u8; KEY_BYTES]> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(stored)
+        .map_err(|_| CommandError::Failed {
+            code: "history_key_invalid",
+            message: "The saved scrollback encryption key is not valid base64.".to_string(),
+        })?;
+    bytes.try_into().map_err(|_| CommandError::Failed {
+        code: "history_key_invalid",
+        message: format!("The saved scrollback encryption key is not {KEY_BYTES} bytes."),
+    })
+}
+
+/// The additional authenticated data that ties an entry to its terminal and format version.
+/// This is the shape Conductor's local storage uses (services-map.md 4.2.9).
+fn entry_aad(terminal_id: &str) -> Vec<u8> {
+    serde_json::json!({
+        "subsystem": HISTORY_DIR,
+        "id": terminal_id,
+        "version": ENTRY_VERSION,
+    })
+    .to_string()
+    .into_bytes()
+}
+
+/// The AES-256-GCM key, or an error that does not print the key.
+fn cipher(key: &[u8; KEY_BYTES]) -> CommandResult<LessSafeKey> {
+    let key = UnboundKey::new(&AES_256_GCM, key).map_err(|_| CommandError::Failed {
+        code: "history_key_invalid",
+        message: format!("The scrollback encryption key is not {KEY_BYTES} bytes."),
+    })?;
+    Ok(LessSafeKey::new(key))
+}
+
+/// Encrypts one entry: magic, nonce, then the ciphertext with its tag.
+fn seal_entry(
+    key: &[u8; KEY_BYTES],
+    terminal_id: &str,
+    plaintext: &[u8],
+) -> CommandResult<Vec<u8>> {
+    let cipher = cipher(key)?;
+    let mut nonce_bytes = [0u8; NONCE_BYTES];
+    SystemRandom::new()
+        .fill(&mut nonce_bytes)
+        .map_err(|_| CommandError::Failed {
+            code: "history_encrypt_failed",
+            message: "Could not make a random scrollback nonce.".to_string(),
+        })?;
+    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+    let mut body = plaintext.to_vec();
+    cipher
+        .seal_in_place_append_tag(nonce, Aad::from(entry_aad(terminal_id)), &mut body)
+        .map_err(|_| CommandError::Failed {
+            code: "history_encrypt_failed",
+            message: "Could not encrypt the saved terminal history.".to_string(),
+        })?;
+    let mut entry = Vec::with_capacity(ENTRY_MAGIC.len() + NONCE_BYTES + body.len());
+    entry.extend_from_slice(ENTRY_MAGIC);
+    entry.extend_from_slice(&nonce_bytes);
+    entry.extend_from_slice(&body);
+    Ok(entry)
+}
+
+/// Decrypts one entry. Anything that is not an entry of this version is refused, never returned
+/// as text.
+fn open_entry(key: &[u8; KEY_BYTES], terminal_id: &str, entry: &[u8]) -> CommandResult<Vec<u8>> {
+    if !entry.starts_with(ENTRY_MAGIC) {
+        return Err(CommandError::Failed {
+            code: "history_unencrypted",
+            message: format!("The saved history for {terminal_id} is not encrypted."),
+        });
+    }
+    let header = ENTRY_MAGIC.len();
+    let nonce_end = header + NONCE_BYTES;
+    let nonce_bytes: [u8; NONCE_BYTES] = entry
+        .get(header..nonce_end)
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(|| CommandError::Failed {
+            code: "history_decrypt_failed",
+            message: format!("The saved history for {terminal_id} is cut off."),
+        })?;
+    let cipher = cipher(key)?;
+    let nonce =
+        Nonce::try_assume_unique_for_key(&nonce_bytes).map_err(|_| CommandError::Failed {
+            code: "history_decrypt_failed",
+            message: format!("The saved history for {terminal_id} has an invalid nonce."),
+        })?;
+    let mut body = entry[nonce_end..].to_vec();
+    let plaintext = cipher
+        .open_in_place(nonce, Aad::from(entry_aad(terminal_id)), &mut body)
+        .map_err(|_| CommandError::Failed {
+            code: "history_decrypt_failed",
+            message: format!("The saved history for {terminal_id} could not be decrypted."),
+        })?;
+    Ok(plaintext.to_vec())
+}
 
 /// Collects the output of one terminal while it runs.
 pub struct HistoryRecorder {
@@ -114,15 +282,30 @@ impl HistoryRecorder {
         self.has_received_input = true;
     }
 
+    /// Whether `save` will write anything. A terminal with no input is not saved.
+    pub fn has_received_input(&self) -> bool {
+        self.has_received_input
+    }
+
     /// Writes the entry to `dir` unless no input was received, then evicts old entries.
     pub fn save(&self, dir: &Path) -> CommandResult<()> {
+        if !self.has_received_input {
+            return Ok(());
+        }
+        self.save_with_key(dir, &entry_key()?)
+    }
+
+    /// `save` with the key passed in, so a caller that saves several terminals reads or creates
+    /// the Keychain item once.
+    pub(crate) fn save_with_key(&self, dir: &Path, key: &[u8; KEY_BYTES]) -> CommandResult<()> {
         if !self.has_received_input {
             return Ok(());
         }
         ensure_private_dir(dir)?;
         let path = entry_path(dir, &self.terminal_id)?;
         let bytes = newest_bytes(&self.bytes, self.limit);
-        write_atomic(&path, bytes)?;
+        let entry = seal_entry(key, &self.terminal_id, bytes)?;
+        write_atomic(&path, &entry)?;
         evict(dir, now_ms()?)?;
         Ok(())
     }
@@ -139,6 +322,7 @@ pub fn history_dir(app: &AppHandle) -> CommandResult<PathBuf> {
         })?;
     let dir = data.join(HISTORY_DIR);
     ensure_private_dir(&dir)?;
+    migrate_plain_entries(&dir)?;
     evict(&dir, now_ms()?)?;
     Ok(dir)
 }
@@ -146,7 +330,25 @@ pub fn history_dir(app: &AppHandle) -> CommandResult<PathBuf> {
 /// Reads one saved entry from `dir`.
 pub fn load_entry(dir: &Path, terminal_id: &str) -> CommandResult<Vec<u8>> {
     let path = entry_path(dir, terminal_id)?;
-    match fs::read(&path) {
+    let bytes = read_entry(&path, terminal_id)?;
+    open_entry(&entry_key()?, terminal_id, &bytes)
+}
+
+/// `load_entry` with the key passed in.
+#[cfg(test)]
+pub(crate) fn load_entry_with_key(
+    dir: &Path,
+    terminal_id: &str,
+    key: &[u8; KEY_BYTES],
+) -> CommandResult<Vec<u8>> {
+    let path = entry_path(dir, terminal_id)?;
+    let bytes = read_entry(&path, terminal_id)?;
+    open_entry(key, terminal_id, &bytes)
+}
+
+/// Reads an entry file, mapping the errors a load reports.
+fn read_entry(path: &Path, terminal_id: &str) -> CommandResult<Vec<u8>> {
+    match fs::read(path) {
         Ok(bytes) => Ok(bytes),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(CommandError::Failed {
             code: "history_not_found",
@@ -157,6 +359,92 @@ pub fn load_entry(dir: &Path, terminal_id: &str) -> CommandResult<Vec<u8>> {
             message: format!("Could not read {}: {error}", path.display()),
         }),
     }
+}
+
+/// Encrypts every plain entry in `dir`. Run when the folder is opened, so a file written by an
+/// earlier version is never served as plain text.
+pub fn migrate_plain_entries(dir: &Path) -> CommandResult<usize> {
+    let plain = plain_entry_paths(dir)?;
+    if plain.is_empty() {
+        return Ok(0);
+    }
+    encipher_plain_entries(plain, &entry_key()?)
+}
+
+/// `migrate_plain_entries` with the key passed in, for a test.
+#[cfg(test)]
+fn migrate_plain_entries_with_key(dir: &Path, key: &[u8; KEY_BYTES]) -> CommandResult<usize> {
+    let plain = plain_entry_paths(dir)?;
+    encipher_plain_entries(plain, key)
+}
+
+/// Every `.bin` entry in `dir` that is not encrypted yet.
+fn plain_entry_paths(dir: &Path) -> CommandResult<Vec<(PathBuf, String)>> {
+    let listing = match fs::read_dir(dir) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "history_list_failed",
+                message: format!("Could not list {}: {error}", dir.display()),
+            });
+        }
+    };
+    let mut plain = Vec::new();
+    for item in listing {
+        let item = item.map_err(|error| CommandError::Failed {
+            code: "history_list_failed",
+            message: format!("Could not list an entry in {}: {error}", dir.display()),
+        })?;
+        let name = item.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') {
+            continue;
+        }
+        let Some(terminal_id) = name.strip_suffix(".bin") else {
+            continue;
+        };
+        if terminal_id.is_empty() {
+            continue;
+        }
+        entry_path(dir, terminal_id)?;
+        let path = item.path();
+        let metadata = item.metadata().map_err(|error| CommandError::Failed {
+            code: "history_stat_failed",
+            message: format!("Could not inspect {}: {error}", path.display()),
+        })?;
+        if !metadata.is_file() {
+            continue;
+        }
+        let mut prefix = [0u8; ENTRY_MAGIC.len()];
+        let read = fs::File::open(&path)
+            .and_then(|mut file| file.read(&mut prefix))
+            .map_err(|error| CommandError::Failed {
+                code: "history_read_failed",
+                message: format!("Could not read {}: {error}", path.display()),
+            })?;
+        if read != ENTRY_MAGIC.len() || prefix.as_slice() != ENTRY_MAGIC {
+            plain.push((path, terminal_id.to_string()));
+        }
+    }
+    Ok(plain)
+}
+
+/// Encrypts the named entries in place and reports how many were written.
+fn encipher_plain_entries(
+    plain: Vec<(PathBuf, String)>,
+    key: &[u8; KEY_BYTES],
+) -> CommandResult<usize> {
+    let mut migrated = 0;
+    for (path, terminal_id) in plain {
+        let bytes = fs::read(&path).map_err(|error| CommandError::Failed {
+            code: "history_read_failed",
+            message: format!("Could not read {}: {error}", path.display()),
+        })?;
+        let entry = seal_entry(key, &terminal_id, &bytes)?;
+        write_atomic(&path, &entry)?;
+        migrated += 1;
+    }
+    Ok(migrated)
 }
 
 /// Removes entries past the age and size limits. `now_ms` is passed in so tests control time.
@@ -482,6 +770,9 @@ mod tests {
             .sum()
     }
 
+    /// The key every test encrypts with. The Keychain path has its own test below.
+    const TEST_KEY: [u8; KEY_BYTES] = [7u8; KEY_BYTES];
+
     fn recorder(terminal_id: &str, bytes: &[u8]) -> HistoryRecorder {
         let mut recorder = HistoryRecorder::new(terminal_id.to_string(), None);
         recorder.mark_input();
@@ -503,7 +794,9 @@ mod tests {
             for _ in 0..20 {
                 recorder.push_output(&block);
             }
-            recorder.save(folder.path()).expect("save history");
+            recorder
+                .save_with_key(folder.path(), &TEST_KEY)
+                .expect("save history");
         }
 
         assert!(
@@ -524,11 +817,15 @@ mod tests {
         let folder = TempDir::new("quiet");
         let mut quiet = HistoryRecorder::new("pty-quiet".to_string(), None);
         quiet.push_output(b"setup output\n");
-        quiet.save(folder.path()).expect("save history");
+        quiet
+            .save_with_key(folder.path(), &TEST_KEY)
+            .expect("save history");
         assert!(!folder.entry("pty-quiet").exists());
 
         quiet.mark_input();
-        quiet.save(folder.path()).expect("save history");
+        quiet
+            .save_with_key(folder.path(), &TEST_KEY)
+            .expect("save history");
         assert!(folder.entry("pty-quiet").exists());
     }
 
@@ -537,11 +834,162 @@ mod tests {
         let folder = TempDir::new("read-back");
         let output: &[u8] = b"line one\n\x1b[31mline two\x1b[0m\n";
         recorder("pty-read", output)
-            .save(folder.path())
+            .save_with_key(folder.path(), &TEST_KEY)
             .expect("save history");
 
-        let loaded = load_entry(folder.path(), "pty-read").expect("load history");
+        let loaded =
+            load_entry_with_key(folder.path(), "pty-read", &TEST_KEY).expect("load history");
         assert_eq!(loaded.as_slice(), output);
+    }
+
+    #[test]
+    fn plat_08_a_saved_history_file_does_not_hold_its_text_in_plain_form() {
+        let folder = TempDir::new("at-rest");
+        let output: &[u8] = b"line one\nSECRET-TOKEN-123456\n";
+        recorder("pty-secret", output)
+            .save_with_key(folder.path(), &TEST_KEY)
+            .expect("save history");
+
+        let on_disk = fs::read(folder.entry("pty-secret")).expect("read the saved file");
+        assert!(on_disk.starts_with(ENTRY_MAGIC), "the entry is encrypted");
+        assert!(
+            !on_disk.windows(output.len()).any(|window| window == output),
+            "the saved file holds the terminal's text in plain form"
+        );
+        assert!(
+            !on_disk
+                .windows(b"SECRET-TOKEN-123456".len())
+                .any(|window| window == b"SECRET-TOKEN-123456"),
+            "the saved file holds part of the terminal's text in plain form"
+        );
+
+        let loaded = load_entry_with_key(folder.path(), "pty-secret", &TEST_KEY)
+            .expect("load the encrypted history");
+        assert_eq!(loaded.as_slice(), output);
+    }
+
+    #[test]
+    fn plat_08_a_plain_entry_is_encrypted_on_first_use_and_reads_back() {
+        let folder = TempDir::new("migrate");
+        let output: &[u8] = b"history from the plain version\n";
+        fs::write(folder.entry("pty-plain"), output).expect("seed a plain entry");
+
+        let migrated = migrate_plain_entries_with_key(folder.path(), &TEST_KEY)
+            .expect("encrypt the plain entry");
+        assert_eq!(migrated, 1);
+
+        let on_disk = fs::read(folder.entry("pty-plain")).expect("read the migrated entry");
+        assert!(
+            on_disk.starts_with(ENTRY_MAGIC),
+            "the migrated entry is encrypted"
+        );
+        assert!(
+            !on_disk.windows(output.len()).any(|window| window == output),
+            "the migrated entry still holds its text in plain form"
+        );
+
+        let loaded = load_entry_with_key(folder.path(), "pty-plain", &TEST_KEY)
+            .expect("read the migrated history");
+        assert_eq!(loaded.as_slice(), output);
+
+        let again = migrate_plain_entries_with_key(folder.path(), &TEST_KEY)
+            .expect("run the migration again");
+        assert_eq!(again, 0, "an encrypted entry is left alone");
+        let names: Vec<String> = fs::read_dir(folder.path())
+            .expect("list folder")
+            .map(|item| {
+                item.expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(names, vec!["pty-plain.bin".to_string()]);
+    }
+
+    #[test]
+    fn plat_08_a_plain_entry_is_never_returned_as_text() {
+        let folder = TempDir::new("plain-read");
+        fs::write(folder.entry("pty-plain"), b"not encrypted\n").expect("seed a plain entry");
+
+        let error = load_entry_with_key(folder.path(), "pty-plain", &TEST_KEY)
+            .expect_err("a plain entry is refused");
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "history_unencrypted",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_08_an_entry_under_another_key_is_not_read() {
+        let folder = TempDir::new("wrong-key");
+        recorder("pty-other", b"written under one key\n")
+            .save_with_key(folder.path(), &TEST_KEY)
+            .expect("save history");
+
+        let mut other = TEST_KEY;
+        other[0] ^= 0xff;
+        let error = load_entry_with_key(folder.path(), "pty-other", &other)
+            .expect_err("another key must not open the entry");
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "history_decrypt_failed",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_08_the_encryption_key_is_created_once_and_reused() {
+        struct KeyItem {
+            service: String,
+            account: String,
+        }
+
+        impl Drop for KeyItem {
+            fn drop(&mut self) {
+                if let Err(error) = keychain::remove_secret(&self.service, &self.account) {
+                    eprintln!(
+                        "could not remove test Keychain item {}: {error}",
+                        self.account
+                    );
+                }
+            }
+        }
+
+        let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let item = KeyItem {
+            service: format!("plat-08-key-service-{}-{counter}", std::process::id()),
+            account: format!("plat-08-key-account-{}-{counter}", std::process::id()),
+        };
+
+        assert!(
+            keychain::read_secret(&item.service, &item.account)
+                .expect("read a missing key")
+                .is_none(),
+            "the test starts without a key"
+        );
+
+        let first = load_or_create_key(&item.service, &item.account).expect("create the key");
+        let stored = keychain::read_secret(&item.service, &item.account)
+            .expect("read the stored key")
+            .expect("the key is stored");
+        let decoded = decode_key(&stored).expect("the stored key is valid");
+        assert_eq!(decoded, first);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(&stored)
+                .expect("the stored value is base64")
+                .len(),
+            KEY_BYTES
+        );
+
+        let second = load_or_create_key(&item.service, &item.account).expect("read the key again");
+        assert_eq!(second, first, "the second read reuses the same key");
     }
 
     #[test]
@@ -612,14 +1060,22 @@ mod tests {
             recorder.push_output(line);
         }
 
-        recorder.save(folder.path()).expect("save history");
+        recorder
+            .save_with_key(folder.path(), &TEST_KEY)
+            .expect("save history");
 
+        // The limit caps the history kept; the file adds the encryption's fixed overhead: the
+        // magic, the nonce and the AES-GCM tag.
+        let overhead = (ENTRY_MAGIC.len() + NONCE_BYTES + ring::aead::AES_256_GCM.tag_len()) as u64;
         let saved = fs::metadata(folder.entry("pty-limited"))
             .expect("the entry")
             .len();
-        assert!(saved <= 1024 * 1024, "the entry holds {saved} bytes");
         assert!(
-            saved > 1024 * 1024 - 2 * line.len() as u64,
+            saved <= 1024 * 1024 + overhead,
+            "the entry holds {saved} bytes"
+        );
+        assert!(
+            saved > 1024 * 1024 + overhead - 2 * line.len() as u64,
             "the entry holds {saved} bytes"
         );
     }
@@ -652,7 +1108,7 @@ mod tests {
     fn plat_08_eviction_removes_entries_past_the_age_limit() {
         let folder = TempDir::new("age");
         recorder("pty-old", b"old output\n")
-            .save(folder.path())
+            .save_with_key(folder.path(), &TEST_KEY)
             .expect("save history");
         let path = folder.entry("pty-old");
         let day_ms = 86_400_000_i64;
@@ -667,7 +1123,7 @@ mod tests {
     fn plat_08_eviction_keeps_a_fresh_entry() {
         let folder = TempDir::new("fresh");
         recorder("pty-new", b"new output\n")
-            .save(folder.path())
+            .save_with_key(folder.path(), &TEST_KEY)
             .expect("save history");
         let path = folder.entry("pty-new");
 
@@ -700,7 +1156,7 @@ mod tests {
             .expect("loosen the folder for the test");
 
         recorder("pty-mode", b"output\n")
-            .save(&dir)
+            .save_with_key(&dir, &TEST_KEY)
             .expect("save history");
 
         let dir_mode = fs::metadata(&dir)
@@ -721,7 +1177,7 @@ mod tests {
     fn plat_08_a_save_leaves_no_temp_file() {
         let folder = TempDir::new("temp");
         recorder("pty-atomic", b"output\n")
-            .save(folder.path())
+            .save_with_key(folder.path(), &TEST_KEY)
             .expect("save history");
 
         let names: Vec<String> = fs::read_dir(folder.path())

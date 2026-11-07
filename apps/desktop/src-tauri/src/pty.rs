@@ -50,7 +50,9 @@
 //!   watcher saves it to the history folder, and `save_live_histories` saves every running
 //!   terminal when the app quits. A failed save is written to the app log and sent on
 //!   `pty://exit` as `historyError`, which `PtyHandle.onExit` hands to the UI. The request's
-//!   `scrollbackLimitBytes` caps what the recorder keeps.
+//!   `scrollbackLimitBytes` caps what the recorder keeps, and `terminalId` is the name the saved
+//!   entry is written under (the terminal row the UI reopens), so a reopened terminal finds it.
+//!   The entry is encrypted by `terminal_history.rs` (D087).
 //! - `pty-ready` is dropped by design: `pty_spawn` returns once the process exists.
 //!
 //! Our design choice: ids are made in Rust and are unique across restarts (start time plus a
@@ -116,6 +118,8 @@ pub struct PtyCommand {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PtySpawnRequest {
+    /// The terminal row's id. It names the saved history file, so a reopened terminal finds it.
+    pub terminal_id: String,
     /// Working directory. Must exist.
     pub cwd: String,
     pub cols: u16,
@@ -591,7 +595,7 @@ pub fn spawn_terminal(
         mirror: Arc::new(Mutex::new(ScreenMirror::new(request.cols, request.rows))),
         flow: Arc::new(FlowControl::new()),
         history: Arc::new(Mutex::new(HistoryRecorder::new(
-            id,
+            request.terminal_id.clone(),
             request.scrollback_limit_bytes,
         ))),
     });
@@ -672,12 +676,33 @@ pub fn start_io_threads(
 /// when it quits, before it ends the terminals, because their exit watchers may not get to run
 /// before the process ends. Returns one line per terminal whose history could not be saved.
 pub fn save_live_histories(state: &PtyState, dir: &std::path::Path) -> Vec<String> {
+    save_live_histories_with(state, dir, crate::terminal_history::entry_key)
+}
+
+/// `save_live_histories` with the key getter passed in, so a test does not read the Keychain.
+/// The getter runs only when at least one terminal has input to save.
+pub(crate) fn save_live_histories_with(
+    state: &PtyState,
+    dir: &std::path::Path,
+    key: impl FnOnce() -> CommandResult<[u8; crate::terminal_history::KEY_BYTES]>,
+) -> Vec<String> {
     let sessions: Vec<Arc<PtySession>> = lock(&state.sessions).values().cloned().collect();
-    sessions
+    let saving: Vec<Arc<PtySession>> = sessions
+        .into_iter()
+        .filter(|session| lock(&session.history).has_received_input())
+        .collect();
+    if saving.is_empty() {
+        return Vec::new();
+    }
+    let key = match key() {
+        Ok(key) => key,
+        Err(error) => return vec![format!("the scrollback encryption key: {error}")],
+    };
+    saving
         .iter()
         .filter_map(|session| {
             lock(&session.history)
-                .save(dir)
+                .save_with_key(dir, &key)
                 .err()
                 .map(|error| format!("{}: {error}", session.id))
         })
@@ -944,9 +969,10 @@ mod tests {
     #[test]
     fn plat_08_a_spawn_request_carries_its_scrollback_limit() {
         let request: PtySpawnRequest = serde_json::from_str(
-            r#"{"cwd":"/tmp","cols":80,"rows":24,"scrollbackLimitBytes":1048576}"#,
+            r#"{"terminalId":"t-1","cwd":"/tmp","cols":80,"rows":24,"scrollbackLimitBytes":1048576}"#,
         )
         .expect("the request parses");
+        assert_eq!(request.terminal_id, "t-1");
         assert_eq!(request.scrollback_limit_bytes, Some(1_048_576));
     }
 
@@ -1141,6 +1167,7 @@ mod tests {
     #[test]
     fn plat_07_interactive_shell_uses_login_arguments_and_a_fresh_path() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1183,6 +1210,7 @@ mod tests {
     #[test]
     fn plat_07_direct_command_keeps_path_and_layers_the_request_env() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1216,6 +1244,7 @@ mod tests {
     #[test]
     fn set_13_a_direct_command_puts_the_chosen_path_shims_first() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1246,6 +1275,7 @@ mod tests {
     #[test]
     fn set_13_an_interactive_terminal_puts_the_shim_before_the_login_path() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1269,6 +1299,7 @@ mod tests {
     #[test]
     fn plat_07_direct_command_does_not_inherit_the_app_environment() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1307,6 +1338,7 @@ mod tests {
     #[test]
     fn plat_07_spawn_starts_a_command_and_returns_its_exit() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1330,6 +1362,7 @@ mod tests {
     #[test]
     fn plat_07_write_resize_and_kill_reach_the_process() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,
@@ -1383,6 +1416,7 @@ mod tests {
     #[cfg(unix)]
     fn plat_07_kill_signals_the_foreground_group_and_ends_the_child() {
         let request = PtySpawnRequest {
+            terminal_id: "spawn-test".to_string(),
             cwd: temp_cwd(),
             cols: 80,
             rows: 24,

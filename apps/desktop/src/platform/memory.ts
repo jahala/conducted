@@ -100,6 +100,8 @@ export interface MemoryPlatformControls {
 	failPtyAcks(message: string | null): void;
 	/** Makes saving a terminal's history fail with this message when it ends; null undoes it. */
 	failPtyHistory(message: string | null): void;
+	/** Stores saved history for a terminal row, as a previous app run left it. */
+	seedPtyHistory(terminalId: string, text: string): void;
 	/** Every terminal start request, in order. */
 	readonly ptySpawns: readonly PtySpawn[];
 	/** The app's processes `app.resourceUsage` reports, each with its working folder. */
@@ -714,6 +716,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	interface PtyState {
 		id: string;
+		/** The terminal row's id, which names its saved history. */
+		terminalId: string;
 		cols: number;
 		rows: number;
 		output: string;
@@ -729,7 +733,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		state.exited = true;
 		state.exitCode = code;
 		if (ptyHistoryFailure === null) {
-			ptyHistory.set(state.id, new TextEncoder().encode(state.output));
+			ptyHistory.set(state.terminalId, new TextEncoder().encode(state.output));
 		} else {
 			state.historyError = appError("history_write_failed", ptyHistoryFailure);
 		}
@@ -742,6 +746,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const spawnPty = async (spawnOptions: PtySpawn): Promise<Result<PtyHandle>> => {
 		const state: PtyState = {
 			id: ids.uuid(),
+			terminalId: spawnOptions.terminalId,
 			cols: spawnOptions.cols,
 			rows: spawnOptions.rows,
 			output: "",
@@ -1143,6 +1148,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		failPtyHistory: (message) => {
 			ptyHistoryFailure = message;
+		},
+		seedPtyHistory: (terminalId, text) => {
+			ptyHistory.set(terminalId, new TextEncoder().encode(text));
 		},
 		get ptySpawns() {
 			return ptySpawns;

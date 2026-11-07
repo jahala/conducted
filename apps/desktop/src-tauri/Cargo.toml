@@ -67,6 +67,9 @@ lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "x
 # Checks, downloads, verifies and installs app updates from our own feed (PLAT-13, D079).
 tauri-plugin-updater = "2"
 flate2 = "1"
+# AES-256-GCM for saved terminal scrollback (PLAT-08, D087). Already in the tree for the test that
+# checks minisign signatures, so the lockfile does not change.
+ring = "0.17"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
@@ -78,8 +81,6 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 tauri = { version = "2", features = ["test"] }
 # Tests build xz archives of their own to serve from a local server (PLAT-35).
 lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "xz", "encoder"] }
-# Tests sign update packages with a minisign key of their own (PLAT-13).
-ring = "0.17"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
