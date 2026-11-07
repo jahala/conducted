@@ -366,11 +366,14 @@ export class RunScriptsService {
 		const prefix = await this.#pathPrefix();
 		if (!prefix.ok) return prefix;
 		env.CONDUCTED_PATH_PREFIX = prefix.value;
+		// A remote host runs the setup script with strict options, as Conductor does; a local script
+		// runs as written (services-map.md 5A.1.2).
+		const command = workspace.value.host.kind === "cloud" ? `set -euo pipefail\n${script}` : script;
 		const started = await this.#deps.terminals.runScript({
 			workspaceId,
 			kind: "setup",
 			title: "Setup",
-			command: script,
+			command,
 			cwd: workspace.value.path,
 			env,
 		});
