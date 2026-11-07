@@ -162,7 +162,7 @@ function FontRow({
 					value={customMode ? "custom" : "default"}
 					options={[
 						{ value: "default", label: "Default" },
-						{ value: "custom", label: "Custom" },
+						{ value: "custom", label: "Custom..." },
 					]}
 					onValueChange={choose}
 					aria-label={`${def.title} style`}
@@ -229,7 +229,7 @@ export function AppearancePage({ focusSettingKey = null }: { focusSettingKey?: s
 					{row("code_theme")}
 					<FontRow
 						settingKey="mono_font"
-						placeholder="e.g. Berkeley Mono"
+						placeholder="Enter font name..."
 						focusSettingKey={focusSettingKey}
 						saves={saves}
 					/>
@@ -237,7 +237,7 @@ export function AppearancePage({ focusSettingKey = null }: { focusSettingKey?: s
 					{row("markdown_style")}
 					<FontRow
 						settingKey="terminal_font_family"
-						placeholder="e.g. Menlo"
+						placeholder="Leave empty for default"
 						focusSettingKey={focusSettingKey}
 						saves={saves}
 					/>
