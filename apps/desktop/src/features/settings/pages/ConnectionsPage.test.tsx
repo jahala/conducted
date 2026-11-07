@@ -85,4 +85,16 @@ describe("SET-02 ConnectionsPage", () => {
 		const status = await container.platform.cloud.status();
 		expect(status.ok && status.value.paired).toBe(false);
 	});
+
+	it("deploys the app's Worker and pairs this Mac", async () => {
+		const { container } = await mountPage();
+		if (test === undefined) throw new Error("no test container");
+		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted-cloud.example.workers.dev."),
+		).toBeTruthy();
+		expect(test.memory.controls.cloudDeploys).toEqual([{}]);
+		expect((await container.platform.cloud.status()).ok).toBe(true);
+	});
 });

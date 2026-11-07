@@ -3,6 +3,7 @@
  * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
  * desktop's pairing check (`/pair`), and routes each workspace's git, shell, file, terminal,
  * preview and sidecar-relay calls to that workspace's Durable Object. Its outbound handler also
@@ -116,6 +117,10 @@ export default {
 					return Response.json(await workspace.state());
 				case "start":
 					return Response.json(await workspace.start());
+				case "stop":
+					return Response.json(await workspace.stop());
+				case "remove":
+					return Response.json(await workspace.remove());
 				case "git": {
 					const body = await bodyOf(request, zGitBody);
 					if (body === null) return new Response(INVALID_BODY, { status: 400 });
