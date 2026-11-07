@@ -2,7 +2,8 @@
  * @feature NAV-10 Workspace screen
  * Owns: assembling the workspace route: header, centre content, Git panel and Scripts panel inside the
  * workspace layout, and passing the URL search state down. It also opens PR-10's "Link pull request"
- * dialog from the `pr.link` command while a workspace is open.
+ * dialog from the `pr.link` command while a workspace is open, and toggles a cloud workspace's
+ * port forwarding from Cmd+Y (CLOUD-10).
  * Behaviour: ui-map.md 3 (the workspace screen), 3.1 (header), 3.2 (tab strip and content), 3.6 (right panel
  * top), 3.7 (right panel bottom).
  * Our design choice: every region is its own <NotBuiltYet>, keyed by the workspace id, so a failing region
@@ -20,8 +21,9 @@ import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, usePortForwards, useWorkspace } from "../../core/hooks.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { GitPanel } from "../git-panel/GitPanel.tsx";
 import { LinkPullRequestDialog } from "../pr/LinkPullRequestDialog.tsx";
 import { ScriptsPanel } from "../scripts-panel/ScriptsPanel.tsx";
@@ -46,7 +48,18 @@ export function WorkspaceScreen({
 }: WorkspaceScreenProps) {
 	const workspaceFiles = useServices().services.workspaceFiles;
 	const actions = useActions();
+	const workspace = useWorkspace(workspaceId);
+	const forwarding = usePortForwards(workspaceId);
 	const [linkingPullRequest, setLinkingPullRequest] = useState(false);
+	useCommandHandler("workspace.togglePortForwarding", "area", () => {
+		if (workspace.state !== "ready" || workspace.data.host.kind !== "cloud") return false;
+		void actions.portForwards
+			.setForwarding(workspaceId, !forwarding.forwardingEnabled)
+			.then((result) => {
+				if (!result.ok) toastError("Couldn't change port forwarding", result.error);
+			});
+		return true;
+	});
 	useCommandHandler("pr.link", "area", () => {
 		setLinkingPullRequest(true);
 	});
