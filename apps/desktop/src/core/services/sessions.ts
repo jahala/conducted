@@ -1349,6 +1349,7 @@ export class SessionsService implements AgentMessenger {
 
 	/** Removes a card the app opened itself, as its wait gave up (CLOUD-14). */
 	withdrawInteraction(interactionId: InteractionId): void {
+		if (!this.#localInteractions.has(interactionId)) return;
 		this.#settleInteraction(interactionId, { kind: "withdrawn" });
 	}
 
