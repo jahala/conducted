@@ -249,7 +249,12 @@ export const FLOWS: Flow[] = [
 	},
 ];
 
-async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowResult> {
+async function runFlow(
+	browser: Browser,
+	url: string,
+	flow: Flow,
+	out: string,
+): Promise<FlowResult> {
 	const result: FlowResult = { id: flow.id, title: flow.title, source: flow.source, steps: [] };
 	if (flow.notDrivable !== undefined) {
 		result.steps.push({
@@ -308,10 +313,12 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 					toasts.length === 0
 						? ""
 						: `; toasts: ${toasts.map((text) => text.replace(/\s+/g, " ")).join(" | ")}`;
+				// A picture of the screen where the step stopped, uploaded with the report.
+				await page.screenshot({ path: join(out, `flow-${flow.id}.png`) }).catch(() => undefined);
 				result.steps.push({
 					step: step.step,
 					ok: false,
-					detail: `${message}${why}${said}`,
+					detail: `${message}${why}${said}; screen in flow-${flow.id}.png`,
 				});
 				break;
 			}
@@ -338,7 +345,7 @@ async function main(argv: string[]): Promise<number> {
 		browser = await chromium.launch();
 		const results: FlowResult[] = [];
 		for (const flow of FLOWS.filter((item) => only.length === 0 || only.includes(item.id))) {
-			const result = await runFlow(browser, url, flow);
+			const result = await runFlow(browser, url, flow, out);
 			const passed = result.steps.every((step) => step.ok);
 			console.log(`${passed ? "ok  " : "GAP "} ${flow.id}`);
 			for (const step of result.steps.filter((item) => !item.ok))
