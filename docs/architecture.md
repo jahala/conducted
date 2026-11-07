@@ -35,20 +35,21 @@ How they talk:
 
 ## Where each kind of logic lives
 
-| Logic                                             | One home                                           | Also used by                                                                 |
-| ------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Message shapes between UI and sidecar             | `packages/protocol`                                | both sides parse with the same schemas                                       |
-| Mention tokens (`@file`, `#PR`)                   | `packages/protocol/src/mentions.ts`                | composer writes them, sidecar expands them                                   |
-| Canonical tool names                              | `packages/protocol/src/tools.ts`                   | runners map to them, chat cards key on them                                  |
-| Agent providers, sign-ins and their key variables | `packages/protocol/src/agent-providers.ts`         | the sidecar's key filter and routing, the Providers dialog, the app's launch |
-| Workspace status (sidebar, Home, tabs, Git panel) | `apps/desktop/src/core/status/workspace-status.ts` | every screen that shows a status                                             |
-| Git panel header state and its main action        | `apps/desktop/src/core/status/git-header.ts`       | Git panel, command palette                                                   |
-| Commands and their shortcuts                      | `apps/desktop/src/core/registries/commands.ts`     | menus (sent to Rust), palette, shortcut dialog, tooltips                     |
-| Shortcut conflict rule                            | `apps/desktop/src/core/registries/commands.ts`     | settings page, custom bindings                                               |
-| Settings, their scopes and defaults               | `apps/desktop/src/core/registries/settings.ts`     | settings pages, settings search, services                                    |
-| Session lifecycle (queue, steer, cancel, idle)    | `packages/sidecar/src/session`                     | every runner                                                                 |
-| Turn grouping for display                         | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
-| Database schema                                   | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
+| Logic                                               | One home                                           | Also used by                                                                 |
+| --------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Message shapes between UI and sidecar               | `packages/protocol`                                | both sides parse with the same schemas                                       |
+| Mention tokens (`@file`, `#PR`)                     | `packages/protocol/src/mentions.ts`                | composer writes them, sidecar expands them                                   |
+| Canonical tool names                                | `packages/protocol/src/tools.ts`                   | runners map to them, chat cards key on them                                  |
+| Agent providers, sign-ins and their key variables   | `packages/protocol/src/agent-providers.ts`         | the sidecar's key filter and routing, the Providers dialog, the app's launch |
+| Workspace status (sidebar, Home, tabs, Git panel)   | `apps/desktop/src/core/status/workspace-status.ts` | every screen that shows a status                                             |
+| Git panel header state and its main action          | `apps/desktop/src/core/status/git-header.ts`       | Git panel, command palette                                                   |
+| Commands and their shortcuts                        | `apps/desktop/src/core/registries/commands.ts`     | menus (sent to Rust), palette, shortcut dialog, tooltips                     |
+| Shortcut conflict rule                              | `apps/desktop/src/core/registries/commands.ts`     | settings page, custom bindings                                               |
+| Settings, their scopes and defaults                 | `apps/desktop/src/core/registries/settings.ts`     | settings pages, settings search, services                                    |
+| Session lifecycle (queue, steer, cancel, idle)      | `packages/sidecar/src/session`                     | every runner                                                                 |
+| Sidecar process, file, socket and environment edges | `packages/sidecar/src/adapters`                    | `modes/sidecar-mode.ts` wires them; each adapter's test uses the real thing  |
+| Turn grouping for display                           | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
+| Database schema                                     | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
 
 ## Shared helpers
 
