@@ -1,12 +1,13 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
- * Owns: the command palette open over a workspace, a code file open in the file viewer, the file viewer
+ * Owns: the command palette open over a workspace, the Feedback dialog (opened as Send feedback opens it), a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
  * Behaviour: ui-map.md 5.1 (command palette), 3.4 (file tab), 3.7 (scripts panel).
  * Test first: not applicable; the screenshot run opens every state.
  */
+import { useOverlayStore } from "../../app/overlay-store.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
 import { click, pressUntilTaken, shows } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
@@ -25,6 +26,20 @@ export const OVERLAY_STATES: CatalogueState[] = [
 					await pressUntilTaken(document, "k", { meta: true });
 				},
 				ready: (document) => document.querySelector('[aria-label="Command palette tabs"]') !== null,
+			};
+		},
+	},
+	{
+		id: "feedback-dialog",
+		group: "Overlays and panels",
+		title: "Feedback dialog",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				// The app.sendFeedback command's own step: show the overlay.
+				after: async () => useOverlayStore.getState().show("feedback"),
+				ready: (document) => shows(document, "Your email"),
 			};
 		},
 	},
