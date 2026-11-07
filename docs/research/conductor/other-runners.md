@@ -239,3 +239,87 @@ So an allowed choice is kept. Otherwise each setting takes the widest allowed ch
 - Exact content of `checkPrompt` for opencode (`f0o`, 51748) and `I4r` (opencode session storage) were not read in full.
 - The `codex-mcp` server body (`bhs`, 344346) was not read; only how it is launched and what args it receives.
 - Cursor `localExecution`/approval behaviour inside the SDK is outside this file; absence of callbacks is only a statement about Conductor's runner.
+
+## 9. Amp, Copilot and Gemini: terminal presets, not agent runners
+
+VERIFIED in the bundle and the sidecar. This section corrects the parity triage that read the
+three labels as agent choices: they are rows in the "New tab preset" radio list, and Conductor
+never launches them as agents.
+
+### 9.1 Where the labels are
+
+The three labels at renderApp @10676910 (Amp), @10676977 (Copilot) and @10677047 (Gemini) belong
+to one list, `zOa` at @10676679. The list holds a row for Claude, Codex, OpenCode, Amp, Copilot,
+Gemini and None, in that order. Each row is a radio (`UOa`, @10677249) whose label is the program
+name and whose right side shows the command the row would run. The rows belong to the "New tab
+preset" setting on the "Big terminal" settings page: `VOa` at @10678294, the page header "Big
+terminal" @10678486 and description @10678507, the setting label @10678723 and its description
+@10678806. The settings sidebar names the page "Big terminal settings" (@11303093). The page is
+the Terminal settings tab, which the "Big terminal mode" switch unhides (services-map.md 4.1.5).
+
+### 9.2 There is no runner, adapter or sign-in for them
+
+The sidecar's session schema allows only four agent types: `claude`, `codex`, `cursor` and `acp`
+(sidecar.js 37146). Its ACP agent ids are `opencode`, `pi` and `muse` (sidecar.js 43951). The
+runner factory builds the Claude, Codex, Cursor and ACP runners and nothing else (sidecar.js
+310119-310132), and the ACP adapter table has entries for `opencode`, `pi` and muse only
+(sidecar.js 43912). No adapter, program download, version check or authenticate call exists for
+Amp, Copilot or Gemini. The Agents settings page also has no card or tab for them: its provider
+tabs are Claude Code, Codex, Cursor and OpenCode (renderApp @11008098-11009082).
+
+A new terminal tab is where they run. `Rln` (main @439001) resolves the saved preset to a command,
+and the tab is opened with that command as its starting command:
+`createTerminalWithCommand({workspaceId, command, hostKind})` (renderApp @10085788-10086100). A
+plain new tab and the big-terminal shortcut use the same preset.
+
+The sign-in is the CLI's own. Conductor starts the user's program in a shell and keeps no account,
+key, token or refresh path for these three.
+
+### 9.3 The commands each preset runs
+
+The command tables are `LU` (main @437745, used when tool approvals are not required) and `R9e`
+(main @437927, used when they are):
+
+| Preset   | Approvals not required                                     | Approvals required                                              |
+| -------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Claude   | bypass-permissions mode                                    | plain `claude`                                                  |
+| Codex    | high reasoning effort, approvals never, full disk access    | high reasoning effort                                           |
+| OpenCode | `opencode`                                                 | `opencode`                                                      |
+| Amp      | `amp`                                                      | `amp`                                                           |
+| Pi       | `pi`                                                       | `pi`                                                            |
+| Copilot  | `copilot --allow-all`                                      | `copilot --allow-all`                                           |
+| Gemini   | `gemini -y`                                                | `gemini -y`                                                     |
+| None     | no command                                                 | no command                                                      |
+
+The Claude and Codex rows lose their bypass settings when approvals are required. Amp, Copilot
+and Gemini keep the same command either way: Copilot always passes `--allow-all` and Gemini always
+passes `-y`; Amp gets no added flag. Pi is in both tables but is not shown in the radio list, so a
+saved `pi` value works while the UI cannot select it.
+
+`Rln` also applies the saved executable path, but only for Claude, Codex and OpenCode (`D9e`,
+main @438845; `O9e` at @438760 swaps the program token for the saved path). Amp, Copilot, Gemini
+and Pi always run from `PATH`. A cloud workspace passes no executable paths at all, so the same
+rule holds there.
+
+An empty or non-custom saved value the tables do not hold becomes Claude (`xln`, main @439381).
+Custom commands are JSON objects holding an id and a command, kept in
+`big_terminal_custom_commands` (`M9e` and `Boe`, main @438627-438680). The chosen one is saved as
+`custom:<id>` and gets an inline text field (placeholder "my-agent --flag", renderApp @10680293).
+"Add custom command" (@10680741) appends a blank row; deleting the chosen row selects the first
+remaining custom row, or Claude when none is left (`adn`, main @452413). A custom row with no
+command runs nothing; a fixed row that the table does not hold also runs nothing.
+
+### 9.4 What this means for the plan
+
+The parity gap for Amp, Copilot and Gemini is the terminal preset list, which RUN-06 owns. Those
+three rows are not missing agent runners, and adding ACP adapters for them would invent a
+behaviour Conductor does not have. Our current setting is a free-text `big_terminal_preset` with
+an empty default, and its extra commands are one multi-line string; it does not draw Conductor's
+seven fixed rows, the per-row command preview, JSON custom rows with inline editing, or Claude as
+the fallback. The missing user-visible behaviour is therefore the preset rows and the command each
+one runs.
+
+The Terminal tab is not reachable while Big terminal mode is off: `Gnl` (renderApp @11730349)
+redirects it to General. Not settled: a `custom:<id>` value whose row no longer exists counts as
+valid to `xln` because it starts with `custom:`, and `Rln` then resolves it to no command. The
+delete flow repairs the selected row (`adn`), but no other repair was found.
