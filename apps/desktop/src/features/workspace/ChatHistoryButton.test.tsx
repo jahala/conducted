@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
 import type { Session } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
 	open: { state: "loading" } as Loadable<Session[]>,

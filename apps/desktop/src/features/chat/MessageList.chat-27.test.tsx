@@ -7,7 +7,6 @@ import { idleLiveState } from "@conducted/protocol";
 import { cleanup, render, screen } from "@testing-library/react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { clearCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { ChatTurn, ChatView } from "../../core/model.ts";
 

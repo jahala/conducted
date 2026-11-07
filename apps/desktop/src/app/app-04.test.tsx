@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../test/dom-polyfills.ts";
 import { renderWithRouter } from "../test/render-with-router.tsx";
 import { NoWorkspaceSelected } from "./NoWorkspaceSelected.tsx";
 import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";

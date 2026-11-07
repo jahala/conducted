@@ -4,7 +4,6 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChangedFile } from "../../../core/api.ts";
 import type { BranchCommit } from "../../../core/model.ts";
-import "../../../test/dom-polyfills.ts";
 import { Menu, MenuContent, MenuTrigger } from "../../../ui/Menu.tsx";
 import { ChangedFileList } from "./ChangedFileList.tsx";
 import { ChangedFileRow } from "./ChangedFileRow.tsx";

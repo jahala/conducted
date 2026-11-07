@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
 import type { Workspace } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
 import { ArchivedNotice, ArchivedTabNotice } from "./ArchivedNotice.tsx";
 import { WorkspaceLayout } from "./WorkspaceLayout.tsx";
 import { WorkspaceStatusIcon } from "./WorkspaceStatusIcon.tsx";

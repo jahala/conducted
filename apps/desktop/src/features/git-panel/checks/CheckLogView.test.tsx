@@ -1,7 +1,6 @@
 import { appError } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import { ansiToSpans, CheckLogView } from "./CheckLogView.tsx";
 
 afterEach(cleanup);

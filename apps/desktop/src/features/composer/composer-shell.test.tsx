@@ -3,7 +3,6 @@ import { appError, err, ok, type SessionId, type WorkspaceId } from "@conducted/
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { ComposerService, type ComposerServiceDeps } from "../../core/services/composer.ts";

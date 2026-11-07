@@ -2,7 +2,6 @@ import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildScriptEnv } from "../../../core/services/terminals.ts";
-import "../../../test/dom-polyfills.ts";
 import { type ActionDraft, AddActionDialog, RUN_FOLDER_VARIABLES } from "./AddActionDialog.tsx";
 
 afterEach(cleanup);

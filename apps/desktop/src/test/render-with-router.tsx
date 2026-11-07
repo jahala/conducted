@@ -15,7 +15,6 @@ import {
 } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
-import "./dom-polyfills.ts";
 
 export function renderWithRouter(ui: ReactNode, path = "/") {
 	const rootRoute = createRootRoute();

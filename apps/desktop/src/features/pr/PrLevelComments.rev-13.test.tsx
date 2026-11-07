@@ -25,7 +25,6 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { AuthorAvatar } from "../../ui/AuthorAvatar.tsx";
 import { PrActivityItem } from "./PrActivityItem.tsx";
 import { isPrLevelComment, PrLevelComments } from "./PrLevelComments.tsx";

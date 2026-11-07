@@ -7,7 +7,6 @@ import { parseDiffFromFile } from "@pierre/diffs";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FileDiff } from "../../core/api.ts";
-import "../../test/dom-polyfills.ts";
 import { DiffView } from "./DiffView.tsx";
 import { toDiffOptions } from "./diff-options.ts";
 import type { DiffPreferences } from "./diff-types.ts";

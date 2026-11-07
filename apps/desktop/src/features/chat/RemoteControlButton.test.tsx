@@ -3,7 +3,6 @@ import { ok, type SessionId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { RemoteControlButton } from "./RemoteControlButton.tsx";

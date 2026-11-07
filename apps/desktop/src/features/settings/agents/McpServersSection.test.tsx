@@ -10,7 +10,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { McpServerView } from "../../../core/model.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { McpServersPanel, McpServersSection } from "./McpServersSection.tsx";
 
 const sessionConfig: SessionConfig = {

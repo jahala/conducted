@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
-import "../test/dom-polyfills.ts";
 import { useOverlayStore } from "./overlay-store.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";

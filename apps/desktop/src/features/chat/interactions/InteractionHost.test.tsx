@@ -8,7 +8,6 @@ import type { Interaction } from "@conducted/protocol";
 import type { InteractionId, SessionId } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 
 vi.mock("./ToolApprovalCard.tsx", () => ({
 	ToolApprovalCard: () => <div>tool approval card</div>,

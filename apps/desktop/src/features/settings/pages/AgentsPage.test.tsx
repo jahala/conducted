@@ -2,7 +2,6 @@ import type { AgentInstall } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => {
 	const login = vi.fn();

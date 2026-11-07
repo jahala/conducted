@@ -9,7 +9,6 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { CommandRegistryProvider, createCommandRegistry } from "../../app/command-dispatcher.ts";
 import type { TabDescriptor } from "./tab-layout.ts";
 

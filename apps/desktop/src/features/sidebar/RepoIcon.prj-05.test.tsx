@@ -11,7 +11,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Repo } from "../../core/model.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { RepoIconAvatar } from "./RepoIcon.tsx";
 
 let test: TestContainer | undefined;

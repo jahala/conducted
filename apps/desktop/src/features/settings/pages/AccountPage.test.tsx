@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { GithubAccess } from "../../../core/services/github.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { AccountPage } from "./AccountPage.tsx";
 
 let test: TestContainer | undefined;

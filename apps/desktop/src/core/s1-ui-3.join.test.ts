@@ -26,7 +26,6 @@ import { EnvironmentPage } from "../features/settings/pages/EnvironmentPage.tsx"
 import { GeneralPage } from "../features/settings/pages/GeneralPage.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { TabContent } from "../features/workspace/TabContent.tsx";
-import "../test/dom-polyfills.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { zshIntegrationDir } from "./services/shell-integration.ts";

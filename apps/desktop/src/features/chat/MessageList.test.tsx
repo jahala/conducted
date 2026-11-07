@@ -3,7 +3,6 @@ import { appError, err } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { clearCommandHandlers, runCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { ChatTurn, ChatView, Session, Workspace } from "../../core/model.ts";
 

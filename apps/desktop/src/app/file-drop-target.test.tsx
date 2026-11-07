@@ -11,7 +11,6 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import { createTestContainer } from "../test/container.ts";
-import "../test/dom-polyfills.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
 

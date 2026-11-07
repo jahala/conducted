@@ -22,7 +22,6 @@ import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GitState } from "../../core/model.ts";
 import { PULL_UP_TO_DATE_MESSAGE, PULLED_LATEST_MESSAGE } from "../../core/services/git.ts";
-import "../../test/dom-polyfills.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 

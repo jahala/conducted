@@ -2,7 +2,6 @@ import { appError, err, ok, type Result } from "@conducted/shared";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import type {
 	PrMentionItem,
 	PrMentionSearchResult,

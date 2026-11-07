@@ -4,7 +4,6 @@
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { SuggestionBlock } from "./SuggestionBlock.tsx";
 
 afterEach(cleanup);

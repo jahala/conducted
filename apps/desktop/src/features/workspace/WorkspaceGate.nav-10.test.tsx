@@ -6,7 +6,6 @@
 import { appError } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import type { Loadable } from "../../core/api.ts";
 import type { Workspace } from "../../core/model.ts";
 

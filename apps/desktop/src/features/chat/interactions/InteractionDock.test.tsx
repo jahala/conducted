@@ -5,7 +5,6 @@ import type { Interaction } from "@conducted/protocol";
 import { type InteractionId, ok, type SessionId } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
 	chat: { state: "loading" as "loading" | "ready" | "error" },

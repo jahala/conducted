@@ -20,7 +20,6 @@ import { useOverlayStore } from "../../app/overlay-store.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 
 afterEach(cleanup);
 beforeEach(() => useOverlayStore.getState().close());

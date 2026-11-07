@@ -7,7 +7,6 @@ import type { WorkspaceId } from "@conducted/shared";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
 	createFromDefaults: vi.fn(),

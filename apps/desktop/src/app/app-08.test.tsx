@@ -10,12 +10,11 @@ import { ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
+import { type StartedApp, startApp } from "../main.tsx";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import { createTestContainer } from "../test/container.ts";
 import { openTestDatabase } from "../test/sqlite.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
-import "../test/dom-polyfills.ts";
-import { type StartedApp, startApp } from "../main.tsx";
 import { StartupFailure, type StartupFailureProps } from "./StartupFailure.tsx";
 import { StartupScreen } from "./StartupScreen.tsx";
 

@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { FileEditorPane } from "./FileEditorPane.tsx";
 
 afterEach(cleanup);

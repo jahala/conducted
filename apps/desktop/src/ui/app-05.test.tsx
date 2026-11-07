@@ -2,7 +2,6 @@ import type { WorkspaceId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type FunctionComponent, type SVGProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../test/dom-polyfills.ts";
 import { Button, type ButtonVariant, buttonVariantClass } from "./Button.tsx";
 import { ContextMenu, ContextMenuItem } from "./ContextMenu.tsx";
 import { Dialog, DialogContent } from "./Dialog.tsx";

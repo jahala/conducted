@@ -11,7 +11,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
-import "../test/dom-polyfills.ts";
 import { CommandRegistryProvider, createCommandRegistry } from "./command-dispatcher.ts";
 import { SAVED_LOCATION_KEY } from "./navigation-history.ts";
 import { useOverlayStore } from "./overlay-store.ts";

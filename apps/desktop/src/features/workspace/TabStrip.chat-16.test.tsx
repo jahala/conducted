@@ -23,7 +23,6 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 const { TabStrip } = await import("./TabStrip.tsx");

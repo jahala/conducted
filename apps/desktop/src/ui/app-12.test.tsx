@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../test/dom-polyfills.ts";
 import { Checkbox } from "./Checkbox.tsx";
 import { Input, Label, Textarea } from "./Input.tsx";
 import { Select } from "./Select.tsx";

@@ -6,7 +6,6 @@ import { ServicesProvider } from "../../../core/context.tsx";
 import type { Repo } from "../../../core/model.ts";
 import { hiddenRunActionsStorageKey } from "../../../core/services/repo.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoActionsPage } from "./RepoActionsPage.tsx";
 

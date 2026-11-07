@@ -17,7 +17,6 @@ import { createAppRouter } from "../../app/router.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { FEEDBACK_ISSUE_URL } from "../../core/services/system.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { toast } from "../../ui/Toast.tsx";
 
 const containers: TestContainer[] = [];

@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DeploymentView } from "../../../core/model.ts";
-import "../../../test/dom-polyfills.ts";
 import { DeploymentsList } from "./DeploymentsList.tsx";
 
 afterEach(cleanup);

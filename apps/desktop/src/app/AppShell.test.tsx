@@ -10,7 +10,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../test/container.ts";
-import "../test/dom-polyfills.ts";
 import { workspaceLayoutGroupId } from "../ui/layout-sizes.ts";
 import { setCurrentWorkspace, toast, workspaceToast, workspaceToastIds } from "../ui/Toast.tsx";
 import { AppShell } from "./AppShell.tsx";

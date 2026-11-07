@@ -32,7 +32,6 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { Composer } from "./Composer.tsx";
 

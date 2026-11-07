@@ -15,7 +15,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileDiff } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { FileDiffPane } from "./FileDiffPane.tsx";
 

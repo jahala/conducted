@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { toast } from "../../../ui/Toast.tsx";
 import { EnvironmentPage } from "./EnvironmentPage.tsx";
 

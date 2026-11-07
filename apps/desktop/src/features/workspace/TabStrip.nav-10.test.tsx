@@ -10,7 +10,6 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { CommandRegistryProvider, createCommandRegistry } from "../../app/command-dispatcher.ts";
 import type { Loadable } from "../../core/api.ts";
 import type { DiffComment, Session } from "../../core/model.ts";

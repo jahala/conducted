@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { PullRequest } from "../../../core/model.ts";
 import { createTestContainer, seedWorkspace } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { ChecksTab } from "./ChecksTab.tsx";
 
 const shown = vi.hoisted(() => ({ comments: [] as unknown[] }));

@@ -16,7 +16,6 @@ import type { DiffScope } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GitPanelTab } from "../../core/model.ts";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { GitPanel } from "./GitPanel.tsx";
 
 afterEach(() => {
