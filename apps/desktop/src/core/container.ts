@@ -313,6 +313,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		shell: platform.shell,
 		locks: new KeyedMutex(),
 		programsBin: programsBinDir(platform.fs.paths),
+		// A gh command only runs when the program manager's copy is ready (D088).
+		programPath: (name) => system.programPath(name),
 		sleep,
 		log,
 	});
@@ -969,7 +971,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		checkpointerPath: checkpointerScript(paths),
 		spotlighterPath: spotlighterScript(paths),
 		busyCheckPath: gitBusyCheckScript(paths),
-		watchexecPath: "watchexec",
+		watchexecPath: () => system.programPath("watchexec"),
 		configFor: async (workspaceId) => {
 			const found = lookups.workspace(workspaceId);
 			return found.ok ? repo.loadConfig(found.value.repoId) : found;

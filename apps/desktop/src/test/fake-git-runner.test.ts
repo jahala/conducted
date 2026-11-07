@@ -51,8 +51,9 @@ const runnerOver = (shell: Shell): ShellGitRunner =>
 	new ShellGitRunner({
 		shell,
 		locks: new KeyedMutex(),
-		// No app bin folder: these tests run git and gh from the PATH alone.
 		programsBin: "",
+		programPath: async () =>
+			err(appError("program_not_installed", "The app's gh is not installed.")),
 		sleep: async () => undefined,
 		log: () => undefined,
 	});

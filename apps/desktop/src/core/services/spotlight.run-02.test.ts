@@ -36,7 +36,7 @@ const OTHER_TERMINAL_ID = "t2" as TerminalId;
 const CHECKPOINTER = "/app/bin/checkpointer.sh";
 const SPOTLIGHTER = "/app/bin/spotlighter.sh";
 const BUSY_CHECK = "/app/bin/git-busy-check.sh";
-const WATCHEXEC = "watchexec";
+const WATCHEXEC = "/app/bin/watchexec";
 const REF = checkpointRef(PRE_SPOTLIGHT_CHECKPOINT_ID);
 
 afterEach(() => {
@@ -183,6 +183,7 @@ interface HarnessOptions {
 	stop?: (id: TerminalId) => Promise<Result<void>>;
 	stopRuns?: (id: WorkspaceId) => Promise<Result<void>>;
 	openRepoTerminal?: (id: RepoId) => Promise<Result<Terminal>>;
+	watchexecPath?: () => Promise<Result<string>>;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -206,7 +207,7 @@ function harness(options: HarnessOptions = {}) {
 		checkpointerPath: CHECKPOINTER,
 		spotlighterPath: SPOTLIGHTER,
 		busyCheckPath: BUSY_CHECK,
-		watchexecPath: WATCHEXEC,
+		watchexecPath: options.watchexecPath ?? (async () => ok(WATCHEXEC)),
 		configFor: async () => ok(config),
 		workspaceFor: options.workspaceFor ?? (async () => ok(baseWorkspace())),
 		repoFor: options.repoFor ?? (async () => ok(baseRepo)),
@@ -359,6 +360,28 @@ describe("RUN-02 starting Spotlight", () => {
 			terminalId: TERMINAL_ID,
 		});
 		expect(openRepoTerminal).toHaveBeenCalledWith(REPO_ID);
+	});
+
+	it("starts no sync when the app's watchexec is not installed, and names it", async () => {
+		const { service, runScript } = harness({
+			watchexecPath: async () =>
+				err(
+					appError(
+						"program_not_installed",
+						"watchexec is not installed. Retry its download in Settings > Advanced.",
+					),
+				),
+		});
+
+		const started = await service.start(WORKSPACE_ID);
+
+		expect(started.ok).toBe(false);
+		if (!started.ok) {
+			expect(started.error.code).toBe("program_not_installed");
+			expect(started.error.message).toContain("watchexec");
+			expect(started.error.message).toContain("Retry");
+		}
+		expect(runScript).not.toHaveBeenCalled();
 	});
 
 	it("refuses to start when Spotlight testing is off for the repository", async () => {

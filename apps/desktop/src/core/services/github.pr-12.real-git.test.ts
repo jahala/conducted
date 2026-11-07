@@ -57,6 +57,7 @@ const realGit = new ShellGitRunner({
 	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 	log: () => undefined,
 	programsBin: "",
+	programPath: async () => err(appError("program_not_installed", "The app's gh is not installed.")),
 });
 
 const git = (cwd: string, ...args: string[]): string =>

@@ -23,6 +23,19 @@ function buildContainer(): {
 	memory: MemoryPlatform;
 } {
 	const memory = createMemoryPlatform({ clock, ids, database: unusedDatabase });
+	// The program manager's ready gh (PLAT-35): no gh command runs without it (D088).
+	memory.controls.files.set(`${memory.platform.fs.paths.appData}/bin/gh`, "");
+	memory.controls.setProgramStatus({
+		program: "gh",
+		state: "ready",
+		version: "test",
+		bytesDownloaded: 0,
+		bytesTotal: null,
+		attempt: 0,
+		nextAttemptAt: null,
+		error: null,
+		path: `${memory.platform.fs.paths.appData}/bin/gh`,
+	});
 	const container = createContainer({
 		platform: memory.platform,
 		clock,

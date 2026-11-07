@@ -35,8 +35,8 @@ const realShell: Shell = {
 const runner = new ShellGitRunner({
 	shell: realShell,
 	locks: new KeyedMutex(),
-	// No app bin folder: these tests run git and gh from the PATH alone.
 	programsBin: "",
+	programPath: async () => err(appError("program_not_installed", "The app's gh is not installed.")),
 	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 	log: () => undefined,
 });

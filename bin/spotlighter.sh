@@ -31,9 +31,9 @@
 #
 # Environment (all required):
 #   CONDUCTED_CHECKPOINTER_PATH   absolute path of checkpointer.sh
-#   CONDUCTED_WATCHEXEC_PATH      the watchexec program (a file watcher): a path, or a name the
-#                                 PATH finds; the app passes `watchexec`, which its bin folder
-#                                 first on PATH resolves to the managed copy (PLAT-35)
+#   CONDUCTED_WATCHEXEC_PATH      the absolute path of the app's watchexec program (a file
+#                                 watcher). The app passes the program manager's own copy, so the
+#                                 script never looks one up on PATH (PLAT-35, D088).
 #   CONDUCTED_ROOT_PATH           the main clone that receives the changes
 #
 # Exit codes:
@@ -74,16 +74,14 @@ if [ ! -d "$CONDUCTED_ROOT_PATH" ]; then
 fi
 
 case "$CONDUCTED_WATCHEXEC_PATH" in
-  */*)
+  /*)
     watchexec_path="$CONDUCTED_WATCHEXEC_PATH"
     if [ ! -x "$watchexec_path" ]; then
       die "the watchexec program is not executable: $watchexec_path"
     fi
     ;;
   *)
-    if ! watchexec_path=$(command -v "$CONDUCTED_WATCHEXEC_PATH" 2>/dev/null); then
-      die "the watchexec program is not on PATH: $CONDUCTED_WATCHEXEC_PATH"
-    fi
+    die "CONDUCTED_WATCHEXEC_PATH must be an absolute path: $CONDUCTED_WATCHEXEC_PATH"
     ;;
 esac
 
