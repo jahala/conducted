@@ -132,15 +132,31 @@ export class ConductorImportService {
 		this.#cancelled = false;
 		this.store.setState({ phase: "planning", preview: null, imported: null, error: null });
 		try {
-			await this.#dropCopy();
+			const cleared = await this.#dropCopy();
+			if (!cleared.ok) {
+				this.store.setState({ phase: "failed", error: cleared.error });
+				return cleared;
+			}
 			const planned = await this.#planNow();
 			if (this.#cancelled) {
-				await this.#dropCopy();
+				const dropped = await this.#dropCopy();
+				if (!dropped.ok) {
+					this.#deps.log(
+						"warn",
+						`The import's copy could not be removed: ${dropped.error.message}`,
+					);
+				}
 				this.store.setState({ phase: "idle", preview: null });
 				return err(appError("import_cancelled", "The dry run was cancelled."));
 			}
 			if (!planned.ok) {
-				await this.#dropCopy();
+				const dropped = await this.#dropCopy();
+				if (!dropped.ok) {
+					this.#deps.log(
+						"warn",
+						`The import's copy could not be removed: ${dropped.error.message}`,
+					);
+				}
 				this.store.setState({ phase: "failed", error: planned.error });
 				return planned;
 			}
@@ -175,13 +191,14 @@ export class ConductorImportService {
 				now: this.#deps.now(),
 			});
 			const dropped = await this.#dropCopy();
+			if (!dropped.ok) {
+				// The next start removes it; the import's own outcome is what the user needs now.
+				this.#deps.log("warn", `The import's copy could not be removed: ${dropped.error.message}`);
+			}
 			if (!applied.ok) {
 				this.store.setState({ phase: "failed", error: applied.error });
 				this.#deps.log("warn", `The import from Conductor stopped: ${applied.error.message}`);
 				return applied;
-			}
-			if (!dropped.ok) {
-				this.#deps.log("warn", `The import's copy could not be removed: ${dropped.error.message}`);
 			}
 			await this.#excludeLocalFiles(planned.plan.files);
 			const reloaded = await this.#deps.reload();

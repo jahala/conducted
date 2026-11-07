@@ -2,14 +2,17 @@
 import { describe, expect, it } from "vitest";
 import { conductorNameLines, renameConductorNames, scriptFileCandidates } from "./scripts.ts";
 
+/** A shell variable in braces, written without a template placeholder Biome would flag. */
+const braced = (name: string): string => ["$", "{", name, "}"].join("");
+
 describe("APP-17 repository scripts from Conductor", () => {
 	it("echo $CONDUCTOR_PORT becomes echo $CONDUCTED_PORT with one rename listed", () => {
 		const renamed = renameConductorNames({
-			values: { setup_script: "echo $CONDUCTOR_PORT && echo ${CONDUCTOR_PORT}" },
+			values: { setup_script: `echo $CONDUCTOR_PORT && echo ${braced("CONDUCTOR_PORT")}` },
 			actions: [],
 		});
 		expect(renamed.scripts.values.setup_script).toBe(
-			"echo $CONDUCTED_PORT && echo ${CONDUCTED_PORT}",
+			`echo $CONDUCTED_PORT && echo ${braced("CONDUCTED_PORT")}`,
 		);
 		expect(renamed.renames).toEqual([
 			{ from: "CONDUCTOR_PORT", to: "CONDUCTED_PORT", setByConducted: true },
