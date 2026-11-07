@@ -26,7 +26,7 @@ const config = (changes: Partial<RepoConfig> = {}): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [".env"],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: null,
@@ -79,6 +79,9 @@ async function renderPage(
 	return { repo, container };
 }
 
+const previewInputs = () =>
+	screen.getAllByRole("textbox", { name: /^Preview URL \d+$/ }) as HTMLInputElement[];
+
 describe("SET-07 RepoMiscPage", () => {
 	it("asks for confirmation naming the workspace count before removing the repository", async () => {
 		const { repo, container } = await renderPage(2);
@@ -113,13 +116,67 @@ describe("SET-07 RepoMiscPage", () => {
 		expect(screen.queryByRole("button", { name: "Branch new workspaces from" })).toBeNull();
 	});
 
+	it("shows one empty row when no preview URL is saved", async () => {
+		await renderPage();
+
+		expect(previewInputs()).toHaveLength(1);
+		expect(previewInputs()[0]?.value).toBe("");
+		expect(
+			(screen.getByRole("button", { name: "Remove preview URL" }) as HTMLButtonElement).disabled,
+		).toBe(true);
+	});
+
+	it("adds, removes and moves preview URLs in order", async () => {
+		const { repo, container } = await renderPage(0, {
+			previewUrls: ["http://localhost:$CONDUCTED_PORT", "https://example.test/preview"],
+		});
+		const updateConfig = vi
+			.spyOn(container.actions.projects, "updateConfig")
+			.mockResolvedValue(ok(undefined));
+
+		expect(previewInputs().map((input) => input.value)).toEqual([
+			"http://localhost:$CONDUCTED_PORT",
+			"https://example.test/preview",
+		]);
+
+		fireEvent.click(screen.getAllByRole("button", { name: "Move preview URL down" })[0] as Element);
+
+		await waitFor(() =>
+			expect(updateConfig).toHaveBeenLastCalledWith(
+				repo.id,
+				expect.objectContaining({
+					previewUrls: ["https://example.test/preview", "http://localhost:$CONDUCTED_PORT"],
+				}),
+			),
+		);
+		expect(previewInputs().map((input) => input.value)).toEqual([
+			"https://example.test/preview",
+			"http://localhost:$CONDUCTED_PORT",
+		]);
+
+		fireEvent.click(screen.getByRole("button", { name: "Add preview URL" }));
+
+		expect(previewInputs()).toHaveLength(3);
+
+		fireEvent.click(screen.getAllByRole("button", { name: "Remove preview URL" })[1] as Element);
+
+		await waitFor(() =>
+			expect(updateConfig).toHaveBeenLastCalledWith(
+				repo.id,
+				expect.objectContaining({ previewUrls: ["https://example.test/preview"] }),
+			),
+		);
+		expect(previewInputs()).toHaveLength(2);
+		expect(previewInputs()[1]?.value).toBe("");
+	});
+
 	it("refuses a preview URL that is not a URL", async () => {
 		const { container } = await renderPage();
 		const updateConfig = vi
 			.spyOn(container.actions.projects, "updateConfig")
 			.mockResolvedValue(ok(undefined));
 
-		const preview = screen.getByLabelText("Preview URLs");
+		const preview = previewInputs()[0] as HTMLInputElement;
 		fireEvent.change(preview, { target: { value: "not a url" } });
 		fireEvent.blur(preview);
 
@@ -130,12 +187,12 @@ describe("SET-07 RepoMiscPage", () => {
 	});
 
 	it("saves a preview URL with the workspace port variable", async () => {
-		const { container } = await renderPage();
+		const { repo, container } = await renderPage();
 		const updateConfig = vi
 			.spyOn(container.actions.projects, "updateConfig")
 			.mockResolvedValue(ok(undefined));
 
-		const preview = screen.getByLabelText("Preview URLs");
+		const preview = previewInputs()[0] as HTMLInputElement;
 		fireEvent.change(preview, {
 			target: { value: "http://localhost:$CONDUCTED_PORT" },
 		});
@@ -143,8 +200,34 @@ describe("SET-07 RepoMiscPage", () => {
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
 		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({
-			previewUrlTemplate: "http://localhost:$CONDUCTED_PORT",
+			previewUrls: ["http://localhost:$CONDUCTED_PORT"],
 		});
+		expect(updateConfig.mock.calls[0]?.[0]).toBe(repo.id);
+	});
+
+	it("saves every template in the order shown", async () => {
+		const { repo, container } = await renderPage(0, {
+			previewUrls: ["http://localhost:$CONDUCTED_PORT"],
+		});
+		const updateConfig = vi
+			.spyOn(container.actions.projects, "updateConfig")
+			.mockResolvedValue(ok(undefined));
+
+		fireEvent.click(screen.getByRole("button", { name: "Add preview URL" }));
+		const inputs = previewInputs();
+		fireEvent.change(inputs[1] as HTMLInputElement, {
+			target: { value: "https://example.test/preview" },
+		});
+		fireEvent.blur(inputs[1] as HTMLInputElement);
+
+		await waitFor(() =>
+			expect(updateConfig).toHaveBeenLastCalledWith(
+				repo.id,
+				expect.objectContaining({
+					previewUrls: ["http://localhost:$CONDUCTED_PORT", "https://example.test/preview"],
+				}),
+			),
+		);
 	});
 
 	it("shows the file patterns and saves a removal", async () => {
