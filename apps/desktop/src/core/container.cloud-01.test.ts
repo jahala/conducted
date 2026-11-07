@@ -131,10 +131,22 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			const cloud = test.memory.controls;
 			cloud.scriptCloud((request) => {
 				if (request.path === "/w/vm-1/git") {
+					const args = (request.body as { args?: string[] }).args ?? [];
+					// An archive reads the branch's head through this same route.
+					const stdout = args.includes("rev-parse") && args.includes("HEAD") ? "abc123\n" : "";
 					return ok({
 						status: 200,
-						body: JSON.stringify({ exitCode: 0, stdout: "", stderr: "" }),
+						body: JSON.stringify({ exitCode: 0, stdout, stderr: "" }),
 					});
+				}
+				if (request.path === "/w/vm-1/stop") {
+					return ok({
+						status: 200,
+						body: JSON.stringify({ running: false, ran: true, saved: [], skipped: [] }),
+					});
+				}
+				if (request.path === "/w/vm-1/remove") {
+					return ok({ status: 200, body: JSON.stringify({ deletedBackups: 0 }) });
 				}
 				if (request.path === "/w/vm-1/exec") {
 					return ok({
@@ -192,8 +204,8 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			).toHaveLength(2);
 			expect(cloud.ptySpawns).toHaveLength(0);
 
-			// The doors CLOUD-03 does not own stop at their own row, before anything reaches the
-			// Mac: file search at CLOUD-11, Open in at CLOUD-12, lifecycle at CLOUD-08.
+			// The doors the cloud rows do not own stop at their own row, before anything reaches the
+			// Mac: file search at CLOUD-11 and Open in at CLOUD-12.
 			const shells = cloud.shellCalls.length;
 			const ptys = cloud.ptySpawns.length;
 			const filesOnDisk = new Map(cloud.files);
@@ -213,18 +225,7 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			expect(await stoppedAt(() => services.workspace.openIn(workspace.id, "Finder"))).toBe(
 				"CLOUD-12",
 			);
-			expect(
-				await stoppedAt(() => services.workspace.archive(workspace.id, { deleteBranch: false })),
-			).toBe("CLOUD-08");
-			expect(
-				await stoppedAt(() =>
-					services.workspace.unarchive(workspace.id, { branchName: null, clearChats: false }),
-				),
-			).toBe("CLOUD-08");
-			expect(await stoppedAt(() => services.workspace.remove(workspace.id))).toBe("CLOUD-08");
-			expect(cloud.shellCalls.length).toBe(shells);
-			expect(cloud.ptySpawns.length).toBe(ptys);
-			expect(new Map(cloud.files)).toEqual(filesOnDisk);
+
 
 			const session = must(await services.sessions.create(workspace.id, CONFIG));
 			const sending = services.sessions.send(session.id, "hello", [], "auto");
@@ -249,6 +250,29 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			expect(ranIn(test, workspace.path)).toBe(0);
 			expect(test.memory.controls.ptySpawns).toEqual([]);
 			expect(sends.hosts).toEqual([]);
+
+			// Lifecycle is built (CLOUD-08): archive saves and stops the sandbox, unarchive moves the
+			// row back, and delete removes what the Worker keeps.
+			must(await services.workspace.archive(workspace.id, { deleteBranch: false }));
+			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/stop")).toBe(true);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]?.state).toBe(
+				"archived",
+			);
+			must(
+				await services.workspace.unarchive(workspace.id, {
+					branchName: null,
+					clearChats: false,
+				}),
+			);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]?.state).toBe(
+				"ready",
+			);
+			must(await services.workspace.remove(workspace.id));
+			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/remove")).toBe(true);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]).toBeUndefined();
+			expect(cloud.shellCalls.length).toBe(shells);
+			expect(cloud.ptySpawns.length).toBe(ptys);
+			expect(new Map(cloud.files)).toEqual(filesOnDisk);
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();

@@ -873,6 +873,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const gitCache = createGitCache({ fs: platform.fs });
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
+		cloud: platform.cloud,
 		git: gitRunner,
 		repos: repositories,
 		placeNames: inputs.placeNames,

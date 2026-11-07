@@ -107,7 +107,7 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { globToRegExp } from "../../platform/glob.ts";
-import type { Platform } from "../../platform/platform.ts";
+import type { Cloud, Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
@@ -123,6 +123,7 @@ import {
 	lsFiles,
 	lsFilesIgnoredNul,
 	revParse,
+	revParseHead,
 	revParseVerify,
 	updateRefDelete,
 } from "../git/commands.ts";
@@ -143,6 +144,7 @@ import {
 	restoreArchiveCheckpoint,
 	saveArchiveSnapshot,
 } from "../git/worktree.ts";
+import { removeCloudWorkspace, stopCloudWorkspace } from "../cloud/lifecycle.ts";
 import { checkHost } from "../host.ts";
 import type {
 	BacklogWorkspace,
@@ -667,6 +669,8 @@ export interface BranchNameSuggester {
 
 export interface WorkspaceServiceDeps {
 	platform: Pick<Platform, "fs" | "opener" | "shell">;
+	/** The Worker door a cloud workspace's archive and delete use (CLOUD-08). */
+	cloud?: Cloud;
 	/**
 	 * The restart cache of each workspace's changes and pull request info (DATA-07). Deleting a
 	 * workspace removes its entries. The composition root supplies it.
@@ -1383,7 +1387,9 @@ export class WorkspaceService {
 		const workspace = found.value;
 		if (workspace === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
-		checkHost(workspace.host, "lifecycle");
+		if (workspace.host.kind === "cloud") {
+			return this.#archiveCloud(workspace, options);
+		}
 		if (isArchivedWorkspace(workspace)) return ok(undefined);
 		if (workspace.state === "archiving") {
 			return err(appError("workspace_archiving", "This workspace is already being archived."));
@@ -1528,6 +1534,150 @@ export class WorkspaceService {
 	}
 
 	/**
+	 * Archives a cloud workspace (CLOUD-08). There is no worktree on the Mac to snapshot, so the
+	 * steps that make one are skipped: the branch's head is read through the workspace's Worker,
+	 * the chats stop, the Worker saves the work to R2 and stops the sandbox, and the row is marked
+	 * archived with that head. Unarchive is the row's own change; the next start restores the work.
+	 */
+	async #archiveCloud(
+		workspace: Workspace,
+		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+	): Promise<Result<void>> {
+		const id = workspace.id;
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) {
+			return err(
+				appError("cloud_not_paired", "The app cannot reach the Worker for this workspace."),
+			);
+		}
+		if (workspace.host.kind !== "cloud") {
+			return err(appError("workspace_unknown", "That workspace is not a cloud workspace."));
+		}
+		if (isArchivedWorkspace(workspace)) return ok(undefined);
+		if (workspace.state === "archiving") {
+			return err(appError("workspace_archiving", "This workspace is already being archived."));
+		}
+		if (workspace.state === "initializing") {
+			return err(appError("workspace_not_ready", ARCHIVE_NOT_READY_MESSAGE));
+		}
+		if (this.#deps.sessions.hasWorkingChats(id)) {
+			return err(appError("workspace_has_running_sessions", ARCHIVE_RUNNING_CHATS_MESSAGE));
+		}
+
+		const moved = await this.#deps.repos.workspaces.transitionState(
+			id,
+			workspace.state,
+			"archiving",
+		);
+		if (!moved.ok) return moved;
+		if (!moved.value) {
+			return err(appError("workspace_not_ready", "This workspace cannot be archived now."));
+		}
+		this.#setArchiving(id, true);
+		this.#upsert({ ...workspace, state: "archiving", updatedAt: this.#deps.now() });
+
+		const rollBack = async (error: AppError): Promise<Result<never>> => {
+			await this.#deps.repos.workspaces.transitionState(id, "archiving", workspace.state);
+			this.#setArchiving(id, false);
+			return err(error);
+		};
+
+		try {
+			// The sandbox is still up here, so its head is read through the same route git uses.
+			const head = await this.#deps.git.stdout(revParseHead(), { cwd: workspace.path });
+			if (!head.ok) return await rollBack(head.error);
+			const commit = head.value.trim();
+			if (commit === "") {
+				return await rollBack(appError("git_detached_head", ARCHIVE_DETACHED_HEAD_MESSAGE));
+			}
+
+			const cancelled = await this.#deps.sessions.cancelAll(id);
+			if (!cancelled.ok) return await rollBack(cancelled.error);
+
+			const stopped = await stopCloudWorkspace(cloud, workspace.host);
+			if (!stopped.ok) return await rollBack(stopped.error);
+
+			const marked = await this.#deps.repos.workspaces.markArchived(id, commit);
+			if (!marked.ok) {
+				this.#setArchiving(id, false);
+				return err(marked.error);
+			}
+			if (!marked.value) {
+				this.#setArchiving(id, false);
+				return err(appError("workspace_not_ready", "This workspace cannot be archived now."));
+			}
+
+			const at = this.#deps.now();
+			this.#upsert({
+				...workspace,
+				state: "archived",
+				archiveCommit: commit,
+				archivedAt: at,
+				updatedAt: at,
+			});
+			this.#setArchiving(id, false);
+			// A cloud workspace's branch lives in its sandbox and in the backup. Nothing is deleted
+			// on the Mac, so `deleteBranch` has nothing to do here.
+			return ok(undefined);
+		} finally {
+			this.#setArchiving(id, false);
+		}
+	}
+
+	/**
+	 * Unarchives a cloud workspace (CLOUD-08). The work and the branch came back with the R2 backup
+	 * the archive saved, so this only moves the row back to ready. A later start restores the
+	 * sandbox from that backup (CLOUD-06); nothing is re-created on the Mac.
+	 */
+	async #unarchiveCloud(
+		workspace: Workspace,
+		options: { branchName: string | null; clearChats: boolean },
+	): Promise<Result<UnarchiveOutcome>> {
+		if (workspace.host.kind !== "cloud") {
+			return err(appError("workspace_unknown", "That workspace is not a cloud workspace."));
+		}
+		if (!isArchivedWorkspace(workspace)) {
+			return err(appError("workspace_not_archived", "This workspace is not archived."));
+		}
+		const id = workspace.id;
+		const moved = await this.#deps.repos.workspaces.transitionState(
+			id,
+			"archived",
+			"initializing",
+		);
+		if (!moved.ok) return moved;
+		if (!moved.value) {
+			return err(appError("workspace_not_archived", "This workspace is not archived."));
+		}
+		const finished = await this.#deps.repos.workspaces.finishUnarchive(id, {
+			// A cloud workspace's branch cannot be re-created on the Mac, so a requested name has no
+			// meaning here; the branch that the backup holds comes back.
+			branch: workspace.branch,
+			directoryName: workspace.directoryName,
+			path: workspace.path,
+		});
+		if (!finished.ok || !finished.value) {
+			await this.#deps.repos.workspaces.transitionState(id, "initializing", "archived");
+			return finished.ok
+				? err(appError("workspace_not_archived", "This workspace could not be restored."))
+				: finished;
+		}
+		const at = this.#deps.now();
+		this.#upsert({
+			...workspace,
+			state: "ready",
+			archivedAt: null,
+			lastActivityAt: Math.max(workspace.lastActivityAt, at),
+			updatedAt: at,
+		});
+		if (options.clearChats) {
+			const cleared = await this.#deps.sessions.deleteAll(id);
+			if (!cleared.ok) return cleared;
+		}
+		return ok({ needsBranchName: false, uncommittedChangesLost: false });
+	}
+
+	/**
 	 * Finishes or rolls back workspaces that a crash left in `archiving`. A missing folder means
 	 * the archive got as far as removing the worktree, so the row is finished with the commit
 	 * repair read; a folder still on disk means the archive stopped early, so the row goes back
@@ -1566,7 +1716,9 @@ export class WorkspaceService {
 		if (workspace === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
-		checkHost(workspace.host, "lifecycle");
+		if (workspace.host.kind === "cloud") {
+			return this.#unarchiveCloud(workspace, options);
+		}
 		if (!isArchivedWorkspace(workspace)) {
 			return err(appError("workspace_not_archived", "This workspace is not archived."));
 		}
@@ -1807,7 +1959,7 @@ export class WorkspaceService {
 		const workspace = found.value;
 		// Deleting a workspace that is already gone changes nothing.
 		if (workspace === null) return ok(undefined);
-		checkHost(workspace.host, "lifecycle");
+		if (workspace.host.kind === "cloud") return this.#removeCloudNow(workspace);
 
 		const repo = await this.#deps.repos.repos.get(workspace.repoId);
 		if (!repo.ok) return repo;
@@ -1865,6 +2017,35 @@ export class WorkspaceService {
 		const deleted = await this.#deps.repos.workspaces.delete(id);
 		if (!deleted.ok) return deleted;
 
+		this.#deps.scripts.clearRuns(id);
+		this.#forgetWorkspace(id);
+		return ok(undefined);
+	}
+
+	/**
+	 * Deletes a cloud workspace (CLOUD-08). Its Worker removes the R2 backups, the sandbox and the
+	 * Durable Object's storage; its chats and row go from the local database, as they do for a Mac
+	 * workspace. Nothing on this Mac is touched: a cloud workspace has no worktree here.
+	 */
+	async #removeCloudNow(workspace: Workspace): Promise<Result<void>> {
+		if (workspace.host.kind !== "cloud") {
+			return err(appError("workspace_unknown", "That workspace is not a cloud workspace."));
+		}
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) {
+			return err(
+				appError("cloud_not_paired", "The app cannot reach the Worker for this workspace."),
+			);
+		}
+		const id = workspace.id;
+		const cancelled = await this.#deps.sessions.cancelAll(id);
+		if (!cancelled.ok) return cancelled;
+		const removed = await removeCloudWorkspace(cloud, workspace.host);
+		if (!removed.ok) return removed;
+		const chats = await this.#deps.sessions.deleteAll(id);
+		if (!chats.ok) return chats;
+		const deleted = await this.#deps.repos.workspaces.delete(id);
+		if (!deleted.ok) return deleted;
 		this.#deps.scripts.clearRuns(id);
 		this.#forgetWorkspace(id);
 		return ok(undefined);
