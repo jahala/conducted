@@ -67,6 +67,12 @@ function renderSidebar(container: ReturnType<typeof createTestContainer>["contai
 	);
 }
 
+/** Opens a project's group: with no workspace open, Conductor's groups start closed. */
+async function openProject(name: string) {
+	const region = await screen.findByRole("region", { name });
+	fireEvent.click(within(region).getByRole("button", { name: new RegExp(`^${name}`) }));
+}
+
 describe("NAV-04 Sidebar", () => {
 	it("names a workspace by its branch without the user's prefix, in words, as Conductor does", async () => {
 		const test = createTestContainer();
@@ -80,6 +86,7 @@ describe("NAV-04 Sidebar", () => {
 				branchIsPlaceholder: false,
 			});
 			renderSidebar(test.container);
+			await openProject(repo.name);
 			expect(await screen.findByText("Fix login redirect")).toBeTruthy();
 			expect(screen.queryByText("sam/fix-login-redirect")).toBeNull();
 		} finally {
@@ -164,6 +171,7 @@ describe("NAV-04 dragging in the live sidebar", () => {
 				branchIsPlaceholder: false,
 			});
 			renderSidebar(test.container);
+			await openProject(repo.name);
 			await screen.findByText("To pin");
 			expect(screen.queryByRole("region", { name: "Pinned workspaces" })).toBeNull();
 
@@ -195,6 +203,7 @@ describe("NAV-04 dragging in the live sidebar", () => {
 			});
 			must(await test.container.services.sections.create("Review", null));
 			renderSidebar(test.container);
+			await openProject(repo.name);
 			await screen.findByText("To move");
 			const section = await screen.findByRole("region", { name: "Review" });
 			expect(within(section).queryByText("To move")).toBeNull();

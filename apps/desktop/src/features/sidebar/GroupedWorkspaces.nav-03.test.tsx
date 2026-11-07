@@ -134,6 +134,21 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 	};
 }
 
+/** Renders the list on a workspace's route, so that workspace is the open one. */
+function renderInRouterAt(ui: ReactNode, path: string) {
+	const rootRoute = createRootRoute({ component: () => <>{ui}</> });
+	const workspaceRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/repository/$repositoryId/workspace/$workspaceId",
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([workspaceRoute]),
+		history: createMemoryHistory({ initialEntries: [path] }),
+	});
+	render(<RouterProvider router={router} />);
+	return router;
+}
+
 function renderInRouter(ui: ReactNode) {
 	const rootRoute = createRootRoute();
 	const indexRoute = createRoute({
@@ -154,6 +169,14 @@ function renderInRouter(ui: ReactNode) {
 	return router;
 }
 
+/** Opens every main group: with no workspace open, Conductor's groups start closed. */
+async function openGroups() {
+	await screen.findAllByRole("region");
+	for (const trigger of screen.queryAllByRole("button", { expanded: false })) {
+		fireEvent.click(trigger);
+	}
+}
+
 describe("NAV-03 GroupedWorkspaces", () => {
 	it("groups by project and shows a pinned workspace only in Pinned", async () => {
 		settings.group = "repo";
@@ -168,6 +191,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 			/>,
 		);
 		expect(await screen.findByRole("region", { name: "Pinned workspaces" })).toBeTruthy();
+		await openGroups();
 		const pinned = screen.getByRole("region", { name: "Pinned workspaces" });
 		expect(within(pinned).getAllByTestId("workspace-row")).toHaveLength(1);
 		expect(within(pinned).getByText("one")).toBeTruthy();
@@ -205,6 +229,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 	it("puts the project header and its + action in one row above the workspaces", async () => {
 		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
 		const region = await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		const plus = within(region).getByRole("link", { name: "Create workspace in app" });
 		expect(plus.getAttribute("href")).toBe("/create?repo=app");
 		const trigger = within(region).getByRole("button", { name: "app" });
@@ -213,11 +238,30 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		expect(plus.parentElement?.contains(row)).toBe(false);
 	});
 
+	it("opens only the group of the open workspace at first, as Conductor does", async () => {
+		renderInRouterAt(
+			<GroupedWorkspaces
+				repos={[repo("app"), repo("api")]}
+				workspaces={[workspace("one"), workspace("three", { repoId: "api" as RepoId })]}
+			/>,
+			"/repository/api/workspace/three",
+		);
+		const app = await screen.findByRole("region", { name: "app" });
+		const api = screen.getByRole("region", { name: "api" });
+		expect(within(app).getByRole("button", { name: /^app/ }).getAttribute("aria-expanded")).toBe(
+			"false",
+		);
+		expect(within(app).queryByTestId("workspace-row")).toBeNull();
+		expect(within(app).getByText("1")).toBeTruthy();
+		expect(within(api).getAllByTestId("workspace-row")).toHaveLength(1);
+	});
+
 	it("collapses a group and shows its count while closed", async () => {
 		renderWithRouter(
 			<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one"), workspace("two")]} />,
 		);
 		const region = await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		const trigger = within(region).getByRole("button", { name: "app" });
 		expect(trigger.getAttribute("aria-expanded")).toBe("true");
 		fireEvent.click(trigger);
@@ -240,6 +284,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 			/>,
 		);
 		const app = await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		const api = screen.getByRole("region", { name: "api" });
 		expect(within(api).getByTestId("workspace-row").getAttribute("data-shortcut")).toBe("3");
 		fireEvent.click(within(app).getByRole("button", { name: "app" }));
@@ -258,6 +303,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 			/>,
 		);
 		const app = await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		fireEvent.click(within(app).getByRole("button", { name: "app" }));
 		await waitFor(() => expect(runCommandHandlers("workspace.switch1")).toBe(true));
 		await waitFor(() =>
@@ -291,6 +337,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 			/>,
 		);
 		await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		await waitFor(() => expect(runCommandHandlers("workspace.switch2")).toBe(true));
 		await waitFor(() =>
 			expect(router.state.location.pathname).toBe("/repository/app/workspace/two"),
@@ -309,6 +356,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 			/>,
 		);
 		await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		await waitFor(() => expect(runCommandHandlers("workspace.previous")).toBe(true));
 		await waitFor(() =>
 			expect(previousRouter.state.location.pathname).toBe("/repository/app/workspace/three"),
@@ -325,6 +373,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 			/>,
 		);
 		await screen.findByRole("region", { name: "app" });
+		await openGroups();
 		await waitFor(() => expect(runCommandHandlers("workspace.next")).toBe(true));
 		await waitFor(() =>
 			expect(nextRouter.state.location.pathname).toBe("/repository/app/workspace/one"),
@@ -349,6 +398,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 					workspaces={[workspace("one"), workspace("two")]}
 				/>,
 			);
+			await openGroups();
 			const rows = await screen.findAllByTestId("workspace-row");
 			expect(rows.map((row) => row.getAttribute("data-now"))).toEqual([null, null]);
 			act(() => {
