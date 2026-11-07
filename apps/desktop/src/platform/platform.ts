@@ -490,6 +490,12 @@ export interface Opener {
 	revealInFinder(path: string): Promise<void>;
 	/** Opens a folder or file in another app, e.g. "Cursor", "Visual Studio Code", "Ghostty". */
 	openWith(appName: string, path: string): Promise<Result<void>>;
+	/**
+	 * Opens a cloud workspace's folder over SSH in VS Code, Cursor or Zed (CLOUD-12). `host` is
+	 * the `Host` name in the SSH config, without the suffix. Another app is refused with
+	 * Conductor's "Remote open is only supported for VS Code, Cursor, and Zed".
+	 */
+	openRemote(input: { appName: string; host: string; path: string }): Promise<Result<void>>;
 	installedApps(): Promise<string[]>;
 	/**
 	 * A known app's own icon as a PNG data URL, read once and cached by the Rust shell. Null when
@@ -880,6 +886,17 @@ export interface PortForwarding {
 		vmId: string;
 		localPort: number;
 		remotePort: number;
+	}): Promise<Result<PortForwardInfo>>;
+	/**
+	 * Binds the local listener the SSH config names (CLOUD-12). Its WebSocket is the Worker's
+	 * authenticated `/w/<name>/ssh` route, which reaches only the sandbox's loopback port 22, so
+	 * this is the one forward allowed to name SSH.
+	 */
+	startSsh(input: {
+		forwardId: string;
+		url: string;
+		vmId: string;
+		localPort: number;
 	}): Promise<Result<PortForwardInfo>>;
 	stop(forwardId: string): Promise<Result<void>>;
 	list(): Promise<Result<PortForwardInfo[]>>;

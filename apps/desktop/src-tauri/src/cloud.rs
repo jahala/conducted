@@ -1,6 +1,7 @@
 //! @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
 //! @feature CLOUD-07 Pair the desktop app with the user's Worker
 //! @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+//! @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
 //!
 //! Owns: the Rust shell's side of the cloud connection: the pairing flow and the Keychain items it
 //! keeps, the deploy and uninstall that run the user's `wrangler`, an HTTPS request to the user's
@@ -39,6 +40,8 @@
 //!   missing, and pairs this Mac with the URL wrangler printed.
 //! - The uninstall deletes the Worker, then its container application and images, then the bucket,
 //!   and unpairs. A resource the account does not have is skipped, so a second uninstall succeeds.
+//! - The SSH tunnel URL (CLOUD-12) is `wss://<worker>/w/<name>/ssh`, with no port query: the route
+//!   reaches only the sandbox's loopback port 22.
 //!
 //! Our design choice: one pairing per Mac, stored under `cloud-pairing-token` and
 //! `cloud-pairing-url`. D101 and D106 record this; D109 records the deploy flow.
@@ -453,6 +456,20 @@ pub fn tunnel_url(base: &reqwest::Url, vm_id: &str, port: u16) -> CommandResult<
         )
     })?;
     url.set_query(Some(&format!("port={port}")));
+    Ok(url)
+}
+
+/// The WebSocket URL of the workspace's SSH door (CLOUD-12). Unlike a tunnel, it names no port:
+/// the Worker's `/ssh` route always reaches the sandbox's loopback port 22 and nothing else.
+pub fn ssh_tunnel_url(base: &reqwest::Url, vm_id: &str) -> CommandResult<reqwest::Url> {
+    checked_vm_id(vm_id)?;
+    let mut url = route_url(base, &format!("/w/{vm_id}/ssh"))?;
+    url.set_scheme("wss").map_err(|_| {
+        refused(
+            "cloud_url_not_allowed",
+            "The SSH tunnel URL could not be made secure.",
+        )
+    })?;
     Ok(url)
 }
 
@@ -1511,6 +1528,19 @@ mod tests {
         assert!(relay_url(&base, "", "rpc").is_err());
         assert!(relay_url(&base, "-oslo", "rpc").is_err());
         assert!(relay_url(&base, "oslo-1", "colour").is_err());
+    }
+
+    #[test]
+    fn an_ssh_url_is_secure_and_names_the_ssh_route() {
+        let base = checked_worker_url("https://conducted.example.workers.dev").expect("a good URL");
+        assert_eq!(
+            ssh_tunnel_url(&base, "oslo-1")
+                .expect("a good workspace")
+                .as_str(),
+            "wss://conducted.example.workers.dev/w/oslo-1/ssh"
+        );
+        assert!(ssh_tunnel_url(&base, "Oslo").is_err());
+        assert!(ssh_tunnel_url(&base, "").is_err());
     }
 
     #[test]

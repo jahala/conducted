@@ -1159,6 +1159,8 @@ pub const ALLOWED_PROGRAMS: &[&str] = &[
     "watchexec",
     "xcodebuild",
     "osascript",
+    "ssh",
+    "ssh-keygen",
     "checkpointer.sh",
     "spotlighter.sh",
     "git-busy-check.sh",
