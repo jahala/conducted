@@ -113,6 +113,8 @@ import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-hel
 import {
 	branchDeleteForce,
 	branchShowCurrent,
+	diffQuietHead,
+	diffToolKsdiff,
 	fetch,
 	lsFiles,
 	lsFilesIgnoredNul,
@@ -217,6 +219,9 @@ export function createPlaceNames(random: () => number = Math.random): PlaceNames
 		},
 	};
 }
+
+/** The Open in app that shows a workspace's changes as a diff instead of its folder. */
+const KALEIDOSCOPE_APP = "Kaleidoscope";
 
 /** The app tools a new chat exposes (ui-map 3.9). One home for the create form and the defaults. */
 export const FIRST_CHAT_APP_TOOLS = {
@@ -2000,11 +2005,25 @@ export class WorkspaceService {
 		return this.#deps.sessions.markAllRead(id);
 	}
 
-	/** Backs `Actions.workspaces.openIn`: opens the workspace folder in another app. */
+	/**
+	 * Backs `Actions.workspaces.openIn`: opens the workspace folder in another app. Kaleidoscope is a
+	 * diff tool, so as in Conductor (renderApp @2492504, services-map.md 3.11) a workspace with
+	 * changes against HEAD opens those changes through `git difftool` with ksdiff; a workspace
+	 * with none opens its folder in the app.
+	 */
 	async openIn(id: WorkspaceId, appName: string): Promise<Result<void>> {
 		const workspace = this.store.getState().workspacesById[id];
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (appName === KALEIDOSCOPE_APP) {
+			const cwd = workspace.path;
+			const changed = await this.#deps.git.runChecked(diffQuietHead(), { cwd });
+			if (!changed.ok) return changed;
+			if (changed.value.exitCode === 1) {
+				const opened = await this.#deps.git.runChecked(diffToolKsdiff(), { cwd });
+				return opened.ok ? ok(undefined) : opened;
+			}
+		}
 		return this.#deps.platform.opener.openWith(appName, workspace.path);
 	}
 
