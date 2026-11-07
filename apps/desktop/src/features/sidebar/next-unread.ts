@@ -16,6 +16,7 @@
 
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Session, Workspace } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 
 export interface UnreadCandidate {
 	workspace: Workspace;
@@ -57,7 +58,7 @@ export function chooseNextUnread({
 	const waiting: { target: UnreadTarget; at: number }[] = [];
 	const unread: { target: UnreadTarget; at: number }[] = [];
 	for (const candidate of candidates) {
-		if (candidate.workspace.state === "archived") continue;
+		if (isArchivedWorkspace(candidate.workspace)) continue;
 		for (const chat of openChats(candidate)) {
 			const target = targetOf(candidate.workspace.id, chat);
 			if (candidate.waitingSessionIds.has(chat.id)) {

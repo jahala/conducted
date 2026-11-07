@@ -25,6 +25,7 @@ import { useState } from "react";
 import { useActions, useBranches, useRepos, useWorkspace } from "../../core/hooks.ts";
 import type { Repo } from "../../core/model.ts";
 import { githubRepositoryFromRemote } from "../../core/services/github.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
@@ -62,7 +63,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const repo = repos.state === "ready" ? repos.data.find((item) => item.id === repoId) : undefined;
-	const archived = data?.state === "archived";
+	const archived = data !== null && isArchivedWorkspace(data);
 	const branch = data?.branch ?? "";
 	// Conductor shows the branch without the user's prefix; Copy and Rename keep the whole name.
 	const shownBranch = branchWithoutPrefix(branch, branchPrefix);

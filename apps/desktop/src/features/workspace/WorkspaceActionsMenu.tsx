@@ -27,6 +27,7 @@ import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut, useSessions, useWorkspace } from "../../core/hooks.ts";
 import type { KanbanStatus, Section } from "../../core/model.ts";
 import { buildDeepLink } from "../../core/services/notifications.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import {
 	ContextMenu,
 	ContextMenuItem,
@@ -130,7 +131,7 @@ function WorkspaceActionItems({
 	const archiveShortcut = useLiveShortcut("workspace.archive");
 
 	const data = workspace.state === "ready" ? workspace.data : null;
-	const archived = data?.state === "archived";
+	const archived = data !== null && isArchivedWorkspace(data);
 	const pinned = data?.pinnedAt != null;
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);

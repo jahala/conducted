@@ -27,6 +27,7 @@ import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useArtifacts, useWorkspace } from "../../../core/hooks.ts";
 import type { ArtifactEntry, ArtifactsView } from "../../../core/model.ts";
+import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { FileIcon, GlobeIcon } from "../../../ui/icons.tsx";
@@ -254,7 +255,7 @@ function LiveArtifactsTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 export function ArtifactsTab({ workspaceId }: ArtifactsTabProps) {
 	const workspace = useWorkspace(workspaceId);
-	if (workspace.state === "ready" && workspace.data.state === "archived") {
+	if (workspace.state === "ready" && isArchivedWorkspace(workspace.data)) {
 		return (
 			<EmptyState
 				compact

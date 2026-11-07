@@ -86,7 +86,7 @@ describe("NAV-01 persisted panel sizes", () => {
 			store.setState((state) => ({
 				workspacesById: {
 					...state.workspacesById,
-					[archived.id]: { ...archived, archivedAt: 1_000 },
+					[archived.id]: { ...archived, state: "archived", archivedAt: 1_000 },
 				},
 			}));
 			store.setState((state) => {

@@ -31,6 +31,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useActions, useGitState, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { PullRequest, Repo, Workspace } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
@@ -44,7 +45,7 @@ import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { runUnarchive } from "../workspace/workspace-actions.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
-import { type HomeDisplay, isArchived } from "./home-query.ts";
+import type { HomeDisplay } from "./home-query.ts";
 
 export interface WorkspaceCardProps {
 	workspace: Workspace;
@@ -167,7 +168,7 @@ const TONE_BAR: Record<RowTone, string> = {
 export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
 	const branchPrefix = useBranchPrefix();
-	const archived = isArchived(workspace);
+	const archived = isArchivedWorkspace(workspace);
 	// Read only: the row shows what the git state already knows and never starts a git read.
 	const git = useGitState(workspace.id);
 	const sessions = useSessions(workspace.id);

@@ -31,6 +31,7 @@ import {
 	useSetting,
 	useWorkspace,
 } from "../../core/hooks.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { toastError } from "../../ui/Toast.tsx";
 import { AnnotationOverlay } from "./AnnotationOverlay.tsx";
 import type { PageAnnotation } from "./annotation-format.ts";
@@ -54,7 +55,7 @@ export function BrowserTab({ workspaceId, url }: { workspaceId: WorkspaceId; url
 	const activeSessionId = workspace.state === "ready" ? workspace.data.activeSessionId : null;
 	const archived =
 		workspace.state === "ready" &&
-		(workspace.data.state === "archived" || workspace.data.state === "archiving");
+		(isArchivedWorkspace(workspace.data) || workspace.data.state === "archiving");
 	const activeSession =
 		activeSessionId === null
 			? openSessions[0]

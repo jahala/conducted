@@ -119,6 +119,7 @@ import {
 import { EventIngest } from "./sidecar/ingest.ts";
 import { SessionResume } from "./sidecar/resume.ts";
 import { type SidecarClient, SidecarTunnel } from "./sidecar/tunnel.ts";
+import { isArchivedWorkspace } from "./status/archived.ts";
 
 /**
  * How long a quit waits for the container to stop before the app quits anyway. Our choice (D064):
@@ -1153,7 +1154,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			run: () =>
 				gitCacheConnection.paint(
 					Object.values(workspace.store.getState().workspacesById)
-						.filter((found) => found.state !== "archived")
+						.filter((found) => !isArchivedWorkspace(found))
 						.map((found) => ({ id: found.id, branch: found.branch })),
 				),
 		},

@@ -55,6 +55,7 @@ import {
 import { CHECKPOINT_REF_PREFIX, checkpointRef, PRE_SPOTLIGHT_CHECKPOINT_ID } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RunAction, Terminal, Workspace } from "../model.ts";
+import { isArchivedWorkspace } from "../status/archived.ts";
 import { quoteShellArg } from "./run-scripts.ts";
 import type { TerminalsService } from "./terminals.ts";
 
@@ -252,7 +253,7 @@ export class SpotlightService {
 		}
 		const workspace = await this.#workspaceFor(workspaceId);
 		if (!workspace.ok) return workspace;
-		if (workspace.value.state === "archived" || workspace.value.state === "archiving") {
+		if (isArchivedWorkspace(workspace.value) || workspace.value.state === "archiving") {
 			return err(appError("workspace_not_ready", "That workspace is archived."));
 		}
 		const repo = await this.#repoFor(workspaceId);

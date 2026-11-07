@@ -35,6 +35,7 @@ import { useServices } from "../../../core/context.tsx";
 import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/services/run-scripts.ts";
 import { SPOTLIGHT_ACTION_ID, SPOTLIGHT_BRANCH_NOTICE } from "../../../core/services/spotlight.ts";
+import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
@@ -237,7 +238,7 @@ export function RunTab({ workspaceId }: RunTabProps) {
 	if (workspace.state === "error") {
 		return <EmptyState title="Run is unavailable" body={workspace.error.message} tone="failed" />;
 	}
-	if (workspace.data.state === "archived" || workspace.data.state === "archiving") {
+	if (isArchivedWorkspace(workspace.data) || workspace.data.state === "archiving") {
 		return (
 			<EmptyState
 				title="This workspace is archived."

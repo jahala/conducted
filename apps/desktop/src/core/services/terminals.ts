@@ -79,6 +79,7 @@ import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { checkHost } from "../host.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
+import { isArchivedWorkspace } from "../status/archived.ts";
 import { zshIntegrationDir } from "./shell-integration.ts";
 
 /** The files of the zsh shim, in the order zsh reads them. */
@@ -1348,7 +1349,7 @@ export class TerminalsService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		checkHost(workspace.value.host, "terminals");
-		if (workspace.value.state === "archived" || workspace.value.archivedAt !== null) {
+		if (isArchivedWorkspace(workspace.value)) {
 			return err(appError("workspace_archived", "This workspace is archived."));
 		}
 		if (workspace.value.state !== "ready") {

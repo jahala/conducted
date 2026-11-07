@@ -25,6 +25,7 @@ import {
 	useSessions,
 	useWorkspace,
 } from "../../../core/hooks.ts";
+import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
@@ -210,7 +211,7 @@ const joinRoot = (root: string, path: string): string => `${root.replace(/\/+$/,
 
 export function FilesTab({ workspaceId, onOpenFile, openPath = null }: FilesTabProps) {
 	const workspace = useWorkspace(workspaceId);
-	if (workspace.state === "ready" && workspace.data.state === "archived") {
+	if (workspace.state === "ready" && isArchivedWorkspace(workspace.data)) {
 		return (
 			<EmptyState
 				compact
