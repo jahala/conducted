@@ -5,8 +5,9 @@
  * Measured from Conductor 0.92.1 (the owner's capture of Settings > Agents, renderApp
  * @10925048-11010000): an "Authentication" heading over two 124px choice cards, "CLI" with a terminal
  * icon and "API key" with a key icon, the one in use filled and checked; a status line with a dot and
- * "Connected" and a "Refresh" action at the right; a bordered two-column table of facts (a 170px label
- * column in muted text); and an outlined sign-in button.
+ * "Connected" and a small ghost "Refresh" with a turning-arrows icon at the right, which spins and
+ * waits while the check runs (renderApp Mci); a bordered fixed table of facts with a 128 px label
+ * column on a faint muted fill and 8 by 12 px cells (renderApp uFa); and an outlined sign-in button.
  * Our design choice: the table lists the facts the install check returns (version, path, login method,
  * source); Conductor's Provider, Organization and Email rows need account data the install check does
  * not return. Choosing "CLI" starts the sign-in, and "API key" opens the provider forms, where keys are
@@ -31,7 +32,7 @@ import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { cn } from "../../../ui/cn.ts";
-import { CheckIcon, KeyIcon, PlayIcon, TerminalIcon } from "../../../ui/icons.tsx";
+import { CheckIcon, KeyIcon, PlayIcon, RefreshIcon, TerminalIcon } from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
 
 /** Characters of a program path shown before the middle is cut. */
@@ -42,6 +43,8 @@ export interface AgentCardProps {
 	signInBusy: boolean;
 	onSignIn: () => void;
 	onRefresh: () => void;
+	/** True while a refresh runs: the Refresh icon spins and the button waits. */
+	refreshing?: boolean;
 	/** Opens the agent's Providers dialog. Left out when the page has no provider forms. */
 	onProviders?: () => void;
 	/** Copies the program path. Left out when the page has no clipboard action. */
@@ -126,16 +129,18 @@ function AuthChoice({
 	);
 }
 
+/** One row of Conductor's facts table (renderApp dFa): a 128 px muted label cell, then the value. */
 function FactRow({ label, children }: { label: string; children: ReactNode }) {
 	return (
-		<div className="flex min-h-12 items-center border-b border-border last:border-b-0">
-			<dt className="w-[170px] shrink-0 self-stretch border-r border-border px-4 py-3 text-sm text-fg-muted">
+		<tr className="border-b border-border last:border-0">
+			<th
+				scope="row"
+				className="w-32 bg-muted/40 px-3 py-2 text-left align-top font-normal text-fg-muted"
+			>
 				{label}
-			</dt>
-			<dd className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2 text-sm text-fg">
-				{children}
-			</dd>
-		</div>
+			</th>
+			<td className="min-w-0 truncate px-3 py-2 text-fg">{children}</td>
+		</tr>
 	);
 }
 
@@ -153,6 +158,7 @@ export function AgentCard({
 	signInBusy,
 	onSignIn,
 	onRefresh,
+	refreshing = false,
 	onProviders,
 	onCopyPath,
 	onUpdate,
@@ -197,7 +203,14 @@ export function AgentCard({
 					<span className="text-sm text-fg">{status.label}</span>
 					{state ? <Badge tone={state.tone}>{state.label}</Badge> : null}
 					<span className="flex-1" />
-					<Button size="sm" variant="ghost" onClick={onRefresh}>
+					<Button
+						size="sm"
+						variant="ghost"
+						className="h-7 px-2"
+						disabled={refreshing}
+						onClick={onRefresh}
+					>
+						<RefreshIcon className={cn("mr-1 size-3", refreshing && "animate-spin")} />
 						Refresh
 					</Button>
 				</div>
@@ -207,30 +220,43 @@ export function AgentCard({
 						{install.warning ?? installHelp(install, name)}
 					</p>
 				) : (
-					<dl className="overflow-hidden rounded-md border border-border">
-						<FactRow label="Version">{install.version ?? "Unknown"}</FactRow>
-						{install.path !== undefined ? (
-							<FactRow label="Path">
-								<code className="min-w-0 flex-1 truncate font-mono text-xs" title={install.path}>
-									{truncateMiddle(install.path, PATH_LENGTH)}
-								</code>
-								{onCopyPath ? (
-									<Button size="xs" variant="ghost" onClick={() => onCopyPath(install.path ?? "")}>
-										Copy
-									</Button>
+					<div className="w-full overflow-hidden rounded-md border border-border">
+						<table className="w-full table-fixed text-sm">
+							<tbody>
+								<FactRow label="Version">{install.version ?? "Unknown"}</FactRow>
+								{install.path !== undefined ? (
+									<FactRow label="Path">
+										<span className="flex min-w-0 items-center gap-2">
+											<code
+												className="min-w-0 flex-1 truncate font-mono text-xs"
+												title={install.path}
+											>
+												{truncateMiddle(install.path, PATH_LENGTH)}
+											</code>
+											{onCopyPath ? (
+												<Button
+													size="xs"
+													variant="ghost"
+													onClick={() => onCopyPath(install.path ?? "")}
+												>
+													Copy
+												</Button>
+											) : null}
+										</span>
+									</FactRow>
 								) : null}
-							</FactRow>
-						) : null}
-						<FactRow label="Login method">
-							{install.authenticated === true
-								? install.authMethod === undefined
-									? "Signed in"
-									: authMethodLabel(install.authMethod)
-								: install.authenticated === false
-									? "Not signed in"
-									: "Unknown"}
-						</FactRow>
-					</dl>
+								<FactRow label="Login method">
+									{install.authenticated === true
+										? install.authMethod === undefined
+											? "Signed in"
+											: authMethodLabel(install.authMethod)
+										: install.authenticated === false
+											? "Not signed in"
+											: "Unknown"}
+								</FactRow>
+							</tbody>
+						</table>
+					</div>
 				)}
 
 				{install.warning !== undefined && install.installed ? (
