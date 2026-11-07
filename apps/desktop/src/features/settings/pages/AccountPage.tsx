@@ -231,7 +231,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			<ConnectionRow
 				icon={<ListTodoIcon className="size-5" />}
 				title="Linear"
-				description="Connect Linear so the app can use issue context from your account."
+				description="Connect Linear so Conducted can use issue context from your account."
 				actions={
 					linearAccess.state === "ready" &&
 					(linearAccess.data.state === "signed_in" ||
