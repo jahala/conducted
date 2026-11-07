@@ -9,6 +9,7 @@ Where the visual design lives, where its values come from, and what holds it.
 - **Fonts:** Geist and Geist Mono, variable `woff2` files from the official release (v1.9.1, github.com/vercel/geist-font) in `apps/desktop/src/assets/fonts/`, with their SIL Open Font License in `OFL.txt` beside them. The terminal keeps its own Menlo-first font list.
 - **Map data:** the Passport world map's land is Made with Natural Earth: the 1:110m land polygons (public domain, naturalearthdata.com, release v5.1.2 of github.com/nvkelso/natural-earth-vector), in `apps/desktop/src/features/passport/land-outline.ts`. `bun scripts/map/land-outline.ts <ne_110m_land.geojson> <output.ts>` writes that file again.
 - **Components:** `apps/desktop/src/ui`. Screens build on these and never style raw colours.
+- **Product page:** `docs/site/`, built as `docs/engineering.md` describes under "The product page". Its colours are the app's token values and its fonts the app's Geist files.
 - **Visual reference:** none yet beyond the running app shell. When screens are designed, their reference images go in a design folder under docs and are linked here.
 
 ## Where the values come from

@@ -1,0 +1,64 @@
+name: Pages
+
+# Builds the product page (docs/site, issue #356) with scripts/site/build.ts and publishes it to
+# GitHub Pages. It builds on every push to main that touches the page, the changelog or the build,
+# and when the release workflow asks after publishing a release (a release made with the
+# workflow's own token starts no workflow by itself), so the Changelog page and the Download
+# button follow CHANGELOG.md and the latest release. A pull request that touches the page builds
+# it without publishing. Publishing needs Pages turned on with "GitHub Actions" as its source.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/site/**"
+      - "CHANGELOG.md"
+      - "scripts/site/**"
+      - "apps/desktop/src/assets/fonts/**"
+      - ".github/workflows/pages.yml"
+  pull_request:
+    paths:
+      - "docs/site/**"
+      - "CHANGELOG.md"
+      - "scripts/site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Build the site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun scripts/site/build.ts "$RUNNER_TEMP/site"
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # ratchet:actions/upload-pages-artifact@v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # ratchet:actions/deploy-pages@v5.0.1
