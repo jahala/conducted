@@ -154,6 +154,7 @@ import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
+import { parseAgentKey } from "./agent-catalog.ts";
 import type { ComposerService } from "./composer.ts";
 import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
 import type { NotificationService } from "./notifications.ts";
@@ -276,29 +277,48 @@ export const GOAL_EMPTY = "Enter a goal first.";
 /** A config write is tried this many times before its failure is reported. */
 const CONFIG_WRITE_ATTEMPTS = 3;
 
-/** The config of a review chat: the review model, fast mode and effort, on the default config. */
+/**
+ * The config of a review chat: the agent stored with the review model, then the model, effort and
+ * fast mode from settings, on the default config. An empty review agent keeps the default chat's
+ * agent, as Conductor derives the agent from an empty review model. Claude and Codex keep their
+ * own review effort settings; every other agent reads `review_effort`, since our app has no
+ * per-model effort store.
+ */
 function reviewConfigFrom(
 	base: SessionConfig,
 	setting: <T>(key: string) => T,
 ): Result<SessionConfig> {
+	const storedAgent = setting<string>("review_agent").trim();
+	const choice =
+		storedAgent === ""
+			? { agent: base.agent, acpAgent: base.acpAgent }
+			: parseAgentKey(storedAgent);
+	if (choice === null) {
+		return err(
+			appError(
+				"setting_invalid",
+				`The agent "${storedAgent}" for "Review agent" is not an agent this app can use. Pick another in Settings.`,
+			),
+		);
+	}
 	const model = setting<string>("review_model").trim();
 	const effortKey =
-		base.agent === "codex"
+		choice.agent === "codex"
 			? "review_codex_thinking_level"
-			: base.agent === "claude"
+			: choice.agent === "claude"
 				? "review_claude_effort_level"
-				: null;
+				: "review_effort";
 	let effort = base.effort;
-	if (effortKey !== null) {
-		const effortSetting = setting<string>(effortKey).trim();
-		if (effortSetting.length > 0) {
-			const parsed = parseEffortSetting(effortKey, effortSetting);
-			if (!parsed.ok) return parsed;
-			effort = parsed.value;
-		}
+	const effortSetting = setting<string>(effortKey).trim();
+	if (effortSetting.length > 0) {
+		const parsed = parseEffortSetting(effortKey, effortSetting);
+		if (!parsed.ok) return parsed;
+		effort = parsed.value;
 	}
 	return ok({
 		...base,
+		agent: choice.agent,
+		acpAgent: choice.agent === "acp" ? choice.acpAgent : undefined,
 		model: model.length > 0 ? model : base.model,
 		effort,
 		fastMode: setting<boolean>("review_fast_mode"),
