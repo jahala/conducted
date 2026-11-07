@@ -652,6 +652,10 @@ export interface Actions {
 		 * repository's shared settings.toml (or a layer above it) applies again.
 		 */
 		resetForRepo: Act<[repoId: RepoId, key: string]>;
+		/** Where the user's settings file, or one project's local settings file, lives. */
+		filePath: Act<[file: "user" | { repoId: RepoId }], string>;
+		/** Opens that settings file in the named app, creating it empty when it is missing. */
+		openFile: Act<[file: "user" | { repoId: RepoId }, appName: string]>;
 	};
 	agents: {
 		login: Act<[agent: AgentKind, acpAgent?: AcpAgent], AgentLogin>;

@@ -7,7 +7,9 @@
  * `~/.conducted/settings.toml`, `.conducted/settings.toml`, `.conducted/settings.local.toml`),
  * deciding the effective value, parsing the environment variable tables of a settings file
  * (names and markers), and parsing settings text that came from a git ref in a cloud repo's shared
- * clone (CLOUD-04). The Keychain values behind those names belong to SET-04.
+ * clone (CLOUD-04), and opening the user's settings file or a project's local file in another
+ * app (SET-02's "Open settings.toml"; a missing file is created empty first). The Keychain values
+ * behind those names belong to SET-04.
  * Behaviour: services-map.md 4.2.1 (layers and precedence), 4.2.2 (scopes), 4.2.4 (settings.toml
  * schema, named actions, env var sections), ui-map.md 6, 5A.1.6 (named actions and their ids),
  * 2.5.2 (config reload on focus and every 30 s).
@@ -837,7 +839,12 @@ export interface SettingsState {
 
 export type SettingsPlatform = Pick<Platform, "fs" | "keychain" | "app"> & {
 	window?: Pick<Platform["window"], "onFocusChanged">;
+	/** Opens a settings file in the app the user picks ("Open settings.toml"). */
+	opener: Pick<Platform["opener"], "openWith">;
 };
+
+/** A settings file the user can open: their own, or one project's local file. */
+export type SettingsFileRef = "user" | { repoId: RepoId };
 
 export interface SettingsServiceDeps {
 	platform: SettingsPlatform;
@@ -1094,6 +1101,39 @@ export class SettingsService {
 			return err(appError("repo_unknown", "That project no longer exists."));
 		}
 		return this.setForRepo(found.value.rootPath, key, null);
+	}
+
+	/** Backs `Actions.settings.filePath`: the user's settings file, or a project's local one. */
+	async filePath(file: SettingsFileRef): Promise<Result<string>> {
+		if (file === "user") return ok(this.#userFile());
+		const repositories = this.#deps.repos.repos;
+		if (repositories === undefined) {
+			return err(appError("repo_unknown", "The project list is not available."));
+		}
+		const found = await repositories.get(file.repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		return ok(localSettingsFile(found.value.rootPath));
+	}
+
+	/**
+	 * Backs `Actions.settings.openFile`, Conductor's "Open settings.toml": creates the file empty
+	 * when it is missing, then opens it in the named app. A file that exists is left as it is.
+	 */
+	async openFile(file: SettingsFileRef, appName: string): Promise<Result<void>> {
+		const path = await this.filePath(file);
+		if (!path.ok) return path;
+		const fs = this.#deps.platform.fs;
+		const made = await this.#writes.run(path.value, async (): Promise<Result<void>> => {
+			if (await fs.exists(path.value)) return ok(undefined);
+			const folder = await fs.mkdirp(path.value.slice(0, path.value.lastIndexOf("/")));
+			if (!folder.ok) return folder;
+			return fs.writeTextAtomic(path.value, "");
+		});
+		if (!made.ok) return made;
+		return this.#deps.platform.opener.openWith(appName, path.value);
 	}
 
 	/** Backs `Actions.settings.set`. Validates with the registry, then writes to the right place. */
