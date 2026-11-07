@@ -36,7 +36,7 @@ export function ToolCardBoundary({ call, children }: { call: ToolCallView; child
 }
 
 export function ToolCard({ call, sessionId }: { call: ToolCallView; sessionId: SessionId }) {
-	const expandAll = useSetting<boolean>("expand_tool_calls");
+	const expandAll = useSetting<boolean>("garry_mode");
 	const Card = toolCardFor(call.item.tool);
 	return (
 		<ToolCardBoundary call={call}>

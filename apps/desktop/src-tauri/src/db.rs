@@ -127,6 +127,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0013_drop_session_context_window.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 14,
+            description: "settings_garry_mode",
+            sql: include_str!("../migrations/0014_settings_garry_mode.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

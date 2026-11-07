@@ -112,7 +112,7 @@ const SETTINGS_TABLE = [
 		default: "enter",
 		options: [
 			{ value: "enter", label: "Enter" },
-			{ value: "cmd-enter", label: "Cmd+Enter" },
+			{ value: "cmd-enter", label: "⌘ Enter" },
 		],
 	},
 	// Our design choice: values are steer and queue (the research uses steering and queued), and the default is steer.
@@ -234,9 +234,8 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
-	// Our design choice: the key is renamed from the research name, to describe the behaviour.
 	{
-		key: "expand_tool_calls",
+		key: "garry_mode",
 		page: "general",
 		scopes: ["user"],
 		title: "Don't collapse tool calls (Garry Mode)",
