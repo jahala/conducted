@@ -16,7 +16,9 @@
  * route; 400 for a bad workspace name or body; 405 for the wrong method; 426 for a non-WebSocket
  * relay request; the sandbox's own error text in a 500 rather than a stack.
  * Our design choice: the route names are ours (`/w/<name>/<action>`), matching the spike's shape,
- * because the research gives Conductor's cloud backend only as a concept.
+ * because the research gives Conductor's cloud backend only as a concept. The authenticated checks
+ * live in front-door.ts, so the relay's integration test runs the same checks as the deployed
+ * Worker.
  * Test first: every route answers 401 without the token, and a good token reaches the route.
  */
 import { DirectoryBackupGateway } from "@cloudflare/sandbox";
@@ -28,31 +30,19 @@ import {
 	zGitBody,
 	zPreviewBody,
 } from "./args.ts";
-import { isAuthorized, PAIR_PATH, pairAnswer } from "./auth.ts";
+import { pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
+import { routeRequest } from "./front-door.ts";
 import { Outbound } from "./outbound.ts";
 import { previewToken, previewTokenMatches } from "./terminal.ts";
 import { Workspace } from "./workspace.ts";
 
 export { DirectoryBackupGateway, Outbound, Workspace };
 
-const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|rpc|terminal|preview-url)$/;
 /** A preview URL carries its capability in the path, so a browser needs no pairing token. */
 const PREVIEW_PROXY = /^\/w\/([^/]+)\/preview\/([A-Za-z0-9_-]{43})\/(\d{1,5})(\/.*)?$/;
 /** Ports a preview may not use. 22 is SSH, as the research names. */
 const RESERVED_PREVIEW_PORTS = new Set([22]);
-/** A sandbox name is safe in a URL and stable across deploys. */
-
-const METHOD: Readonly<Record<string, "GET" | "POST">> = {
-	state: "GET",
-	rpc: "GET",
-	terminal: "GET",
-	"preview-url": "POST",
-	start: "POST",
-	git: "POST",
-	exec: "POST",
-	files: "POST",
-};
 
 /** A preview port, or null when the number is not one a preview may use. */
 function previewPort(raw: string | null): number | null {
@@ -115,30 +105,10 @@ export default {
 				return failure(error);
 			}
 		}
-		if (!isAuthorized(request, env.PAIRING_TOKEN)) {
-			return new Response("Unauthorized", { status: 401 });
-		}
-		if (url.pathname === PAIR_PATH) {
-			if (request.method !== "GET") {
-				return new Response("Method not allowed", {
-					status: 405,
-					headers: { allow: "GET" },
-				});
-			}
-			return pairAnswer();
-		}
-		const match = ROUTE.exec(url.pathname);
-		if (match === null) return new Response("Not found", { status: 404 });
-		const [, name, action] = match as unknown as [string, string, string];
-		if (!WORKSPACE_NAME.test(name)) return new Response("Bad workspace name", { status: 400 });
-		const expected = METHOD[action];
-		if (expected === undefined) return new Response("Not found", { status: 404 });
-		if (request.method !== expected) {
-			return new Response("Method not allowed", {
-				status: 405,
-				headers: { allow: expected },
-			});
-		}
+		const routed = routeRequest(request, env.PAIRING_TOKEN);
+		if ("refusal" in routed) return routed.refusal;
+		if ("pair" in routed) return pairAnswer();
+		const { name, action } = routed.route;
 		const workspace = env.WORKSPACE.getByName(name);
 		try {
 			switch (action) {
@@ -162,14 +132,8 @@ export default {
 					return Response.json(await workspace.filesOperation(body));
 				}
 				case "rpc":
-					if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-						return new Response("Expected a WebSocket", { status: 426 });
-					}
 					return workspace.fetch(request);
 				case "terminal":
-					if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-						return new Response("Expected a WebSocket", { status: 426 });
-					}
 					return workspace.fetch(request);
 				case "preview-url": {
 					const body = await bodyOf(request, zPreviewBody);

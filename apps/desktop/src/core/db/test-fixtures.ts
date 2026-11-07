@@ -41,7 +41,7 @@ export const sessionConfig: Session["config"] = {
 	fastMode: false,
 	planMode: false,
 	requireToolApproval: true,
-	additionalDirectories: ["/tmp/extra"],
+	additionalDirectories: [],
 	appTools: { diffComments: true, progressUpdates: false, setTargetBranch: true },
 };
 
@@ -95,7 +95,6 @@ export const sampleSession: Session = {
 	forkResumeNativeMessageId: null,
 	unreadCount: 3,
 	contextUsedTokens: 1200,
-	contextWindowTokens: 200000,
 	queuePausedAt: null,
 	closedAt: null,
 	lastUserMessageAt: 4000,

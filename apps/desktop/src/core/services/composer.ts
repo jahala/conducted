@@ -29,6 +29,13 @@
  * days, go to the Trash in the data-lifetime job (core/db/lifetime.ts, `remove-draft-files`).
  * Our design choice: drafts are files (see core/app-paths.ts) because migration 0001 has no
  * drafts table. Attachment rows use the existing `attachments` table.
+ * One home for a draft attachment is its `attachments` row with `is_draft = 1`. The draft file's
+ * `attachmentPaths` is a copy that must stay because the unsent text and its paths are saved
+ * together: `#appendToDraft`, `saveDraft`, `removeAttachment` and `clearDraft` keep it in step with
+ * the rows, and `composer.comp-07.test.ts` compares the two. `attachFilesToActiveChat` adds a
+ * workspace file that is not staged, so that path has no row by design. A queued message keeps
+ * its own list (`queued_messages.attachment_paths`) because the draft is cleared once the message
+ * is queued; `materializeForSend` copies the list the message itself carries, not the draft's.
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
  */
 import {
@@ -567,21 +574,21 @@ export class ComposerService {
 	}
 
 	/**
-	 * Copies staged attachments into the workspace, marks their rows as sent with `messageId`, and
-	 * returns the final paths to put in the message. Runs before a message is sent.
+	 * Copies the staged files a message carries into the workspace, marks their rows as sent with
+	 * `messageId`, and returns the final paths to put in the message. The caller passes the paths
+	 * the message itself holds: a new message takes the draft's list, and a queued row keeps its
+	 * own after the draft is cleared. Runs before a message is sent.
 	 */
 	async materializeForSend(
 		sessionId: SessionId,
 		workspacePath: string,
 		messageId: string,
+		attachmentPaths: readonly string[],
 	): Promise<Result<string[]>> {
 		if ((this.#busy.get(sessionId) ?? 0) > 0) {
 			return err(appError("attachment_processing", "Wait for attachments to finish processing."));
 		}
-		const loaded = await this.loadDraft(sessionId);
-		if (!loaded.ok) return loaded;
-		const draft = loaded.value;
-		if (draft.attachmentPaths.length === 0) return ok([]);
+		if (attachmentPaths.length === 0) return ok([]);
 		const listed = await this.#deps.repos.attachments.listDraftsBySession(sessionId);
 		if (!listed.ok) return listed;
 		const files = this.#deps.platform.attachments;
@@ -591,7 +598,7 @@ export class ComposerService {
 		const fs = this.#deps.platform.fs;
 		const finalPaths: string[] = [];
 		const sent: Attachment["id"][] = [];
-		for (const path of draft.attachmentPaths) {
+		for (const path of attachmentPaths) {
 			const row = listed.value.find((entry) => entry.path === path);
 			if (row === undefined) {
 				if (!(await fs.exists(path))) {

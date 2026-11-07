@@ -316,7 +316,7 @@ describe("CHAT-01 default session config", () => {
 		workspace: () => ok(workspace),
 	} as unknown as Lookups;
 
-	it("builds a new chat's config from settings and the workspace", () => {
+	it("builds a new chat's config from settings, without a linked-folder copy", () => {
 		const config = defaultSessionConfig(
 			workspaceId,
 			lookups,
@@ -331,7 +331,7 @@ describe("CHAT-01 default session config", () => {
 				fastMode: true,
 				planMode: false,
 				requireToolApproval: true,
-				additionalDirectories: ["/code/other"],
+				additionalDirectories: [],
 				appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
 			},
 		});

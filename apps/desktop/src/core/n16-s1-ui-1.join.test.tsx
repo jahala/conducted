@@ -242,6 +242,7 @@ describe("n16-s1-ui-1 join: every feature of the batch runs from the app root", 
 					)
 				: passOn(method as never, params)) as never);
 		await mountChat(mounted);
+		mounted.test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
 		act(() =>
 			mounted.test.container.services.sessions.applyStoredEvent(
 				mounted.session.id,

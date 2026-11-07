@@ -15,9 +15,9 @@
  * an event for a turn that already has a `turn_ended` is still stored for its audit trail but its
  * effects are not applied, and a second `turn_ended` for that turn is acknowledged without being
  * stored; a logger that throws never changes the ingest result; `turn_ended` clears the turn's
- * open interaction; a `usage` item updates the chat's context columns and stores the window size it
- * reports for the chat's agent and model (CHAT-14), which the listener hears after the commit; a
- * `user_message` sets
+ * open interaction; a `usage` item updates the chat's `context_used_tokens` cache and stores the
+ * window size it reports in `model_context_windows`, the one home for a model's window (CHAT-14),
+ * which the listener hears after the commit; a `user_message` sets
  * `last_user_message_at`; an agent event in a chat the user is not looking at raises the unread
  * flag.
  * Our design choice: one transaction per event covers the event row and the chat columns it
@@ -117,7 +117,6 @@ async function applyEffects(
 			) {
 				const written = await repos.sessions.setContextUsage(session.id, {
 					usedTokens: usage.contextUsedTokens ?? session.contextUsedTokens,
-					windowTokens: usage.contextWindowTokens ?? session.contextWindowTokens,
 				});
 				if (!written.ok) return written;
 			}
