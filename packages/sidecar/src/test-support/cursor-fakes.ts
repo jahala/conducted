@@ -199,8 +199,10 @@ export class FakeCursorSdk implements CursorSdk {
 export function cursorSdkFiles(
 	agentBinariesDir: string,
 	cpu = "arm64",
+	platform = "darwin",
 ): { readText(target: string): Promise<Result<string | null, AppError>> } {
 	const modules = path.join(agentBinariesDir, "cursor", "current", "node_modules");
+	const native = `sdk-${platform}-${cpu}`;
 	const files = new Map<string, string>([
 		[
 			path.join(modules, "@cursor", "sdk", "package.json"),
@@ -211,8 +213,8 @@ export function cursorSdkFiles(
 			}),
 		],
 		[
-			path.join(modules, "@cursor", `sdk-darwin-${cpu}`, "package.json"),
-			JSON.stringify({ name: `@cursor/sdk-darwin-${cpu}`, version: "1.3.1" }),
+			path.join(modules, "@cursor", native, "package.json"),
+			JSON.stringify({ name: `@cursor/${native}`, version: "1.3.1" }),
 		],
 	]);
 	return { readText: async (target) => ok(files.get(target) ?? null) };

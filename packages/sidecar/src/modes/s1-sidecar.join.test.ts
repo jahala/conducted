@@ -64,6 +64,7 @@ import {
 	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
+import { nodeProcessFacts, type ProcessFacts } from "../adapters/environment.ts";
 import type { SidecarConfig } from "../config.ts";
 import { createLogger, type Logger, type LogRecord } from "../logging/logger.ts";
 import type { AcpChild } from "../runners/acp/acp-client.ts";
@@ -209,6 +210,8 @@ async function harness(
 		storage?: MemoryStorage;
 		/** Cursor's SDK, installed in the agent binaries folder the way the program manager leaves it. */
 		cursorSdk?: FakeCursorSdk;
+		/** The process facts, when a test drives the sandbox's Linux wiring on this Mac. */
+		processFacts?: ProcessFacts;
 		/** The app's bin and managed programs folders, when a test lays out its own copies. */
 		programs?: { binDir: string; agentBinariesDir: string };
 		/** False lays out no managed copy, so the tests can check what the app does without one. */
@@ -241,7 +244,8 @@ async function harness(
 		options.programs ??
 		(options.managedPrograms === false ? undefined : await layOutManagedPrograms(folder));
 	const agentBinariesDir = programs?.agentBinariesDir ?? path.join(folder, "agent-binaries");
-	const cursorFiles = cursorSdkFiles(agentBinariesDir, process.arch);
+	const facts = options.processFacts ?? nodeProcessFacts;
+	const cursorFiles = cursorSdkFiles(agentBinariesDir, facts.arch(), facts.platform());
 	const host = composeSidecar(
 		{
 			binDir: programs?.binDir ?? BIN_DIR,
@@ -292,6 +296,7 @@ async function harness(
 			ids: cryptoIds,
 			logger: logger(seen.logs),
 		},
+		facts,
 	);
 	const started = await host.bridge.start();
 	if (!started.ok) throw new Error(started.error.message);
@@ -1376,6 +1381,50 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				.filter((item) => item.kind === "text")
 				.map((item) => (item.kind === "text" ? item.text : ""));
 			expect(textItems).toContain("from cursor");
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("AGENT-09 in the sandbox a Cursor chat starts from the image's Linux SDK layout", async () => {
+		const folder = await workspaceFolder();
+		const run = new FakeCursorRun();
+		run.messages.push({
+			type: "assistant",
+			content: [{ type: "text", text: "from the sandbox" }],
+		});
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		// The image runs Linux x64, so the program manager's tree carries the Linux native package.
+		const h = await harness(folder, {
+			cursorSdk: sdk,
+			processFacts: { ...nodeProcessFacts, platform: () => "linux", arch: () => "x64" },
+		});
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ agent: "cursor", model: "composer-2.5" }), {
+					env: { CURSOR_API_KEY: "cursor-key" },
+					providerKeys: {},
+				}),
+			);
+			await waitForIdle(h, sessionId);
+
+			expect(h.seen.cursorImports).toEqual([
+				path.join(
+					folder,
+					"agent-binaries",
+					"cursor",
+					"current",
+					"node_modules",
+					"@cursor",
+					"sdk",
+					"dist",
+					"bundled",
+					"index.js",
+				),
+			]);
+			expect(sdk.resumeCalls[0]?.options.apiKey).toBe("cursor-key");
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}
