@@ -174,3 +174,33 @@ describe("NAV-17 notification clicks from the entry", () => {
 		}
 	});
 });
+
+describe("APP-01 global handlers", () => {
+	it("unmounting the app removes the error handlers it installed", async () => {
+		const root = document.createElement("div");
+		document.body.appendChild(root);
+		const memory = createMemoryPlatform({
+			clock: { now: () => 1_000 },
+			ids: createTestIds(),
+			database: emptyDatabase(),
+		});
+		const consoleError = console.error;
+		const removed: string[] = [];
+		const removeListener = vi.spyOn(window, "removeEventListener");
+		let app!: StartedApp;
+		act(() => {
+			app = startApp({ root, platform: memory.platform });
+		});
+		try {
+			expect(await app.started).toEqual(ok(undefined));
+			expect(console.error).not.toBe(consoleError);
+		} finally {
+			await stopApp(app, root);
+		}
+		const restored = console.error === consoleError;
+		console.error = consoleError;
+		for (const call of removeListener.mock.calls) removed.push(call[0]);
+		expect(restored).toBe(true);
+		expect(removed).toEqual(expect.arrayContaining(["error", "unhandledrejection"]));
+	});
+});
