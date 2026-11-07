@@ -173,6 +173,7 @@ describe("SET-02 DefaultModelsPage", () => {
 			"default_plan_mode",
 		];
 		const positions = order.map((key) => keys.indexOf(key));
+		expect(positions).toHaveLength(5);
 		expect(positions.every((position) => position >= 0)).toBe(true);
 		expect([...positions].sort((a, b) => a - b)).toEqual(positions);
 		// The default's model, effort and fast mode are the first slot's, so they have no rows.

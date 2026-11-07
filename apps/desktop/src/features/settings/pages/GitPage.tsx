@@ -10,7 +10,7 @@
  * not on this page.
  * Must handle: a GitHub username prefix while `gh` is signed out (the radio names no login); a save
  * that fails (the row shows the message and the stored value stays).
- * Test first: choosing Custom and typing "feature/" stores the prefix and previews "feature/tokyo".
+ * Test first: previews a custom branch prefix ("feature/" previews "feature/tokyo").
  */
 import { useEffect, useState } from "react";
 import { useGitHubAccess, useSetting } from "../../../core/hooks.ts";
