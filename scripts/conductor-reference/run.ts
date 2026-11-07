@@ -26,7 +26,7 @@ import { loadCatalogue } from "./catalogue.ts";
 import { defaultPaths } from "./paths.ts";
 import { flag, loadMapping, startReferenceServer } from "./server.ts";
 
-const VIEWPORT = { width: 1440, height: 900 };
+export const VIEWPORT = { width: 1440, height: 900 };
 /** Frames the page must stay quiet to count as settled: long enough for a short timer or debounce. */
 const QUIET_FRAMES = 60;
 /** The most frames the settle wait may take, about twenty seconds at 60 frames a second. */
@@ -34,7 +34,7 @@ const MAX_FRAMES = 1_200;
 /** Catches a page that never loads. It is not a way to wait. */
 const HANG_MS = 60_000;
 
-interface Capture {
+export interface Capture {
 	id: string;
 	title: string;
 	route: string | null;
@@ -91,11 +91,20 @@ async function settle(limits: { quiet: number; max: number }): Promise<boolean> 
 	}
 }
 
-async function capture(
+/**
+ * One picture of one state: a fresh dark-mode context that refuses every other origin, the page
+ * opened at `open` (by default the reference server's route for the state), the settle wait, and the
+ * picture written as `file` under `out`. The live run (live.ts) uses it for both of its fronts.
+ */
+export async function capture(
 	browser: Browser,
 	origin: string,
 	out: string,
 	state: { id: string; title: string; route: string | null },
+	open: { path: string; file: string } = {
+		path: `/__reference/open/${encodeURIComponent(state.id)}`,
+		file: `${state.id}-dark.png`,
+	},
 ): Promise<Capture> {
 	const result: Capture = { ...state, file: null, settled: null, errors: [], refused: [] };
 	if (state.route === null) return result;
@@ -119,13 +128,10 @@ async function capture(
 		if (message.type() === "error") result.errors.push(`console: ${message.text()}`);
 	});
 	try {
-		await page.goto(`${origin}/__reference/open/${encodeURIComponent(state.id)}`, {
-			timeout: HANG_MS,
-		});
+		await page.goto(`${origin}${open.path}`, { timeout: HANG_MS });
 		result.settled = await page.evaluate(settle, { quiet: QUIET_FRAMES, max: MAX_FRAMES });
-		const file = `${state.id}-dark.png`;
-		await page.screenshot({ path: join(out, file), animations: "disabled" });
-		result.file = file;
+		await page.screenshot({ path: join(out, open.file), animations: "disabled" });
+		result.file = open.file;
 	} catch (cause) {
 		result.errors.push(`run: ${cause instanceof Error ? cause.message : String(cause)}`);
 	} finally {

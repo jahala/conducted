@@ -49,10 +49,14 @@ export interface Seal {
 	env: Record<string, string>;
 }
 
-function profileText(ownerHome: string): string {
+function profileText(ownerHome: string, execOutside: readonly string[]): string {
 	return [
 		"(version 1)",
 		"(allow default)",
+		// A sandboxed process may not run a setuid program; these run outside the sandbox instead.
+		...execOutside.map(
+			(program) => `(allow process-exec (literal ${JSON.stringify(program)}) (with no-sandbox))`,
+		),
 		"(deny network-outbound (remote ip))",
 		"(deny network-inbound (local ip))",
 		"(deny network-bind (local ip))",
@@ -69,6 +73,11 @@ function profileText(ownerHome: string): string {
 export interface SealOptions {
 	/** The managed requirements the fake Codex answers `configRequirements/read` with. */
 	codexRequirements?: Record<string, unknown>;
+	/**
+	 * Setuid system programs the sealed process may run, outside the sandbox (a sandboxed process
+	 * cannot run a setuid program). Our app's shell reads the process table with `/bin/ps`.
+	 */
+	execOutside?: readonly string[];
 }
 
 /** A value quoted for a POSIX shell, so JSON passes through unchanged. */
@@ -131,7 +140,7 @@ export function makeSeal(label: string, options: SealOptions = {}): Seal {
 	writeFileSync(shell, LOGIN_SHELL);
 	chmodSync(shell, 0o755);
 	const profile = join(root, "deny-network.sb");
-	writeFileSync(profile, profileText(homedir()));
+	writeFileSync(profile, profileText(homedir(), options.execOutside ?? []));
 	const env: Record<string, string> = {
 		HOME: home,
 		TMPDIR: `${tmp}/`,
