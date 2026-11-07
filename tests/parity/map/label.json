@@ -2,22 +2,34 @@
 	"label:M204813": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M204930": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M205025": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M205124": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-13",
+		"item": "Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).",
+		"owner": "hand"
 	},
 	"label:M315960": {
 		"status": "decided",
@@ -158,10 +170,9 @@
 		"by": "hand"
 	},
 	"label:M321253": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Agents",
-		"note": "Checked by hand: not a match. Ours shows the sample value \"gpt-5.5\" in composer-model-picker, which is data, not this wording.",
+		"status": "decided",
+		"decision": "D086",
+		"note": "A model name from Conductor's built-in model catalogue. Our picker lists the models each agent program reports (AGENT rows), so these are data, not wording.",
 		"by": "hand"
 	},
 	"label:M321304": {
@@ -826,27 +837,38 @@
 	"label:M363480": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-01",
+		"item": "Settings show which file a value came from (user shared, repository local, repository shared).",
+		"owner": "hand"
 	},
 	"label:M364103": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-01",
+		"item": "Settings show which file a value came from (user shared, repository local, repository shared).",
+		"owner": "hand"
 	},
 	"label:M364646": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-01",
+		"item": "Settings show which file a value came from (user shared, repository local, repository shared).",
+		"owner": "hand"
 	},
 	"label:M383118": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A settings-source type label in Conductor's resolver, never shown.",
+		"by": "hand"
 	},
 	"label:M383242": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A settings-source type label in Conductor's resolver, never shown.",
+		"by": "hand"
 	},
 	"label:M389969": {
 		"status": "gap",
@@ -875,22 +897,34 @@
 	"label:M780682": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Merge and auto-merge are available from the PR header.",
+		"owner": "hand"
 	},
 	"label:M952497": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-01",
+		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
+		"owner": "hand"
 	},
 	"label:M1092304": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "A failed workspace shows Workspace initialization failed, Setup did not start or This workspace failed to start, with Retry and the log link.",
+		"owner": "hand"
 	},
 	"label:M1420230": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-20",
+		"item": "Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'",
+		"owner": "hand"
 	},
 	"label:M2477618": {
 		"status": "decided",
@@ -999,12 +1033,18 @@
 	"label:M3072009": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-02",
+		"item": "'Start spotlight' in the Run tab",
+		"owner": "hand"
 	},
 	"label:M3099042": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-08",
+		"item": "A shell environment that cannot be captured shows a notice with a Learn more link.",
+		"owner": "hand"
 	},
 	"label:M3222818": {
 		"status": "decided",
@@ -1041,12 +1081,18 @@
 	"label:M3754095": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-10",
+		"item": "A workspace delete that cannot finish asks to delete it permanently, or anyway.",
+		"owner": "hand"
 	},
 	"label:M3754296": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-10",
+		"item": "A workspace delete that cannot finish asks to delete it permanently, or anyway.",
+		"owner": "hand"
 	},
 	"label:R97098": {
 		"status": "decided",
@@ -1249,7 +1295,10 @@
 	"label:R2035080": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "PR tab: 'Open on GitHub'",
+		"owner": "hand"
 	},
 	"label:R2138036": {
 		"status": "gap",
@@ -1286,47 +1335,74 @@
 	"label:R2206903": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2206958": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207031": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207088": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207145": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207202": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207254": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207318": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2207376": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-04",
+		"item": "Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons",
+		"owner": "hand"
 	},
 	"label:R2269745": {
 		"status": "gap",
@@ -1639,27 +1715,42 @@
 	"label:R4400634": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4400746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4400952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4401198": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4401280": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
+		"owner": "hand"
 	},
 	"label:R4993174": {
 		"status": "matched",
@@ -1687,7 +1778,10 @@
 	"label:R5008818": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Misc: root path and workspaces path (read-only)",
+		"owner": "hand"
 	},
 	"label:R5438208": {
 		"status": "gap",
@@ -1736,7 +1830,10 @@
 	"label:R5600192": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "Cloud workspace header shows 'Conductor Cloud' badge, status, CPU, memory, disk, 'Low disk' and 'Agent cost'",
+		"owner": "hand"
 	},
 	"label:R5600277": {
 		"status": "decided",
@@ -1863,7 +1960,10 @@
 	"label:R5629122": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "Cloud workspace header shows 'Conductor Cloud' badge, status, CPU, memory, disk, 'Low disk' and 'Agent cost'",
+		"owner": "hand"
 	},
 	"label:R5629656": {
 		"status": "matched",
@@ -1876,17 +1976,26 @@
 	"label:R5652630": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"label:R5652994": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"label:R5653348": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"label:R8149130": {
 		"status": "matched",
@@ -1967,22 +2076,34 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R8857310": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write",
+		"owner": "hand"
 	},
 	"label:R8857359": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write",
+		"owner": "hand"
 	},
 	"label:R8857397": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R8863451": {
 		"status": "matched",
@@ -2011,7 +2132,10 @@
 	"label:R8863884": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R8864029": {
 		"status": "matched",
@@ -2024,22 +2148,34 @@
 	"label:R8864825": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Usage details list Reasoning output, Service tier and Speed.",
+		"owner": "hand"
 	},
 	"label:R9079981": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9080051": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9080097": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9080220": {
 		"status": "matched",
@@ -2052,12 +2188,18 @@
 	"label:R9080270": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9081765": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-10",
+		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
+		"owner": "hand"
 	},
 	"label:R9083009": {
 		"status": "gap",
@@ -2110,7 +2252,10 @@
 	"label:R9301900": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-04",
+		"item": "'@' mentions files and directories with fuzzy search",
+		"owner": "hand"
 	},
 	"label:R9328374": {
 		"status": "matched",
@@ -2123,12 +2268,18 @@
 	"label:R9343545": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-02",
+		"item": "'Message not sent' with Retry and Discard",
+		"owner": "hand"
 	},
 	"label:R9354304": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "SET-09",
+		"item": "Agent 'Providers' and 'Custom provider' dialogs",
+		"owner": "hand"
 	},
 	"label:R9369573": {
 		"status": "matched",
@@ -2197,7 +2348,10 @@
 	"label:R9380779": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-06",
+		"item": "Empty chat starters",
+		"owner": "hand"
 	},
 	"label:R9406451": {
 		"status": "gap",
@@ -2274,22 +2428,34 @@
 	"label:R9857501": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857551": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857607": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857669": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)",
+		"owner": "hand"
 	},
 	"label:R9857803": {
 		"status": "matched",
@@ -2334,27 +2500,42 @@
 	"label:R10026716": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10026849": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10026974": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10027091": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10027221": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review",
+		"owner": "hand"
 	},
 	"label:R10044498": {
 		"status": "gap",
@@ -2382,7 +2563,10 @@
 	"label:R10081916": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-16",
+		"item": "Cloud desktop tab with 'Reconnect' and notices 'You need edit access to use the cloud desktop' and 'Cloud desktop is available in cloud workspaces'",
+		"owner": "hand"
 	},
 	"label:R10091068": {
 		"status": "matched",
@@ -2468,8 +2652,12 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Other...\" (text) in chat-question.",
-		"by": "hand"
+		"note": "Ours reads \"Other…\" on the question card.",
+		"by": "hand",
+		"backlog": "CHAT-10",
+		"item": "Question 'Other...' free text (key 0)",
+		"owner": "hand",
+		"class": "wording"
 	},
 	"label:R10300655": {
 		"status": "decided",
@@ -2532,7 +2720,10 @@
 	"label:R10363513": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-07",
+		"item": "'Resources' table (Name, CPU, Mem) grouped by workspace",
+		"owner": "hand"
 	},
 	"label:R10382819": {
 		"status": "decided",
@@ -2549,12 +2740,18 @@
 	"label:R10415253": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"backlog": "APP-07",
+		"item": "Resources memory rows: Usage and Total.",
+		"owner": "hand"
 	},
 	"label:R10415566": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"backlog": "APP-07",
+		"item": "Resources memory rows: Usage and Total.",
+		"owner": "hand"
 	},
 	"label:R10461875": {
 		"status": "gap",
@@ -2565,9 +2762,10 @@
 		"owner": "rule:quote"
 	},
 	"label:R10480019": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The team sidebar's My workspaces group. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10481109": {
 		"status": "decided",
@@ -2578,27 +2776,42 @@
 	"label:R10488895": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: group by Status or Project",
+		"owner": "hand"
 	},
 	"label:R10488999": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "'View options' menu (sort icon, 'Sort workspaces')",
+		"owner": "hand"
 	},
 	"label:R10489049": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: sort by Updated or Created, hidden when manual order is on",
+		"owner": "hand"
 	},
 	"label:R10489205": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: group by Status or Project",
+		"owner": "hand"
 	},
 	"label:R10489474": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "View options: filter by project, searchable from 5 repos",
+		"owner": "hand"
 	},
 	"label:R10546377": {
 		"status": "matched",
@@ -2617,12 +2830,18 @@
 	"label:R10570025": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics: shell, PATH and environment capture with values hashed except a safe list",
+		"owner": "hand"
 	},
 	"label:R10676706": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Popover: model picker",
+		"owner": "hand"
 	},
 	"label:R10676773": {
 		"status": "matched",
@@ -2674,24 +2893,36 @@
 	"label:R10727056": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10727344": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10727824": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Settings",
 		"note": "Checked by hand: not a match. Ours shows the sample value \"TOKEN\" in settings-environment, which is data, not this wording.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10728254": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
+		"owner": "hand"
 	},
 	"label:R10750930": {
 		"status": "matched",
@@ -2704,7 +2935,10 @@
 	"label:R10751739": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "MCP import lists Claude Desktop and Claude Code plugins as sources.",
+		"owner": "hand"
 	},
 	"label:R10754989": {
 		"status": "matched",
@@ -2717,7 +2951,10 @@
 	"label:R10755170": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "MCP import lists Claude Desktop and Claude Code plugins as sources.",
+		"owner": "hand"
 	},
 	"label:R10787831": {
 		"status": "decided",
@@ -2734,7 +2971,10 @@
 	"label:R10787975": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-06",
+		"item": "Dashboard: Kanban with five columns",
+		"owner": "hand"
 	},
 	"label:R10808274": {
 		"status": "decided",
@@ -2759,7 +2999,10 @@
 	"label:R10853717": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics introduction, environment report and actions row",
+		"owner": "hand"
 	},
 	"label:R10855109": {
 		"status": "decided",
@@ -2852,12 +3095,20 @@
 	"label:R11117716": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "General: 'Send messages with' (Enter, Cmd+Enter, Custom)",
+		"owner": "hand",
+		"class": "wording",
+		"note": "Ours reads \"Cmd+Enter\" in the send-key option."
 	},
 	"label:R11118427": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "General: 'Follow-up behavior' (Queue or Steer).",
+		"owner": "hand"
 	},
 	"label:R11118460": {
 		"status": "matched",
@@ -2876,7 +3127,10 @@
 	"label:R11166546": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics introduction, environment report and actions row",
+		"owner": "hand"
 	},
 	"label:R11166702": {
 		"status": "decided",
@@ -2947,9 +3201,10 @@
 		"by": "seed"
 	},
 	"label:R11316952": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R11337771": {
 		"status": "decided",
@@ -3012,7 +3267,10 @@
 	"label:R11440151": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"item": "Agent program and sign-in problems shown inline in the chat",
+		"owner": "hand"
 	},
 	"label:R11440359": {
 		"status": "matched",
@@ -3023,24 +3281,34 @@
 		"by": "seed"
 	},
 	"label:R11440532": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's hosted cloud computer. Our cloud is D018's, on the user's own account.",
+		"by": "hand"
 	},
 	"label:R11440860": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-01",
+		"item": "Sidebar footer 'Add project...' button and menu",
+		"owner": "hand"
 	},
 	"label:R11448282": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"item": "The Linear connection is made with an API key and used to list issues.",
+		"owner": "hand"
 	},
 	"label:R11539456": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-10",
+		"item": "Delete an artifact with a confirm.",
+		"owner": "hand"
 	},
 	"label:R11571757": {
 		"status": "gap",
@@ -3115,34 +3383,40 @@
 		"owner": "rule:quote"
 	},
 	"label:R11644260": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644447": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644517": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644626": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644788": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11644907": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An internal step label of Conductor's quit sequence, never shown.",
+		"by": "hand"
 	},
 	"label:R11667589": {
 		"status": "gap",
@@ -3181,7 +3455,10 @@
 	"label:R11902518": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-11",
+		"item": "Issue filters are Label, Author and Base branch, with is and is not.",
+		"owner": "hand"
 	},
 	"label:R11924335": {
 		"status": "decided",
@@ -3228,6 +3505,9 @@
 	"label:R11977140": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Prompts: general preferences (instructions at chat start)",
+		"owner": "hand"
 	}
 }

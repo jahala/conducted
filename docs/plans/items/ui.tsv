@@ -1115,6 +1115,32 @@ CHAT-06	region	A footer on user message bubbles behind the user_message_footer_e
 REV-08	state	The file editor shows an error card when it fails to open.	inventory description R@9949297	missing
 APP-05	region	The toast area carries the accessible name 'Notifications'.	inventory aria_label R@511358	missing
 WS-05	dialog	Archiving asks to stop running agents, with the dialog 'Archive workspace?'.	inventory description R@11400022	missing
+WS-08	region	Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).	ui-map 3.10; inventory literal R@495687	missing
+RUN-04	control	Browser tab Back and Forward move the preview history.	ui-map 3.2; inventory literal R@1361690	missing
+PR-01	message	A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.	ui-map 6 Account; inventory title M@948377	missing
+WS-10	dialog	A workspace delete that cannot finish asks to delete it permanently, or anyway.	ui-map 3.1; inventory label M@3754095	missing
+APP-08	message	A shell environment that cannot be captured shows a notice with a Learn more link.	ui-map 7.4; inventory title M@3096088	missing
+CHAT-14	region	Usage details list Reasoning output, Service tier and Speed.	ui-map 3.5; inventory label R@8857397	missing
+NAV-10	control	Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.	ui-map 1.1; inventory label R@9079981	missing
+APP-07	region	Resources memory rows: Usage and Total.	ui-map 1.3; inventory label R@10415253	missing
+SET-05	control	MCP server connection form takes a Client ID, Client secret, Token and Headers.	ui-map 6; inventory label R@10727056	missing
+SET-05	region	MCP import lists Claude Desktop and Claude Code plugins as sources.	ui-map 6; inventory label R@10751739	missing
+SET-02	message	Settings errors show a Retry button.	ui-map 7.4; inventory literal R@4011805	missing
+SET-03	message	The Agents page error offers 'Try again'.	ui-map 7.4; inventory literal R@10902737	missing
+GIT-04	state	The branch label reads 'Detached HEAD' when the worktree is on no branch.	ui-map 3.6; inventory literal R@5531377	missing
+RUN-06	state	Find in terminal reports 'Invalid regular expression'.	ui-map 3.7; inventory literal R@5655678	missing
+NAV-09	region	Keybinding editor lists each command by name.	ui-map 5.2; inventory literal R@9559666	missing
+NAV-06	setting	Dashboard card fields choose which columns show, including Cost and Owner.	ui-map 2; inventory literal R@10223000	missing
+PRJ-03	state	A template already added shows an 'Added' badge.	ui-map 3.9; inventory literal R@11342763	missing
+REV-05	control	Review prompt dialog has a Send button.	ui-map 3.6; inventory literal R@3896824	missing
+REV-10	control	Delete an artifact with a confirm.	ui-map 3.6; inventory label R@11539456	missing
+NAV-13	region	Passport marks each place name with its rarity tier (Common, Uncommon, Rare, Legendary).	ui-map 4; inventory label M@204813	missing
+SET-01	region	Settings show which file a value came from (user shared, repository local, repository shared).	services-map 4.2.3; inventory label M@363480	missing
+PR-11	control	Issue filters are Label, Author and Base branch, with is and is not.	ui-map 3.6; inventory label R@11902518	missing
+CHAT-15	dialog	A restore whose branch is taken asks 'Restore to new branch?'.	sessions-and-chats checkpoints; inventory title R@11425962	missing
+WS-05	dialog	Archiving a workspace with running agents asks 'Archive workspace?' first.	ui-map 3.1; inventory title R@11399995	missing
+SET-02	setting	General: 'Follow-up behavior' (Queue or Steer).	ui-map 6; inventory label R@11118427	missing
+REV-08	setting	Experimental: use the legacy file preview and editor.	ui-map 6; inventory title R@11106695	missing
 NAV-13	control	Conductor shows "View workspace world map" (control, Unplaced); ours says "Open the place name map" on Passport command (parity gap, wording).	inventory text R@1853248	missing
 PRJ-02	control	Conductor shows "Location" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@1894370	missing
 PRJ-02	region	Conductor shows "Cloning..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@1895265	missing
