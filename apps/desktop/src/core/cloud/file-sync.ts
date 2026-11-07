@@ -10,8 +10,9 @@
  * and the "Enable file sync in new cloud workspaces" setting).
  * Must handle: a stopped or unreachable Worker leaves the last mirror and a failed status; a path
  * outside the mirror is refused with "File is outside the synced workspace"; a file the sandbox
- * no longer has is removed from the mirror at the next sync; a file the Worker cannot carry is
- * named in the baseline and skipped; a mirror larger than the Worker's list cap is reported as
+ * no longer has is removed from the mirror at the next sync; a file over the shared cloud read
+ * limit (D120) is skipped, named in the baseline with its size, and never read again while its
+ * listed size stays over it; a mirror larger than the Worker's list cap is reported as
  * truncated rather than exhausting the app; a reveal that fails says "Could not open Downloads.
  * Try again."; a preview of a Local variant with no mirror says "Couldn't open preview: local
  * workspace mirror is unavailable.".
@@ -27,7 +28,16 @@
  * Test first: a remote file lands in the mirror, and `../outside` is refused.
  */
 import type { Host } from "@conducted/protocol";
-import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	CLOUD_MIRROR_FILE_LIMIT_BYTES,
+	cloudReadLimitMessage,
+	err,
+	ok,
+	type Result,
+	type WorkspaceId,
+	withinCloudReadLimit,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Cloud, FileSystem, Opener } from "../../platform/platform.ts";
 import type { Workspace } from "../model.ts";
@@ -46,6 +56,12 @@ export const BASELINE_FILE = "baseline.json";
 export const metadataPathFor = (mirrorPath: string): string => `${mirrorPath}.sync`;
 /** How often a shown cloud workspace's files are polled (services-map.md 5B.10.1). */
 export const SYNC_POLL_MS = 5_000;
+/**
+ * The largest file the mirror reads. D120: the live Worker answered 23 MiB and failed at 24 MiB,
+ * where one base64 answer passes the Durable Object RPC's 32 MiB value; 16 MiB leaves 7 MiB of
+ * margin. A dial: raise it only with a new measurement.
+ */
+export const MIRROR_FILE_LIMIT_BYTES = CLOUD_MIRROR_FILE_LIMIT_BYTES;
 export const SYNC_OFF_LABEL = "Sync files is off";
 export const SYNC_FOLDER_UNAVAILABLE_LABEL = "Sync folder unavailable";
 export const SYNC_FAILED_LABEL = "Sync files failed";
@@ -99,7 +115,7 @@ interface Baseline {
 	remoteRoot: string;
 	syncedAt: number;
 	files: string[];
-	skipped: { path: string; reason: string }[];
+	skipped: { path: string; reason: string; size: number | null }[];
 	truncated: boolean;
 }
 
@@ -484,7 +500,7 @@ export class FileSyncService {
 		if (!registered.ok) return registered;
 		const previous = await this.#readBaseline(mirrorPath);
 		const seen = new Set<string>();
-		const skipped: { path: string; reason: string }[] = [];
+		const skipped: { path: string; reason: string; size: number | null }[] = [];
 		let files = 0;
 		for (const raw of body.entries) {
 			const entry = objectOf(raw);
@@ -493,7 +509,7 @@ export class FileSyncService {
 			if (relative === null || relative.length === 0) continue;
 			const guarded = guardedRelativePath(relative);
 			if (!guarded.ok) {
-				skipped.push({ path: relative, reason: OUTSIDE_MIRROR_MESSAGE });
+				skipped.push({ path: relative, reason: OUTSIDE_MIRROR_MESSAGE, size: null });
 				continue;
 			}
 			const path = guarded.value;
@@ -504,7 +520,13 @@ export class FileSyncService {
 				continue;
 			}
 			if (entry.isSymlink === true) {
-				skipped.push({ path, reason: "A symlink is not mirrored." });
+				skipped.push({ path, reason: "A symlink is not mirrored.", size: null });
+				continue;
+			}
+			if (typeof entry.size === "number" && !withinCloudReadLimit(entry.size)) {
+				// The list already named the size, so an unchanged oversize file is never read;
+				// the report says why, and a later smaller file is tried again.
+				skipped.push({ path, reason: cloudReadLimitMessage(entry.size), size: entry.size });
 				continue;
 			}
 			seen.add(path);
@@ -513,12 +535,12 @@ export class FileSyncService {
 				path: entry.path,
 			});
 			if (!read.ok) {
-				skipped.push({ path, reason: read.error.message });
+				skipped.push({ path, reason: read.error.message, size: null });
 				continue;
 			}
 			const value = objectOf(read.value);
 			if (value === null || typeof value.base64 !== "string") {
-				skipped.push({ path, reason: "The Workspace sent no bytes for it." });
+				skipped.push({ path, reason: "The Workspace sent no bytes for it.", size: null });
 				continue;
 			}
 			const bytes = decodeBase64(value.base64);
@@ -570,7 +592,24 @@ export class FileSyncService {
 				remoteRoot: typeof parsed.remoteRoot === "string" ? parsed.remoteRoot : "",
 				syncedAt: typeof parsed.syncedAt === "number" ? parsed.syncedAt : 0,
 				files: parsed.files.filter((path): path is string => typeof path === "string"),
-				skipped: [],
+				skipped: Array.isArray(parsed.skipped)
+					? parsed.skipped
+							.filter(
+								(entry): entry is { path: string; reason: string; size: number | null } =>
+									typeof entry === "object" &&
+									entry !== null &&
+									typeof (entry as { path?: unknown }).path === "string" &&
+									typeof (entry as { reason?: unknown }).reason === "string",
+							)
+							.map((entry) => ({
+								path: entry.path,
+								reason: entry.reason,
+								size:
+									typeof (entry as { size?: unknown }).size === "number"
+										? (entry as { size: number }).size
+										: null,
+							}))
+					: [],
 				truncated: parsed.truncated === true,
 			};
 		} catch {

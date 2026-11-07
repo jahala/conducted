@@ -6,7 +6,12 @@
  * platform contract checks it.
  */
 import type { Host } from "@conducted/protocol";
-import { ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	CLOUD_MIRROR_FILE_LIMIT_BYTES,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform } from "../../platform/memory.ts";
 import { unusedDatabase } from "../../test/memory-platform.ts";
@@ -269,5 +274,41 @@ describe("CLOUD-11 the local mirror", () => {
 
 		expect(uploaded.ok).toBe(true);
 		expect([...(h.remoteBytes["/workspace/oslo/logo.png"] ?? [])]).toEqual([0x00, 0xff, 0x10]);
+	});
+
+	it("leaves a file over the read limit out and names its size", async () => {
+		const h = harness();
+		const size = CLOUD_MIRROR_FILE_LIMIT_BYTES + 1;
+		h.remoteBytes["/workspace/oslo/video.mp4"] = new Uint8Array(size);
+
+		const synced = await h.service.syncNow(WORKSPACE_ID);
+
+		expect(synced.ok).toBe(true);
+		expect(h.memory.controls.blobs.has(`${h.mirror}/video.mp4`)).toBe(false);
+		expect(h.memory.controls.files.has(`${h.mirror}/video.mp4`)).toBe(false);
+		const baseline = JSON.parse(
+			String(h.memory.controls.files.get(`${h.mirror}.sync/baseline.json`)),
+		);
+		expect(baseline.skipped).toEqual([
+			{
+				path: "video.mp4",
+				reason: expect.stringContaining("cloud read limit"),
+				size,
+			},
+		]);
+	});
+
+	it("does not read an oversize file again while its size is unchanged", async () => {
+		const h = harness();
+		h.remoteBytes["/workspace/oslo/video.mp4"] = new Uint8Array(CLOUD_MIRROR_FILE_LIMIT_BYTES + 1);
+
+		await h.service.syncNow(WORKSPACE_ID);
+		await h.service.syncNow(WORKSPACE_ID);
+
+		const reads = h.memory.controls.cloudRequests.filter((request) => {
+			const body = request.body as { operation?: string; path?: string };
+			return body.operation === "readBytes" && body.path === "/workspace/oslo/video.mp4";
+		});
+		expect(reads).toHaveLength(0);
 	});
 });

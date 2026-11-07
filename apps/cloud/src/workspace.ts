@@ -42,6 +42,7 @@ import {
 	type DirectoryBackupRecord,
 	Files,
 } from "@cloudflare/sandbox";
+import { cloudReadLimitMessage, withinCloudReadLimit } from "@conducted/shared";
 import type { ExecBody, FileBody } from "./args.ts";
 import {
 	BACKUP_BINDING,
@@ -512,6 +513,12 @@ export class Workspace extends DurableObject<Env> {
 					return { text: await response.text() };
 				}
 				case "readBytes": {
+					// One base64 answer is one Durable Object RPC value, capped at 32 MiB, so the
+					// size is checked before the read: a caller that skips the mirror's own check
+					// cannot make the Worker build an answer it can never send.
+					const stat = await files.stat(body.path);
+					const size = Number(stat.size);
+					if (!withinCloudReadLimit(size)) throw new Error(cloudReadLimitMessage(size));
 					const response = await files.readFile(body.path);
 					return { base64: encodeBase64(new Uint8Array(await response.arrayBuffer())) };
 				}

@@ -306,6 +306,41 @@ fn files_and_terminal_on_a_real_sandbox() {
             if !sizes.iter().any(|(path, _)| path == "/workspace/big.txt") {
                 return Err(format!("the large file is not listed: {sizes:?}"));
             }
+            // A file over the limit is refused by the Worker itself, before it reads it.
+            let (status, body) = call(
+                &client,
+                url,
+                &token,
+                &format!("/w/{workspace}/exec"),
+                Some(json!({
+                    "program": "dd",
+                    "args": ["if=/dev/zero", "of=/workspace/over.bin", "bs=1048576", "count=20"],
+                    "cwd": "/workspace",
+                })),
+            )
+            .await;
+            if status != 200 {
+                return Err(format!("dd answered {status}: {body}"));
+            }
+            let (status, body) = call(
+                &client,
+                url,
+                &token,
+                &format!("/w/{workspace}/files"),
+                Some(json!({ "operation": "readBytes", "path": "/workspace/over.bin" })),
+            )
+            .await;
+            if status != 500 || !body.contains("cloud read limit") {
+                return Err(format!("an over-limit read answered {status}: {body}"));
+            }
+            let _ = call(
+                &client,
+                url,
+                &token,
+                &format!("/w/{workspace}/files"),
+                Some(json!({ "operation": "trash", "path": "/workspace/over.bin" })),
+            )
+            .await;
             file_ms = began.elapsed().as_millis();
 
             let began = Instant::now();
@@ -354,4 +389,118 @@ fn files_and_terminal_on_a_real_sandbox() {
         "images are still there: {images_left:?}"
     );
     assert!(!bucket_left, "the bucket is still there");
+}
+
+/// Measures the largest file one `readBytes` answer carries reliably on the live Worker.
+#[test]
+#[ignore = "live: deploys to the owner's Cloudflare account with Docker, then deletes everything"]
+fn measure_the_read_bytes_limit() {
+    let name = live_name();
+    let resources = resources();
+    assert!(
+        resources.join("worker.js").is_file() && resources.join("sandbox/Dockerfile").is_file(),
+        "the deploy inputs are missing: run `pnpm cloud:prepare` first"
+    );
+    let token = make_pairing_token().expect("a pairing token");
+    let wrangler = live_wrangler();
+    let workspace = format!("c11size{}", &name[name.len() - 6..]);
+
+    let deployed = deploy_worker(&wrangler, &resources, &name, &token);
+    let mut measurements: Vec<(u64, Result<usize, String>)> = Vec::new();
+    if let Ok(url) = &deployed {
+        let result = tauri::async_runtime::block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(240))
+                .build()
+                .map_err(|error| error.to_string())?;
+            let mut started = false;
+            for _ in 0..3 {
+                let (status, _body) =
+                    call(&client, url, &token, &format!("/w/{workspace}/start"), None).await;
+                if status == 200 {
+                    started = true;
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+            if !started {
+                return Err("the sandbox did not start".to_string());
+            }
+            for mib in [16u64, 20, 22, 23, 24] {
+                let (status, body) = call(
+                    &client,
+                    url,
+                    &token,
+                    &format!("/w/{workspace}/exec"),
+                    Some(json!({
+                        "program": "dd",
+                        "args": [
+                            "if=/dev/zero",
+                            "of=/workspace/probe.bin",
+                            "bs=1048576",
+                            &format!("count={mib}"),
+                        ],
+                        "cwd": "/workspace",
+                    })),
+                )
+                .await;
+                if status != 200 {
+                    measurements.push((mib, Err(format!("dd answered {status}: {body}"))));
+                    continue;
+                }
+                let (status, body) = call(
+                    &client,
+                    url,
+                    &token,
+                    &format!("/w/{workspace}/files"),
+                    Some(json!({ "operation": "readBytes", "path": "/workspace/probe.bin" })),
+                )
+                .await;
+                let outcome = if status != 200 {
+                    Err(format!("readBytes answered {status}: {body}"))
+                } else {
+                    let parsed: serde_json::Value =
+                        serde_json::from_str(&body).map_err(|error| error.to_string())?;
+                    base64::engine::general_purpose::STANDARD
+                        .decode(parsed["base64"].as_str().unwrap_or(""))
+                        .map(|bytes| bytes.len())
+                        .map_err(|error| error.to_string())
+                };
+                measurements.push((mib, outcome));
+                let _ = call(
+                    &client,
+                    url,
+                    &token,
+                    &format!("/w/{workspace}/files"),
+                    Some(json!({ "operation": "trash", "path": "/workspace/probe.bin" })),
+                )
+                .await;
+            }
+            Ok(())
+        });
+        eprintln!("measurement run: {result:?}");
+    }
+
+    let removed = uninstall_worker(&wrangler, &resources, &name);
+    let containers = listed(&wrangler, &resources, &["containers", "list", "--json"]);
+    let images = listed(
+        &wrangler,
+        &resources,
+        &["containers", "images", "list", "--json"],
+    );
+    let buckets = listed(&wrangler, &resources, &["r2", "bucket", "list"]);
+    let container_left = container_id(&containers, &format!("{name}-sandbox")).is_some();
+    let images_left = image_refs(&images, &name);
+    let bucket_left = bucket_names(&buckets).iter().any(|bucket| bucket == &name);
+    println!(
+        "CLOUD-11 readBytes limit: name={name} measurements={measurements:?} \
+         uninstall_ok={} container_left={container_left} images_left={images_left:?} \
+         bucket_left={bucket_left}",
+        removed.is_ok()
+    );
+    assert!(deployed.is_ok(), "the deploy failed");
+    assert!(removed.is_ok(), "the uninstall failed: {removed:?}");
+    assert!(!container_left);
+    assert!(images_left.is_empty());
+    assert!(!bucket_left);
 }
