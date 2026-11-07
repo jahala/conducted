@@ -43,8 +43,8 @@ import { GitPage } from "./pages/GitPage.tsx";
 import { KeyboardShortcutsPage } from "./pages/KeyboardShortcutsPage.tsx";
 import { RemoteControlPage } from "./pages/RemoteControlPage.tsx";
 import { RepoActionsPage } from "./repo/RepoActionsPage.tsx";
+import { RepoGitPage } from "./repo/RepoGitPage.tsx";
 import { RepoMiscPage } from "./repo/RepoMiscPage.tsx";
-import { RepoPromptsPage } from "./repo/RepoPromptsPage.tsx";
 import { RepoScriptsPage } from "./repo/RepoScriptsPage.tsx";
 import { SettingsNav } from "./SettingsNav.tsx";
 import { SettingsSearch } from "./SettingsSearch.tsx";
@@ -104,12 +104,14 @@ function UserPage({
 
 function RepoPage({ page, repoId }: { page: RepoSettingsPageId; repoId: RepoId }) {
 	switch (page) {
+		case "git":
+			return <RepoGitPage repoId={repoId} />;
+		case "environment":
+			return <EnvironmentPage repoId={repoId} />;
 		case "scripts":
 			return <RepoScriptsPage repoId={repoId} />;
 		case "actions":
 			return <RepoActionsPage repoId={repoId} />;
-		case "prompts":
-			return <RepoPromptsPage repoId={repoId} />;
 		case "misc":
 			return <RepoMiscPage repoId={repoId} />;
 	}

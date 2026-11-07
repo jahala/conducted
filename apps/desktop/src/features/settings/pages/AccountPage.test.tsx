@@ -100,6 +100,25 @@ describe("SET-02 AccountPage", () => {
 		expect(screen.getByLabelText("Linear API key")).toBeTruthy();
 	});
 
+	// Conductor's Linear row has a Refresh beside its button (renderApp YVe, @10816324).
+	it("checks Linear again from the Linear row's Refresh", async () => {
+		const container = await mountPage({ status: "signed_out" });
+		// A connection shown from an earlier check; the Keychain no longer holds a key.
+		container.services.linear.store.setState({
+			connection: "connected",
+			account: { name: "Ada", organization: null },
+		});
+		const linear = await screen.findByRole("region", { name: "Linear" });
+		expect(await within(linear).findByText("Connected as Ada")).toBeTruthy();
+
+		const refresh = within(linear).getByRole("button", { name: "Refresh" });
+		expect(refresh.querySelector("svg")).not.toBeNull();
+		fireEvent.click(refresh);
+
+		expect(await within(linear).findByText("Not connected")).toBeTruthy();
+		expect(within(linear).getByRole("button", { name: "Connect" })).toBeTruthy();
+	});
+
 	it("keeps GitHub's sign-in, token and method in the dialog its one button opens, as Conductor does", async () => {
 		await mountPage({
 			status: "ok",

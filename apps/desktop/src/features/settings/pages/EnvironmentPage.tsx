@@ -1,46 +1,58 @@
 /**
  * @feature SET-04 Environment settings page
- * Owns: the Environment page of Settings: environment variables given to agents, setup scripts and
- * actions, and the files that hold more variables. Interactive terminals do not receive them. The
- * files are read again when a script or an agent starts (SettingsService.environmentForLaunch);
- * their values never reach a log line.
- * Behaviour: ui-map.md 6, "Environment" table and "Environment page" (Variables table: Name,
- * Value, "Locally overwritten", "Not set"; empty state "No variables set"; env files list; a
- * banner for importing local variables); services-map.md 4.2.8 (env_vars table; values are secrets).
- * Data: useEnvVars(scope), useActions().settings.setEnvVar and removeEnvVar, useSetting for the
- * dismissed banner. The environment file list belongs to the scope: "All repositories" reads and
- * writes the user's list (useSetting, Actions.settings.set); a repository reads the list that applies
- * to it (SettingsService.getForRepo) and writes its own local settings file (setForRepo). When the
- * repository's own file holds the list, "Reset to shared settings" removes it there
+ * @feature SET-11 Documented variables on the Environment page
+ * Owns: the Environment page of Settings, for every repository or for one: environment variables
+ * given to agents, setup scripts and actions, and the files that hold more variables. Interactive
+ * terminals do not receive them. The files are read again when a script or an agent starts
+ * (SettingsService.environmentForLaunch); their values never reach a log line.
+ * Behaviour: Conductor's Environment page (renderApp LDa and PDa @10716400-10719700): the title,
+ * "Configure environment variables used by Conducted and passed to agents.", and "Add environment
+ * variable" at the title's right, which opens the add panel; then the scope's own variables as
+ * Conductor's table with the documented ones behind their link. A repository's page (its
+ * Environment section, SET-07) adds "Inherited from User": every variable of all repositories, read
+ * only, dimmed where this repository replaces it. Then the env files. services-map.md 4.2.8
+ * (env_vars table; values are secrets).
+ * Data: useEnvVars(scope) (and useEnvVars("global") for the inherited table),
+ * useActions().settings.setEnvVar and removeEnvVar, Actions.app.copyText, useSetting for the
+ * dismissed banner. The environment file list belongs to the scope: all repositories read and
+ * write the user's list (useSetting, Actions.settings.set); a repository reads the list that
+ * applies to it (SettingsService.getForRepo) and writes its own local settings file (setForRepo).
+ * When the repository's own file holds the list, "Reset to shared settings" removes it there
  * (Actions.settings.resetForRepo, SET-02), so the shared settings.toml or the user's list applies.
  * Children: environment/EnvVarTable, environment/AddEnvVarForm, environment/EnvFilesList.
- * Our design choice: values live in the Keychain; the database holds names only (SET-04). The page
- * has a scope switch: all repositories, or one repository whose values override the global ones.
+ * Our design choice: values live in the Keychain; the database holds names only (SET-04). The
+ * banner that imports a dotenv file into the variables is ours: our env files are a list to import
+ * from, where Conductor's load their variables when an agent starts.
  * Must handle: no variables (designed empty state), a name that is invalid or reserved (names of
  * variables the app sets itself are refused), a value hidden until revealed, a Keychain error (a
- * short message, nothing is lost), an overridden variable (shows which scope wins), an import where
- * some variables fail (each failure named, the banner stays), and values never written to logs.
- * Test first: adding a variable calls setEnvVar with the scope and shows the row with a hidden
- * value.
+ * short message, nothing is lost), a rename (the new name is saved before the old one goes), an
+ * overridden variable (dimmed in the inherited table), an import where some variables fail (each
+ * failure named, the banner stays), and values never written to logs.
+ * Test first: adding a variable from the panel saves it in the scope and shows the row with a
+ * hidden value.
  */
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useEnvVars, useRepos, useSetting } from "../../../core/hooks.ts";
-import type { EnvScope } from "../../../core/model.ts";
+import type { EnvScope, EnvVarView } from "../../../core/model.ts";
 import { parseDotenv } from "../../../core/services/dotenv.ts";
 import {
 	ENV_FILES_FAILED_MESSAGE,
 	ENV_SAVE_FAILED_MESSAGE,
-	RESERVED_ENV_VAR_NAMES,
 } from "../../../core/services/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
+import { PlusIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
-import { Select } from "../../../ui/Select.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
-import { AddEnvVarForm } from "../environment/AddEnvVarForm.tsx";
+import { AddEnvVarForm, type EnvDraft } from "../environment/AddEnvVarForm.tsx";
 import { EnvFilesList, pathInsideRepository } from "../environment/EnvFilesList.tsx";
-import { EnvVarTable } from "../environment/EnvVarTable.tsx";
+import {
+	documentedMeaning,
+	orderSetNames,
+	unsetDocumentedEnvVars,
+} from "../environment/EnvVarSuggestions.tsx";
+import { type EnvTableRow, EnvVarTable } from "../environment/EnvVarTable.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 const ENV_FILES_KEY = "environment_variable_files";
@@ -48,13 +60,20 @@ const BANNER_DISMISSED_KEY = "local_env_vars_import_banner_dismissed";
 
 const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 
-export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+export function EnvironmentPage({
+	focusSettingKey = null,
+	repoId = null,
+}: {
+	focusSettingKey?: string | null;
+	/** A repository's Environment section; null is the page for every repository. */
+	repoId?: RepoId | null;
+}) {
 	const load = useSettingsLoad();
 	const repos = useRepos();
 	const actions = useActions();
 	const services = useServices().services;
 	const { platform } = useServices();
-	const [repoChoice, setRepoChoice] = useState<string | null>(null);
+	const [adding, setAdding] = useState(false);
 	const [files, setFiles] = useState<{ path: string; exists: boolean }[]>([]);
 	const [candidates, setCandidates] = useState<string[]>([]);
 	const [importing, setImporting] = useState(false);
@@ -68,13 +87,10 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const [repoFilesVersion, setRepoFilesVersion] = useState(0);
 
 	const repoList = repos.state === "ready" ? repos.data : [];
-	const selectedRepo = repoList.find((repo) => repo.id === repoChoice) ?? null;
-	const scope = useMemo<EnvScope>(
-		() => (repoChoice === null ? "global" : { repoId: repoChoice as RepoId }),
-		[repoChoice],
-	);
-	const scopeValue = repoChoice ?? "all";
+	const selectedRepo = repoList.find((repo) => repo.id === repoId) ?? null;
+	const scope = useMemo<EnvScope>(() => (repoId === null ? "global" : { repoId }), [repoId]);
 	const vars = useEnvVars(scope);
+	const userVars = useEnvVars("global");
 	const userFiles = useSetting<string[]>(ENV_FILES_KEY);
 	const repoRoot = selectedRepo?.rootPath ?? null;
 	const storedFiles =
@@ -83,7 +99,15 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const bannerDismissed = useSetting<boolean>(BANNER_DISMISSED_KEY);
 	const root = selectedRepo?.rootPath ?? platform.fs.paths.home;
 
-	const existingNames = vars.state === "ready" ? vars.data.map((row) => row.name) : [];
+	/** The scope's own variables: a repository's page leaves the inherited ones to their table. */
+	const ownVars = useMemo(
+		() =>
+			vars.state !== "ready"
+				? []
+				: vars.data.filter((row) => repoId === null || row.scope !== "global"),
+		[vars, repoId],
+	);
+	const existingNames = ownVars.map((row) => row.name);
 
 	// A repository's list: its own local file, else the layers above it. Only the newest read is kept.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a reset bumps repoFilesVersion so the list is read again.
@@ -194,21 +218,37 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 		return removed;
 	};
 
-	const addVariable = async (name: string, value: string): Promise<boolean> => {
-		const saved = await actions.settings.setEnvVar(name, value, scope);
+	const addVariables = async (entries: readonly EnvDraft[]): Promise<boolean> => {
+		for (const entry of entries) {
+			const saved = await actions.settings.setEnvVar(entry.name, entry.value, scope);
+			if (!saved.ok) {
+				toastError(
+					entries.length === 1
+						? "Failed to add environment variable"
+						: "Failed to add environment variables",
+					saved.error,
+				);
+				return false;
+			}
+		}
+		return true;
+	};
+
+	/** Saves one variable from the table's panel; a rename saves the new name, then drops the old. */
+	const saveVariable = async (
+		entry: EnvDraft & { previousName: string | null },
+	): Promise<boolean> => {
+		const saved = await actions.settings.setEnvVar(entry.name, entry.value, scope);
 		if (!saved.ok) {
 			toastError(ENV_SAVE_FAILED_MESSAGE, saved.error);
 			return false;
 		}
-		toast(`${name} saved`);
-		return true;
-	};
-
-	const editVariable = async (name: string, value: string): Promise<boolean> => {
-		const saved = await actions.settings.setEnvVar(name, value, scope);
-		if (!saved.ok) {
-			toastError(ENV_SAVE_FAILED_MESSAGE, saved.error);
-			return false;
+		if (entry.previousName !== null && entry.previousName !== entry.name) {
+			const removed = await actions.settings.removeEnvVar(entry.previousName, scope);
+			if (!removed.ok) {
+				toastError(ENV_SAVE_FAILED_MESSAGE, removed.error);
+				return false;
+			}
 		}
 		return true;
 	};
@@ -220,6 +260,12 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 			return false;
 		}
 		return true;
+	};
+
+	const copyVariable = async (name: string, value: string) => {
+		const copied = await actions.app.copyText(value);
+		if (!copied.ok) toastError(`Failed to copy ${name}`, copied.error);
+		else toast(`Copied ${name}`);
 	};
 
 	const importCandidate =
@@ -273,8 +319,8 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 		);
 	};
 
-	const revealVariable = async (name: string): Promise<string | null> => {
-		const read = await services.settings.revealEnvVar(name, scope);
+	const revealVariable = async (name: string, from: EnvScope = scope): Promise<string | null> => {
+		const read = await services.settings.revealEnvVar(name, from);
 		if (!read.ok) {
 			toastError("Couldn't read the value from the Keychain", read.error);
 			return null;
@@ -289,32 +335,38 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 
 	const showBanner = !bannerDismissed && importCandidate !== undefined;
 
+	const ownNames = new Set(existingNames);
+	const rowsOf = (views: readonly EnvVarView[], editable: boolean): EnvTableRow[] =>
+		orderSetNames(views.map((view) => view.name)).flatMap((name) => {
+			const view = views.find((candidate) => candidate.name === name);
+			if (view === undefined) return [];
+			const description = documentedMeaning(name);
+			return [
+				{
+					name,
+					...(description === undefined ? {} : { description }),
+					hasValue: view.hasValue,
+					editable,
+					canRename: description === undefined,
+					dimmed: !editable && ownNames.has(name),
+				},
+			];
+		});
+
 	return (
 		<SettingsPageFrame
 			title="Environment"
 			description="Configure environment variables used by Conducted and passed to agents."
+			action={
+				<Button size="sm" onClick={() => setAdding(true)}>
+					<PlusIcon className="mr-1 size-3.5" />
+					Add environment variable
+				</Button>
+			}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<div className="flex flex-col gap-6">
-				<div className="flex items-center justify-between gap-4">
-					<div>
-						<p className="text-sm font-medium text-fg">Scope</p>
-						<p className="text-sm text-fg-muted">
-							Variables for every repository, or only for one where they win over the shared value.
-						</p>
-					</div>
-					<Select
-						aria-label="Scope"
-						value={scopeValue}
-						options={[
-							{ value: "all", label: "All repositories" },
-							...repoList.map((repo) => ({ value: repo.id, label: repo.name })),
-						]}
-						onValueChange={(next) => setRepoChoice(next === "all" ? null : next)}
-					/>
-				</div>
-
 				{showBanner ? (
 					<div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted p-4">
 						<div>
@@ -335,13 +387,7 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 					</div>
 				) : null}
 
-				<div className="flex flex-col gap-3 border-t border-border pt-4">
-					<div>
-						<h2 className="text-base font-medium text-fg">Variables</h2>
-						<p className="text-sm text-fg-muted">
-							Names are stored in the app; values are stored in the macOS Keychain.
-						</p>
-					</div>
+				<div className="flex flex-col gap-10">
 					<LoadableView
 						value={vars}
 						loadingLabel="Loading environment variables"
@@ -349,25 +395,35 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 						loading={<p className="text-sm text-fg-muted">Loading environment variables…</p>}
 						onRetry={() => void services.settings.loadEnvVars(scope)}
 					>
-						{(rows) => (
+						{() => (
 							<EnvVarTable
-								vars={rows}
-								onReveal={revealVariable}
-								onEdit={editVariable}
-								onRemove={removeVariable}
+								scopeLabel="shared"
+								rows={rowsOf(ownVars, true)}
+								documented={unsetDocumentedEnvVars(existingNames)}
+								onReveal={(name) => revealVariable(name)}
+								onCopy={(name, value) => void copyVariable(name, value)}
+								onSave={saveVariable}
+								onDelete={removeVariable}
 							/>
 						)}
 					</LoadableView>
-					<AddEnvVarForm
-						existingNames={existingNames}
-						reservedNames={RESERVED_ENV_VAR_NAMES}
-						onAdd={addVariable}
-					/>
+					{repoId !== null && userVars.state === "ready" && userVars.data.length > 0 ? (
+						<EnvVarTable
+							title="Inherited from User"
+							scopeLabel="inherited"
+							rows={rowsOf(userVars.data, false)}
+							hideEmptyState
+							onReveal={(name) => revealVariable(name, "global")}
+							onCopy={(name, value) => void copyVariable(name, value)}
+							onSave={async () => false}
+							onDelete={async () => false}
+						/>
+					) : null}
 				</div>
 
-				<div className="flex flex-col gap-3 border-t border-border pt-4">
+				<div className="flex flex-col gap-3 border-t border-border pt-8">
 					<div>
-						<h2 className="text-base font-medium text-fg">Env files</h2>
+						<h2 className="text-sm font-medium text-fg">Env files</h2>
 						<p className="text-sm text-fg-muted">
 							Load environment variables from env files into the environment of your scripts and
 							agents.
@@ -387,6 +443,13 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 					/>
 				</div>
 			</div>
+
+			<AddEnvVarForm
+				open={adding}
+				onOpenChange={setAdding}
+				existingNames={existingNames}
+				onAdd={addVariables}
+			/>
 		</SettingsPageFrame>
 	);
 }

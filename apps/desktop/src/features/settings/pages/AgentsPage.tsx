@@ -18,6 +18,8 @@
  * Measured from Conductor 0.92.1 (the owner's capture of Settings > Agents): the page title, then one
  * underlined tab per agent (Claude Code, Codex, Cursor, OpenCode), and under it the chosen agent's panel
  * (agents/AgentCard). "Use Claude Code with Chrome" sits in Claude Code's panel under a rule.
+ * Conductor's tabs carry each agent's logo (renderApp v_e); the app ships no agent logos, so the tabs
+ * are text only. Refresh waits for the check, and a failed check is a toast.
  * Our design choice: "Search providers" filters the tabs and sits at the right of the tab row; the MCP
  * servers region stays under the panel. Conductor's "Claude Code executable path" is our Advanced page's
  * program path (SET-02); the capture also shows it in the agent's panel, which needs a way for this
@@ -84,6 +86,7 @@ export function AgentsPage() {
 	const [providers, setProviders] = useState<AgentInstall | null>(null);
 	const [configAgent, setConfigAgent] = useState<"claude" | "codex" | null>(null);
 	const [tab, setTab] = useState<string | null>(null);
+	const [refreshing, setRefreshing] = useState(false);
 	const announced = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -106,6 +109,14 @@ export function AgentsPage() {
 		announced.current = id;
 		toast("Codex now uses your ChatGPT plan");
 	}, [login, signedIn, loginInstall?.authMethod]);
+
+	/** Conductor's Refresh: the icon spins and the button waits until the check settles. */
+	const refresh = async () => {
+		setRefreshing(true);
+		const result = await actions.agents.refresh();
+		setRefreshing(false);
+		if (!result.ok) toastError("Couldn't refresh the agents", result.error);
+	};
 
 	const copy = async (text: string, message: string) => {
 		const result = await actions.app.copyText(text);
@@ -288,7 +299,7 @@ export function AgentsPage() {
 									}
 									action={
 										needle === "" ? (
-											<Button variant="secondary" onClick={() => void actions.agents.refresh()}>
+											<Button variant="secondary" onClick={() => void refresh()}>
 												Refresh
 											</Button>
 										) : undefined
@@ -310,7 +321,8 @@ export function AgentsPage() {
 										signInBusy={busyKey === agentKey(install.agent, install.acpAgent)}
 										onSignIn={() => void startLogin(install)}
 										onProviders={() => setProviders(install)}
-										onRefresh={() => void actions.agents.refresh()}
+										onRefresh={() => void refresh()}
+										refreshing={refreshing}
 										onCopyPath={(path) => void copy(path, "Copied the program path")}
 										configAction={
 											install.agent === "claude"

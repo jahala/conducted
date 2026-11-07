@@ -64,9 +64,14 @@ describe("SET-02 SettingsNav", () => {
 			/>,
 		);
 
-		// As in Conductor, every repository is its own entry; a click opens its first page.
+		// As in Conductor, every repository is its own entry; a click opens its Environment section
+		// (renderApp eWe, the repository settings' default section).
 		fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
-		expect(onNavigate).toHaveBeenCalledWith({ kind: "repo", repoId: "repo-1", page: "scripts" });
+		expect(onNavigate).toHaveBeenCalledWith({
+			kind: "repo",
+			repoId: "repo-1",
+			page: "environment",
+		});
 	});
 
 	it("shows the open repository's pages under it", () => {
@@ -85,6 +90,36 @@ describe("SET-02 SettingsNav", () => {
 		);
 		fireEvent.click(screen.getByRole("button", { name: "Actions" }));
 		expect(onNavigate).toHaveBeenCalledWith({ kind: "repo", repoId: "repo-1", page: "actions" });
+	});
+
+	// Conductor's repository sections (renderApp hrl, cdi): Git, Environment, Scripts, Actions and
+	// Misc, each with its icon, in an indented column with a rule at its left.
+	it("lists the open repository's sections in Conductor's order, with icons, under a rule", () => {
+		render(
+			<SettingsNav
+				active={{ kind: "repo", repoId: "repo-1" as never, page: "git" }}
+				repos={[{ id: "repo-1", name: "Alpha" }]}
+				onNavigate={() => undefined}
+				onBack={() => undefined}
+				searchSlot={null}
+			/>,
+		);
+
+		const alpha = screen.getByRole("button", { name: "Alpha" });
+		expect(alpha.getAttribute("aria-expanded")).toBe("true");
+		const column = alpha.nextElementSibling as HTMLElement;
+		expect(column.className).toContain("border-l");
+		const sections = Array.from(column.querySelectorAll("button"));
+		expect(sections.map((button) => button.textContent)).toEqual([
+			"Git",
+			"Environment",
+			"Scripts",
+			"Actions",
+			"Misc",
+		]);
+		for (const button of sections) expect(button.querySelector("svg")).not.toBeNull();
+		expect(screen.getByRole("button", { name: "Git", current: "page" })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Prompts" })).toBeNull();
 	});
 
 	it("says when no project can be edited yet", () => {

@@ -2,19 +2,21 @@
  * @feature REV-01 Git panel header
  * Owns: the status chip and the one main action button above the tab strip. It renders a
  * GitHeaderModel and calls the matching action. It decides nothing itself. Create PR is Conductor's
- * outlined split button: its menu holds "Create draft PR" and "Create PR manually".
+ * outlined split button: its menu holds "Create draft PR" and "Create PR manually". Every other
+ * button leads with Conductor's icon for its action; Commit and push, Fix errors and Merge name
+ * their shortcut in the tooltip, as Conductor's do, and the other buttons have no tooltip.
  * Behaviour: ui-map.md 3.6 ("Header status chip and action"); the cases are in core/status/git-header.ts.
  * Data: the parent computes the model with computeGitHeader and passes it in.
  * Must handle: no title (no chip, as on a GitHub branch with no pull request), no action (chip only), an action in flight (spinner, clicks ignored), a failed
  * action (button usable again; the parent shows the error toast from the Result), the user's
- * current key binding shown on
- * the button, the Retry action for missing PR info, narrow panel widths (title truncates,
+ * current key binding shown in the tooltip, the Retry action for missing PR info, narrow panel
+ * widths (title truncates,
  * button keeps its label), and an action's tooltip and count ("Merge stack" shows how many pull
  * requests it merges, and says so in its tooltip).
  * Test first: a model with kind "ready_to_merge" renders a Merge button, and clicking it calls
  * onAction with "merge" once even if clicked twice while busy.
  */
-import { type ReactElement, useState } from "react";
+import { type ReactElement, type SVGProps, useState } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useLiveShortcut } from "../../core/hooks.ts";
 import type {
@@ -25,12 +27,16 @@ import type {
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import {
+	ArrowDownIcon,
+	ArrowUpIcon,
 	ArrowUpRightIcon,
 	ChevronDownIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	MessageSquareIcon,
 	PullRequestDraftIcon,
 	PullRequestIcon,
 } from "../../ui/icons.tsx";
-import { Kbd } from "../../ui/Kbd.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
@@ -60,14 +66,38 @@ const toneTint: Record<GitHeaderTone, { bar: string; word: string }> = {
 	done: { bar: "bg-merged/10", word: "text-merged" },
 };
 
+/**
+ * The actions whose tooltip names their shortcut, as Conductor's do (renderApp r9t): Create PR,
+ * Commit and push, Fix errors and Merge. The other buttons have no tooltip.
+ */
 const actionCommand: Partial<Record<GitHeaderActionId, string>> = {
 	create_pr: "git.createPr",
 	commit_and_push: "git.commitAndPush",
-	pull: "git.pullLatest",
-	ready_for_review: "pr.markReady",
 	fix_errors: "pr.fixErrors",
 	merge: "pr.merge",
 	merge_stack: "pr.merge",
+};
+
+/**
+ * Each button's 12 px icon, after Conductor's header (renderApp r9t @2219500): the pull request
+ * arrow for what the agent or the pull request does, arrows for pull and push, a speech bubble for
+ * the review comments and the merge mark for auto-merge. Retry and Continue have none there.
+ */
+const actionIcon: Partial<
+	Record<GitHeaderActionId, (props: SVGProps<SVGSVGElement>) => ReactElement>
+> = {
+	commit_and_push: GitPullRequestArrowIcon,
+	pull: ArrowDownIcon,
+	push: ArrowUpIcon,
+	resolve: GitPullRequestArrowIcon,
+	resolve_incompatible: GitPullRequestArrowIcon,
+	add_comments_to_chat: MessageSquareIcon,
+	ready_for_review: GitPullRequestArrowIcon,
+	fix_errors: GitPullRequestArrowIcon,
+	toggle_automerge: GitMergeIcon,
+	approve: GitPullRequestArrowIcon,
+	merge: GitPullRequestArrowIcon,
+	merge_stack: GitPullRequestArrowIcon,
 };
 
 export function GitHeader({
@@ -146,7 +176,14 @@ export function GitHeader({
 			{model.action?.id === "create_pr" ? (
 				<CreatePrButton busy={busy} shortcut={shortcut} onRun={run} />
 			) : model.action !== null ? (
-				<ActionTooltip content={model.action.tooltip}>
+				<ActionTooltip
+					content={
+						actionId !== null && actionCommand[actionId] !== undefined
+							? (model.action.tooltip ?? model.action.label)
+							: model.action.tooltip
+					}
+					shortcut={shortcut}
+				>
 					<Button
 						size="sm"
 						variant={model.kind === "merged" ? "outline" : "default"}
@@ -155,16 +192,11 @@ export function GitHeader({
 						onClick={() => run(model.action?.id ?? "retry")}
 						className={cn("shrink-0", model.kind === "merged" && `border-dashed ${tint.word}`)}
 					>
+						{busy ? null : <ActionIcon id={model.action.id} />}
 						{model.action.label}
 						{model.action.count !== undefined ? (
 							<span className="rounded-full bg-canvas/20 px-1.5 tabular-nums">
 								{model.action.count}
-							</span>
-						) : null}
-						{shortcut !== null ? (
-							// The key glyphs are a visual hint. A screen reader should hear only the action's name.
-							<span aria-hidden="true">
-								<Kbd>{shortcut}</Kbd>
 							</span>
 						) : null}
 					</Button>
@@ -240,13 +272,26 @@ function CreatePrButton({
 	);
 }
 
+function ActionIcon({ id }: { id: GitHeaderActionId }) {
+	const Icon = actionIcon[id];
+	return Icon === undefined ? null : <Icon className="size-3" />;
+}
+
 /** Wraps the action button in its tooltip, when the action has one. */
 function ActionTooltip({
 	content,
+	shortcut,
 	children,
 }: {
 	content: string | undefined;
+	shortcut: string | null;
 	children: ReactElement;
 }) {
-	return content === undefined ? children : <Tooltip content={content}>{children}</Tooltip>;
+	return content === undefined ? (
+		children
+	) : (
+		<Tooltip content={content} shortcut={shortcut ?? undefined}>
+			{children}
+		</Tooltip>
+	);
 }

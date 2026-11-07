@@ -11,8 +11,13 @@
  * exist (refused with its reason, and the field shows the stored value again), a cancelled picker
  * (nothing changes), a picker that cannot open (a toast), and a setting that is not a program path
  * (left alone by the check).
- * Not built: Conductor's "Use system <program>" button, which needs a lookup of the program on PATH
- * that nothing here does yet.
+ * As Conductor does (renderApp QFa and $Gt), each row looks its program up on the login shell's
+ * PATH with `which`. A program found there is the field's placeholder and is offered as "Use system
+ * <program>" while no path is set, with the found path as its tooltip; choosing it saves that path,
+ * through the same check as a typed one. The app still runs only the program the user chose (D088):
+ * the lookup only offers it.
+ * Our design choice: a lookup that fails offers no button, as a program not found does; it is an
+ * offer, not a value the user relies on.
  * Test first: AdvancedPage.test.tsx, a path that does not exist is refused and not saved.
  */
 import { type ReactNode, useEffect, useState } from "react";
@@ -24,6 +29,7 @@ import {
 	type SettingDef,
 	type SettingValue,
 } from "../../core/registries/settings.ts";
+import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
 import { CloseIcon, FolderIcon, TriangleAlertIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -60,6 +66,34 @@ export const PROGRAM_PATHS = [
 	{ key: "opencode_executable_path", label: "OpenCode", binary: "opencode" },
 ] as const;
 
+/**
+ * The program `binary` on the login shell's PATH, as `which` finds it, or null when it is not there.
+ * Only the newest answer is kept.
+ */
+function useSystemProgramPath(binary: string): string | null {
+	const { platform } = useServices();
+	const [found, setFound] = useState<string | null>(null);
+	useEffect(() => {
+		let current = true;
+		const look = async () => {
+			const ran = await platform.shell.run({
+				program: "which",
+				args: [binary],
+				cwd: platform.fs.paths.home,
+				timeoutMs: 5_000,
+			});
+			if (!current) return;
+			const path = ran.ok && ran.value.exitCode === 0 ? ran.value.stdout.trim() : "";
+			setFound(path === "" ? null : path);
+		};
+		void look();
+		return () => {
+			current = false;
+		};
+	}, [platform, binary]);
+	return found;
+}
+
 /** One program path row, as Conductor lays it out. */
 export function ProgramPathRow({
 	settingKey,
@@ -79,6 +113,7 @@ export function ProgramPathRow({
 	const stored = useSetting<string>(settingKey);
 	const [text, setText] = useState(stored);
 	const [problem, setProblem] = useState<string | null>(null);
+	const systemPath = useSystemProgramPath(binary);
 	useEffect(() => setText(stored), [stored]);
 	if (def === undefined) return null;
 	const check = programPathCheck((path) => platform.fs.exists(path));
@@ -121,7 +156,7 @@ export function ProgramPathRow({
 						<Input
 							aria-label={def.title}
 							value={text}
-							placeholder={`/usr/local/bin/${binary}`}
+							placeholder={systemPath ?? `/usr/local/bin/${binary}`}
 							className="w-full pr-8 font-mono text-xs"
 							onChange={(event) => setText(event.target.value)}
 							onBlur={() => {
@@ -149,6 +184,18 @@ export function ProgramPathRow({
 							</button>
 						</Tooltip>
 					)}
+					{systemPath !== null && stored === "" ? (
+						<Tooltip content={systemPath}>
+							<Button
+								variant="outline"
+								size="sm"
+								className="shrink-0"
+								onClick={() => void save(systemPath)}
+							>
+								Use system {label}
+							</Button>
+						</Tooltip>
+					) : null}
 				</div>
 				{programPathWarning(def, stored)}
 			</div>
