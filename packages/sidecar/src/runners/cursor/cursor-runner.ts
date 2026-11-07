@@ -22,7 +22,8 @@
  *  - the local run store: the root folder comes from `config.ts` (CONDUCTED_CURSOR_STORE_DIR, which
  *    the Rust launcher sets to <app data>/cursor-sdk-store and creates), and each workspace gets
  *    its own folder <root>/<hash of the workspace path>, which the session opens the SDK's
- *    platform on (its `stateRoot`)
+ *    platform on (its `stateRoot`); the app moves that folder to the Trash when it deletes the
+ *    workspace, so it names the folder by the same rule (core/app-paths.ts `cursorStoreFolder`)
  *  - the app tools: each start registers the chat's bridge token through `appToolsServer`, and the
  *    session's dispose gives it back; a bridge that is down fails the start
  *  - capabilities: steer true (when the run supports it), interrupt true, everything else false

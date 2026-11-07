@@ -41,7 +41,7 @@
  * the new branch name unless the user set a name.
  * Built now (WS-10): delete a workspace by id and every workspace of a repository. It cancels the
  * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log,
- * viewed-files file and git cache files (DATA-07) to the Trash, deletes its chats with their
+ * viewed-files file, Cursor run store and git cache files (DATA-07) to the Trash, deletes its chats with their
  * attachment files, then deletes the row and forgets it in the store. A repository removal stops
  * every workspace's processes first.
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
@@ -105,7 +105,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
-import { setupLogFile, viewedFilesFile } from "../app-paths.ts";
+import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -1801,6 +1801,12 @@ export class WorkspaceService {
 			viewedFilesFile(this.#deps.platform.fs.paths, id),
 		);
 		if (!viewed.ok) return viewed;
+		// Cursor's SDK keeps one run store per workspace path; nothing else ever removes it (D084).
+		const cursorStore = await trashIfPresent(
+			this.#deps.platform.fs,
+			await cursorStoreFolder(this.#deps.platform.fs.paths, workspace.path),
+		);
+		if (!cursorStore.ok) return cursorStore;
 		const cached = await this.#deps.gitCache?.remove(id);
 		if (cached !== undefined && !cached.ok) return cached;
 
