@@ -83,7 +83,7 @@ export interface CommandDef {
 export const COMMANDS = [
 	{
 		id: "app.commandPalette",
-		title: "Open the command palette",
+		title: "Command palette",
 		category: "General",
 		defaultShortcuts: ["Cmd+K"],
 		configurable: true,
@@ -92,7 +92,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.toggleTheme",
-		title: "Switch between light and dark theme",
+		title: "Toggle theme (dark/light)",
 		category: "General",
 		defaultShortcuts: ["Cmd+Alt+T"],
 		configurable: true,
@@ -101,7 +101,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.showShortcuts",
-		title: "Show keyboard shortcuts",
+		title: "Shortcuts help",
 		category: "General",
 		defaultShortcuts: ["Cmd+Alt+/"],
 		configurable: true,
@@ -110,7 +110,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.openSettings",
-		title: "Open settings",
+		title: "Settings",
 		category: "General",
 		defaultShortcuts: ["Cmd+,"],
 		configurable: false,
@@ -119,7 +119,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.quit",
-		title: "Quit the app",
+		title: "Quit",
 		category: "General",
 		defaultShortcuts: ["Cmd+Q"],
 		configurable: false,
@@ -137,7 +137,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.openDebugTools",
-		title: "Open the developer tools",
+		title: "Open debug tools",
 		category: "General",
 		defaultShortcuts: ["Cmd+Alt+I"],
 		configurable: false,
@@ -146,7 +146,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.openLogViewer",
-		title: "Open the app log viewer",
+		title: "Open app log viewer",
 		category: "General",
 		defaultShortcuts: ["Cmd+Shift+I"],
 		configurable: true,
@@ -174,7 +174,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "app.closeDiagnostics",
-		title: "Close the diagnostics page",
+		title: "Close diagnostics",
 		category: "General",
 		defaultShortcuts: ["Cmd+Escape"],
 		configurable: true,
@@ -219,7 +219,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "dialog.confirm",
-		title: "Confirm the open dialog",
+		title: "Confirm dialog",
 		category: "General",
 		defaultShortcuts: ["Cmd+Enter"],
 		configurable: true,
@@ -246,7 +246,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "palette.nextTab",
-		title: "Palette: next tab",
+		title: "Next tab (Command palette)",
 		category: "General",
 		defaultShortcuts: ["Tab"],
 		configurable: true,
@@ -255,7 +255,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "palette.previousTab",
-		title: "Palette: previous tab",
+		title: "Previous tab (Command palette)",
 		category: "General",
 		defaultShortcuts: ["Shift+Tab"],
 		configurable: true,
@@ -264,7 +264,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "palette.editItem",
-		title: "Palette: edit the highlighted item",
+		title: "Edit highlighted item (Command palette)",
 		category: "General",
 		defaultShortcuts: ["Cmd+E"],
 		configurable: true,
@@ -273,7 +273,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "palette.deleteItem",
-		title: "Palette: delete the highlighted item",
+		title: "Delete highlighted item (Command palette)",
 		category: "General",
 		defaultShortcuts: ["Cmd+Backspace"],
 		configurable: true,
@@ -282,7 +282,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.expandAllToolCalls",
-		title: "Expand all tool calls",
+		title: "Toggle Garry mode (expand tool calls)",
 		category: "General",
 		defaultShortcuts: ["Ctrl+O"],
 		configurable: true,
@@ -291,7 +291,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "view.toggleLeftSidebar",
-		title: "Show or hide the left sidebar",
+		title: "Toggle left sidebar",
 		category: "View",
 		defaultShortcuts: ["Cmd+B"],
 		configurable: true,
@@ -300,7 +300,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "view.toggleRightSidebar",
-		title: "Show or hide the right panel",
+		title: "Toggle right sidebar",
 		category: "View",
 		defaultShortcuts: ["Cmd+Alt+B"],
 		configurable: true,
@@ -309,7 +309,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "view.toggleTerminalPanel",
-		title: "Show or hide the terminal panel",
+		title: "Toggle terminal panel",
 		category: "View",
 		defaultShortcuts: ["Cmd+J"],
 		configurable: true,
@@ -318,7 +318,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "view.toggleZenMode",
-		title: "Turn zen mode on or off",
+		title: "Toggle zen mode",
 		category: "View",
 		defaultShortcuts: ["Cmd+."],
 		configurable: true,
@@ -354,7 +354,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "nav.back",
-		title: "Go back",
+		title: "Navigate back",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+["],
 		configurable: true,
@@ -363,7 +363,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "nav.forward",
-		title: "Go forward",
+		title: "Navigate forward",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+]"],
 		configurable: true,
@@ -372,7 +372,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "nav.home",
-		title: "Go to the home grid",
+		title: "Go to Home",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+Shift+H"],
 		configurable: true,
@@ -399,7 +399,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "tab.previous",
-		title: "Go to the previous tab",
+		title: "Go to previous tab",
 		category: "Navigation",
 		defaultShortcuts: ["Ctrl+Shift+Tab", "Cmd+Shift+[", "Cmd+Alt+ArrowLeft"],
 		configurable: true,
@@ -408,7 +408,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "tab.next",
-		title: "Go to the next tab",
+		title: "Go to next tab",
 		category: "Navigation",
 		defaultShortcuts: ["Ctrl+Tab", "Cmd+Shift+]", "Cmd+Alt+ArrowRight"],
 		configurable: true,
@@ -417,7 +417,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "tab.close",
-		title: "Close the current tab",
+		title: "Close tab",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+W"],
 		configurable: true,
@@ -426,7 +426,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "tab.reopenClosed",
-		title: "Reopen the last closed tab",
+		title: "Reopen closed tab",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+Shift+T"],
 		configurable: true,
@@ -435,7 +435,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "tab.split",
-		title: "Split the current tab",
+		title: "Split tab",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+D"],
 		configurable: true,
@@ -444,7 +444,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "nav.quickOpenFile",
-		title: "Open a file by name",
+		title: "Quick open file",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+P"],
 		configurable: true,
@@ -453,7 +453,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "nav.searchInFiles",
-		title: "Search text in files",
+		title: "Search in files",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+Shift+F"],
 		configurable: true,
@@ -462,7 +462,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "project.add",
-		title: "Add a project",
+		title: "Add repository",
 		category: "Navigation",
 		defaultShortcuts: ["Cmd+Alt+A"],
 		configurable: true,
@@ -471,7 +471,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.create",
-		title: "Create a workspace",
+		title: "Create new workspace",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+N"],
 		configurable: true,
@@ -480,7 +480,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.createFromSource",
-		title: "Create a workspace from a pull request, branch or issue",
+		title: "Create new workspace from PR, branch, or issue",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+N"],
 		configurable: true,
@@ -489,7 +489,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.toggleCreateFromPicker",
-		title: "Show or hide the create-from picker",
+		title: "Toggle create-from picker",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+I"],
 		configurable: true,
@@ -498,7 +498,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.addToBacklog",
-		title: "Add the draft to the backlog",
+		title: "Add to backlog",
 		category: "Workspace",
 		defaultShortcuts: ["Alt+Enter"],
 		configurable: true,
@@ -507,7 +507,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.startFromBacklog",
-		title: "Start the backlog workspace",
+		title: "Start workspace",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Enter"],
 		configurable: false,
@@ -516,7 +516,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.nextFormTab",
-		title: "Move to the next field of the create page",
+		title: "Next tab (Create workspace page)",
 		category: "Workspace",
 		defaultShortcuts: ["Tab"],
 		configurable: true,
@@ -525,7 +525,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.previousFormTab",
-		title: "Move to the previous field of the create page",
+		title: "Previous tab (Create workspace page)",
 		category: "Workspace",
 		defaultShortcuts: ["Shift+Tab"],
 		configurable: true,
@@ -534,7 +534,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.archive",
-		title: "Archive the workspace",
+		title: "Archive workspace",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+A"],
 		configurable: true,
@@ -543,7 +543,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.openIn",
-		title: "Open the workspace in the default app",
+		title: "Open in app",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+O"],
 		configurable: true,
@@ -552,7 +552,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.openInMenu",
-		title: "Choose an app to open the workspace in",
+		title: "Open in menu",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+O"],
 		configurable: true,
@@ -561,7 +561,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.copyLink",
-		title: "Copy the workspace link",
+		title: "Copy link",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+C"],
 		configurable: true,
@@ -570,7 +570,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.toggleRun",
-		title: "Start or stop the run action",
+		title: "Start or stop action",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+R"],
 		configurable: true,
@@ -606,7 +606,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.toggleFileEdit",
-		title: "Switch the open file between view and edit",
+		title: "Toggle file edit mode",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+E"],
 		configurable: true,
@@ -696,7 +696,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.previous",
-		title: "Switch to the previous workspace",
+		title: "Previous workspace",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Alt+ArrowUp"],
 		configurable: true,
@@ -705,7 +705,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "workspace.next",
-		title: "Switch to the next workspace",
+		title: "Next workspace",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Alt+ArrowDown"],
 		configurable: true,
@@ -714,7 +714,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "git.createPr",
-		title: "Create a pull request",
+		title: "Create PR",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+P"],
 		configurable: true,
@@ -732,7 +732,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "git.pullLatest",
-		title: "Pull the latest changes from the target branch",
+		title: "Pull latest from main",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+L"],
 		configurable: true,
@@ -741,7 +741,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "pr.merge",
-		title: "Merge the pull request",
+		title: "Merge PR",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+M"],
 		configurable: true,
@@ -759,7 +759,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "pr.fixErrors",
-		title: "Send failing checks to the agent",
+		title: "Fix errors",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+X"],
 		configurable: true,
@@ -768,7 +768,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "pr.open",
-		title: "Open the pull request",
+		title: "Open PR",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+G"],
 		configurable: true,
@@ -795,7 +795,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.start",
-		title: "Start an AI code review",
+		title: "Start review",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+Shift+R"],
 		configurable: true,
@@ -804,7 +804,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.findInFile",
-		title: "Find in the open file",
+		title: "Find in file",
 		category: "Workspace",
 		defaultShortcuts: ["Cmd+F"],
 		configurable: true,
@@ -840,7 +840,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "sidebar.toggleRead",
-		title: "Mark as read or unread",
+		title: "Toggle read state",
 		category: "Workspace",
 		defaultShortcuts: ["R"],
 		configurable: true,
@@ -849,7 +849,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "sidebar.togglePin",
-		title: "Pin or unpin",
+		title: "Toggle pin",
 		category: "Workspace",
 		defaultShortcuts: ["P"],
 		configurable: true,
@@ -858,7 +858,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.newTab",
-		title: "Start a new chat",
+		title: "New tab",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+T"],
 		configurable: true,
@@ -867,7 +867,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.newLine",
-		title: "Insert a new line",
+		title: "New line in chat",
 		category: "Chat",
 		defaultShortcuts: ["Shift+Enter"],
 		configurable: true,
@@ -876,7 +876,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.submit",
-		title: "Send the message",
+		title: "Submit message",
 		category: "Chat",
 		defaultShortcuts: ["Enter"],
 		configurable: true,
@@ -885,7 +885,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.submitOpposite",
-		title: "Send with the other follow-up behaviour",
+		title: "Submit with opposite follow-up behavior",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Enter"],
 		configurable: true,
@@ -903,7 +903,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.focusInput",
-		title: "Focus the message box",
+		title: "Focus chat input",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+L"],
 		configurable: true,
@@ -912,7 +912,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.togglePlanMode",
-		title: "Turn plan mode on or off",
+		title: "Toggle plan mode while typing a message",
 		category: "Chat",
 		defaultShortcuts: ["Shift+Tab"],
 		configurable: true,
@@ -921,7 +921,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.approvePlan",
-		title: "Approve the plan",
+		title: "Approve plan",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Shift+Enter"],
 		configurable: true,
@@ -930,7 +930,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.approveTool",
-		title: "Allow the tool request",
+		title: "Approve tool request",
 		category: "Chat",
 		defaultShortcuts: ["Enter"],
 		configurable: true,
@@ -939,7 +939,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.approveToolAlternate",
-		title: "Use the alternate approval choice",
+		title: "Use alternate tool approval action",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Enter"],
 		configurable: true,
@@ -948,7 +948,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.denyTool",
-		title: "Deny the tool request",
+		title: "Deny tool request",
 		category: "Chat",
 		defaultShortcuts: ["Backspace"],
 		configurable: true,
@@ -957,7 +957,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.cancelAgent",
-		title: "Cancel the running agent",
+		title: "Cancel agent",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Shift+Backspace"],
 		configurable: true,
@@ -966,7 +966,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.linkIssue",
-		title: "Link an issue",
+		title: "Link issue",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+I"],
 		configurable: true,
@@ -1011,7 +1011,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.addAttachment",
-		title: "Add an attachment",
+		title: "Add attachment",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+U"],
 		configurable: true,
@@ -1020,7 +1020,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.openModelPicker",
-		title: "Open the model picker",
+		title: "Open model picker",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+/"],
 		configurable: true,
@@ -1029,7 +1029,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.toggleFastMode",
-		title: "Turn fast mode on or off",
+		title: "Toggle Fast mode",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Shift+E"],
 		configurable: true,
@@ -1038,7 +1038,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.cycleEffort",
-		title: "Cycle the effort level",
+		title: "Cycle effort level",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Shift+/"],
 		configurable: true,
@@ -1092,7 +1092,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.nextNeedingAttention",
-		title: "Go to the next chat that needs attention",
+		title: "Next chat needing attention",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Alt+L"],
 		configurable: true,
@@ -1101,7 +1101,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.search",
-		title: "Search in the chat",
+		title: "Search chat",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+F"],
 		configurable: true,
@@ -1110,7 +1110,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.findNext",
-		title: "Find the next match",
+		title: "Find next match",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+G"],
 		configurable: true,
@@ -1119,7 +1119,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.findPrevious",
-		title: "Find the previous match",
+		title: "Find previous match",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Shift+G"],
 		configurable: true,
@@ -1128,7 +1128,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.scrollToMatch",
-		title: "Scroll to the current match",
+		title: "Scroll to current match",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Alt+J"],
 		configurable: true,
@@ -1137,7 +1137,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.copyTranscript",
-		title: "Copy a short transcript",
+		title: "Copy concise transcript",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Alt+C"],
 		configurable: true,
@@ -1155,7 +1155,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.toggleDictation",
-		title: "Start or stop dictation",
+		title: "Toggle speech to text",
 		category: "Chat",
 		defaultShortcuts: ["Ctrl+Shift+D"],
 		configurable: true,
@@ -1164,7 +1164,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.question.previous",
-		title: "Go to the previous question",
+		title: "Previous question",
 		category: "Chat",
 		defaultShortcuts: ["ArrowLeft"],
 		configurable: true,
@@ -1173,7 +1173,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.question.next",
-		title: "Go to the next question",
+		title: "Next question",
 		category: "Chat",
 		defaultShortcuts: ["ArrowRight"],
 		configurable: true,
@@ -1182,7 +1182,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.question.focusOther",
-		title: "Type a custom answer",
+		title: "Focus other answer",
 		category: "Chat",
 		defaultShortcuts: ["0"],
 		configurable: true,
@@ -1200,7 +1200,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.question.submit",
-		title: "Submit the answer",
+		title: "Submit answer",
 		category: "Chat",
 		defaultShortcuts: ["Enter"],
 		configurable: true,
@@ -1209,7 +1209,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.queue.steer",
-		title: "Send the queued message now as a steer",
+		title: "Steer with queued message",
 		category: "Chat",
 		defaultShortcuts: ["Enter"],
 		configurable: true,
@@ -1218,7 +1218,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.queue.edit",
-		title: "Edit the queued message",
+		title: "Edit queued message",
 		category: "Chat",
 		defaultShortcuts: ["E"],
 		configurable: true,
@@ -1227,7 +1227,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.queue.delete",
-		title: "Delete the queued message",
+		title: "Delete queued message",
 		category: "Chat",
 		defaultShortcuts: ["Backspace"],
 		configurable: true,
@@ -1236,7 +1236,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.queue.saveEdit",
-		title: "Save the edited queued message",
+		title: "Save queued message edit",
 		category: "Chat",
 		defaultShortcuts: ["Enter"],
 		configurable: true,
@@ -1245,7 +1245,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.queue.saveAndSteer",
-		title: "Save the edited queued message and steer",
+		title: "Save queued message and steer",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Enter"],
 		configurable: true,
@@ -1254,7 +1254,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.queue.cancelEdit",
-		title: "Discard the queued message edit",
+		title: "Cancel queued message edit",
 		category: "Chat",
 		defaultShortcuts: ["Escape"],
 		configurable: true,
@@ -1263,7 +1263,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.openDiff",
-		title: "Open the diff view",
+		title: "Open diff view",
 		category: "Code review",
 		defaultShortcuts: ["Cmd+Shift+D"],
 		configurable: true,
@@ -1272,7 +1272,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.previousFile",
-		title: "Go to the previous file in the diff",
+		title: "Go to previous file in diff",
 		category: "Code review",
 		defaultShortcuts: ["ArrowUp"],
 		configurable: true,
@@ -1281,7 +1281,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.nextFile",
-		title: "Go to the next file in the diff",
+		title: "Go to next file in diff",
 		category: "Code review",
 		defaultShortcuts: ["ArrowDown"],
 		configurable: true,
@@ -1290,7 +1290,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.previousComment",
-		title: "Go to the previous comment in the diff",
+		title: "Go to previous comment in diff",
 		category: "Code review",
 		defaultShortcuts: ["Cmd+Alt+K"],
 		configurable: true,
@@ -1299,7 +1299,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.nextComment",
-		title: "Go to the next comment in the diff",
+		title: "Go to next comment in diff",
 		category: "Code review",
 		defaultShortcuts: ["Cmd+Alt+J"],
 		configurable: true,
@@ -1308,7 +1308,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.toggleViewed",
-		title: "Mark the file as viewed or not viewed",
+		title: "Toggle file as viewed",
 		category: "Code review",
 		defaultShortcuts: ["Ctrl+V"],
 		configurable: true,
@@ -1317,7 +1317,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "review.saveFile",
-		title: "Save the edited file",
+		title: "Save edited file",
 		category: "Code review",
 		defaultShortcuts: ["Cmd+S"],
 		configurable: true,
@@ -1326,7 +1326,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.new",
-		title: "Open a new terminal tab",
+		title: "New terminal tab (when terminal focused)",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+T", "Cmd+Shift+T"],
 		configurable: true,
@@ -1335,7 +1335,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.close",
-		title: "Close the terminal tab",
+		title: "Close terminal tab (when terminal focused)",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+W"],
 		configurable: true,
@@ -1344,7 +1344,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.openLocalhost",
-		title: "Open the localhost address in the browser",
+		title: "Open localhost URL",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+Shift+B"],
 		configurable: true,
@@ -1353,7 +1353,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.find",
-		title: "Find in the terminal",
+		title: "Find in terminal",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+F"],
 		configurable: true,
@@ -1362,7 +1362,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.newline",
-		title: "Insert a new line in the terminal",
+		title: "Insert terminal newline",
 		category: "Terminal",
 		defaultShortcuts: ["Shift+Enter"],
 		configurable: false,
@@ -1371,7 +1371,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.clear",
-		title: "Clear the terminal scrollback",
+		title: "Clear terminal scrollback",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+K"],
 		configurable: true,
@@ -1380,7 +1380,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.deleteLine",
-		title: "Delete the terminal line",
+		title: "Delete terminal line",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+Backspace"],
 		configurable: false,
@@ -1389,7 +1389,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.lineStart",
-		title: "Move to the start of the terminal line",
+		title: "Move to terminal line start",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+ArrowLeft"],
 		configurable: false,
@@ -1398,7 +1398,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.lineEnd",
-		title: "Move to the end of the terminal line",
+		title: "Move to terminal line end",
 		category: "Terminal",
 		defaultShortcuts: ["Cmd+ArrowRight"],
 		configurable: false,
@@ -1407,7 +1407,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.wordBack",
-		title: "Move back one word in the terminal",
+		title: "Move back one terminal word",
 		category: "Terminal",
 		defaultShortcuts: ["Alt+ArrowLeft"],
 		configurable: false,
@@ -1416,7 +1416,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "terminal.wordForward",
-		title: "Move forward one word in the terminal",
+		title: "Move forward one terminal word",
 		category: "Terminal",
 		defaultShortcuts: ["Alt+ArrowRight"],
 		configurable: false,

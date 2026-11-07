@@ -246,7 +246,7 @@ export class SpotlightService {
 			return err(
 				appError(
 					"spotlight_disabled",
-					'Spotlight testing is off for this repository. Turn on "Use Spotlight testing" in its Actions settings to start it.',
+					'Spotlight testing is off for this repository. Turn on "Use spotlight testing" in its Actions settings to start it.',
 				),
 			);
 		}

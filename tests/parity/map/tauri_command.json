@@ -200,9 +200,10 @@
 		"screen": "Backend"
 	},
 	"tauri_command:set_posthog_user_context": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:start_on_device_speech": {
 		"status": "gap",
@@ -210,9 +211,10 @@
 		"screen": "Backend"
 	},
 	"tauri_command:get_deepgram_api_key": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:stop_on_device_speech": {
 		"status": "gap",
@@ -255,29 +257,34 @@
 		"screen": "Backend"
 	},
 	"tauri_command:ensure_app_logger_started": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:get_app_logger_connection": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:configure_app_logger_persistence": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:configure_sentry_external_logging_disabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:configure_app_logger_external_logging_disabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:configure_verbose_logging": {
 		"status": "gap",
@@ -285,14 +292,16 @@
 		"screen": "Backend"
 	},
 	"tauri_command:configure_sidecar_internal_user": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:configure_sidecar_inspect": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:write_file_async": {
 		"status": "gap",
@@ -407,7 +416,8 @@
 	"tauri_command:export_app_logs": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "APP-03"
 	},
 	"tauri_command:prefetch_agent_binaries_from_updater_endpoint": {
 		"status": "gap",
@@ -465,9 +475,10 @@
 		"screen": "Backend"
 	},
 	"tauri_command:crash_rust": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:get_sidecar_log_path": {
 		"status": "gap",
@@ -505,19 +516,22 @@
 		"screen": "Backend"
 	},
 	"tauri_command:poll_app_action": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:submit_app_action_result": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:ensure_app_actions_started": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name for Conductor's analytics, crash reporting, app logger or staff tools.",
+		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:ensure_sidecar_started": {
 		"status": "gap",

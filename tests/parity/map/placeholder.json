@@ -10,12 +10,14 @@
 	"placeholder:R1898620": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-02"
 	},
 	"placeholder:R1959277": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "PRJ-03"
 	},
 	"placeholder:R2255965": {
 		"status": "matched",
@@ -47,9 +49,10 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R3015224": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Workspace chat, a team feature, stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"placeholder:R4379343": {
 		"status": "gap",
@@ -62,9 +65,12 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R4978748": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(38) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"placeholder:R4987113": {
 		"status": "gap",
@@ -74,11 +80,12 @@
 	"placeholder:R5444083": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10"
 	},
 	"placeholder:R5533685": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Workspaces"
 	},
 	"placeholder:R5645838": {
@@ -184,23 +191,27 @@
 	},
 	"placeholder:R10669494": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced"
 	},
 	"placeholder:R10672939": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced"
 	},
 	"placeholder:R10680280": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06"
 	},
 	"placeholder:R10696051": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R10770889": {
 		"status": "gap",
@@ -218,9 +229,10 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R10807790": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D029",
+		"note": "The GitHub App's repository and organisation picker. GitHub App sign-in stays out.",
+		"by": "hand"
 	},
 	"placeholder:R10944937": {
 		"status": "matched",
@@ -247,7 +259,7 @@
 	},
 	"placeholder:R11117637": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-controls Settings: General"
 	},
 	"placeholder:R11129925": {
@@ -274,14 +286,16 @@
 		"screen": "inventory-controls Settings: General"
 	},
 	"placeholder:R11204617": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"placeholder:R11208176": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"placeholder:R11267721": {
 		"status": "gap",
@@ -299,14 +313,16 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R11338494": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"placeholder:R11343051": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"placeholder:R11389948": {
 		"status": "gap",
@@ -360,19 +376,22 @@
 		"by": "seed"
 	},
 	"placeholder:R11944793": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"placeholder:R11951077": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"placeholder:R11951147": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"placeholder:R11951239": {
 		"status": "gap",
@@ -380,13 +399,15 @@
 		"screen": "Unplaced"
 	},
 	"placeholder:R11995732": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"placeholder:R12000604": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	}
 }

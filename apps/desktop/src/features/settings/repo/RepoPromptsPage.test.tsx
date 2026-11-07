@@ -113,7 +113,7 @@ describe("SET-07 RepoPromptsPage", () => {
 		await renderPage(config());
 
 		for (const label of [
-			"General instructions",
+			"General preferences",
 			"Review",
 			"Create PR",
 			"Fix errors",

@@ -289,7 +289,7 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	return (
 		<SettingsPageFrame
 			title="Environment"
-			description="Variables given to agents, setup scripts and actions. Values stay in the macOS Keychain."
+			description="Configure environment variables used by Conducted and passed to agents."
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
@@ -364,7 +364,7 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 
 				<div className="flex flex-col gap-3 border-t border-border pt-4">
 					<div>
-						<h2 className="text-base font-medium text-fg">Environment files</h2>
+						<h2 className="text-base font-medium text-fg">Env files</h2>
 						<p className="text-sm text-fg-muted">
 							Dotenv files found in {selectedRepo === null ? "your home folder" : selectedRepo.name}
 							. A path is listed here and its names can be imported into the variables above.

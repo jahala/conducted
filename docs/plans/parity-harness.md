@@ -37,6 +37,17 @@ The `conductor-code` guard holds the rule that the spec carries no code: it runs
 
 A gap is closed in step 5 of the goal in one of two ways: fix our screen (and add the catalogue state that shows it, for an unshown gap), or add a decision to `docs/decisions.md` and name it in the map. Removing or hiding anything people see needs the owner's yes per item.
 
+### Sorting the gaps
+
+Every entry that is not matched falls in one of four classes. The report counts each class (`## Gaps by class`), and a later run sorts the same way by these rules:
+
+- **a. Decided.** The entry belongs to something a decision leaves out: team features (D004, kept out by D018), Conductor's own service, hosted computers, phone relay, staff tools and Muse Code (D025), GitHub App sign-in (D029), Linear's account sign-in (D035), Conductor's assets (D002), or strings that are not wording (D086). Cloud workspaces are not decided: D075 builds them, so their entries are class d with a CLOUD row. It is written as `"status": "decided"` in one of two ways:
+  - A named rule in `scripts/parity/rules.ts` when the entry's own words say what it is for: a route of an organisation, routine or onboarding page; a team word (organisation, teammate, single sign-on, shared access, poke); a word naming Conductor's service (Conductor Pro, account, API, Roundhouse, billing, PostHog, Sentry); a bundled sound or logo path; a key name; a backend name of telemetry, the phone relay or hosted computers.
+  - By hand (`"by": "hand"`) for a whole bundle region whose component a person read and found to be one left-out feature, such as the Internal settings page, the profile and activity page, the sharing dialog or the hosted sandbox's details. Only missing UI entries are decided this way: a string our UI source also holds is something of ours, so it stays a gap.
+- **b. Unshown.** Our UI source holds the string but no catalogue state draws it (`"reason": "unshown"`). It closes when a catalogue state draws the screen it is on, or when the map names an existing state that already draws it.
+- **c. Wording or placement.** One of our screens does the same job in other words or in another place. A person marks it `"class": "wording"` with a note naming our string, and closes it by changing our screen to Conductor's wording, so the next seed matches it. Our product name stands for Conductor's: the harness reads "Conductor" as "Conducted" when it compares (D012).
+- **d. Feature.** Everything else that is missing: a control, message or behaviour we lack. `"backlog"` names its row in `docs/plans/backlog.md`, or `"new"` when none owns it; the gap report lists them by screen.
+
 ## 3. The checks
 
 Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.json>]` runs a, b, c and e (`--no-dump` runs a and e only) and writes `report.json` and `report.md`; the flows are their own command.
@@ -51,7 +62,7 @@ Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.js
 
 Templates are Conductor's wording with values in it ("{} tool calls"), read from the bundle's template literals in the places the inventories read strings (`tests/parity/spec/templates.json`, 185). They are not an inventory: nothing has to map them, they only recognise our strings.
 
-Sample data is what the catalogue's seeds write: the string literals of the checked app's `src/catalogue/`, without the text its ready checks look for and without any string our UI source also holds (that is our wording). The parts of a sample path count, and so does a piece of a sample value at least 12 letters and digits long, which covers a path split over two elements or a line of a sample reply. A shorter word must be a whole sample value, so a label of ours cannot hide inside sample prose. Formatted numbers, sizes, durations, times and counts are skipped too. Nothing else is.
+Sample data is what the catalogue's seeds write: the string literals of the checked app's `src/catalogue/`, and each line of a multi-line template there (a sample reply or file, with Markdown's line marks dropped, when the line has two words or code punctuation), without the text its ready checks look for and without any string our UI source also holds (that is our wording). The parts of a sample path count, and so does a piece of a sample value at least 12 letters and digits long, which covers a path split over two elements or a line of a sample reply. A shorter word must be a whole sample value, so a label of ours cannot hide inside sample prose. Formatted numbers, sizes, durations, times and counts are skipped too, and so is an environment variable's name (capitals and digits joined by underscores, such as `ANTHROPIC_API_KEY`), which is an identifier both apps show as it is. Nothing else is.
 
 Our design choice: check b matches by name per state, not by selector. The selector in a matched entry tells a person where the element is and lets the layout check reuse it, but a moved element still counts as present. Exact positions are the layout check's job.
 
@@ -95,10 +106,12 @@ First runs on #347, 7 November 2026. The full gap list is `docs/reports/parity-g
 - The first run found three of the four parts before the map existed; the fourth needs the composer placeholder matched to a state, which the seeding added. Before trusting a result, a reader should know the reverse direction's sample-data rules were then tightened (section 3), and the instrument check still passed after.
 - Counts at c8860c66: 3,814 entries, 703 matched, 57 decided, 3,054 gaps (891 unshown, 2,163 missing); 1,209 ours-only strings (256 distinct); 141 backend names of ours unmatched; 5 of 7 drivable flows pass, and 3 add-project flows are not drivable.
 
+- Step 5's first pass (#363), from run 42330292848's dump of e996940e: 1,007 matched, 847 decided, 771 unshown, 6 wording, 1,183 feature gaps; 64 catalogue states; 514 distinct strings of ours unaccounted for, listed for the owner in the gap report; all 7 drivable flows pass. The instrument check passed on every run.
+
 Not checked yet:
 
 - Stage 2's live log (section 3).
 - The three add-project paths: the catalogue's scripted git does not answer `rev-parse --show-toplevel` for a new folder, and no state queues a folder-dialog answer or scripts `gh` and clone.
 - Layout beyond the 13 elements in `layout.json`; colours and motion.
 - Backend renames: a Conductor name whose counterpart of ours has another name is a gap until someone maps the two.
-- Team and hosted features D004 and D025 leave out are gaps, not decisions, until a person maps them; the seeder has no rule for them, because the only signals are keywords.
+- Left-out features outside the regions read so far: the rules in `rules.ts` catch those whose words name them, and a person decides the rest by bundle region (section 2, "Sorting the gaps").

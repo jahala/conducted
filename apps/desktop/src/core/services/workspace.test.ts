@@ -588,6 +588,18 @@ describe("WS-01 WorkspaceService.create", () => {
 		expect(stored?.state).toBe("ready");
 	});
 
+	// The workspace route reopens the remembered chat tab; a new workspace must open on its first chat,
+	// not on "No tab is open" (seen in the parity flow's screenshot of create-workspace).
+	it("remembers the first chat as the workspace's open tab", async () => {
+		const { service, rows } = makeHarness();
+
+		const result = await service.create(newInput);
+
+		expect(result.ok).toBe(true);
+		const stored = service.store.getState().workspacesById[rows[0]?.id ?? ""];
+		expect(stored?.activeSessionId).toBe(sampleSession.id);
+	});
+
 	it("PLAT-02 registers the workspaces folder a new worktree goes to", async () => {
 		const { service, rows, registered } = makeHarness({
 			settings: { conducted_root_path: "/Volumes/fast" },

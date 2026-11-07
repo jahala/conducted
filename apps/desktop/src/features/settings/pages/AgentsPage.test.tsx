@@ -77,7 +77,7 @@ describe("SET-03 AgentsPage", () => {
 
 		expect(screen.getByRole("heading", { name: "Codex" })).toBeTruthy();
 		expect(screen.getByText("Install Codex on this Mac, then choose Refresh.")).toBeTruthy();
-		expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+		expect(screen.queryByRole("button", { name: /Sign in|Run codex login/ })).toBeNull();
 	});
 
 	it("filters the cards by name and says when nothing matches", () => {
@@ -106,7 +106,7 @@ describe("SET-03 AgentsPage", () => {
 		};
 		render(<AgentsPage />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
 
 		await waitFor(() => expect(state.login).toHaveBeenCalledWith("claude", undefined));
 		expect(await screen.findByText("Open the page and sign in.")).toBeTruthy();
@@ -153,7 +153,7 @@ describe("SET-03 AgentsPage", () => {
 		});
 
 		const { rerender } = render(<AgentsPage />);
-		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
 		expect(await screen.findByText("claude setup-token")).toBeTruthy();
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
 			target: { value: "code-123" },
@@ -200,7 +200,7 @@ describe("SET-03 AgentsPage", () => {
 		});
 
 		const { rerender } = render(<AgentsPage />);
-		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("ABCD-1234")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
 		await waitFor(() =>
@@ -249,7 +249,7 @@ describe("SET-03 AgentsPage", () => {
 			.mockReturnValue(new Promise(() => {}));
 
 		render(<AgentsPage />);
-		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("The sign-in timed out.")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 

@@ -115,7 +115,12 @@ describe("PLAT-01 platform contract method coverage", () => {
 
 	it("lists the methods of the handles that spawn, start and download return", async () => {
 		const platform = memoryPlatformForShape();
-		const pty = await platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
+		const pty = await platform.pty.spawn({
+			terminalId: "contract-terminal",
+			cwd: "/",
+			cols: 80,
+			rows: 24,
+		});
 		if (!pty.ok) throw new Error(pty.error.message);
 		const running = platform.shell.start({ program: "/bin/true", args: [], cwd: "/" });
 		const download = platform.http.download({

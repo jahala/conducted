@@ -2298,8 +2298,14 @@ export class WorkspaceService {
 			return;
 		}
 		const chat = await this.#deps.sessions.createFirstChat(workspaceId, chatInput.value);
-		if (chat.ok) this.#forgetFirstInput(workspaceId);
-		else this.#addWarnings(workspaceId, [CHAT_CREATION_FAILED_MESSAGE]);
+		if (!chat.ok) {
+			this.#addWarnings(workspaceId, [CHAT_CREATION_FAILED_MESSAGE]);
+			return;
+		}
+		this.#forgetFirstInput(workspaceId);
+		// The workspace opens on its first chat: the route reopens the remembered tab (NAV-02). If the
+		// write fails, the chat is still in the tab strip; the workspace just opens with no tab chosen.
+		await this.setActiveSession(workspaceId, chat.value.id);
 	}
 
 	/**

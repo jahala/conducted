@@ -207,10 +207,13 @@ export const FLOWS: Flow[] = [
 		state: "command-palette",
 		steps: [
 			{
-				step: "Type Open settings and press Enter",
+				// The palette's item is "Settings", as Conductor's is; "Open settings" matches nothing. Typing
+				// it also finds canyon, whose branch is sam/dark-mode-settings, and the Workspaces group
+				// comes first, so Enter would open canyon: a person picks the Settings item.
+				step: "Type Settings and choose the Settings item",
 				run: async (page) => {
-					await page.keyboard.type("Open settings");
-					await page.keyboard.press("Enter");
+					await page.keyboard.type("Settings");
+					await page.locator('[cmdk-item][data-value="app.openSettings"]').click();
 				},
 			},
 			{
@@ -246,7 +249,12 @@ export const FLOWS: Flow[] = [
 	},
 ];
 
-async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowResult> {
+async function runFlow(
+	browser: Browser,
+	url: string,
+	flow: Flow,
+	out: string,
+): Promise<FlowResult> {
 	const result: FlowResult = { id: flow.id, title: flow.title, source: flow.source, steps: [] };
 	if (flow.notDrivable !== undefined) {
 		result.steps.push({
@@ -264,8 +272,8 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 	});
 	const page = await context.newPage();
 	await page.clock.setFixedTime(CATALOGUE_NOW);
-	// The catalogue logs every shell command and sidecar request nobody scripted: the likely reason a
-	// step's result never came.
+	// The catalogue logs every shell command and sidecar request nobody scripted, the likely reason a
+	// step's result never came, and the chat messages it answered, which a step may wait for.
 	const unscripted: string[] = [];
 	page.on("console", (message) => {
 		const text = message.text();
@@ -292,9 +300,26 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 				result.steps.push({ step: step.step, ok: true });
 			} catch (cause) {
 				const message = cause instanceof Error ? cause.message.split("\n")[0] : String(cause);
-				const logged = [...new Set(unscripted)].slice(-3);
+				const logged = [...new Set(unscripted)]
+					.filter((line) => !line.startsWith("answered "))
+					.slice(-3);
 				const why = logged.length === 0 ? "" : `; the catalogue logged: ${logged.join("; ")}`;
-				result.steps.push({ step: step.step, ok: false, detail: `${message}${why}` });
+				// What the app said tells a hang from an error it showed.
+				const toasts = await page
+					.locator("[data-sonner-toast]")
+					.allInnerTexts()
+					.catch(() => [] as string[]);
+				const said =
+					toasts.length === 0
+						? ""
+						: `; toasts: ${toasts.map((text) => text.replace(/\s+/g, " ")).join(" | ")}`;
+				// A picture of the screen where the step stopped, uploaded with the report.
+				await page.screenshot({ path: join(out, `flow-${flow.id}.png`) }).catch(() => undefined);
+				result.steps.push({
+					step: step.step,
+					ok: false,
+					detail: `${message}${why}${said}; screen in flow-${flow.id}.png`,
+				});
 				break;
 			}
 		}
@@ -320,7 +345,7 @@ async function main(argv: string[]): Promise<number> {
 		browser = await chromium.launch();
 		const results: FlowResult[] = [];
 		for (const flow of FLOWS.filter((item) => only.length === 0 || only.includes(item.id))) {
-			const result = await runFlow(browser, url, flow);
+			const result = await runFlow(browser, url, flow, out);
 			const passed = result.steps.every((step) => step.ok);
 			console.log(`${passed ? "ok  " : "GAP "} ${flow.id}`);
 			for (const step of result.steps.filter((item) => !item.ok))

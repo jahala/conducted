@@ -31,20 +31,22 @@ const renderCard = (
 afterEach(cleanup);
 
 describe("SET-03 AgentCard", () => {
-	it("shows Sign in for an installed Claude that is not signed in", () => {
+	// Conductor names the CLI sign-in after its command (renderApp @10941717).
+	it("shows Run claude /login for an installed Claude that is not signed in", () => {
 		renderCard(install());
 
-		expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Run claude /login" })).toBeTruthy();
 		expect(screen.getByText("Loaded from env")).toBeTruthy();
 		// The version is a row of Conductor's facts table now, not a "Version 2.0.0" line.
 		expect(screen.getByText("Version")).toBeTruthy();
 		expect(screen.getByText("2.0.0")).toBeTruthy();
 	});
 
-	it("shows the signed-in state without a Sign in button", () => {
+	it("keeps Run claude /login while signed in, as Conductor's capture shows", () => {
 		renderCard(install({ authenticated: true }));
 
 		expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+		expect(screen.getByRole("button", { name: "Run claude /login" })).toBeTruthy();
 		// Conductor's status line says "Connected" for a signed-in agent.
 		expect(screen.getByText("Connected")).toBeTruthy();
 	});
@@ -71,7 +73,7 @@ describe("SET-03 AgentCard", () => {
 		);
 
 		expect(screen.getByText("Install Claude Code on this Mac, then choose Refresh.")).toBeTruthy();
-		expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+		expect(screen.queryByRole("button", { name: /Sign in|Run claude/ })).toBeNull();
 		expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
 	});
 
@@ -86,7 +88,7 @@ describe("SET-03 AgentCard", () => {
 		renderCard(install({ authMethod: "api_key", authenticated: true, source: "user" }));
 
 		expect(screen.getByText("API key configured")).toBeTruthy();
-		expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+		expect(screen.queryByRole("button", { name: /Sign in|Run claude/ })).toBeNull();
 	});
 
 	it("marks a failing version check and offers Update when the page can update it", () => {

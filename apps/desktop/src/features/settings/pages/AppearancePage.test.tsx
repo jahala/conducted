@@ -74,16 +74,16 @@ describe("SET-06 AppearancePage", () => {
 		renderPage();
 
 		expect(screen.getByRole("combobox", { name: "Theme" })).toBeTruthy();
-		expect(screen.getByRole("switch", { name: "Softer dark theme" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Color vision palette" })).toBeTruthy();
+		expect(screen.getByRole("switch", { name: "Low-contrast dark mode" })).toBeTruthy();
+		expect(screen.getByRole("combobox", { name: "Accessible colors" })).toBeTruthy();
 		expect(screen.getByRole("slider", { name: "App zoom" })).toBeTruthy();
-		expect(screen.getByRole("switch", { name: "Colored line counts in the sidebar" })).toBeTruthy();
+		expect(screen.getByRole("switch", { name: "Colored sidebar diffs" })).toBeTruthy();
 		expect(screen.getByRole("combobox", { name: "Code theme" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Code font style" })).toBeTruthy();
+		expect(screen.getByRole("combobox", { name: "Mono Font style" })).toBeTruthy();
 		expect(screen.getByRole("switch", { name: "Code ligatures" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Markdown style" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Terminal font style" })).toBeTruthy();
-		expect(screen.getByRole("spinbutton", { name: "Terminal font size" })).toBeTruthy();
+		expect(screen.getByRole("combobox", { name: "Markdown Style" })).toBeTruthy();
+		expect(screen.getByRole("combobox", { name: "Terminal Font style" })).toBeTruthy();
+		expect(screen.getByRole("spinbutton", { name: "Terminal Font Size" })).toBeTruthy();
 	});
 
 	it("re-renders the code preview when the code theme changes", async () => {
@@ -111,7 +111,7 @@ describe("SET-06 AppearancePage", () => {
 	it("saves the colour-vision palette and applies it to the document", async () => {
 		const test = renderPage();
 
-		await choose("Color vision palette", "Tritanopia");
+		await choose("Accessible colors", "Tritanopia");
 
 		await waitFor(() => expect(values(test).color_vision).toBe("tritanopia"));
 		await waitFor(() =>
@@ -122,7 +122,7 @@ describe("SET-06 AppearancePage", () => {
 	it("saves low-contrast dark mode and applies it to the document", async () => {
 		const test = renderPage();
 
-		fireEvent.keyDown(screen.getByRole("switch", { name: "Softer dark theme" }), { key: " " });
+		fireEvent.keyDown(screen.getByRole("switch", { name: "Low-contrast dark mode" }), { key: " " });
 
 		await waitFor(() => expect(values(test).low_contrast_dark_mode).toBe(true));
 		await waitFor(() => expect(document.documentElement.getAttribute("data-contrast")).toBe("low"));
@@ -131,11 +131,11 @@ describe("SET-06 AppearancePage", () => {
 	it("saves the sidebar diff colours, ligatures and Markdown style", async () => {
 		const test = renderPage();
 
-		fireEvent.keyDown(screen.getByRole("switch", { name: "Colored line counts in the sidebar" }), {
+		fireEvent.keyDown(screen.getByRole("switch", { name: "Colored sidebar diffs" }), {
 			key: " ",
 		});
 		fireEvent.keyDown(screen.getByRole("switch", { name: "Code ligatures" }), { key: " " });
-		await choose("Markdown style", "Tufte");
+		await choose("Markdown Style", "Tufte");
 
 		await waitFor(() => expect(values(test).colored_sidebar_diffs).toBe(true));
 		await waitFor(() => expect(values(test).file_ligatures_enabled).toBe(false));
@@ -145,19 +145,19 @@ describe("SET-06 AppearancePage", () => {
 	it("saves a custom code font, terminal font and terminal size", async () => {
 		const test = renderPage();
 
-		await choose("Code font style", "Custom");
-		const codeFont = screen.getByLabelText("Code font family");
+		await choose("Mono Font style", "Custom...");
+		const codeFont = screen.getByLabelText("Mono Font family");
 		fireEvent.change(codeFont, { target: { value: "Berkeley Mono" } });
 		fireEvent.blur(codeFont);
 		await waitFor(() => expect(values(test).mono_font).toBe("Berkeley Mono"));
 
-		await choose("Terminal font style", "Custom");
-		const terminalFont = screen.getByLabelText("Terminal font family");
+		await choose("Terminal Font style", "Custom...");
+		const terminalFont = screen.getByLabelText("Terminal Font family");
 		fireEvent.change(terminalFont, { target: { value: "Menlo" } });
 		fireEvent.blur(terminalFont);
 		await waitFor(() => expect(values(test).terminal_font_family).toBe("Menlo"));
 
-		const size = screen.getByLabelText("Terminal font size");
+		const size = screen.getByLabelText("Terminal Font Size");
 		fireEvent.change(size, { target: { value: "18" } });
 		fireEvent.blur(size);
 		await waitFor(() => expect(values(test).terminal_font_size).toBe(18));
@@ -227,7 +227,7 @@ describe("SET-06 AppearancePage", () => {
 
 	it("puts the stored terminal font size back when the save is refused", async () => {
 		renderPage();
-		const size = screen.getByLabelText("Terminal font size") as HTMLInputElement;
+		const size = screen.getByLabelText("Terminal Font Size") as HTMLInputElement;
 		const stored = size.value;
 
 		fireEvent.change(size, { target: { value: "99" } });

@@ -43,7 +43,9 @@
  * which is how script terminals end and how a tab's shell can be started again.
  * Built now (RUN-06, RUN-07, RUN-01, RUN-09, CHAT-23): tabs, the live connection, restart, repo
  * terminal, limit, folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript`, `stop`
- * and `runCommand`. `runCommand` starts a chat code block's command as a `run` terminal in the
+ * and `runCommand`. An ended terminal reads its saved scrollback once, before its connection is
+ * handed to the view, so a reopened terminal replays it (PLAT-08). `runCommand` starts a chat code
+ * block's command as a `run` terminal in the
  * workspace and returns its row; the chat shows its live stream, status, exit code, Stop and
  * Clear. `outputFor` reads the live screen, keeps the text of a finished terminal in memory, and
  * falls back to the saved screen for an older one. A run or spotlight script never saves its
@@ -387,6 +389,8 @@ interface ConnectionRecord {
 	terminal: Terminal;
 	handle: PtyHandle | null;
 	history: Uint8Array;
+	/** Whether the saved history has been read from the shell, so it is read once. */
+	historyLoaded: boolean;
 	ended: { exitCode: number | null } | null;
 	/** The end-of-run text, kept so an agent can still read it after the process exits. */
 	rendered: Promise<string | null> | null;
@@ -511,13 +515,13 @@ export class TerminalsService {
 	 */
 	async ensureConnection(id: TerminalId): Promise<Result<void>> {
 		const existing = this.store.getState().connections[id];
-		if (existing?.state === "ready") return ok(undefined);
-
 		const known = this.#records.get(id);
 		if (known) {
+			await this.#loadSavedHistory(known);
 			this.#setConnection(id, { state: "ready", data: known.connection });
 			return ok(undefined);
 		}
+		if (existing?.state === "ready") return ok(undefined);
 
 		const found = await this.#deps.repos.terminals.get(id);
 		if (!found.ok) {
@@ -530,8 +534,28 @@ export class TerminalsService {
 			return err(error);
 		}
 		const record = this.#record(found.value);
+		await this.#loadSavedHistory(record);
 		this.#setConnection(id, { state: "ready", data: record.connection });
 		return ok(undefined);
+	}
+
+	/**
+	 * Reads an ended terminal's saved scrollback once, so its view can replay it. A terminal that
+	 * still runs has nothing saved to replay. A missing entry is normal; any other failure is kept
+	 * as the terminal's error, and the view still opens.
+	 */
+	async #loadSavedHistory(record: ConnectionRecord): Promise<void> {
+		if (record.historyLoaded) return;
+		record.historyLoaded = true;
+		if (record.ended === null && record.terminal.endedAt === null) return;
+		const loaded = await this.#deps.platform.pty.loadHistory(record.terminal.id);
+		if (!loaded.ok) {
+			if (loaded.error.code !== "history_not_found") {
+				this.#setError(`t:${record.terminal.id}`, loaded.error);
+			}
+			return;
+		}
+		record.history = loaded.value;
 	}
 
 	#setConnection(id: TerminalId, value: Loadable<TerminalConnection>): void {
@@ -555,6 +579,7 @@ export class TerminalsService {
 			terminal,
 			handle: null,
 			history: new Uint8Array(),
+			historyLoaded: false,
 			ended: terminal.endedAt === null ? null : { exitCode: terminal.exitCode },
 			rendered: null,
 			screenTicket: 0,
@@ -568,7 +593,9 @@ export class TerminalsService {
 			connection: undefined as unknown as TerminalConnection,
 		};
 		record.connection = {
-			history: record.history,
+			get history() {
+				return record.history;
+			},
 			get ended() {
 				return record.ended;
 			},
@@ -635,6 +662,7 @@ export class TerminalsService {
 				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir, this.#launchZdotdir) }
 				: options?.env;
 		const spawned = await this.#deps.platform.pty.spawn({
+			terminalId: terminal.id,
 			cwd: terminal.cwd,
 			cols: DEFAULT_COLS,
 			rows: DEFAULT_ROWS,

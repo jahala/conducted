@@ -34,7 +34,7 @@ import {
 	strayMapFiles,
 } from "./lib.ts";
 import { ourNames } from "./ours.ts";
-import { countInventories, type Report, renderReport } from "./report.ts";
+import { countDecisions, countInventories, type Report, renderReport } from "./report.ts";
 import { researchScreens } from "./screens.ts";
 
 interface Options {
@@ -145,6 +145,7 @@ function main(options: Options): number {
 		commit: dump?.commit ?? "HEAD (no dump: checks a and e only)",
 		mode: options.mode,
 		counts: countInventories(specs, maps),
+		decisions: countDecisions(maps),
 		findings,
 	};
 	mkdirSync(options.out, { recursive: true });

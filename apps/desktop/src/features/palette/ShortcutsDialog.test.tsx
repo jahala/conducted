@@ -71,8 +71,8 @@ describe("NAV-09 ShortcutsDialog", () => {
 			target: { value: "sidebar" },
 		});
 
-		expect(screen.getByText("Show or hide the left sidebar")).toBeTruthy();
-		expect(screen.getByText("Show or hide the right panel")).toBeTruthy();
+		expect(screen.getByText("Toggle left sidebar")).toBeTruthy();
+		expect(screen.getByText("Toggle right sidebar")).toBeTruthy();
 	});
 
 	it("says so when nothing matches the search", async () => {
@@ -86,11 +86,11 @@ describe("NAV-09 ShortcutsDialog", () => {
 
 	it("reports a conflict with the other command and saves the replacement", async () => {
 		const { set } = await mountDialog();
-		const theme = row("Switch between light and dark theme");
+		const theme = row("Toggle theme (dark/light)");
 
 		fireEvent.click(
 			within(theme).getByRole("button", {
-				name: "Change shortcut for Switch between light and dark theme",
+				name: "Change shortcut for Toggle theme (dark/light)",
 			}),
 		);
 		fireEvent.keyDown(within(theme).getByRole("button", { name: "Recording shortcut" }), {
@@ -98,7 +98,7 @@ describe("NAV-09 ShortcutsDialog", () => {
 			metaKey: true,
 		});
 
-		expect(await screen.findByText("Already used by Open the command palette.")).toBeTruthy();
+		expect(await screen.findByText("Already used by Command palette.")).toBeTruthy();
 		expect(set).not.toHaveBeenCalled();
 
 		fireEvent.click(screen.getByRole("button", { name: "Replace" }));
@@ -111,11 +111,11 @@ describe("NAV-09 ShortcutsDialog", () => {
 
 	it("refuses to bind a reserved key", async () => {
 		const { set } = await mountDialog();
-		const theme = row("Switch between light and dark theme");
+		const theme = row("Toggle theme (dark/light)");
 
 		fireEvent.click(
 			within(theme).getByRole("button", {
-				name: "Change shortcut for Switch between light and dark theme",
+				name: "Change shortcut for Toggle theme (dark/light)",
 			}),
 		);
 		fireEvent.keyDown(within(theme).getByRole("button", { name: "Recording shortcut" }), {
@@ -125,15 +125,15 @@ describe("NAV-09 ShortcutsDialog", () => {
 
 		expect(await within(theme).findByRole("alert")).toHaveProperty(
 			"textContent",
-			expect.stringContaining("reserved for Quit the app"),
+			expect.stringContaining("reserved for Quit"),
 		);
 		expect(set).not.toHaveBeenCalled();
 	});
 
 	it("shows a fixed command without an edit control", async () => {
 		await mountDialog();
-		expect(screen.getByText("Quit the app")).toBeTruthy();
-		expect(screen.queryByRole("button", { name: "Change shortcut for Quit the app" })).toBeNull();
+		expect(screen.getByText("Quit")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Change shortcut for Quit" })).toBeNull();
 	});
 
 	it("resets every change from the dialog", async () => {
@@ -141,7 +141,7 @@ describe("NAV-09 ShortcutsDialog", () => {
 			key: "keybinding_overrides_v1",
 			value: JSON.stringify({ "app.toggleTheme": ["Cmd+K"] }),
 		});
-		const theme = row("Switch between light and dark theme");
+		const theme = row("Toggle theme (dark/light)");
 		expect(within(theme).getByText("⌘K")).toBeTruthy();
 
 		fireEvent.click(screen.getByRole("button", { name: "Reset all shortcuts" }));
@@ -153,8 +153,8 @@ describe("NAV-09 ShortcutsDialog", () => {
 	it("shows the bindings the send-key mode gives the chat", async () => {
 		await mountDialog({ key: "message_send_key", value: "cmd-enter" });
 
-		expect(within(row("Send the message")).getByText("Command Enter")).toBeTruthy();
-		expect(within(row("Insert a new line")).getByText("Enter")).toBeTruthy();
+		expect(within(row("Submit message")).getByText("Command Enter")).toBeTruthy();
+		expect(within(row("New line in chat")).getByText("Enter")).toBeTruthy();
 	});
 });
 

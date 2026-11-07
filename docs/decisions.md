@@ -391,6 +391,13 @@ Context: the parity harness (`docs/plans/parity-harness.md`) maps every entry of
 Chosen: such an entry is mapped to D086 with a one-line reason per entry, or through a named rule in `scripts/parity/rules.ts`. It is never used to account for a string of ours. Wording Conductor does show stays a match or a gap, however small.
 Why: a gap list that mixes these in hides the real gaps, and matching our text to a library default would let a wrong placeholder pass.
 
+## D087. Terminal scrollback is encrypted with a Keychain key (2026-11-07)
+
+Replaces D014.
+Context: D014 stored scrollback as plain owner-only files because it was simpler, though Conductor encrypts its scrollback. That is a security downgrade with no product reason, and D020 asks us to match Conductor where internals do not fix a documented problem. The research gives Conductor's scheme: the local-storage layer keeps a 32-byte key in the macOS Keychain under `local-storage-entry-encryption-key-v1`, and encrypts each entry with AES-GCM, a random 12-byte nonce and the entry's subsystem, id and version as additional authenticated data (services-map.md 4.2.9, native-and-sidecar-map.md A2 and D1).
+Chosen: each saved scrollback entry is AES-256-GCM encrypted under that key, created in the Keychain on first use and reused after that. The entry file holds our format magic, the random nonce and the ciphertext with its tag; the terminal id is also the additional authenticated data, and the entry is never read as plain text. A plain entry left by an earlier version is encrypted in place on the first start that opens the history folder. If encryption fails, the file is left and the failure is logged, so nothing is silently dropped and a later start retries. The migration also needs the terminal row id that names the entry, so `PtySpawn` carries `terminalId` into `pty_spawn`.
+Why: D020. The user's terminal output can hold secrets, and the Keychain is where the rest of the app's secrets already live. The file format is ours; only the scheme follows the research, as the issue asks.
+
 ## D088. The app runs only its own copy of Claude Code, Codex, gh and watchexec (2026-11-07)
 
 Replaces the fallback part of D021 and D024.
