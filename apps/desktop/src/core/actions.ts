@@ -255,6 +255,9 @@ export function createActions(
 			unpair: () => services.cloudPairing.unpair(),
 			deploy: () => services.cloudDeploy.deploy(),
 			uninstall: () => services.cloudDeploy.uninstall(),
+			saveGitIdentity: (identity) => services.cloudSettings.saveGitIdentity(identity),
+			setCloudEnvVar: (name, value) => services.cloudSettings.setEnvVar(name, value),
+			removeCloudEnvVar: (name) => services.cloudSettings.removeEnvVar(name),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

@@ -36,6 +36,7 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -364,6 +365,8 @@ export interface Queries {
 	useLinearAccess(): Loadable<LinearAccess>;
 	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
 	useCloudPairing(): Loadable<CloudPairing>;
+	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
+	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
 	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
 	useRepoTerminals(repoId: RepoId): Loadable<Terminal[]>;
 	/** The macOS version and CPU, for the old-system and wrong-build warnings. */
@@ -713,6 +716,12 @@ export interface Actions {
 		deploy: Act<[], CloudDeployResult>;
 		/** Deletes the Worker, its container application and its bucket, and unpairs (CLOUD-08). */
 		uninstall: Act<[], void>;
+		/** Saves the commit identity cloud workspaces use, or clears it with null (CLOUD-17). */
+		saveGitIdentity: Act<[identity: CloudGitIdentity | null], CloudSettings>;
+		/** Adds or replaces one personal cloud variable (CLOUD-17). */
+		setCloudEnvVar: Act<[name: string, value: string], CloudSettings>;
+		/** Removes one personal cloud variable (CLOUD-17). */
+		removeCloudEnvVar: Act<[name: string], CloudSettings>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;

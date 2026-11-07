@@ -43,6 +43,7 @@ export const PLATFORM_ERROR_CODES = [
 	"binary_verification_failed",
 	"clipboard_unavailable",
 	"cloud_bad_line",
+	"cloud_data_privacy",
 	"cloud_deploy_failed",
 	"cloud_method_not_allowed",
 	"cloud_not_a_worker",
