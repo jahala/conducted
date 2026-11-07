@@ -1,30 +1,48 @@
 /**
  * @feature REV-13 Pull request comments without a file
- * Owns: the list in the PR tab of comments that sit on the pull request itself, not on a file or a line,
- * each with its author's avatar.
- * Behaviour: coverage/inventory-system-native-data.md (Conductor stores a comment on the pull request itself
- * with no file, id prefix `github-general-`, and keeps the author's avatar beside a GitHub comment);
- * services-map.md 3.7.4 (general comments come from `pullRequest.comments` and are upserted into diff
- * comments) and 5A.7 (the diff comment table). The model type is `DiffComment` in core/model.ts: its
- * `filePath` is null for these.
- * Data: useDiffComments(workspaceId) from core/hooks.ts, filtered to `filePath === null` and a GitHub
- * author. The caller passes the list so the PR tab loads it once.
- * Our design choice: these comments are read-only here. Replying and resolving stay in the Activity list
- * (PrActivityList), so one comment has one home. Order is oldest first, like the Activity list.
- * Must handle: no such comments (the section is hidden, not an empty box); an author without an avatar (a
- * letter on a neutral circle); an avatar that fails to load (the same letter); a comment hidden or
- * superseded (not shown); a very long body (collapsed with "Show more"); Markdown in the body (rendered
- * with the same renderer as chat text, links open outside the app); 500 comments (virtualised).
+ * Owns: the list in the PR tab of comments that sit on the pull request itself, each with its
+ * author's avatar, and the predicate that splits these comments from file comments.
+ * Behaviour: services-map.md 3.7.4 and 5A.7.3 (general pull request comments come from
+ * `pullRequest.comments`, carry the author's avatar, and have no file path; their ids come from
+ * GitHub's `github-general-` mapper); ui-map.md 3.2 (the PR tab).
+ * Data: the caller passes the PR activity entries; `isPrLevelComment` keeps the comment entries
+ * whose file path is null. The PR tab shows those here instead of in the Activity list, so each
+ * comment has one home.
+ * Must handle: no such comments (the section is hidden, not an empty box); an author without an
+ * avatar (a letter on a neutral circle); an avatar that fails to load (the same letter); a long
+ * body (wraps).
  * Test first: three comments, one with a file path, show two entries, and the file one is absent.
  */
-import { notImplemented } from "@conducted/shared";
-import type { DiffComment } from "../../core/model.ts";
+import type { PrActivityEntry } from "../../core/model.ts";
+import { PrCommentContent } from "./PrActivityItem.tsx";
 
 export interface PrLevelCommentsProps {
-	/** All comments of the workspace. The component keeps only those with no file. */
-	comments: readonly DiffComment[];
+	/** The workspace's PR activity; this keeps the comment entries with no file. */
+	entries: readonly PrActivityEntry[];
 }
 
-export function PrLevelComments(_props: PrLevelCommentsProps): never {
-	return notImplemented("REV-13");
+/** True when the entry is a comment on the pull request itself rather than on a file. */
+export function isPrLevelComment(
+	entry: PrActivityEntry,
+): entry is Extract<PrActivityEntry, { kind: "comment" }> {
+	return entry.kind === "comment" && entry.filePath === null;
+}
+
+export function PrLevelComments({ entries }: PrLevelCommentsProps) {
+	const comments = entries.filter(isPrLevelComment);
+
+	if (comments.length === 0) return null;
+
+	return (
+		<section aria-label="Comments" className="border-b border-separator py-2">
+			<h3 className="px-2 pb-1 text-sm font-medium text-fg">Comments</h3>
+			<ul aria-label="Pull request comments" className="m-0 list-none space-y-2 p-0 px-2">
+				{comments.map((comment) => (
+					<li key={comment.id} className="min-w-0">
+						<PrCommentContent entry={comment} />
+					</li>
+				))}
+			</ul>
+		</section>
+	);
 }

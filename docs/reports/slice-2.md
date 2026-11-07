@@ -96,4 +96,4 @@ Each batch had a read-only Sonnet audit (D052), and an Opus fixer closed its MUS
 
 ## Decisions
 
-D050 to D065 in [decisions.md](../decisions.md). Tonight's: D060 (three agents, Opus fixers, the lead reads every diff), D061 (the guards run at mark-done; one batch plan at a time), D062 (PLAT-28 is planned), D063 (a feature waits for needs that are not done), D064 (the quit limit) and D065 (slice 3's first step lands in parts).
+D050 to D065 in [decisions.md](../decisions.md) and [process/decisions.md](../process/decisions.md). Tonight's: D060 (three agents, Opus fixers, the lead reads every diff), D061 (the guards run at mark-done; one batch plan at a time), D062 (PLAT-28 is planned), D063 (a feature waits for needs that are not done), D064 (the quit limit) and D065 (slice 3's first step lands in parts).

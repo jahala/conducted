@@ -10,8 +10,8 @@
  * is archived), useActions().pullRequests, usePullRequestActivity (sorted by pr/pr-activity.ts),
  * and the pr_activity_sort_order and treat_optional_checks_as_blocking settings. Reviewers, deployments and viewer
  * rights are fields of PullRequest.
- * Children: PrTitleEditor, PrDescriptionEditor, PrActivityList, PrChecksSummary, PrReviewSection,
- * PrMergeBar, PrEmptyState.
+ * Children: PrTitleEditor, PrDescriptionEditor, PrLevelComments, PrActivityList, PrChecksSummary,
+ * PrReviewSection, PrMergeBar, PrEmptyState.
  * The Checks summary's "View checks" opens the pull request's checks page on GitHub, because the
  * center tab cannot change the git panel's tab. Opening a comment in the activity list sets the
  * workspace URL to the Comment tab.
@@ -40,6 +40,7 @@ import { PrActivityList } from "./PrActivityList.tsx";
 import { PrChecksSummary } from "./PrChecksSummary.tsx";
 import { PrDescriptionEditor } from "./PrDescriptionEditor.tsx";
 import { type PrEmptyKind, PrEmptyState } from "./PrEmptyState.tsx";
+import { isPrLevelComment, PrLevelComments } from "./PrLevelComments.tsx";
 import { PrMergeBar } from "./PrMergeBar.tsx";
 import { PrNumberLink } from "./PrNumberLink.tsx";
 import { PrReviewSection } from "./PrReviewSection.tsx";
@@ -271,6 +272,8 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 				<PrDescriptionEditor body={pullRequest.body} editable={editable} onSave={saveDescription} />
 			</section>
 
+			{activity.state === "ready" ? <PrLevelComments entries={activity.data} /> : null}
+
 			<section aria-label="Activity" className="border-b border-separator py-2">
 				<h3 className="px-2 pb-1 text-sm font-medium text-fg">Activity</h3>
 				{activity.state === "loading" ? (
@@ -281,7 +284,7 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 					</p>
 				) : (
 					<PrActivityList
-						entries={activity.data}
+						entries={activity.data.filter((entry) => !isPrLevelComment(entry))}
 						order={activityOrder}
 						onOpenEntry={openActivity}
 					/>

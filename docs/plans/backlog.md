@@ -225,7 +225,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | REV-10 | Artifacts tab for the workspace `.context` folder                      | D/features/git-panel, R/files.rs        | services-map 5A.5.1; ui-map 3.6 | 2   | done   | REV-06, PLAT-06, COMP-07, SET-01 |
 | REV-11 | Resolve conflicts inline: current, incoming or both                    | D/features/diff, D/features/file-viewer | ui-map 3.6                      | 3   | done   | REV-02, REV-08, GIT-07           |
 | REV-12 | Review comment states, and which messages carried them                 | D/core/services, D/core/db              | services-map 2.2, 2.3           | 2   | done   | REV-03, DATA-08                  |
-| REV-13 | Pull request comments without a file, with author avatars              | D/core/services, D/features/pr          | services-map 5B                 | 3   | stub   | REV-04, PR-07, DATA-08           |
+| REV-13 | Pull request comments without a file, with author avatars              | D/core/services, D/features/pr          | services-map 5B                 | 3   | done   | REV-04, PR-07, DATA-08           |
 
 ## Git and pull requests (GIT, PR)
 
@@ -257,7 +257,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | done   | PR-03                   |
 | PR-08  | Stacked PRs and read-only Graphite                                | D/core/services                              | services-map 3.8                | 3   | done   | PR-03                   |
 | PR-09  | Linear issues: list, link, attach as context                      | D/core/services                              | services-map 5B                 | 3   | done   | PLAT-10                 |
-| PR-10  | Link a pull request by URL or number                              | D/features/pr, D/core/services               | ui-map 3.1, 3.10                | 3   | stub   | PR-01, PR-07            |
+| PR-10  | Link a pull request by URL or number                              | D/features/pr, D/core/services               | ui-map 3.1, 3.10                | 3   | done   | PR-01, PR-07            |
 | PR-11  | List and attach GitHub issues and pull requests                   | D/core/services                              | services-map 5B.1.10, 5B.8      | 2   | done   | PR-01, GIT-01           |
 | PR-12  | Catch up a stack branch after GitHub rewrites it                  | D/core/services                              | services-map 3.8.3              | 3   | done   | PR-08                   |
 
@@ -269,7 +269,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | RUN-02 | Spotlight: test workspace changes in the repo root, restore on stop | D/core/services, bin          | services-map 3.12                              | 3   | done   | RUN-01, GIT-10            |
 | RUN-03 | One port per workspace, port detection, preview URLs                | D/core/services               | ui-map 3.7                                     | 2   | done   | RUN-01, PLAT-03           |
 | RUN-04 | Browser preview tab                                                 | D/features/browser-preview    | ui-map 3.2                                     | 3   | done   | RUN-03, NAV-10            |
-| RUN-05 | Point at page elements in the preview and send them to the chat     | D/features/browser-preview    | native-and-sidecar-map B3                      | 3   | stub   | RUN-04, COMP-07           |
+| RUN-05 | Point at page elements in the preview and send them to the chat     | D/features/browser-preview    | native-and-sidecar-map B3                      | 3   | done   | RUN-04, COMP-07           |
 | RUN-06 | Terminal tabs: xterm, find, big terminal mode                       | D/features/terminal           | ui-map 3.7                                     | 1   | done   | PLAT-07                   |
 | RUN-07 | Terminal output for the GetTerminalOutput tool                      | D/core/services               | claude-runner 4.2                              | 2   | done   | RUN-06                    |
 | RUN-08 | `bin/spotlighter.sh`                                                | bin                           | native-and-sidecar-map C3                      | 3   | done   | RUN-02, PLAT-35           |
@@ -303,7 +303,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | APP-03 | Diagnostics page and log export                                              | D/features/diagnostics            | ui-map 2                       | 3   | done    | PLAT-18, PLAT-04                           |
 | APP-04 | Designed empty, loading and error states                                     | D/features (all)                  | ui-map 7                       | 1   | done    | APP-05                                     |
 | APP-05 | Design system: components and tokens                                         | D/ui                              | ui-map 8                       | 1   | done    |                                            |
-| APP-06 | Update notice and restart when idle                                          | D/features/updates                | ui-map 1.3                     | 3   | stub    | PLAT-13                                    |
+| APP-06 | Update notice and restart when idle                                          | D/features/updates                | ui-map 1.3                     | 3   | done    | PLAT-13                                    |
 | APP-07 | Resource usage table                                                         | D/features/sidebar                | ui-map 1.3                     | 3   | done    | PLAT-14                                    |
 | APP-08 | Start-up screens and notices                                                 | D/app, D/features/updates         | ui-map 1.3, 7.3, 7.4           | 2   | done    | APP-01, APP-04, PLAT-09, PLAT-17, PLAT-32  |
 | APP-09 | Send feedback                                                                | D/features/diagnostics, R/menu.rs | ui-map 5.1, 5.2                | 3   | done    | APP-03, APP-12, PLAT-18                    |

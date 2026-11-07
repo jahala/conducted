@@ -28,6 +28,7 @@ Status: scaffold. Most bodies are placeholders that throw a named error. The pla
 | Tables, files and how long each keeps data           | `docs/data-model.md`           |
 | Tokens, components, the owner's design rules         | `docs/design.md`               |
 | Decisions, dated and numbered                        | `docs/decisions.md`            |
+| How the project's work is run (builds, agents)       | `docs/process/decisions.md`    |
 | Tauri command names                                  | `docs/plans/tauri-commands.md` |
 
 ## Hard rules

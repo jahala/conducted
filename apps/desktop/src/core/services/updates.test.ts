@@ -1,18 +1,22 @@
 /**
  * @feature PLAT-13 Self-update that waits until agents are idle
- * Owns: tests for the updates service's install-and-restart path and the quit check.
+ * @feature APP-06 Update notice and restart when idle
+ * Owns: tests for the updates service's install-and-restart path, its check, its retries and the
+ * quit check.
  * Test first: with the setting on, the state moves to a restart when the last working chat goes idle.
  */
 import { idleLiveState } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { UPDATE_DOWNLOAD_RETRY_DELAY_MS, versionFitsChannel } from "./updates.ts";
 
 const WORKING = { ...idleLiveState, status: "working" as const };
 
 let current: TestContainer | null = null;
 
 afterEach(() => {
+	vi.useRealTimers();
 	current?.close();
 	current = null;
 	vi.restoreAllMocks();
@@ -62,7 +66,7 @@ describe("PLAT-13 UpdatesService.check", () => {
 		expect(test.container.services.updates.store.getState()).toEqual({
 			state: "available",
 			version: "0.2.0",
-			notesUrl: null,
+			notesUrl: "https://github.com/jahala/conducted/releases/tag/v0.2.0",
 			error: null,
 		});
 	});
@@ -95,25 +99,6 @@ describe("PLAT-13 UpdatesService.check", () => {
 			state: "error",
 			error: "Could not reach the update feed",
 		});
-	});
-
-	it("answers a check that starts while one runs with the same result", async () => {
-		const test = build();
-		let answer: (value: ReturnType<typeof ok<{ version: string; notes: string } | null>>) => void =
-			() => {};
-		const check = vi.spyOn(test.container.platform.updater, "check").mockReturnValue(
-			new Promise((resolve) => {
-				answer = resolve;
-			}),
-		);
-
-		const first = test.container.actions.app.checkForUpdates();
-		const second = test.container.actions.app.checkForUpdates();
-		answer(ok({ version: "0.2.0", notes: "" }));
-
-		expect(await first).toEqual(ok(undefined));
-		expect(await second).toEqual(ok(undefined));
-		expect(check).toHaveBeenCalledTimes(1);
 	});
 
 	it("runs from the palette's Check for updates command", async () => {
@@ -169,24 +154,6 @@ describe("PLAT-13 UpdatesService.install", () => {
 		expect(relaunch).not.toHaveBeenCalled();
 		expect(test.container.services.updates.store.getState().state).toBe("ready_when_idle");
 	});
-
-	it("shows the download failure and never restarts", async () => {
-		const test = build();
-		setAuto(test, true);
-		vi.spyOn(test.container.platform.updater, "install").mockResolvedValue(
-			err(appError("updater_network", "The update file answered 500")),
-		);
-		const relaunch = vi.spyOn(test.container.platform.updater, "relaunch");
-
-		const installed = await test.container.actions.app.installUpdate();
-
-		expect(installed.ok).toBe(false);
-		expect(relaunch).not.toHaveBeenCalled();
-		expect(test.container.services.updates.store.getState()).toMatchObject({
-			state: "error",
-			error: "The update file answered 500",
-		});
-	});
 });
 
 describe("PLAT-13 UpdatesService.onActivityChanged", () => {
@@ -220,5 +187,199 @@ describe("PLAT-13 UpdatesService.onActivityChanged", () => {
 
 		expect(relaunch).not.toHaveBeenCalled();
 		expect(updates.store.getState().state).toBe("ready_when_idle");
+	});
+});
+
+describe("APP-06 UpdatesService.check", () => {
+	it("tells a second caller that a check is already in progress", async () => {
+		const test = build();
+		let answer: (value: ReturnType<typeof ok<{ version: string; notes: string } | null>>) => void =
+			() => {};
+		const check = vi.spyOn(test.container.platform.updater, "check").mockReturnValue(
+			new Promise((resolve) => {
+				answer = resolve;
+			}),
+		);
+
+		const first = test.container.actions.app.checkForUpdates();
+		const second = await test.container.actions.app.checkForUpdates();
+		answer(ok({ version: "0.2.0", notes: "" }));
+
+		expect(second.ok).toBe(false);
+		if (!second.ok) {
+			expect(second.error.message).toBe("An update check is already in progress.");
+		}
+		expect(await first).toEqual(ok(undefined));
+		expect(check).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a staged update and the restart the user asked for", async () => {
+		const test = build();
+		const updates = test.container.services.updates;
+		setAuto(test, false);
+		setWorking(test, true);
+		updates.store.setState({
+			state: "ready_when_idle",
+			version: "0.2.0",
+			notesUrl: "https://example.test/notes",
+			error: null,
+		});
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			ok({ version: "0.3.0", notes: "" }),
+		);
+		const relaunch = vi.spyOn(test.container.platform.updater, "relaunch");
+
+		// The user chooses Restart when idle while a chat works.
+		expect(await test.container.actions.app.installUpdate()).toEqual(ok(undefined));
+
+		// The hourly check runs while the update waits for idle.
+		expect(await test.container.actions.app.checkForUpdates()).toEqual(ok(undefined));
+		expect(updates.store.getState()).toMatchObject({
+			state: "ready_when_idle",
+			version: "0.2.0",
+			notesUrl: "https://example.test/notes",
+		});
+		expect(relaunch).not.toHaveBeenCalled();
+
+		// The last working chat goes idle, and the restart the user asked for still happens.
+		setWorking(test, false);
+		updates.onActivityChanged();
+		await vi.waitFor(() => expect(relaunch).toHaveBeenCalledTimes(1));
+	});
+
+	it("leaves a download in progress alone when a check runs", async () => {
+		const test = build();
+		const updates = test.container.services.updates;
+		updates.store.setState({
+			state: "downloading",
+			version: "0.2.0",
+			notesUrl: null,
+			error: null,
+		});
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			ok({ version: "0.3.0", notes: "" }),
+		);
+
+		expect(await test.container.actions.app.checkForUpdates()).toEqual(ok(undefined));
+
+		expect(updates.store.getState()).toMatchObject({
+			state: "downloading",
+			version: "0.2.0",
+		});
+	});
+
+	it("lets a release build skip a pre-release version", async () => {
+		const test = build();
+		test.container.platform.app.channel = "release";
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			ok({ version: "0.3.0-beta.1", notes: "" }),
+		);
+
+		expect(await test.container.actions.app.checkForUpdates()).toEqual(ok(undefined));
+
+		expect(test.container.services.updates.store.getState()).toMatchObject({
+			state: "idle",
+			version: null,
+			error: null,
+		});
+	});
+
+	it("lets a release build take a stable version and a dev build take both", () => {
+		expect(versionFitsChannel("0.2.0", "release")).toBe(true);
+		expect(versionFitsChannel("0.2.0+build.7", "release")).toBe(true);
+		expect(versionFitsChannel("0.3.0-beta.1", "release")).toBe(false);
+		expect(versionFitsChannel("0.3.0-beta.1", "dev")).toBe(true);
+		expect(versionFitsChannel("0.2.0", "dev")).toBe(true);
+	});
+});
+
+describe("APP-06 UpdatesService.install retries", () => {
+	it("retries a failed download twice, a minute apart, then stages the update", async () => {
+		vi.useFakeTimers();
+		const test = build();
+		setAuto(test, false);
+		const install = vi
+			.spyOn(test.container.platform.updater, "install")
+			.mockResolvedValueOnce(err(appError("updater_network", "The update file answered 500")))
+			.mockResolvedValueOnce(err(appError("updater_network", "The update file answered 500")))
+			.mockResolvedValueOnce(ok(undefined));
+
+		const installing = test.container.actions.app.installUpdate();
+		await vi.advanceTimersByTimeAsync(0);
+		await vi.advanceTimersByTimeAsync(UPDATE_DOWNLOAD_RETRY_DELAY_MS);
+		await vi.advanceTimersByTimeAsync(UPDATE_DOWNLOAD_RETRY_DELAY_MS);
+		const installed = await installing;
+
+		expect(installed).toEqual(ok(undefined));
+		expect(install).toHaveBeenCalledTimes(3);
+		expect(test.container.services.updates.store.getState().state).toBe("ready_when_idle");
+	});
+
+	it("reports the failure after the last retry and never restarts", async () => {
+		vi.useFakeTimers();
+		const test = build();
+		setAuto(test, true);
+		const install = vi
+			.spyOn(test.container.platform.updater, "install")
+			.mockResolvedValue(err(appError("updater_network", "The update file answered 500")));
+		const relaunch = vi.spyOn(test.container.platform.updater, "relaunch");
+
+		const installing = test.container.actions.app.installUpdate();
+		await vi.advanceTimersByTimeAsync(0);
+		await vi.advanceTimersByTimeAsync(UPDATE_DOWNLOAD_RETRY_DELAY_MS);
+		await vi.advanceTimersByTimeAsync(UPDATE_DOWNLOAD_RETRY_DELAY_MS);
+		const installed = await installing;
+
+		expect(installed.ok).toBe(false);
+		expect(install).toHaveBeenCalledTimes(3);
+		expect(relaunch).not.toHaveBeenCalled();
+		expect(test.container.services.updates.store.getState()).toMatchObject({
+			state: "error",
+			error: "The update file answered 500",
+		});
+	});
+});
+
+describe("APP-06 UpdatesService manual restart", () => {
+	it("restarts a staged update at once when the setting is off and no chat works", async () => {
+		const test = build();
+		setAuto(test, false);
+		test.container.services.updates.store.setState({
+			state: "ready_when_idle",
+			version: "0.2.0",
+			notesUrl: null,
+			error: null,
+		});
+		const install = vi.spyOn(test.container.platform.updater, "install");
+		const relaunch = vi.spyOn(test.container.platform.updater, "relaunch");
+
+		const installed = await test.container.actions.app.installUpdate();
+
+		expect(installed).toEqual(ok(undefined));
+		expect(install).not.toHaveBeenCalled();
+		expect(relaunch).toHaveBeenCalledTimes(1);
+	});
+
+	it("waits for the last working chat even when the setting is off", async () => {
+		const test = build();
+		const updates = test.container.services.updates;
+		setAuto(test, false);
+		setWorking(test, true);
+		updates.store.setState({
+			state: "ready_when_idle",
+			version: "0.2.0",
+			notesUrl: null,
+			error: null,
+		});
+		const relaunch = vi.spyOn(test.container.platform.updater, "relaunch");
+
+		expect(await test.container.actions.app.installUpdate()).toEqual(ok(undefined));
+		expect(relaunch).not.toHaveBeenCalled();
+
+		setWorking(test, false);
+		updates.onActivityChanged();
+
+		await vi.waitFor(() => expect(relaunch).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(updates.store.getState().state).toBe("idle"));
 	});
 });

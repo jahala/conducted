@@ -785,6 +785,15 @@ export const COMMANDS = [
 		feature: "PR-04",
 	},
 	{
+		id: "pr.link",
+		title: "Link a pull request",
+		category: "Workspace",
+		defaultShortcuts: [],
+		configurable: true,
+		scope: "global",
+		feature: "PR-10",
+	},
+	{
 		id: "review.start",
 		title: "Start an AI code review",
 		category: "Workspace",
