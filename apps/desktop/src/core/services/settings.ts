@@ -148,7 +148,7 @@ export function resolveSetting(def: SettingDef, layers: readonly LayerValue[]): 
 export const SETTINGS_FILE_INVALID_MESSAGE =
 	"Can't save setting because your settings file is invalid";
 export const SHARED_SETTINGS_READ_ONLY_MESSAGE =
-	"Shared repository settings are read-only in Conductor. Edit the settings file directly.";
+	"Shared repository settings are read-only in Conducted. Edit the settings file directly.";
 export const SETTINGS_LOAD_FAILED_MESSAGE = "Failed to load settings";
 export const SETTINGS_SAVE_FAILED_MESSAGE = "Failed to save setting";
 export const GIT_EXCLUDE_FAILED_MESSAGE =

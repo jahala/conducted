@@ -18,7 +18,7 @@ import { checkModuleState } from "./module-state.ts";
 import { checkSettingsKeys } from "./settings-keys.ts";
 import { checkSidecarEdges } from "./sidecar-edges.ts";
 import { checkSite } from "./site.ts";
-import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import { checkHeaders, checkMarkers, checkOurName } from "./source-rules.ts";
 import { checkTestScripts } from "./test-scripts.ts";
 import { checkVersions } from "./versions.ts";
 import { checkWorkflows } from "./workflows.ts";
@@ -324,6 +324,31 @@ describe("markers", () => {
 		expect(messages.some((m) => m.startsWith("apps/b/src/y.rs:2"))).toBe(true);
 		expect(messages.some((m) => m.startsWith("bin/z.sh:3"))).toBe(true);
 		expect(messages.some((m) => m.startsWith("bin/ok.sh"))).toBe(false);
+	});
+});
+
+describe("our name", () => {
+	test("flags Conductor's name in a product string, never in a comment or a test", () => {
+		put(
+			"apps/desktop/src/core/a.ts",
+			'/** Reads the settings, as Conductor does. */\nexport const m = "Conductor could not connect.";\n',
+		);
+		put(
+			"apps/desktop/src/features/b.tsx",
+			"/** b */\n// Conductor's layout.\nexport const B = () => (\n\t<p>\n\t\t{/* Conductor's order:\n\t\tthe sound first. */}\n\t\tSaved in Conductor\n\t</p>\n);\n",
+		);
+		put(
+			"packages/c/src/c.ts",
+			'/** c */\nexport const url = "https://conductor.build"; // Conductor\'s site\n',
+		);
+		put("apps/desktop/src/core/a.test.ts", 'const text = "Conductor";\n');
+		put("apps/desktop/src-tauri/src/d.rs", '//! d\nconst M: &str = "Open in Conductor";\n');
+		const messages = checkOurName(root).map((p) => p.message);
+		expect(messages).toEqual([
+			"apps/desktop/src-tauri/src/d.rs:2 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src/core/a.ts:2 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src/features/b.tsx:7 names Conductor in a product string; our app is Conducted",
+		]);
 	});
 });
 
