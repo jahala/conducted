@@ -385,6 +385,10 @@ export interface Actions {
 			string
 		>;
 		remove: Act<[repoId: RepoId]>;
+		/** The branch new workspaces of this project start from (SET-07). */
+		setDefaultBranch: Act<[repoId: RepoId, branch: string]>;
+		/** Saves the sidebar's project order by drag (NAV-04). */
+		reorder: Act<[orderedIds: RepoId[]]>;
 		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */

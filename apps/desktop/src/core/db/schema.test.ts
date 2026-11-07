@@ -683,8 +683,9 @@ describe("lifetime statements", () => {
 		append(toolEvent("e2", "t1", 11), 1000);
 		append(toolEvent("e3", "t1", 12), 9_000_000);
 
-		// $1 the cut length, $2 the compacted_at time, $3 the age cutoff, $4 the batch size.
-		const cut = () => run(LIFETIME_SQL.cutToolOutputs, [20, 9_500_000, 5_000_000, 200]);
+		// $1 the cut length, $2 compacted_at, $3 the age cutoff, $4 the watermark lower bound,
+		// $5 the batch size.
+		const cut = () => run(LIFETIME_SQL.cutToolOutputs, [20, 9_500_000, 5_000_000, 0, 200]);
 		expect(cut()).toBe(1);
 		expect(cut()).toBe(0);
 

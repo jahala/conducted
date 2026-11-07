@@ -99,7 +99,6 @@ export interface RepoRepository {
 	 * root_path returns the error code `db.conflict`.
 	 */
 	create(input: NewRepo): Promise<Result<Repo>>;
-	// unwired: SET-07 the repository page shows the default branch but cannot change it.
 	/** REPOS_SQL.setDefaultBranch. */
 	setDefaultBranch(id: RepoId, branch: string): Promise<Result<void>>;
 	/** REPOS_SQL.setRemoteUrl. `null` clears it. */
@@ -108,7 +107,6 @@ export interface RepoRepository {
 	setIcon(id: RepoId, icon: string | null): Promise<Result<void>>;
 	/** REPOS_SQL.setHidden. */
 	setHidden(id: RepoId, hidden: boolean): Promise<Result<void>>;
-	// unwired: NAV-04 project groups have no drag-to-reorder yet.
 	/** REPOS_SQL.setDisplayOrder for each id in the given order, in one transaction. */
 	reorder(orderedIds: readonly RepoId[]): Promise<Result<void>>;
 	/**

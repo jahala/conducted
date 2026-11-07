@@ -38,6 +38,8 @@ export function createActions(
 				services.repo.createFromTemplate(name, parentDir, template),
 			createGitHubRepo: (repoId, input) => services.repo.createGitHubRepo(repoId, input),
 			remove: (repoId) => services.repo.remove(repoId),
+			setDefaultBranch: (repoId, branch) => services.repo.setDefaultBranch(repoId, branch),
+			reorder: (orderedIds) => services.repo.reorder(orderedIds),
 			updateConfig: (repoId, config) => services.repo.updateConfig(repoId, config),
 			setIcon: (repoId, icon) => services.repo.setIcon(repoId, icon),
 			resetRunAction: (repoId, actionId) => services.repo.resetRunAction(repoId, actionId),

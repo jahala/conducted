@@ -2,8 +2,11 @@
  * @feature PRJ-01 Projects (repositories): add and list from a local folder, remove
  * @feature PRJ-03 Quick start a new project from a template
  * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
+ * @feature NAV-04 Reorder projects
+ * @feature SET-07 Change a project's default branch
  * Owns: the list of repositories, adding one from a local folder, cloning one from GitHub or any
- * git URL (PRJ-02), removing one, and hiding one from the sidebar. Also owns PRJ-04's config
+ * git URL (PRJ-02), removing one, hiding one from the sidebar, saving the sidebar's project order
+ * (NAV-04) and changing the branch new workspaces start from (SET-07). Also owns PRJ-04's config
  * reads: scripts, files to copy and prompts come from `.conducted/settings.toml`, with
  * `.conducted/settings.local.toml` overriding it. For a repository with a cloud workspace, the
  * shared file is read from the shared clone's committed branch (CLOUD-04). Also owns Quick start: creating a project from
@@ -1294,6 +1297,50 @@ export class RepoService {
 		const written = await this.#deps.repos.repos.setHidden(repoId, hidden);
 		if (!written.ok) return written;
 		this.#upsert({ ...found.value, hidden });
+		return ok(undefined);
+	}
+
+	/**
+	 * Backs `Actions.projects.setDefaultBranch`: the branch new workspaces of this project start
+	 * from, which Conductor's "Branch new workspaces from" setting changes (SET-07). An empty name
+	 * is refused so a workspace never starts from an invented ref.
+	 */
+	async setDefaultBranch(repoId: RepoId, branch: string): Promise<Result<void>> {
+		const name = branch.trim();
+		if (name === "") {
+			return err(appError("repo_branch_missing", "Enter a branch name."));
+		}
+		const found = await this.#deps.repos.repos.get(repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		if (found.value.defaultBranch === name) return ok(undefined);
+		const written = await this.#deps.repos.repos.setDefaultBranch(repoId, name);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, defaultBranch: name });
+		return ok(undefined);
+	}
+
+	/**
+	 * Backs `Actions.projects.reorder`: the sidebar's project groups, dragged into the user's order
+	 * (NAV-04). The given ids get dense display orders in that order; the store follows the row.
+	 */
+	async reorder(orderedIds: readonly RepoId[]): Promise<Result<void>> {
+		const written = await this.#deps.repos.repos.reorder(orderedIds);
+		if (!written.ok) return written;
+
+		const state = this.store.getState();
+		const reposById = { ...state.reposById };
+		for (const [index, repoId] of orderedIds.entries()) {
+			const repo = reposById[repoId];
+			if (repo !== undefined) reposById[repoId] = { ...repo, displayOrder: index };
+		}
+		this.store.setState({
+			...state,
+			reposById,
+			order: visibleOrder(reposById),
+		});
 		return ok(undefined);
 	}
 
