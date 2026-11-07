@@ -208,12 +208,31 @@ describe("DATA-03 startup repair resets stale working state", () => {
 		const report = must(await runStartupRepair(deps()));
 		expect(report.liveStatesReset).toBe(1);
 
-		const live = rows<{ session_id: string; live_state: string; updated_at: number }>(
-			SESSION_LIVE_STATE_SQL.listAll,
-		);
+		const live = rows<{
+			session_id: string;
+			host_kind: string;
+			host_url: string | null;
+			host_vm_id: string | null;
+			live_state: string;
+			updated_at: number;
+		}>(SESSION_LIVE_STATE_SQL.listAll);
 		expect(live).toEqual([
-			{ session_id: "chat-1", live_state: idleLiveStateJson(), updated_at: 9000 },
-			{ session_id: "chat-2", live_state: idleLiveStateJson(), updated_at: 6 },
+			{
+				session_id: "chat-1",
+				host_kind: "local",
+				host_url: null,
+				host_vm_id: null,
+				live_state: idleLiveStateJson(),
+				updated_at: 9000,
+			},
+			{
+				session_id: "chat-2",
+				host_kind: "local",
+				host_url: null,
+				host_vm_id: null,
+				live_state: idleLiveStateJson(),
+				updated_at: 6,
+			},
 		]);
 
 		const second = must(await runStartupRepair(deps()));
