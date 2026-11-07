@@ -44,15 +44,14 @@ export const CA_PATH = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 export const CONTAINER_ENV: Readonly<Record<string, string>> = Object.freeze({
 	HOME: "/root",
 	SHELL: "/bin/bash",
-	PATH: "/usr/local/bin:/usr/bin:/bin",
+	PATH: "/opt/conducted/bin:/usr/local/bin:/usr/bin:/bin",
 	CONDUCTED_BIN_DIR: "/opt/conducted/bin",
-	// The sidecar requires this folder (PLAT-28); the image's agents live on PATH, so it stays empty.
-	CONDUCTED_AGENT_BINARIES_DIR: "/var/conducted/agent-binaries",
+	// The managed-program layout the sidecar's finder reads (PLAT-28, D088); the image installs it.
+	CONDUCTED_AGENT_BINARIES_DIR: "/opt/conducted/agent-binaries",
 	CONDUCTED_OUTBOX_ROOT: "/var/conducted/outbox",
 	CONDUCTED_COMPLETIONS_DIR: "/var/conducted/completions",
-	CONDUCTED_CURSOR_STORE_DIR: "/var/conducted/cursor",
+	CONDUCTED_CURSOR_STORE_DIR: "/var/conducted/cursor-sdk-store",
 	CONDUCTED_LOG_DIR: "/var/conducted/log",
-	CONDUCTED_APP_VERSION: "0.0.0-cloud",
 	CONDUCTED_LOG_LEVEL: "info",
 	NODE_EXTRA_CA_CERTS: CA_PATH,
 	SSL_CERT_FILE: CA_PATH,
