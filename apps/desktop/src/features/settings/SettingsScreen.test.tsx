@@ -26,7 +26,8 @@ describe("SET-02 SettingsScreen", () => {
 	it("renders the Git page", async () => {
 		await mount(<SettingsScreen page="git" />);
 		expect(await screen.findByRole("heading", { name: "Git" })).toBeTruthy();
-		expect(screen.getByRole("combobox", { name: "Branch name prefix" })).toBeTruthy();
+		// Conductor's branch name prefix is a group of radios.
+		expect(screen.getByRole("group", { name: "Branch name prefix" })).toBeTruthy();
 	});
 
 	it("renders the page-not-found state for an unknown page", async () => {

@@ -27,6 +27,7 @@ import { Skeleton } from "../../ui/Skeleton.tsx";
 import { TitleBarInset } from "../../ui/TitleBarInset.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useNow } from "../sidebar/use-now.ts";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { HomeEmptyState } from "./HomeEmptyState.tsx";
 import { HomeFilters } from "./HomeFilters.tsx";
 import {
@@ -111,9 +112,10 @@ function HomeContent({
 		() => workspaces.filter((workspace) => reposById.has(workspace.repoId)),
 		[workspaces, reposById],
 	);
+	const branchPrefix = useBranchPrefix();
 	const page = useMemo(
-		() => queryHome({ workspaces: withProjects, repos, filters, pageCount }),
-		[withProjects, repos, filters, pageCount],
+		() => queryHome({ workspaces: withProjects, repos, filters, pageCount, branchPrefix }),
+		[withProjects, repos, filters, pageCount, branchPrefix],
 	);
 	const filtersActive =
 		filters.search.trim() !== "" || filters.projects.length > 0 || filters.archive !== "active";

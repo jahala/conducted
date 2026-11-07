@@ -230,6 +230,19 @@ describe("COMP-02 model picker", () => {
 		expect(updateConfig).not.toHaveBeenCalled();
 	});
 
+	it("names the model by its full label on the trigger and in the model list, as Conductor does", async () => {
+		const { wrapper } = harness({
+			models: [
+				model({ id: "m1", label: "Opus 5.5", shortLabel: "Opus" }),
+				model({ id: "m2", label: "Model Two" }),
+			],
+		});
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		expect(screen.getByRole("button", { name: "Model picker" }).textContent).toContain("Opus 5.5");
+		await openPicker();
+		expect(screen.getByRole("button", { name: /^Opus 5\.5/ })).toBeTruthy();
+	});
+
 	it("shows the live fast-mode shortcut after a rebind", async () => {
 		const { wrapper } = harness({
 			keybindings: JSON.stringify({ "chat.toggleFastMode": ["Cmd+Alt+F"] }),
@@ -250,7 +263,8 @@ describe("COMP-02 model picker", () => {
 			</>,
 			{ wrapper },
 		);
-		fireEvent.keyDown(document.body, { key: "1", metaKey: true, ctrlKey: true });
+		// The default model is loadout 1; the first favourite is loadout 2.
+		fireEvent.keyDown(document.body, { key: "2", metaKey: true, ctrlKey: true });
 		expect(await screen.findByText("That model is no longer available")).toBeTruthy();
 		expect(updateConfig).not.toHaveBeenCalled();
 	});
@@ -304,16 +318,37 @@ describe("COMP-02 model picker", () => {
 		expect(await screen.findByText("Not supported for this model")).toBeTruthy();
 	});
 
-	it("selects the second loadout with Cmd+Ctrl+2 while the picker is closed", async () => {
+	// Conductor's loadout starts with the default model, so the favourites are loadouts 2 to 5.
+	it("selects the third loadout, the second favourite, with Cmd+Ctrl+3 while the picker is closed", async () => {
 		const { updateConfig, wrapper } = harness({
 			favorites: [favorite("1", {}), favorite("2", { model: "m2" })],
 		});
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
-		fireEvent.keyDown(document.body, { key: "2", metaKey: true, ctrlKey: true });
+		fireEvent.keyDown(document.body, { key: "3", metaKey: true, ctrlKey: true });
 		await waitFor(() =>
 			expect(updateConfig).toHaveBeenCalledWith(
 				sessionId,
 				expect.objectContaining({ model: "m2" }),
+			),
+		);
+	});
+
+	it("selects the default model with Cmd+Ctrl+1, the loadout's first", async () => {
+		const { updateConfig, wrapper } = harness({ favorites: [favorite("1", { model: "m2" })] });
+		test.container.services.settings.store.setState((state) => ({
+			values: {
+				...state.values,
+				default_model: "m2",
+				default_claude_effort_level: "low",
+				default_fast_mode: false,
+			},
+		}));
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		fireEvent.keyDown(document.body, { key: "1", metaKey: true, ctrlKey: true });
+		await waitFor(() =>
+			expect(updateConfig).toHaveBeenCalledWith(
+				sessionId,
+				expect.objectContaining({ model: "m2", effort: "low" }),
 			),
 		);
 	});

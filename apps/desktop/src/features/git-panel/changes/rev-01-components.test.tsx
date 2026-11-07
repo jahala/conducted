@@ -61,7 +61,9 @@ describe("REV-01 changed file row", () => {
 		expect(onOpen).not.toHaveBeenCalled();
 	});
 
-	it("shows a renamed file's old path and status letter", () => {
+	// Conductor marks a file's status with a coloured square, not a letter (renderApp, the changes
+	// row's status icon).
+	it("shows a renamed file's old path and status mark", () => {
 		render(
 			<ChangedFileRow
 				file={file("src/new.ts", { status: "renamed", oldPath: "src/old.ts" })}
@@ -73,7 +75,33 @@ describe("REV-01 changed file row", () => {
 		);
 		expect(screen.getByText("from src/old.ts")).toBeTruthy();
 		expect(screen.getByText("renamed")).toBeTruthy();
-		expect(screen.getByTitle("renamed").textContent).toContain("R");
+		const mark = screen.getByTitle("renamed");
+		expect(mark.querySelector("svg")).not.toBeNull();
+		expect(mark.textContent).not.toContain("R");
+	});
+
+	it("marks each status with Conductor's coloured square, and an uncommitted file with U", () => {
+		const cases = [
+			["added", "text-git-added"],
+			["modified", "text-git-modified"],
+			["deleted", "text-git-removed"],
+		] as const;
+		for (const [status, colour] of cases) {
+			const view = render(
+				<ChangedFileRow
+					file={file(`src/${status}.ts`, { status })}
+					depth={0}
+					selected={false}
+					uncommitted={status === "added"}
+					onOpen={vi.fn()}
+				/>,
+			);
+			const mark = view.getByTitle(status);
+			expect(mark.className).toContain(colour);
+			expect(mark.querySelector("svg")).not.toBeNull();
+			expect(view.queryByText("U") !== null).toBe(status === "added");
+			view.unmount();
+		}
 	});
 });
 

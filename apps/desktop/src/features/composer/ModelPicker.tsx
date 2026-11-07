@@ -55,6 +55,7 @@ import {
 import { Popover } from "../../ui/Popover.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { FavoriteModels, isFavoriteSelected } from "./FavoriteModels.tsx";
+import { useLoadout } from "./use-loadout.ts";
 
 export interface ModelPickerProps {
 	sessionId: SessionId;
@@ -71,7 +72,7 @@ const AGENT_CHOICES: readonly Choice[] = [
 	{ agent: "acp", acpAgent: "pi" },
 ];
 
-const EFFORT_LABELS: Record<Effort, string> = {
+export const EFFORT_LABELS: Record<Effort, string> = {
 	none: "None",
 	low: "Low",
 	medium: "Medium",
@@ -204,7 +205,7 @@ export function ModelMenu({
 	const { services } = useServices();
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const installs = useStore(services.agentCatalog.store, (state) => state.installs);
-	const favorites = useStore(services.favoriteModels.store, (state) => state.favorites);
+	const { entries: loadout } = useLoadout();
 	const visible = useSetting<string>("visible_provider_models");
 	const models = useModels(config?.agent ?? "claude", config?.acpAgent, host);
 	const fastShortcut = useLiveShortcut("chat.toggleFastMode");
@@ -245,7 +246,7 @@ export function ModelMenu({
 			const effort = effortForModel(model, config.effort);
 			if (effort !== config.effort) {
 				toast(`Effort changed to ${EFFORT_LABELS[effort]}`, {
-					description: `${model.shortLabel ?? model.label} does not support the previous effort.`,
+					description: `${model.label} does not support the previous effort.`,
 				});
 			}
 			const change = changeOf({
@@ -326,7 +327,7 @@ export function ModelMenu({
 	);
 
 	const pickFavorite = useCallback(
-		(favorite: (typeof favorites)[number]) => {
+		(favorite: (typeof loadout)[number]) => {
 			if (!isFavoriteAvailable(favorite.config)) {
 				toast("That model is no longer available", {
 					description: "Choose another model for this agent.",
@@ -338,10 +339,13 @@ export function ModelMenu({
 		[applyConfig, isFavoriteAvailable],
 	);
 
-	/** Applies the favourite at `index`. False when there is none, so the key passes on. */
+	/**
+	 * Applies the loadout's model at `index`: the default model first, then the favourites. False
+	 * when there is none, so the key passes on.
+	 */
 	const selectLoadout = (index: number): boolean => {
 		if (!commands) return false;
-		const favorite = favorites[index];
+		const favorite = loadout[index];
 		if (favorite === undefined) return false;
 		pickFavorite(favorite);
 		return true;
@@ -369,9 +373,7 @@ export function ModelMenu({
 	useCommandHandler("chat.selectLoadout5", "area", () => selectLoadout(4));
 
 	const modelName =
-		config === undefined
-			? "Model"
-			: (currentModel?.shortLabel ?? currentModel?.label ?? (config.model || "Choose a model"));
+		config === undefined ? "Model" : (currentModel?.label ?? (config.model || "Choose a model"));
 	const effortName =
 		config === undefined ||
 		currentModel === undefined ||
@@ -389,7 +391,7 @@ export function ModelMenu({
 				: services.agentCatalog.store.getState().models[agentKey(choice.agent, choice.acpAgent)];
 		const model =
 			entry?.state === "ready" ? entry.data.find((item) => item.id === choice.model) : undefined;
-		return model?.shortLabel ?? model?.label ?? choice.model;
+		return model?.label ?? choice.model;
 	};
 
 	const isInstalled = (choice: Choice): boolean => {
@@ -418,7 +420,7 @@ export function ModelMenu({
 				}}
 				className={flyoutRow}
 			>
-				<span className="truncate">{model.shortLabel ?? model.label}</span>
+				<span className="truncate">{model.label}</span>
 				{model.isNew ? (
 					<span className="text-2xs uppercase tracking-wider text-accent">New</span>
 				) : null}
@@ -476,8 +478,7 @@ export function ModelMenu({
 	);
 	const agentName = agentDisplayName(config ?? { agent: "claude" });
 	const currentIsFavorite =
-		config !== undefined &&
-		favorites.some((favorite) => isFavoriteSelected(favorite.config, config));
+		config !== undefined && loadout.some((favorite) => isFavoriteSelected(favorite.config, config));
 	const fastSupported = currentModel?.supportsFastMode === true;
 	const effortSupported = effortName !== null;
 

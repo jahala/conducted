@@ -26,6 +26,8 @@ vi.mock("../composer/draft-sources.ts", () => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
+	useSetting: () => "",
+	useGitHubAccess: () => ({ state: "loading" }),
 	useSessions: () => hooks.sessions,
 	useGitState: () => hooks.git,
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
@@ -117,13 +119,16 @@ describe("NAV-03 WorkspaceRow", () => {
 		expect(await screen.findByText("Fix the login flow")).toBeTruthy();
 	});
 
-	it("shows the unread dot when a chat has something unread", async () => {
+	// Conductor marks an unread workspace by its name's weight and draws no dot (renderApp's row).
+	it("marks an unread workspace by its name's weight, with no dot", async () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [{ unreadCount: 2 } as Session] };
 		renderRow(
 			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
-		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
+		const name = await screen.findByText("Fix login");
+		expect(name.className).toContain("font-semibold");
+		expect(screen.queryByRole("img", { name: "Unread" })).toBeNull();
 	});
 
 	// Conductor's row is one line: the status words sit on the status icon, not on a second line
@@ -138,7 +143,7 @@ describe("NAV-03 WorkspaceRow", () => {
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
 		// Conductor marks the selected row by its fill only; the name keeps weight 450 (@10427352).
-		const name = within(link).getByText("fix-login");
+		const name = within(link).getByText("Fix login");
 		expect(name.className).toContain("font-book");
 		expect(name.className).not.toContain("font-medium");
 	});

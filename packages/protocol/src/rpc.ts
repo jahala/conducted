@@ -61,7 +61,10 @@ export const zSlashCommand = z.object({
 export const zModelInfo = z.object({
 	id: z.string(),
 	label: z.string(),
-	/** A shorter label for tight places such as the composer chip. */
+	/**
+	 * A shorter label from the agent's model list. The app names a model by `label` everywhere, as
+	 * Conductor's picker and composer do, so no screen reads this.
+	 */
 	shortLabel: z.string().optional(),
 	/**
 	 * picker: offered in the picker. gated: shown but needs a plan or sign-in that may be

@@ -26,15 +26,24 @@ describe("NAV-03 WorkspaceStatusIcon", () => {
 		expect(unknown.container.querySelector("[aria-hidden=true]")).not.toBeNull();
 	});
 
-	it("marks attention with the accent dot and failure with the alert", () => {
-		const attention = render(
-			<WorkspaceStatusIcon status={{ kind: "agent", label: "needs_permission" }} />,
-		);
-		expect(attention.container.querySelector(".bg-accent")).not.toBeNull();
-		attention.unmount();
-		const danger = render(
-			<WorkspaceStatusIcon status={{ kind: "git", label: "checks_failing" }} />,
-		);
-		expect(danger.getByText("!")).toBeTruthy();
+	it("draws Conductor's mark for each settled status, never a dot", () => {
+		const cases = [
+			[{ kind: "agent", label: "needs_permission" }, "alert", "text-fg-muted"],
+			[{ kind: "agent", label: "needs_plan_review" }, "plan", "text-fg-muted"],
+			[{ kind: "agent", label: "needs_answer" }, "question", "text-fg-muted"],
+			[{ kind: "git", label: "checks_failing" }, "checks-failing", "text-danger"],
+			[{ kind: "lifecycle", label: "failed" }, "alert", "text-danger"],
+			[{ kind: "git", label: "ready_to_merge" }, "pull-request", "text-success"],
+			[{ kind: "git", label: "merged" }, "merged", "text-merged"],
+			[{ kind: "git", label: "clean" }, "branch", "text-fg-subtle"],
+		] as const;
+		for (const [status, mark, colour] of cases) {
+			const view = render(<WorkspaceStatusIcon status={status} />);
+			const drawn = view.container.querySelector(`[data-mark="${mark}"]`);
+			expect(drawn, `${status.label} draws ${mark}`).not.toBeNull();
+			expect(drawn?.className, `${status.label} is ${colour}`).toContain(colour);
+			expect(view.container.querySelector(".rounded-full")).toBeNull();
+			view.unmount();
+		}
 	});
 });

@@ -109,11 +109,11 @@ describe("NAV-06 Kanban dashboard", () => {
 			branch: "oslo",
 		});
 		await mount(test);
-		const card = await within(column("In progress")).findByText("oslo");
+		const card = await within(column("In progress")).findByText("Oslo");
 
 		drag(card.closest("article") as HTMLElement, column("Done"));
 
-		expect(await within(column("Done")).findByText("oslo")).toBeTruthy();
+		expect(await within(column("Done")).findByText("Oslo")).toBeTruthy();
 		await waitFor(() =>
 			expect(
 				test.container.services.workspace.store.getState().workspacesById[workspace.id]
@@ -134,15 +134,15 @@ describe("NAV-06 Kanban dashboard", () => {
 			branch: "oslo",
 		});
 		await mount(test);
-		const card = await within(column("In progress")).findByText("oslo");
+		const card = await within(column("In progress")).findByText("Oslo");
 		// The row is gone, so the write fails while the board still shows the card.
 		await test.database.execute("DELETE FROM workspaces WHERE id = $1", [workspace.id]);
 
 		drag(card.closest("article") as HTMLElement, column("Done"));
 
 		expect(await screen.findByText("Couldn't change the workspace status")).toBeTruthy();
-		expect(within(column("In progress")).getByText("oslo")).toBeTruthy();
-		expect(within(column("Done")).queryByText("oslo")).toBeNull();
+		expect(within(column("In progress")).getByText("Oslo")).toBeTruthy();
+		expect(within(column("Done")).queryByText("Oslo")).toBeNull();
 	});
 
 	it("moves a card from its status menu", async () => {
@@ -154,7 +154,7 @@ describe("NAV-06 Kanban dashboard", () => {
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		fireEvent.click(await screen.findByRole("menuitemradio", { name: "In review" }));
 
-		expect(await within(column("In review")).findByText("oslo")).toBeTruthy();
+		expect(await within(column("In review")).findByText("Oslo")).toBeTruthy();
 	});
 
 	it("keeps a card moved twice in its last column while the first write answers", async () => {
@@ -176,9 +176,9 @@ describe("NAV-06 Kanban dashboard", () => {
 			fireEvent.click(await screen.findByRole("menuitemradio", { name: status }));
 		};
 		await moveTo("In review");
-		expect(await within(column("In review")).findByText("oslo")).toBeTruthy();
+		expect(await within(column("In review")).findByText("Oslo")).toBeTruthy();
 		await moveTo("Done");
-		expect(await within(column("Done")).findByText("oslo")).toBeTruthy();
+		expect(await within(column("Done")).findByText("Oslo")).toBeTruthy();
 		await waitFor(() => expect(writes.held()).toBe(2));
 
 		// The first write answers while the second is still on its way.
@@ -189,8 +189,8 @@ describe("NAV-06 Kanban dashboard", () => {
 					?.kanbanStatus,
 			).toBe("in_review"),
 		);
-		expect(within(column("Done")).getByText("oslo")).toBeTruthy();
-		expect(within(column("In review")).queryByText("oslo")).toBeNull();
+		expect(within(column("Done")).getByText("Oslo")).toBeTruthy();
+		expect(within(column("In review")).queryByText("Oslo")).toBeNull();
 
 		await writes.releaseNext();
 		await waitFor(() =>
@@ -199,7 +199,7 @@ describe("NAV-06 Kanban dashboard", () => {
 					?.kanbanStatus,
 			).toBe("done"),
 		);
-		expect(within(column("Done")).getByText("oslo")).toBeTruthy();
+		expect(within(column("Done")).getByText("Oslo")).toBeTruthy();
 	});
 
 	it("sends the user Home while the Dashboard setting is off", async () => {
@@ -235,15 +235,15 @@ describe("NAV-06 Kanban dashboard", () => {
 		});
 		await mount(test);
 		const board = () => within(column("In progress"));
-		expect(await board().findByText("bergen")).toBeTruthy();
+		expect(await board().findByText("Bergen")).toBeTruthy();
 		const filter = screen.getByRole("group", { name: "Filter by project" });
 
 		fireEvent.click(within(filter).getByRole("button", { name: "alpha" }));
 
-		await waitFor(() => expect(board().queryByText("bergen")).toBeNull());
-		expect(board().getByText("oslo")).toBeTruthy();
+		await waitFor(() => expect(board().queryByText("Bergen")).toBeNull());
+		expect(board().getByText("Oslo")).toBeTruthy();
 		fireEvent.click(within(filter).getByRole("button", { name: "All projects" }));
-		expect(await board().findByText("bergen")).toBeTruthy();
+		expect(await board().findByText("Bergen")).toBeTruthy();
 	});
 
 	it("shows ten cards a column and the rest behind 'Show N more'", async () => {

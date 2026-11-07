@@ -204,4 +204,5 @@ export const markPairs: [string, string][] = [
 	...on("status-review", ["surface", "canvas", "hover"]),
 	...on("status-done", ["surface", "canvas", "hover"]),
 	...on("status-canceled", ["surface", "canvas", "hover"]),
+	...on("git-modified", ["canvas", "surface", "panel"]),
 ];

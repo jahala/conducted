@@ -67,7 +67,34 @@ function renderSidebar(container: ReturnType<typeof createTestContainer>["contai
 	);
 }
 
+/** Opens a project's group: with no workspace open, Conductor's groups start closed. */
+async function openProject(name: string) {
+	const region = await screen.findByRole("region", { name });
+	fireEvent.click(within(region).getByRole("button", { name: new RegExp(`^${name}`) }));
+}
+
 describe("NAV-04 Sidebar", () => {
+	it("names a workspace by its branch without the user's prefix, in words, as Conductor does", async () => {
+		const test = createTestContainer();
+		try {
+			must(await test.container.services.settings.set("branch_prefix_type", "custom"));
+			must(await test.container.services.settings.set("branch_prefix_custom", "sam/"));
+			const repo = await seedRepo(test.container);
+			await seedWorkspace(test.container, {
+				repoId: repo.id,
+				branch: "sam/fix-login-redirect",
+				branchIsPlaceholder: false,
+			});
+			renderSidebar(test.container);
+			await openProject(repo.name);
+			expect(await screen.findByText("Fix login redirect")).toBeTruthy();
+			expect(screen.queryByText("sam/fix-login-redirect")).toBeNull();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
 	it("shows a pinned workspace and a saved section in the live list", async () => {
 		const test = createTestContainer();
 		try {
@@ -75,10 +102,12 @@ describe("NAV-04 Sidebar", () => {
 			const pinned = await seedWorkspace(test.container, {
 				repoId: repo.id,
 				branch: "pinned-branch",
+				branchIsPlaceholder: false,
 			});
 			const grouped = await seedWorkspace(test.container, {
 				repoId: repo.id,
 				branch: "grouped-branch",
+				branchIsPlaceholder: false,
 			});
 			must(await test.container.actions.workspaces.setPinned(pinned.id, true));
 			const section = must(await test.container.services.sections.create("Review", null));
@@ -87,11 +116,11 @@ describe("NAV-04 Sidebar", () => {
 			renderSidebar(test.container);
 
 			const pinnedRegion = await screen.findByRole("region", { name: "Pinned workspaces" });
-			expect(within(pinnedRegion).getByText("pinned-branch")).toBeTruthy();
+			expect(within(pinnedRegion).getByText("Pinned branch")).toBeTruthy();
 
 			const sectionRegion = await screen.findByRole("region", { name: "Review" });
-			expect(within(sectionRegion).getByText("grouped-branch")).toBeTruthy();
-			expect(within(sectionRegion).queryByText("pinned-branch")).toBeNull();
+			expect(within(sectionRegion).getByText("Grouped branch")).toBeTruthy();
+			expect(within(sectionRegion).queryByText("Pinned branch")).toBeNull();
 		} finally {
 			test.close();
 		}
@@ -136,9 +165,14 @@ describe("NAV-04 dragging in the live sidebar", () => {
 		const test = createTestContainer();
 		try {
 			const repo = await seedRepo(test.container);
-			const workspace = await seedWorkspace(test.container, { repoId: repo.id, branch: "to-pin" });
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				branch: "to-pin",
+				branchIsPlaceholder: false,
+			});
 			renderSidebar(test.container);
-			await screen.findByText("to-pin");
+			await openProject(repo.name);
+			await screen.findByText("To pin");
 			expect(screen.queryByRole("region", { name: "Pinned workspaces" })).toBeNull();
 
 			fireEvent.dragStart(listRow(workspace.id), { dataTransfer: dragData(workspace.id) });
@@ -152,7 +186,7 @@ describe("NAV-04 dragging in the live sidebar", () => {
 					test.container.services.workspace.store.getState().workspacesById[workspace.id]?.pinnedAt,
 				).not.toBeNull(),
 			);
-			expect(await within(pinned).findByText("to-pin")).toBeTruthy();
+			expect(await within(pinned).findByText("To pin")).toBeTruthy();
 		} finally {
 			test.close();
 		}
@@ -162,17 +196,22 @@ describe("NAV-04 dragging in the live sidebar", () => {
 		const test = createTestContainer();
 		try {
 			const repo = await seedRepo(test.container);
-			const workspace = await seedWorkspace(test.container, { repoId: repo.id, branch: "to-move" });
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				branch: "to-move",
+				branchIsPlaceholder: false,
+			});
 			must(await test.container.services.sections.create("Review", null));
 			renderSidebar(test.container);
-			await screen.findByText("to-move");
+			await openProject(repo.name);
+			await screen.findByText("To move");
 			const section = await screen.findByRole("region", { name: "Review" });
-			expect(within(section).queryByText("to-move")).toBeNull();
+			expect(within(section).queryByText("To move")).toBeNull();
 
 			fireEvent.dragStart(listRow(workspace.id), { dataTransfer: dragData(workspace.id) });
 			fireEvent.drop(section, { dataTransfer: dragData(workspace.id) });
 
-			expect(await within(section).findByText("to-move")).toBeTruthy();
+			expect(await within(section).findByText("To move")).toBeTruthy();
 		} finally {
 			test.close();
 		}

@@ -71,6 +71,8 @@ export interface SettingRowProps {
 	saveError: string | null;
 	/** Shown when a repository value overrides the user value, with a way back. */
 	onResetToShared?: () => void;
+	/** The control sits under the text at full width, as Conductor lays out path fields. */
+	stacked?: boolean;
 	children: ReactNode;
 }
 
@@ -84,6 +86,7 @@ export function SettingRow({
 	highlighted,
 	saveError,
 	onResetToShared,
+	stacked = false,
 	children,
 }: SettingRowProps) {
 	const descriptionId = `setting-${settingKey}-description`;
@@ -97,7 +100,12 @@ export function SettingRow({
 				highlighted && "rounded-md bg-accent/10 px-3 ring-1 ring-accent",
 			)}
 		>
-			<div className="flex items-center justify-between gap-8">
+			<div
+				className={cn(
+					"flex gap-8",
+					stacked ? "flex-col items-stretch gap-3" : "items-center justify-between",
+				)}
+			>
 				<div className="flex min-w-0 flex-col">
 					<div className="flex min-h-7 flex-wrap items-center gap-2">
 						<p className="text-sm font-medium text-fg">{title}</p>
@@ -132,7 +140,7 @@ export function SettingRow({
 				<fieldset
 					disabled={disabledReason !== null}
 					aria-describedby={description ? descriptionId : undefined}
-					className="flex shrink-0 items-center gap-2 border-0 p-0"
+					className={cn("flex items-center gap-2 border-0 p-0", stacked ? "w-full" : "shrink-0")}
 				>
 					<legend className="sr-only">{title}</legend>
 					{withDisabled(children, disabledReason !== null)}

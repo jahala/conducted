@@ -21,6 +21,7 @@ import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
 import { cn } from "../../ui/cn.ts";
 import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { KANBAN_COLUMNS, KANBAN_DRAG_TYPE, KANBAN_STATUS_MARK, KANBAN_STATUSES } from "./kanban.ts";
 
@@ -35,7 +36,7 @@ export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
 	const git = useGitState(workspace.id);
 	const [dragging, setDragging] = useState(false);
-	const name = workspaceName(workspace);
+	const name = workspaceName(workspace, useBranchPrefix());
 	const subtitle = statusText(status);
 	const lines = git.state === "ready" ? git.data : null;
 

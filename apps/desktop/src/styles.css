@@ -160,6 +160,8 @@
 	/* Git counts and diff lines. Diff fills mix the base at 10% (line), 60% (marker) and 20% (changed word). */
 	--color-git-added: light-dark(#12853c, #4ade80);
 	--color-git-removed: light-dark(#dc2828, #f87272);
+	/* A modified file's mark in the changes list (Conductor's git-yellow, raised to 3:1 in light). */
+	--color-git-modified: light-dark(#a28700, #ffea80);
 	--color-diff-added: #1bc559;
 	--color-diff-added-line: color-mix(in srgb, var(--color-diff-added) 10%, transparent);
 	--color-diff-added-marker: color-mix(in srgb, var(--color-diff-added) 60%, transparent);

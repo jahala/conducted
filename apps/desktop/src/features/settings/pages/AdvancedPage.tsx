@@ -33,6 +33,7 @@ import { PROGRAM_DISPLAY_NAMES } from "../../../core/services/system.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
+import { FolderIcon } from "../../../ui/icons.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { programPathCheck, programPathWarning } from "../program-path.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
@@ -83,16 +84,19 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				disabledReason={null}
 				highlighted={focusSettingKey === ROOT_PATH_KEY}
 				saveError={saves.errorOf(ROOT_PATH_KEY)}
+				stacked
 			>
-				<div className="flex items-center gap-2">
+				{/* Conductor's row: the path at full width, then "Browse" with a folder icon. */}
+				<div className="flex w-full items-center gap-2">
 					<Input
 						aria-label="Conducted root directory"
 						value={rootPath}
 						readOnly
-						className="w-64 font-mono text-xs"
+						className="min-w-0 flex-1"
 					/>
-					<Button variant="secondary" onClick={() => void chooseRoot()}>
-						Choose folder
+					<Button variant="outline" onClick={() => void chooseRoot()}>
+						<FolderIcon />
+						Browse
 					</Button>
 				</div>
 			</SettingRow>

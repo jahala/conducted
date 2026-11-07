@@ -1,43 +1,38 @@
 /**
  * @feature SET-02 Default models settings page
- * Owns: the Default models page of Settings: which model new chats start with, fast mode, plan
- * mode and the effort and personality defaults. Review defaults are rows from the registry too.
+ * Owns: the Default models page of Settings, laid out as Conductor's models tab (renderApp, the
+ * "models" settings and their page): the "Loadout" with "Choose which models you want to use" and
+ * its editor, then Codex personality, Claude output style, Review model and "Default to plan mode in
+ * new chats".
  * Behaviour: ui-map.md 6, "Default models" table; services-map.md 4.2.3 (models and providers).
- * Data: useModels("claude") for the models this app starts chats with, useAgentInstalls() to say
- * when the program is missing, useSetting and useSettingSaves for the stored values.
- * Must handle: models loading (the picker is disabled), no installed Claude program (the page
- * says so), and a chosen model that does not support fast mode (the fast mode switch is disabled
- * with the reason).
- * Test first: picking a model without fast mode support disables the fast mode toggle.
+ * The loadout's first slot is the default model: its model, effort and fast mode are the settings
+ * `default_model`, `default_claude_effort_level` and `default_fast_mode`, so they have no rows of
+ * their own, as in Conductor, where they live in the slot's picker.
+ * Our design choice (D098, ours placed in Conductor's layout): the rows Conductor keeps inside its
+ * pickers sit beside the row they belong to. The review effort, thinking and fast mode follow Review
+ * model; the default Codex thinking level follows Codex personality; "Models shown in the picker"
+ * comes last.
+ * Data: LoadoutEditor (the loadout and the agents' models); registry rows for the rest, in the
+ * registry's order for this page, which follows the list above.
+ * Must handle: the settings store loading or failing (the shared frame); an agent that is not
+ * installed (its column offers Configure); a chosen model without fast mode (the slot says so).
+ * Test first: Enter on a model row puts it into the next empty loadout slot.
  */
-import { useAgentInstalls, useModels, useSetting } from "../../../core/hooks.ts";
-import { getSettingDef, pageDescriptionOf } from "../../../core/registries/settings.ts";
-import { Select } from "../../../ui/Select.tsx";
-import { Skeleton } from "../../../ui/Skeleton.tsx";
-import { Switch } from "../../../ui/Switch.tsx";
-import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
+
+import { LoadoutEditor } from "../models/LoadoutEditor.tsx";
+import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
-const MODEL_KEY = "default_model";
-const FAST_MODE_KEY = "default_fast_mode";
+/** The default model's settings, which the Loadout's first slot edits. */
+const LOADOUT_DEFAULT_KEYS: readonly string[] = [
+	"default_model",
+	"default_fast_mode",
+	"default_claude_effort_level",
+];
 
 export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
-	const models = useModels("claude");
-	const installs = useAgentInstalls();
-	const saves = useSettingSaves();
-	const storedModel = useSetting<string>(MODEL_KEY);
-	const fastMode = useSetting<boolean>(FAST_MODE_KEY);
-	const modelDef = getSettingDef(MODEL_KEY);
-	const fastDef = getSettingDef(FAST_MODE_KEY);
-
-	const list = models.state === "ready" ? models.data : [];
-	const selected =
-		list.find((model) => model.id === storedModel) ?? list.find((model) => model.isDefault);
-	const supportsFastMode = selected?.supportsFastMode ?? true;
-	const claudeInstalled =
-		installs.state === "ready" &&
-		installs.data.some((install) => install.agent === "claude" && install.installed);
+	const loadoutFocused = focusSettingKey !== null && LOADOUT_DEFAULT_KEYS.includes(focusSettingKey);
 
 	return (
 		<SettingsPageFrame
@@ -46,54 +41,26 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
-			{installs.state === "ready" && !claudeInstalled ? (
-				<p className="pb-2 text-sm text-fg-muted">
-					No Claude Code program was found. Install it on the Agents page, then come back.
-				</p>
-			) : null}
-
-			<SettingRow
-				settingKey={MODEL_KEY}
-				title={modelDef?.title ?? "Default model"}
-				description={modelDef === undefined ? null : pageDescriptionOf(modelDef)}
-				disabledReason={models.state === "error" ? models.error.message : null}
-				highlighted={focusSettingKey === MODEL_KEY}
-				saveError={saves.errorOf(MODEL_KEY)}
+			<section
+				id="setting-default_model"
+				data-setting-key="default_model"
+				data-highlighted={loadoutFocused ? "true" : undefined}
+				aria-labelledby="loadout-title"
+				className="flex flex-col gap-3 pb-5"
 			>
-				{models.state === "loading" ? (
-					<Skeleton className="h-8 w-48" />
-				) : (
-					<Select
-						aria-label="Default model"
-						value={storedModel}
-						options={[
-							{ value: "", label: "First available model" },
-							...list.map((model) => ({ value: model.id, label: model.label })),
-						]}
-						onValueChange={(modelId) => void saves.save(MODEL_KEY, modelId)}
-					/>
-				)}
-			</SettingRow>
-
-			<SettingRow
-				settingKey={FAST_MODE_KEY}
-				title={fastDef?.title ?? "Fast mode in new chats"}
-				description={fastDef === undefined ? null : pageDescriptionOf(fastDef)}
-				disabledReason={supportsFastMode ? null : "The chosen model does not support fast mode."}
-				highlighted={focusSettingKey === FAST_MODE_KEY}
-				saveError={saves.errorOf(FAST_MODE_KEY)}
-			>
-				<Switch
-					aria-label={fastDef?.title ?? "Fast mode in new chats"}
-					checked={fastMode}
-					onCheckedChange={(checked) => void saves.save(FAST_MODE_KEY, checked)}
-				/>
-			</SettingRow>
-
+				<div className="flex flex-col">
+					<h2 id="loadout-title" className="text-sm font-medium text-fg">
+						Loadout
+					</h2>
+					<p className="mt-0.5 text-sm text-fg-muted">Choose which models you want to use</p>
+				</div>
+				<LoadoutEditor />
+			</section>
+			{/* The registry lists the models page in this order (core/registries/settings.ts). */}
 			<RegistrySettingRows
 				page="models"
 				focusSettingKey={focusSettingKey}
-				exclude={[MODEL_KEY, FAST_MODE_KEY]}
+				exclude={LOADOUT_DEFAULT_KEYS}
 			/>
 		</SettingsPageFrame>
 	);

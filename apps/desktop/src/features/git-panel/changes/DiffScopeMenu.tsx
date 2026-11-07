@@ -5,6 +5,8 @@
  * Behaviour: ui-map.md 3.6, Changes options menu; services-map.md 3.4.1 (what each scope diffs).
  * Data: useGitState for the branch, useBranchCommits for the commit entries and useBranches for
  * the target picker.
+ * On all changes the trigger is an icon with the tooltip "Options", as Conductor's toolbar has it;
+ * a narrowed scope names itself on the trigger.
  * Entries, in order: Current branch, Target branch (opens TargetBranchPicker), All changes,
  * Uncommitted changes (Cmd+Alt+U, shows "N files changed"), then one entry per commit with its
  * message, short hash, author and date. Per-turn entries are not part of the issue's scope. A
@@ -26,7 +28,7 @@ import {
 	useWorkspace,
 } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
-import { ChevronDownIcon } from "../../../ui/icons.tsx";
+import { ChevronDownIcon, MoreVerticalIcon } from "../../../ui/icons.tsx";
 import {
 	Menu,
 	MenuContent,
@@ -137,10 +139,23 @@ export function DiffScopeMenu({ workspaceId, scope, onChange }: DiffScopeMenuPro
 	return (
 		<Menu open={open} onOpenChange={setOpen}>
 			<MenuTrigger asChild>
-				<Button variant="ghost" size="sm" aria-label="Diff scope">
-					<span className="max-w-48 truncate">{scopeLabel(scope)}</span>
-					<ChevronDownIcon className="size-3 text-fg-muted" />
-				</Button>
+				{scope.kind === "branch" ? (
+					// Conductor's trigger on all changes: an icon with the tooltip "Options".
+					<Button
+						variant="ghost"
+						size="xs"
+						aria-label="Diff scope"
+						title="Options"
+						className="w-6 px-0 text-fg-muted"
+					>
+						<MoreVerticalIcon className="size-3" />
+					</Button>
+				) : (
+					<Button variant="ghost" size="sm" aria-label="Diff scope">
+						<span className="max-w-48 truncate">{scopeLabel(scope)}</span>
+						<ChevronDownIcon className="size-3 text-fg-muted" />
+					</Button>
+				)}
 			</MenuTrigger>
 			<MenuContent
 				align="end"
