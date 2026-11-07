@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedRepo, seedWorkspace } from "../test/container.ts";
-import { setupLogFile, viewedFilesFile } from "./app-paths.ts";
+import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "./app-paths.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { sessionConfig } from "./db/test-fixtures.ts";
 
@@ -60,6 +60,36 @@ describe("WS-10 delete a workspace through the container", () => {
 			expect(container.services.workspace.store.getState().workspacesById).toEqual({});
 			must(await container.services.sessions.start());
 			expect(container.services.sessions.store.getState().sessions).toEqual({});
+		} finally {
+			close();
+		}
+	});
+
+	it("moves the workspace's Cursor run store to the Trash and keeps another workspace's", async () => {
+		const { container, memory, close } = createTestContainer();
+		try {
+			const repo = await seedRepo(container);
+			const workspace = await seedWorkspace(container, {
+				repoId: repo.id,
+				path: "/code/workspaces/oslo",
+			});
+			const other = await seedWorkspace(container, {
+				repoId: repo.id,
+				path: "/code/workspaces/bergen",
+			});
+			const paths = memory.platform.fs.paths;
+			// The folder name is the sidecar's rule (cursor-runner.ts cursorStoreFolder): the first 16
+			// hex digits of the SHA-256 of the workspace path. The sidecar's test checks the same value.
+			const store = `${paths.appData}/cursor-sdk-store/7b65ddb1510ad78c`;
+			expect(await cursorStoreFolder(paths, workspace.path)).toBe(store);
+			const otherStore = await cursorStoreFolder(paths, other.path);
+			await memory.platform.fs.writeTextAtomic(`${store}/runs.sqlite`, "runs");
+			await memory.platform.fs.writeTextAtomic(`${otherStore}/runs.sqlite`, "runs");
+
+			expect((await container.actions.workspaces.remove(workspace.id)).ok).toBe(true);
+
+			expect(await memory.platform.fs.exists(store)).toBe(false);
+			expect(await memory.platform.fs.exists(`${otherStore}/runs.sqlite`)).toBe(true);
 		} finally {
 			close();
 		}

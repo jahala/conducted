@@ -22,7 +22,9 @@
  * newest answer for an install list, a provider-key list or a provider list wins; a sign-in flow returns
  * instructions and optionally a URL, a user code or a terminal command, ends with finishLogin or
  * cancelLogin. A key an agent hands back (Cursor) is refused: the user enters it in the provider
- * forms instead. A provider key typed on the page goes into the Keychain and its row into
+ * forms instead. Cursor reads as signed in (`api_key`) while its own API key is saved here, because
+ * that key is what its chats start with (AGENT-09, D084); the install list the sidecar sends, by a
+ * request or a notification, gets that state before it reaches the store. A provider key typed on the page goes into the Keychain and its row into
  * `provider_keys`; "use the key from this Mac" stores only the choice. Removing a key removes both
  * the row and its Keychain entry. OpenCode and Pi read every stored key at once, and OpenCode's
  * catalogue gives one variable to several providers (ZHIPU_API_KEY for Z.AI and Zhipu AI), so
@@ -63,6 +65,7 @@ import {
 	type AgentProvider,
 	type ModelInfo,
 	type SlashCommand,
+	signInEnvVars,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
@@ -374,6 +377,45 @@ const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1)
 const keysShareVariables = (agent: AgentKind): boolean =>
 	AGENT_PROVIDER_TABLE[agent].configProviders !== undefined;
 
+/**
+ * Whether a stored provider key goes into an agent's launch (SET-09, D033). Only the credential of the
+ * chosen sign-in reaches the agent: the keys of its provider that the agent-provider table lists for
+ * that sign-in. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
+ * subscription, so its API key stays out; Codex's is the ChatGPT account, so the OpenAI API key stays
+ * out. An agent without a provider setting takes its one sign-in. OpenCode and Pi choose a provider in
+ * their own config, so every stored key may apply. A setting value the table does not list (set in a
+ * settings file) takes the keys stored under a provider of that name.
+ */
+export function launchTakesKey(
+	agent: AgentKind,
+	chosenProvider: string | undefined,
+	key: { provider: string; envVar: string },
+): boolean {
+	const facts = AGENT_PROVIDER_TABLE[agent];
+	if (facts.configProviders !== undefined) return true;
+	const signIn =
+		chosenProvider === undefined
+			? facts.signIns[0]
+			: facts.signIns.find((entry) => entry.launchProvider === chosenProvider);
+	if (signIn === undefined) return key.provider.toLowerCase() === chosenProvider;
+	return (
+		key.provider.toLowerCase() === signIn.provider && signInEnvVars(signIn).includes(key.envVar)
+	);
+}
+
+/**
+ * Cursor's install reads as signed in with an API key while one is saved, because that key is what a
+ * Cursor chat starts with (D084). A sign-in the sidecar already reports is kept as it is.
+ */
+export function withCursorKeySignIn(agents: AgentInstall[], keySaved: boolean): AgentInstall[] {
+	if (!keySaved) return agents;
+	return agents.map((install) =>
+		install.agent === "cursor" && install.authenticated !== true
+			? { ...install, authenticated: true, authMethod: "api_key" }
+			: install,
+	);
+}
+
 /** The Keychain entry for one provider key. Stable, so saving twice replaces one entry. */
 export function providerKeychainRef(key: ProviderKeyRef): string {
 	return ["provider", key.agent, key.acpAgent ?? "", key.provider, key.envVar].join(":");
@@ -407,6 +449,10 @@ export class AgentCatalogService {
 	readonly #modelRequests = new Map<string, number>();
 	/** The newest install request. An older answer that arrives late changes nothing. */
 	#installRequest = 0;
+	/** The install list as the sidecar last sent it, before Cursor's saved key is applied. */
+	#sidecarInstalls: AgentInstall[] | null = null;
+	/** Whether a Cursor API key is saved in Settings (D084). Read on refresh and on every key load. */
+	#cursorKeySaved = false;
 	/** Only the newest slash-command request for a chat changes state. */
 	readonly #slashRequests = createLatestWins<SessionId>();
 	/** Only the newest saved-list request for one repository and agent changes state. */
@@ -443,14 +489,33 @@ export class AgentCatalogService {
 			this.store.setState({ installs: { state: "error", error: result.error } });
 			return result;
 		}
-		this.store.setState({ installs: { state: "ready", data: result.value.agents } });
-		return ok(undefined);
+		const cursorKey = await this.#readCursorKeySaved();
+		if (request !== this.#installRequest) return ok(undefined);
+		this.#publishInstalls(result.value.agents);
+		// The list still shows; a key table that cannot be read leaves Cursor as the sidecar says.
+		return cursorKey.ok ? ok(undefined) : cursorKey;
 	}
 
 	/** Called by the notification handler. It is newer truth than any request in flight. */
 	setInstalls(agents: AgentInstall[]): void {
 		this.#installRequest += 1;
-		this.store.setState({ installs: { state: "ready", data: agents } });
+		this.#publishInstalls(agents);
+	}
+
+	/** Stores the sidecar's list with Cursor signed in when its API key is saved. */
+	#publishInstalls(agents: AgentInstall[]): void {
+		this.#sidecarInstalls = agents;
+		this.store.setState({
+			installs: { state: "ready", data: withCursorKeySignIn(agents, this.#cursorKeySaved) },
+		});
+	}
+
+	async #readCursorKeySaved(): Promise<Result<void>> {
+		if (this.#deps.providerKeys === undefined) return ok(undefined);
+		const listed = await this.#deps.providerKeys.listForAgent("cursor", null);
+		if (!listed.ok) return err(listed.error);
+		this.#cursorKeySaved = listed.value.some((key) => launchTakesKey("cursor", undefined, key));
+		return ok(undefined);
 	}
 
 	async loadModels(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<ModelInfo[]>> {
@@ -678,6 +743,12 @@ export class AgentCatalogService {
 		this.store.setState((state) => ({
 			providerKeys: { ...state.providerKeys, [key]: { state: "ready", data: views } },
 		}));
+		if (agent === "cursor" && acpAgent === undefined) {
+			this.#cursorKeySaved = listed.value.some((found) =>
+				launchTakesKey("cursor", undefined, found),
+			);
+			if (this.#sidecarInstalls !== null) this.#publishInstalls(this.#sidecarInstalls);
+		}
 		return ok(views);
 	}
 

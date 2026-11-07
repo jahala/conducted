@@ -2,41 +2,22 @@
  * @feature PR-07 PR activity item
  * Owns: one line or card in the activity list, by entry kind, and the author-and-body part of a
  * comment, which the PR-level comment list shares.
- * Behaviour: ui-map.md 3.2 (PR tab: "Activity"); the kinds are listed in pr-activity.ts.
- * Must handle: each kind having its own icon and text, a review with a body (card) versus a bare
- * approval (one line), an author whose avatar is missing or fails to load (a letter), times
- * shown relative with the exact time in a tooltip, and an entry with no usable time (no time shown).
- * Test first: a "review" entry with state "changes_requested" renders the author and that state.
+ * Behaviour: ui-map.md 3.2 (PR tab: "Activity"). Conductor's activity list shows commits and
+ * comments only (D078, renderApp @9996475), so those are the two kinds an entry has.
+ * Must handle: each kind having its own icon and text, an author whose avatar is missing or fails
+ * to load (a letter), times shown relative with the exact time in a tooltip, and an entry with no
+ * usable time (no time shown).
+ * Test first: a review thread comment renders its author, file and line, and body.
  */
 import type { PrActivityEntry } from "../../core/model.ts";
 import { AuthorAvatar } from "../../ui/AuthorAvatar.tsx";
-import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
-import { ChatIcon, CircleIcon, GitCommitIcon, GitMergeIcon } from "../../ui/icons.tsx";
-import { reviewerStateLabel } from "../git-panel/checks/ReviewersList.tsx";
+import { ChatIcon, GitCommitIcon } from "../../ui/icons.tsx";
 import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
 
 export interface PrActivityItemProps {
 	entry: PrActivityEntry;
 	onOpen: () => void;
 }
-
-const REVIEW_TONE: Readonly<
-	Record<"approved" | "changes_requested" | "commented" | "dismissed", BadgeTone>
-> = {
-	approved: "success",
-	changes_requested: "danger",
-	commented: "neutral",
-	dismissed: "neutral",
-};
-
-const STATUS_LABEL: Readonly<
-	Record<"ready_for_review" | "merged" | "closed" | "reopened", string>
-> = {
-	ready_for_review: "Marked ready for review",
-	merged: "Merged",
-	closed: "Closed",
-	reopened: "Reopened",
-};
 
 type CommentEntry = Extract<PrActivityEntry, { kind: "comment" }>;
 
@@ -84,15 +65,7 @@ export function PrActivityItem({ entry, onOpen }: PrActivityItemProps) {
 			className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover focus-visible:bg-hover"
 		>
 			<span className="mt-0.5 shrink-0 text-fg-subtle" aria-hidden="true">
-				{entry.kind === "commit" ? (
-					<GitCommitIcon />
-				) : entry.kind === "review" ? (
-					<GitMergeIcon />
-				) : entry.kind === "comment" ? (
-					<ChatIcon />
-				) : (
-					<CircleIcon />
-				)}
+				{entry.kind === "commit" ? <GitCommitIcon /> : <ChatIcon />}
 			</span>
 			<span className="min-w-0 flex-1">
 				{entry.kind === "commit" ? (
@@ -102,23 +75,8 @@ export function PrActivityItem({ entry, onOpen }: PrActivityItemProps) {
 							<span className="font-mono">{entry.sha.slice(0, 7)}</span> · {entry.authorName}
 						</span>
 					</>
-				) : entry.kind === "review" ? (
-					<>
-						<span className="flex flex-wrap items-center gap-1.5">
-							<AuthorAvatar login={entry.authorLogin} avatarUrl={entry.authorAvatarUrl} />
-							<span className="text-sm font-medium text-fg">{entry.authorLogin}</span>
-							<Badge tone={REVIEW_TONE[entry.state]}>{reviewerStateLabel(entry.state)}</Badge>
-						</span>
-						{entry.body.trim() === "" ? null : (
-							<span className="mt-1 block whitespace-pre-wrap break-words rounded-md border border-border bg-raised p-2 text-sm text-fg">
-								{entry.body}
-							</span>
-						)}
-					</>
-				) : entry.kind === "comment" ? (
-					<PrCommentContent entry={entry} />
 				) : (
-					<span className="block text-sm text-fg">{STATUS_LABEL[entry.change]}</span>
+					<PrCommentContent entry={entry} />
 				)}
 			</span>
 			<Time at={entry.at} />

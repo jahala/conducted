@@ -4,7 +4,6 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { CommentComposer } from "./CommentComposer.tsx";
 
 afterEach(cleanup);

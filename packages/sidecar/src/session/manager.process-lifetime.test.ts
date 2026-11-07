@@ -43,6 +43,7 @@ import { FakeApp } from "../test-support/fake-app.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { loginShellOver } from "../test-support/login-shell.ts";
+import { until } from "../test-support/until.ts";
 import { LiveStateStore } from "./live-state.ts";
 import { DefaultSessionManager } from "./manager.ts";
 
@@ -229,14 +230,6 @@ function send(h: Harness, n: number) {
 		workspace: workspace(),
 		launch: { env: {}, providerKeys: {} },
 	});
-}
-
-async function until(check: () => boolean, description: string): Promise<void> {
-	const deadline = Date.now() + 2000;
-	while (!check()) {
-		if (Date.now() > deadline) throw new Error(`Timed out waiting for ${description}`);
-		await new Promise<void>((resolve) => setTimeout(resolve, 0));
-	}
 }
 
 /** Waits until the chat is idle and the manager has handled the end of the turn. */

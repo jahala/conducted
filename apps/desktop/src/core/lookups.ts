@@ -44,7 +44,13 @@ import type { WorkspaceGitContext } from "./services/git.ts";
 import type { PrWorkspaceContext } from "./services/github.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
-import { remoteNameFromConfig, type WorkspaceState } from "./services/workspace.ts";
+import {
+	FIRST_CHAT_APP_TOOLS,
+	NEW_CHAT_EFFORT_FALLBACK,
+	NEW_CHAT_MODEL_FALLBACK,
+	remoteNameFromConfig,
+	type WorkspaceState,
+} from "./services/workspace.ts";
 
 export interface LookupSources {
 	workspaces: () => StoreApi<WorkspaceState>;
@@ -212,22 +218,21 @@ export function defaultSessionConfig(
 	const workspace = lookups.workspace(workspaceId);
 	if (!workspace.ok) return workspace;
 	const model = setting<string>("default_model");
-	// An empty setting means "Model default", but a chat config needs a level, so it opens at
-	// "high" until the protocol can say "the model's own default" (see the findings, CONTRACT).
-	const effortSetting = setting<string>("default_claude_effort_level") || "high";
+	// An empty setting means "Model default"; the fallback has one home with the create form's.
+	const effortSetting = setting<string>("default_claude_effort_level") || NEW_CHAT_EFFORT_FALLBACK;
 	const effort = parseEffortSetting("default_claude_effort_level", effortSetting);
 	if (!effort.ok) return effort;
 	const options = chatOptionSettings(setting);
 	if (!options.ok) return options;
 	return ok({
 		agent: "claude",
-		model: model.length > 0 ? model : "default",
+		model: model.length > 0 ? model : NEW_CHAT_MODEL_FALLBACK,
 		effort: effort.value,
 		fastMode: setting<boolean>("default_fast_mode"),
 		planMode: setting<boolean>("default_plan_mode"),
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
 		additionalDirectories: workspace.value.linkedPaths,
-		appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
+		appTools: FIRST_CHAT_APP_TOOLS,
 		...options.value,
 		// RC-04: a new Claude chat starts with Remote Control on when the user chose so.
 		...(setting<boolean>("remote_control_new_chats") ? { remoteControl: true } : {}),

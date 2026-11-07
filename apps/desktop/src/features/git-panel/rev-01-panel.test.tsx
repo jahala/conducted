@@ -13,7 +13,6 @@ import type { DiffScope, Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GitState, PullRequest } from "../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 

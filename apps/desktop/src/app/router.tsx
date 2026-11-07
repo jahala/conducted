@@ -20,8 +20,9 @@
  * card and clears on the next route key); the key, menu and deep-link listeners mounted once at the root
  * (CommandDispatcher); the appearance settings and their shortcuts applied once at the root, on every
  * route (AppearanceController); Cmd+, opening Settings from any route; a changed workspace id resets a failed screen (resetKey); invalid search values are dropped (see
- * workspace-search.ts); navigation never reloads the page; a workspace or chat that was deleted or archived
- * sends the route Home instead of drawing a dead screen; a bare workspace address reopens that workspace's
+ * workspace-search.ts); navigation never reloads the page; a workspace or chat that was deleted, or a workspace
+ * being archived, sends the route Home instead of drawing a dead screen (an archived workspace stays open
+ * read-only, as in Conductor); a bare workspace address reopens that workspace's
  * stored chat tab; "/" reopens the last workspace route and falls back to a ready one; the Go back and Go
  * forward commands follow the same history as the window buttons.
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
@@ -43,7 +44,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
-import { canOpenWorkspace } from "../core/workspace-open.ts";
+import { canShowWorkspaceRoute } from "../core/workspace-open.ts";
 import { NextUnreadController } from "../features/chat/NextUnreadButton.tsx";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
 import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen.tsx";
@@ -246,7 +247,7 @@ const workspaceRoute = createRoute({
 		const workspace = workspaceState.workspacesById[workspaceId];
 		const sawWorkspace = useRef(false);
 
-		// Route repair: a workspace that is gone or archived belongs on Home, not on a dead screen.
+		// Route repair: a workspace that is gone or being archived belongs on Home, not on a dead screen.
 		useEffect(() => {
 			if (!workspaceState.loaded) return;
 			if (workspace === undefined) {
@@ -257,7 +258,7 @@ const workspaceRoute = createRoute({
 				return;
 			}
 			sawWorkspace.current = true;
-			if (!canOpenWorkspace(workspace)) {
+			if (!canShowWorkspaceRoute(workspace)) {
 				void navigate({ to: "/all-workspaces", replace: true });
 			}
 		}, [navigate, workspace, workspaceState.loaded, workspaceState.workspacesById]);
@@ -265,7 +266,7 @@ const workspaceRoute = createRoute({
 		// With no search set, reopen the chat tab this workspace had open last.
 		useEffect(() => {
 			if (!workspaceState.loaded || workspace === undefined) return;
-			if (!canOpenWorkspace(workspace)) return;
+			if (!canShowWorkspaceRoute(workspace)) return;
 			if (search.tab !== undefined || workspace.activeSessionId === null) return;
 			const sessionId = workspace.activeSessionId;
 			void navigate({

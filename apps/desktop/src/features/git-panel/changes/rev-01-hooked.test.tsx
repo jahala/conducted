@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../../app/command-dispatcher.ts";
 import type { ChangedFile, DiffScope, Loadable } from "../../../core/api.ts";
 import type { BranchCommit, GitState, Workspace } from "../../../core/model.ts";
-import "../../../test/dom-polyfills.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 

@@ -819,7 +819,7 @@ pub(crate) fn trash_path(path: &Path) -> CommandResult<()> {
 
 /// Returns the well-known folders. The UI reads this once at startup.
 #[tauri::command]
-pub async fn fs_paths(app: AppHandle) -> CommandResult<FsPaths> {
+pub async fn fs_paths<R: Runtime>(app: AppHandle<R>) -> CommandResult<FsPaths> {
     let resolver = app.path();
     let to_error = |e: tauri::Error| CommandError::Failed {
         code: "fs_path_unavailable",

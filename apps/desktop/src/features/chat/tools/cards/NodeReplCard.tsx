@@ -6,10 +6,10 @@
  * Failed); input that is a plain code string instead of an object.
  * Test first: A node_repl call renders 'Node REPL' with the code and its output.
  */
+import { stripTerminalEscapes } from "../../../../platform/terminal-escapes.ts";
 import {
 	asRecord,
 	formatJson,
-	stripAnsi,
 	ToolCardFrame,
 	ToolOutput,
 	textField,
@@ -24,7 +24,7 @@ export function NodeReplCard({ call, defaultExpanded }: ToolCardProps) {
 			? input
 			: (textField(asRecord(input), "code", "javascript", "script", "js", "input") ??
 				formatJson(input));
-	const output = stripAnsi(call.result?.output ?? "");
+	const output = stripTerminalEscapes(call.result?.output ?? "");
 	return (
 		<ToolCardFrame
 			title="Node REPL"

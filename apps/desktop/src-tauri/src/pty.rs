@@ -77,7 +77,7 @@ use alacritty_terminal::vte::ansi::Processor;
 use portable_pty::{Child, ChildKiller, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::error::{CommandError, CommandResult, lock};
 use crate::process_group;
@@ -611,8 +611,8 @@ pub fn spawn_terminal(
 /// control, feeds the mirror and the history recorder, then sends chunks on `output`. The
 /// watcher closes flow control, waits briefly for the reader, collects the exit status, asks the
 /// history recorder to save (PLAT-08), removes the session and emits `pty://exit`.
-pub fn start_io_threads(
-    app: &AppHandle,
+pub fn start_io_threads<R: Runtime>(
+    app: &AppHandle<R>,
     _state: &PtyState,
     session: Arc<PtySession>,
     output: Channel<PtyChunk>,
@@ -711,8 +711,8 @@ pub(crate) fn save_live_histories_with(
 
 /// Starts a terminal. Output arrives on `on_output`; the end arrives as `pty://exit`.
 #[tauri::command]
-pub async fn pty_spawn(
-    app: AppHandle,
+pub async fn pty_spawn<R: Runtime>(
+    app: AppHandle<R>,
     state: State<'_, PtyState>,
     request: PtySpawnRequest,
     on_output: Channel<PtyChunk>,

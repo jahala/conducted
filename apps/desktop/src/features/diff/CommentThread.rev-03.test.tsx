@@ -6,7 +6,6 @@ import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiffComment } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
 import { CommentThread } from "./CommentThread.tsx";
 import type { CommentHandlers } from "./diff-types.ts";
 

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { providerKeychainRef } from "../../../core/services/agent-catalog.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { AgentProvidersDialog } from "./AgentProvidersDialog.tsx";
 
 const toasts = vi.hoisted(() => ({ toast: vi.fn(), toastError: vi.fn() }));

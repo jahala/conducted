@@ -5,7 +5,6 @@ import type { Interaction } from "@conducted/protocol";
 import { appError, err, type InteractionId, ok, type SessionId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import { QuestionCard } from "./QuestionCard.tsx";
 
 const state = vi.hoisted(() => ({

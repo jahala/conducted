@@ -9,8 +9,9 @@
  * keeps `shell_timeout`; retries on `index.lock` and "cannot lock ref" at 50, 100 and 200 ms; one
  * HTTPS retry when SSH is blocked and the command is marked `network`; the repo lock is taken
  * inside the worktree lock, and it cannot be taken any other way; a lock waited on longer than
- * 10 s is logged through the injected `sleep`, never aborted (the timer starts only when the lock
- * is already held, so a free lock leaves no timer behind); a login-shell PATH that cannot be read
+ * 10 s is logged through the injected `sleep`, and the wait itself is never aborted (the timer
+ * starts only when the lock is already held, so a free lock leaves no timer behind, and taking the
+ * lock cancels the timer through its signal, so no timer outlives the wait); a login-shell PATH that cannot be read
  * is logged and tried again on the next command; a `gh` command runs only when the program
  * manager's copy is ready, and otherwise fails with its named error, so no `gh` on PATH answers
  * instead (D088); the HTTPS retry is skipped when there is no ready `gh`.
@@ -138,8 +139,11 @@ export interface ShellGitRunnerDeps {
 	 * `gh` on the rest of PATH never answers instead.
 	 */
 	programPath?: (name: "gh") => Promise<Result<string>>;
-	/** Waits `ms`. A parameter so tests do not sleep. */
-	sleep: (ms: number) => Promise<void>;
+	/**
+	 * Waits `ms`. A parameter so tests do not sleep. An aborted `signal` ends the wait early: it
+	 * clears the timer and resolves.
+	 */
+	sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
 	log: (level: "warn" | "info", message: string) => void;
 }
 
@@ -334,12 +338,13 @@ export class ShellGitRunner implements GitRunner {
 
 	/**
 	 * Runs `work` under `key`. If the key is already held, a warning is logged when the wait beats
-	 * the warm timeout. The wait is never aborted.
+	 * the warm timeout, and taking the lock cancels that timer. The wait is never aborted.
 	 */
 	async #withLock<T>(key: string, work: () => Promise<T>): Promise<T> {
 		let acquired = false;
+		const warmTimer = new AbortController();
 		if (this.#deps.locks.isHeld(key)) {
-			void this.#deps.sleep(LOCK_WARM_TIMEOUT_MS).then(
+			void this.#deps.sleep(LOCK_WARM_TIMEOUT_MS, warmTimer.signal).then(
 				() => {
 					if (!acquired) this.#deps.log("warn", LOCK_WARM_TIMEOUT_MESSAGE);
 				},
@@ -351,6 +356,7 @@ export class ShellGitRunner implements GitRunner {
 		}
 		return this.#deps.locks.run(key, async () => {
 			acquired = true;
+			warmTimer.abort();
 			return work();
 		});
 	}

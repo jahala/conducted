@@ -49,7 +49,7 @@
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
- * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
+ * rendered here: ChatPane shows it in this component's place when the workspace is archived.
  * The toolbar also holds the dictation button (COMP-08), after "+" and before send as in Conductor's
  * right cluster (renderApp @9319162); it inserts its transcript at the caret.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works

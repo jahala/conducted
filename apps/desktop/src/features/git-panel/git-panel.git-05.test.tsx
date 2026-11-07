@@ -24,7 +24,6 @@ import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GitState } from "../../core/model.ts";
 import type { GitHeader } from "../../core/status/git-header.ts";
-import "../../test/dom-polyfills.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 

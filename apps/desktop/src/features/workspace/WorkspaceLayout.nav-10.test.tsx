@@ -6,7 +6,6 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { WorkspaceLayout } from "./WorkspaceLayout.tsx";
 
 afterEach(cleanup);

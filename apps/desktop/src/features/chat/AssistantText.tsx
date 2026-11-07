@@ -16,7 +16,9 @@
  * is not rendered; an image that fails to load shows its alt text; an image from a web address is never loaded
  * (a reply could carry data out in the address), it shows as a link instead; an image target
  * relative to the workspace is saved, copied and viewed from the workspace folder, as a video
- * target is, and shows its alt text when the reply has no workspace; text is selectable.
+ * target is, and shows its alt text when the reply has no workspace; a file image loads through the
+ * app's file server (`Platform.fs.assetUrl`), never from its raw path, which the web view cannot
+ * read; text is selectable.
  * Test first: A text with an unclosed code fence renders as a code block without throwing; the
  * "not_absolutely_right" setting controls whether a leading absolutely-right phrase is removed.
  */
@@ -298,7 +300,7 @@ function MarkdownImage({
 		);
 	}
 	const absolute = src.startsWith("/") ? targetPath("/", src) : null;
-	if (absolute !== null) return <FileImage src={src} path={absolute} alt={alt} label={label} />;
+	if (absolute !== null) return <FileImage path={absolute} alt={alt} label={label} />;
 	if (workspaceId === undefined) return <span className="text-fg-muted">{label}</span>;
 	return <WorkspaceImage workspaceId={workspaceId} src={src} alt={alt} label={label} />;
 }
@@ -324,22 +326,13 @@ function WorkspaceImage({
 	if (!loaded) return null;
 	const path = root === null ? null : targetPath(root, src);
 	if (path === null) return <span className="text-fg-muted">{label}</span>;
-	return <FileImage src={src} path={path} alt={alt} label={label} />;
+	return <FileImage path={path} alt={alt} label={label} />;
 }
 
 /** An image backed by a file: Save image and Copy image in its menu, and the viewer on a click. */
-function FileImage({
-	src,
-	path,
-	alt,
-	label,
-}: {
-	src: string;
-	path: string;
-	alt: string;
-	label: string;
-}) {
+function FileImage({ path, alt, label }: { path: string; alt: string; label: string }) {
 	const attachmentActions = useAttachmentActions();
+	const { platform } = useServices();
 	const [failed, setFailed] = useState(false);
 	const [viewerOpen, setViewerOpen] = useState(false);
 	if (failed) {
@@ -366,7 +359,7 @@ function FileImage({
 					className="block max-w-full rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 				>
 					<img
-						src={src}
+						src={platform.fs.assetUrl(path)}
 						alt={alt}
 						onError={() => setFailed(true)}
 						className="max-h-96 max-w-full object-contain"

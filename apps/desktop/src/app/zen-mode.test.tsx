@@ -8,7 +8,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../test/container.ts";
-import "../test/dom-polyfills.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
 import { createShellContainer, type ShellFixture } from "./shell-test-support.ts";

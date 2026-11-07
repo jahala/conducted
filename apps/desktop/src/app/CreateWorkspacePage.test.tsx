@@ -13,7 +13,6 @@ import type { NewWorkspaceInput } from "../core/api.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Section, Workspace } from "../core/model.ts";
 import { createTestContainer, type TestContainer } from "../test/container.ts";
-import "../test/dom-polyfills.ts";
 import { toast } from "../ui/Toast.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
 

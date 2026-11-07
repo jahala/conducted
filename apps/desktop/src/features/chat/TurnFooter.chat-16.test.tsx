@@ -9,8 +9,6 @@ import type { SessionConfig } from "@conducted/protocol";
 import type { SessionId, TurnId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { ChatTurn } from "../../core/model.ts";
 import {
@@ -20,6 +18,7 @@ import {
 	turnEndedEvent,
 	userMessageEvent,
 } from "../../test/chat-events.ts";
+import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 
 const navigate = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());

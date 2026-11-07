@@ -18,7 +18,6 @@ import {
 	userMessageEvent,
 } from "../../test/chat-events.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 
 const navigate = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());

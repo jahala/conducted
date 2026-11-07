@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { CheckRun, CheckState } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { ChecksList } from "./ChecksList.tsx";
 
 const check = (name: string, state: CheckState): CheckRun => ({

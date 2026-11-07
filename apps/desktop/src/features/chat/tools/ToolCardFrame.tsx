@@ -77,13 +77,6 @@ export function textLines(text: string): string[] {
 	return lines;
 }
 
-/** Agent output still carries terminal colour codes; the cards never show them raw. */
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g");
-
-export function stripAnsi(text: string): string {
-	return text.replace(ANSI, "");
-}
-
 export function formatJson(value: unknown): string {
 	if (value === undefined || value === null) return "";
 	try {

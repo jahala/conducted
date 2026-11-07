@@ -32,12 +32,7 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import {
-	AGENT_PROVIDER_TABLE,
-	type AgentLaunch,
-	idleLiveState,
-	signInEnvVars,
-} from "@conducted/protocol";
+import { type AgentLaunch, idleLiveState } from "@conducted/protocol";
 import {
 	type AcpAgent,
 	type AgentKind,
@@ -69,7 +64,7 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import type { DiagnosticsCapture, Session } from "./model.ts";
-import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
+import { AgentCatalogService, agentKey, launchTakesKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
@@ -265,32 +260,6 @@ function programPathSetting(
 	return null;
 }
 
-/**
- * Whether a stored provider key goes into an agent's launch (SET-09, D033). Only the credential of the
- * chosen sign-in reaches the agent: the keys of its provider that the agent-provider table lists for
- * that sign-in. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
- * subscription, so its API key stays out; Codex's is the ChatGPT account, so the OpenAI API key stays
- * out. An agent without a provider setting takes its one sign-in. OpenCode and Pi choose a provider in
- * their own config, so every stored key may apply. A setting value the table does not list (set in a
- * settings file) takes the keys stored under a provider of that name.
- */
-function launchTakesKey(
-	agent: AgentKind,
-	chosenProvider: string | undefined,
-	key: { provider: string; envVar: string },
-): boolean {
-	const facts = AGENT_PROVIDER_TABLE[agent];
-	if (facts.configProviders !== undefined) return true;
-	const signIn =
-		chosenProvider === undefined
-			? facts.signIns[0]
-			: facts.signIns.find((entry) => entry.launchProvider === chosenProvider);
-	if (signIn === undefined) return key.provider.toLowerCase() === chosenProvider;
-	return (
-		key.provider.toLowerCase() === signIn.provider && signInEnvVars(signIn).includes(key.envVar)
-	);
-}
-
 /** True when Cursor's SDK is ready in `next` and was not in `previous` (AGENT-09). */
 function cursorBecameReady(
 	previous: SystemState["programs"],
@@ -307,7 +276,23 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const { platform, clock, ids } = inputs;
 	const repositoryDeps = { clock, ids };
 	const repositories = createRepositories(platform.db, repositoryDeps);
-	const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+	// An aborted signal clears the timer, so a lock wait that ends leaves no 10 s timer behind.
+	const sleep = (ms: number, signal?: AbortSignal) =>
+		new Promise<void>((resolve) => {
+			if (signal?.aborted === true) {
+				resolve();
+				return;
+			}
+			const timer = setTimeout(resolve, ms);
+			signal?.addEventListener(
+				"abort",
+				() => {
+					clearTimeout(timer);
+					resolve();
+				},
+				{ once: true },
+			);
+		});
 	const log = (level: "warn" | "info", message: string) => platform.app.writeLog(level, message);
 	const gitRunner = new ShellGitRunner({
 		shell: platform.shell,

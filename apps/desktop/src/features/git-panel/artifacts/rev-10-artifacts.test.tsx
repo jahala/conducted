@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { ArtifactPage } from "../../../platform/platform.ts";
 import { createTestContainer, seedWorkspace } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { ArtifactsTab } from "./ArtifactsTab.tsx";
 
 const CONFIG: SessionConfig = {

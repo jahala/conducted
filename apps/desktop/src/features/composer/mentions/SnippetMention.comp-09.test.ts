@@ -8,7 +8,6 @@ import type { SnippetId } from "@conducted/shared";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import type { Snippet } from "../../../core/model.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import { createSnippetMention, snippetSuggestions } from "./SnippetMention.ts";

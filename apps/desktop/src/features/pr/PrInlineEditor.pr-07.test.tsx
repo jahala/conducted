@@ -17,7 +17,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { PullRequest } from "../../core/model.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { Toaster, toast } from "../../ui/Toast.tsx";
 import { ChecksTab } from "../git-panel/checks/ChecksTab.tsx";
 

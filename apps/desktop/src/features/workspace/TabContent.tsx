@@ -9,18 +9,22 @@
  * A terminal tab renders only an empty slot: the app shell's surface layer draws the terminal over it and
  * keeps it mounted while another tab is open (NAV-15, app/surface-registry.tsx, ui-map.md 8). A browser
  * tab is RUN-04's own view, with its toolbar and designed states.
+ * An archived workspace keeps its chat, comment and pull request tabs; a file, terminal or browser tab shows
+ * the archived notice instead, because those are gone until it is restored (renderApp @10062129).
  * Must handle: no tab open (EmptyTabGroup); a file tab without a path (treated as no tab, see active-tab.ts);
  * a terminal that has exited; a browser tab with an unreachable URL (BrowserTab's own state).
  * Test first: search { tab: "pr" } renders the PR tab area; {} renders the empty tab group.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { TerminalTabSlot } from "../../app/surface-registry.tsx";
+import { useWorkspace } from "../../core/hooks.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { BrowserTab } from "../browser-preview/BrowserTab.tsx";
 import { ChatPane } from "../chat/ChatPane.tsx";
 import { FileTab } from "../file-viewer/FileTab.tsx";
 import { PrTab } from "../pr/PrTab.tsx";
+import { ArchivedTabNotice } from "./ArchivedNotice.tsx";
 import { type ActiveTab, activeTabKey, resolveActiveTab } from "./active-tab.ts";
 import { CommentTab } from "./CommentTab.tsx";
 import { EmptyTabGroup } from "./EmptyTabGroup.tsx";
@@ -66,6 +70,11 @@ function TabBody({
 	onSearchChange: TabContentProps["onSearchChange"];
 }) {
 	const key = activeTabKey(tab);
+	const workspace = useWorkspace(workspaceId);
+	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	if (archived && (tab.kind === "terminal" || tab.kind === "file" || tab.kind === "browser")) {
+		return <ArchivedTabNotice workspaceId={workspaceId} />;
+	}
 	switch (tab.kind) {
 		case "session":
 			return (

@@ -3,8 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
 import type { Workspace } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
-import { ArchivedNotice } from "./ArchivedNotice.tsx";
+import { ArchivedNotice, ArchivedTabNotice } from "./ArchivedNotice.tsx";
 import { WorkspaceLayout } from "./WorkspaceLayout.tsx";
 import { WorkspaceStatusIcon } from "./WorkspaceStatusIcon.tsx";
 
@@ -47,14 +46,16 @@ describe("WorkspaceGate", () => {
 		expect(screen.getByText("content")).toBeTruthy();
 	});
 
-	it("shows the archived notice and unarchives on request", () => {
+	it("keeps an archived workspace's tabs, and its tab notice unarchives on request", () => {
 		state.workspace = { state: "ready", data: ws("archived") };
 		state.unarchive.mockResolvedValue({
 			ok: true,
 			value: { needsBranchName: false, uncommittedChangesLost: false },
 		});
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
-		expect(screen.queryByText("content")).toBeNull();
+		expect(screen.getByText("content")).toBeTruthy();
+		cleanup();
+		render(<ArchivedTabNotice workspaceId={id} />);
 		fireEvent.click(screen.getByRole("button", { name: "Unarchive" }));
 		expect(state.unarchive).toHaveBeenCalledWith(id, { branchName: null, clearChats: false });
 	});

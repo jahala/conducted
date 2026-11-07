@@ -31,17 +31,19 @@ describe("PR-07 PrActivityList", () => {
 		]);
 	});
 
-	it("shows commits, reviews, comments and status changes together", () => {
+	it("shows commits and comments together, as Conductor's list does (D078)", () => {
 		const entries: PrActivityEntry[] = [
 			commit("c", 4_000, "Add the activity list"),
 			{
-				kind: "review",
+				kind: "comment",
 				id: "r",
 				at: 3_000,
 				authorLogin: "octocat",
 				authorAvatarUrl: null,
-				state: "changes_requested",
 				body: "Please add a test.",
+				filePath: null,
+				line: null,
+				commentId: "comment-0",
 			},
 			{
 				kind: "comment",
@@ -54,7 +56,7 @@ describe("PR-07 PrActivityList", () => {
 				line: 12,
 				commentId: "comment-1",
 			},
-			{ kind: "status", id: "s", at: 1_000, change: "ready_for_review" },
+			commit("s", 1_000, "Mark the pull request ready"),
 		];
 		render(<PrActivityList entries={entries} order="newest-first" onOpenEntry={vi.fn()} />);
 
@@ -62,7 +64,7 @@ describe("PR-07 PrActivityList", () => {
 		expect(screen.getByText("Please add a test.")).toBeTruthy();
 		expect(screen.getByText("Looks good now.")).toBeTruthy();
 		expect(screen.getByText("src/app.ts:12")).toBeTruthy();
-		expect(screen.getByText("Marked ready for review")).toBeTruthy();
+		expect(screen.getByText("Mark the pull request ready")).toBeTruthy();
 	});
 
 	it("lists an entry with no usable time last, with no time shown", () => {

@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { AgentProgramView } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { AdvancedPage } from "./AdvancedPage.tsx";
 
 const claude: AgentProgramView = {

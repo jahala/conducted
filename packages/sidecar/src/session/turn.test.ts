@@ -13,6 +13,7 @@ import type { AgentSession, TurnCallbacks, TurnInput, TurnOutcome } from "../run
 import { FakeApp } from "../test-support/fake-app.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
+import { until } from "../test-support/until.ts";
 import { LiveStateStore } from "./live-state.ts";
 import { RunGuard as Guard, type RunGuard, type RunNumber } from "./run-guard.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
@@ -233,14 +234,6 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 		resolve = r;
 	});
 	return { promise, resolve };
-}
-
-async function until(check: () => boolean, description: string): Promise<void> {
-	const deadline = Date.now() + 2000;
-	while (!check()) {
-		if (Date.now() > deadline) throw new Error(`Timed out waiting for ${description}`);
-		await new Promise<void>((resolve) => setTimeout(resolve, 0));
-	}
 }
 
 describe("SIDE-04 start and event order", () => {

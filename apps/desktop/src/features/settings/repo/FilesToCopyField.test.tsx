@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import { COPY_PREVIEW_LIMIT, FilesToCopyField, isOutsideRepository } from "./FilesToCopyField.tsx";
 
 afterEach(cleanup);

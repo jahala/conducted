@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StackEntryView } from "../../../core/model.ts";
-import "../../../test/dom-polyfills.ts";
 import { StackView } from "./StackView.tsx";
 
 afterEach(cleanup);

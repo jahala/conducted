@@ -23,7 +23,7 @@
  * request the "Git status" rows come after the PR summary, and the sections follow Conductor's order
  * (renderApp @2273000): Git status, Deployments, Checks, Comments. The rows and their wording are
  * git-status-rows.ts. The PR summary header and the reviewers list are ours; Conductor's Checks tab
- * has neither.
+ * has neither. The header leaves the title to the inline editor, so the title shows once.
  * Must handle: no PR yet (the Git status rows), PR info loading, offline, no GitHub access
  * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
  * says checks need GitHub).

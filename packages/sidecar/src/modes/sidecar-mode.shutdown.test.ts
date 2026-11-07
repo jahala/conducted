@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import { runShutdownSteps, type TimeoutHandle } from "../shutdown.ts";
+import { until } from "../test-support/until.ts";
 import {
 	createShutdownSteps,
 	installSignalHandlers,
@@ -176,10 +177,6 @@ describe("SIDE-19 signals during a slow shutdown", () => {
 		expect(finished).toEqual([0]);
 	});
 });
-
-async function until(check: () => boolean): Promise<void> {
-	while (!check()) await new Promise<void>((resolve) => setTimeout(resolve, 0));
-}
 
 describe("SIDE-19 signal handlers", () => {
 	test("SIDE-19 SIGINT and SIGTERM log under SIGNAL and start the shutdown", () => {

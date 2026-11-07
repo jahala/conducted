@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { RepoScriptsPage } from "./RepoScriptsPage.tsx";
 
 let test: TestContainer | undefined;

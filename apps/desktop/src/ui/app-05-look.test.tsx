@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement, type FunctionComponent, type SVGProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../test/dom-polyfills.ts";
 import { Dialog, DialogContent, type DialogSize } from "./Dialog.tsx";
 import * as icons from "./icons.tsx";
 import { Spinner } from "./Spinner.tsx";

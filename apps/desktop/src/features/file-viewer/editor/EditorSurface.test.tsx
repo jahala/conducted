@@ -7,7 +7,6 @@
 import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import type { EditorSurfaceOptions } from "./codemirror-setup.ts";
 import { EditorSurface } from "./EditorSurface.tsx";
 

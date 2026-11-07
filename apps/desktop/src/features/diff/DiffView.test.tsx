@@ -7,7 +7,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileDiff } from "../../core/api.ts";
-import "../../test/dom-polyfills.ts";
 
 const renderer = vi.hoisted(() => ({
 	failure: null as Error | null,

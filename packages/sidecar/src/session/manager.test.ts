@@ -46,6 +46,7 @@ import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakeProcesses } from "../test-support/fake-processes.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
+import { until } from "../test-support/until.ts";
 import { BatchingEventPublisher } from "./event-batcher.ts";
 import { beginTurn, endTurn, LiveStateStore } from "./live-state.ts";
 import {
@@ -394,14 +395,6 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 		resolve = r;
 	});
 	return { promise, resolve };
-}
-
-async function until(check: () => boolean, description: string): Promise<void> {
-	const deadline = Date.now() + 2000;
-	while (!check()) {
-		if (Date.now() > deadline) throw new Error(`Timed out waiting for ${description}`);
-		await new Promise<void>((resolve) => setTimeout(resolve, 0));
-	}
 }
 
 interface Harness {

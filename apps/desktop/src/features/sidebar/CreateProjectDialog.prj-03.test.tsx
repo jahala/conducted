@@ -16,7 +16,6 @@ import { ServicesProvider } from "../../core/context.tsx";
 import type { Repo } from "../../core/model.ts";
 import type { GithubAccess } from "../../core/services/github.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import {
 	CreateGithubRepoDialog,
 	CreateProjectDialog,

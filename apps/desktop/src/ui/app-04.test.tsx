@@ -1,6 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../test/dom-polyfills.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { Skeleton } from "./Skeleton.tsx";
 
