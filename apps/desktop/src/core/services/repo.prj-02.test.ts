@@ -115,9 +115,6 @@ function makeRepos(): FakeRepos {
 			rows.push(repo);
 			return ok(repo);
 		},
-		async setName() {
-			return ok(undefined);
-		},
 		async setDefaultBranch() {
 			return ok(undefined);
 		},

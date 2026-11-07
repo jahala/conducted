@@ -142,9 +142,6 @@ function makeHarness(options: HarnessOptions = {}) {
 			const row = rows.find((candidate) => candidate.id === id);
 			return ok(row === undefined ? null : { ...row });
 		},
-		async getByPath() {
-			return ok(null);
-		},
 		async getSetupLogPath() {
 			return ok(null);
 		},
@@ -179,7 +176,6 @@ function makeHarness(options: HarnessOptions = {}) {
 				kanbanStatus: "in_progress",
 				port: input.port,
 				pinnedAt: null,
-				notes: null,
 				linkedPaths: [],
 				prNumber: null,
 				prTitle: null,

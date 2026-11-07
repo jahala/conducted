@@ -140,9 +140,9 @@ describe("DATA-06 pruning archived workspaces", () => {
 		const recentChat = await createSession(recent, "recent chat");
 		const boundaryChat = await createSession(boundary, "boundary chat");
 
-		// A note moves updated_at to now, after the archive. The prune must still use archived_at.
+		// A rename moves updated_at to now, after the archive. The prune must still use archived_at.
 		now = current;
-		must(await repos.workspaces.setNotes(old, "noted after the archive"));
+		must(await repos.workspaces.setDisplayName(old, "renamed after the archive"));
 		const storedOld = must(await repos.workspaces.get(old));
 		expect(storedOld?.updatedAt).toBe(current);
 

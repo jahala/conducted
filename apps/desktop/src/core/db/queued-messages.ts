@@ -95,15 +95,8 @@ export const QUEUED_MESSAGES_SQL = {
 	get: `SELECT ${COLUMNS} FROM queued_messages WHERE id = $1`,
 	nextPosition: `SELECT COALESCE(MAX(position), 0) + 1 AS next FROM queued_messages
 		WHERE session_id = $1`,
-	count: "SELECT COUNT(*) AS total FROM queued_messages WHERE session_id = $1",
 	insert: `INSERT INTO queued_messages (${COLUMNS})
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-	/** Takes the first waiting row by position and marks it sending, in one statement. */
-	claimNext: `UPDATE queued_messages SET state = 'sending', updated_at = $1
-		WHERE id = (
-			SELECT id FROM queued_messages WHERE session_id = $2 AND state = 'waiting'
-			ORDER BY position, created_at, id LIMIT 1)
-		RETURNING ${COLUMNS}`,
 	setState: `UPDATE queued_messages SET state = $1, last_error = $2, updated_at = $3
 		WHERE id = $4 AND state = $5`,
 	setContent: `UPDATE queued_messages SET text = $1, attachment_paths = $2, updated_at = $3
@@ -128,18 +121,11 @@ export interface QueuedMessageRepository {
 	listBySession(sessionId: SessionId): Promise<Result<QueuedMessage[]>>;
 	/** QUEUED_MESSAGES_SQL.get. A missing row is `ok(null)`. */
 	get(id: MessageId): Promise<Result<QueuedMessage | null>>;
-	/** QUEUED_MESSAGES_SQL.count. */
-	count(sessionId: SessionId): Promise<Result<number>>;
 	/**
 	 * QUEUED_MESSAGES_SQL.nextPosition then QUEUED_MESSAGES_SQL.insert in one transaction, with
 	 * state `waiting`.
 	 */
 	enqueue(input: NewQueuedMessage): Promise<Result<QueuedMessage>>;
-	/**
-	 * QUEUED_MESSAGES_SQL.claimNext, run with `select` because of RETURNING. `ok(null)` when
-	 * nothing is waiting. The caller checks sessions.queue_paused_at before calling.
-	 */
-	claimNext(sessionId: SessionId): Promise<Result<QueuedMessage | null>>;
 	/**
 	 * QUEUED_MESSAGES_SQL.setState. Compare-and-set from `from`; `ok(false)` when the row was in
 	 * another state. `lastError` is stored with `failed` and cleared otherwise.
@@ -197,15 +183,6 @@ export function createQueuedMessageRepository(
 			const row = rows.value[0];
 			return row === undefined ? ok(null) : queuedMessageFromRow(row);
 		},
-		count: async (sessionId) => {
-			const rows = await selectRows<{ total: number }>(
-				db,
-				QUEUED_MESSAGES_SQL.count,
-				[sessionId],
-				"Counting queued messages",
-			);
-			return rows.ok ? ok(rows.value[0]?.total ?? 0) : err(rows.error);
-		},
 		enqueue: async (input) =>
 			inTransaction(db, "Queuing a message", async (tx) => {
 				const next = await selectRows<{ next: number }>(
@@ -236,17 +213,6 @@ export function createQueuedMessageRepository(
 				);
 				return written.ok ? ok(message) : err(written.error);
 			}),
-		claimNext: async (sessionId) => {
-			const rows = await selectRows<QueuedMessageRow>(
-				db,
-				QUEUED_MESSAGES_SQL.claimNext,
-				[now(), sessionId],
-				"Claiming the next queued message",
-			);
-			if (!rows.ok) return err(rows.error);
-			const row = rows.value[0];
-			return row === undefined ? ok(null) : queuedMessageFromRow(row);
-		},
 		setState: async (id, from, to, lastError) => {
 			const written = await executeStatement(
 				db,

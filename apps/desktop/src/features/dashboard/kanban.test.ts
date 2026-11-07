@@ -27,7 +27,6 @@ function workspace(
 		kanbanStatus: status,
 		port: 55_100,
 		pinnedAt: null,
-		notes: "",
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,

@@ -86,7 +86,6 @@ function sampleWorkspace(changes: Partial<Workspace> = {}): Workspace {
 		kanbanStatus: "in_progress",
 		port: 4100,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,
