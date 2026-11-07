@@ -2,12 +2,20 @@
 	"description:M948441": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "PR-01",
+		"owner": "hand",
+		"note": "Our error reads 'GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.' (core/services/github.ts)."
 	},
 	"description:M952385": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "PR-01",
+		"owner": "hand",
+		"note": "Our error reads 'GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.' (core/services/github.ts)."
 	},
 	"description:M1183257": {
 		"status": "decided",
@@ -66,32 +74,49 @@
 	"description:M3096133": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SIDE-10",
+		"item": "Notification reporting the result of a login-shell environment capture; ours has no such notification and keeps the result inside the sidecar.",
+		"owner": "hand"
 	},
 	"description:M3096269": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SIDE-10",
+		"item": "Notification reporting the result of a login-shell environment capture; ours has no such notification and keeps the result inside the sidecar.",
+		"owner": "hand"
 	},
 	"description:M3140028": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account web sign-in through its proxy.",
+		"by": "hand"
 	},
 	"description:M3799728": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"class": "wording",
+		"backlog": "NAV-14",
+		"owner": "hand",
+		"note": "Our command is titled 'Show uncommitted changes' with no description (core/registries/commands.ts)."
 	},
 	"description:M3847184": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10",
+		"item": "Cloud workspaces forward ports with tables, a strategy, a port range, mappings and an exclusive mode.",
+		"owner": "hand"
 	},
 	"description:M3847345": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10",
+		"item": "Cloud workspaces forward ports with tables, a strategy, a port range, mappings and an exclusive mode.",
+		"owner": "hand"
 	},
 	"description:R629105": {
 		"status": "gap",
@@ -136,12 +161,18 @@
 	"description:R2129942": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our settings save failure reads 'Failed to save setting' (core/services/settings.ts)."
 	},
 	"description:R2668060": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"owner": "hand"
 	},
 	"description:R2990279": {
 		"status": "gap",
@@ -202,7 +233,10 @@
 	"description:R5493845": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-15",
+		"item": "Copying a cloud workspace link reports when the workspace failed to start.",
+		"owner": "hand"
 	},
 	"description:R7860847": {
 		"status": "decided",
@@ -505,14 +539,16 @@
 		"by": "hand"
 	},
 	"description:R8679569": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's server connection error.",
+		"by": "hand"
 	},
 	"description:R8684406": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's server connection error.",
+		"by": "hand"
 	},
 	"description:R8846048": {
 		"status": "matched",
@@ -525,7 +561,11 @@
 	"description:R8846191": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"class": "wording",
+		"backlog": "COMP-06",
+		"owner": "hand",
+		"note": "Our slash command reads 'Restart the agent process to pick up config changes' (SlashCommandExtension.ts)."
 	},
 	"description:R8846351": {
 		"status": "matched",
@@ -538,12 +578,18 @@
 	"description:R8846498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"class": "wording",
+		"backlog": "COMP-06",
+		"owner": "hand",
+		"note": "Our slash command reads 'Choose Codex's personality for this session' (SlashCommandExtension.ts)."
 	},
 	"description:R8846651": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-06",
+		"owner": "hand"
 	},
 	"description:R8846805": {
 		"status": "matched",
@@ -604,7 +650,9 @@
 	"description:R8847728": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-06",
+		"owner": "hand"
 	},
 	"description:R8847864": {
 		"status": "matched",
@@ -625,7 +673,10 @@
 	"description:R9949297": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "The file editor shows an error card when it fails to open.",
+		"owner": "hand"
 	},
 	"description:R10062116": {
 		"status": "gap",
@@ -859,7 +910,10 @@
 	"description:R10921020": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Agents: CLI sign-in and 'Paste code from Claude'",
+		"owner": "hand"
 	},
 	"description:R11006930": {
 		"status": "gap",
@@ -954,17 +1008,26 @@
 	"description:R11099596": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-12",
+		"item": "SSH door: make sure a key exists for cloud workspaces.",
+		"owner": "hand"
 	},
 	"description:R11099855": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-14",
+		"item": "Always allow local commands skips the per-command approval for Run on your Mac.",
+		"owner": "hand"
 	},
 	"description:R11100138": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-14",
+		"item": "Always allow local commands skips the per-command approval for Run on your Mac.",
+		"owner": "hand"
 	},
 	"description:R11101588": {
 		"status": "matched",
@@ -975,9 +1038,10 @@
 		"by": "seed"
 	},
 	"description:R11103142": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Internal tab's use-defaults setting; internal settings are staff tools.",
+		"by": "hand"
 	},
 	"description:R11103551": {
 		"status": "matched",
@@ -1673,12 +1737,20 @@
 	"description:R11302764": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our Scripts page has 'Setup script' and 'Archive script' headings (RepoScriptsPage.tsx)."
 	},
 	"description:R11302999": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"class": "wording",
+		"backlog": "RUN-06",
+		"owner": "hand",
+		"note": "Our row is 'Big terminal mode' (settings registry)."
 	},
 	"description:R11303228": {
 		"status": "decided",
@@ -1693,19 +1765,25 @@
 		"by": "rule:team-wording"
 	},
 	"description:R11303660": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation settings page's cloud environment variables.",
+		"by": "hand"
 	},
 	"description:R11303886": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our repo Prompts page holds the Review, Create PR and Resolve conflicts instructions (RepoPromptsPage.tsx)."
 	},
 	"description:R11304246": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page.",
+		"by": "hand"
 	},
 	"description:R11334566": {
 		"status": "decided",
@@ -1716,7 +1794,10 @@
 	"description:R11400022": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-05",
+		"item": "Archiving asks to stop running agents, with the dialog 'Archive workspace?'.",
+		"owner": "hand"
 	},
 	"description:R11415794": {
 		"status": "gap",
@@ -1743,29 +1824,40 @@
 		"owner": "rule:cite"
 	},
 	"description:R11533583": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A team artifact template's delete confirmation.",
+		"by": "hand"
 	},
 	"description:R11539515": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A team artifact's delete confirmation.",
+		"by": "hand"
 	},
 	"description:R11624015": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CLOUD-08",
+		"item": "Cloud onboarding: 'Workspaces now run in the cloud', connect GitHub, 'Skip'",
+		"owner": "hand"
 	},
 	"description:R11624220": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CLOUD-08",
+		"item": "Cloud onboarding: 'Workspaces now run in the cloud', connect GitHub, 'Skip'",
+		"owner": "hand"
 	},
 	"description:R11624419": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CLOUD-08",
+		"item": "Cloud onboarding: 'Workspaces now run in the cloud', connect GitHub, 'Skip'",
+		"owner": "hand"
 	},
 	"description:R11632319": {
 		"status": "gap",
@@ -1792,24 +1884,30 @@
 		"owner": "rule:cite"
 	},
 	"description:R11633125": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account deep-link sign-in.",
+		"by": "hand"
 	},
 	"description:R11633250": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account deep-link sign-in.",
+		"by": "hand"
 	},
 	"description:R11634706": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"status": "decided",
+		"decision": "D035",
+		"note": "Connecting a Linear account through Conductor's OAuth; ours uses a personal API key (D035).",
+		"by": "hand"
 	},
 	"description:R11634951": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PR-09",
+		"item": "A Linear query suggests repositories for an issue.",
+		"owner": "hand"
 	},
 	"description:R11637139": {
 		"status": "gap",
@@ -1852,14 +1950,16 @@
 		"owner": "rule:cite"
 	},
 	"description:R11660399": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a Prompt.",
+		"by": "hand"
 	},
 	"description:R11660558": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a Prompt.",
+		"by": "hand"
 	},
 	"description:R11709576": {
 		"status": "decided",
@@ -1870,7 +1970,11 @@
 	"description:R11709706": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our Actions page has the heading 'Actions' (RepoActionsPage.tsx)."
 	},
 	"description:R11709825": {
 		"status": "matched",
@@ -1895,7 +1999,11 @@
 	"description:R11737185": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our error reads 'Couldn't load the repository settings' (RepoMiscPage.tsx)."
 	},
 	"description:R12095963": {
 		"status": "gap",
