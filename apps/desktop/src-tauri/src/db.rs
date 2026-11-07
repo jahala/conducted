@@ -115,6 +115,18 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0011_drop_unused_columns.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 12,
+            description: "linked_folders_off_chats",
+            sql: include_str!("../migrations/0012_linked_folders_off_chats.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 13,
+            description: "drop_session_context_window",
+            sql: include_str!("../migrations/0013_drop_session_context_window.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

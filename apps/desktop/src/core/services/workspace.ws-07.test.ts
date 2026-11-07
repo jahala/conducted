@@ -9,6 +9,7 @@ import type { SessionConfig } from "@conducted/protocol";
 import type { WorkspaceId } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import { answerSidecar, deliveredAsAsked } from "../../test/sidecar-answers.ts";
 import { normaliseLinkedPaths } from "./workspace.ts";
 
 const CONFIG: SessionConfig = {
@@ -58,7 +59,29 @@ describe("WS-07 linked paths", () => {
 		expect(roots.value).toEqual([workspace.path, "/code/shared"]);
 	});
 
-	it("puts the folders in every open chat's config for its next message", async () => {
+	it("sends the workspace's linked folders with a chat that is not loaded in memory", async () => {
+		const test = createTestContainer();
+		active = test;
+		const started = await test.container.start();
+		if (!started.ok) throw new Error(started.error.message);
+		const workspace = await seedWorkspace(test.container);
+		const created = await test.container.services.sessions.create(workspace.id, CONFIG);
+		if (!created.ok) throw new Error(created.error.message);
+		const calls = answerSidecar(test, deliveredAsAsked);
+
+		// The chat is not in memory: only its row holds the config, as when its tab is closed.
+		test.container.services.sessions.store.setState({ sessions: {}, byWorkspace: {} });
+		await test.container.actions.workspaces.setLinkedPaths(workspace.id, ["/code/shared"]);
+
+		const sent = await test.container.services.sessions.send(created.value.id, "hello", [], "auto");
+
+		if (!sent.ok) throw new Error(JSON.stringify(sent.error));
+		const send = calls.find((call) => call.method === "sendMessage");
+		expect(send?.params.config).toMatchObject({ additionalDirectories: ["/code/shared"] });
+		await test.container.stop();
+	});
+
+	it("keeps linked folders on the workspace row, not in a chat's stored config", async () => {
 		const test = createTestContainer();
 		active = test;
 		const workspace = await seedWorkspace(test.container);
@@ -70,12 +93,12 @@ describe("WS-07 linked paths", () => {
 		expect(
 			test.container.services.sessions.store.getState().sessions[created.value.id]?.config
 				.additionalDirectories,
-		).toEqual(["/code/shared"]);
+		).toEqual([]);
 		const rows = await test.database.select<{ config: string }>(
 			"SELECT config FROM sessions WHERE id = $1",
 			[created.value.id],
 		);
-		expect(JSON.parse(rows[0]?.config ?? "{}").additionalDirectories).toEqual(["/code/shared"]);
+		expect(JSON.parse(rows[0]?.config ?? "{}").additionalDirectories).toEqual([]);
 	});
 
 	it("stores a linked workspace as its folder path", async () => {

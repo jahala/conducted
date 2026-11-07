@@ -81,8 +81,9 @@
  * lost (`sidecar/resume.ts`).
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
  * AGENT-14 owns `compact`: warm the Codex agent, then ask the sidecar to compact its thread.
- * WS-07 owns `applyLinkedPaths`: a workspace's new linked folders reach every open chat's config,
- * ready for its next message.
+ * WS-07 owns the linked folders a chat runs with: `withLinkedPaths` reads them from the workspace
+ * row for every send, warm and config update, so a chat stores no copy and one whose tab is closed
+ * gets the current folders too.
  * RC-02 owns the `remoteControl` part of the store: each Claude chat's Remote Control link as the
  * sidecar reports it (`applyRemoteControlState`, from the remoteControlState notification) or
  * answers it (`refreshRemoteControl`, through getSessionStatus; a chat the sidecar does not know is
@@ -327,6 +328,21 @@ function compareNewest(a: Session, b: Session): number {
 	return a.id.localeCompare(b.id);
 }
 
+/**
+ * The config the sidecar receives: the workspace's linked folders are attached now, from the
+ * workspace row, so no chat row keeps a copy that can go stale (WS-07).
+ */
+function withLinkedPaths(config: SessionConfig, linkedPaths: readonly string[]): SessionConfig {
+	return { ...config, additionalDirectories: [...linkedPaths] };
+}
+
+/** The config stored on a chat row: linked folders belong to the workspace, not the chat (WS-07). */
+function storedConfig(config: SessionConfig): SessionConfig {
+	return config.additionalDirectories.length === 0
+		? config
+		: { ...config, additionalDirectories: [] };
+}
+
 export interface SessionsServiceDeps {
 	db: Database;
 	repositories: () => Repositories;
@@ -538,7 +554,7 @@ export class SessionsService implements AgentMessenger {
 		const created = await this.#deps.repositories().sessions.create({
 			workspaceId,
 			title: null,
-			config,
+			config: storedConfig(config),
 		});
 		if (!created.ok) return created;
 		const session = created.value;
@@ -788,6 +804,7 @@ export class SessionsService implements AgentMessenger {
 				session.id,
 				workspace.value.workspacePath,
 				resolvedMessageId,
+				paths,
 			);
 			if (!materialized.ok) return materialized;
 			paths = materialized.value;
@@ -845,6 +862,8 @@ export class SessionsService implements AgentMessenger {
 		const firstMessage = last.value === null;
 		this.#setSending(session.id, pending);
 		const resume = this.#resumeFor(session);
+		const linked = await this.#linkedPaths(session.workspaceId);
+		if (!linked.ok) return linked;
 		const result = await this.#deps.sidecar.request("sendMessage", {
 			sessionId: session.id,
 			messageId: pending.messageId,
@@ -853,7 +872,7 @@ export class SessionsService implements AgentMessenger {
 			attachmentPaths: pending.attachmentPaths,
 			delivery: pending.delivery,
 			firstMessage,
-			config: session.config,
+			config: withLinkedPaths(session.config, linked.value),
 			workspace: workspace.value,
 			launch: launch.value,
 			...(resume === null ? {} : { resume }),
@@ -1318,28 +1337,16 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
-	 * WS-07: gives every chat open in a workspace the workspace's new linked folders. The config
-	 * is stored now and travels with the chat's next message (D032), so no agent is restarted for
-	 * a folder it will only need at the next turn.
+	 * The workspace's linked folders, read from its row. The workspace row is their one home
+	 * (WS-07): every sidecar config is composed from it when it is sent.
 	 */
-	async applyLinkedPaths(
-		workspaceId: WorkspaceId,
-		paths: readonly string[],
-	): Promise<Result<void>> {
-		for (const id of [...(this.store.getState().byWorkspace[workspaceId] ?? [])]) {
-			const current = this.store.getState().sessions[id];
-			if (current === undefined) continue;
-			const config: SessionConfig = {
-				...current.config,
-				additionalDirectories: [...paths],
-			};
-			if (sameConfig(current.config, config)) continue;
-			const written = await this.#configWrites.run(id, () =>
-				this.#persistConfig(id, config, false),
-			);
-			if (!written.ok) return written;
+	async #linkedPaths(workspaceId: WorkspaceId): Promise<Result<string[]>> {
+		const found = await this.#deps.repositories().workspaces.get(workspaceId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
-		return ok(undefined);
+		return ok([...found.value.linkedPaths]);
 	}
 
 	#persistConfig(
@@ -1348,6 +1355,7 @@ export class SessionsService implements AgentMessenger {
 		notifySidecar: boolean,
 	): Promise<Result<void>> {
 		return (async () => {
+			const nextConfig = storedConfig(config);
 			const found = await this.#session(id);
 			if (!found.ok) return found;
 			const session = found.value;
@@ -1379,9 +1387,9 @@ export class SessionsService implements AgentMessenger {
 				this.#setConfig(id, storedSession.config, storedSession.updatedAt);
 				return ok(undefined);
 			}
-			if (sameConfig(storedSession.config, config)) return ok(undefined);
+			if (sameConfig(storedSession.config, nextConfig)) return ok(undefined);
 
-			const next = stringifyJson(config, "sessions.config");
+			const next = stringifyJson(nextConfig, "sessions.config");
 			if (!next.ok) return next;
 
 			const at = this.#deps.now();
@@ -1404,11 +1412,13 @@ export class SessionsService implements AgentMessenger {
 				return ok(undefined);
 			}
 
-			this.#setConfig(id, config, at);
+			this.#setConfig(id, nextConfig, at);
 			if (!notifySidecar) return ok(undefined);
+			const linked = await this.#linkedPaths(session.workspaceId);
+			if (!linked.ok) return linked;
 			const applied = await this.#deps.sidecar.request("updateConfig", {
 				sessionId: id,
-				config,
+				config: withLinkedPaths(nextConfig, linked.value),
 			});
 			return applied.ok ? ok(undefined) : applied;
 		})();
@@ -1897,15 +1907,16 @@ export class SessionsService implements AgentMessenger {
 	 * with the composer, so an older agent notification cannot land after a newer user choice.
 	 */
 	async applyAgentConfig(sessionId: SessionId, config: SessionConfig): Promise<Result<void>> {
+		const nextConfig = storedConfig(config);
 		return this.#configWrites.run(sessionId, async () => {
-			let written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+			let written = await this.#deps.repositories().sessions.setConfig(sessionId, nextConfig);
 			for (let attempt = 1; attempt < CONFIG_WRITE_ATTEMPTS && !written.ok; attempt += 1) {
 				// Yield first, so a busy database gets its chance to finish.
 				await new Promise((resolve) => setTimeout(resolve, 0));
-				written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+				written = await this.#deps.repositories().sessions.setConfig(sessionId, nextConfig);
 			}
 			if (!written.ok) return written;
-			this.#setConfig(sessionId, config, this.#deps.now());
+			this.#setConfig(sessionId, nextConfig, this.#deps.now());
 			return ok(undefined);
 		});
 	}
@@ -2344,9 +2355,11 @@ export class SessionsService implements AgentMessenger {
 		const built = await launchFor(session);
 		if (!built.ok) return built;
 		const resume = this.#resumeFor(session);
+		const linked = await this.#linkedPaths(session.workspaceId);
+		if (!linked.ok) return linked;
 		const warm = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: id,
-			config: session.config,
+			config: withLinkedPaths(session.config, linked.value),
 			workspace: workspace.value,
 			launch: built.value,
 			...(resume === null ? {} : { resume }),
@@ -2486,9 +2499,11 @@ export class SessionsService implements AgentMessenger {
 		const launch = await launchFor(session);
 		if (!launch.ok) return launch;
 		const resume = this.#resumeFor(session);
+		const linked = await this.#linkedPaths(session.workspaceId);
+		if (!linked.ok) return linked;
 		const warmed = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: session.id,
-			config: session.config,
+			config: withLinkedPaths(session.config, linked.value),
 			workspace: workspace.value,
 			launch: launch.value,
 			...(resume === null ? {} : { resume }),

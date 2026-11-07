@@ -164,8 +164,8 @@ export interface Session {
 	 */
 	forkResumeNativeMessageId: string | null;
 	unreadCount: number;
+	/** The last used token count an agent reported: a cache of the newest usage event (CHAT-14). */
 	contextUsedTokens: number | null;
-	contextWindowTokens: number | null;
 	queuePausedAt: number | null;
 	closedAt: number | null;
 	lastUserMessageAt: number | null;

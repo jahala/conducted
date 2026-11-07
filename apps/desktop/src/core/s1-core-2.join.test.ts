@@ -500,7 +500,7 @@ describe("s1-core-2 join: REV-04, RUN-02, SET-13, WS-07 and WS-11", () => {
 			expect(
 				test.container.services.sessions.store.getState().sessions[session.id]?.config
 					.additionalDirectories,
-			).toEqual(["/code/shared"]);
+			).toEqual([]);
 		} finally {
 			await test.container.stop();
 			test.close();
