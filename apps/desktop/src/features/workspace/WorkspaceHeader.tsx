@@ -1,6 +1,7 @@
 /**
  * @feature NAV-10 Workspace header
- * Owns: The header at the top of the centre: the repo, the branch with its Copy and Rename menu,
+ * Owns: The header at the top of the centre: the repo with its menu (Repository settings, Open on
+ * GitHub), the branch without the user's prefix with its Copy and Rename menu,
  * the "···" popover that changes the target branch, the folder's name, the Open in menu, and the
  * right panel toggle. The repo's icon is PRJ-05's RepoIconAvatar, the same one the sidebar rows show.
  * Behaviour: ui-map.md 3.1 and 5.3 (branch name menu: Copy, Rename). Measured in Conductor 0.92.1
@@ -19,12 +20,22 @@
  * Test first: Renders the branch and the Open in menu; the toggle button reflects rightPanelOpen.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useActions, useBranches, useRepos, useWorkspace } from "../../core/hooks.ts";
+import type { Repo } from "../../core/model.ts";
+import { githubRepositoryFromRemote } from "../../core/services/github.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronRightIcon, MoreHorizontalIcon, SidebarRightIcon } from "../../ui/icons.tsx";
+import {
+	ArrowUpRightIcon,
+	ChevronRightIcon,
+	GearIcon,
+	MoreHorizontalIcon,
+	SidebarRightIcon,
+} from "../../ui/icons.tsx";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -32,7 +43,9 @@ import { TargetBranchPicker } from "../git-panel/changes/TargetBranchPicker.tsx"
 import { OpenInMenu } from "../open-in/OpenInMenu.tsx";
 import { RepoIconAvatar } from "../sidebar/RepoIcon.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
+import { useBranchPrefix } from "./use-branch-prefix.ts";
 import type { RightPanelControls } from "./WorkspaceLayout.tsx";
+import { branchWithoutPrefix } from "./workspace-name.ts";
 
 export interface WorkspaceHeaderProps {
 	repoId: RepoId;
@@ -45,11 +58,14 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	const repos = useRepos();
 	const actions = useActions();
 	const [renamingBranch, setRenamingBranch] = useState(false);
+	const branchPrefix = useBranchPrefix();
 
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const repo = repos.state === "ready" ? repos.data.find((item) => item.id === repoId) : undefined;
 	const archived = data?.state === "archived";
 	const branch = data?.branch ?? "";
+	// Conductor shows the branch without the user's prefix; Copy and Rename keep the whole name.
+	const shownBranch = branchWithoutPrefix(branch, branchPrefix);
 	const canRename = !archived && branch !== "";
 
 	const copy = (title: string, text: string) => {
@@ -76,12 +92,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	return (
 		<div className="flex h-full min-w-0 items-center gap-2 px-2">
 			<div className="flex min-w-0 shrink items-center gap-2 overflow-hidden">
-				<div className="flex shrink-0 items-center gap-2">
-					{repo === undefined ? null : <RepoIconAvatar repo={repo} />}
-					<span className="max-w-40 truncate text-sm text-fg-muted" title={repo?.name}>
-						{repo?.name ?? ""}
-					</span>
-				</div>
+				{repo === undefined ? null : <RepoMenu repo={repo} />}
 
 				<ChevronRightIcon aria-hidden="true" className="size-3 shrink-0 text-fg-muted" />
 
@@ -125,9 +136,9 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 							canRename ? "cursor-pointer" : "cursor-default",
 							data?.branchIsPlaceholder ? "text-fg-subtle" : "text-fg-muted hover:text-fg",
 						)}
-						title={branch}
+						title={shownBranch}
 					>
-						{branch === "" ? "No branch" : branch}
+						{branch === "" ? "No branch" : shownBranch}
 					</button>
 				</ContextMenu>
 
@@ -173,6 +184,58 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 				onSubmit={(next) => actions.git.renameBranch(workspaceId, next)}
 			/>
 		</div>
+	);
+}
+
+/**
+ * Conductor's repository button at the start of the header (renderApp, the header's repository
+ * menu): the repository's icon and name, opening "Repository settings" (the repository's Misc page)
+ * and, for a GitHub remote, "Open on GitHub".
+ */
+function RepoMenu({ repo }: { repo: Repo }) {
+	const navigate = useNavigate();
+	const actions = useActions();
+	const github = repo.remoteUrl === null ? null : githubRepositoryFromRemote(repo.remoteUrl);
+	const githubUrl =
+		github?.ok === true ? `https://github.com/${github.value.owner}/${github.value.name}` : null;
+	return (
+		<Menu>
+			<MenuTrigger asChild>
+				<button
+					type="button"
+					aria-label={repo.name}
+					className="flex min-w-0 max-w-48 shrink-0 items-center gap-2 rounded-sm px-1 py-0.5 text-fg-muted transition-colors hover:bg-hover hover:text-fg"
+				>
+					<RepoIconAvatar repo={repo} />
+					<span className="min-w-0 truncate text-sm font-medium">{repo.name}</span>
+				</button>
+			</MenuTrigger>
+			<MenuContent align="start">
+				<MenuItem
+					icon={<GearIcon />}
+					onSelect={() =>
+						void navigate({
+							to: "/settings/repos/$repoId/$page",
+							params: { repoId: repo.id, page: "misc" },
+						})
+					}
+				>
+					Repository settings
+				</MenuItem>
+				{githubUrl === null ? null : (
+					<MenuItem
+						icon={<ArrowUpRightIcon />}
+						onSelect={() =>
+							void actions.app.openUrl(githubUrl).then((result) => {
+								if (!result.ok) toastError("Couldn't open GitHub", result.error);
+							})
+						}
+					>
+						Open on GitHub
+					</MenuItem>
+				)}
+			</MenuContent>
+		</Menu>
 	);
 }
 
