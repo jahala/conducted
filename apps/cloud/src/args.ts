@@ -1,6 +1,7 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: the request bodies the routes accept, and the checks each one gets before it reaches the
  * sandbox.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the host seam's git, shell and file calls and
@@ -60,6 +61,7 @@ export const zFileBody = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("exists"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("stat"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("readDir"), path: absolutePath }).strict(),
+	z.object({ operation: z.literal("list"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("mkdirp"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("trash"), path: absolutePath }).strict(),
 ]);
