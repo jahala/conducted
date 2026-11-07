@@ -15,6 +15,9 @@
  * (`conducted-sidecar-<triple>`). The package `build` script runs this file and compiles both CPUs
  * into `apps/desktop/src-tauri/binaries`; PLAT-25 adds `bundle.externalBin` to `tauri.conf.json`,
  * because Tauri refuses to build when a listed file is missing.
+ * Our design choice: the same table names the cloud sandbox's Linux program. The cloud entry script
+ * (`packages/sidecar/src/cloud-build.ts`) asks for it by id, so one builder makes every program from
+ * the same sources and the sandbox image never compiles the sidecar a second way.
  * Test first: `versionLine("0.1.0")` is `conducted-sidecar 0.1.0`, and `externalBinName` for the
  * arm64 target is `conducted-sidecar-aarch64-apple-darwin`.
  */
@@ -31,16 +34,47 @@ export const SIDECAR_PROGRAM_NAME = "conducted-sidecar";
 export const SIDECAR_VERSION: string = packageJson.version;
 
 export interface SidecarTarget {
+	/** The stable name the build script takes as its target parameter. */
+	id: "darwin-arm64" | "darwin-x64" | "linux-x64";
 	arch: "arm64" | "x86_64";
 	/** The value for `bun build --compile --target`. */
-	bunTarget: "bun-darwin-arm64" | "bun-darwin-x64";
+	bunTarget: "bun-darwin-arm64" | "bun-darwin-x64" | "bun-linux-x64-baseline";
 	/** The Rust target triple Tauri puts after the program name. */
-	rustTriple: "aarch64-apple-darwin" | "x86_64-apple-darwin";
+	rustTriple: "aarch64-apple-darwin" | "x86_64-apple-darwin" | "x86_64-unknown-linux-gnu";
 }
 
+/** The two programs Tauri bundles for the Mac. */
 export const SIDECAR_TARGETS: readonly SidecarTarget[] = [
-	{ arch: "arm64", bunTarget: "bun-darwin-arm64", rustTriple: "aarch64-apple-darwin" },
-	{ arch: "x86_64", bunTarget: "bun-darwin-x64", rustTriple: "x86_64-apple-darwin" },
+	{
+		id: "darwin-arm64",
+		arch: "arm64",
+		bunTarget: "bun-darwin-arm64",
+		rustTriple: "aarch64-apple-darwin",
+	},
+	{
+		id: "darwin-x64",
+		arch: "x86_64",
+		bunTarget: "bun-darwin-x64",
+		rustTriple: "x86_64-apple-darwin",
+	},
+];
+
+/**
+ * The program the Cloudflare sandbox image runs. It is the baseline build: the cloud's x64 CPUs do
+ * not promise AVX2, and the non-baseline build crashed under the spike's emulation with "Illegal
+ * instruction" (cloud-spike-2026-11-06.md).
+ */
+export const CLOUD_SIDECAR_TARGET: SidecarTarget = {
+	id: "linux-x64",
+	arch: "x86_64",
+	bunTarget: "bun-linux-x64-baseline",
+	rustTriple: "x86_64-unknown-linux-gnu",
+};
+
+/** Every target the builder can make, for the build script's target parameter. */
+export const ALL_SIDECAR_TARGETS: readonly SidecarTarget[] = [
+	...SIDECAR_TARGETS,
+	CLOUD_SIDECAR_TARGET,
 ];
 
 /** The target for one CPU name, or an error value that names the CPU. */
@@ -48,6 +82,15 @@ export function targetForArch(arch: string): Result<SidecarTarget> {
 	const target = SIDECAR_TARGETS.find((candidate) => candidate.arch === arch);
 	if (target === undefined) {
 		return err(appError("sidecar_unknown_cpu", `No sidecar build for CPU ${arch}.`));
+	}
+	return ok(target);
+}
+
+/** The target for one build id, or an error value that names the id. */
+export function targetForId(id: string): Result<SidecarTarget> {
+	const target = ALL_SIDECAR_TARGETS.find((candidate) => candidate.id === id);
+	if (target === undefined) {
+		return err(appError("sidecar_unknown_target", `No sidecar build for target ${id}.`));
 	}
 	return ok(target);
 }
@@ -73,8 +116,11 @@ export function externalBinName(target: SidecarTarget): string {
  */
 export const COMPILE_FLAGS: readonly string[] = ["--compile", "--compile-autoload-package-json"];
 
-/** The `bun build --compile` command line for one CPU, with the output folder given. */
-export function compileArguments(target: SidecarTarget, outDir: string): readonly string[] {
+/**
+ * The `bun build --compile` command line for one target, with the exact output file given. The app
+ * targets use Tauri's file name; the cloud build names its own file, so both go through here.
+ */
+export function compileFileArguments(target: SidecarTarget, outFile: string): readonly string[] {
 	return [
 		"bun",
 		"build",
@@ -83,8 +129,25 @@ export function compileArguments(target: SidecarTarget, outDir: string): readonl
 		"--target",
 		target.bunTarget,
 		"--outfile",
-		join(outDir, externalBinName(target)),
+		outFile,
 	];
+}
+
+/** The `bun build --compile` command line for one CPU, with the output folder given. */
+export function compileArguments(target: SidecarTarget, outDir: string): readonly string[] {
+	return compileFileArguments(target, join(outDir, externalBinName(target)));
+}
+
+/**
+ * Builds one target into `outFile`. `run` performs one command line and returns its exit code.
+ * This is the one builder the Mac bundle and the sandbox image use; only the target changes.
+ */
+export function buildSidecar(
+	target: SidecarTarget,
+	outFile: string,
+	run: (argv: readonly string[]) => number,
+): number {
+	return run(compileFileArguments(target, outFile));
 }
 
 /**
