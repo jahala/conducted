@@ -7,7 +7,9 @@ Checked at commit a90f5f5 (detached). Read only. CI-class failures (types, lint,
 - MUST `apps/desktop/src/core/sidecar/handlers.ts:122-129`: when `workspaceDiff.diffForSession` fails, the handler answers `{ diff: result.error.message }`. The sidecar tool then shows an error message to the agent as if it were the diff, with `isError: false`. That is a fake success. Fix: the `getWorkspaceDiff` handler should return the failed `Result` (the `listMcpServers` handler in `packages/sidecar/src/rpc/handlers.ts` already does this), so `RpcAppToolBackend.getWorkspaceDiff` gets an `err` and the tool sets `isError: true`.
 - MUST `packages/sidecar/src/tools/get-workspace-diff.ts:42`: the `git_busy` branch (the "merge or rebase is in progress" text, the issue's busy-text item) has no producer. No code outside the tests emits `git_busy`, and `git.agentDiff` (`apps/desktop/src/core/services/git.ts:543`) never checks for a busy repository. The test builds the error by hand, so the busy-text item is not covered end to end. Fix: have `agentDiff` return `appError("git_busy", ...)` when a merge or rebase is under way, and add a test through the handler.
 - LATER `apps/desktop/src/core/services/git.ts:543-552`: the issue item "get-diff saves a checkpoint, then runs git diff against it" (services-map 3.4.6) is not done. `agentDiff` runs `git diff` against the merge base with no checkpoint. Either implement it or set the item aside with a note in the item list.
+  Outcome: open, item SIDE-12 — `agentDiff` still diffs against the resolver's base with no checkpoint (`apps/desktop/src/core/services/git.ts:1295-1310`), and `docs/plans/items/system.tsv:1386` still marks the item `covered`.
 - LATER `apps/desktop/src/core/sidecar/handlers.ts:130-133`: `getDiffComments`, `addDiffComments`, `getTerminalOutput` and `setTargetBranch` still throw `notImplemented` (REV-03, RUN-07, GIT-08). The sidecar side is wired, but four of the seven tools return "Not implemented: ..." to the agent in the live app. `diffComments.forSession` exists in the container and nothing calls it. These are tracked placeholders, so the follow-up is to make sure REV-03, RUN-07 and GIT-08 each list the handler wiring as a checklist item.
+  Outcome: fixed already, 075e4b4e (REV-03), e0708008 (RUN-07) and a9e54fc1 (GIT-08) — the four handlers now call real ports (`apps/desktop/src/core/sidecar/handlers.ts:167-207`).
 - MUST (header) `packages/sidecar/src/tools/in-process-server.ts:10-11`: the header says a NotImplemented placeholder "surfaces as an error result that names the feature id". The code does this only by accident, because `messageOf` returns "Not implemented: ID". No test covers it. Fix: add a test where `execute` throws `notImplemented("REV-03")` and the result text contains `REV-03`, or cut the line.
 - MUST (header) `packages/sidecar/src/tools/backend.ts:14-15`: the header says a 20 s diff timeout gives an error value. The test `the diff request carries its 20 second limit` only checks that `timeoutMs` is passed. The timeout itself lives in `peer.ts` and is tested there, but nothing links the two, and the tool-level behaviour (a timeout becomes an error result) has no test. Fix: add a backend test with a fake `app.request` that returns `err(rpc_timeout)`, and check that the tool returns `isError: true`.
 - MUST (header) `packages/sidecar/src/tools/backend.ts:17-19`: "updateProgress never fails: when no app is connected the update is dropped". The code ignores the boolean that `notify` returns, so a refused notification (invalid params, send failure) is dropped without a log. Only the connected case is tested. Fix: log at debug when `notify` returns false, and add a test for the not-connected case.
@@ -18,10 +20,15 @@ Checked at commit a90f5f5 (detached). Read only. CI-class failures (types, lint,
   - `alwaysLoad` on AskUserQuestion and UpdateProgress (the header promises AskUserQuestion is never deferred)
   - the annotations of any tool other than `GetWorkspaceDiff`
   - the "built-in AskUserQuestion is disabled" item (`CLAUDE_DISALLOWED_TOOLS`) as a full path, though `runners/claude/constants.ts` names a test for it
+    Outcome: open, item SIDE-12 — the four backend tools now have tests, but `unexpected_answer`, a throwing `app.request` (`app_request_failed`), `alwaysLoad`, other tools' annotations and the full `CLAUDE_DISALLOWED_TOOLS` path are still untested in `packages/sidecar/src/tools/tools.test.ts`.
 - LATER `packages/sidecar/src/tools/tools.test.ts:112-121`: the test reads the SDK's private `_registeredTools`. An SDK update can break it without any behaviour change.
+  Outcome: open, item SIDE-12 — the test still reaches into the SDK's private `_registeredTools` (`packages/sidecar/src/tools/tools.test.ts:136-138`).
 - LATER `packages/sidecar/src/tools/registry.ts:25-32`: seven `as unknown as AnyTool` casts. A generic `defineTool` helper would remove them.
+  Outcome: open, item SIDE-12 — seven `as unknown as AnyTool` casts remain (`packages/sidecar/src/tools/registry.ts:26-32`).
 - LATER `packages/sidecar/src/tools/registry.test.ts` and the "registry follows the switches" test in `tools.test.ts:210-224`: the same registry assertions (UpdateProgress off, all tools on) are in two files. Keep one.
+  Outcome: open, item SIDE-12 — both files still assert the same registry switches (`packages/sidecar/src/tools/registry.test.ts:14` and `tools.test.ts:223-233`).
 - LATER issue item "Availability flags ... a change restarts the agent": `runners/claude/config-change.ts:40-42` handles it. There is no SIDE-12 test that ties the restart to the tool list.
+  Outcome: wrong — `runners/claude/config-change.test.ts:43` is `tool switches need a restart`, which ties a tool-list change to a restart; the test has been there since the scaffold (3b100adb).
 
 ## SIDE-16 Slash commands and MCP server listing
 
@@ -29,8 +36,11 @@ Checked at commit a90f5f5 (detached). Read only. CI-class failures (types, lint,
 - MUST `packages/sidecar/src/models/slash-and-mcp.ts:44-48` against `packages/protocol/src/rpc.ts:278-295`: `McpServerStatusView` has only name, status and toolCount. The protocol answer has scope, transport, error and tools, and the issue says the dialog shows status and logs. `handlers.ts` passes the narrower value on, so error text and tool names never reach the UI. Fix: use the protocol's server type in the lister, and map the runner's error text and tool list into it.
 - MUST (header) `packages/sidecar/src/models/slash-and-mcp.ts:6-7` and the issue item "Typing / also lists the project's own slash commands": every entry that is not `mcp__` is marked `builtin`. Project, user and plugin commands carry the wrong `source`, though the protocol enum has `project`, `user` and `plugin`. The header admits this as a design choice, but the issue item cannot be told apart from builtins in the menu. Fix: have the runner contract report the source, or cut the header claim and move the item.
 - LATER `packages/sidecar/src/models/slash-and-mcp.ts:35-37`, `:112`: the optional `McpListingRunner.listMcpServers` plus the `found.value as McpListingRunner` cast is a second, parallel runner contract. See the first finding for the fix.
+  Outcome: fixed already, 5358bfcd — `listMcpServers` is now an optional method on the one `Runner` contract (`packages/sidecar/src/runners/runner.ts:231`) and both Claude and Codex implement it, so the parallel `McpListingRunner` type and cast are gone.
 - LATER `packages/sidecar/src/models/slash-and-mcp.ts:57-58`: `kind: "skill"` is set for every Codex entry. This is right today (Codex lists only skills), but it breaks if Codex adds builtin commands.
+  Outcome: open, item SIDE-16 — the Codex runner still sets `kind: "skill"` on every listed entry (`packages/sidecar/src/runners/codex/codex-runner.ts:361`).
 - LATER no test covers `buildHandlers.listSlashCommands` and `listMcpServers` (the `workspacePath === undefined` branch is `notImplemented("SIDE-22")`), or the issue items "Slash /mcp-status opens the dialog" and "MCP status button in the composer". Those are UI items for COMP-06 and SET-05, which should list them.
+  Outcome: fixed already, 62f7c047 — `slash-and-mcp.test.ts` now covers both listers (SIDE-22 included), and the UI items exist: `features/settings/agents/McpStatusDialog.tsx` (SET-05) and `McpServersSection.tsx`.
 
 ## SIDE-17 Context and plan usage
 
@@ -39,8 +49,11 @@ Checked at commit a90f5f5 (detached). Read only. CI-class failures (types, lint,
 - MUST (header) `packages/sidecar/src/models/usage.ts:13`: "a refused or timed-out plan usage call: logged at debug". Only the refusal is logged. The timeout path returns `[]` silently. Fix: log in the `null` case of `planLimits`, and assert it in the hang-guard test.
 - MUST (header) `packages/sidecar/src/models/usage.ts:21-23`: the header says "Each window reports its own reset time." This is a stray line inside the "Test first" block. Move it into the test names or delete it.
 - LATER `packages/protocol/src/rpc.ts:248`: the answer has an `account` field. The reader never fills it. The account and plan rows (CHAT-28) are not served.
+  Outcome: fixed already, 62f7c047 — `SessionUsageReader` now reads `account` beside the plan limits (`packages/sidecar/src/models/usage.ts:237-245`), through `accountFromSdk`/`accountFromCodex` (`:97,116`).
 - LATER `packages/sidecar/src/models/usage.test.ts:129-146`: the hang-guard test fires the timer at once. That is good and deterministic, but it checks only the order of events, not that the late result is ignored after the timer. Add an assertion that the late value does not appear.
+  Outcome: fixed already, ae947ca1 — the hang-guard test now releases the late answer and re-asserts the result is unchanged (`packages/sidecar/src/models/usage.test.ts:196-241`).
 - LATER the issue items "Cost per turn is computed from the running total" and the turn-footer card items are not served by any file in this feature. They belong to CHAT-14 and the turn model, which should list them.
+  Outcome: open, item CHAT-14 — the rows still sit under SIDE-17 in `docs/plans/items/system.tsv:440` and `:2236` rather than with the turn-footer feature.
 
 ## SIDE-24 Chat titles and branch names from a short run of the user's agent
 
@@ -50,7 +63,9 @@ Checked at commit a90f5f5 (detached). Read only. CI-class failures (types, lint,
 - MUST (header) `packages/sidecar/src/session/utility-prompt.ts:13-14`: "the launch is never logged" and the `launch` parameter is read nowhere. The sidecar ignores `params.launch` completely, so API keys and extra environment never reach the throwaway session, and an agent that needs a key will fail while the app believes it passed one. The header admits this for SIDE-21. The param is validated, sent and dropped. Fix: either apply `launch` to the runner start (`env` merge) or take it out of the request until SIDE-21 lands. The test `logs the phase and duration without the launch secrets` passes whether or not the launch is used.
 - MUST (header) `packages/sidecar/src/session/utility-prompt.ts:19-20` and the item "AcpOneShotPrompt tag ... log their phase and duration": the "started" and "completed" lines are written at debug level, so at the default level there is no log line for a successful call, only for a failure. The header says "a log line records the phase and duration". Fix: log the completed line at info, or relax the header.
 - LATER `packages/sidecar/src/session/utility-prompt.ts:111-120`: the throwaway workspace context uses invented values (`port: 1`, `repoRootPath` equal to `cwd`, `targetBranch: ""`). The header names this as a design choice, but they are invented defaults. A `UtilityWorkspace` type that the runner reads would remove them.
+  Outcome: open, item SIDE-24 — the throwaway context still invents `repoRootPath: params.cwd`, `targetBranch: ""` and `port: 1` (`packages/sidecar/src/session/utility-prompt.ts:91-94`).
 - LATER `packages/sidecar/src/session/utility-prompt.test.ts` (the timeout test): it waits on a real 5 ms `setTimeout`, with no fake timer. Under load it is not wrong, but it is a fixed wait.
+  Outcome: open, item SIDE-24 — the timeout test still waits on a real `setTimeout` with `timeoutMs: 5` (`packages/sidecar/src/session/utility-prompt.test.ts:408-419`).
 - LATER `apps/desktop/src/core/services/chat-titles.test.ts`: untested paths:
   - the 80-character title cut
   - the 30-character branch cut and its trailing-separator trim
@@ -58,8 +73,12 @@ Checked at commit a90f5f5 (detached). Read only. CI-class failures (types, lint,
   - `fastMode` passed to the request
   - a model-missing error for `suggestBranchName`
   - characters outside `[a-z0-9._/-]`
+    Outcome: fixed already, 5358bfcd — each path now has a test: 80-character cut (`chat-titles.test.ts:213`), 30-character branch cut (`:319`), a "New chat" title (`:220`), `fastMode` (`:231`), model missing (`:208,314`) and characters outside the branch set (`:325`).
 - LATER `apps/desktop/src/core/services/chat-titles.ts:77-98` and `:116-137`: the two methods repeat the same request, log and error block. One private `ask(prompt, failureMessage)` removes it.
+  Outcome: open, item SIDE-24 — `suggestChatTitle` and `suggestBranchName` still repeat the model, launch, request, log and error block (`apps/desktop/src/core/services/chat-titles.ts:73-143`); there is no private `ask` helper.
 - LATER `apps/desktop/src/core/services/chat-titles.ts:51`: the field comment says `firstAnswer` is "cut to what fits a short prompt". The service does not cut it, and the caller does not exist yet. Cut the comment or truncate in the service.
+  Outcome: fixed already, 5358bfcd — the field comment now says the title prompt carries the answer whole (`apps/desktop/src/core/services/chat-titles.ts:58-59`).
 - LATER the checklist items "After the first message the branch is renamed ... with an escape hatch" (the rename) and the account-page consumer list for data privacy are not here by design (WS-04, SET-02). They should be named in those features.
+  Outcome: fixed already, 075e4b4e — `ChatTitleService` is in the container and `renameBranchAfterFirstMessage` calls it after the first message (`apps/desktop/src/core/container.ts:590,737`, `core/services/workspace.ts:1270-1339`).
 
 Summary: SIDE-12 12 findings (5 MUST, 7 LATER), SIDE-16 6 findings (3 MUST, 3 LATER), SIDE-17 7 findings (4 MUST, 3 LATER), SIDE-24 11 findings (5 MUST, 6 LATER).

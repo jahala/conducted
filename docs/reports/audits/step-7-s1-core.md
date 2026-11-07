@@ -38,14 +38,19 @@ Read from `git show overnight/step-7:<path>` and the diff against main. Nothing 
     - "A turn cut off by a crash is shown as 'interrupted'": the resume test checks stored events, but no test checks the screen (`TurnItem.tsx:60`).
 
 15. **LATER** `tunnel.ts` `request`: after a timeout, the pending request stays registered in the endpoint until restart or stop. A late answer is ignored, but the entry leaks. Fix: reject the pending id on timeout (library has no per-id cancel, so track ids in the tunnel).
+    Outcome: fixed already, 59393e00 — the timeout callback now rejects the pending entry through `endpoint.client.receive(createJSONRPCErrorResponse(...))` after the race (`apps/desktop/src/core/sidecar/tunnel.ts:242-253`).
 
 16. **LATER** `tunnel.ts` `#reconnect`: if the second `ensureStarted` fails, `#ready` stays an Err forever. Every request fails with that error until the next restart signal. Fix: retry with a backoff, or clear `#ready` so the next request tries again.
+    Outcome: fixed already, 87eb35f1 — a failed `ensureStarted` now schedules `#startReconnect` after `backoff.fail()`, so another attempt runs without a new signal (`apps/desktop/src/core/sidecar/tunnel.ts:477-491`).
 
 17. **LATER** `tunnel.ts` `RPC_TIMEOUTS_MS`: the numbers are labelled "Our design choice", but nothing in the research cites them. Fix: cite the services-map 1.5 values if it has them, or record the choice in `docs/decisions.md`.
+    Outcome: open, item CHAT-18 — `RPC_TIMEOUTS_MS` still carries "Our design choice" with no research citation (`apps/desktop/src/core/sidecar/tunnel.ts:100-113`), and `docs/decisions.md` has no entry for these values.
 
 18. **LATER** `handlers.ts`: `getDiffComments`, `addDiffComments`, `getTerminalOutput`, `setTargetBranch`, `progress`, `agentConfigChanged`, `interactionClosed` and `goalChanged` still call `notImplemented` with other feature ids (REV-03, RUN-07, GIT-08, CHAT-13, SIDE-20, CHAT-11, COMP-10). The header's `@feature CHAT-18` and "one handler per method" overstate this. Fix: say which handlers are live, or accept it because the stubs name their owners. `container.ts` already wires the real ports for four of them, so the stubs hide working code.
+    Outcome: fixed already, 62f7c047 — `apps/desktop/src/core/sidecar/handlers.ts` has no `notImplemented` left; every handler calls a port.
 
 19. **LATER** `handlers.chat-18.test.ts` header says the test checks that the ack is sent. The ack belongs to `EventIngest`. The test uses a fake ingest, so "sends the ack" is untested here. Fix: reword the "Test first" line or add a case with the real `EventIngest`.
+    Outcome: fixed already, 87eb35f1 — the test header now says a `deliverEvent` request for a stored event answers `persisted: true`, with no ack claim (`apps/desktop/src/core/sidecar/handlers.chat-18.test.ts:1-5`).
 
 Behaviour against Conductor (D020, D022): reconnect and interrupted marking follow sessions.md 8. The missing pieces are findings 4 and 12.
 

@@ -84,7 +84,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::error::{CommandError, CommandResult, blocking};
 use crate::process_group;
@@ -1171,7 +1171,7 @@ pub const ALLOWED_PROGRAMS: &[&str] = &[
 
 /// The folders a program may live in: the system bin folders, the package-manager trees whose
 /// links point into their own installation folders, and the app's own bin folders.
-pub fn program_roots(app: &AppHandle) -> Vec<PathBuf> {
+pub fn program_roots<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {
     let mut roots = vec![
         PathBuf::from("/bin"),
         PathBuf::from("/sbin"),
@@ -1287,8 +1287,8 @@ pub async fn shell_run(
 
 /// Starts a program and returns at once. The result arrives as `shell://done`.
 #[tauri::command]
-pub async fn shell_start(
-    app: AppHandle,
+pub async fn shell_start<R: Runtime>(
+    app: AppHandle<R>,
     state: State<'_, ShellState>,
     id: String,
     mut command: ShellCommandRequest,
