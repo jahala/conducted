@@ -100,7 +100,7 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - Claude Remote Control (D019): a "Remote Control" item in the composer's "+" menu, after Plan mode, and, while on, a chip after the mode chips that opens its status; Conductor turns chat modes on from "+" and shows a mode that is on as a chip ("Auto-accept edits"). Its settings page stays under Agents & environment, since it is about agent chats.
 - Helper programs and the Cursor SDK rows: on Advanced, beside the managed agent programs, because Conductor's Advanced holds the app's technical paths and programs.
 - The Linear key form: behind "Connect" on Account's Linear row, where Conductor connects Linear.
-- The GitHub token row, the sign-in method and "Check again": on Account, under the GitHub connection row they belong to.
+- The GitHub token field, the sign-in method and "Check again": in the "GitHub" dialog that Account's GitHub row opens ("Manage" or "Connect"), where Conductor keeps its GitHub authentication choices.
 - "Add to backlog" for local projects: the outlined "Add to backlog ⌥↵" button beside Create in the new-workspace dialog, Conductor's own look for its cloud version, with its switch on Experimental and the saved workspaces on the Backlog page.
 - The agent switch in the model picker: the Agent and Model submenus above Effort, and the agent's name beside each model in search, inside Conductor's picker frame.
 - The optional message on the approval card's "No": one more full-width row right under "No", drawn as Conductor's question card draws its "Other…" row, since the message goes only with "No".
@@ -118,7 +118,9 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - The plan file link: at the start of the plan bar's one row, before "Sending to"; Conductor's bar has only its controls and shows the plan in the chat's plan card.
 - The chat history's search field: at the top of Conductor's closed-chats popover, for a workspace with many closed chats.
 - The Loadout slot's choices (model, effort, fast mode, Remove): a menu on the slot, where Conductor opens its chat-bound model picker; the first slot takes Claude Code models only, since new chats start with Claude Code. Pi's models: a column after OpenCode.
-- The Default models rows Conductor keeps inside its pickers: the review effort, thinking and fast mode right after Review model, the default Codex thinking level after Codex personality, and "Models shown in the picker" last.
+- Review model: Conductor's picker, holding the review effort and fast mode, lists Claude Code's models only, since a review chat starts from the default chat config, whose agent is Claude Code.
+- The Default models rows Conductor keeps inside its pickers and ours cannot reach: the Codex thinking level for reviews right after Review model, the default Codex thinking level after Codex personality, and "Models shown in the picker" last.
+- "Clear" for a shortcut: a ghost button after Reset on the Keyboard shortcuts row, since Conductor's row has no way to unbind a shortcut.
 
 ## The owner's rules
 
