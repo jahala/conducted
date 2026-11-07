@@ -109,28 +109,8 @@ describe("SET-07 RepoMiscPage", () => {
 				"Do not move or delete the workspace subdirectories. Instead, archive workspaces in Conducted.",
 			),
 		).toBeTruthy();
-		expect(
-			screen.getByRole("button", { name: "Branch new workspaces from" }).textContent,
-		).toContain(repo.defaultBranch);
-	});
-
-	it("saves a changed remote name and ignores the shown default", async () => {
-		const { container } = await renderPage();
-		const updateConfig = vi
-			.spyOn(container.actions.projects, "updateConfig")
-			.mockResolvedValue(ok(undefined));
-
-		const remote = screen.getByLabelText("Remote origin") as HTMLInputElement;
-		expect(remote.value).toBe("");
-		expect(remote.placeholder).toBe("origin");
-		fireEvent.blur(remote);
-		expect(updateConfig).not.toHaveBeenCalled();
-
-		fireEvent.change(remote, { target: { value: "upstream" } });
-		fireEvent.blur(remote);
-
-		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ remoteName: "upstream" });
+		// The branch new workspaces start from is on the repository's Git page, as in Conductor.
+		expect(screen.queryByRole("button", { name: "Branch new workspaces from" })).toBeNull();
 	});
 
 	it("refuses a preview URL that is not a URL", async () => {
@@ -189,29 +169,5 @@ describe("SET-07 RepoMiscPage", () => {
 		expect(await screen.findByRole("dialog", { name: "Change repository icon" })).toBeTruthy();
 		expect(screen.getByLabelText("Search emoji")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Remove emoji" })).toBeTruthy();
-	});
-
-	it("changes the branch new workspaces start from", async () => {
-		const { repo, container } = await renderPage();
-
-		const trigger = screen.getByRole("button", { name: "Branch new workspaces from" });
-		expect(trigger.textContent).toContain(repo.defaultBranch);
-		fireEvent.click(trigger);
-
-		const option = await screen.findByRole("option", { name: /develop/ });
-		fireEvent.click(option);
-
-		await waitFor(async () => {
-			const rows = await test?.database.select<{ default_branch: string }>(
-				"SELECT default_branch FROM repos WHERE id = $1",
-				[repo.id],
-			);
-			expect(rows?.[0]?.default_branch).toBe("develop");
-		});
-		expect(
-			(container.services.repo.store.getState().reposById[repo.id]?.defaultBranch ?? null) as
-				| string
-				| null,
-		).toBe("develop");
 	});
 });

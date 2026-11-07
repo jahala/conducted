@@ -497,13 +497,23 @@ describe("GIT-04 git header state machine", () => {
 		expect(reviewer.action?.id).toBe("approve");
 	});
 
-	it("labels Merge with the repository's merge method", () => {
-		const labelFor = (mergeMethod: PullRequest["mergeMethod"]) =>
+	// Conductor's GitHub button reads "Merge" and names a squash or rebase in its tooltip; a merge
+	// commit has no tooltip of its own (renderApp Main _j.mergeMethodTooltip).
+	it("labels Merge and names the repository's merge method in its tooltip", () => {
+		const actionFor = (mergeMethod: PullRequest["mergeMethod"]) =>
 			computeGitHeader(inputs({ git: gitState({ pullRequest: pullRequest({ mergeMethod }) }) }))
-				.action?.label;
-		expect(labelFor("squash")).toBe("Squash and merge");
-		expect(labelFor("rebase")).toBe("Rebase and merge");
-		expect(labelFor("merge")).toBe("Create a merge commit");
+				.action;
+		expect(actionFor("squash")).toEqual({
+			id: "merge",
+			label: "Merge",
+			tooltip: "Squash and merge",
+		});
+		expect(actionFor("rebase")).toEqual({
+			id: "merge",
+			label: "Merge",
+			tooltip: "Rebase and merge",
+		});
+		expect(actionFor("merge")).toEqual({ id: "merge", label: "Merge" });
 	});
 
 	it("hides Merge from a viewer without write access", () => {
@@ -538,8 +548,8 @@ describe("GIT-04 git header state machine", () => {
 			}),
 		);
 		expect(header.action?.id).toBe("merge");
-		expect(header.action?.label).toBe("Squash and merge");
-		expect(header.action?.tooltip).toBeUndefined();
+		expect(header.action?.label).toBe("Merge");
+		expect(header.action?.tooltip).toBe("Squash and merge");
 	});
 
 	it("names a stack blocker only when the pull request itself could merge", () => {

@@ -2,6 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ShortcutOverrides } from "../../core/registries/commands.ts";
 import type { GitHeader as GitHeaderModel } from "../../core/status/git-header.ts";
+import {
+	ArrowDownIcon,
+	ArrowUpIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	MessageSquareIcon,
+} from "../../ui/icons.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs } from "./GitPanelTabs.tsx";
 import { ReviewButton } from "./ReviewButton.tsx";
@@ -40,13 +47,86 @@ describe("REV-01 git header", () => {
 		expect(onAction).toHaveBeenCalledWith("merge");
 	});
 
-	it("shows the user's own key binding on the button", () => {
+	// Conductor names the shortcut in the button's tooltip, not on the button (renderApp r9t, Tje).
+	it("shows the user's own key binding in the button's tooltip", async () => {
 		keys.overrides = { "pr.merge": ["Cmd+Shift+K"] };
 		render(<GitHeader model={mergeModel} onAction={vi.fn()} />);
 		const button = screen.getByRole("button", { name: /Merge/ });
-		expect(button.textContent).toContain("K");
-		expect(button.textContent).not.toContain("M⌘");
-		expect(button.textContent).not.toMatch(/⇧⌘M/);
+		expect(button.textContent).toBe("Merge");
+		fireEvent.focus(button);
+		const tooltip = await screen.findByRole("tooltip");
+		expect(tooltip.textContent).toContain("K");
+		expect(tooltip.textContent).not.toContain("M⌘");
+		expect(tooltip.textContent).not.toMatch(/⇧⌘M/);
+	});
+
+	// Conductor's header buttons each lead with a 12 px icon (renderApp r9t @2219500): the pull
+	// request arrow for the agent's and the pull request's actions, arrows for pull and push, a
+	// speech bubble for comments and the merge mark for auto-merge.
+	it.each([
+		["commit_and_push", "Commit and push", GitPullRequestArrowIcon],
+		["pull", "Pull", ArrowDownIcon],
+		["push", "Push", ArrowUpIcon],
+		["resolve", "Resolve", GitPullRequestArrowIcon],
+		["resolve_incompatible", "Resolve", GitPullRequestArrowIcon],
+		["add_comments_to_chat", "Add all comments to chat", MessageSquareIcon],
+		["ready_for_review", "Ready for review", GitPullRequestArrowIcon],
+		["fix_errors", "Fix errors", GitPullRequestArrowIcon],
+		["toggle_automerge", "Automerge", GitMergeIcon],
+		["approve", "Approve PR", GitPullRequestArrowIcon],
+		["merge", "Merge", GitPullRequestArrowIcon],
+		["merge_stack", "Merge stack", GitPullRequestArrowIcon],
+	] as const)("leads the %s button with Conductor's icon", (id, label, Icon) => {
+		const model: GitHeaderModel = {
+			kind: "ready_to_merge",
+			title: "Ready to merge",
+			tone: "success",
+			action: { id, label },
+		};
+		render(<GitHeader model={model} onAction={vi.fn()} />);
+		const button = screen.getByRole("button", { name: new RegExp(label) });
+		const expected = render(<Icon />)
+			.container.querySelector("path")
+			?.getAttribute("d");
+		expect(expected).toBeTruthy();
+		expect(button.querySelector("svg path")?.getAttribute("d")).toBe(expected);
+	});
+
+	// Conductor's tooltips: the label and the shortcut for Commit and push and Fix errors; for
+	// Merge, the merge method or the stack line, then the shortcut. Pull and Push have none.
+	it.each([
+		["commit_and_push", "Commit and push", undefined, "Commit and push"],
+		["fix_errors", "Fix errors", undefined, "Fix errors"],
+		["merge", "Merge", "Squash and merge", "Squash and merge"],
+		["merge", "Merge", undefined, "Merge"],
+	] as const)("gives %s the tooltip %s", async (id, label, tooltip, expected) => {
+		const model: GitHeaderModel = {
+			kind: "ready_to_merge",
+			title: "Ready to merge",
+			tone: "success",
+			action: { id, label, ...(tooltip === undefined ? {} : { tooltip }) },
+		};
+		render(<GitHeader model={model} onAction={vi.fn()} />);
+		fireEvent.focus(screen.getByRole("button", { name: label }));
+		const shown = await screen.findByRole("tooltip");
+		expect(shown.textContent).toContain(expected);
+		// Each of these actions has a default shortcut, shown as key caps after the words.
+		expect(shown.querySelector("kbd")).not.toBeNull();
+	});
+
+	it("gives Pull no tooltip", () => {
+		const model: GitHeaderModel = {
+			kind: "behind",
+			title: "Behind by 1 commit",
+			tone: "attention",
+			action: { id: "pull", label: "Pull" },
+		};
+		render(<GitHeader model={model} onAction={vi.fn()} />);
+		const button = screen.getByRole("button", { name: "Pull" });
+		// A tooltip's trigger carries its open state; a button without a tooltip has none.
+		expect(button.getAttribute("data-state")).toBeNull();
+		fireEvent.focus(button);
+		expect(screen.queryByRole("tooltip")).toBeNull();
 	});
 
 	it("shows the title once", () => {

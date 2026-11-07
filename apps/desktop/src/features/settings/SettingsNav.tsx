@@ -5,6 +5,9 @@
  * Behaviour: ui-map.md 6 (layout and navigation groups; Back and Esc leave; Cmd+F focuses search).
  * Conductor's Back sits in the window's title bar row (renderApp prl, @11773158): a 32 px drag
  * region with 8 px above, the button at its right with "Esc" as its tooltip.
+ * A repository is one entry (Conductor's hrl): the open one is in medium text with its sections in
+ * an indented column with a rule at its left, each with its icon as the other pages have; a click
+ * opens the repository at Environment.
  * Must handle: the active page marked (aria-current), no repositories (the group says so), many
  * repositories (the picker has type-ahead), and a repository page applying to the picked project.
  * Test first: the active page link has aria-current and the others do not.
@@ -16,11 +19,13 @@ import {
 	ArrowLeftIcon,
 	BotIcon,
 	CpuIcon,
+	FileCodeIcon,
 	FlaskIcon,
 	GitBranchIcon,
 	GlobeIcon,
 	KeyboardIcon,
 	KeyIcon,
+	MousePointerClickIcon,
 	PaletteIcon,
 	PlugIcon,
 	SlidersIcon,
@@ -29,7 +34,9 @@ import {
 } from "../../ui/icons.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
 import {
+	DEFAULT_REPO_SETTINGS_PAGE,
 	REPO_SETTINGS_PAGES,
+	type RepoSettingsPageId,
 	SETTINGS_NAV_GROUP_TITLES,
 	type SettingsNavGroup,
 	type SettingsTarget,
@@ -53,6 +60,18 @@ const GROUPS_BEFORE_REPOSITORIES: readonly SettingsNavGroup[] = [
 	"agents_and_environment",
 ];
 const GROUPS_AFTER_REPOSITORIES: readonly SettingsNavGroup[] = ["more"];
+
+/** Each repository section's 16px icon: Conductor's git-branch, key, file-code, pointer and sliders. */
+const REPO_PAGE_ICONS: Record<
+	RepoSettingsPageId,
+	(props: SVGProps<SVGSVGElement>) => ReactElement
+> = {
+	git: GitBranchIcon,
+	environment: KeyIcon,
+	scripts: FileCodeIcon,
+	actions: MousePointerClickIcon,
+	misc: SlidersIcon,
+};
 
 /** Each page's 16px icon in the nav (Conductor gives every entry one). */
 const PAGE_ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
@@ -149,10 +168,17 @@ export function SettingsNav({
 								<div key={repo.id} className="flex flex-col gap-0.5">
 									<button
 										type="button"
-										className={linkClass(false)}
+										className={cn(
+											"flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-hover",
+											open ? "font-medium text-fg" : "text-fg-muted hover:text-fg",
+										)}
 										aria-expanded={open}
 										onClick={() =>
-											onNavigate({ kind: "repo", repoId: repo.id as RepoId, page: "scripts" })
+											onNavigate({
+												kind: "repo",
+												repoId: repo.id as RepoId,
+												page: DEFAULT_REPO_SETTINGS_PAGE,
+											})
 										}
 									>
 										<span
@@ -163,8 +189,9 @@ export function SettingsNav({
 										</span>
 										<span className="truncate">{repo.name}</span>
 									</button>
-									{open
-										? REPO_SETTINGS_PAGES.map((page) => {
+									{open ? (
+										<div className="mt-1 ml-4 flex flex-col gap-1 border-l border-border pl-2">
+											{REPO_SETTINGS_PAGES.map((page) => {
 												const isActive =
 													activeKey ===
 													settingsTargetKey({
@@ -172,21 +199,24 @@ export function SettingsNav({
 														repoId: repo.id as RepoId,
 														page: page.id,
 													});
+												const Icon = REPO_PAGE_ICONS[page.id];
 												return (
 													<button
 														key={page.id}
 														type="button"
-														className={cn(linkClass(isActive), "pl-9")}
+														className={linkClass(isActive)}
 														aria-current={isActive ? "page" : undefined}
 														onClick={() =>
 															onNavigate({ kind: "repo", repoId: repo.id as RepoId, page: page.id })
 														}
 													>
-														{page.title}
+														<Icon className="size-4 shrink-0" />
+														<span className="truncate">{page.title}</span>
 													</button>
 												);
-											})
-										: null}
+											})}
+										</div>
+									) : null}
 								</div>
 							);
 						})

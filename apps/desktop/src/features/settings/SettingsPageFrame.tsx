@@ -1,6 +1,7 @@
 /**
  * @feature SET-02 Settings page frame
- * Owns: the common frame of every settings page: title, description, sections, the designed
+ * Owns: the common frame of every settings page: title, description, an optional action at the
+ * title's right, sections, the designed
  * loading and error states of the settings store, and the notice that lists settings-file entries
  * the store dropped. `useSettingsLoad` reads that state from the settings store for a page.
  * Behaviour: ui-map.md 6 and 7.3 to 7.4 (loading skeletons with role status, error cards);
@@ -58,6 +59,8 @@ export interface SettingsPageFrameProps extends SettingsLoad {
 	description: ReactNode | null;
 	/** The setting to scroll to and highlight, when the page opened from search. */
 	focusSettingKey: string | null;
+	/** A button at the title's right, as Conductor's Environment page has (renderApp Nv). */
+	action?: ReactNode;
 	children: ReactNode;
 }
 
@@ -69,6 +72,7 @@ export function SettingsPageFrame({
 	onRetry,
 	dropped,
 	focusSettingKey,
+	action,
 	children,
 }: SettingsPageFrameProps) {
 	useEffect(() => {
@@ -104,9 +108,12 @@ export function SettingsPageFrame({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<header className="flex flex-col gap-1">
-				<h1 className="text-2xl font-medium text-fg">{title}</h1>
-				{description ? <p className="text-sm text-fg-muted">{description}</p> : null}
+			<header className="flex items-start justify-between gap-4">
+				<div className="flex min-w-0 flex-col gap-1">
+					<h1 className="text-2xl font-medium text-fg">{title}</h1>
+					{description ? <p className="text-sm text-fg-muted">{description}</p> : null}
+				</div>
+				{action === undefined ? null : <div className="shrink-0">{action}</div>}
 			</header>
 			{dropped.length === 0 ? null : (
 				<Alert>

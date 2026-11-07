@@ -3,8 +3,10 @@
  * Owns: the list of settings pages, their groups and titles, and the parsing of the route's page
  * string into a typed target.
  * Behaviour: ui-map.md 6, "Navigation": Personal (General, Account, Appearance, Keyboard shortcuts,
- * Default models, Git), Agents and environment (Agents, Environment), Repositories (Scripts,
- * Actions, Prompts, Misc per repository), More (Experimental, Advanced), in that order.
+ * Default models, Git), Agents and environment (Agents, Environment), Repositories, More
+ * (Experimental, Advanced), in that order. A repository's sections are Conductor's (renderApp m5e
+ * and cdi): Git, Environment, Scripts, Actions and Misc, in that order; a repository opens at
+ * Environment (renderApp eWe). The custom instructions are rows of its Actions section.
  * Page ids follow Conductor's route names (ui-map.md header: key-bindings). Titles are ours.
  * Our design choice: Conductor shows its "Remote control" page only for local organisations; ours
  * (RC-04) is always there, under Agents & environment, since it is about agent chats. Connections
@@ -35,7 +37,7 @@ export type UserSettingsPageId =
 	| "experimental"
 	| "advanced";
 
-export type RepoSettingsPageId = "scripts" | "actions" | "prompts" | "misc";
+export type RepoSettingsPageId = "git" | "environment" | "scripts" | "actions" | "misc";
 
 export type SettingsTarget =
 	| { kind: "user"; page: UserSettingsPageId }
@@ -63,11 +65,15 @@ export const USER_SETTINGS_PAGES: readonly {
 ];
 
 export const REPO_SETTINGS_PAGES: readonly { id: RepoSettingsPageId; title: string }[] = [
+	{ id: "git", title: "Git" },
+	{ id: "environment", title: "Environment" },
 	{ id: "scripts", title: "Scripts" },
 	{ id: "actions", title: "Actions" },
-	{ id: "prompts", title: "Prompts" },
 	{ id: "misc", title: "Misc" },
 ];
+
+/** The section a repository opens at, as in Conductor. */
+export const DEFAULT_REPO_SETTINGS_PAGE: RepoSettingsPageId = "environment";
 
 export const SETTINGS_NAV_GROUP_TITLES: Readonly<Record<SettingsNavGroup, string>> = {
 	personal: "Personal",

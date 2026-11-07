@@ -177,8 +177,9 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	repoPage("settings-repo-git", "atlas: Git", "git", "Remote origin"),
+	repoPage("settings-repo-environment", "atlas: Environment", "environment", "Env files"),
 	repoPage("settings-repo-scripts", "atlas: Scripts", "scripts", "Setup script"),
-	repoPage("settings-repo-actions", "atlas: Actions", "actions", "Actions"),
-	repoPage("settings-repo-prompts", "atlas: Prompts", "prompts", "Prompts"),
+	repoPage("settings-repo-actions", "atlas: Actions", "actions", "Code review preferences"),
 	repoPage("settings-repo-misc", "atlas: Misc", "misc", "Misc"),
 ];
