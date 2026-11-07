@@ -27,6 +27,7 @@ Files read: `core/services/graphite.ts`, `core/services/github.ts` (stack parts)
    - `graphite.ts` header: "`gt` missing (the probe says so …)". The probe result is cached for the first `cwd` and for all repositories (`#installed`). Research caches it forever too, which is fine, but a probe error is also cached, so one transient error stays until restart. Do not cache an `err` result.
 
 10. **LATER. Missing-`gt` probe differs from the research** (`gh-commands.ts:~470`). `command -v gt` is replaced by running `gt --version` with `okExitCodes: [0, 1, 127]`. This is fine only because the runner turns a missing program into `process_spawn`. The extra exit codes do nothing for `run`. Remove them or add a test that a missing program reads as "not installed".
+Outcome: fixed already, 30a388db — `graphite.pr-08.test.ts:222` adds "treats a missing gt program as no Graphite, not an error", so the missing-program path is now covered (the extra exit codes are unchanged at `core/git/gh-commands.ts:504`).
 
 11. **LATER. Test strength.**
     - `graphite.pr-08.test.ts` covers parse, timeout constant, newest-answer, poll cadence, off switch and checkout. Good.
@@ -36,11 +37,15 @@ Files read: `core/services/graphite.ts`, `core/services/github.ts` (stack parts)
     - `git.pr-08.test.ts` covers the diff target and `gt checkout`. "PR and stack range diffs … returning resolved or unresolved" and "Diff view mode range shows a PR or stack range" have no test I could find.
     - `stack-view.pr-08.test.tsx` and the Changes-tab test both assert real behaviour, except as noted in finding 3.
     - `github.pr-08.container.test.ts` has one test that checks only the off switch.
+Outcome: open, item PR-08 — the range-diff scope now has tests (`git.pr-08.test.ts:227-260`), but `dispose()` timers, two repositories polling separately and the real 30 s timeout are still untested.
 
 12. **LATER. Unchecked checklist items.** I found no code or test for these: "Switch branch?" when an agent is running is built in `StackView` only, and `GitService.switchBranch` itself does not check for a running agent. "PR and stack range diffs check both commit ids, fetch any missing, find the merge base…" and "Diff view mode range" are not found. "Use GitHub stacked PRs enables the stack view and stack merges" is partly kept (view and merge, not the agent prompt). "Stack sync errors: … abort markers" is covered by the service. The `GraphiteService` has no 5 s "visible repo" gating (finding 8).
+Outcome: open, item PR-08 — the range diff and its fetch are now built (`core/git/stack-range.ts`, `git.pr-08.test.ts:227-260`), and reads no longer start a poll (`graphite.pr-08.test.ts:235-246`), but `GitService.switchBranch` still has no running-agent check (`core/services/git.ts:1930-1936`; only `StackView` asks first).
 
 13. **LATER. Duplicated logic.** The "stacked PRs off → `github_stacks_disabled`" check is written three times in `github.ts` (`:2836`, `:2866`, `:2910`). Move it into one helper. `readStack` and `GithubServiceDeps.graphite` take a hand-written structural type (`:1094`) instead of the `GraphiteService` interface, which makes a second description of the same method.
+Outcome: open, item PR-08 — the check is now written twice (`core/services/github.ts:3048-3056,3102-3110`), not three times, and `graphite` is still a hand-written structural type (`:1263`).
 
 14. **LATER. Engineering rules.** Listeners and timers: `GraphiteService.dispose` is called by `container.stop()` (`container.ts:1236`), fine. `useStack` refetches every 60 s with no overlap guard, but TanStack Query keeps only the newest result per key, so it counts as fine. A fake that repeats ids: not found.
+Outcome: wrong — this records checks that pass, not a defect: `graphite.dispose()` is still called by `container.stop()` (`apps/desktop/src/core/container.ts:1367`) and `useStack` still uses `refetchInterval: 60_000` (`core/hooks/github.ts:106`).
 
 Summary: PR-08 has 9 MUST and 5 LATER findings; the install message is wrong (MUST 1), and "Ready for review" marks the wrong pull request (MUST 3).

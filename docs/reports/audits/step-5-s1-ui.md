@@ -13,10 +13,15 @@ Across the batch: the backlog rows are `done`, but three of the five features ar
 - MUST `core/container.ts:542`: the quit handler does `if (!updates.isSafeToQuit()) return;` and nothing else. The quit request is swallowed with no feedback. The checklist says "Quit asks whether agents are idle", and nothing asks the user. Wire a confirm or a deferred quit.
 - MUST (duplicate) `core/container.ts:525` and `app/command-dispatcher.ts:505`: both subscribe to `platform.app.onDeepLink`. Once both run, every link is handled twice (`openLink` and `commandForDeepLink`). `app/deep-link-routes.ts` (NAV-17) is a third parser. Give deep links one subscriber.
 - LATER `core/container.ts:511`: `void platform.notifications.setDockBadge(...)` drops a failed result. Log it.
+Outcome: fixed already, 9bc7e9f2 — `updateDockBadge` now logs a failed `refreshDockBadge` result (`apps/desktop/src/core/container.ts:1154-1158`).
 - LATER `core/container.ts:~530`: `wired` is set before the awaits and never reset, so a failed `wireAfterStart` cannot be retried. This is fine while start runs once, but say so in a comment.
+Outcome: fixed already, 9bc7e9f2 — a comment now says `wired` is set once and a failed `wireAfterStart` is not retried because start runs once per container (`apps/desktop/src/core/container.ts:1161-1164`).
 - LATER `app/providers.tsx:~28`: `redactVariables` only looks at key names. A mutation variable such as a chat message body or a file path goes to the log in full. Decide whether that is acceptable and say so.
+Outcome: open, item APP-01 — `redactVariables` still redacts only values under a sensitive key name (`apps/desktop/src/app/providers.tsx:25-39`), and nothing records that a message body or path may be logged whole.
 - LATER `app/startup.app-01.test.ts:126`: "reports a failure when a service is not built yet" mocks `container.start` to throw a `Not implemented` message. It tests a placeholder. Replace it with a real thrown error.
+Outcome: fixed already, 9bc7e9f2 — the test now throws a real `Error("The settings file could not be read.")` and checks the failed settings phase (`apps/desktop/src/app/startup.app-01.test.ts:151-170`).
 - LATER Checklist items with no test I could find: "Services reached through one typed actions object and a service hook"; the "settings load first" container test exists, but "each service gets its own narrow dependency object" has none.
+Outcome: open, item APP-01 — no test asserts the typed actions object / service hook or that each service receives its own narrow dependency object.
 - Wired into live paths: no (see the first finding).
 
 ## CHAT-08 Tool card registry and the cards
@@ -25,9 +30,13 @@ Across the batch: the backlog rows are `done`, but three of the five features ar
 - MUST `features/chat/tools/ToolCard.tsx:33-45`: every tool card mounts its own `window` listener, and each re-subscribes when `expandAll` changes. A chat with 500 tool calls has 500 listeners. This is fixed by the previous item.
 - MUST `features/chat/tools/ToolCard.tsx:48`: the error boundary is `NotBuiltYet`. Its message for a crashed card is "Tool: Bash: This part failed to load." and `NotBuiltYet`'s purpose is scaffold placeholders (APP-04). Use the real `ErrorBoundary` (`ui/ErrorBoundary.tsx`) and log the error. There is no test for a card that throws, though the header lists it under "Must handle".
 - LATER `features/chat/tools/cards/EditCard.tsx:22`: the retry note says "Claude Code has to retry ..." for every agent, including Codex. The checklist quotes that text for Claude Code only. Show it only for Claude Code calls.
+Outcome: open, item CHAT-08 — a failed edit in any agent still shows the Claude Code retry note (`apps/desktop/src/features/chat/tools/cards/EditCard.tsx:24,51`).
 - LATER `features/chat/tools/ToolCard.test.tsx:15`: the test mocks `core/hooks.ts` and only checks Ctrl+O turning Garry mode on. Nothing covers turning it off, a key press with Cmd held, or the card reading the setting. After the fix above, test through the dispatcher.
+Outcome: fixed already, fefdb6d5 — the Ctrl+O shortcut is now tested through the root dispatcher on the real chat list, both on and off (`apps/desktop/src/features/chat/MessageList.test.tsx:228-247`).
 - LATER `features/chat/tools/ToolCardFrame.tsx:76`: `stripAnsi` duplicates the ANSI pattern in `platform/memory.ts:158`, with a different regex. Keep one helper in `packages/shared` if both are needed.
+Outcome: open, item CHAT-08 — two different ANSI regexes remain: `ToolCardFrame.tsx:81` and `platform/memory.ts:265`.
 - LATER Checklist items with weak or no test: "Codex collaborating-agent tool card" (`SendMessageCard` has no test in `chat-08-cards.test.tsx`); "Context7 and Linear MCP cards" (only the generic split is tested); "Garry Mode" setting toggle in the settings page (not in this batch). The `TodoCard`, `TaskXCard`, `MonitorCard`, `ImageViewCard`, `NodeReplCard`, `ToolSearchCard`, `ScheduleWakeupCard` and plan-mode cards have no test. The registry test only checks that a component exists, not that it renders.
+Outcome: open, item CHAT-08 — most cards now have tests (`chat-20-cards.test.tsx`, `TodoCard.test.tsx`, `AskUserQuestionCard.test.tsx`, plan-mode cards), but Context7/Linear MCP cards and the Garry Mode setting toggle still have no dedicated test.
 - Registry typing (`Record<CanonicalTool, ...>`) is sound, and the "unknown" fallback has a test.
 
 ## NAV-03 Sidebar
@@ -39,13 +48,21 @@ Across the batch: the backlog rows are `done`, but three of the five features ar
 - MUST (shortcuts do nothing) `features/sidebar/WorkspaceRow.tsx:122` shows a `⌘1` to `⌘9` hint, but no code handles `workspace.switch1..9`, `workspace.previous` or `workspace.next` (registry only: `core/registries/commands.ts:607-697`; `core/services/command-runner.ts` has no case for them; no `useCommandHandler` caller exists). The checklist items "Cmd+1 to Cmd+9" and "Cmd+Alt+ArrowUp/Down" are not built and have no test. The hint is also hard-coded `⌘` instead of the live binding (the nav rows do use `useLiveShortcut`).
 - MUST (duplicated rule) `features/sidebar/GroupedWorkspaces.tsx:~150`: the numbering of rows for Cmd+1..9 is computed here from group order. The future handler needs the same list. Put the ordered id list in `sidebar-view.ts` so there is one home.
 - LATER `features/sidebar/GroupedWorkspaces.tsx:169-171`: three `void actions.settings.set(...)` calls on each change write all three settings and drop failures. Write only what changed and report a failure.
+Outcome: fixed already, 8e446814 — `changeView` now builds only the options that differ and reports a failed write with `toastError` (`apps/desktop/src/features/sidebar/GroupedWorkspaces.tsx:389-405`).
 - LATER `features/sidebar/WorkspaceList.tsx:38,50`: "Try again" calls `window.location.reload()`. It reloads the whole window instead of re-querying. The test only checks the button exists, not what it does.
+Outcome: fixed already, fefdb6d5 — "Try again" now restarts the failed service, with a toast on failure (`apps/desktop/src/features/sidebar/WorkspaceList.tsx:8,41-53`), and the header says it does not reload the window.
 - LATER `features/sidebar/WorkspaceRow.tsx:90`: `Date.now()` is read inside render, and nothing re-renders the row, so "5m" never advances. Take time as an input and tick once a minute at the list level (engineering.md: "time and ids are inputs").
+Outcome: fixed already, fefdb6d5 — `WorkspaceRow` takes `now: number` as a prop (`apps/desktop/src/features/sidebar/WorkspaceRow.tsx:67-68`), and the list refreshes it every minute (`GroupedWorkspaces.nav-03.test.tsx:336`).
 - LATER Checklist items not implemented, though the row is `done`: line counts and "Colored sidebar diffs" (needs GIT-04), "Draft" badge, status matrix on the row icon, subtitle "Planning..." (the model's `WorkspaceStatus` has no planning label, `features/workspace/status-text.ts` has no case), sections and Pinned section from NAV-04 (a `SectionList.tsx` and `PinnedSection.tsx` exist in the same folder but `GroupedWorkspaces` does not use them, which is a risk of two list implementations). The headers say these are "left out until built"; the issue's "Done when" says every item works.
+Outcome: open, item NAV-03 — line counts (`WorkspaceRow.tsx:135-138`), the Draft marker (`DraftMarker.tsx`), sections and Pinned (NAV-04) are now built, but the animated status matrix is still left out (WS-09) and "Planning..." still has no case because `WorkspaceStatus` carries no planning label (`status-text.ts:8-10`).
 - LATER `features/workspace/status-text.ts`: ellipsis is `…`, the research text uses `...`. Pick one on purpose and note it in the header.
+Outcome: fixed already, fefdb6d5 — the header now records the one-ellipsis-character choice on purpose (`apps/desktop/src/features/workspace/status-text.ts:8-9`).
 - LATER `features/workspace/WorkspaceStatusIcon.tsx`: every "active" row renders a `role="status"` spinner. 300 rows give 300 live regions. Make the icon decorative in the list and let the subtitle carry the name.
+Outcome: fixed already, 4180388b — `WorkspaceStatusIcon` takes `decorative` and wraps the active spinner in `aria-hidden` when set (`apps/desktop/src/features/workspace/WorkspaceStatusIcon.tsx:29-45`), and the sidebar row passes `decorative` (`features/sidebar/WorkspaceRow.tsx:214`).
 - LATER `features/sidebar/sidebar.test.tsx` and `GroupedWorkspaces.nav-03.test.tsx`: the grouped-list test mocks `WorkspaceRow` and `ViewOptionsMenu`, and `sidebar.test.tsx` mocks `GroupedWorkspaces`. No test covers group collapse, the `+` button, writing the view options to settings and reading them back, or 300 workspaces (engineering.md: test at real size).
+Outcome: fixed already, 8e446814 — `GroupedWorkspaces.nav-03.test.tsx` now covers the `+` row, group collapse, Cmd+1..9 skipping collapsed groups and saving only the changed view option (`:201-336`); only the 300-workspace size test is still absent.
 - Checklist items with no test: group collapse, `+` on project header, view-option persistence, Cmd+1..9, Cmd+Alt+Up/Down, relative time updating, line counts, Draft badge, "Planning...", error retry action.
+Outcome: open, item NAV-03 — group collapse, `+`, view-option persistence, Cmd+1..9 and relative time now have tests; Cmd+Alt+Up/Down, line counts, Draft badge, "Planning..." and the error retry action still have none.
 
 ## NAV-14 Shortcut and menu dispatcher
 
@@ -56,7 +73,9 @@ Across the batch: the backlog rows are `done`, but three of the five features ar
 - MUST `app/command-dispatcher.ts:496`: a menu pick calls `dispatchCommand` without `isEnabled`, while the key path checks it (`:472`). A disabled command can run from the menu. The header lists "a command that is disabled" under "Must handle". Add the check to `dispatchCommand`.
 - MUST (not built) The checklist item "Key hints follow the user's rebinds" and the header's "a hint component reads the live binding" have no component in this file. `useLiveShortcut` (core/hooks.ts:382) covers only the sidebar nav rows. Row hints, tooltips and the palette were not migrated.
 - LATER `app/command-dispatcher.test.ts` and `command-dispatcher.hooks.test.tsx`: the tests are good for the pure parts. Missing: a test that the Ctrl+O handler in CHAT-08 goes through the dispatcher, a `"menu"` scope test with a real Radix menu, a test that a handler registered in a component is removed when the component unmounts in StrictMode (the hook's effect re-registers), and a test for `menu.setShortcuts` rejecting.
+Outcome: open, item NAV-14 — the Ctrl+O path is now tested through the dispatcher (`features/chat/MessageList.test.tsx:228-247`), but a real Radix menu scope, a StrictMode unmount and a rejecting `menu.setShortcuts` still have none.
 - LATER `app/command-dispatcher.ts:496`: a menu event for an id the registry knows but that nothing handles falls to `services.commands.run`; if that returns a not-implemented error, the user sees nothing (only a log line). Show a toast.
+Outcome: fixed already, e61be5b0 — a failed command now logs and shows `toastError("Couldn't run …")` (`apps/desktop/src/app/command-dispatcher.ts:722-725`), with a test at `command-dispatcher.hooks.test.tsx:187`.
 
 ## REV-02 Diff viewer
 
@@ -70,12 +89,20 @@ Across the batch: the backlog rows are `done`, but three of the five features ar
 - MUST (false header) `features/diff/DiffView.tsx:17` ("a comment on a line that no longer exists (shown as outdated at the file top)") and `features/diff/diff-options.ts:~15` ("a theme name the renderer does not know (fall back to its default, reported in the log)"): neither is implemented. The theme code only checks for `""` and `"default"`.
 - MUST (bug, likely) `features/diff/DiffToolbar.tsx:28`: the width is measured on the toolbar's own `min-w-0` flex container, which is as wide as its buttons (well under `SPLIT_MIN_WIDTH = 560`). Split view will be disabled in real use. jsdom reports width 0, so the tests never see it. Measure the tab or pane, and pass the width in as a prop.
 - LATER `core/services/file-diff.ts:49`: `textBytes` counts UTF-16 units, not bytes, so the "25 MB" cache limit can be off by up to 2x.
+Outcome: fixed already, 9bc7e9f2 — `textBytes` now measures UTF-8 bytes with `utf8.encode(text).length` (`apps/desktop/src/core/services/file-diff.ts:53`).
 - LATER `core/services/file-diff.ts:112,150`: `fs.stat` runs twice per uncached load (once in `load`, once in `readGuardFacts`).
+Outcome: open, item REV-02 — an uncached load still stats once in `load` (`file-diff.ts:135`) and again in `readGuardFacts` (`:96`).
 - LATER `core/services/file-diff.ts:198`: a failed `readText` of a non-empty file is reported as `binary: true`. A permissions error shows "Binary file changed".
+Outcome: fixed already, 9bc7e9f2 — a failed `readText` that is not `fs_not_found` now returns the error instead of `binary: true` (`apps/desktop/src/core/services/file-diff.ts:250-253`).
 - LATER `core/services/file-diff.ts:108`: when a newer request makes this one stale, the old answer is still returned to the caller (only the cache write is skipped). The header says it is "dropped". Keep the behaviour, change the header, or return a stale marker.
+Outcome: fixed already, 9bc7e9f2 — the header now says a late answer for an older key is not cached but the caller still receives it (`apps/desktop/src/core/services/file-diff.ts:15-16`).
 - LATER `core/services/git.ts:~590` (`#applyViewed`): one `stat` per changed file on every poll (5,000 files means 5,000 stats). Also the fingerprint is always the working-tree file, even for committed scopes. And `viewed-files/<ws>.json` has no removal (data-model.md:52 says "removed with the workspace", owner WS-10), so the file grows until WS-10 lands. Note it on the WS-10 row.
+Outcome: open, item REV-02 — the viewed-file removal now happens with the workspace (`core/services/workspace.ts:44`, WS-10), but `#applyViewed` still stats each viewed file on every poll and fingerprints the working tree for every scope (`apps/desktop/src/core/services/git.ts:1480-1502`).
 - LATER `features/diff/diff-types.ts:29`: `ligatures` is in `DiffPreferences` and `toDiffOptions` ignores it.
+Outcome: fixed already, fefdb6d5 — `toDiffOptions` now adds `NO_LIGATURES_CSS` when ligatures are off (`apps/desktop/src/features/diff/diff-options.ts:28-43`).
 - LATER `features/diff/DiffView.tsx:~230`: the error boundary's `resetKey` does not include the preferences, so after "Failed to open editor", changing layout does not retry.
+Outcome: fixed already, 9bc7e9f2 — the boundary's `resetKey` now includes layout, wrap, hide-whitespace and entire-file preferences (`apps/desktop/src/features/diff/DiffView.tsx:297-303`).
 - Checklist items with no test: Viewed checkbox, Ctrl+V, ArrowUp/Down (x2), checkpoint restore, "Diff state" settings round trip (`using_split_view`, `wrap_lines`), `Actions.git.setViewed` through the actions object.
+Outcome: open, item REV-02 — the Viewed checkbox, ArrowDown, checkpoint restore and `setViewed` now have tests (`rev-01-components.test.tsx:48-61,157`, `checkpoint.rev-09.test.ts`); Ctrl+V, ArrowUp and the Diff-state settings round trip still have none.
 
 Summary: APP-01 11 findings (6 MUST, 5 LATER); CHAT-08 7 (3 MUST, 4 LATER); NAV-03 13 (6 MUST, 7 LATER); NAV-14 8 (6 MUST, 2 LATER); REV-02 16 (9 MUST, 7 LATER).
