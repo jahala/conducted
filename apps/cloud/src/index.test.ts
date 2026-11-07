@@ -67,6 +67,7 @@ describe("CLOUD-03 the Worker's front door", () => {
 			turnActive: false,
 			alarmAt: null,
 			instance: "basic",
+			backups: [],
 		});
 	});
 });

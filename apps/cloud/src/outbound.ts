@@ -16,6 +16,8 @@
  * Test first: replaces the sandbox's placeholder Anthropic key with the Worker's real key.
  */
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { WORKSPACE_NAME } from "./args.ts";
+import { turnEndWorkspaceName } from "./backup.ts";
 import type { Env } from "./env.ts";
 import {
 	gitHubAuthFor,
@@ -97,6 +99,16 @@ export function outboundRequest(request: Request, secrets: OutboundSecrets): Req
  */
 export class Outbound extends WorkerEntrypoint<Env> {
 	override async fetch(request: Request): Promise<Response> {
+		// The sandbox entry's turn-end call asks the workspace's Durable Object for a backup (D105).
+		const backupOf = turnEndWorkspaceName(new URL(request.url));
+		if (backupOf !== null) {
+			if (request.method !== "POST") {
+				return new Response("Method not allowed", { status: 405, headers: { allow: "POST" } });
+			}
+			if (!WORKSPACE_NAME.test(backupOf))
+				return new Response("Bad workspace name", { status: 400 });
+			return Response.json(await this.env.WORKSPACE.getByName(backupOf).backupAtTurnEnd());
+		}
 		const prepared = outboundRequest(request, this.env);
 		if (prepared instanceof Response) return prepared;
 		return fetch(prepared);

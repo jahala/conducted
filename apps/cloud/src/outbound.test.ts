@@ -7,6 +7,7 @@
  */
 import { createExecutionContext, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { turnEndUrl } from "./backup.ts";
 import type { Env } from "./env.ts";
 import { Outbound, type OutboundSecrets, outboundRequest } from "./outbound.ts";
 
@@ -145,5 +146,16 @@ describe("CLOUD-05 the outbound handler's credentials and allow-list", () => {
 		expect(blocked.status).toBe(403);
 		const unkeyed = await outbound.fetch(request("https://api.anthropic.com/v1/messages"));
 		expect(unkeyed.status).toBe(503);
+	});
+});
+
+describe("CLOUD-06 the sandbox's turn-end call reaches the outbound handler", () => {
+	it("answers the turn-end route itself, refusing a wrong method and a bad workspace name", async () => {
+		const outbound = new Outbound(createExecutionContext(), env as unknown as Env);
+		const wrongMethod = await outbound.fetch(new Request(turnEndUrl("oslo-1")));
+		expect(wrongMethod.status).toBe(405);
+		expect(wrongMethod.headers.get("allow")).toBe("POST");
+		const badName = await outbound.fetch(new Request(turnEndUrl("Not_A_Name"), { method: "POST" }));
+		expect(badName.status).toBe(400);
 	});
 });
