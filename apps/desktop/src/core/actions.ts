@@ -48,9 +48,16 @@ export function createActions(
 		},
 		workspaces: {
 			create: (input) => services.workspace.create(input),
-			archive: (id, options) => services.workspace.archive(id, options),
+			archive: async (id, options) => {
+				// A workspace that is archived stops forwarding: its sandbox sleeps (CLOUD-10).
+				await services.portForwards.pauseWorkspace(id);
+				return services.workspace.archive(id, options);
+			},
 			unarchive: (id, options) => services.workspace.unarchive(id, options),
-			remove: (id) => services.workspace.remove(id),
+			remove: async (id) => {
+				await services.portForwards.pauseWorkspace(id);
+				return services.workspace.remove(id);
+			},
 			rename: (id, name) => services.workspace.rename(id, name),
 			setPinned: (id, pinned) => services.workspace.setPinned(id, pinned),
 			setKanbanStatus: (id, status) => services.workspace.setKanbanStatus(id, status),
@@ -252,6 +259,19 @@ export function createActions(
 		cloud: {
 			pair: (input) => services.cloudPairing.pair(input),
 			unpair: () => services.cloudPairing.unpair(),
+		},
+		portForwards: {
+			setForwarding: (workspaceId, enabled) =>
+				services.portForwards.setForwarding(workspaceId, enabled),
+			setAutoForward: (workspaceId, enabled) =>
+				services.portForwards.setAutoForward(workspaceId, enabled),
+			add: (workspaceId, remotePort) => services.portForwards.add(workspaceId, remotePort),
+			remove: (forwardId) => services.portForwards.remove(forwardId),
+			toggle: (forwardId, enabled) => services.portForwards.toggle(forwardId, enabled),
+			pauseWorkspace: (workspaceId) => services.portForwards.pauseWorkspace(workspaceId),
+			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
+			previewUrl: (workspaceId, remotePort) =>
+				services.portForwards.previewUrl(workspaceId, remotePort),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

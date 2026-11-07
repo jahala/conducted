@@ -151,6 +151,28 @@ export interface DetectedPort {
 	appName: string | null;
 }
 
+/** One port a cloud workspace forwards to this Mac (CLOUD-10). */
+export interface PortForwardEntry {
+	id: string;
+	remotePort: number;
+	localPort: number;
+	label: string | null;
+	autoDetected: boolean;
+	enabled: boolean;
+}
+
+/** What the Ports tab shows for a cloud workspace: its forwards, switches and discovery. */
+export interface PortForwardView {
+	forwardingEnabled: boolean;
+	autoForwardEnabled: boolean;
+	/** True after Start forwarding until the first discovery answer arrives. */
+	waiting: boolean;
+	forwards: PortForwardEntry[];
+	/** Remote ports the sandbox currently listens on. */
+	detectedPorts: number[];
+	error: string | null;
+}
+
 export interface RunState {
 	actions: RunAction[];
 	running: {
@@ -274,6 +296,8 @@ export interface Queries {
 	useDiffComments(workspaceId: WorkspaceId): Loadable<DiffComment[]>;
 	useTerminals(workspaceId: WorkspaceId): Loadable<Terminal[]>;
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
+	/** The forwarding switches, forwards and discovered ports of a cloud workspace (CLOUD-10). */
+	usePortForwards(workspaceId: WorkspaceId): PortForwardView;
 	useSetting<T>(key: string): T;
 	useAgentInstalls(): Loadable<AgentInstall[]>;
 	useModels(agent: AgentKind, acpAgent?: AcpAgent, host?: Host): Loadable<ModelInfo[]>;
@@ -707,6 +731,24 @@ export interface Actions {
 		pair: Act<[input: CloudPairInput], CloudPairing>;
 		/** Removes this Mac's pairing with its Worker. */
 		unpair: Act<[], void>;
+	};
+	portForwards: {
+		/** The workspace's Start forwarding switch (Cmd+Y). Exclusive mode turns others off first. */
+		setForwarding: Act<[workspaceId: WorkspaceId, enabled: boolean], void>;
+		/** Whether newly discovered remote ports are forwarded automatically. */
+		setAutoForward: Act<[workspaceId: WorkspaceId, enabled: boolean], void>;
+		/** Adds a forward for a typed remote port, with its local port chosen by the strategy. */
+		add: Act<[workspaceId: WorkspaceId, remotePort: number], PortForwardEntry>;
+		/** Stops and removes one forward. */
+		remove: Act<[forwardId: string], void>;
+		/** Turns one forward on or off without deleting it. */
+		toggle: Act<[forwardId: string, enabled: boolean], void>;
+		/** Stops every forward and clears the rows when a workspace is archived (CLOUD-10). */
+		pauseWorkspace: Act<[workspaceId: WorkspaceId], void>;
+		/** Reads the sandbox's listening ports now, for the Forward ports popover. */
+		refreshDiscovery: Act<[workspaceId: WorkspaceId], void>;
+		/** The Worker's shareable preview URL for one remote port. */
+		previewUrl: Act<[workspaceId: WorkspaceId, remotePort: number], string>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;

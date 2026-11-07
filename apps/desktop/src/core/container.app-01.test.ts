@@ -62,6 +62,7 @@ const SERVICE_NAMES = Object.keys({
 	runScripts: true,
 	spotlight: true,
 	ports: true,
+	portForwards: true,
 	terminals: true,
 	notifications: true,
 	updates: true,
