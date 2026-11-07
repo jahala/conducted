@@ -1104,14 +1104,16 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R11725915": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"aria_label:R11728005": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"aria_label:R11762034": {
 		"status": "gap",

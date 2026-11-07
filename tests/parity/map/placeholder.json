@@ -412,9 +412,10 @@
 		"screen": "inventory-controls App shell"
 	},
 	"placeholder:R11728075": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"placeholder:R11761913": {
 		"status": "matched",

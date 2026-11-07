@@ -5258,29 +5258,28 @@
 		"by": "hand"
 	},
 	"text:R11723529": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-04",
-		"owner": "rule:neighbour"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"text:R11723855": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-04",
-		"item": "Saving environment variables can fail with \"Couldn't update your environment variables\".",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"text:R11727140": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"text:R11728441": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "Conductor's organisation repository settings (renderApp @11719492 to @11729114): its components take the organisation's id, and the setup script lives under org/<repo>/setup.sh. Team features stay out (D004)."
 	},
 	"text:R11741989": {
 		"status": "gap",
