@@ -1,7 +1,7 @@
 /**
  * The release workflow is the only place a release is built. It runs on a version tag, asks for the
- * permissions attestations need, always deletes the temporary keychain, and attests every file it
- * publishes.
+ * permissions attestations need, always deletes the temporary keychain and the deploy key, attests
+ * every file it publishes, and updates the Homebrew cask from the released disk image.
  */
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -101,4 +101,31 @@ test("asks the Pages workflow to rebuild the product page after the release, fro
 	// Only this job's token may start a workflow; the release job's steps run third-party code.
 	expect(pages?.permissions).toEqual({ actions: "write" });
 	expect(pages?.steps.some((step) => step.run?.includes("gh workflow run pages.yml"))).toBe(true);
+});
+
+const readsTapSecret = (values: Record<string, string> | undefined): boolean =>
+	Object.values(values ?? {}).some((value) => String(value).includes("HOMEBREW_TAP_DEPLOY_KEY"));
+
+test("publishes the cask from the released disk image with the tap deploy key", () => {
+	const release = job.steps.findIndex((step) => step.name === "Create the GitHub release");
+	const cask = job.steps.findIndex((step) => step.run?.includes("scripts/release/cask.ts"));
+	expect(release).toBeGreaterThan(-1);
+	expect(cask).toBeGreaterThan(release);
+	const step = job.steps[cask];
+	expect(step?.env?.HOMEBREW_TAP_DEPLOY_KEY).toBe("$" + "{{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}");
+	expect(step?.run).toContain("Casks/conducted.rb");
+	expect(step?.run).toContain("push origin HEAD:main");
+	// A pre-release is the dry run; the cask follows only stable releases.
+	expect(step?.run).toContain("*-*");
+	// The key lives in RUNNER_TEMP, readable only by this runner user.
+	expect(step?.run).toContain("homebrew-tap-deploy-key");
+	expect(step?.run).toContain("chmod 600");
+});
+
+test("gives the tap deploy key to the cask step only, and removes it with the other credentials", () => {
+	expect(readsTapSecret(job.env)).toBe(false);
+	const readers = job.steps.filter((each) => readsTapSecret(each.env) || readsTapSecret(each.with));
+	expect(readers.map((each) => each.name)).toEqual(["Update the Homebrew cask"]);
+	const cleanup = job.steps.find((each) => each.run?.includes("security delete-keychain"));
+	expect(cleanup?.run).toContain("homebrew-tap-deploy-key");
 });
