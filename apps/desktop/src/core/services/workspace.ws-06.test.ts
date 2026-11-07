@@ -291,6 +291,11 @@ describe("WS-06 unarchive on the same branch", () => {
 			branch: "feature/oslo",
 			archivedAt: null,
 		});
+		// Conductor's unarchive stamps the recent activity with the restore time (services-map.md
+		// 3.10); the loaded row follows the database.
+		expect(h.service.store.getState().workspacesById["w1" as WorkspaceId]?.lastActivityAt).toBe(
+			7000,
+		);
 	});
 });
 

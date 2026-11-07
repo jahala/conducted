@@ -8,6 +8,11 @@
  * cannot both win; a bad linked_paths column returns an error Result; a setter on a missing
  * workspace returns `db.not_found`; last_activity_at only moves forward; deleting cascades to
  * sessions, comments, terminals and section members.
+ * Activity: `touchActivity` is the forward-only write a user message makes (services-map.md 2.3.1,
+ * Conductor's own case statement @1054957), and `finishUnarchive` stamps the restored workspace
+ * with the restore time in its own statement, as Conductor's unarchive step 2 does. Those are the
+ * only two events in Conductor: its bundle reaches the touch only from the sessions-store watch on
+ * `lastUserMessageAt` (@1054147). An agent turn ending does not touch it.
  * CLOUD-01: the host columns (migration 0009) read back as the workspace's `host`. A local row has
  * no URL or sandbox id and a cloud row has both; any other mix is an error Result, so a half-written
  * cloud row is never read as local.
@@ -219,7 +224,8 @@ export const WORKSPACES_SQL = {
 	setActiveSession: "UPDATE workspaces SET active_session_id = $1 WHERE id = $2",
 	setFilesCopied: "UPDATE workspaces SET files_copied = $1, updated_at = $2 WHERE id = $3",
 	finishUnarchive: `UPDATE workspaces SET state = 'ready', branch = $1, directory_name = $2,
-		path = $3, archived_at = NULL, updated_at = $4 WHERE id = $5 AND state = 'initializing'`,
+		path = $3, last_activity_at = MAX(last_activity_at, $4), archived_at = NULL, updated_at = $4
+		WHERE id = $5 AND state = 'initializing'`,
 	touchActivity: "UPDATE workspaces SET last_activity_at = MAX(last_activity_at, $1) WHERE id = $2",
 	delete: "DELETE FROM workspaces WHERE id = $1",
 } as const;
@@ -316,8 +322,8 @@ export interface WorkspaceRepository {
 	setFilesCopied(id: WorkspaceId, count: number): Promise<Result<void>>;
 	/**
 	 * WORKSPACES_SQL.finishUnarchive: makes the restored worktree the workspace's branch, folder and
-	 * path, sets it ready and clears archived_at. Only applies while the row is `initializing`;
-	 * `ok(false)` otherwise.
+	 * path, sets it ready, clears archived_at and moves last_activity_at to the restore time (never
+	 * back). Only applies while the row is `initializing`; `ok(false)` otherwise.
 	 */
 	finishUnarchive(
 		id: WorkspaceId,
