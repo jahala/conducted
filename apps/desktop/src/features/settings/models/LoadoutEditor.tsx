@@ -256,7 +256,6 @@ function SlotCard({
 	const label = model?.label ?? entry.config.model;
 	const effort = effortLabel(model, entry.config);
 	const [dropped, setDropped] = useState(false);
-	const change = (patch: Partial<Choice>) => onChange({ ...entry.config, ...patch });
 
 	return (
 		<Menu>
@@ -293,54 +292,7 @@ function SlotCard({
 				</button>
 			</MenuTrigger>
 			<MenuContent align="start" className="w-56" aria-label={`Slot ${index + 1}`}>
-				<MenuLabel>Model</MenuLabel>
-				<MenuRadioGroup value={entry.config.model}>
-					{list
-						.filter((item) => item.status === "picker" || item.id === entry.config.model)
-						.map((item) => (
-							<MenuRadioItem
-								key={item.id}
-								value={item.id}
-								onSelect={() =>
-									change({
-										model: item.id,
-										effort: item.efforts.includes(entry.config.effort)
-											? entry.config.effort
-											: item.defaultEffort,
-										fastMode: item.supportsFastMode && entry.config.fastMode,
-									})
-								}
-							>
-								{item.label}
-							</MenuRadioItem>
-						))}
-				</MenuRadioGroup>
-				{model === undefined ? null : (
-					<>
-						<MenuSeparator />
-						<MenuLabel>{model.effortAxis === "thinking" ? "Thinking" : "Effort"}</MenuLabel>
-						<MenuRadioGroup value={entry.config.effort}>
-							{model.efforts.map((level) => (
-								<MenuRadioItem key={level} value={level} onSelect={() => change({ effort: level })}>
-									{model.effortLabels?.[level] ?? EFFORT_LABELS[level]}
-								</MenuRadioItem>
-							))}
-						</MenuRadioGroup>
-						<MenuSeparator />
-						<MenuCheckboxItem
-							checked={entry.config.fastMode}
-							disabled={!model.supportsFastMode}
-							onCheckedChange={(checked) => change({ fastMode: checked === true })}
-						>
-							Fast mode
-						</MenuCheckboxItem>
-						{model.supportsFastMode ? null : (
-							<p className="px-2 pb-1.5 text-xs text-fg-muted">
-								The chosen model does not support fast mode.
-							</p>
-						)}
-					</>
-				)}
+				<ModelChoiceItems models={list} choice={entry.config} onChange={onChange} />
 				{entry.isDefault ? null : (
 					<>
 						<MenuSeparator />
@@ -349,6 +301,73 @@ function SlotCard({
 				)}
 			</MenuContent>
 		</Menu>
+	);
+}
+
+/**
+ * The choices of one model setting, shared by a loadout slot and the Review model picker: the
+ * model among `models`, its effort or thinking level, and fast mode where the model has it.
+ */
+export function ModelChoiceItems({
+	models,
+	choice,
+	onChange,
+}: {
+	models: readonly ModelInfo[];
+	choice: Choice;
+	onChange: (choice: Choice) => void;
+}) {
+	const model = models.find((item) => item.id === choice.model);
+	const change = (patch: Partial<Choice>) => onChange({ ...choice, ...patch });
+	return (
+		<>
+			<MenuLabel>Model</MenuLabel>
+			<MenuRadioGroup value={choice.model}>
+				{models
+					.filter((item) => item.status === "picker" || item.id === choice.model)
+					.map((item) => (
+						<MenuRadioItem
+							key={item.id}
+							value={item.id}
+							onSelect={() =>
+								change({
+									model: item.id,
+									effort: item.efforts.includes(choice.effort) ? choice.effort : item.defaultEffort,
+									fastMode: item.supportsFastMode && choice.fastMode,
+								})
+							}
+						>
+							{item.label}
+						</MenuRadioItem>
+					))}
+			</MenuRadioGroup>
+			{model === undefined ? null : (
+				<>
+					<MenuSeparator />
+					<MenuLabel>{model.effortAxis === "thinking" ? "Thinking" : "Effort"}</MenuLabel>
+					<MenuRadioGroup value={choice.effort}>
+						{model.efforts.map((level) => (
+							<MenuRadioItem key={level} value={level} onSelect={() => change({ effort: level })}>
+								{model.effortLabels?.[level] ?? EFFORT_LABELS[level]}
+							</MenuRadioItem>
+						))}
+					</MenuRadioGroup>
+					<MenuSeparator />
+					<MenuCheckboxItem
+						checked={choice.fastMode}
+						disabled={!model.supportsFastMode}
+						onCheckedChange={(checked) => change({ fastMode: checked === true })}
+					>
+						Fast mode
+					</MenuCheckboxItem>
+					{model.supportsFastMode ? null : (
+						<p className="px-2 pb-1.5 text-xs text-fg-muted">
+							The chosen model does not support fast mode.
+						</p>
+					)}
+				</>
+			)}
+		</>
 	);
 }
 

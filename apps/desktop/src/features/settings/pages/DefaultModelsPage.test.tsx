@@ -161,6 +161,37 @@ describe("SET-02 DefaultModelsPage", () => {
 		expect(screen.getByText("The chosen model does not support fast mode.")).toBeTruthy();
 	});
 
+	it("picks the review model, its effort and fast mode in one picker, as Conductor does", async () => {
+		const { container } = await renderPage();
+		const row = document.querySelector('[data-setting-key="review_model"]');
+		if (!(row instanceof HTMLElement)) throw new Error("no Review model row");
+		expect(within(row).queryByRole("textbox")).toBeNull();
+		// An empty review model is the default model, so the picker names it.
+		const trigger = within(row).getByRole("button", { name: /Review model: Fast model, High/ });
+
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Slow model" }));
+		await waitFor(() =>
+			expect(container.services.settings.store.getState().values.review_model).toBe("slow-model"),
+		);
+
+		fireEvent.keyDown(within(row).getByRole("button", { name: /Review model: Slow model/ }), {
+			key: "Enter",
+		});
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Low" }));
+		await waitFor(() =>
+			expect(container.services.settings.store.getState().values.review_claude_effort_level).toBe(
+				"low",
+			),
+		);
+		// The picker holds the effort and fast mode, so they have no rows of their own.
+		const keys = [...document.querySelectorAll("[data-setting-key]")].map((entry) =>
+			entry.getAttribute("data-setting-key"),
+		);
+		expect(keys).not.toContain("review_claude_effort_level");
+		expect(keys).not.toContain("review_fast_mode");
+	});
+
 	it("asks for the agent list when nothing has read it yet, as the Agents page does", async () => {
 		const { container } = await renderPage();
 		const refresh = vi.spyOn(container.actions.agents, "refresh");
