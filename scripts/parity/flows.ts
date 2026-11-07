@@ -211,6 +211,11 @@ export const FLOWS: Flow[] = [
 				step: "Type Settings and press Enter",
 				run: async (page) => {
 					await page.keyboard.type("Settings");
+					// Enter runs the highlighted item, so wait until the results show it, as a person would.
+					await page
+						.locator('[cmdk-item][aria-selected="true"]', { hasText: "Settings" })
+						.first()
+						.waitFor({ state: "visible", timeout: 15_000 });
 					await page.keyboard.press("Enter");
 				},
 			},
