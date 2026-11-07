@@ -2,12 +2,18 @@
 	"literal:M18119": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-06",
+		"item": "Update notice in the sidebar footer",
+		"owner": "hand"
 	},
 	"literal:M18192": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-24",
+		"item": "Video player in assistant text",
+		"owner": "hand"
 	},
 	"literal:M212284": {
 		"status": "decided",
@@ -465,7 +471,10 @@
 	"literal:M433895": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Appearance: mono font (Default or Custom)",
+		"owner": "hand"
 	},
 	"literal:M586780": {
 		"status": "gap",
@@ -483,17 +492,26 @@
 	"literal:M643972": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "The PR tab merges the pull request with the chosen merge method.",
+		"owner": "hand"
 	},
 	"literal:M667863": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"item": "Stack sync errors: install-the-extension error and abort markers",
+		"owner": "hand"
 	},
 	"literal:M795341": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"item": "gh stack sync runs, with success rules and an \"install the extension\" error when the command is unknown.",
+		"owner": "hand"
 	},
 	"literal:M919743": {
 		"status": "matched",
@@ -511,7 +529,10 @@
 	"literal:M1077722": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "push.autoSetupRemote is set per worktree.",
+		"owner": "hand"
 	},
 	"literal:M1086777": {
 		"status": "gap",
@@ -526,12 +547,18 @@
 	"literal:M1419600": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-08",
+		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
+		"owner": "hand"
 	},
 	"literal:M1520540": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-14",
+		"item": "Key listener turns key presses into command ids by scope (chat input, terminal, diff, dialog)",
+		"owner": "hand"
 	},
 	"literal:M2044531": {
 		"status": "gap",
@@ -618,12 +645,18 @@
 	"literal:M2298484": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-20",
+		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
+		"owner": "hand"
 	},
 	"literal:M2325013": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-07",
+		"item": "Tool GetTerminalOutput returns up to 1000 lines of a chosen terminal source with labelled output",
+		"owner": "hand"
 	},
 	"literal:M2329048": {
 		"status": "matched",
@@ -648,7 +681,10 @@
 	"literal:M2515610": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Each MCP server shows a per-session status: connected, failed, needs auth, pending or disabled.",
+		"owner": "hand"
 	},
 	"literal:M2516003": {
 		"status": "gap",
@@ -658,7 +694,10 @@
 	"literal:M2656909": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"item": "Linear issues carry comments, createdAt, updatedAt and team fields.",
+		"owner": "hand"
 	},
 	"literal:M2685005": {
 		"status": "matched",
@@ -676,12 +715,18 @@
 	"literal:M3099729": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-19",
+		"item": "A notification fires when a plan is ready and when the agent asks a question.",
+		"owner": "hand"
 	},
 	"literal:M3100221": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-19",
+		"item": "A notification fires when a plan is ready and when the agent asks a question.",
+		"owner": "hand"
 	},
 	"literal:M3236681": {
 		"status": "gap",
@@ -744,7 +789,10 @@
 	"literal:M3833560": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-01",
+		"item": "Friendly text when SSH is blocked and HTTPS also fails",
+		"owner": "hand"
 	},
 	"literal:R108074": {
 		"status": "matched",
@@ -765,132 +813,210 @@
 	"literal:R495687": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R496045": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R496563": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R496750": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R496935": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R497089": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R497465": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R498265": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R498455": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R498591": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R498754": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R498926": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R499098": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R499293": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R499400": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R499635": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R499764": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R499858": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500118": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500245": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500355": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500461": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500605": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500771": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R500939": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R501124": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
+		"owner": "hand"
 	},
 	"literal:R710800": {
 		"status": "gap",
@@ -910,7 +1036,10 @@
 	"literal:R1361690": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-04",
+		"item": "Browser tab Back and Forward move the preview history.",
+		"owner": "hand"
 	},
 	"literal:R2141251": {
 		"status": "gap",
@@ -931,42 +1060,66 @@
 	"literal:R2149903": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"item": "The stack view shows Stack PRs with Current and trunk, gt restack, Checkout this branch and Ready for review.",
+		"owner": "hand"
 	},
 	"literal:R2180430": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-07",
+		"item": "PR tab: 'Open on GitHub'",
+		"owner": "hand"
 	},
 	"literal:R2180468": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-07",
+		"item": "PR tab: 'Open on GitHub'",
+		"owner": "hand"
 	},
 	"literal:R2182206": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-04",
+		"item": "PR header menu: Copy link, Copy number",
+		"owner": "hand"
 	},
 	"literal:R2195770": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-08",
+		"item": "The stack view shows Stack PRs with Current and trunk, gt restack, Checkout this branch and Ready for review.",
+		"owner": "hand"
 	},
 	"literal:R2195902": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-08",
+		"item": "The stack view shows Stack PRs with Current and trunk, gt restack, Checkout this branch and Ready for review.",
+		"owner": "hand"
 	},
 	"literal:R2195969": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-08",
+		"item": "The stack view shows Stack PRs with Current and trunk, gt restack, Checkout this branch and Ready for review.",
+		"owner": "hand"
 	},
 	"literal:R2202503": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-08",
+		"item": "The stack view shows Stack PRs with Current and trunk, gt restack, Checkout this branch and Ready for review.",
+		"owner": "hand"
 	},
 	"literal:R2215964": {
 		"status": "gap",
@@ -1003,12 +1156,18 @@
 	"literal:R2223970": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-04",
+		"item": "Git panel tab 'Checks'",
+		"owner": "hand"
 	},
 	"literal:R2224794": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-06",
+		"item": "Auto-merge is switched off again with gh pr merge --disable-auto.",
+		"owner": "hand"
 	},
 	"literal:R2226671": {
 		"status": "gap",
@@ -1021,12 +1180,18 @@
 	"literal:R2236069": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"item": "SyncStack (moved from PR-01 by the step-3 audit).",
+		"owner": "hand"
 	},
 	"literal:R2259789": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-04",
+		"item": "Checks tab: PR header and Git status block",
+		"owner": "hand"
 	},
 	"literal:R2271909": {
 		"status": "gap",
@@ -1095,7 +1260,10 @@
 	"literal:R2644422": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-01",
+		"item": "Diff view modes all, uncommitted and commit compare against the right base.",
+		"owner": "hand"
 	},
 	"literal:R2734987": {
 		"status": "matched",
@@ -1154,7 +1322,10 @@
 	"literal:R2972645": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "SET-07",
+		"item": "Action row: Show or Hide, Edit, Delete",
+		"owner": "hand"
 	},
 	"literal:R3081534": {
 		"status": "matched",
@@ -1172,7 +1343,10 @@
 	"literal:R3083063": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Ahead by N commit(s)' with Push",
+		"owner": "hand"
 	},
 	"literal:R3119108": {
 		"status": "matched",
@@ -1185,17 +1359,26 @@
 	"literal:R3122139": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"item": "File tab",
+		"owner": "hand"
 	},
 	"literal:R3122276": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-10",
+		"item": "Callouts (coach marks): dismissible hints that remember dismissal",
+		"owner": "hand"
 	},
 	"literal:R3122529": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-14",
+		"item": "Key listener turns key presses into command ids by scope (chat input, terminal, diff, dialog)",
+		"owner": "hand"
 	},
 	"literal:R3122801": {
 		"status": "matched",
@@ -1216,7 +1399,10 @@
 	"literal:R3123193": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-01",
+		"item": "One declarative registry: tab, key, scopes, title, description, search terms",
+		"owner": "hand"
 	},
 	"literal:R3167503": {
 		"status": "gap",
@@ -1226,7 +1412,10 @@
 	"literal:R3352836": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics: shell, PATH and environment capture with values hashed except a safe list",
+		"owner": "hand"
 	},
 	"literal:R3352892": {
 		"status": "decided",
@@ -1237,7 +1426,10 @@
 	"literal:R3392824": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-05",
+		"item": "Browser tab annotation overlay and 'Add to chat'",
+		"owner": "hand"
 	},
 	"literal:R3396439": {
 		"status": "matched",
@@ -1250,7 +1442,10 @@
 	"literal:R3408782": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-13",
+		"item": "Alert dialog for confirm and destructive actions",
+		"owner": "hand"
 	},
 	"literal:R3409124": {
 		"status": "matched",
@@ -1263,37 +1458,58 @@
 	"literal:R3418027": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-04",
+		"item": "'@' mentions files and directories with fuzzy search",
+		"owner": "hand"
 	},
 	"literal:R3420339": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-14",
+		"item": "Key listener turns key presses into command ids by scope (chat input, terminal, diff, dialog)",
+		"owner": "hand"
 	},
 	"literal:R3424646": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-04",
+		"item": "Queue header status label, 'Resume' when paused, 'Collapse queue' and 'Expand queue'",
+		"owner": "hand"
 	},
 	"literal:R3444964": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PLAT-28",
+		"item": "Settings Advanced has Agent binaries with Re-download and Retry; Conductor downloads agents and the app must do the same (D021).",
+		"owner": "hand"
 	},
 	"literal:R3458066": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"item": "Chat tab content: message list and composer",
+		"owner": "hand"
 	},
 	"literal:R3465496": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-14",
+		"item": "Context hover card: window used, token breakdown, model, effort, service tier",
+		"owner": "hand"
 	},
 	"literal:R3465826": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-09",
+		"item": "Agents: 'Custom provider' with optional workspace ID",
+		"owner": "hand"
 	},
 	"literal:R3468980": {
 		"status": "gap",
@@ -1308,7 +1524,10 @@
 	"literal:R3471013": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "'+' create-workspace action on each project group header",
+		"owner": "hand"
 	},
 	"literal:R3477303": {
 		"status": "matched",
@@ -1321,12 +1540,18 @@
 	"literal:R3494596": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-20",
+		"item": "Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'",
+		"owner": "hand"
 	},
 	"literal:R3501304": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-14",
+		"item": "Key listener turns key presses into command ids by scope (chat input, terminal, diff, dialog)",
+		"owner": "hand"
 	},
 	"literal:R3896817": {
 		"status": "matched",
@@ -1339,7 +1564,10 @@
 	"literal:R3896824": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-05",
+		"item": "Review prompt dialog has a Send button.",
+		"owner": "hand"
 	},
 	"literal:R3896839": {
 		"status": "matched",
@@ -1358,17 +1586,26 @@
 	"literal:R4011805": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "SET-02",
+		"item": "Settings errors show a Retry button.",
+		"owner": "hand"
 	},
 	"literal:R4381706": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "NAV-10",
+		"item": "File tab",
+		"owner": "hand"
 	},
 	"literal:R4950293": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics: shell, PATH and environment capture with values hashed except a safe list",
+		"owner": "hand"
 	},
 	"literal:R4986695": {
 		"status": "gap",
@@ -1381,7 +1618,10 @@
 	"literal:R4988948": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Inline editing of 'PR title' and 'PR description' with Save and Discard",
+		"owner": "hand"
 	},
 	"literal:R4997852": {
 		"status": "gap",
@@ -1402,7 +1642,10 @@
 	"literal:R5531377": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Workspaces"
+		"screen": "inventory-controls Workspaces",
+		"backlog": "GIT-04",
+		"item": "The branch label reads 'Detached HEAD' when the worktree is on no branch.",
+		"owner": "hand"
 	},
 	"literal:R5534203": {
 		"status": "gap",
@@ -1431,12 +1674,18 @@
 	"literal:R5558100": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-11",
+		"item": "Mark the hovered workspace read or unread (moved from NAV-03 by the step-6 audit).",
+		"owner": "hand"
 	},
 	"literal:R5558580": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Hover key P toggles pin",
+		"owner": "hand"
 	},
 	"literal:R5558634": {
 		"status": "matched",
@@ -1449,22 +1698,34 @@
 	"literal:R5601737": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "Cloud workspace header shows 'Conductor Cloud' badge, status, CPU, memory, disk, 'Low disk' and 'Agent cost'",
+		"owner": "hand"
 	},
 	"literal:R5646000": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-04",
+		"item": "'@' mentions files and directories with fuzzy search",
+		"owner": "hand"
 	},
 	"literal:R5655678": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06",
+		"item": "Find in terminal reports 'Invalid regular expression'.",
+		"owner": "hand"
 	},
 	"literal:R5655738": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
+		"owner": "hand"
 	},
 	"literal:R5664567": {
 		"status": "gap",
@@ -1525,7 +1786,10 @@
 	"literal:R7864999": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"item": "Comment tab 'Comment by <author>'",
+		"owner": "hand"
 	},
 	"literal:R7998295": {
 		"status": "matched",
@@ -1538,7 +1802,10 @@
 	"literal:R8034448": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-24",
+		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
+		"owner": "hand"
 	},
 	"literal:R8057713": {
 		"status": "gap",
@@ -1573,7 +1840,10 @@
 	"literal:R8684721": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RC-02",
+		"item": "A per-chat Remote Control switch shows connection status.",
+		"owner": "hand"
 	},
 	"literal:R8718221": {
 		"status": "gap",
@@ -1585,12 +1855,18 @@
 	"literal:R8768165": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
+		"owner": "hand"
 	},
 	"literal:R8768197": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
+		"owner": "hand"
 	},
 	"literal:R8798002": {
 		"status": "gap",
@@ -1611,12 +1887,18 @@
 	"literal:R8816971": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
+		"owner": "hand"
 	},
 	"literal:R8820980": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
+		"owner": "hand"
 	},
 	"literal:R8830530": {
 		"status": "matched",
@@ -1685,12 +1967,18 @@
 	"literal:R8877958": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Each MCP server shows a per-session status: connected, failed, needs auth, pending or disabled.",
+		"owner": "hand"
 	},
 	"literal:R8878057": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Each MCP server shows a per-session status: connected, failed, needs auth, pending or disabled.",
+		"owner": "hand"
 	},
 	"literal:R8906865": {
 		"status": "matched",
@@ -1839,42 +2127,66 @@
 	"literal:R9352425": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-06",
+		"item": "Chat tab content: message list and composer",
+		"owner": "hand"
 	},
 	"literal:R9352645": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-04",
+		"item": "Queue header status label, 'Resume' when paused, 'Collapse queue' and 'Expand queue'",
+		"owner": "hand"
 	},
 	"literal:R9367029": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "hand"
 	},
 	"literal:R9367052": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "hand"
 	},
 	"literal:R9367074": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "hand"
 	},
 	"literal:R9367102": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "hand"
 	},
 	"literal:R9367137": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "hand"
 	},
 	"literal:R9367168": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "hand"
 	},
 	"literal:R9368492": {
 		"status": "gap",
@@ -1887,7 +2199,10 @@
 	"literal:R9378722": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-06",
+		"item": "Dashboard: Kanban with five columns",
+		"owner": "hand"
 	},
 	"literal:R9381975": {
 		"status": "gap",
@@ -1908,7 +2223,10 @@
 	"literal:R9482757": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-06",
+		"item": "Chat tab content: message list and composer",
+		"owner": "hand"
 	},
 	"literal:R9536630": {
 		"status": "gap",
@@ -1921,7 +2239,10 @@
 	"literal:R9559666": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-09",
+		"item": "Keybinding editor lists each command by name.",
+		"owner": "hand"
 	},
 	"literal:R9588439": {
 		"status": "gap",
@@ -1958,12 +2279,18 @@
 	"literal:R9744963": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-03",
+		"item": "Cmd+Alt+J and Cmd+Alt+K move between comments",
+		"owner": "hand"
 	},
 	"literal:R9745476": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-03",
+		"item": "Cmd+Alt+J and Cmd+Alt+K move between comments",
+		"owner": "hand"
 	},
 	"literal:R9755407": {
 		"status": "gap",
@@ -1984,7 +2311,10 @@
 	"literal:R10013192": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"item": "Error right-click menu: Copy error, Copy details",
+		"owner": "hand"
 	},
 	"literal:R10029987": {
 		"status": "matched",
@@ -2061,7 +2391,10 @@
 	"literal:R10223000": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-06",
+		"item": "Dashboard card fields choose which columns show, including Cost and Owner.",
+		"owner": "hand"
 	},
 	"literal:R10223032": {
 		"status": "matched",
@@ -2091,8 +2424,12 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Working...\" (aria-label) in sidebar.",
-		"by": "hand"
+		"note": "Ours reads \"Working...\" (aria-label) in the sidebar.",
+		"by": "hand",
+		"backlog": "NAV-03",
+		"item": "Row subtitles 'Planning...', 'Working...', 'Cancelling...', 'Waiting...'",
+		"owner": "hand",
+		"class": "wording"
 	},
 	"literal:R10228299": {
 		"status": "gap",
@@ -2137,7 +2474,10 @@
 	"literal:R10228554": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Row subtitles 'Planning...', 'Working...', 'Cancelling...', 'Waiting...'",
+		"owner": "hand"
 	},
 	"literal:R10245473": {
 		"status": "matched",
@@ -2158,7 +2498,10 @@
 	"literal:R10470389": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"item": "User sections with name, emoji, collapse and count",
+		"owner": "hand"
 	},
 	"literal:R10476438": {
 		"status": "gap",
@@ -2189,12 +2532,18 @@
 	"literal:R10574968": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics introduction, environment report and actions row",
+		"owner": "hand"
 	},
 	"literal:R10576510": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Diagnostics: copy redacted report",
+		"owner": "hand"
 	},
 	"literal:R10694047": {
 		"status": "matched",
@@ -2208,18 +2557,28 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Try again\" (text) in settings-agents-error.",
-		"by": "hand"
+		"note": "Ours reads \"Try again\" on the Agents page error.",
+		"by": "hand",
+		"backlog": "SET-03",
+		"item": "The Agents page error offers 'Try again'.",
+		"owner": "hand",
+		"class": "wording"
 	},
 	"literal:R11034934": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-02",
+		"item": "Disconnecting GitHub or Linear asks for confirmation and removes the stored token.",
+		"owner": "hand"
 	},
 	"literal:R11088872": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "APP-09",
+		"item": "'Feedback' dialog: message, email, drop images, 'Include recent app logs'",
+		"owner": "hand"
 	},
 	"literal:R11141968": {
 		"status": "matched",
@@ -2232,14 +2591,20 @@
 	"literal:R11285199": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "PRJ-05",
+		"item": "Repo avatar sources: emoji, uploaded icon, favicon, owner avatar, letter",
+		"owner": "hand"
 	},
 	"literal:R11342763": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"note": "Checked by hand: the wording differs. Ours reads \"added\" (text) in chat-finished.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "PRJ-03",
+		"item": "A template already added shows an 'Added' badge.",
+		"owner": "hand"
 	},
 	"literal:R11345973": {
 		"status": "matched",
@@ -2252,19 +2617,29 @@
 	"literal:R11346070": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-08",
+		"item": "Palette placeholder text changes per tab",
+		"owner": "hand"
 	},
 	"literal:R11346111": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-08",
+		"item": "Palette placeholder text changes per tab",
+		"owner": "hand"
 	},
 	"literal:R11346152": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Search settings\" (aria-label) in settings-general.",
-		"by": "hand"
+		"note": "Ours reads \"Search settings\" in the palette.",
+		"by": "hand",
+		"backlog": "NAV-08",
+		"item": "Palette placeholder text changes per tab",
+		"owner": "hand",
+		"class": "wording"
 	},
 	"literal:R11351405": {
 		"status": "matched",
@@ -2414,18 +2789,28 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
-		"note": "Checked by hand: the wording differs. Ours reads \"New section...\" (text) in sidebar.",
-		"by": "hand"
+		"note": "Ours reads \"New section...\" in the sidebar section menu.",
+		"by": "hand",
+		"backlog": "NAV-04",
+		"item": "'New section...' (sidebar background menu and workspace menu)",
+		"owner": "hand",
+		"class": "wording"
 	},
 	"literal:R11521402": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "'Create snippet' and 'Edit snippets' dialogs: name, keyword, prompt",
+		"owner": "hand"
 	},
 	"literal:R11521421": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "'Create snippet' and 'Edit snippets' dialogs: name, keyword, prompt",
+		"owner": "hand"
 	},
 	"literal:R11652846": {
 		"status": "gap",
@@ -2454,7 +2839,10 @@
 	"literal:R11654231": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"item": "'Feedback' dialog: message, email, drop images, 'Include recent app logs'",
+		"owner": "hand"
 	},
 	"literal:R11655766": {
 		"status": "matched",
@@ -2467,7 +2855,10 @@
 	"literal:R11708982": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Scripts panel with tabs Setup, Run, Terminal N, Ports",
+		"owner": "hand"
 	},
 	"literal:R11713772": {
 		"status": "matched",

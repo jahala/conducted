@@ -42,7 +42,13 @@
 	"text:R1853248": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours says \"Open the place name map\" (the Passport command) and the dialog tooltip \"Conductor Passport\".",
+		"backlog": "NAV-13",
+		"item": "Conductor shows \"View workspace world map\" (control, Unplaced); ours says \"Open the place name map\" on Passport command (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R1855374": {
 		"status": "gap",
@@ -127,7 +133,11 @@
 	"text:R1894370": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-02",
+		"item": "Conductor shows \"Location\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R1894726": {
 		"status": "matched",
@@ -140,7 +150,11 @@
 	"text:R1895265": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-02",
+		"item": "Conductor shows \"Cloning...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R1897964": {
 		"status": "gap",
@@ -159,9 +173,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R1944728": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A checkmark drawn by the select component, a glyph and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R1957512": {
 		"status": "gap",
@@ -277,7 +292,13 @@
 	"text:R2035684": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours says \"Create a local folder from a template and add it as a project\" on the Create project dialog (our two-dialog flow, documented in CreateProjectDialog.tsx).",
+		"backlog": "PRJ-03",
+		"item": "Conductor shows \"Create a local folder, private GitHub repo, and first workspace.\" (region, Unplaced); ours says \"Create a local folder from a template and add it as a project.\" on Create project dialog (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2035905": {
 		"status": "matched",
@@ -290,7 +311,11 @@
 	"text:R2036417": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-03",
+		"item": "Conductor shows \"Name must include letters or numbers.\" (region, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2036542": {
 		"status": "matched",
@@ -335,7 +360,13 @@
 	"text:R2184278": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"class": "wording",
+		"note": "Ours names the chip \"PR status details\" (aria-label) and the popover group the same.",
+		"backlog": "GIT-04",
+		"item": "Conductor shows \"View PR status\" (control, inventory-ui-text Git, review and files); ours says \"PR status details\" on git panel PR status chip (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2186426": {
 		"status": "gap",
@@ -356,7 +387,11 @@
 	"text:R2202229": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-08",
+		"item": "Conductor shows \"Couldn't load this stack. Open the PR on GitHub to see it.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2213837": {
 		"status": "gap",
@@ -369,17 +404,31 @@
 	"text:R2224224": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"class": "wording",
+		"note": "Ours shows \"N checks pending...\" in the same git header state (core/status/git-header.ts).",
+		"backlog": "GIT-04",
+		"item": "Conductor shows \"Checks pending...\" (region, inventory-ui-text Git, review and files); ours says \"N checks pending...\" on git panel header (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2256696": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Conductor shows \"Discard\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2256762": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Conductor shows \"Save\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2260361": {
 		"status": "matched",
@@ -480,7 +529,11 @@
 	"text:R2501184": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-08",
+		"item": "Conductor shows \"No apps available\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2506945": {
 		"status": "gap",
@@ -491,9 +544,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R2530910": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A breadcrumb separator printed by the component, punctuation and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R2532074": {
 		"status": "gap",
@@ -626,7 +680,11 @@
 	"text:R2668400": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-02",
+		"item": "Conductor shows \"Could not load git status\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2669333": {
 		"status": "matched",
@@ -822,7 +880,11 @@
 	"text:R2982552": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "WS-03",
+		"item": "Conductor shows \"Couldn’t load the logs.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2982812": {
 		"status": "gap",
@@ -850,7 +912,11 @@
 	"text:R2991628": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-16",
+		"item": "Conductor shows \"Cloud desktop\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R2997030": {
 		"status": "matched",
@@ -877,7 +943,11 @@
 	"text:R3983808": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "GIT-12",
+		"item": "Conductor shows \"Switch to\" (control, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R4005057": {
 		"status": "gap",
@@ -906,12 +976,20 @@
 	"text:R4011003": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Import details\" (control, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R4026205": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-07",
+		"item": "Conductor shows \"Close search\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R4420842": {
 		"status": "gap",
@@ -938,19 +1016,22 @@
 		"owner": "rule:quote"
 	},
 	"text:R4971674": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label from the code editor's own context menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R4971853": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label from the code editor's own context menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R4972025": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label from the code editor's own context menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R4987742": {
 		"status": "gap",
@@ -1051,7 +1132,11 @@
 	"text:R5020313": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Conductor shows \"Couldn't load actions.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5020935": {
 		"status": "gap",
@@ -1112,7 +1197,11 @@
 	"text:R5436101": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-09",
+		"item": "Conductor shows \"Select a port to share via a URL. Workspace read permissions required.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5444654": {
 		"status": "gap",
@@ -1185,12 +1274,16 @@
 	"text:R5509774": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R5509816": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R5512152": {
 		"status": "decided",
@@ -1207,7 +1300,9 @@
 	"text:R5512389": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R5525229": {
 		"status": "decided",
@@ -1273,13 +1368,21 @@
 	},
 	"text:R5543955": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Conductor shows \"Loading sections…\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5544139": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "Conductor shows \"Couldn't load sections\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5560559": {
 		"status": "matched",
@@ -1300,42 +1403,74 @@
 	"text:R5584687": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Sync files\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5584915": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Keeps this cloud workspace's files mirrored to a local folder so local tools can inspect and edit them.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5585079": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Changes continue syncing in the background while the switch is on.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5587920": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Mirrors this cloud workspace to a local folder for local tools.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5588145": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Local folder\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5589114": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Sync to a local directory\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5591397": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Sync failed\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5592461": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Conductor shows \"Internal sync error\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5607740": {
 		"status": "decided",
@@ -1448,27 +1583,46 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"note": "Checked by hand: the wording differs. Ours reads \"Browse\" (text) in create-project.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Browse...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand"
 	},
 	"text:R5687206": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"No workspaces found\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5693367": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Loading directories...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5694226": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Select all\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R5694380": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Deselect all\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8047584": {
 		"status": "gap",
@@ -1489,7 +1643,11 @@
 	"text:R8049769": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-24",
+		"item": "Conductor shows \"Mermaid diagram\" (control, inventory-ui-text Chat and tool cards); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8061041": {
 		"status": "gap",
@@ -1566,7 +1724,11 @@
 	"text:R8174862": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-11",
+		"item": "Conductor shows \"Deny\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8175062": {
 		"status": "matched",
@@ -1587,12 +1749,20 @@
 	"text:R8176460": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-08",
+		"item": "Conductor shows \"Structured response (JSON)\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8178859": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-08",
+		"item": "Conductor shows \"Open authorization page\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8183776": {
 		"status": "matched",
@@ -1605,12 +1775,20 @@
 	"text:R8683825": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Disconnect\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8685730": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Stop waiting\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8717420": {
 		"status": "gap",
@@ -1711,22 +1889,38 @@
 	"text:R8791800": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Status:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8792002": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Subject:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8792236": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Blocked by:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8792501": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Blocks:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8795249": {
 		"status": "gap",
@@ -1867,7 +2061,11 @@
 	"text:R8823423": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Purpose: \" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8824972": {
 		"status": "gap",
@@ -1912,17 +2110,29 @@
 	"text:R8839892": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "REV-13",
+		"item": "Conductor shows \"Unable to load comment\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8840402": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Preview unavailable\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8840488": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Open the file to inspect this attachment.\" (region, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8843206": {
 		"status": "matched",
@@ -1935,17 +2145,29 @@
 	"text:R8855401": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-28",
+		"item": "Conductor shows \"Loading usage…\" (region, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8859618": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Conductor shows \"Context\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8860458": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14",
+		"item": "Conductor shows \"Window used\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8868546": {
 		"status": "gap",
@@ -1981,7 +2203,11 @@
 	"text:R8875135": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-14",
+		"item": "Conductor shows \"Context usage\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8876144": {
 		"status": "gap",
@@ -2002,7 +2228,11 @@
 	"text:R8881215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-01",
+		"item": "Conductor shows \"MCPs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R8907303": {
 		"status": "matched",
@@ -2077,7 +2307,11 @@
 	"text:R9037926": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Couldn’t load image\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9083099": {
 		"status": "gap",
@@ -2090,17 +2324,29 @@
 	"text:R9119284": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-17",
+		"item": "Conductor shows \"Couldn’t load options\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9120201": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-17",
+		"item": "Conductor shows \"Loading options…\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9121155": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-17",
+		"item": "Conductor shows \"Options update with your next message\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9226849": {
 		"status": "gap",
@@ -2153,7 +2399,11 @@
 	"text:R9268515": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Files from this directory are accessible to the agent in this workspace.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9306566": {
 		"status": "matched",
@@ -2186,9 +2436,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R9397918": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A cloud workspace's read/write access level; workspace sharing is a team feature (D004).",
+		"by": "hand"
 	},
 	"text:R9497410": {
 		"status": "matched",
@@ -2224,8 +2475,12 @@
 	},
 	"text:R9502437": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"reason": "missing",
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-20",
+		"item": "Conductor shows \"Prompt\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9511048": {
 		"status": "gap",
@@ -2294,7 +2549,11 @@
 	"text:R9534245": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"This content could not be displayed.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9539350": {
 		"status": "gap",
@@ -2339,7 +2598,11 @@
 	"text:R9543653": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"Add a Cursor API key in provider settings to use Cursor.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9544396": {
 		"status": "gap",
@@ -2352,7 +2615,11 @@
 	"text:R9544627": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9544970": {
 		"status": "gap",
@@ -2381,7 +2648,11 @@
 	"text:R9557324": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"Cancelled\" (control, inventory-controls Chat view); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9562178": {
 		"status": "gap",
@@ -2489,22 +2760,38 @@
 	"text:R9637583": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"Unsaved changes\" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9637908": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"Retry update\" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9638032": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"Update failed. Retry\" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9638941": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"This file has been modified. Click to view the latest changes.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9643764": {
 		"status": "matched",
@@ -2517,17 +2804,29 @@
 	"text:R9652412": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Failed to load PDF\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9655838": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Failed to render page\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9659929": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Conductor shows \"Failed to load video\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9662211": {
 		"status": "gap",
@@ -2588,7 +2887,11 @@
 	"text:R9957571": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-02",
+		"item": "Conductor shows \"No changes in this file\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9959555": {
 		"status": "gap",
@@ -2641,7 +2944,11 @@
 	"text:R9988523": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Conductor shows \"Video attachment\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R9992592": {
 		"status": "gap",
@@ -2654,32 +2961,50 @@
 	"text:R10000509": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-12",
+		"item": "Conductor shows \"Resolved\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10000794": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-12",
+		"item": "Conductor shows \"Outdated\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10007781": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Conductor shows \"Couldn't load comments\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10014580": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-04",
+		"item": "Conductor shows \"Failed to load logs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10030326": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The add-people picker in the shared workspace access dialog; workspace sharing is a team feature (D004).",
+		"by": "hand"
 	},
 	"text:R10031601": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The add-people picker in the shared workspace access dialog; workspace sharing is a team feature (D004).",
+		"by": "hand"
 	},
 	"text:R10038377": {
 		"status": "matched",
@@ -2708,17 +3033,29 @@
 	"text:R10060117": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-09",
+		"item": "Conductor shows \"Cloud terminal unavailable in read-only workspaces.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10069947": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"Waiting for background tasks\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10070194": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"Cancelling\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10076586": {
 		"status": "matched",
@@ -2729,9 +3066,10 @@
 		"by": "seed"
 	},
 	"text:R10076883": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label in the chat tab menu, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10076955": {
 		"status": "matched",
@@ -2806,21 +3144,22 @@
 		"by": "seed"
 	},
 	"text:R10179244": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"note": "Checked by hand: not a match. Ours shows the sample value \"docs\" in git-files, which is data, not this wording.",
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Docs item opens Conductor's own website, which D025 leaves out.",
 		"by": "hand"
 	},
 	"text:R10179596": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Best practices item opens Conductor's website and prompt programme, which D025 names as left out.",
+		"by": "hand"
 	},
 	"text:R10179959": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Changelog item opens Conductor's own website, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R10180387": {
 		"status": "matched",
@@ -2831,19 +3170,25 @@
 		"by": "seed"
 	},
 	"text:R10180754": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Discord item opens Conductor's own community, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R10181093": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a prompt item opens Conductor's prompt programme, which D025 names as left out.",
+		"by": "hand"
 	},
 	"text:R10181424": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Diagnostics\" (control, inventory-ui-text Projects and workspaces); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10181731": {
 		"status": "matched",
@@ -2888,7 +3233,9 @@
 	"text:R10221548": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R10247990": {
 		"status": "gap",
@@ -2925,7 +3272,13 @@
 	"text:R10289703": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours says \"Toggle left sidebar\" on the window controls row's button.",
+		"backlog": "NAV-01",
+		"item": "Conductor shows \"Toggle sidebar\" (control, Unplaced); ours says \"Toggle left sidebar\" on window controls row (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10303954": {
 		"status": "decided",
@@ -3096,7 +3449,11 @@
 	"text:R10362249": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-07",
+		"item": "Conductor shows \"Memory\" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10377244": {
 		"status": "decided",
@@ -3177,9 +3534,10 @@
 		"by": "hand"
 	},
 	"text:R10411671": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The cloud-only Pull requests nav row belongs to Conductor's team organisations, which D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R10432702": {
 		"status": "matched",
@@ -3243,8 +3601,12 @@
 	},
 	"text:R10493981": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"My workspaces\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10502058": {
 		"status": "matched",
@@ -3263,9 +3625,10 @@
 		"by": "seed"
 	},
 	"text:R10502967": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label for the Settings shortcut, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10534590": {
 		"status": "matched",
@@ -3282,9 +3645,10 @@
 		"by": "hand"
 	},
 	"text:R10553428": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The organisation account sign-in button needs Conductor's own service, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R10574411": {
 		"status": "matched",
@@ -3297,27 +3661,53 @@
 	"text:R10574584": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours says \"Gather details about Conducted, your Mac and its shell to help diagnose a problem\" on the Diagnostics screen.",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Capture information about your environment to help diagnose issues.\" (region, Unplaced); ours says \"Gather details about Conducted, your Mac and its shell to help diagnose a problem.\" on Diagnostics screen (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10576215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours labels the action \"Copy full report\" on the Diagnostics actions row.",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Copy the full diagnostics report to your clipboard\" (region, Unplaced); ours says \"Copy full report\" on Diagnostics actions (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10576554": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Redacted report hashes the values of all env variables, except a few non-sensitive ones like PATH\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10576999": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"note": "Ours labels the action \"Create a new session with the redacted report attached\" on the Diagnostics actions row.",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH.\" (region, Unplaced); ours says \"Create a new session with the redacted report attached\" on Diagnostics actions (parity gap, wording).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10577409": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03",
+		"item": "Conductor shows \"Create a new session with the full report attached. All env values are sent to your AI provider.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10581067": {
 		"status": "gap",
@@ -3378,12 +3768,20 @@
 	"text:R10662685": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"Dark\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10662728": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"System\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10663577": {
 		"status": "matched",
@@ -3491,28 +3889,39 @@
 	},
 	"text:R10669114": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"reason": "missing",
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"Custom...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10669800": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-06",
+		"item": "Conductor shows \"Enter font name exactly as installed on your system\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10670104": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample code in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10670143": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample code in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10670205": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample code in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10670896": {
 		"status": "matched",
@@ -3579,19 +3988,22 @@
 		"by": "seed"
 	},
 	"text:R10674386": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample terminal output in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10674436": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample terminal output in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10674477": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Sample terminal output in the font preview, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10678723": {
 		"status": "matched",
@@ -3620,7 +4032,11 @@
 	"text:R10692019": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Conductor shows \"Cmd+Shift+.\" (region, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10693634": {
 		"status": "matched",
@@ -3697,17 +4113,29 @@
 	"text:R10725742": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"OAuth\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10725877": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Bearer token\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10725931": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Custom headers\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10725984": {
 		"status": "matched",
@@ -3720,67 +4148,119 @@
 	"text:R10726669": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Advanced client identity\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10726955": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"OAuth callback URL\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10734876": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"setup guide\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10735245": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"MCP server URL\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10735883": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Client ID\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10736417": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Client secret\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10737019": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Finish connecting in your browser.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10738808": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Connect Datadog\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10738847": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Before connecting, allow Conductor’s OAuth redirect URL in Datadog.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10739035": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Datadog site\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10739612": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Organization Settings → Preferences → MCP OAuth Redirect URLs\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10739707": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Add this URL:\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10764556": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"No recommended MCPs match your search\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10764770": {
 		"status": "decided",
@@ -3799,22 +4279,38 @@
 	"text:R10767373": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Import from local\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10769991": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Select MCP servers\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10770341": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Scanning local MCP servers…\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10770489": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Couldn't read local MCP configs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10771891": {
 		"status": "gap",
@@ -3827,7 +4323,11 @@
 	"text:R10778940": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "Conductor shows \"Installed\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10778993": {
 		"status": "matched",
@@ -3915,18 +4415,30 @@
 	},
 	"text:R10820086": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"reason": "missing",
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "Conductor shows \"Loading repositories...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10821137": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "Conductor shows \"Couldn't check your GitHub sign-in\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10821338": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "Conductor shows \"Signed in to GitHub as\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10832356": {
 		"status": "gap",
@@ -3979,14 +4491,16 @@
 		"by": "hand"
 	},
 	"text:R10854681": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Part of the organisation install script, a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R10854974": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Part of the organisation install script, a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R10855274": {
 		"status": "decided",
@@ -4039,7 +4553,11 @@
 	"text:R10876329": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"item": "Conductor shows \"Loading environment variables\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10878586": {
 		"status": "decided",
@@ -4074,7 +4592,11 @@
 	"text:R10886799": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"item": "Conductor shows \"Import\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10891604": {
 		"status": "decided",
@@ -4158,12 +4680,20 @@
 	"text:R10927644": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Open the OpenAI device authorization page.\" (region, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10928079": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Enter this code when OpenAI asks for it:\" (control, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10929825": {
 		"status": "matched",
@@ -4176,12 +4706,20 @@
 	"text:R10932513": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Connected to\" (control, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10933927": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Checking login status...\" (region, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10945315": {
 		"status": "gap",
@@ -4218,22 +4756,36 @@
 	"text:R10962716": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Review the provider setup, then refresh.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10967695": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Changing this removes all existing repos and workspaces from Conductor, but leaves their files on disk.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10971526": {
 		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "missing",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-13",
+		"item": "Conductor shows \"Changing this may cause issues if the executable is not compatible with Conductor.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10976147": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"by": "hand",
+		"note": "Not owned: no backlog row covers this component."
 	},
 	"text:R10977415": {
 		"status": "matched",
@@ -4244,14 +4796,19 @@
 		"by": "seed"
 	},
 	"text:R10978033": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An inline code identifier in a setting description, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R10982001": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-03",
+		"item": "Conductor shows \"Checking\" (control, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R10985659": {
 		"status": "gap",
@@ -4280,17 +4837,29 @@
 	"text:R11019107": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Hidden\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11022869": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Show action\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11023100": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Hide action\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11023334": {
 		"status": "matched",
@@ -4303,7 +4872,11 @@
 	"text:R11023365": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"Reset to your repo's settings.toml\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11026106": {
 		"status": "matched",
@@ -4414,12 +4987,20 @@
 	"text:R11097816": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "SET-12",
+		"item": "Conductor shows \"Always approve\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11104016": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Learn more\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11111478": {
 		"status": "matched",
@@ -4454,37 +5035,65 @@
 	"text:R11130319": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "GIT-08",
+		"item": "Conductor shows \"Loading remotes...\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11130377": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "GIT-08",
+		"item": "Conductor shows \"No remote found.\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11137042": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "PR-08",
+		"item": "Conductor shows \"Graphite\" (control, inventory-controls Settings: General); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11138708": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"reason": "unshown",
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Custom\" (control, inventory-controls Settings: General); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11140791": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Delete the local branch when archiving a workspace.\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11141184": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"configure it on GitHub\" (control, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11141442": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "SET-02",
+		"item": "Conductor shows \"Warning: archived workspaces will be unrecoverable\" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11143599": {
 		"status": "gap",
@@ -4519,7 +5128,11 @@
 	"text:R11154299": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-09",
+		"item": "Conductor shows \"Manual overrides are ignored while Exclusive port forwarding is off.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11155309": {
 		"status": "gap",
@@ -4597,9 +5210,10 @@
 		"by": "hand"
 	},
 	"text:R11187774": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The phone pairing dialog belongs to the phone relay, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11192869": {
 		"status": "decided",
@@ -4686,7 +5300,11 @@
 	"text:R11231761": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Conductor shows \"Could not load models.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11264124": {
 		"status": "gap",
@@ -4698,7 +5316,11 @@
 	"text:R11274850": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "PRJ-04",
+		"item": "Conductor shows \"Using .worktreeinclude from this repository. Remove that file to edit these patterns here.\" (region, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11277107": {
 		"status": "gap",
@@ -4743,7 +5365,11 @@
 	"text:R11285835": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "PRJ-05",
+		"item": "Conductor shows \"No favicon detected\" (control, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11291806": {
 		"status": "gap",
@@ -4802,9 +5428,10 @@
 		"owner": "rule:quote"
 	},
 	"text:R11324211": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keycap label, a key name and not wording (D086).",
+		"by": "hand"
 	},
 	"text:R11338967": {
 		"status": "decided",
@@ -4903,37 +5530,65 @@
 	"text:R11445293": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-12",
+		"item": "Conductor shows \"No branch name\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11448022": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"item": "Conductor shows \"Linear could not be loaded. Refresh Linear in settings.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11455832": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"No pull requests found\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11456439": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"Open settings\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11456954": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"In use\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11457027": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PR-11",
+		"item": "Conductor shows \"Select\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11458209": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "GIT-12",
+		"item": "Conductor shows \"No branches found\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11463277": {
 		"status": "matched",
@@ -4946,27 +5601,41 @@
 	"text:R11464130": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Conductor shows \"PRs\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11464188": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Conductor shows \"Branches\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11464249": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-05",
+		"item": "Conductor shows \"Issues\" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11502876": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11502916": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11503507": {
 		"status": "matched",
@@ -4987,12 +5656,20 @@
 	"text:R11508077": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-10",
+		"item": "Conductor shows \"Enter a new name for this workspace\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11510910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"item": "Conductor shows \"Section not found\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11515751": {
 		"status": "gap",
@@ -5011,7 +5688,11 @@
 	"text:R11524020": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "Conductor shows \"Keyword\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11525093": {
 		"status": "decided",
@@ -5022,7 +5703,11 @@
 	"text:R11525602": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "Conductor shows \"Prompt snippet\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11527318": {
 		"status": "gap",
@@ -5041,39 +5726,52 @@
 		"owner": "rule:cite"
 	},
 	"text:R11533432": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11534506": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11534878": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11535620": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11541757": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Team artifacts and their templates are a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11542973": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-01",
+		"item": "Conductor shows \"Enter a new name for this chat\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11544294": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-05",
+		"item": "Conductor shows \"Pick an icon, emoji, favicon, or uploaded image for this repository\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11548768": {
 		"status": "decided",
@@ -5088,9 +5786,10 @@
 		"by": "hand"
 	},
 	"text:R11551086": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A path prefix, not wording (D086).",
+		"by": "hand"
 	},
 	"text:R11551241": {
 		"status": "decided",
@@ -5137,7 +5836,11 @@
 	"text:R11574947": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Conductor shows \"Sign-in expired.\" (region, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11584038": {
 		"status": "matched",
@@ -5182,12 +5885,20 @@
 	"text:R11595958": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Conductor shows \"Workspace ID (optional)\" (control, inventory-ui-text Settings and agents); ours holds it but no catalogue state draws it (parity gap, unshown).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11601498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Conductor shows \"Manual\" (control, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11601595": {
 		"status": "matched",
@@ -5204,14 +5915,16 @@
 		"by": "rule:conductor-service"
 	},
 	"text:R11609141": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Organisation onboarding's admin workspace, a team feature that D004 leaves out.",
+		"by": "hand"
 	},
 	"text:R11610071": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The hosted computer build belongs to Conductor's hosted computers, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11619039": {
 		"status": "decided",
@@ -5282,12 +5995,20 @@
 	"text:R11656536": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"item": "Conductor shows \"Drop images here\" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11657459": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"item": "Conductor shows \"Click to preview\" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11657833": {
 		"status": "matched",
@@ -5306,14 +6027,16 @@
 		"by": "seed"
 	},
 	"text:R11660855": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Submit a prompt dialog belongs to Conductor's prompt programme, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11661522": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Submit a prompt dialog belongs to Conductor's prompt programme, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R11676567": {
 		"status": "gap",
@@ -5342,7 +6065,11 @@
 	"text:R11679495": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-03",
+		"item": "Conductor shows \"No local servers running. Start your dev server and it'll show up here.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11687853": {
 		"status": "gap",
@@ -5363,7 +6090,11 @@
 	"text:R11716261": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-07",
+		"item": "Conductor shows \"No actions found in this source.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11721389": {
 		"status": "decided",
@@ -5404,12 +6135,20 @@
 	"text:R11741989": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-09",
+		"item": "Conductor shows \"Type shortcut\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11744268": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-09",
+		"item": "Conductor shows \"Fixed shortcut\" (control, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11751146": {
 		"status": "decided",
@@ -5434,7 +6173,11 @@
 	"text:R11772171": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-07",
+		"item": "Conductor shows \"Loading...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"text:R11775650": {
 		"status": "decided",
@@ -5719,9 +6462,10 @@
 		"by": "seed"
 	},
 	"text:R12039927": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The database rollback terminal is a staff tool, which D025 leaves out.",
+		"by": "hand"
 	},
 	"text:R12041464": {
 		"status": "gap",
@@ -5732,24 +6476,28 @@
 		"owner": "rule:quote"
 	},
 	"text:R12044893": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The forced-update screen is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12044977": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The forced-update screen is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12046593": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The forced-update screen is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12047732": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The region block is a hosted service check, which D025 leaves out (StartupFailure.tsx).",
+		"by": "hand"
 	},
 	"text:R12095445": {
 		"status": "gap",

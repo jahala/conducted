@@ -230,14 +230,32 @@ describe("SIDE-22 completions cache", () => {
 
 	test("SIDE-22 keeps at most 500 entries, dropping the oldest", async () => {
 		const folder = await tempFolder();
-		const { clock, advance } = clockAt(1_700_000_000_000);
+		const start = 1_700_000_000_000;
+		const { clock, advance } = clockAt(start);
 		const cache = cacheAt(folder, clock);
-		for (let index = 0; index < COMPLETIONS_MAX_ENTRIES + 1; index += 1) {
-			advance(1);
-			await cache.write({ repoRootPath: `/code/repo-${index}`, agent: "claude" }, [
-				command({ name: `command-${index}` }),
-			]);
-		}
+		// The file starts full, written once in the cache's own format, so one write through the
+		// cache crosses the limit. Writing all 500 through the cache rewrites the file 500 times,
+		// which took over five seconds on a shared CI runner.
+		const full = Array.from({ length: COMPLETIONS_MAX_ENTRIES }, (_, index) => ({
+			repoRootPath: `/code/repo-${index}`,
+			agent: "claude",
+			sourceHash: `hash-${index}`,
+			savedAt: start + index,
+			commands: [command({ name: `command-${index}` })],
+		}));
+		await writeFile(
+			path.join(folder, COMPLETIONS_FILE_NAME),
+			JSON.stringify({ version: 1, revision: 0, entries: full }),
+			"utf8",
+		);
+		expect(await cache.read({ repoRootPath: "/code/repo-0", agent: "claude" })).not.toEqual(
+			ok(null),
+		);
+
+		advance(COMPLETIONS_MAX_ENTRIES + 1);
+		await cache.write({ repoRootPath: `/code/repo-${COMPLETIONS_MAX_ENTRIES}`, agent: "claude" }, [
+			command({ name: `command-${COMPLETIONS_MAX_ENTRIES}` }),
+		]);
 
 		expect(await cache.read({ repoRootPath: "/code/repo-0", agent: "claude" })).toEqual(ok(null));
 		const newest = await cache.read({
