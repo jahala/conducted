@@ -258,7 +258,7 @@ Chosen:
 - Draft staging is swept after 7 days, not 30. The update check runs hourly and on window focus, not every 60 and 300 seconds.
 - The workspace port is stored in `workspaces.port` and stays the same across restarts.
 - No `cache.db`, no shared local-storage layer: small UI stores are listed with their lifetimes in `docs/data-model.md`. The Rust shell never reads the database; the UI passes settings in.
-- No `conductor.json` migration, no `deprecated_at` on settings (unknown keys are dropped), no worktree layout version (`storage_version`). Repo scripts, prompts and file globs live in `.conducted/settings.toml` and repo-scoped settings, and shared repo settings are read from the checkout.
+- No `deprecated_at` on settings (unknown keys are dropped), no worktree layout version (`storage_version`). Repo scripts, prompts and file globs live in `.conducted/settings.toml` and repo-scoped settings, and shared repo settings are read from the checkout. Moving from Conductor, `conductor.json` included, is D100.
 - "Setting up" is an in-memory state of an `initializing` workspace. The board status is one stored value; an empty value means automatic.
 - Each statement sets `updated_at` itself, in milliseconds, in place of triggers.
 - Worktree removal moves the folder to the Trash.
@@ -449,6 +449,12 @@ Why: the smallest seam that the cloud rows can build on, with no change to what 
 Context: the parity harness (#347) runs on GitHub, so its spec must be in the repository. D002 forbids copying Conductor's code, prompt text and assets.
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
+
+## D100. Moving from Conductor is a read-only, all-or-nothing import (2026-11-07)
+
+Context: the owner asked for a way to move users from Conductor to Conducted, "SAFELY" (#353). D038 had left out any `conductor.json` migration, and D027 sets only `CONDUCTED_*` names.
+Chosen: an import that only reads a backup copy of Conductor's database, shows a dry run first, writes Conducted's data in one transaction, checks counts after, and leaves worktrees where they are. Projects, workspaces, chats, settings with a matching key, environment variables (into the Keychain), sidebar sections, favourite models and review comments come over. Repo scripts are written once into a new `.conducted/settings.toml` with `CONDUCTOR_` names renamed to `CONDUCTED_`; script files in the repo are listed with the line to change, never edited. Chat history comes over only if the spike on real data passes its mark. The plan is docs/plans/migrate-from-conductor.md.
+Why: the user can always go back to Conductor, because nothing of Conductor's is written; D027 holds without an alias, because the rename happens once on import.
 
 ## D103. The host has one home on the workspace; cloud rows follow it by reference (2026-11-07)
 
