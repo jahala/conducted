@@ -259,6 +259,8 @@ export interface Terminal {
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
 	cwd: string;
+	/** Where the terminal runs: the Mac, or the sandbox of a cloud workspace (CLOUD-11). */
+	hostKind: "local" | "cloud";
 	/** A command typed into the shell when it starts, for example a "big terminal" preset. */
 	startCommand: string | null;
 	startedAt: number;

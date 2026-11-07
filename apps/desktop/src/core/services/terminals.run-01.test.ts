@@ -52,6 +52,7 @@ const runTerminal: Terminal = {
 	kind: "run",
 	title: "Dev server",
 	cwd: "/ws/oslo",
+	hostKind: "local",
 	startCommand: null,
 	startedAt: 1000,
 	endedAt: null,

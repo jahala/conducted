@@ -128,8 +128,11 @@ function harness(listed: ListeningPort[] = [], options: { exitCode?: number } = 
 		async mkdirp() {
 			return ok(undefined);
 		},
+		async exists() {
+			return true;
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
-	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp"> & {
+	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
 		paths: FileSystem["paths"];
 	};
 	const deps: RunScriptsServiceDeps = {

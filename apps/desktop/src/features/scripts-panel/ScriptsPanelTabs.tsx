@@ -8,8 +8,8 @@
  * laptop host icon, CLOUD-09).
  * Must handle: a status dot on Setup (running, failed) and Run (running), the limit disabling "new
  * terminal" with the reason as its title, many terminals (the strip scrolls), middle-click closing
- * a terminal tab, and the Ports tab being hidden until a port is detected or its scan fails (Our
- * design choice).
+ * a terminal tab, the Ports tab being hidden until a port is detected or its scan fails, and a
+ * cloud workspace's New terminal offering "Cloud terminal" and "Local terminal" (CLOUD-11).
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";
@@ -23,6 +23,7 @@ import {
 	LaptopIcon,
 	PlusIcon,
 } from "../../ui/icons.tsx";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 
 export type ScriptsPanelTabId =
 	| { kind: "setup" }
@@ -46,8 +47,10 @@ export interface ScriptsPanelTabsProps {
 	collapsed: boolean;
 	/** A cloud workspace's file-sync state; undefined on a Mac workspace (CLOUD-11). */
 	fileSync?: FileSyncView;
+	/** True for a cloud workspace, whose New terminal offers the sandbox and the Mac (CLOUD-11). */
+	cloudWorkspace?: boolean;
 	onSelect: (tab: ScriptsPanelTabId) => void;
-	onNewTerminal: () => void;
+	onNewTerminal: (hostKind?: "local" | "cloud") => void;
 	onCloseTerminal: (id: TerminalId) => void;
 	onToggleCollapsed: () => void;
 }
@@ -79,6 +82,7 @@ export function ScriptsPanelTabs({
 	terminalLimit,
 	collapsed,
 	fileSync,
+	cloudWorkspace = false,
 	onSelect,
 	onNewTerminal,
 	onCloseTerminal,
@@ -174,16 +178,40 @@ export function ScriptsPanelTabs({
 					),
 				)}
 			</div>
-			<IconButton
-				size="xs"
-				variant="ghost"
-				label="New terminal"
-				icon={<PlusIcon className="size-3.5" />}
-				className="text-fg-muted"
-				disabled={atLimit}
-				title={atLimit ? reason : undefined}
-				onClick={onNewTerminal}
-			/>
+			{cloudWorkspace ? (
+				<Menu>
+					<MenuTrigger asChild>
+						<IconButton
+							size="xs"
+							variant="ghost"
+							label="New terminal"
+							icon={<PlusIcon className="size-3.5" />}
+							className="text-fg-muted"
+							disabled={atLimit}
+							title={atLimit ? reason : undefined}
+						/>
+					</MenuTrigger>
+					<MenuContent align="end">
+						<MenuItem icon={<CloudIcon />} onSelect={() => onNewTerminal("cloud")}>
+							Cloud terminal
+						</MenuItem>
+						<MenuItem icon={<LaptopIcon />} onSelect={() => onNewTerminal("local")}>
+							Local terminal
+						</MenuItem>
+					</MenuContent>
+				</Menu>
+			) : (
+				<IconButton
+					size="xs"
+					variant="ghost"
+					label="New terminal"
+					icon={<PlusIcon className="size-3.5" />}
+					className="text-fg-muted"
+					disabled={atLimit}
+					title={atLimit ? reason : undefined}
+					onClick={() => onNewTerminal()}
+				/>
+			)}
 		</div>
 	);
 }
