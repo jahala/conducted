@@ -223,6 +223,18 @@ describe("PR-04 Checks tab", () => {
 		}
 	});
 
+	it("shows the pull request's title once, in the inline editor, as Conductor does", async () => {
+		const { test } = await mountWithPullRequest();
+		try {
+			const field = await screen.findByDisplayValue("Add the checks tab");
+			expect(field).toBeTruthy();
+			expect(screen.queryByText("Add the checks tab")).toBeNull();
+			expect(screen.getByText("#12")).toBeTruthy();
+		} finally {
+			test.close();
+		}
+	});
+
 	it("opens GitHub's new pull request page from Create PR through the action", async () => {
 		const { test, workspace } = await mountWithPullRequest(null);
 		try {

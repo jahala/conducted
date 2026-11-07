@@ -40,7 +40,8 @@ describe("PR-04 PR summary header", () => {
 		);
 		expect(screen.getByText("#12")).toBeTruthy();
 		expect(screen.getByText("Draft")).toBeTruthy();
-		expect(screen.getByText("Add the checks tab")).toBeTruthy();
+		// The inline editor above the header shows the title; the header does not repeat it.
+		expect(screen.queryByText("Add the checks tab")).toBeNull();
 	});
 
 	it("copies the link and the number from the header menu", async () => {
