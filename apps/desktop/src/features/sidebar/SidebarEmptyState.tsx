@@ -18,7 +18,7 @@ export function SidebarEmptyState({ kind }: { kind: "no-projects" | "no-workspac
 	if (kind === "no-projects") {
 		// Conductor's block at the top of the empty list (renderApp @10534600): one muted sentence.
 		return (
-			<div className="flex w-full flex-col rounded-md px-1.5 py-2.5 text-sidebar-fg-muted">
+			<div className="mx-1.5 mt-0.5 flex flex-col rounded-md px-1.5 py-2.5 text-sidebar-fg-muted">
 				<p className="text-sm">Add a project to get started.</p>
 			</div>
 		);
