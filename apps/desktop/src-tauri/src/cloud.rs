@@ -37,6 +37,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::mpsc;
+use tokio_tungstenite::Connector;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
@@ -300,9 +301,24 @@ pub async fn cloud_relay_open(
     url: String,
     vm_id: String,
 ) -> CommandResult<String> {
-    let base = checked_worker_url(&url)?;
-    let relay = relay_url(&base, &vm_id)?;
     let token = pairing_token().await?;
+    open_relay(app, &state, &url, &vm_id, &token, None).await
+}
+
+/// The relay itself, with its pairing token and TLS trust passed in. Production reads the token
+/// from the Keychain and uses the system trust. The integration test in
+/// `tests/cloud_relay_workerd.rs` supplies a test token and trusts the local runtime's own
+/// certificate, so it can reach a Worker that it starts on this Mac.
+pub async fn open_relay<R: tauri::Runtime>(
+    app: AppHandle<R>,
+    state: &CloudState,
+    url: &str,
+    vm_id: &str,
+    token: &str,
+    connector: Option<Connector>,
+) -> CommandResult<String> {
+    let base = checked_worker_url(url)?;
+    let relay = relay_url(&base, vm_id)?;
     let mut request = relay.as_str().into_client_request().map_err(|error| {
         refused(
             "cloud_relay_failed",
@@ -311,15 +327,16 @@ pub async fn cloud_relay_open(
     })?;
     request
         .headers_mut()
-        .insert(reqwest::header::AUTHORIZATION, bearer(&token)?);
-    let (stream, _answer) = tokio_tungstenite::connect_async(request)
-        .await
-        .map_err(|error| {
-            refused(
-                "cloud_relay_failed",
-                format!("The relay could not connect: {error}"),
-            )
-        })?;
+        .insert(reqwest::header::AUTHORIZATION, bearer(token)?);
+    let (stream, _answer) =
+        tokio_tungstenite::connect_async_tls_with_config(request, None, false, connector)
+            .await
+            .map_err(|error| {
+                refused(
+                    "cloud_relay_failed",
+                    format!("The relay could not connect: {error}"),
+                )
+            })?;
     let (mut writer, mut reader) = stream.split();
     let id = state.next_id();
     let (outgoing, mut lines) = mpsc::unbounded_channel::<String>();

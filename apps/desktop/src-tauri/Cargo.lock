@@ -682,6 +682,7 @@ dependencies = [
  "image",
  "lzma-rust2",
  "muda",
+ "native-tls",
  "nucleo-matcher",
  "objc2",
  "objc2-app-kit",

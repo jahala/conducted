@@ -15,24 +15,11 @@
  */
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { INVALID_BODY, zExecBody, zFileBody, zGitBody } from "./args.ts";
-import { isAuthorized } from "./auth.ts";
 import type { Env } from "./env.ts";
+import { routeRequest } from "./front-door.ts";
 import { Workspace } from "./workspace.ts";
 
 export { Workspace };
-
-const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|rpc)$/;
-/** A sandbox name is safe in a URL and stable across deploys. */
-const NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-
-const METHOD: Readonly<Record<string, "GET" | "POST">> = {
-	state: "GET",
-	rpc: "GET",
-	start: "POST",
-	git: "POST",
-	exec: "POST",
-	files: "POST",
-};
 
 function failure(error: unknown): Response {
 	const message = error instanceof Error ? error.message : String(error);
@@ -79,22 +66,9 @@ export class Outbound extends WorkerEntrypoint<Env> {
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
-		if (!isAuthorized(request, env.PAIRING_TOKEN)) {
-			return new Response("Unauthorized", { status: 401 });
-		}
-		const url = new URL(request.url);
-		const match = ROUTE.exec(url.pathname);
-		if (match === null) return new Response("Not found", { status: 404 });
-		const [, name, action] = match as unknown as [string, string, string];
-		if (!NAME.test(name)) return new Response("Bad workspace name", { status: 400 });
-		const expected = METHOD[action];
-		if (expected === undefined) return new Response("Not found", { status: 404 });
-		if (request.method !== expected) {
-			return new Response("Method not allowed", {
-				status: 405,
-				headers: { allow: expected },
-			});
-		}
+		const routed = routeRequest(request, env.PAIRING_TOKEN);
+		if ("refusal" in routed) return routed.refusal;
+		const { name, action } = routed.route;
 		const workspace = env.WORKSPACE.getByName(name);
 		try {
 			switch (action) {
@@ -118,9 +92,6 @@ export default {
 					return Response.json(await workspace.filesOperation(body));
 				}
 				case "rpc":
-					if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-						return new Response("Expected a WebSocket", { status: 426 });
-					}
 					return workspace.fetch(request);
 			}
 			return new Response("Not found", { status: 404 });
