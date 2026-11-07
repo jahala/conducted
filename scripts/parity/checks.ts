@@ -331,6 +331,21 @@ export function routePath(route: string | null): string {
 	return (route ?? "").split("?")[0] ?? "";
 }
 
+/**
+ * The lines of a multi-line sample value, without Markdown's line marks: a reply's heading or list
+ * item, a file's line of code. A line counts when it has two words or code punctuation, so a
+ * one-word line (a table cell, "Done") cannot hide a label of ours.
+ */
+export function sampleLines(sample: string): string[] {
+	if (!sample.includes("\n")) return [];
+	return sample
+		.replace(/\\`/g, "`")
+		.replace(/\$\{[^}]*\}/g, "\n")
+		.split("\n")
+		.map((line) => normalise(line.replace(/^\s*(?:#{1,6}\s|[-*>]\s|\d+\.\s)/, "")))
+		.filter((line) => /\S\s+\S/.test(line) || /[{}();=]/.test(line));
+}
+
 function oursOnlyGaps(inputs: Inputs, dump: Dump): Finding[] {
 	const findings: Finding[] = [];
 	const matched = matchedTexts(inputs);

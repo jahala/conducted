@@ -7,6 +7,7 @@ import {
 	checkText,
 	type Inputs,
 	isSample,
+	sampleLines,
 	squash,
 	templatePattern,
 } from "./checks.ts";
@@ -172,6 +173,11 @@ describe("check b, text and controls both ways", () => {
 			dumpOf([failed, state("composer-model-picker", [["Search models", "text"]])]),
 		);
 		expect(findings.map((f) => [f.code, f.severity])).toEqual([["state-failed", "broken"]]);
+	});
+
+	test("a line of a multi-line sample is sample data; a one-word line is not", () => {
+		const reply = "## The test fix\n\n- One test called \\`url.parse\\`\nDone\n  try {\n${value}";
+		expect(sampleLines(reply)).toEqual(["The test fix", "One test called `url.parse`", "try {"]);
 	});
 
 	test("an environment variable's name is an identifier, not wording", () => {
