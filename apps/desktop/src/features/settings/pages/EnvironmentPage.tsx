@@ -1,7 +1,9 @@
 /**
  * @feature SET-04 Environment settings page
  * Owns: the Environment page of Settings: environment variables given to agents, setup scripts and
- * actions, and the files that hold more variables. Interactive terminals do not receive them.
+ * actions, and the files that hold more variables. Interactive terminals do not receive them. The
+ * files are read again when a script or an agent starts (SettingsService.environmentForLaunch);
+ * their values never reach a log line.
  * Behaviour: ui-map.md 6, "Environment" table and "Environment page" (Variables table: Name,
  * Value, "Locally overwritten", "Not set"; empty state "No variables set"; env files list; a
  * banner for importing local variables); services-map.md 4.2.8 (env_vars table; values are secrets).
@@ -26,6 +28,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useEnvVars, useRepos, useSetting } from "../../../core/hooks.ts";
 import type { EnvScope } from "../../../core/model.ts";
+import { parseDotenv } from "../../../core/services/dotenv.ts";
 import {
 	ENV_FILES_FAILED_MESSAGE,
 	ENV_SAVE_FAILED_MESSAGE,
@@ -36,7 +39,7 @@ import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { AddEnvVarForm } from "../environment/AddEnvVarForm.tsx";
-import { EnvFilesList, parseDotenv, pathInsideRepository } from "../environment/EnvFilesList.tsx";
+import { EnvFilesList, pathInsideRepository } from "../environment/EnvFilesList.tsx";
 import { EnvVarTable } from "../environment/EnvVarTable.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -366,8 +369,8 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 					<div>
 						<h2 className="text-base font-medium text-fg">Env files</h2>
 						<p className="text-sm text-fg-muted">
-							Dotenv files found in {selectedRepo === null ? "your home folder" : selectedRepo.name}
-							. A path is listed here and its names can be imported into the variables above.
+							Load environment variables from env files into the environment of your scripts and
+							agents.
 						</p>
 						{repoRoot !== null && repoFiles?.root === repoRoot && repoFiles.ownValue ? (
 							<Button variant="link" size="sm" onClick={() => void resetFiles()}>
