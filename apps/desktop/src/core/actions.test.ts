@@ -28,6 +28,7 @@ const GROUPS = [
 	"mcp",
 	"attachments",
 	"cloud",
+	"portForwards",
 	"snippets",
 	"settings",
 	"agents",
@@ -86,6 +87,10 @@ describe("DATA-01 createActions", () => {
 			cloud: {
 				run: () => actions.cloud.unpair(),
 				path: "cloudPairing.unpair",
+			},
+			portForwards: {
+				run: () => actions.portForwards.add("w" as never, 3000),
+				path: "portForwards.add",
 			},
 			sessions: {
 				run: () => actions.sessions.close("s" as never),

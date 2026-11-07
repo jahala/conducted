@@ -3,6 +3,7 @@
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-17 Cloud settings page
  * Owns: the checks every request passes after the unauthenticated preview path and before a
  * Durable Object is touched: the pairing token, the pairing check, the cloud settings read and
@@ -14,7 +15,7 @@
  * name after the token check.
  * Must handle: 401 before any Durable Object for a missing or wrong token; 404 for an unknown
  * route; 400 for a bad workspace name; 405 for the wrong method with an `allow` header; 426 for a
- * relay or terminal request that is not a WebSocket.
+ * relay, terminal or tunnel request that is not a WebSocket.
  * Our design choice: the front door is its own module so the Worker and the relay integration
  * test's Worker share the same checks, and the test needs no copy of them.
  * Test first: an unknown route refuses a request without the pairing token.
@@ -31,8 +32,10 @@ export type CloudAction =
 	| "exec"
 	| "files"
 	| "state"
+	| "ports"
 	| "rpc"
 	| "terminal"
+	| "tunnel"
 	| "preview-url";
 
 export interface CloudRoute {
@@ -50,12 +53,15 @@ export type FrontDoor =
 /** The one path that holds the Mac's personal cloud settings (CLOUD-17). */
 export const SETTINGS_PATH = "/settings";
 
-const ROUTE = /^\/w\/([^/]+)\/(start|stop|remove|git|exec|files|state|rpc|terminal|preview-url)$/;
+const ROUTE =
+	/^\/w\/([^/]+)\/(start|stop|remove|git|exec|files|state|ports|rpc|terminal|tunnel|preview-url)$/;
 
 const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 	state: "GET",
+	ports: "GET",
 	rpc: "GET",
 	terminal: "GET",
+	tunnel: "GET",
 	"preview-url": "POST",
 	start: "POST",
 	stop: "POST",
@@ -66,7 +72,7 @@ const METHOD: Readonly<Record<CloudAction, "GET" | "POST">> = {
 };
 
 /** The streams that must arrive as a WebSocket, never a plain GET. */
-const STREAMS: ReadonlySet<CloudAction> = new Set(["rpc", "terminal"]);
+const STREAMS: ReadonlySet<CloudAction> = new Set(["rpc", "terminal", "tunnel"]);
 
 /**
  * The route a request may reach, or the response that refuses it. A refusal is a finished answer:

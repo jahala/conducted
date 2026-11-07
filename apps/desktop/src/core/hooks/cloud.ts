@@ -1,10 +1,11 @@
 /**
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-17 Cloud settings page
- * Owns: the query hooks the Connections, Git and Cloud pages read: whether this Mac is paired and
- * with which Worker, and the Mac's personal cloud settings.
- * Behaviour: core/hooks.ts states the contract; the pairing and settings services' stores hold the
- * answers.
+ * Owns: the query hooks for the cloud connection: the pairing the Connections page reads, a
+ * cloud workspace's forwarding view, and the Mac's personal cloud settings (Git and Cloud pages).
+ * Behaviour: core/hooks.ts states the contract; the pairing, forwarding and settings services'
+ * stores hold the answers.
  * Must handle: a state not read yet (loading), and a Keychain or Worker read that failed (an error
  * state with its message).
  * Test first: ConnectionsPage.test.tsx pairs with a Worker URL and a token, then unpairs.
@@ -27,4 +28,22 @@ export const useCloudSettings: Queries["useCloudSettings"] = () => {
 	if (state.state === "unknown" || state.state === "loading") return { state: "loading" };
 	if (state.state === "error") return { state: "error", error: state.error };
 	return { state: "ready", data: { settings: state.settings, paired: state.paired } };
+};
+
+/**
+ * CLOUD-10: the forwarding switches, forwards and discovered ports of one cloud workspace.
+ * Subscribes only to that workspace's slice, so an update on another workspace does not redraw.
+ */
+export const usePortForwards: Queries["usePortForwards"] = (workspaceId) => {
+	const service = useServices().services.portForwards;
+	return (
+		useStore(service.store, (state) => state.byWorkspace[workspaceId]) ?? {
+			forwardingEnabled: false,
+			autoForwardEnabled: false,
+			waiting: false,
+			forwards: [],
+			detectedPorts: [],
+			error: null,
+		}
+	);
 };

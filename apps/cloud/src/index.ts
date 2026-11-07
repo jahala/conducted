@@ -4,6 +4,7 @@
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-17 Cloud settings page
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
  * desktop's pairing check (`/pair`), reads and writes the Mac's personal cloud settings at
@@ -11,7 +12,8 @@
  * calls to that workspace's Durable Object. Its outbound handler also carries the sandbox entry's
  * turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
- * HTTPS and one WebSocket; the Worker authenticates and routes). The sandbox's outbound
+ * HTTPS and one WebSocket; the Worker authenticates and routes). CLOUD-10 adds the tunnel route
+ * the Rust shell piped a local listener into, beside the preview route (D110). The sandbox's outbound
  * credential swap is outbound.ts (CLOUD-05), which also carries the sandbox entry's turn-end
  * backup call (D105), and the unauthenticated preview path, whose capability token is checked
  * here (D108). Route list and measurements: docs/research/cloud-spike-2026-11-06.md.
@@ -45,14 +47,14 @@ export { DirectoryBackupGateway, Outbound, Workspace };
 
 /** A preview URL carries its capability in the path, so a browser needs no pairing token. */
 const PREVIEW_PROXY = /^\/w\/([^/]+)\/preview\/([A-Za-z0-9_-]{43})\/(\d{1,5})(\/.*)?$/;
-/** Ports a preview may not use. 22 is SSH, as the research names. */
-const RESERVED_PREVIEW_PORTS = new Set([22]);
+/** Ports a preview or a forward may not use. 22 is SSH, as the research names. */
+const RESERVED_PORTS = new Set([22]);
 
-/** A preview port, or null when the number is not one a preview may use. */
-function previewPort(raw: string | null): number | null {
+/** A preview or forward port, or null when the number is not one it may use. */
+function forwardablePort(raw: string | null): number | null {
 	if (raw === null || !/^\d{1,5}$/.test(raw)) return null;
 	const port = Number(raw);
-	return port >= 1 && port <= 65535 && !RESERVED_PREVIEW_PORTS.has(port) ? port : null;
+	return port >= 1 && port <= 65535 && !RESERVED_PORTS.has(port) ? port : null;
 }
 
 /** The absolute preview URL for one port. */
@@ -94,7 +96,7 @@ export default {
 				string | undefined,
 			];
 			if (!WORKSPACE_NAME.test(name)) return new Response("Bad workspace name", { status: 400 });
-			const port = previewPort(rawPort);
+			const port = forwardablePort(rawPort);
 			if (port === null) return new Response("Bad preview port", { status: 400 });
 			const expectedToken = await previewToken(env.PAIRING_TOKEN, name, port);
 			if (!previewTokenMatches(expectedToken, token)) {
@@ -147,6 +149,8 @@ export default {
 			switch (action) {
 				case "state":
 					return Response.json(await workspace.state());
+				case "ports":
+					return Response.json(await workspace.listeningPorts());
 				case "start":
 					return Response.json(await workspace.start());
 				case "stop":
@@ -172,10 +176,15 @@ export default {
 					return workspace.fetch(request);
 				case "terminal":
 					return workspace.fetch(request);
+				case "tunnel": {
+					const port = forwardablePort(url.searchParams.get("port"));
+					if (port === null) return new Response("Bad tunnel port", { status: 400 });
+					return workspace.fetch(request);
+				}
 				case "preview-url": {
 					const body = await bodyOf(request, zPreviewBody);
 					if (body === null) return new Response(INVALID_BODY, { status: 400 });
-					const port = previewPort(String(body.port));
+					const port = forwardablePort(String(body.port));
 					if (port === null) return new Response("Bad preview port", { status: 400 });
 					return Response.json({ url: await previewUrl(request, env, name, port) });
 				}

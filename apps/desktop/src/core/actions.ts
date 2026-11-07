@@ -259,6 +259,19 @@ export function createActions(
 			setCloudEnvVar: (name, value) => services.cloudSettings.setEnvVar(name, value),
 			removeCloudEnvVar: (name) => services.cloudSettings.removeEnvVar(name),
 		},
+		portForwards: {
+			setForwarding: (workspaceId, enabled) =>
+				services.portForwards.setForwarding(workspaceId, enabled),
+			setAutoForward: (workspaceId, enabled) =>
+				services.portForwards.setAutoForward(workspaceId, enabled),
+			add: (workspaceId, remotePort) => services.portForwards.add(workspaceId, remotePort),
+			remove: (forwardId) => services.portForwards.remove(forwardId),
+			toggle: (forwardId, enabled) => services.portForwards.toggle(forwardId, enabled),
+			pauseWorkspace: (workspaceId) => services.portForwards.pauseWorkspace(workspaceId),
+			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
+			previewUrl: (workspaceId, remotePort) =>
+				services.portForwards.previewUrl(workspaceId, remotePort),
+		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
 			checkForUpdates: () => services.updates.check(),

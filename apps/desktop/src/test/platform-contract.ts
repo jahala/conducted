@@ -537,6 +537,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"A line the Worker sends reaches the relay's listener, a sent line stays one line, and a closed relay is reported once.",
 		"controls",
 	),
+	c(
+		"portForward",
+		"start-stop",
+		"a local listener starts, is listed and stops",
+		"findAvailableLocalPort answers a usable port, start binds it, list shows it, and stop removes it.",
+	),
 ];
 
 /**
@@ -1914,6 +1920,40 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(!after.paired && after.url === null, "unpair kept the pairing");
 	},
 
+	"portForward.start-stop": async (ctx) => {
+		const events: string[] = [];
+		const stop = ctx.platform.portForward.onEvent((event) => events.push(event.kind));
+		const free = expectOk(
+			ctx,
+			await ctx.platform.portForward.findAvailableLocalPort({
+				rangeStart: 20_000,
+				rangeEnd: 29_999,
+			}),
+			"findAvailableLocalPort",
+		);
+		ctx.assert(free >= 1024 && free !== 22, `the port search answered ${free}`);
+		expectOk(
+			ctx,
+			await ctx.platform.portForward.start({
+				forwardId: "forward-1",
+				url: "https://w.example.dev",
+				vmId: "oslo",
+				localPort: free,
+				remotePort: 3000,
+			}),
+			"start",
+		);
+		const running = expectOk(ctx, await ctx.platform.portForward.list(), "list");
+		ctx.assert(
+			running.some((forward) => forward.forwardId === "forward-1"),
+			"the started forward is not listed",
+		);
+		expectOk(ctx, await ctx.platform.portForward.stop("forward-1"), "stop");
+		const after = expectOk(ctx, await ctx.platform.portForward.list(), "list after stop");
+		ctx.assert(after.length === 0, "the stopped forward is still listed");
+		stop();
+		ctx.assert(events.includes("started"), "no started event was reported");
+	},
 	"cloud.relay": async (ctx) => {
 		const emit = ctx.controls?.emitCloudLine;
 		const close = ctx.controls?.emitCloudClosed;
@@ -2112,6 +2152,13 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"cloud.relay.send",
 		"cloud.relay.onClosed",
 		"cloud.relay.close",
+	],
+	"portForward.start-stop": [
+		"portForward.findAvailableLocalPort",
+		"portForward.start",
+		"portForward.stop",
+		"portForward.list",
+		"portForward.onEvent",
 	],
 };
 

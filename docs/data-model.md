@@ -35,6 +35,7 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | `snippets` | Prompt snippets, private to this Mac (D025). | until the user deletes the snippet. | 0004_review_states_backlog_snippets_keys.sql |
 | `provider_keys` | Provider keys the user gave an agent on the Agents page (D033). The values are stored in the macOS Keychain; this table holds only where each key goes. acp_agent is '' for agents that are not ACP agents. source 'this_mac' means the key is read from the Mac's environment, so no Keychain entry exists. | until the user removes the key, which also removes its Keychain entry. | 0004_review_states_backlog_snippets_keys.sql |
 | `model_context_windows` | The context window an agent last reported for one model. agent is the agent kind, or 'acp:<agent>' for an ACP agent; model is the model id the chat was started with. | one row per agent and model, replaced by the next report for that model; the table grows only with the number of models used. | 0006_model_context_windows.sql |
+| `port_forwards` | One remote port in a cloud workspace carried to one local port on this Mac. | until the workspace is archived or deleted, or the user removes the forward. | 0014_port_forwards.sql |
 <!-- /generated:tables -->
 
 The generated rows quote each migration's comment. Some comments in earlier migrations are out of date, and an applied migration is never edited, so the corrections live here:

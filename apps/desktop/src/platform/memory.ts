@@ -56,6 +56,9 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	PortForwardEvent,
+	PortForwardInfo,
+	PortForwarding,
 	ProgramStatus,
 	Programs,
 	Pty,
@@ -1256,6 +1259,65 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 	};
 
+	const runningForwards = new Map<string, PortForwardInfo>();
+	const forwardListeners = new Set<(event: PortForwardEvent) => void>();
+	const emitForward = (event: PortForwardEvent): void => {
+		for (const listener of forwardListeners) listener(event);
+	};
+	const portForward: PortForwarding = {
+		findAvailableLocalPort: async (input) => {
+			const taken = new Set(input.excludedPorts ?? []);
+			for (const forward of runningForwards.values()) taken.add(forward.localPort);
+			const usable = (port: number): boolean =>
+				Number.isInteger(port) && port >= 1024 && port <= 65_535 && port !== 22 && !taken.has(port);
+			if (input.preferredPort !== undefined && usable(input.preferredPort)) {
+				return ok(input.preferredPort);
+			}
+			for (
+				let port = Math.max(input.rangeStart, 1024);
+				port <= Math.min(input.rangeEnd, 65_535);
+				port += 1
+			) {
+				if (usable(port)) return ok(port);
+			}
+			return err(
+				platformError(
+					"port_forward_no_port",
+					"No free local port is left in the forwarding range.",
+				),
+			);
+		},
+		start: async (input) => {
+			if (input.localPort === 22 || input.remotePort === 22) {
+				return err(
+					platformError(
+						"port_forward_reserved",
+						"Port 22 is reserved for SSH and cannot be forwarded here.",
+					),
+				);
+			}
+			const info: PortForwardInfo = {
+				forwardId: input.forwardId,
+				localPort: input.localPort,
+				remotePort: input.remotePort,
+			};
+			runningForwards.set(input.forwardId, info);
+			emitForward({ forwardId: input.forwardId, kind: "started", message: null });
+			return ok(info);
+		},
+		stop: async (forwardId) => {
+			if (runningForwards.delete(forwardId)) {
+				emitForward({ forwardId, kind: "stopped", message: null });
+			}
+			return ok(undefined);
+		},
+		list: async () => ok([...runningForwards.values()]),
+		onEvent: (listener) => {
+			forwardListeners.add(listener);
+			return () => forwardListeners.delete(listener);
+		},
+	};
+
 	const app: AppInfo = {
 		version: options.version ?? "0.0.0-test",
 		channel: options.channel ?? "dev",
@@ -1452,6 +1514,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		programs,
 		http,
 		cloud,
+		portForward,
 	};
 
 	return { platform, controls };

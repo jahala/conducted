@@ -7,7 +7,7 @@
  * Must handle: building is cheap and does no I/O, so `db.transaction((tx) => createRepositories(
  * tx, deps))` is the normal way to touch two tables atomically; the handle passed in decides
  * which transaction the statements join.
- * Test first: createRepositories returns an object with all eighteen repositories.
+ * Test first: createRepositories returns an object with all nineteen repositories.
  */
 import type { Database } from "../../platform/platform.ts";
 import { type AttachmentRepository, createAttachmentRepository } from "./attachments.ts";
@@ -24,6 +24,7 @@ import {
 	createModelContextWindowRepository,
 	type ModelContextWindowRepository,
 } from "./model-context-windows.ts";
+import { createPortForwardRepository, type PortForwardRepository } from "./port-forwards.ts";
 import { createProviderKeyRepository, type ProviderKeyRepository } from "./provider-keys.ts";
 import { createQueuedMessageRepository, type QueuedMessageRepository } from "./queued-messages.ts";
 import { createRepoRepository, type RepoRepository } from "./repos.ts";
@@ -60,6 +61,7 @@ export interface Repositories {
 	providerKeys: ProviderKeyRepository;
 	modelContextWindows: ModelContextWindowRepository;
 	hostCopy: HostCopyRepository;
+	portForwards: PortForwardRepository;
 }
 
 export function createRepositories(db: Database, deps: RepositoryDeps): Repositories {
@@ -82,5 +84,6 @@ export function createRepositories(db: Database, deps: RepositoryDeps): Reposito
 		providerKeys: createProviderKeyRepository(db, deps),
 		modelContextWindows: createModelContextWindowRepository(db, deps),
 		hostCopy: createHostCopyRepository(db, deps),
+		portForwards: createPortForwardRepository(db, deps),
 	};
 }

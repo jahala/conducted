@@ -7,12 +7,13 @@
  * Test first: the '+' menu's "Link workspaces" opens the dialog.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
+import { unmountComposer } from "../../test/composer-teardown.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { Composer } from "./Composer.tsx";
 
@@ -28,9 +29,11 @@ const CONFIG: SessionConfig = {
 };
 
 let active: TestContainer | undefined;
+let mountedEditor: Editor | null = null;
 
-afterEach(() => {
-	cleanup();
+afterEach(async () => {
+	await unmountComposer(mountedEditor);
+	mountedEditor = null;
 	active?.close();
 	active = undefined;
 });
@@ -59,6 +62,7 @@ async function setup() {
 			sessionId={session.id}
 			onEditorReady={(next) => {
 				editor = next;
+				mountedEditor = next;
 			}}
 		/>,
 		{ wrapper },

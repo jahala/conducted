@@ -26,10 +26,19 @@ vi.mock("../composer/draft-sources.ts", () => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
+	useWorkspace: () => ({ state: "loading" }),
 	useSetting: () => "",
 	useGitHubAccess: () => ({ state: "loading" }),
 	useSessions: () => hooks.sessions,
 	useGitState: () => hooks.git,
+	usePortForwards: () => ({
+		forwardingEnabled: false,
+		autoForwardEnabled: false,
+		waiting: false,
+		forwards: [],
+		detectedPorts: [],
+		error: null,
+	}),
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
 	useActions: () => ({
 		workspaces: { markRead: hooks.markRead, markUnread: hooks.markUnread },
