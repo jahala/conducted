@@ -230,6 +230,19 @@ describe("COMP-02 model picker", () => {
 		expect(updateConfig).not.toHaveBeenCalled();
 	});
 
+	it("names the model by its full label on the trigger and in the model list, as Conductor does", async () => {
+		const { wrapper } = harness({
+			models: [
+				model({ id: "m1", label: "Opus 5.5", shortLabel: "Opus" }),
+				model({ id: "m2", label: "Model Two" }),
+			],
+		});
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		expect(screen.getByRole("button", { name: "Model picker" }).textContent).toContain("Opus 5.5");
+		await openPicker();
+		expect(screen.getByRole("button", { name: /^Opus 5\.5/ })).toBeTruthy();
+	});
+
 	it("shows the live fast-mode shortcut after a rebind", async () => {
 		const { wrapper } = harness({
 			keybindings: JSON.stringify({ "chat.toggleFastMode": ["Cmd+Alt+F"] }),

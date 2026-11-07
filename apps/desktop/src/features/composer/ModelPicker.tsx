@@ -235,7 +235,7 @@ export function ModelMenu({
 			const effort = effortForModel(model, config.effort);
 			if (effort !== config.effort) {
 				toast(`Effort changed to ${EFFORT_LABELS[effort]}`, {
-					description: `${model.shortLabel ?? model.label} does not support the previous effort.`,
+					description: `${model.label} does not support the previous effort.`,
 				});
 			}
 			const change = changeOf({
@@ -361,7 +361,7 @@ export function ModelMenu({
 	const modelName =
 		config === undefined
 			? "Model"
-			: (currentModel?.shortLabel ?? currentModel?.label ?? (config.model || "Choose a model"));
+			: (currentModel?.label ?? (config.model || "Choose a model"));
 	const effortName =
 		config === undefined ||
 		currentModel === undefined ||
@@ -379,7 +379,7 @@ export function ModelMenu({
 				: services.agentCatalog.store.getState().models[agentKey(choice.agent, choice.acpAgent)];
 		const model =
 			entry?.state === "ready" ? entry.data.find((item) => item.id === choice.model) : undefined;
-		return model?.shortLabel ?? model?.label ?? choice.model;
+		return model?.label ?? choice.model;
 	};
 
 	const isInstalled = (choice: Choice): boolean => {
@@ -408,7 +408,7 @@ export function ModelMenu({
 				}}
 				className={flyoutRow}
 			>
-				<span className="truncate">{model.shortLabel ?? model.label}</span>
+				<span className="truncate">{model.label}</span>
 				{model.isNew ? (
 					<span className="text-2xs uppercase tracking-wider text-accent">New</span>
 				) : null}
