@@ -1426,12 +1426,12 @@
 		"by": "seed"
 	},
 	"description:R11263033": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "AGENT-16",
-		"item": "Conductor shows \"Choose which models you want to use\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-default-models",
+		"via": "text",
+		"role": "p",
+		"by": "hand",
+		"note": "The Loadout's description on Default models (SET-02); the nearby-strings rule had filed it under AGENT-16."
 	},
 	"description:R11263695": {
 		"status": "matched",
@@ -1460,17 +1460,17 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
+		"backlog": "SET-07",
 		"item": "Conductor shows \"Add custom instructions sent to the agent when you click the Review button.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"owner": "hand"
 	},
 	"description:R11266620": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
+		"backlog": "SET-07",
 		"item": "Conductor shows \"Add custom instructions sent to the agent when you click the Create PR button.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"owner": "hand"
 	},
 	"description:R11266812": {
 		"status": "gap",

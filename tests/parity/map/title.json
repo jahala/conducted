@@ -2861,9 +2861,9 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
+		"backlog": "SET-07",
 		"item": "Conductor shows \"Custom actions\" (title, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"owner": "hand"
 	},
 	"title:R11265341": {
 		"status": "matched",
@@ -2878,25 +2878,25 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
+		"backlog": "SET-07",
 		"item": "Conductor shows \"Code review preferences\" (title, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"owner": "hand"
 	},
 	"title:R11266590": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
+		"backlog": "SET-07",
 		"item": "Conductor shows \"Create PR preferences\" (title, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"owner": "hand"
 	},
 	"title:R11266781": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
+		"backlog": "SET-07",
 		"item": "Conductor shows \"Fix errors preferences\" (title, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"owner": "hand"
 	},
 	"title:R11266999": {
 		"status": "gap",
