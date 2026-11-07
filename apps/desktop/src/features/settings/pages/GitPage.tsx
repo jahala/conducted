@@ -19,12 +19,7 @@ import { useGitHubAccess, useSetting } from "../../../core/hooks.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { Input } from "../../../ui/Input.tsx";
 import { ExternalLink } from "../../chat/ExternalLink.tsx";
-import {
-	RegistrySettingRowByKey,
-	type RowLayout,
-	SettingRow,
-	useSettingSaves,
-} from "../SettingRow.tsx";
+import { RegistrySettingRowByKey, type RowLayout, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 /** The registry rows of the page, in Conductor's order, around the branch prefix radios. */

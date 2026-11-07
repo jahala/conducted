@@ -19,7 +19,7 @@
  * and the menu lists Cursor first.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
