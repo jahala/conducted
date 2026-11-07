@@ -26,6 +26,8 @@ Every source file starts with a header comment. `pnpm guards` fails on a source 
 
 Rust files use `//!` with the same fields. Shell scripts use `#` lines. Mark our own design choices with "Our design choice:" so they are not mistaken for observed behaviour.
 
+`pnpm guards` also checks the parts of a header a script can verify: each `@feature` id is a backlog row, each code name in `Owns:` or `Exports:` appears in the file, and each `Test first:` line shares a phrase with a test title, so the test it names exists. Write a `Test first:` line in the words of its test's title. A backticked name in `Owns:` is a claim about this file; name another file's function in plain words. Today's failures are in `scripts/guards/header-claims-baseline.json`, which may only shrink (D055).
+
 The header says what the file does now, not what the feature will do one day. When you build part of a feature, cut the claims you did not build, or move them to the feature that owns them. A "Must handle" line with no code and no test is a defect. This was the most common finding of the first overnight build's audits (D045).
 
 ## Code
