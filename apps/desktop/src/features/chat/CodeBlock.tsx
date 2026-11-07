@@ -29,12 +29,12 @@
 import type { TerminalId, WorkspaceId } from "@conducted/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useActions, useTerminalConnection } from "../../core/hooks.ts";
+import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 import { CopyButton } from "../../ui/CopyButton.tsx";
 import { CheckCircleIcon, CircleIcon, PlayIcon, XCircleIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { CODE_THEME } from "./code-theme.ts";
-import { stripAnsi } from "./tools/ToolCardFrame.tsx";
 
 const LARGE_BLOCK = 4000;
 
@@ -107,7 +107,7 @@ function CommandRunView({ terminalId, onEnded }: CommandRunViewProps) {
 		if (source.ended !== null) onEnded();
 		const unsubscribeData = source.onData((chunk) => {
 			const text = decoder.decode(chunk, { stream: true });
-			setOutput((previous) => appendOutput(previous, stripAnsi(text)));
+			setOutput((previous) => appendOutput(previous, stripTerminalEscapes(text)));
 		});
 		const unsubscribeExit = source.onExit((exitCode) => {
 			setEnded({ exitCode });

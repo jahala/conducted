@@ -115,6 +115,7 @@
  * PR-10 test first: a full pull request URL and a bare number both store the same pull request
  * number on the workspace, and a URL for another repository is refused without asking GitHub.
  */
+
 import {
 	type AppError,
 	appError,
@@ -126,6 +127,7 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain, ShellOutput, Unsubscribe } from "../../platform/platform.ts";
+import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 import { createLatestWins, type LatestTicket } from "../async/latest-wins.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
 import {
@@ -1664,25 +1666,13 @@ export const FIX_ERRORS_LOG_LINES = 100;
 /** How many check logs Fix errors reads from GitHub at once. */
 export const FIX_ERRORS_LOG_READS = 4;
 
-const ESC = String.fromCharCode(27);
-const BEL = String.fromCharCode(7);
-/**
- * Terminal escapes in a log: control sequences (colours, cursor moves), operating system commands
- * (window titles, links) ended by BEL or ESC backslash, character set choices, and the
- * two-character escapes.
- */
-const TERMINAL_ESCAPES = new RegExp(
-	`${ESC}\\[[0-?]*[ -/]*[@-~]|${ESC}\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|${ESC}[ -/]+[0-~]|${ESC}[@-_]`,
-	"g",
-);
-
 /**
  * A check log as the Fix errors message shows it: escape sequences removed, because the message
  * is plain text the user reads in the chat, and only the last lines, so several failing checks
  * still make a message of readable length.
  */
 export function fixErrorsLogTail(log: string): string {
-	return checkLogTail(log.replace(TERMINAL_ESCAPES, ""), FIX_ERRORS_LOG_LINES);
+	return checkLogTail(stripTerminalEscapes(log), FIX_ERRORS_LOG_LINES);
 }
 
 /**
