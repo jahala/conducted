@@ -303,6 +303,17 @@ export const DatabaseIcon = (p: P) => (
 	/>
 );
 export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
+export const ArrowDownIcon = (p: P) => <Icon d="M8 3v10M4 9l4 4 4-4" {...p} />;
+/**
+ * A pull request with its arrow pointing into the head branch: the agent's and the pull request's
+ * actions in the git panel header (Conductor's "git-pull-request-arrow").
+ */
+export const GitPullRequestArrowIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v7.75M11.5 11.5a1.25 1.25 0 1 0 0-.01zM9.5 5.5l-1.5-1.5 1.5-1.5M8 4h2.5a1 1 0 0 1 1 1v5.25"
+		{...p}
+	/>
+);
 export const UndoIcon = (p: P) => (
 	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />
 );
