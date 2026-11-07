@@ -11,6 +11,7 @@ import { CHAT_STATES } from "./chat.ts";
 import { CHECKS_STATES } from "./checks.ts";
 import { COMPOSER_STATES } from "./composer.ts";
 import { GIT_STATES } from "./git.ts";
+import { GOAL_STATES } from "./goals.ts";
 import { OPEN_IN_STATES } from "./open-in.ts";
 import { OVERLAY_STATES } from "./overlays.ts";
 import { PAGE_STATES } from "./pages.ts";
@@ -34,6 +35,7 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...APPROVAL_STATES,
 	...PR_HEADER_STATES,
 	...CHECKS_STATES,
+	...GOAL_STATES,
 ];
 
 const seen = new Set<string>();
