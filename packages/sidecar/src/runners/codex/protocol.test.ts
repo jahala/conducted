@@ -39,6 +39,7 @@ describe("AGENT-06 Codex wire names", () => {
 			accountLoginCancel: "account/login/cancel",
 			mcpServerStatusList: "mcpServerStatus/list",
 			skillsList: "skills/list",
+			configRequirementsRead: "configRequirements/read",
 		});
 		expect(CODEX_INITIALIZED_NOTIFICATION).toBe("initialized");
 	});

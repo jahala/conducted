@@ -492,6 +492,8 @@ describe("SIDE-21 and SIDE-13 a Codex chat's program and app tools token", () =>
 		const child = new FakeChild();
 		const results: Record<string, unknown> = {
 			initialize: { serverVersion: "0.154.0" },
+			// codex-cli 0.154.0 answers null when no requirements are configured.
+			"configRequirements/read": { requirements: null },
 			"thread/start": { thread: { id: "thread-1" } },
 			"turn/start": { turn: { id: "turn-1", status: "inProgress" } },
 		};

@@ -20,6 +20,9 @@
  *  - the turn ends with status interrupted: outcome cancelled; failed: error outcome with the
  *    turn error message, retryable only for rate-limit errors
  *  - the thread id is reported through onAgentSessionId as soon as thread/started arrives
+ *  - the managed requirements (`configRequirements/read`) are read once per app server, before its
+ *    first thread; thread/start, thread/resume and turn/start carry the approval policy and sandbox
+ *    narrowed to them (thread-settings.ts); a server that cannot answer applies none
  *  - a message that is `/compact` (AGENT-14) runs `thread/compact/start` instead of `turn/start`;
  *    its notice is emitted when `thread/compacted` arrives, which also ends the compact run
  *  - account() and planUsage() read `account/read` and `account/rateLimits/read` on the chat's
@@ -75,6 +78,8 @@ import { CODEX_GOAL_NOTIFICATIONS, type CodexGoalClient, CodexThreadGoalClient }
 import {
 	CODEX_CLIENT_METHODS,
 	CODEX_SERVER_NOTIFICATIONS,
+	type CodexConfigRequirements,
+	type CodexConfigRequirementsReadResult,
 	type CodexThreadCompactParams,
 	type CodexThreadResumeParams,
 	type CodexThreadStartParams,
@@ -91,6 +96,7 @@ import {
 	codexEffort,
 	codexSettingsChanged,
 	codexThreadSettings,
+	narrowToRequirements,
 } from "./thread-settings.ts";
 import type { CodexTranslator } from "./translate.ts";
 
@@ -177,6 +183,11 @@ export class CodexSession implements AgentSession {
 	private approvals: CodexApprovalBridge | null = null;
 	private threadId: string | null = null;
 	private threadClient: CodexAppServerClient | null = null;
+	/** The managed requirements the current client reported, read once before its first thread. */
+	private requirements: {
+		client: CodexAppServerClient;
+		value: CodexConfigRequirements | null;
+	} | null = null;
 	private activeTurn: PendingTurn | null = null;
 	private serverActiveTurnId: string | null = null;
 	private stopGeneration = 0;
@@ -553,6 +564,7 @@ export class CodexSession implements AgentSession {
 			return { ok: true, threadId: this.threadId };
 		}
 
+		await this.readRequirements(client);
 		const resumeId = this.threadId ?? this.start.resume?.agentSessionId;
 		if (resumeId !== undefined && resumeId !== "") {
 			const resumed = await this.requestWithRetries<unknown>(
@@ -618,8 +630,36 @@ export class CodexSession implements AgentSession {
 		return { ok: true, threadId };
 	}
 
+	/**
+	 * Reads the managed requirements of this app server once, before its first thread, as Conductor
+	 * does. A Codex that cannot answer (an older version) puts no limit on the chat's choice.
+	 */
+	private async readRequirements(client: CodexAppServerClient): Promise<void> {
+		if (this.requirements?.client === client) return;
+		const read = await client.request<CodexConfigRequirementsReadResult | undefined>(
+			CODEX_CLIENT_METHODS.configRequirementsRead,
+			undefined,
+		);
+		if (!read.ok) {
+			this.deps.logger.warn("Codex could not report its managed requirements; none are applied", {
+				code: read.error.code,
+				reason: read.error.message,
+			});
+		}
+		this.requirements = { client, value: read.ok ? (read.value?.requirements ?? null) : null };
+	}
+
+	/** The chat's Codex settings, narrowed to the current app server's managed requirements. */
+	private settingsFor(config: SessionConfig) {
+		const requirements =
+			this.requirements !== null && this.requirements.client === this.client
+				? this.requirements.value
+				: null;
+		return narrowToRequirements(codexThreadSettings(config), requirements);
+	}
+
 	private threadParams(): CodexThreadStartParams {
-		const settings = codexThreadSettings(this.config);
+		const settings = this.settingsFor(this.config);
 		const params: CodexThreadStartParams = {
 			cwd: this.start.workspace.workspacePath,
 			model: this.config.model === "" ? null : this.config.model,
@@ -635,7 +675,7 @@ export class CodexSession implements AgentSession {
 		input: TurnInput,
 		effort: CodexEffort,
 	): CodexTurnStartParams {
-		const settings = codexThreadSettings(input.config);
+		const settings = this.settingsFor(input.config);
 		const params: CodexTurnStartParams = {
 			threadId,
 			input: toUserInput(input),
