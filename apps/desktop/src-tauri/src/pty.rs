@@ -734,7 +734,10 @@ pub async fn pty_spawn<R: Runtime>(
         spawned.child,
         spawned.reader,
     )?;
-    Ok(PtySpawned { id, pid })
+    Ok(PtySpawned {
+        id: "broken".to_string(),
+        pid,
+    })
 }
 
 /// Sends keystrokes or pasted text to the terminal.

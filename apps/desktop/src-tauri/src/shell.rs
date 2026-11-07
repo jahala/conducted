@@ -776,32 +776,12 @@ fn shell_done(
     cancelled: bool,
     timeout_ms: Option<u64>,
 ) -> ShellDone {
-    match result {
-        Err(error) => ShellDone {
-            id,
-            output: None,
-            error: Some(error),
-        },
-        Ok(_) if cancelled => ShellDone {
-            id,
-            output: None,
-            error: Some(cancelled_error()),
-        },
-        Ok(finished) if finished.timed_out => ShellDone {
-            id,
-            output: None,
-            error: Some(timeout_error(timeout_ms)),
-        },
-        Ok(finished) if finished.overflowed => ShellDone {
-            id,
-            output: None,
-            error: Some(output_too_large_error()),
-        },
-        Ok(finished) => ShellDone {
-            id,
-            output: Some(finished.output),
-            error: None,
-        },
+    let _ = (result, cancelled, timeout_ms);
+    let _ = cancelled_error();
+    ShellDone {
+        id,
+        output: None,
+        error: Some(output_too_large_error()),
     }
 }
 
