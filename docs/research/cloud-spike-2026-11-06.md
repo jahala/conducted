@@ -168,3 +168,39 @@ From `spike/cloud`:
 3. Put the two secrets by piping (see `worker/index.ts`).
 4. `SPIKE_URL=<workers.dev URL> scripts/drive.sh turn <name> <chat> "<prompt>"`.
 5. Delete everything afterwards as in the table above.
+
+## CLOUD-03 follow-up run (2026-11-07)
+
+The first build of the cloud rows, run on the same account and with the same `basic` instance, to
+show that the Worker and its Durable Object carry the desktop's own git, shell, file and chat calls.
+The Worker is `apps/cloud`; the sandbox image is the spike image above, carried into
+`apps/cloud/container` until CLOUD-04 builds the product's image. The driver built the desktop's
+real container (`createContainer`, the git service and the sessions service) over the Platform's
+`cloud` group; the Rust relay was replaced in the driver by the `ws` package, because the driver
+runs in Node.
+
+- **Cold start after the deploy:** `POST /w/ws1/start` answered in **8.0 s** (8,036 ms), with the
+  bridge reporting the sidecar ready **441 ms** after the container's main process started.
+- **First git status on a cold sandbox:** **7.4 s** (7,435 ms), including the container start.
+- **Warm git status:** **0.51 s** and **0.62 s** in two runs.
+- **Warm chat turn:** the first agent event arrived **4.1 s** after the send (9.2 s in a second
+  run); the turn ended **5.6 s** (10.7 s) later with the text `pong`.
+- **Secrets:** the sandbox held only `ANTHROPIC_API_KEY=provided-by-worker`. The Worker's outbound
+  handler swapped the real key from a Worker secret for `api.anthropic.com`; the pairing token was a
+  Worker secret checked on every route.
+
+Three findings the spike did not have, all fixed before the run passed:
+
+1. The current sidecar requires `CONDUCTED_AGENT_BINARIES_DIR`; the spike image's environment did
+   not set it, so the sidecar refused to start. The Worker's container environment now sets it and
+   the bridge creates the folder.
+2. The WebSocket relay must frame one JSON-RPC message per line before the sidecar's Unix socket.
+   The spike driver added the newline itself; the desktop's tunnel leaves framing to the transport,
+   so the Rust relay now appends it and the cloud transport splits incoming frames on newlines.
+3. The spike image installs Claude Code at `/usr/local/bin/claude`, not in the sidecar's managed
+   program folder. A cloud launch therefore names that path until CLOUD-04 installs the managed
+   copy.
+
+Everything the run created was deleted: Worker `conducted-dev-cloud03-1107`, its container
+application `conducted-cloud-sandbox`, the image `wrangler-mw68dv5s` and the Worker's secrets. The
+container was left stopped, so no sandbox billed after the run.

@@ -449,3 +449,19 @@ Why: the smallest seam that the cloud rows can build on, with no change to what 
 Context: the parity harness (#347) runs on GitHub, so its spec must be in the repository. D002 forbids copying Conductor's code, prompt text and assets.
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
+
+## D101. The cloud Worker and its Durable Object, as CLOUD-03 built them (2026-11-07)
+
+Context: the CLOUD-02 spike settled the sandbox SDK, the model-key swap and R2 backups, and left a short list of gaps (`docs/research/cloud-spike-2026-11-06.md`, "The plan's questions 3, 4 and 7"). CLOUD-03 builds the Worker, the Durable Object, the routes and the relay; several choices the spike left open had to be made to finish it.
+
+Chosen:
+
+- **Turn state comes from the relay.** The Durable Object sets a keep-alive alarm when a `sendMessage` request passes through and clears it on the sidecar's `liveState: idle`. While a turn runs the alarm touches the sandbox's `/health` every 60 seconds, which resets the container's inactivity timer. This is the signal the spike said was missing; it needs no second channel from the sandbox.
+- **One pairing token per Mac.** It is stored in the Keychain under `cloud-pairing-token` and read by Rust; the web view never sees it. CLOUD-07 owns the pairing flow and may make it per Worker.
+- **A cloud workspace's folder is its absolute path inside the sandbox.** The same string is the `cwd` the Worker receives and the folder the sidecar is given; a cloud workspace's repository root is that folder too. Workspace creation in the cloud (CLOUD-08) must therefore give each cloud workspace a unique sandbox path.
+- **A cloud launch carries no secret and no Mac program path.** The router replaces every provider key with `provided-by-worker` and drops `executablePath`; the Worker's outbound handler swaps the real key for the model API. Until CLOUD-04 installs the managed programs in the image, a Claude launch names `/usr/local/bin/claude`, where the spike image puts it.
+- **A cloud "trash" removes the file**, because a sandbox has no macOS Trash. The file commands in the Worker use the Sandbox SDK's own operations.
+- **The Worker's tests run in workerd without a container.** `@cloudflare/vitest-plugin` exercises the token, the routes, the Durable Object's state and alarm, and the relay's turn reading. Container-backed route execution needs the image and Docker, so the live run above is its verification until CLOUD-04's image has a CI job.
+- **The relay frames lines.** The Rust relay appends the newline and the cloud transport splits incoming frames on newlines, because the sidecar's Unix socket speaks NDJSON and the WebSocket does not.
+
+Why: each choice either uses the spike's own finding or is the smallest thing that makes the desktop's existing calls work unchanged. The live run on the owner's account passed with these choices (numbers in the research note).
