@@ -57,7 +57,8 @@
  * a caller that has already asked.
  * Built now (WS-06): unarchive. It classifies the branch as gone, taken, moved or fine, re-adds
  * the worktree (creating a missing branch from the archive commit), restores the archive
- * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time.
+ * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time
+ * and moving the workspace's recent activity to the restore time (services-map.md 3.10).
  * A branch open in another worktree or moved since the archive returns `needsBranchName` and
  * changes nothing. A checkpoint restore that fails only sets `uncommittedChangesLost`. A worktree
  * that cannot be restored is rolled back: the re-added folder and a branch the call created are
@@ -1723,6 +1724,7 @@ export class WorkspaceService {
 				: err(appError(finished.error.code, message, finished.error));
 		}
 
+		const at = this.#deps.now();
 		this.#upsert({
 			...workspace,
 			branch,
@@ -1730,7 +1732,8 @@ export class WorkspaceService {
 			path: worktreePath,
 			state: "ready",
 			archivedAt: null,
-			updatedAt: this.#deps.now(),
+			lastActivityAt: Math.max(workspace.lastActivityAt, at),
+			updatedAt: at,
 		});
 
 		if (options.clearChats) {
@@ -1739,6 +1742,24 @@ export class WorkspaceService {
 		}
 
 		return ok({ needsBranchName: false, uncommittedChangesLost });
+	}
+
+	/**
+	 * Moves a workspace's recent activity forward (services-map.md 2.3.1). The database row is the
+	 * home and the loaded row mirrors it, as every other workspace field does. A time at or before
+	 * the stored one changes nothing, so activity never moves backwards.
+	 */
+	async touchActivity(id: WorkspaceId, at: number): Promise<Result<void>> {
+		const written = await this.#deps.repos.workspaces.touchActivity(id, at);
+		if (!written.ok) return written;
+		this.store.setState((state) => {
+			const current = state.workspacesById[id];
+			if (current === undefined || current.lastActivityAt >= at) return {};
+			return {
+				workspacesById: { ...state.workspacesById, [id]: { ...current, lastActivityAt: at } },
+			};
+		});
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.setLinkedPaths`: the extra folders agents may read and edit. */
