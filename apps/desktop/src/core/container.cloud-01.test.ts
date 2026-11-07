@@ -51,11 +51,12 @@ async function readyWorkspace(test: TestContainer, host: Host): Promise<Workspac
 		workspace.id,
 	]);
 	await test.container.services.workspace.start();
-	must(await test.container.services.repo.loadConfig(workspace.repoId));
-	// Git answers with nothing to report, so a call that reaches the Mac succeeds.
+	// Git answers with nothing to report, so a call that reaches the Mac succeeds. A cloud repo's
+	// config read fetches its shared clone's branch (CLOUD-04), and that is a Mac git call.
 	test.memory.controls.scriptShell((command) =>
 		command.program === "git" ? ok({ stdout: "", stderr: "", exitCode: 0 }) : null,
 	);
+	must(await test.container.services.repo.loadConfig(workspace.repoId));
 	return workspace;
 }
 
