@@ -9,10 +9,21 @@
  * unknown instead of being guessed from substrings.
  * Must handle: our app tools (app_tool), another MCP server's tools (mcp), the old names 'Task'
  * and 'LS', and the snake and camel spellings the runners use.
+ * Approval choices: Conductor's second choice (renderApp @104412): an edit offers 'Allow all edits
+ * during this session'; a request with a suggested rule offers "Yes, and don't ask again for:
+ * <rule>", the rule cut at 40 characters with '...'; an MCP tool, WebSearch or WebFetch offers
+ * 'Always allow <tool name>'. Our design choice: where Conductor offers no second choice (a command
+ * with no suggested rule) ours keeps 'Yes always', and a choice the second one did not take stays
+ * as an extra button, so no choice we had goes away; both are listed for the owner in the gap report.
  * Test first: approvalTitle("mcp__git__git_fetch_x") is 'Do you want to run this tool?' and
  * approvalTitle("MultiEdit") is 'Do you want to make these changes?'.
  */
-import { APP_TOOL_SERVER, CANONICAL_TOOLS, type CanonicalTool } from "@conducted/protocol";
+import {
+	APP_TOOL_SERVER,
+	CANONICAL_TOOLS,
+	type CanonicalTool,
+	type InteractionAnswer,
+} from "@conducted/protocol";
 
 /** Native names whose canonical tool cannot be reached by changing the spelling alone. */
 const NATIVE_ALIASES: Readonly<Record<string, CanonicalTool>> = {
@@ -83,4 +94,49 @@ export function approvalTitle(toolName: string): string {
 		default:
 			return "Do you want to run this tool?";
 	}
+}
+
+type Decision = Extract<InteractionAnswer, { kind: "tool_approval" }>["decision"];
+
+/** One button of the approval card besides Yes and No. */
+export interface ApprovalChoice {
+	decision: Exclude<Decision, "allow" | "deny">;
+	label: string;
+}
+
+/** Conductor's limit on the rule named in the button label. */
+const RULE_LABEL_LIMIT = 40;
+
+function ruleLabel(rule: string): string {
+	const shown = rule.length > RULE_LABEL_LIMIT ? `${rule.slice(0, RULE_LABEL_LIMIT)}...` : rule;
+	return `Yes, and don't ask again for: ${shown}`;
+}
+
+function alwaysLabel(toolName: string): string {
+	const tool = canonicalToolForApproval(toolName);
+	const named =
+		tool === "mcp" || tool === "app_tool" || tool === "web_search" || tool === "web_fetch";
+	return named ? `Always allow ${toolName}` : "Yes always";
+}
+
+/**
+ * The approval card's choices between Yes and No. The first is the Cmd+Enter choice; the rest are
+ * ours, kept where Conductor's second choice took another one.
+ */
+export function approvalChoices(
+	toolName: string,
+	suggestedRules: readonly string[],
+): ApprovalChoice[] {
+	const rule = suggestedRules.find((entry) => entry.trim().length > 0);
+	const withRule: ApprovalChoice | null =
+		rule === undefined ? null : { decision: "allow_with_suggested_rules", label: ruleLabel(rule) };
+	if (editsFilesInApproval(toolName)) {
+		const edits: ApprovalChoice = {
+			decision: "allow_edits_for_session",
+			label: "Allow all edits during this session",
+		};
+		return withRule === null ? [edits] : [edits, withRule];
+	}
+	const always: ApprovalChoice = { decision: "always_allow", label: alwaysLabel(toolName) };
+	return withRule === null ? [always] : [withRule, always];
 }
