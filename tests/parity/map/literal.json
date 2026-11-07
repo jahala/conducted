@@ -1089,10 +1089,10 @@
 	},
 	"literal:R2734987": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "composer-slash-menu",
 		"via": "aria-label",
 		"role": "listbox",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3)",
+		"selector": "div:nth-of-type(2) > div > div",
 		"by": "seed"
 	},
 	"literal:R2763995": {

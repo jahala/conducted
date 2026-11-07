@@ -2104,12 +2104,12 @@
 		"screen": "Unplaced"
 	},
 	"text:R9306566": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "WS-07",
-		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R9307039": {
 		"status": "decided",

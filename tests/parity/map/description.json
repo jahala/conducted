@@ -508,85 +508,91 @@
 		"screen": "Unplaced"
 	},
 	"description:R8846048": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8846191": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846351": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8846498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846651": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846805": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(8) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8846942": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(7) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8847082": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8847208": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(6) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8847334": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "WS-07",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(9) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8847466": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(10) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8847599": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(12) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R8847728": {
 		"status": "gap",
@@ -594,9 +600,12 @@
 		"screen": "inventory-controls Composer"
 	},
 	"description:R8847864": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"status": "matched",
+		"state": "composer-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(15) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R9608898": {
 		"status": "gap",
