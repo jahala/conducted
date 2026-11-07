@@ -31,9 +31,7 @@ describe("SET-02 GitPage", () => {
 
 		fireEvent.click(screen.getByRole("radio", { name: "Custom" }));
 		await waitFor(() =>
-			expect(container.services.settings.store.getState().values.branch_prefix_type).toBe(
-				"custom",
-			),
+			expect(container.services.settings.store.getState().values.branch_prefix_type).toBe("custom"),
 		);
 		const prefix = await screen.findByPlaceholderText("e.g. feature/ or myname-");
 		fireEvent.change(prefix, { target: { value: "feature/" } });

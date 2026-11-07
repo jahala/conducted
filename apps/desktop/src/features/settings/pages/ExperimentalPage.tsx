@@ -1,6 +1,9 @@
 /**
  * @feature SET-02 Experimental settings page
- * Owns: the Experimental page of Settings: switches for features that are still changing.
+ * Owns: the Experimental page of Settings: switches for features that are still changing, under
+ * Conductor's subtitle and in its order (renderApp, the experimental tab): Auto permission mode
+ * first and Graphite stack support last. Ours sit beside their kin (D098): the big terminal's
+ * preset and command list after Big terminal mode, Unstarted workspaces after New workspace page.
  * Behaviour: ui-map.md 6, "Experimental" table; services-map.md 4.1.5 and 4.2.3 (experimental
  * keys). Rows come from the settings registry (SET-01). "Auto-run after setup" is on this page as a user
  * setting, as Conductor has it (services-map.md 4.2.3); a repository's own value is set on its
@@ -27,7 +30,12 @@ export function ExperimentalPage({ focusSettingKey = null }: { focusSettingKey?:
 	return (
 		<SettingsPageFrame
 			title="Experimental"
-			description="Expect breaking changes."
+			description={
+				<>
+					Experimental features that are under development.{" "}
+					<span className="font-medium">Expect breaking changes.</span>
+				</>
+			}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
