@@ -150,7 +150,11 @@
 	"tooltip:R9642788": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"tooltip:R10033594": {
 		"status": "gap",

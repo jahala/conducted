@@ -352,14 +352,16 @@
 		"by": "rule:place-name"
 	},
 	"literal:M271945": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A lodash type lookup ('Promise'), a bundled library's code identifier, not a string Conductor shows.",
+		"by": "hand"
 	},
 	"literal:M272041": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A lodash type lookup ('Set'), a bundled library's code identifier, not a string Conductor shows.",
+		"by": "hand"
 	},
 	"literal:M320106": {
 		"status": "matched",
@@ -404,7 +406,11 @@
 	"literal:M320179": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"screen": "inventory-controls Agents",
+		"backlog": "COMP-02",
+		"item": "Model picker effort levels include 'Ultracode' (Claude)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:M321953": {
 		"status": "matched",
@@ -471,14 +477,19 @@
 		"by": "seed"
 	},
 	"literal:M586780": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An HTTP response header name in Conductor's main process, not a screen string.",
+		"by": "hand"
 	},
 	"literal:M643934": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:M643972": {
 		"status": "gap",
@@ -505,14 +516,16 @@
 		"owner": "hand"
 	},
 	"literal:M919743": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A GitHub account-type enum value (`User`/`Organization`), not wording shown on a screen.",
+		"by": "hand"
 	},
 	"literal:M958089": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A SQLite pragma Conductor's database layer runs, not a screen string.",
+		"by": "hand"
 	},
 	"literal:M1077722": {
 		"status": "gap",
@@ -525,12 +538,20 @@
 	"literal:M1086777": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "Before creating a workspace, rev-parse HEAD checks the repository is not empty; if it is, an empty initial commit is made.",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:M1373821": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "AGENT-18",
+		"item": "A bundled skill folder holds SKILL.md, a 174-line guide for agents.",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:M1419600": {
 		"status": "matched",
@@ -647,9 +668,10 @@
 		"owner": "hand"
 	},
 	"literal:M2329048": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A pdf.js keyboard-event name, a bundled library's code identifier.",
+		"by": "hand"
 	},
 	"literal:M2375276": {
 		"status": "decided",
@@ -672,9 +694,10 @@
 		"owner": "hand"
 	},
 	"literal:M2516003": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An rrweb session-recording event name, a bundled library's code identifier.",
+		"by": "hand"
 	},
 	"literal:M2656909": {
 		"status": "gap",
@@ -685,14 +708,16 @@
 		"owner": "hand"
 	},
 	"literal:M2685005": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A bundled library's enum label (Secret/Private/Public), not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:M2685029": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-map 6. Settings"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A bundled library's enum label (Secret/Private/Public), not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:M3099729": {
 		"status": "gap",
@@ -1001,19 +1026,22 @@
 		"by": "seed"
 	},
 	"literal:R710800": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A language name in a bundled syntax highlighter's table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R715089": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A language name in a bundled syntax highlighter's table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R853678": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A grammar node name in a bundled regex parser, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R1361690": {
 		"status": "gap",
@@ -1318,9 +1346,10 @@
 		"by": "seed"
 	},
 	"literal:R3081756": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's language table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3083063": {
 		"status": "matched",
@@ -1331,9 +1360,10 @@
 		"by": "seed"
 	},
 	"literal:R3119108": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A JavaScript built-in's name in a bundled library's globals list, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3122139": {
 		"status": "gap",
@@ -1368,9 +1398,10 @@
 		"by": "seed"
 	},
 	"literal:R3123099": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's language table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3123193": {
 		"status": "gap",
@@ -1381,9 +1412,10 @@
 		"owner": "hand"
 	},
 	"literal:R3167503": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's language table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3352836": {
 		"status": "gap",
@@ -1408,9 +1440,10 @@
 		"owner": "hand"
 	},
 	"literal:R3396439": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's language table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3408782": {
 		"status": "gap",
@@ -1485,14 +1518,16 @@
 		"owner": "hand"
 	},
 	"literal:R3468980": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's language table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3470217": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's language table, not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3471013": {
 		"status": "gap",
@@ -1631,7 +1666,11 @@
 	"literal:R5545346": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-04",
+		"item": "'New section...' (sidebar background menu and workspace menu)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:R5545591": {
 		"status": "gap",
@@ -1929,7 +1968,11 @@
 	"literal:R8852793": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "SET-09",
+		"item": "Agents: Vertex project and provider choice",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:R8877958": {
 		"status": "gap",
@@ -1958,7 +2001,11 @@
 	"literal:R8907820": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-03",
+		"item": "'+' menu: 'Plan mode' and 'Exit plan mode' (Shift+Tab)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:R8909467": {
 		"status": "gap",
@@ -2019,7 +2066,11 @@
 	"literal:R9245336": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Model picker footer names the effort shortcut 'Cycle effort'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:R9260202": {
 		"status": "gap",
@@ -2280,7 +2331,11 @@
 	"literal:R10029987": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "Add or remove reviewers on a PR.",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:R10076553": {
 		"status": "matched",
@@ -2440,7 +2495,11 @@
 	"literal:R10245473": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-11",
+		"item": "Unread dot on the row",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"literal:R10361135": {
 		"status": "gap",
