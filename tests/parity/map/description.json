@@ -81,8 +81,7 @@
 	"description:M3799728": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files",
-		"backlog": "NAV-07"
+		"screen": "inventory-ui-text Terminal, run and files"
 	},
 	"description:M3847184": {
 		"status": "gap",
@@ -97,12 +96,18 @@
 	"description:R629105": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "GIT-16",
+		"item": "Toast 'Xcode license is not accepted' for 15 seconds with a 'Run for me' action",
+		"owner": "rule:cite"
 	},
 	"description:R1717331": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"item": "If first-run onboarding cannot finish, show \"Couldn't finish setup. Please try again.\"",
+		"owner": "rule:quote"
 	},
 	"description:R2030149": {
 		"status": "matched",
@@ -142,43 +147,50 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-16"
+		"backlog": "CLOUD-16",
+		"owner": "rule:neighbour"
 	},
 	"description:R4406017": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "CLOUD-11",
+		"owner": "rule:neighbour"
 	},
 	"description:R4407497": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "CLOUD-11",
+		"owner": "rule:neighbour"
 	},
 	"description:R4407633": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "CLOUD-11",
+		"owner": "rule:neighbour"
 	},
 	"description:R4409379": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "CLOUD-11",
+		"owner": "rule:neighbour"
 	},
 	"description:R4409969": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "CLOUD-11",
+		"owner": "rule:neighbour"
 	},
 	"description:R4410270": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "CLOUD-11",
+		"owner": "rule:neighbour"
 	},
 	"description:R5493845": {
 		"status": "gap",
@@ -488,64 +500,83 @@
 	"description:R8679569": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"description:R8684406": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05"
+		"screen": "Unplaced"
 	},
 	"description:R8846048": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8846191": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8846351": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
+		"owner": "rule:quote"
 	},
 	"description:R8846498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8846651": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8846805": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8846942": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8847082": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8847208": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8847334": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "WS-07",
+		"owner": "rule:neighbour"
 	},
 	"description:R8847466": {
 		"status": "gap",
@@ -570,7 +601,9 @@
 	"description:R9608898": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CHAT-06",
+		"owner": "rule:neighbour"
 	},
 	"description:R9949297": {
 		"status": "gap",
@@ -580,12 +613,17 @@
 	"description:R10062116": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-06",
+		"item": "Archived text 'Workspace archived. Unarchive this workspace to view files, terminals, and browser previews.'",
+		"owner": "rule:quote"
 	},
 	"description:R10065346": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"owner": "rule:neighbour"
 	},
 	"description:R10584497": {
 		"status": "matched",
@@ -614,8 +652,7 @@
 	"description:R10678507": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06"
+		"screen": "Unplaced"
 	},
 	"description:R10708838": {
 		"status": "matched",
@@ -700,7 +737,10 @@
 	"description:R10709703": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "rule:cite"
 	},
 	"description:R10709805": {
 		"status": "matched",
@@ -737,17 +777,26 @@
 	"description:R10710192": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "rule:cite"
 	},
 	"description:R10710274": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "rule:cite"
 	},
 	"description:R10710371": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "rule:cite"
 	},
 	"description:R10719274": {
 		"status": "matched",
@@ -795,7 +844,9 @@
 	"description:R11006930": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"owner": "rule:neighbour"
 	},
 	"description:R11026691": {
 		"status": "gap",
@@ -1130,12 +1181,16 @@
 	"description:R11134746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "CLOUD-17",
+		"owner": "rule:neighbour"
 	},
 	"description:R11135262": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "CLOUD-17",
+		"owner": "rule:neighbour"
 	},
 	"description:R11136046": {
 		"status": "matched",
@@ -1189,19 +1244,22 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"description:R11160364": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"description:R11161304": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"description:R11194342": {
 		"status": "decided",
@@ -1346,7 +1404,9 @@
 	"description:R11263033": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "AGENT-16",
+		"owner": "rule:neighbour"
 	},
 	"description:R11263695": {
 		"status": "matched",
@@ -1375,12 +1435,16 @@
 	"description:R11266434": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11266620": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11266812": {
 		"status": "gap",
@@ -1496,7 +1560,9 @@
 	"description:R11300296": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11300514": {
 		"status": "gap",
@@ -1517,22 +1583,30 @@
 	"description:R11300941": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11301175": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11301393": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11301758": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11301958": {
 		"status": "gap",
@@ -1600,17 +1674,26 @@
 	"description:R11415794": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-08",
+		"item": "Sync dialog has three categories: 'MCP servers', 'Slash commands', 'Skills'",
+		"owner": "rule:cite"
 	},
 	"description:R11415928": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-08",
+		"item": "Sync dialog has three categories: 'MCP servers', 'Slash commands', 'Skills'",
+		"owner": "rule:cite"
 	},
 	"description:R11416057": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-08",
+		"item": "Sync dialog has three categories: 'MCP servers', 'Slash commands', 'Skills'",
+		"owner": "rule:cite"
 	},
 	"description:R11533583": {
 		"status": "gap",
@@ -1640,17 +1723,26 @@
 	"description:R11632319": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link opens a browser tab in a workspace (URL and workspace id)",
+		"owner": "rule:cite"
 	},
 	"description:R11632466": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link opens a browser tab in a workspace (URL and workspace id)",
+		"owner": "rule:cite"
 	},
 	"description:R11632861": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link opens a browser tab in a workspace (URL and workspace id)",
+		"owner": "rule:cite"
 	},
 	"description:R11633125": {
 		"status": "gap",
@@ -1675,27 +1767,42 @@
 	"description:R11637139": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link starts a workspace from a base64 plan",
+		"owner": "rule:cite"
 	},
 	"description:R11637518": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link starts a workspace from a base64 plan",
+		"owner": "rule:cite"
 	},
 	"description:R11637630": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link starts a workspace from a base64 plan",
+		"owner": "rule:cite"
 	},
 	"description:R11638444": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link starts a workspace from a base64 plan",
+		"owner": "rule:cite"
 	},
 	"description:R11652399": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"item": "Success toast 'Thanks for making Conductor better.' (ours opens the project issue page)",
+		"owner": "rule:cite"
 	},
 	"description:R11660399": {
 		"status": "gap",
@@ -1748,12 +1855,16 @@
 	"description:R12095963": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-06",
+		"owner": "rule:neighbour"
 	},
 	"description:R12096092": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-06",
+		"owner": "rule:neighbour"
 	},
 	"description:R12119124": {
 		"status": "matched",

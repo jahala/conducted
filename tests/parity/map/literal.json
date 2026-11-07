@@ -503,22 +503,31 @@
 	"literal:M2044531": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-17",
+		"owner": "rule:neighbour"
 	},
 	"literal:M2044552": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-17",
+		"owner": "rule:neighbour"
 	},
 	"literal:M2044572": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-17",
+		"owner": "rule:neighbour"
 	},
 	"literal:M2044601": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-17",
+		"item": "After merge, 'Continue' makes a new branch from the target, keeps the chats and attaches 'Branch continued.md'",
+		"owner": "rule:quote"
 	},
 	"literal:M2127772": {
 		"status": "decided",
@@ -641,17 +650,24 @@
 	"literal:M3236681": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-19",
+		"owner": "rule:neighbour"
 	},
 	"literal:M3236722": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-19",
+		"item": "A failed turn raises the notice \"Agent failed. Click to view session.\"",
+		"owner": "rule:quote"
 	},
 	"literal:M3736277": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-03",
+		"owner": "rule:neighbour"
 	},
 	"literal:M3777807": {
 		"status": "decided",
@@ -861,12 +877,18 @@
 	"literal:R2141251": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Incompatible with remote' or 'Remote branch was rebased' with Resolve",
+		"owner": "rule:quote"
 	},
 	"literal:R2141279": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Incompatible with remote' or 'Remote branch was rebased' with Resolve",
+		"owner": "rule:quote"
 	},
 	"literal:R2149903": {
 		"status": "gap",
@@ -911,22 +933,31 @@
 	"literal:R2215964": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "CHAT-23",
+		"owner": "rule:neighbour"
 	},
 	"literal:R2216204": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "CHAT-23",
+		"item": "A user's Stop shows \"Stopped\" even when the command had already exited with code 0; use the exit event first (CodeBlock.tsx:75-78).",
+		"owner": "rule:quote"
 	},
 	"literal:R2216274": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "CHAT-23",
+		"owner": "rule:neighbour"
 	},
 	"literal:R2216298": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "CHAT-23",
+		"owner": "rule:neighbour"
 	},
 	"literal:R2223970": {
 		"status": "gap",
@@ -941,7 +972,10 @@
 	"literal:R2226671": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "GIT-04",
+		"item": "Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'",
+		"owner": "rule:quote"
 	},
 	"literal:R2236069": {
 		"status": "gap",
@@ -956,7 +990,9 @@
 	"literal:R2271909": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-04",
+		"owner": "rule:neighbour"
 	},
 	"literal:R2271954": {
 		"status": "matched",
@@ -969,27 +1005,41 @@
 	"literal:R2273883": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-04",
+		"owner": "rule:neighbour"
 	},
 	"literal:R2517578": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-06",
+		"item": "Row menu: 'View', 'Attach in chat', 'Copy path', 'Copy relative path', 'Discard changes'",
+		"owner": "rule:quote"
 	},
 	"literal:R2517763": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-08",
+		"item": "Palette 'Open in' group listing installed apps, default marked by its shortcut",
+		"owner": "rule:quote"
 	},
 	"literal:R2518339": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-06",
+		"item": "Row menu: 'View', 'Attach in chat', 'Copy path', 'Copy relative path', 'Discard changes'",
+		"owner": "rule:quote"
 	},
 	"literal:R2557248": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "REV-05",
+		"item": "'Review' button (tooltip 'Get an AI code review', Cmd+Shift+R)",
+		"owner": "rule:quote"
 	},
 	"literal:R2644212": {
 		"status": "matched",
@@ -1015,7 +1065,10 @@
 	"literal:R2763995": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-01",
+		"item": "'Show flat list' and 'Show folder hierarchy'",
+		"owner": "rule:quote"
 	},
 	"literal:R2764012": {
 		"status": "matched",
@@ -1277,7 +1330,9 @@
 	"literal:R4986695": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"owner": "rule:neighbour"
 	},
 	"literal:R4988948": {
 		"status": "gap",
@@ -1287,12 +1342,18 @@
 	"literal:R4997852": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
+		"owner": "rule:quote"
 	},
 	"literal:R5023567": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-02",
+		"item": "'Start spotlight' in the Run tab",
+		"owner": "rule:quote"
 	},
 	"literal:R5531377": {
 		"status": "gap",
@@ -1302,7 +1363,9 @@
 	"literal:R5534203": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Workspaces"
+		"screen": "inventory-controls Workspaces",
+		"backlog": "PR-10",
+		"owner": "rule:neighbour"
 	},
 	"literal:R5545346": {
 		"status": "matched",
@@ -1315,7 +1378,10 @@
 	"literal:R5545591": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "NAV-08",
+		"item": "Palette workspace action 'Move to section' with sub-page 'Search sections...' and 'Remove from section'",
+		"owner": "rule:quote"
 	},
 	"literal:R5558100": {
 		"status": "gap",
@@ -1358,32 +1424,45 @@
 	"literal:R5664567": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R5664589": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R5664683": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R5664700": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R5673483": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"owner": "rule:neighbour"
 	},
 	"literal:R5673831": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05",
+		"item": "MCP status: 'MCP status', 'No MCP servers configured.', 'Refresh MCP status', logs",
+		"owner": "rule:quote"
 	},
 	"literal:R6636483": {
 		"status": "matched",
@@ -1414,12 +1493,18 @@
 	"literal:R8057713": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-23",
+		"item": "'Run' button on shell code blocks with live output, status icon, exit code, 'Stop command' and 'Clear output'",
+		"owner": "rule:quote"
 	},
 	"literal:R8137322": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "APP-13",
+		"item": "One copy button with a short 'Copied' state",
+		"owner": "rule:quote"
 	},
 	"literal:R8150453": {
 		"status": "matched",
@@ -1458,12 +1543,17 @@
 	"literal:R8798002": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "NAV-05",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8798014": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "NAV-05",
+		"item": "Home pages by 50 with 'Show more'",
+		"owner": "rule:quote"
 	},
 	"literal:R8816971": {
 		"status": "gap",
@@ -1486,32 +1576,44 @@
 	"literal:R8830609": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8830720": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8830802": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8830857": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8830911": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8830959": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8852793": {
 		"status": "matched",
@@ -1550,37 +1652,56 @@
 	"literal:R8909467": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-08",
+		"item": "Speech to text: waveform, 'Stop recording', 'Transcribing...', setting 'Voice mode'",
+		"owner": "rule:quote"
 	},
 	"literal:R8909486": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-08",
+		"owner": "rule:neighbour"
 	},
 	"literal:R8911246": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-08",
+		"item": "Speech to text: waveform, 'Stop recording', 'Transcribing...', setting 'Voice mode'",
+		"owner": "rule:quote"
 	},
 	"literal:R8914823": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-04",
+		"item": "Queue row actions: Edit or 'Save edit', Steer, Delete",
+		"owner": "rule:quote"
 	},
 	"literal:R8914848": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-01",
+		"item": "Send button states 'Send message', 'Queue message', 'Save edit'",
+		"owner": "rule:quote"
 	},
 	"literal:R9234615": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"owner": "rule:neighbour"
 	},
 	"literal:R9235510": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Model picker 'Effort' submenu, 'Not supported for this model'",
+		"owner": "rule:quote"
 	},
 	"literal:R9245336": {
 		"status": "matched",
@@ -1593,12 +1714,16 @@
 	"literal:R9260202": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-12",
+		"owner": "rule:neighbour"
 	},
 	"literal:R9294532": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-07",
+		"owner": "rule:neighbour"
 	},
 	"literal:R9294548": {
 		"status": "matched",
@@ -1619,7 +1744,10 @@
 	"literal:R9324600": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-04",
+		"item": "Queue header status label, 'Resume' when paused, 'Collapse queue' and 'Expand queue'",
+		"owner": "rule:quote"
 	},
 	"literal:R9324615": {
 		"status": "matched",
@@ -1632,12 +1760,18 @@
 	"literal:R9325309": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-04",
+		"item": "Queue header status label, 'Resume' when paused, 'Collapse queue' and 'Expand queue'",
+		"owner": "rule:quote"
 	},
 	"literal:R9328642": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-04",
+		"item": "Queue row keys: E, Backspace, Enter, Escape, Cmd+Enter 'Save and steer'",
+		"owner": "rule:quote"
 	},
 	"literal:R9352425": {
 		"status": "gap",
@@ -1682,7 +1816,9 @@
 	"literal:R9368492": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"owner": "rule:neighbour"
 	},
 	"literal:R9378722": {
 		"status": "gap",
@@ -1692,12 +1828,18 @@
 	"literal:R9381975": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-30",
+		"item": "Dismissible warning 'Fast mode is disabled because extra usage is out of credits.' with 'Add credit'",
+		"owner": "rule:quote"
 	},
 	"literal:R9387065": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-30",
+		"item": "Dismissible warning 'Fast mode is disabled because extra usage is out of credits.' with 'Add credit'",
+		"owner": "rule:quote"
 	},
 	"literal:R9482757": {
 		"status": "gap",
@@ -1707,7 +1849,10 @@
 	"literal:R9536630": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-27",
+		"item": "'Something went wrong, retrying n/m' with 'Retry now' and 'Retry in new chat'",
+		"owner": "rule:quote"
 	},
 	"literal:R9559666": {
 		"status": "gap",
@@ -1717,17 +1862,26 @@
 	"literal:R9588439": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-16",
+		"item": "Turn more menu: 'Fork to new tab'",
+		"owner": "rule:quote"
 	},
 	"literal:R9588564": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-21",
+		"item": "Turn more menu: 'Fork to new workspace'",
+		"owner": "rule:quote"
 	},
 	"literal:R9588756": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-15",
+		"item": "Turn more menu: 'Reset chat'",
+		"owner": "rule:quote"
 	},
 	"literal:R9591015": {
 		"status": "matched",
@@ -1750,12 +1904,17 @@
 	"literal:R9755407": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-11",
+		"owner": "rule:neighbour"
 	},
 	"literal:R9984405": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"item": "'Edit PR title' dialog",
+		"owner": "rule:quote"
 	},
 	"literal:R10013192": {
 		"status": "gap",
@@ -1781,7 +1940,10 @@
 	"literal:R10089377": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"item": "'+' menu: 'New chat, same files' (when it shows and what it does is unverified)",
+		"owner": "rule:quote"
 	},
 	"literal:R10218572": {
 		"status": "matched",
@@ -1855,7 +2017,10 @@
 	"literal:R10227903": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-11",
+		"item": "Lifecycle label 'Unstarted'",
+		"owner": "rule:quote"
 	},
 	"literal:R10228149": {
 		"status": "gap",
@@ -1867,7 +2032,10 @@
 	"literal:R10228299": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'In merge queue'",
+		"owner": "rule:quote"
 	},
 	"literal:R10228381": {
 		"status": "gap",
@@ -1877,7 +2045,10 @@
 	"literal:R10228429": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Merge conflicts' with 'Resolve'",
+		"owner": "rule:quote"
 	},
 	"literal:R10228473": {
 		"status": "gap",
@@ -1908,7 +2079,10 @@
 	"literal:R10361135": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-07",
+		"item": "Resources: 'Copy resource usage'",
+		"owner": "rule:quote"
 	},
 	"literal:R10470389": {
 		"status": "gap",
@@ -1918,19 +2092,27 @@
 	"literal:R10476438": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"owner": "rule:neighbour"
 	},
 	"literal:R10477343": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"item": "'Delete section' returns its workspaces to the main list",
+		"owner": "rule:quote"
 	},
 	"literal:R10495167": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"note": "Checked by hand: the wording differs. Ours reads \"Add project\" (text) in command-palette.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "PRJ-01",
+		"item": "Sidebar footer 'Add project...' button and menu",
+		"owner": "rule:quote"
 	},
 	"literal:R10574968": {
 		"status": "gap",
@@ -2176,27 +2358,37 @@
 	"literal:R11652846": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R11653021": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R11653153": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R11654231": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R11655766": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-09",
+		"owner": "rule:neighbour"
 	},
 	"literal:R11708982": {
 		"status": "gap",

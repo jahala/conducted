@@ -851,7 +851,9 @@
 	"label:M389969": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "DATA-05",
+		"owner": "rule:neighbour"
 	},
 	"label:M733487": {
 		"status": "matched",
@@ -1099,12 +1101,18 @@
 	"label:R104487": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-11",
+		"item": "Approval secondary button 'Yes for this session', 'Allow all edits during this session' or 'Yes always' (Cmd+Enter)",
+		"owner": "rule:quote"
 	},
 	"label:R104578": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-11",
+		"item": "Approval secondary button 'Yes for this session', 'Allow all edits during this session' or 'Yes always' (Cmd+Enter)",
+		"owner": "rule:quote"
 	},
 	"label:R105108": {
 		"status": "matched",
@@ -1165,22 +1173,34 @@
 	"label:R629189": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "GIT-16",
+		"item": "Toast 'Xcode license is not accepted' for 15 seconds with a 'Run for me' action",
+		"owner": "rule:cite"
 	},
 	"label:R1329480": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Diff and files"
+		"screen": "inventory-controls Diff and files",
+		"backlog": "REV-11",
+		"item": "Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'",
+		"owner": "rule:cite"
 	},
 	"label:R1329561": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Diff and files"
+		"screen": "inventory-controls Diff and files",
+		"backlog": "REV-11",
+		"item": "Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'",
+		"owner": "rule:cite"
 	},
 	"label:R1329639": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Diff and files"
+		"screen": "inventory-controls Diff and files",
+		"backlog": "REV-11",
+		"item": "Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'",
+		"owner": "rule:cite"
 	},
 	"label:R2030135": {
 		"status": "matched",
@@ -1206,12 +1226,18 @@
 	"label:R2138036": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'PR info unavailable' with Retry",
+		"owner": "rule:quote"
 	},
 	"label:R2139395": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'No internet connection' with Retry",
+		"owner": "rule:quote"
 	},
 	"label:R2139552": {
 		"status": "matched",
@@ -1224,7 +1250,10 @@
 	"label:R2139834": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Loading PR info...' and 'Checking mergeability...'",
+		"owner": "rule:quote"
 	},
 	"label:R2206903": {
 		"status": "gap",
@@ -1274,27 +1303,38 @@
 	"label:R2269745": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"owner": "rule:neighbour"
 	},
 	"label:R2269882": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"item": "Lifecycle labels 'Setting up' and 'Failed'",
+		"owner": "rule:quote"
 	},
 	"label:R2270007": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"owner": "rule:neighbour"
 	},
 	"label:R2270162": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"owner": "rule:neighbour"
 	},
 	"label:R2270269": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"owner": "rule:neighbour"
 	},
 	"label:R2271428": {
 		"status": "matched",
@@ -1456,7 +1496,9 @@
 	"label:R2960293": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"label:R2960348": {
 		"status": "matched",
@@ -1469,7 +1511,9 @@
 	"label:R2960400": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"label:R2960475": {
 		"status": "decided",
@@ -1488,7 +1532,9 @@
 	"label:R2960724": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"label:R3977413": {
 		"status": "gap",
@@ -1528,49 +1574,48 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "APP-08",
+		"owner": "rule:neighbour"
 	},
 	"label:R4397900": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "APP-08",
+		"owner": "rule:neighbour"
 	},
 	"label:R4398180": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"backlog": "APP-08",
+		"item": "Full-screen 'Failed to start agents' with copy diagnostics and Retry",
+		"owner": "rule:quote"
 	},
 	"label:R4400634": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"label:R4400746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"label:R4400952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"label:R4401198": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"label:R4401280": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"label:R4993174": {
 		"status": "matched",
@@ -1599,13 +1644,17 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Forward to localhost' and 'Auto-forwarding'",
+		"owner": "rule:quote"
 	},
 	"label:R5438774": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Forward to localhost' and 'Auto-forwarding'",
+		"owner": "rule:quote"
 	},
 	"label:R5599685": {
 		"status": "gap",
@@ -1814,7 +1863,10 @@
 	"label:R8822100": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-20",
+		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
+		"owner": "rule:quote"
 	},
 	"label:R8853002": {
 		"status": "gap",
@@ -1822,7 +1874,9 @@
 		"screen": "inventory-controls Composer",
 		"note": "Checked by hand: not a match. Ours shows the sample value \"auth\" in file-viewer, which is data, not this wording.",
 		"by": "hand",
-		"backlog": "CHAT-14"
+		"backlog": "CHAT-28",
+		"item": "Usage popover lists account rows: login method, organization, email, plan, and Codex limits",
+		"owner": "rule:cite"
 	},
 	"label:R8853060": {
 		"status": "matched",
@@ -1836,25 +1890,32 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14"
+		"backlog": "CHAT-28",
+		"item": "Usage popover lists account rows: login method, organization, email, plan, and Codex limits",
+		"owner": "rule:cite"
 	},
 	"label:R8853353": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-28",
+		"item": "Usage popover lists account rows: login method, organization, email, plan, and Codex limits",
+		"owner": "rule:cite"
 	},
 	"label:R8853853": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-28",
+		"item": "Usage popover lists account rows: login method, organization, email, plan, and Codex limits",
+		"owner": "rule:cite"
 	},
 	"label:R8857286": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
-		"by": "hand",
-		"backlog": "CHAT-14"
+		"by": "hand"
 	},
 	"label:R8857310": {
 		"status": "gap",
@@ -1869,8 +1930,7 @@
 	"label:R8857397": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14"
+		"screen": "inventory-controls Composer"
 	},
 	"label:R8863451": {
 		"status": "matched",
@@ -1912,8 +1972,7 @@
 	"label:R8864825": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14"
+		"screen": "inventory-controls Composer"
 	},
 	"label:R9079981": {
 		"status": "gap",
@@ -1951,7 +2010,9 @@
 	"label:R9083009": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-04",
+		"owner": "rule:neighbour"
 	},
 	"label:R9088192": {
 		"status": "matched",
@@ -1972,7 +2033,10 @@
 	"label:R9240756": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Favourite models ('loadouts'), up to five, reorder, 'Add models', 'Edit'",
+		"owner": "rule:quote"
 	},
 	"label:R9241717": {
 		"status": "matched",
@@ -1985,7 +2049,10 @@
 	"label:R9278910": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-06",
+		"item": "'/' lists built-in commands, project commands and a 'Skills' group",
+		"owner": "rule:quote"
 	},
 	"label:R9301900": {
 		"status": "gap",
@@ -2029,22 +2096,34 @@
 	"label:R9371127": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "rule:quote"
 	},
 	"label:R9371331": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "rule:quote"
 	},
 	"label:R9371721": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "rule:quote"
 	},
 	"label:R9372025": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-10",
+		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
+		"owner": "rule:quote"
 	},
 	"label:R9380499": {
 		"status": "matched",
@@ -2070,32 +2149,50 @@
 	"label:R9406451": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-26",
+		"item": "Empty chat shelves 'Add chat transcripts:' and 'Add plans:' with 'New chat in <directory>.'",
+		"owner": "rule:cite"
 	},
 	"label:R9406669": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-26",
+		"item": "Empty chat shelves 'Add chat transcripts:' and 'Add plans:' with 'New chat in <directory>.'",
+		"owner": "rule:cite"
 	},
 	"label:R9537511": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-27",
+		"item": "'Something went wrong, retrying n/m' with 'Retry now' and 'Retry in new chat'",
+		"owner": "rule:cite"
 	},
 	"label:R9627220": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-29",
+		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",
+		"owner": "rule:cite"
 	},
 	"label:R9640929": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "SVG preview with 'View raw SVG code' and 'View rendered SVG'",
+		"owner": "rule:quote"
 	},
 	"label:R9640965": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "SVG preview with 'View raw SVG code' and 'View rendered SVG'",
+		"owner": "rule:quote"
 	},
 	"label:R9642968": {
 		"status": "matched",
@@ -2152,17 +2249,24 @@
 	"label:R9983794": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"owner": "rule:neighbour"
 	},
 	"label:R9992853": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-07",
+		"owner": "rule:neighbour"
 	},
 	"label:R10015966": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-04",
+		"item": "Check state 'Waiting'",
+		"owner": "rule:quote"
 	},
 	"label:R10026233": {
 		"status": "matched",
@@ -2205,7 +2309,10 @@
 	"label:R10046733": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "GIT-04",
+		"item": "Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'",
+		"owner": "rule:quote"
 	},
 	"label:R10047731": {
 		"status": "matched",
@@ -2218,8 +2325,7 @@
 	"label:R10081916": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-16"
+		"screen": "Unplaced"
 	},
 	"label:R10091068": {
 		"status": "matched",
@@ -2232,12 +2338,18 @@
 	"label:R10091233": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"item": "'+' new tab menu: 'New chat', 'Browser', 'Local terminal'",
+		"owner": "rule:quote"
 	},
 	"label:R10091398": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-10",
+		"item": "'+' new tab menu: 'New chat', 'Browser', 'Local terminal'",
+		"owner": "rule:quote"
 	},
 	"label:R10146818": {
 		"status": "matched",
@@ -2258,7 +2370,10 @@
 	"label:R10150844": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Workspaces"
+		"screen": "inventory-controls Workspaces",
+		"backlog": "WS-01",
+		"item": "Failed workspace state with 'Retry setup' and 'Recover prompt'",
+		"owner": "rule:quote"
 	},
 	"label:R10188148": {
 		"status": "matched",
@@ -2387,7 +2502,10 @@
 	"label:R10461875": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"item": "'Pinned' section: collapsible, shows a count when collapsed",
+		"owner": "rule:quote"
 	},
 	"label:R10480019": {
 		"status": "gap",
@@ -2442,8 +2560,7 @@
 	"label:R10570025": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-03"
+		"screen": "Unplaced"
 	},
 	"label:R10676706": {
 		"status": "gap",
@@ -2497,28 +2614,24 @@
 	"label:R10727056": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05"
+		"screen": "inventory-controls Settings"
 	},
 	"label:R10727344": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05"
+		"screen": "inventory-controls Settings"
 	},
 	"label:R10727824": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Settings",
 		"note": "Checked by hand: not a match. Ours shows the sample value \"TOKEN\" in settings-environment, which is data, not this wording.",
-		"by": "hand",
-		"backlog": "SET-05"
+		"by": "hand"
 	},
 	"label:R10728254": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05"
+		"screen": "inventory-controls Settings"
 	},
 	"label:R10750930": {
 		"status": "matched",
@@ -2572,7 +2685,10 @@
 	"label:R10818359": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
+		"owner": "rule:quote"
 	},
 	"label:R10819213": {
 		"status": "decided",
@@ -2594,7 +2710,9 @@
 	"label:R10918784": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"owner": "rule:neighbour"
 	},
 	"label:R10929460": {
 		"status": "matched",
@@ -2607,27 +2725,42 @@
 	"label:R10929522": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-09",
+		"item": "Agents: Amazon Bedrock form (API key or access key ID, secret, session token, region, test model)",
+		"owner": "rule:cite"
 	},
 	"label:R10992153": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Amazon Bedrock form (API key or access key ID, secret, session token, region, test model)",
+		"owner": "rule:cite"
 	},
 	"label:R11001202": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Amazon Bedrock form (API key or access key ID, secret, session token, region, test model)",
+		"owner": "rule:cite"
 	},
 	"label:R11004561": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Amazon Bedrock form (API key or access key ID, secret, session token, region, test model)",
+		"owner": "rule:cite"
 	},
 	"label:R11006264": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Amazon Bedrock form (API key or access key ID, secret, session token, region, test model)",
+		"owner": "rule:cite"
 	},
 	"label:R11035888": {
 		"status": "decided",
@@ -2772,7 +2905,10 @@
 	"label:R11339122": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-10",
+		"item": "Artifacts list in pages with 'Loading artifacts...' and a notice when some files are left out",
+		"owner": "rule:quote"
 	},
 	"label:R11342455": {
 		"status": "decided",
@@ -2807,7 +2943,10 @@
 	"label:R11433415": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "CHAT-29",
+		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",
+		"owner": "rule:cite"
 	},
 	"label:R11440151": {
 		"status": "gap",
@@ -2845,47 +2984,74 @@
 	"label:R11571757": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11585934": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11586078": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11586195": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11586320": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11586442": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11586559": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-09",
+		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
+		"owner": "rule:cite"
 	},
 	"label:R11634023": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "NAV-17",
+		"item": "Deep link that turns on an experimental setting shows 'Enabled setting: <name>' with 'Go to setting'",
+		"owner": "rule:cite"
 	},
 	"label:R11634784": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Platform"
+		"screen": "inventory-controls Platform",
+		"backlog": "PR-09",
+		"item": "Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'",
+		"owner": "rule:quote"
 	},
 	"label:R11644260": {
 		"status": "gap",
@@ -2920,7 +3086,10 @@
 	"label:R11667589": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "CLOUD-16",
+		"item": "Cloud desktop tab with 'Reconnect' and notices 'You need edit access to use the cloud desktop' and 'Cloud desktop is available in cloud workspaces'",
+		"owner": "rule:quote"
 	},
 	"label:R11670134": {
 		"status": "decided",

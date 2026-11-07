@@ -16,12 +16,15 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "PRJ-02"
+		"backlog": "APP-04",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R1898585": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-04",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R1959218": {
 		"status": "gap",
@@ -55,17 +58,25 @@
 	"aria_label:R2623047": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-01",
+		"item": "'Filter changed files'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R2623631": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-01",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R2637434": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-08",
+		"item": "Stack view: 'Stack PRs', 'Current', '(trunk)', 'gt restack', 'Checkout this branch', 'Ready for review'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R2765026": {
 		"status": "matched",
@@ -79,13 +90,13 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-16"
+		"backlog": "CLOUD-16",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R2991910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-16"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R2996778": {
 		"status": "gap",
@@ -114,12 +125,18 @@
 	"aria_label:R3991063": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "REV-10",
+		"item": "Artifacts: hover 'Attach to chat' and 'Upload files'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R4004238": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "REV-10",
+		"item": "Artifacts list in pages with 'Loading artifacts...' and a notice when some files are left out",
+		"owner": "rule:quote"
 	},
 	"aria_label:R4419387": {
 		"status": "matched",
@@ -133,23 +150,32 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R4421815": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R4632115": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R4987086": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Add-action dialog: 'Action name'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R5011963": {
 		"status": "matched",
@@ -179,31 +205,40 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "RUN-03"
+		"backlog": "CLOUD-09",
+		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
+		"owner": "rule:quote"
 	},
 	"aria_label:R5434782": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "RUN-03"
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R5444519": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R5445011": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R5446340": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R5477936": {
 		"status": "matched",
@@ -266,31 +301,30 @@
 	"aria_label:R8060854": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "CHAT-08",
+		"item": "Bash card with 'Clear output', 'Formatted' and 'Raw' toggle, 'Input:'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R8075890": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-24"
+		"screen": "inventory-ui-text Chat and tool cards"
 	},
 	"aria_label:R8082977": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24"
+		"screen": "Unplaced"
 	},
 	"aria_label:R8085928": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24"
+		"screen": "Unplaced"
 	},
 	"aria_label:R8087654": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24"
+		"screen": "Unplaced"
 	},
 	"aria_label:R8147878": {
 		"status": "matched",
@@ -323,8 +357,7 @@
 	"aria_label:R8874837": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-14"
+		"screen": "Unplaced"
 	},
 	"aria_label:R8880898": {
 		"status": "matched",
@@ -363,7 +396,10 @@
 	"aria_label:R9226139": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "'Opens in new chat' when switching agent in a started chat, with mid-chat switch warnings",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9227258": {
 		"status": "matched",
@@ -400,7 +436,10 @@
 	"aria_label:R9327423": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-04",
+		"item": "Queue row with attachment thumbs ('Queued attachments') and preview text",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9340087": {
 		"status": "matched",
@@ -413,17 +452,26 @@
 	"aria_label:R9387590": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-30",
+		"item": "Dismissible warning 'Fast mode is disabled because extra usage is out of credits.' with 'Add credit'",
+		"owner": "rule:cite"
 	},
 	"aria_label:R9413717": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-25",
+		"item": "'Table of contents' strip of turn ticks with a jump list of turn summaries",
+		"owner": "rule:cite"
 	},
 	"aria_label:R9494117": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "REV-10",
+		"item": "Artifacts list in pages with 'Loading artifacts...' and a notice when some files are left out",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9500541": {
 		"status": "matched",
@@ -444,17 +492,25 @@
 	"aria_label:R9573518": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-15",
+		"item": "Reset dialog: 'Reset chat?', 'Later messages will be deleted.', 'Also reset files', Cancel, Reset (Cmd+Enter)",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9605986": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-06",
+		"item": "Sticky 'Scroll to bottom' button",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9627873": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-29",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R9629615": {
 		"status": "matched",
@@ -485,22 +541,34 @@
 	"aria_label:R9734762": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-03",
+		"item": "Comment card with author 'You', 'Edit comment', 'Delete comment'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9735022": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "REV-03",
+		"item": "Comment card with author 'You', 'Edit comment', 'Delete comment'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9964533": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-02",
+		"item": "Warning 'Updating diff'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9970155": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-02",
+		"item": "'Dismiss diff rendering warning'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R9987343": {
 		"status": "gap",
@@ -510,12 +578,18 @@
 	"aria_label:R10032976": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PR-06",
+		"item": "'Request review'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10145652": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Workspaces"
+		"screen": "inventory-controls Workspaces",
+		"backlog": "NAV-04",
+		"item": "Section header action 'Create in section'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10149394": {
 		"status": "matched",
@@ -544,12 +618,18 @@
 	"aria_label:R10247681": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-06",
+		"item": "Archived card action 'Unarchive workspace'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10276677": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"item": "Sidebar loading state 'Loading workspaces'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10289853": {
 		"status": "gap",
@@ -580,7 +660,10 @@
 	"aria_label:R10374081": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"screen": "inventory-controls App shell",
+		"backlog": "APP-08",
+		"item": "Dismissible macOS version warning",
+		"owner": "rule:cite"
 	},
 	"aria_label:R10374710": {
 		"status": "matched",
@@ -633,7 +716,10 @@
 	"aria_label:R10434919": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"backlog": "CLOUD-09",
+		"item": "Row badge 'Forwarding ports'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10464425": {
 		"status": "gap",
@@ -643,7 +729,10 @@
 	"aria_label:R10504137": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "Toast 'Creating workspace...' and the failure toast",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10506740": {
 		"status": "matched",
@@ -693,7 +782,10 @@
 	"aria_label:R10693791": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Env files list and 'Cancel adding env file'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10770111": {
 		"status": "gap",
@@ -746,12 +838,18 @@
 	"aria_label:R10948284": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Agent card states 'Loaded from env', 'API key configured', 'Validation failed', 'Recommended'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R10948372": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-03",
+		"item": "Agent card states 'Loaded from env', 'API key configured', 'Validation failed', 'Recommended'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R11022769": {
 		"status": "gap",
@@ -811,31 +909,35 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-17",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R11147939": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11156373": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R11156789": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R11157100": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CLOUD-10"
+		"backlog": "CLOUD-09",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R11167685": {
 		"status": "decided",
@@ -879,12 +981,17 @@
 	"aria_label:R11276904": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "SET-07",
+		"owner": "rule:neighbour"
 	},
 	"aria_label:R11281401": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings: Repository"
+		"screen": "inventory-controls Settings: Repository",
+		"backlog": "PRJ-05",
+		"item": "Change repository icon picker: 'Search emoji', 'Remove emoji', emoji, favicon, upload",
+		"owner": "rule:cite"
 	},
 	"aria_label:R11293940": {
 		"status": "matched",
@@ -938,7 +1045,10 @@
 	"aria_label:R11515814": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "COMP-09",
+		"item": "Snippet picker with 'Search snippets...', loading state and 'Create snippet'",
+		"owner": "rule:cite"
 	},
 	"aria_label:R11538389": {
 		"status": "matched",
@@ -962,17 +1072,26 @@
 	"aria_label:R11676490": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-04",
+		"item": "Browser tab: 'Reload', 'Open in browser', 'Port and path' picker",
+		"owner": "rule:quote"
 	},
 	"aria_label:R11676943": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-04",
+		"item": "Browser tab: 'Reload', 'Open in browser', 'Port and path' picker",
+		"owner": "rule:quote"
 	},
 	"aria_label:R11677566": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-04",
+		"item": "Browser tab: 'Reload', 'Open in browser', 'Port and path' picker",
+		"owner": "rule:quote"
 	},
 	"aria_label:R11703477": {
 		"status": "gap",

@@ -186,7 +186,7 @@ describe("seeding the map from a dump", () => {
 		expect(seeded.get("route")?.["route:R6"]).toMatchObject({ by: "rule:team-route" });
 	});
 
-	test("a gap that stays a gap keeps its class and backlog row; one that matches drops them", () => {
+	test("a gap that stays a gap keeps its class and owner; one that matches drops them", () => {
 		const specs = new Map<Inventory, SpecFile>([
 			[
 				"label",
@@ -202,6 +202,8 @@ describe("seeding the map from a dump", () => {
 			screen: "S",
 			class: "wording",
 			backlog: "PR-08",
+			item: "Merge the whole stack",
+			owner: "hand",
 			note: "ours says Merge all",
 		} as const;
 		const maps = new Map<Inventory, MapFile>([
@@ -211,10 +213,13 @@ describe("seeding the map from a dump", () => {
 		expect(seeded?.["label:R1"]).toMatchObject({
 			class: "wording",
 			backlog: "PR-08",
+			item: "Merge the whole stack",
+			owner: "hand",
 			note: "ours says Merge all",
 		});
 		expect(seeded?.["label:R2"]).toMatchObject({ status: "matched", by: "seed" });
 		expect(seeded?.["label:R2"]).not.toHaveProperty("backlog");
+		expect(seeded?.["label:R2"]).not.toHaveProperty("item");
 	});
 
 	test("Conductor's name for itself matches ours", () => {

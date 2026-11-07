@@ -108,17 +108,30 @@ export function renderReport(report: Report): string {
 		"",
 	);
 	lines.push("## Gaps by class", "");
-	lines.push("| Class | Entries |", "| --- | ---: |");
+	lines.push(
+		"Owned means the map names the backlog row and the checklist item in `docs/plans/items/` that build or draw it. Owned is still a gap: the work is planned, not done.",
+		"",
+	);
+	lines.push(
+		"| Class | Entries | Owned by a row and item | Row only | No owner |",
+		"| --- | ---: | ---: | ---: | ---: |",
+	);
 	const decided = Object.entries(report.decisions).sort(([a], [b]) => a.localeCompare(b));
 	const decidedTotal = decided.reduce((sum, [, count]) => sum + count, 0);
 	lines.push(
-		`| a. Decided (${decided.map(([id, count]) => `${id} ${count}`).join(", ")}) | ${decidedTotal} |`,
+		`| a. Decided (${decided.map(([id, count]) => `${id} ${count}`).join(", ")}) | ${decidedTotal} | | | |`,
 	);
 	for (const [key, name] of Object.entries(CLASS_NAMES)) {
-		const count = report.findings.filter(
+		const list = report.findings.filter(
 			(finding) => finding.check === "a" && finding.class === key,
+		);
+		const owned = list.filter((finding) => finding.item !== undefined).length;
+		const rowOnly = list.filter(
+			(finding) => finding.item === undefined && finding.backlog !== undefined,
 		).length;
-		lines.push(`| ${name} | ${count} |`);
+		lines.push(
+			`| ${name} | ${list.length} | ${owned} | ${rowOnly} | ${list.length - owned - rowOnly} |`,
+		);
 	}
 	lines.push("");
 	lines.push("## Findings by check", "");

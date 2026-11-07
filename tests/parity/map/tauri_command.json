@@ -7,7 +7,10 @@
 	"tauri_command:configure_http_proxy": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:is_cef_runtime": {
 		"status": "gap",
@@ -17,57 +20,90 @@
 	"tauri_command:native_http_fetch_cancel": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:native_http_fetch": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:native_http_upload_cancel": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:native_http_upload_file": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:materialize_local_path_attachment": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-20",
+		"item": "materialize_local_path_attachment copies a dropped file into the attachment store.",
+		"owner": "rule:name"
 	},
 	"tauri_command:list_file_tree": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-06",
+		"item": "list_file_tree lists a workspace's files.",
+		"owner": "rule:name"
 	},
 	"tauri_command:list_workspace_artifacts": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "REV-10",
+		"item": "list_workspace_artifacts pages through the files of the workspace .context folder, with exclusions, for the Artifacts tab.",
+		"owner": "rule:name"
 	},
 	"tauri_command:fuzzy_filter_files": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-06",
+		"item": "fuzzy_filter_files filters a file list by a fuzzy query.",
+		"owner": "rule:name"
 	},
 	"tauri_command:grep_workspace": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-06",
+		"item": "grep_workspace searches file contents in a workspace.",
+		"owner": "rule:name"
 	},
 	"tauri_command:rpc_to_sidecar": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-09",
+		"item": "rpc_to_sidecar sends one JSON-RPC line to the sidecar.",
+		"owner": "rule:name"
 	},
 	"tauri_command:send_native_notification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-11",
+		"item": "send_native_notification shows a macOS notification.",
+		"owner": "rule:name"
 	},
 	"tauri_command:pty_spawn": {
 		"status": "matched",
@@ -92,7 +128,10 @@
 	"tauri_command:pty_ack_bytes": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-07",
+		"item": "pty_ack_bytes acknowledges output bytes for terminal flow control.",
+		"owner": "rule:name"
 	},
 	"tauri_command:pty_screen_snapshot": {
 		"status": "matched",
@@ -107,97 +146,154 @@
 	"tauri_command:pty_write_mirror": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-09",
+		"item": "pty_write_mirror sends input to a mirrored terminal.",
+		"owner": "rule:name"
 	},
 	"tauri_command:pty_persist_terminal_history": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-08",
+		"item": "pty_persist_terminal_history saves terminal scrollback on exit.",
+		"owner": "rule:name"
 	},
 	"tauri_command:pty_create_mirror": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-09",
+		"item": "pty_create_mirror makes a headless copy of a terminal for remote viewing.",
+		"owner": "rule:name"
 	},
 	"tauri_command:pty_resize_mirror": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-09",
+		"item": "pty_resize_mirror resizes a mirrored terminal.",
+		"owner": "rule:name"
 	},
 	"tauri_command:pty_delete_mirror": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-09",
+		"item": "pty_delete_mirror removes a mirrored terminal.",
+		"owner": "rule:name"
 	},
 	"tauri_command:raw_websocket_send_text": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-03",
+		"owner": "hand",
+		"note": "A WebSocket from the native side to the user's Worker."
 	},
 	"tauri_command:raw_websocket_ping": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-03",
+		"owner": "hand",
+		"note": "A WebSocket from the native side to the user's Worker."
 	},
 	"tauri_command:raw_websocket_close": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-03",
+		"owner": "hand",
+		"note": "A WebSocket from the native side to the user's Worker."
 	},
 	"tauri_command:raw_websocket_open": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-03",
+		"owner": "hand",
+		"note": "A WebSocket from the native side to the user's Worker."
 	},
 	"tauri_command:get_user_shell": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-04",
+		"owner": "hand",
+		"note": "The login shell and its PATH."
 	},
 	"tauri_command:pty_load_terminal_history": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-08",
+		"item": "pty_load_terminal_history loads saved terminal scrollback.",
+		"owner": "rule:name"
 	},
 	"tauri_command:set_remote_file_sync_foreground": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"owner": "hand",
+		"note": "File sync of a cloud workspace."
 	},
 	"tauri_command:start_remote_file_sync": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"item": "start_remote_file_sync and the other sync commands mirror a cloud workspace to the Mac; D018 replaced them with the Host interface.",
+		"owner": "rule:name"
 	},
 	"tauri_command:resolve_remote_file_sync_direct_info": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"owner": "hand",
+		"note": "File sync of a cloud workspace."
 	},
 	"tauri_command:reject_remote_file_sync_direct_info": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"owner": "hand",
+		"note": "File sync of a cloud workspace."
 	},
 	"tauri_command:trigger_remote_file_sync": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"owner": "hand",
+		"note": "File sync of a cloud workspace."
 	},
 	"tauri_command:cleanup_remote_file_sync": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"owner": "hand",
+		"note": "File sync of a cloud workspace."
 	},
 	"tauri_command:stop_remote_file_sync": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-11",
+		"owner": "hand",
+		"note": "File sync of a cloud workspace."
 	},
 	"tauri_command:get_path_env": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-04",
+		"owner": "hand",
+		"note": "The login shell and its PATH."
 	},
 	"tauri_command:set_posthog_user_context": {
 		"status": "decided",
@@ -208,7 +304,10 @@
 	"tauri_command:start_on_device_speech": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-12",
+		"item": "start_on_device_speech starts on-device dictation.",
+		"owner": "rule:name"
 	},
 	"tauri_command:get_deepgram_api_key": {
 		"status": "decided",
@@ -219,42 +318,66 @@
 	"tauri_command:stop_on_device_speech": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-12",
+		"item": "stop_on_device_speech ends dictation and returns the text.",
+		"owner": "rule:name"
 	},
 	"tauri_command:cancel_on_device_speech": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-12",
+		"item": "cancel_on_device_speech cancels dictation.",
+		"owner": "rule:name"
 	},
 	"tauri_command:on_device_speech_available": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-12",
+		"owner": "hand",
+		"note": "On-device dictation."
 	},
 	"tauri_command:get_agent_binary_state": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"owner": "hand",
+		"note": "The agent program manager."
 	},
 	"tauri_command:request_agent_binary_download": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"owner": "hand",
+		"note": "The agent program manager."
 	},
 	"tauri_command:execute_shell_command_cancellable": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-03",
+		"item": "execute_shell_command_cancellable starts a cancellable shell command.",
+		"owner": "rule:name"
 	},
 	"tauri_command:cancel_shell_command": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-03",
+		"item": "cancel_shell_command kills the command's whole process group.",
+		"owner": "rule:name"
 	},
 	"tauri_command:execute_shell_command": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-03",
+		"item": "execute_shell_command runs a shell command and returns its output.",
+		"owner": "rule:name"
 	},
 	"tauri_command:ensure_app_logger_started": {
 		"status": "decided",
@@ -289,7 +412,10 @@
 	"tauri_command:configure_verbose_logging": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-18",
+		"item": "configure_verbose_logging switches the Rust log level at run time.",
+		"owner": "rule:name"
 	},
 	"tauri_command:configure_sidecar_internal_user": {
 		"status": "decided",
@@ -306,72 +432,114 @@
 	"tauri_command:write_file_async": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-05",
+		"item": "write_file_async writes a file without blocking.",
+		"owner": "rule:name"
 	},
 	"tauri_command:find_available_local_port": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"item": "find_available_local_port picks a free local port for a forward.",
+		"owner": "rule:name"
 	},
 	"tauri_command:start_port_forward": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"item": "start_port_forward forwards a cloud workspace port to the Mac.",
+		"owner": "rule:name"
 	},
 	"tauri_command:stop_port_forward": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"item": "stop_port_forward stops a port forward.",
+		"owner": "rule:name"
 	},
 	"tauri_command:resolve_port_forward_token": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"owner": "hand",
+		"note": "Port forwarding from a cloud workspace."
 	},
 	"tauri_command:reject_port_forward_token": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"owner": "hand",
+		"note": "Port forwarding from a cloud workspace."
 	},
 	"tauri_command:list_port_forwards": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CLOUD-10",
+		"item": "list_port_forwards lists active port forwards.",
+		"owner": "rule:name"
 	},
 	"tauri_command:get_or_create_local_storage_encryption_key": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-10",
+		"owner": "hand",
+		"note": "Keychain read and write."
 	},
 	"tauri_command:get_keychain_setting": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-10",
+		"owner": "hand",
+		"note": "Keychain read and write."
 	},
 	"tauri_command:set_keychain_setting": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-10",
+		"owner": "hand",
+		"note": "Keychain read and write."
 	},
 	"tauri_command:delete_keychain_setting": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-10",
+		"owner": "hand",
+		"note": "Keychain read and write."
 	},
 	"tauri_command:submit_app_logs": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-18",
+		"item": "submit_app_logs sends UI log lines to the logger; ours is log_write in Rust.",
+		"owner": "rule:name"
 	},
 	"tauri_command:fuzzy_match_files": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-06",
+		"item": "fuzzy_match_files ranks files for a fuzzy query.",
+		"owner": "rule:name"
 	},
 	"tauri_command:get_file_metadata": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-05",
+		"item": "get_file_metadata returns a file's size and times.",
+		"owner": "rule:name"
 	},
 	"tauri_command:set_dock_badge": {
 		"status": "matched",
@@ -381,98 +549,154 @@
 	"tauri_command:update_window_vibrancy": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-23",
+		"item": "update_window_vibrancy changes the window vibrancy (sidebar transparency).",
+		"owner": "rule:name"
 	},
 	"tauri_command:open_devtools": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-15",
+		"item": "open_devtools opens the web inspector from the Help menu.",
+		"owner": "rule:name"
 	},
 	"tauri_command:get_binary_verification_errors": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-34",
+		"item": "get_binary_verification_errors lists agent programs that failed verification.",
+		"owner": "rule:name"
 	},
 	"tauri_command:write_encoded_image_to_clipboard": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-02",
+		"item": "write_encoded_image_to_clipboard puts an image on the clipboard.",
+		"owner": "rule:name"
 	},
 	"tauri_command:sync_agent_path_overrides": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"item": "sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.",
+		"owner": "rule:name"
 	},
 	"tauri_command:native_http_download_file": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-30",
+		"owner": "hand",
+		"note": "HTTP from the native side, through the user's proxy."
 	},
 	"tauri_command:get_resource_usage": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-14",
+		"item": "get_resource_usage returns CPU and memory per process.",
+		"owner": "rule:name"
 	},
 	"tauri_command:export_app_logs": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Backend",
-		"backlog": "APP-03"
+		"backlog": "PLAT-18",
+		"item": "export_app_logs exports logs to a file; ours is logs_export.",
+		"owner": "rule:name"
 	},
 	"tauri_command:prefetch_agent_binaries_from_updater_endpoint": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"owner": "hand",
+		"note": "The agent program manager."
 	},
 	"tauri_command:get_installed_manual_update": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-13",
+		"item": "get_installed_manual_update returns the update that was just installed so its release notes can be shown.",
+		"owner": "rule:name"
 	},
 	"tauri_command:check_for_updates": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-13",
+		"item": "check_for_updates checks for a new app version.",
+		"owner": "rule:name"
 	},
 	"tauri_command:check_codex_auth": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-15",
+		"item": "check_codex_auth reports Codex sign-in state; ours reads it through the sidecar agent detection instead of a Rust command.",
+		"owner": "rule:name"
 	},
 	"tauri_command:get_openai_api_key_from_env": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-21",
+		"owner": "hand",
+		"note": "An agent key found in the environment."
 	},
 	"tauri_command:get_anthropic_api_key_from_env": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-21",
+		"owner": "hand",
+		"note": "An agent key found in the environment."
 	},
 	"tauri_command:check_full_disk_access": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-24",
+		"item": "check_full_disk_access reports whether the app has Full Disk Access.",
+		"owner": "rule:name"
 	},
 	"tauri_command:set_agent_binary_failure_injection": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"owner": "hand",
+		"note": "The agent program manager."
 	},
 	"tauri_command:remove_agent_binary": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"owner": "hand",
+		"note": "The agent program manager."
 	},
 	"tauri_command:redownload_agent_binary": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-28",
+		"owner": "hand",
+		"note": "The agent program manager."
 	},
 	"tauri_command:check_sidecar_http_health": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-09",
+		"item": "check_sidecar_http_health asks the sidecar's HTTP health route; ours has no HTTP server.",
+		"owner": "rule:name"
 	},
 	"tauri_command:crash_rust": {
 		"status": "decided",
@@ -483,22 +707,34 @@
 	"tauri_command:get_sidecar_log_path": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-09",
+		"item": "get_sidecar_log_path returns the sidecar log file path.",
+		"owner": "rule:name"
 	},
 	"tauri_command:update_traffic_light_position": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-23",
+		"item": "update_traffic_light_position moves the window's traffic-light buttons.",
+		"owner": "rule:name"
 	},
 	"tauri_command:take_pending_notification_deep_links": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-11",
+		"item": "take_pending_notification_deep_links returns notification clicks queued during a cold start.",
+		"owner": "rule:name"
 	},
 	"tauri_command:quit_app": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-15",
+		"item": "quit_app quits the app and sends a quit request to the UI first.",
+		"owner": "rule:name"
 	},
 	"tauri_command:set_quit_handler_ready": {
 		"status": "matched",
@@ -508,12 +744,18 @@
 	"tauri_command:get_db_version_warning": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-17",
+		"item": "get_db_version_warning reports a database newer than the app.",
+		"owner": "rule:name"
 	},
 	"tauri_command:is_running_under_rosetta": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-32",
+		"owner": "hand",
+		"note": "A system fact: the build's CPU."
 	},
 	"tauri_command:poll_app_action": {
 		"status": "decided",
@@ -536,6 +778,9 @@
 	"tauri_command:ensure_sidecar_started": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-09",
+		"item": "ensure_sidecar_started starts the sidecar if it is not running.",
+		"owner": "rule:name"
 	}
 }

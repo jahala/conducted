@@ -2,17 +2,26 @@
 	"sidecar_call:codexGoalClear": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-13",
+		"item": "Clear the Codex goal of the thread.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexGoalGet": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-13",
+		"item": "Read the current Codex goal of the thread.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexGoalSet": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-13",
+		"item": "Set a Codex goal for the thread.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:getShellEnv": {
 		"status": "matched",
@@ -22,77 +31,122 @@
 	"sidecar_call:message": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Notification carrying one streamed agent message (ours is the sessionEvent notification).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:queryError": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Notification that a query failed; ours has no separate queryError, the failure arrives as an event and a live state.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexMcpConsentDeliveryFailed": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-08",
+		"item": "Notification that a Codex MCP consent answer could not be delivered to Codex, so the card can come back.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:sessionEventNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Notification carrying a stored session event for the app to save (ours is sessionEvent).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:deliverSessionEvent": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-06",
+		"item": "Sidecar resends an event the app has not confirmed after a reconnect (ours is deliverEvent).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:sessionStatusNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Notification that the working status of a chat changed (ours is liveState).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:sessionStateNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Notification with the live state of a chat (ours is liveState).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:fastModeUnavailableNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-05",
+		"item": "Notification that fast mode is unavailable for the account (ours is liveState.fastModeAvailable).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:shellEnvCaptureNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-10",
+		"item": "Notification reporting the result of a login-shell environment capture; ours has no such notification and keeps the result inside the sidecar.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:exitPlanMode": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-12",
+		"item": "Sidecar asks the app to approve leaving plan mode (ours is requestInteraction with a plan approval).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:askUserQuestion": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-10",
+		"item": "Sidecar asks the user a question from the agent (ours is requestInteraction with a question).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexMcpElicitation": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-08",
+		"item": "Sidecar asks the user to answer a Codex MCP form (ours is requestInteraction).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexPermissionApproval": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-08",
+		"item": "Sidecar asks the user to grant a Codex permission (ours is requestInteraction).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:toolApproval": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-04",
+		"item": "Sidecar asks the user to approve a tool call (ours is requestInteraction).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:getDiff": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-12",
+		"item": "Sidecar asks the app for the workspace diff for the GetWorkspaceDiff tool (ours is getWorkspaceDiff).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:getDiffComments": {
 		"status": "matched",
@@ -102,7 +156,10 @@
 	"sidecar_call:diffComment": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-12",
+		"item": "Sidecar asks the app to add diff comments for the DiffComment tool (ours is addDiffComments).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:getTerminalOutput": {
 		"status": "matched",
@@ -112,12 +169,18 @@
 	"sidecar_call:enterPlanModeNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-20",
+		"item": "Notification that the agent entered plan mode by itself, so the app records the new mode.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:checkpointCreated": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-08",
+		"item": "Notification that a start or end checkpoint of a turn exists, with the changed-file summary (ours is the checkpoint event).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:frontendRelay": {
 		"status": "gap",
@@ -127,7 +190,10 @@
 	"sidecar_call:keepAwake": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "PLAT-21",
+		"item": "Notification asking the app to keep the Mac awake while agents work (ours is an app-side setting driven by live state).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:remoteControlState": {
 		"status": "matched",
@@ -143,12 +209,18 @@
 	"sidecar_call:query": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-02",
+		"item": "Query: the app starts a new agent turn with the message, attachments and chat settings (ours is sendMessage).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:steer": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-03",
+		"item": "Steer request: the app sends a message into a running turn instead of starting a new one (ours is sendMessage with delivery steer).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:cancel": {
 		"status": "matched",
@@ -158,22 +230,34 @@
 	"sidecar_call:updatePermissionMode": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-04",
+		"item": "Switch the permission mode of a live chat between plan and default (ours is updateConfig with planMode).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:setClaudeEditAutoAccept": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-04",
+		"item": "Let the live Claude session accept file edits without asking for the rest of the session (ours is updateConfig with requireToolApproval).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:resetGenerator": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-07",
+		"item": "Reset the agent generator of a chat so the next message starts fresh (ours is resetAgent).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:setVerboseLogging": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-18",
+		"item": "Turn verbose logging on or off in the sidecar (ours is setLogLevel).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:setInternalUser": {
 		"status": "decided",
@@ -202,17 +286,26 @@
 	"sidecar_call:setModelCatalog": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-14",
+		"item": "Push the model catalog to the sidecar; ours is the other way round, the sidecar owns the model list (deliberate, no visible difference).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:claudeAuth": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-15",
+		"item": "Claude sign-in request: the app starts the Claude login flow through the sidecar (ours is startAgentLogin).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexAuth": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-15",
+		"item": "Codex sign-in request: the app starts the Codex login flow through the sidecar (ours is startAgentLogin).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexCloudAuthStart": {
 		"status": "decided",
@@ -247,42 +340,66 @@
 	"sidecar_call:fetchAvailableMCP": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-16",
+		"item": "List the MCP servers available to an agent in a workspace, with their status (ours is listMcpServers).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:fetchSlashCommands": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-16",
+		"item": "List slash commands and skills of an agent in a workspace (ours is listSlashCommands).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:fetchPreWorkspaceCompletions": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-22",
+		"item": "List slash commands and skills before any workspace exists, from a cached snapshot, for the new-workspace composer.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:listAcpModels": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-02",
+		"item": "List the models of an ACP agent (ours is listModels).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:fetchAcpSessionConfigOptions": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-17",
+		"item": "Fetch the per-chat config options of an ACP agent beyond the model.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:syncAcpSessionModel": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-17",
+		"item": "Tell an ACP agent which model a chat uses when a saved chat is reloaded.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:setAcpSessionConfigOption": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-17",
+		"item": "Set one config option of an ACP session.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:listCodexModels": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-02",
+		"item": "List the Codex models (ours is listModels).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:warmAgent": {
 		"status": "matched",
@@ -292,32 +409,50 @@
 	"sidecar_call:warmShellEnv": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-10",
+		"item": "Warm the login-shell environment for a folder so the first turn starts faster; ours captures it at sidecar start and on warmAgent.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:persistedSessionEvent": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-06",
+		"item": "App confirms an event is stored so the sidecar may drop it from its outbox (ours is the eventPersisted notification).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:remoteControlChanges": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "RC-02",
+		"item": "Notification that Remote Control changes arrived from the remote side (ours is part of the Remote Control status).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:remoteControlStart": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "RC-01",
+		"item": "Start Remote Control for a chat so claude.ai can drive it (a different mechanism than Conductor's phone relay).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:remoteControlStop": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "RC-02",
+		"item": "Stop Remote Control for a chat.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:remoteControlStatus": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "RC-02",
+		"item": "Ask for the Remote Control connection status of a chat.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:remoteControlCreatePairingOffer": {
 		"status": "decided",
@@ -346,27 +481,42 @@
 	"sidecar_call:codexRollback": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-06",
+		"item": "Codex rollback: resume a Codex thread only up to a chosen message (ours is resume.atNativeMessageId).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:codexCompact": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "AGENT-14",
+		"item": "Codex compact: shrink the Codex thread history through thread/compact/start, started by the /compact command.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:contextUsage": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-17",
+		"item": "Ask for the context window use and plan usage of a chat (ours is getContextUsage).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:acpOneShotPrompt": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-24",
+		"item": "Run one short prompt through an ACP agent for a chat title or branch name, then discard the session.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:cursorOneShotPrompt": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-24",
+		"item": "Run one short prompt through the Cursor agent for a chat title or branch name, then discard the session.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:getSessionStatus": {
 		"status": "matched",
@@ -376,27 +526,42 @@
 	"sidecar_call:answerUserQuestion": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-11",
+		"item": "App answers a question card from the agent (ours is answerInteraction).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:startAgentationProxy": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "RUN-05",
+		"item": "Start a small proxy that adds the page-annotation toolbar to the in-app browser preview; ours does this in the app, not the sidecar.",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:listLocalhostPorts": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "RUN-03",
+		"item": "List the ports that listen on localhost; ours reads them with lsof in the shell instead of asking the sidecar (deliberate, shell owns it).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:getHarnessVersions": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-15",
+		"item": "Ask for the installed versions of the agent programs (ours is getAgentInstalls).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:harnessVersionsNotification": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "SIDE-15",
+		"item": "Notification that the installed agent program versions changed (ours is agentInstallsChanged).",
+		"owner": "rule:cite"
 	},
 	"sidecar_call:crashTest": {
 		"status": "decided",

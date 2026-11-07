@@ -49,13 +49,15 @@ export interface SeedInputs {
 	rules: RuleContext;
 }
 
-/** A gap that stays a gap keeps what a person wrote about it: its class, backlog row and note. */
+/** A gap that stays a gap keeps what was written about it: its class, owner and note. */
 function keepSorting(previous: MapEntry | undefined, next: MapEntry): MapEntry {
 	if (previous?.status !== "gap" || next.status !== "gap") return next;
 	return {
 		...next,
 		...(previous.class === undefined ? {} : { class: previous.class }),
 		...(previous.backlog === undefined ? {} : { backlog: previous.backlog }),
+		...(previous.item === undefined ? {} : { item: previous.item }),
+		...(previous.owner === undefined ? {} : { owner: previous.owner }),
 		...(previous.note === undefined ? {} : { note: previous.note }),
 	};
 }
