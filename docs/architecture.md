@@ -4,14 +4,15 @@ What the parts are, what each may depend on, and where each kind of logic lives.
 
 ## The parts
 
-| Part       | Folder                   | Runs as                        | Owns                                                                                                                                                                  |
-| ---------- | ------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust shell | `apps/desktop/src-tauri` | the app process                | Windows and menus, terminals (PTY), shell commands, file search, Keychain, notifications, dictation, updates, launching and relaying the sidecar, database migrations |
-| Web UI     | `apps/desktop/src`       | the WebKit view inside the app | Everything visible, all database reads and writes, all git and `gh` commands, the follow-up queue, settings                                                           |
-| Sidecar    | `packages/sidecar`       | a separate Bun process         | Agent processes (one per active chat), turns, steering, interactions, checkpoints, prompt assembly, the write-ahead event log, the app tools agents call              |
-| Protocol   | `packages/protocol`      | library                        | Zod schemas for every message between the UI and the sidecar, the session events, live state and the neutral agent-message format                                     |
-| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock`, `IdSource`, the error helpers and the keyed serial queue                                                            |
-| Scripts    | `bin/`                   | shell                          | Git snapshots (`checkpointer.sh`), the busy-repo check, Spotlight                                                                                                     |
+| Part         | Folder                   | Runs as                        | Owns                                                                                                                                                                                        |
+| ------------ | ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust shell   | `apps/desktop/src-tauri` | the app process                | Windows and menus, terminals (PTY), shell commands, file search, Keychain, notifications, dictation, updates, launching and relaying the sidecar, the cloud connection, database migrations |
+| Cloud Worker | `apps/cloud`             | the user's Cloudflare account  | The Worker and one Durable Object per cloud workspace: auth, routes, sandbox lifecycle, keep-alive, the sidecar relay (CLOUD-03)                                                            |
+| Web UI       | `apps/desktop/src`       | the WebKit view inside the app | Everything visible, all database reads and writes, all git and `gh` commands, the follow-up queue, settings                                                                                 |
+| Sidecar      | `packages/sidecar`       | a separate Bun process         | Agent processes (one per active chat), turns, steering, interactions, checkpoints, prompt assembly, the write-ahead event log, the app tools agents call                                    |
+| Protocol     | `packages/protocol`      | library                        | Zod schemas for every message between the UI and the sidecar, the session events, live state and the neutral agent-message format                                                           |
+| Shared       | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock`, `IdSource`, the error helpers and the keyed serial queue                                                                                  |
+| Scripts      | `bin/`                   | shell                          | Git snapshots (`checkpointer.sh`), the busy-repo check, Spotlight                                                                                                                           |
 
 How they talk:
 
@@ -52,6 +53,7 @@ How they talk:
 | Turn grouping for display                           | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
 | Database schema                                     | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
 | Which host a workspace's calls may use (D092)       | `apps/desktop/src/core/host.ts` (`checkHost`)      | lookups, terminals, workspace lifecycle; the chat context carries it         |
+| Which runtime runs a workspace's calls (CLOUD-03)   | `apps/desktop/src/core/cloud/`                     | the shell and file adapters and the host-routed sidecar client               |
 
 ## Shared helpers
 

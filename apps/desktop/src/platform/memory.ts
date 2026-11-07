@@ -36,6 +36,10 @@ import type {
 	AppWindow,
 	AttachmentFiles,
 	Clipboard,
+	Cloud,
+	CloudRelay,
+	CloudRequest,
+	CloudResponse,
 	Database,
 	Dialogs,
 	FileDropEvent,
@@ -73,6 +77,11 @@ import { stripTerminalEscapes } from "./terminal-escapes.ts";
 /** A scripted answer for a shell command. Return null when the script does not know the command. */
 export type ShellScript = (command: ShellCommand) => Result<ShellOutput> | null;
 
+/** A scripted answer for a cloud request. Return null when the script does not know the path. */
+export type CloudScript = (
+	request: CloudRequest,
+) => Promise<Result<CloudResponse>> | Result<CloudResponse> | null;
+
 export interface MemoryPlatformOptions {
 	clock: Clock;
 	ids: IdSource;
@@ -94,6 +103,20 @@ export interface MemoryPlatformOptions {
 export interface MemoryPlatformControls {
 	/** Replaces the shell script. Later scripts are tried first. */
 	scriptShell(script: ShellScript): void;
+	/** Adds a cloud answer. Later scripts are tried first. */
+	scriptCloud(script: CloudScript): void;
+	/** Every cloud request made, in order. */
+	readonly cloudRequests: readonly CloudRequest[];
+	/** Every line the app sent to a cloud relay, in order. */
+	readonly cloudSent: readonly { relayId: string; line: string }[];
+	/** The ids of the relays the app opened and has not closed. */
+	readonly cloudRelayIds: readonly string[];
+	/** Changes what `cloud.paired` reports. */
+	setCloudPaired(paired: boolean): void;
+	/** Delivers a line to every listener of one relay. False when the relay is not open. */
+	emitCloudLine(relayId: string, line: string): boolean;
+	/** Ends one relay, as the Worker or the network would. False when the relay is not open. */
+	emitCloudClosed(relayId: string, reason: string): boolean;
 	/** Makes the next `shell.start` stay running until the caller cancels it. */
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
@@ -1110,6 +1133,71 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		}),
 	};
 
+	const cloudScripts: CloudScript[] = [];
+	const cloudRequests: CloudRequest[] = [];
+	const cloudSent: { relayId: string; line: string }[] = [];
+	let cloudPaired = true;
+	interface MemoryRelay {
+		url: string;
+		vmId: string;
+		lineListeners: Set<(line: string) => void>;
+		closedListeners: Set<(reason: string) => void>;
+		closed: string | null;
+	}
+	const cloudRelays = new Map<string, MemoryRelay>();
+	const cloud: Cloud = {
+		paired: async () => ok(cloudPaired),
+		request: async (request) => {
+			cloudRequests.push(request);
+			for (const script of cloudScripts) {
+				const answer = await script(request);
+				if (answer !== null) return answer;
+			}
+			return err(platformError("cloud_unscripted", "No cloud answer was scripted for this request."));
+		},
+		openRelay: async (input) => {
+			const id = ids.uuid();
+			const state: MemoryRelay = {
+				url: input.url,
+				vmId: input.vmId,
+				lineListeners: new Set(),
+				closedListeners: new Set(),
+				closed: null,
+			};
+			cloudRelays.set(id, state);
+			const relay: CloudRelay = {
+				id,
+				send: async (line) => {
+					if (state.closed !== null) {
+						return err(platformError("cloud_relay_closed", "The relay is closed."));
+					}
+					if (line.includes("\n") || line.includes("\r")) {
+						return err(platformError("cloud_bad_line", "A relay line cannot hold a newline."));
+					}
+					cloudSent.push({ relayId: id, line });
+					return ok(undefined);
+				},
+				onLine: (listener) => {
+					state.lineListeners.add(listener);
+					return () => state.lineListeners.delete(listener);
+				},
+				onClosed: (listener) => {
+					if (state.closed !== null) {
+						queueMicrotask(() => listener(state.closed as string));
+						return () => {};
+					}
+					state.closedListeners.add(listener);
+					return () => state.closedListeners.delete(listener);
+				},
+				close: async () => {
+					cloudRelays.delete(id);
+					if (state.closed === null) state.closed = "The relay was closed.";
+				},
+			};
+			return ok(relay);
+		},
+	};
+
 	const app: AppInfo = {
 		version: options.version ?? "0.0.0-test",
 		channel: options.channel ?? "dev",
@@ -1140,6 +1228,35 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const controls: MemoryPlatformControls = {
 		scriptShell: (script) => {
 			shellScripts.unshift(script);
+		},
+		scriptCloud: (script) => {
+			cloudScripts.unshift(script);
+		},
+		get cloudRequests() {
+			return cloudRequests;
+		},
+		get cloudSent() {
+			return cloudSent;
+		},
+		get cloudRelayIds() {
+			return [...cloudRelays.keys()];
+		},
+		setCloudPaired: (paired) => {
+			cloudPaired = paired;
+		},
+		emitCloudLine: (relayId, line) => {
+			const relay = cloudRelays.get(relayId);
+			if (relay === undefined) return false;
+			for (const listener of relay.lineListeners) listener(line);
+			return true;
+		},
+		emitCloudClosed: (relayId, reason) => {
+			const relay = cloudRelays.get(relayId);
+			if (relay === undefined) return false;
+			relay.closed = reason;
+			cloudRelays.delete(relayId);
+			for (const listener of relay.closedListeners) listener(reason);
+			return true;
 		},
 		holdNextStart: () => {
 			holdNextStart = true;
@@ -1264,6 +1381,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		attachments,
 		programs,
 		http,
+		cloud,
 	};
 
 	return { platform, controls };

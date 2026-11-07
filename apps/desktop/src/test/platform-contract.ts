@@ -26,7 +26,8 @@
  * method cannot be forgotten.
  * Test first: the in-memory Platform passes "fs: write then read returns the same text".
  */
-import type { AppError, Result } from "@conducted/shared";
+import { type AppError, ok, type Result } from "@conducted/shared";
+import type { CloudScript } from "../platform/memory.ts";
 import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "../platform/platform.ts";
 
 export type ContractGroup = keyof Platform;
@@ -508,6 +509,20 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"fetch with an invalid URL is an Err",
 		"An invalid URL returns Err with a message, not an exception.",
 	),
+	c(
+		"cloud",
+		"request-scripted",
+		"a scripted Worker answer reaches the caller",
+		"cloud.request returns the status and body a scripted Worker answered, and cloud.paired reports the saved pairing.",
+		"controls",
+	),
+	c(
+		"cloud",
+		"relay",
+		"a relay carries lines and reports its end",
+		"A line the Worker sends reaches the relay's listener, a sent line stays one line, and a closed relay is reported once.",
+		"controls",
+	),
 ];
 
 /**
@@ -530,6 +545,14 @@ export interface ContractControls {
 	emitDeepLinkRejected?(rejection: { code: string; message: string }): void | Promise<void>;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths?(paths: readonly string[]): void;
+	/** Adds a scripted Worker answer (CLOUD-03). */
+	scriptCloud?(script: CloudScript): void;
+	/** Changes what `cloud.paired` reports. */
+	setCloudPaired?(paired: boolean): void;
+	/** Delivers one line to a cloud relay. False when the relay is not open. */
+	emitCloudLine?(relayId: string, line: string): boolean;
+	/** Ends a cloud relay. False when the relay is not open. */
+	emitCloudClosed?(relayId: string, reason: string): boolean;
 	/** The app's processes the process table lists, each with its working folder. */
 	setProcesses?(
 		processes: readonly {
@@ -1820,6 +1843,61 @@ const STEPS: Record<string, ContractStep> = {
 		);
 		ctx.assert(error.message.length > 0, "the error has no message");
 	},
+
+	"cloud.request-scripted": async (ctx) => {
+		const script = ctx.controls?.scriptCloud;
+		ctx.assert(script !== undefined, "the controls do not script a cloud request");
+		if (script === undefined) return;
+		ctx.controls?.setCloudPaired?.(true);
+		script((request) =>
+			request.path === "/w/oslo/state" ? ok({ status: 200, body: '{"running":true}' }) : null,
+		);
+		const paired = expectOk(ctx, await ctx.platform.cloud.paired(), "paired");
+		ctx.assert(paired, "paired was false");
+		const answer = expectOk(
+			ctx,
+			await ctx.platform.cloud.request({
+				url: "https://w.example.dev",
+				method: "GET",
+				path: "/w/oslo/state",
+			}),
+			"request",
+		);
+		ctx.assert(answer.status === 200, `the status was ${answer.status}`);
+		ctx.assert(answer.body === '{"running":true}', `the body was ${answer.body}`);
+	},
+
+	"cloud.relay": async (ctx) => {
+		const emit = ctx.controls?.emitCloudLine;
+		const close = ctx.controls?.emitCloudClosed;
+		ctx.assert(emit !== undefined && close !== undefined, "the controls do not drive a relay");
+		if (emit === undefined || close === undefined) return;
+		const relay = expectOk(
+			ctx,
+			await ctx.platform.cloud.openRelay({ url: "https://w.example.dev", vmId: "oslo" }),
+			"openRelay",
+		);
+		const heard = await waitForEvent<string>(
+			ctx,
+			(listener) => relay.onLine(listener),
+			() => {
+				emit(relay.id, "hello\n");
+			},
+			"relay line",
+		);
+		ctx.assert(heard === "hello\n", `the relay heard ${JSON.stringify(heard)}`);
+		expectOk(ctx, await relay.send('{"jsonrpc":"2.0"}'), "relay send");
+		const ended = await waitForEvent<string>(
+			ctx,
+			(listener) => relay.onClosed(listener),
+			() => {
+				close(relay.id, "the Worker closed");
+			},
+			"relay close",
+		);
+		ctx.assert(ended === "the Worker closed", `the relay closed with ${ended}`);
+		await relay.close();
+	},
 };
 
 export interface ContractOptions {
@@ -1849,6 +1927,10 @@ export const HANDLE_METHODS: readonly string[] = [
 	"pty.handle.screenSnapshot",
 	"shell.running.cancel",
 	"http.download.cancel",
+	"cloud.relay.send",
+	"cloud.relay.onLine",
+	"cloud.relay.onClosed",
+	"cloud.relay.close",
 ];
 
 /** Which method returns which handle, so a call on the handle is recorded under its own name. */
@@ -1856,6 +1938,7 @@ const HANDLE_OF: Readonly<Record<string, string>> = {
 	"pty.spawn": "pty.handle",
 	"shell.start": "shell.running",
 	"http.download": "http.download",
+	"cloud.openRelay": "cloud.relay",
 };
 
 /**
@@ -1973,6 +2056,14 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"programs.install-status": ["programs.onStatus", "programs.install", "programs.statuses"],
 	"programs.remove-status": ["programs.install", "programs.remove", "programs.statuses"],
 	"http.invalid-url": ["http.fetch"],
+	"cloud.request-scripted": ["cloud.paired", "cloud.request"],
+	"cloud.relay": [
+		"cloud.openRelay",
+		"cloud.relay.onLine",
+		"cloud.relay.send",
+		"cloud.relay.onClosed",
+		"cloud.relay.close",
+	],
 };
 
 /**

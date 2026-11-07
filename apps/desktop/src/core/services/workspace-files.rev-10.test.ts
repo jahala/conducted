@@ -224,6 +224,7 @@ describe("REV-10 workspace artifacts service", () => {
 				shell: test.memory.platform.shell,
 				git: new FakeGitRunner(() => gitOutput()),
 				opener: test.memory.platform.opener,
+				searchOn: async () => ok(undefined),
 				rootsOf: async () => {
 					calls += 1;
 					return calls === 1 ? oldRoot : ok([`${root}-new`]);
