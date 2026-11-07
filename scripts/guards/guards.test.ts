@@ -17,6 +17,7 @@ import { checkMigrations } from "./migrations.ts";
 import { checkModuleState } from "./module-state.ts";
 import { checkSettingsKeys } from "./settings-keys.ts";
 import { checkSidecarEdges } from "./sidecar-edges.ts";
+import { checkSite } from "./site.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
 import { checkTestScripts } from "./test-scripts.ts";
 import { checkVersions } from "./versions.ts";
@@ -102,9 +103,88 @@ describe("docs", () => {
 		expect(messages.some((m) => m.includes("packages/real/file.ts"))).toBe(false);
 	});
 
+	test("flags a link to this repository on GitHub that names a missing path", () => {
+		put("docs/architecture.md", "");
+		put(
+			"README.md",
+			[
+				"[Architecture](https://github.com/jahala/conducted/blob/main/docs/architecture.md)",
+				"[Gone](https://github.com/jahala/conducted/tree/main/docs/gone)",
+				"[Releases](https://github.com/jahala/conducted/releases)",
+				"![Screen](docs/site/images/missing.png)",
+			].join("\n"),
+		);
+		const messages = checkDocs(root).map((p) => p.message);
+		expect(messages).toEqual([
+			"README.md names docs/gone, which does not exist",
+			"README.md names docs/site/images/missing.png, which does not exist",
+		]);
+	});
+
+	test("flags an HTML image in a doc whose file does not exist", () => {
+		put("docs/site/images/home-light.png", "png");
+		put(
+			"README.md",
+			'<picture><source srcset="docs/site/images/home-dark.png" media="(prefers-color-scheme: dark)"><img src="docs/site/images/home-light.png" alt=""></picture>\n',
+		);
+		expect(checkDocs(root).map((p) => p.message)).toEqual([
+			"README.md names docs/site/images/home-dark.png, which does not exist",
+		]);
+	});
+
 	test("flags a brief over its line bound", () => {
 		put("CLAUDE.md", "line\n".repeat(200));
 		expect(checkDocs(root).some((p) => p.message.startsWith("CLAUDE.md has"))).toBe(true);
+	});
+});
+
+describe("site", () => {
+	const plantSite = (index: string) => {
+		put("docs/site/index.html", index);
+		put("docs/site/changelog.html", '<link href="../style.css"><!-- site:releases -->');
+		put("docs/site/style.css", "body { font-family: Geist; }");
+		put("docs/site/images/home.png", "png");
+		put("CHANGELOG.md", "# Changelog\n");
+		for (const name of ["Geist-Variable.woff2", "GeistMono-Variable.woff2", "OFL.txt"]) {
+			put(`apps/desktop/src/assets/fonts/${name}`, "font");
+		}
+		put("docs/architecture.md", "");
+		put("README.md", "# Conducted\n\n### Build from source\n");
+	};
+
+	test("passes a site whose every link resolves", () => {
+		plantSite(
+			'<link href="style.css"><img src="images/home.png"><a href="changelog/">Changelog</a><a href="https://github.com/jahala/conducted/blob/main/docs/architecture.md">Docs</a><!-- site:download --><!-- site:recent-releases -->',
+		);
+		expect(checkSite(root)).toEqual([]);
+	});
+
+	test("flags a missing image and a repository path that does not exist", () => {
+		plantSite(
+			'<link href="style.css"><img src="images/home.png"><img src="images/gone.png"><a href="https://github.com/jahala/conducted/blob/main/docs/gone.md">Gone</a><!-- site:download --><!-- site:recent-releases -->',
+		);
+		expect(checkSite(root).map((p) => p.message)).toEqual([
+			"index.html links to images/gone.png, which the site does not have",
+			"the site links to docs/gone.md on GitHub, which does not exist",
+		]);
+	});
+
+	test("flags a link to a README heading that does not exist", () => {
+		plantSite(
+			'<link href="style.css"><img src="images/home.png"><a href="https://github.com/jahala/conducted#build-from-source">Build</a><a href="https://github.com/jahala/conducted#install">Install</a><!-- site:download --><!-- site:recent-releases -->',
+		);
+		put("README.md", "# Conducted\n\n## Install\n\n### Build from source\n");
+		expect(checkSite(root)).toEqual([]);
+		put("README.md", "# Conducted\n\n## Install\n");
+		expect(checkSite(root).map((p) => p.message)).toEqual([
+			"the site links to README.md#build-from-source, which has no such heading",
+		]);
+	});
+
+	test("flags a site that cannot be built", () => {
+		expect(checkSite(root).map((p) => p.message)).toContain(
+			"docs/site/index.html is missing; the site needs it",
+		);
 	});
 });
 
