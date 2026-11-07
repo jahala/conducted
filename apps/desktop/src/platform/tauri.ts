@@ -1348,8 +1348,12 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 		status: () => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPairing),
 		pair: (input) => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPair, { input }),
 		unpair: () => invokeResult<void>(bindings, COMMANDS.cloudUnpair),
-		deploy: (input) => invokeResult<CloudDeployResult>(bindings, COMMANDS.cloudDeploy, { input }),
-		uninstall: (input) => invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input }),
+		// The command takes an optional override; an empty object keeps the argument present, which
+		// Tauri's deserializer needs for the `Option` field.
+		deploy: (input) =>
+			invokeResult<CloudDeployResult>(bindings, COMMANDS.cloudDeploy, { input: input ?? {} }),
+		uninstall: (input) =>
+			invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
 		request: (request: CloudRequest) =>
 			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
 		openRelay: async (input) => {
