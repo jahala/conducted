@@ -120,6 +120,10 @@ test("publishes the cask from the released disk image with the tap deploy key", 
 	// The key lives in RUNNER_TEMP, readable only by this runner user.
 	expect(step?.run).toContain("homebrew-tap-deploy-key");
 	expect(step?.run).toContain("chmod 600");
+	// ssh checks GitHub's host key, fetched from GitHub's API over HTTPS.
+	expect(step?.run).toContain("gh api meta");
+	expect(step?.run).toContain("StrictHostKeyChecking=yes");
+	expect(step?.run).not.toContain("StrictHostKeyChecking=no");
 });
 
 test("gives the tap deploy key to the cask step only, and removes it with the other credentials", () => {

@@ -119,6 +119,7 @@ jobs:
       # jahala/homebrew-tap only; the always-running cleanup step removes it from the runner.
       - name: Update the Homebrew cask
         env:
+          GH_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
         run: |
           case "$GITHUB_REF_NAME" in
@@ -129,9 +130,12 @@ jobs:
           esac
           KEY="$RUNNER_TEMP/homebrew-tap-deploy-key"
           TAP="$RUNNER_TEMP/homebrew-tap"
+          HOSTS="$RUNNER_TEMP/github-known-hosts"
           printf '%s' "$HOMEBREW_TAP_DEPLOY_KEY" > "$KEY"
           chmod 600 "$KEY"
-          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          # GitHub's host keys come from its API over HTTPS, so ssh checks it is talking to GitHub.
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$HOSTS"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOSTS"
           git clone --depth 1 git@github.com:jahala/homebrew-tap.git "$TAP"
           mkdir -p "$TAP/Casks"
           bun scripts/release/cask.ts "${GITHUB_REF_NAME#v}" "${{ steps.build.outputs.dmg }}" > "$TAP/Casks/conducted.rb"

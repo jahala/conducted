@@ -29,19 +29,18 @@ test("writes the whole cask for a version and its sha256", () => {
   desc "Run coding agents in parallel, each in its own git worktree"
   homepage "https://jahala.github.io/conducted/"
 
+  auto_updates true
   depends_on arch: :arm64
   depends_on macos: ">= :high_sierra"
 
   app "Conducted.app"
 
-  auto_updates true
-
   zap trash: [
+    "~/.conducted",
     "~/Library/Application Support/build.conducted.app",
     "~/Library/Caches/build.conducted.app",
     "~/Library/Preferences/build.conducted.app.plist",
     "~/Library/WebKit/build.conducted.app",
-    "~/.conducted",
   ]
 end
 `,
