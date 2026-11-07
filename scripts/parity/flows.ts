@@ -207,16 +207,13 @@ export const FLOWS: Flow[] = [
 		state: "command-palette",
 		steps: [
 			{
-				// The palette's item is "Settings", as Conductor's is; "Open settings" matches nothing.
-				step: "Type Settings and press Enter",
+				// The palette's item is "Settings", as Conductor's is; "Open settings" matches nothing. Typing
+				// it also finds canyon, whose branch is sam/dark-mode-settings, and the Workspaces group
+				// comes first, so Enter would open canyon: a person picks the Settings item.
+				step: "Type Settings and choose the Settings item",
 				run: async (page) => {
 					await page.keyboard.type("Settings");
-					// Enter runs the highlighted item, so wait until the results show it, as a person would.
-					await page
-						.locator('[cmdk-item][aria-selected="true"]', { hasText: "Settings" })
-						.first()
-						.waitFor({ state: "visible", timeout: 15_000 });
-					await page.keyboard.press("Enter");
+					await page.locator('[cmdk-item][data-value="app.openSettings"]').click();
 				},
 			},
 			{
@@ -270,8 +267,8 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 	});
 	const page = await context.newPage();
 	await page.clock.setFixedTime(CATALOGUE_NOW);
-	// The catalogue logs every shell command and sidecar request nobody scripted: the likely reason a
-	// step's result never came.
+	// The catalogue logs every shell command and sidecar request nobody scripted, the likely reason a
+	// step's result never came, and the chat messages it answered, which a step may wait for.
 	const unscripted: string[] = [];
 	page.on("console", (message) => {
 		const text = message.text();
@@ -298,7 +295,9 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 				result.steps.push({ step: step.step, ok: true });
 			} catch (cause) {
 				const message = cause instanceof Error ? cause.message.split("\n")[0] : String(cause);
-				const logged = [...new Set(unscripted)].slice(-3);
+				const logged = [...new Set(unscripted)]
+					.filter((line) => !line.startsWith("answered "))
+					.slice(-3);
 				const why = logged.length === 0 ? "" : `; the catalogue logged: ${logged.join("; ")}`;
 				result.steps.push({ step: step.step, ok: false, detail: `${message}${why}` });
 				break;

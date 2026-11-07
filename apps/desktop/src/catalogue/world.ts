@@ -126,6 +126,8 @@ const DEFAULT_ANSWERS: SidecarAnswers = {
 	getAgentInstalls: () => ({ agents: AGENT_INSTALLS }),
 	// The sidecar takes a message as a new turn; nothing replies unless a state delivers events.
 	sendMessage: () => ({ deliveredAs: "new_turn" }),
+	// The short agent run that names a new chat and its branch (D030).
+	runUtilityPrompt: () => ({ text: "Add a health check route" }),
 	listModels: ({ agent }) => ({ models: MODELS[agent] ?? [] }),
 	listSlashCommands: () => ({
 		commands: [
@@ -205,6 +207,8 @@ export function createWorld(database: Database): World {
 				| ((params: unknown) => unknown)
 				| undefined;
 			if (answer !== undefined) {
+				// A flow can see that a request reached the sidecar, such as Create PR's chat message.
+				if (method === "sendMessage") console.info("[catalogue] answered sidecar request:", method);
 				emit({ jsonrpc: "2.0", id, result: answer(params) });
 				return sent;
 			}
