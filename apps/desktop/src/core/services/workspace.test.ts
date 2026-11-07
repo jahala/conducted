@@ -228,7 +228,7 @@ function makeHarness(
 	const backlogRows: BacklogWorkspace[] = [];
 	const backlog = makeBacklogRepository(backlogRows);
 	const settings: Record<string, unknown> = {
-		conducted_root_path: "~/conducted",
+		conductor_root_path: "~/conducted",
 		branch_prefix_type: "none",
 		branch_prefix_custom: "",
 		worktree_push_auto_setup_remote: true,
@@ -595,7 +595,7 @@ describe("WS-01 WorkspaceService.create", () => {
 
 	it("PLAT-02 registers the workspaces folder a new worktree goes to", async () => {
 		const { service, rows, registered } = makeHarness({
-			settings: { conducted_root_path: "/Volumes/fast" },
+			settings: { conductor_root_path: "/Volumes/fast" },
 		});
 
 		const result = await service.create(newInput);

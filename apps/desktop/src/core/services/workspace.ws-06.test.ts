@@ -77,7 +77,7 @@ function harness(options: HarnessOptions = {}) {
 	const branchTip = options.branchTip ?? "archive-sha";
 	const checkedOutElsewhere = options.checkedOutElsewhere ?? false;
 	const settings: Record<string, unknown> = {
-		conducted_root_path: "/worktrees",
+		conductor_root_path: "/worktrees",
 		...options.settings,
 	};
 	const replies: string[] = [];

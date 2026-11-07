@@ -596,7 +596,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.repoOf(id);
 			return found.ok ? ok(found.value.name) : found;
 		},
-		rootPath: () => expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+		rootPath: () => expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
 		setting,
 		now: () => clock.now(),
 	});
