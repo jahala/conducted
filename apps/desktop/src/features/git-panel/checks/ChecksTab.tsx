@@ -18,9 +18,12 @@
  * A failed title or description save shows Conductor's toast, "Failed to update PR on GitHub:"
  * with the reason.
  * Children: PrInlineEditor, PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
- * Before a pull request exists the tab shows the workspace's title, its drafted description and "Git
- * status" rows ("No PR open" with Create PR, "N uncommitted changes" with Commit and push, "N commits
- * behind the remote branch" with Pull), measured from Conductor's Checks tab and the owner's capture.
+ * Before a pull request exists the tab shows the workspace's title, its drafted description and the
+ * "Git status" rows, measured from Conductor's Checks tab and the owner's capture. With a pull
+ * request the "Git status" rows come after the PR summary, and the sections follow Conductor's order
+ * (renderApp @2273000): Git status, Deployments, Checks, Comments. The rows and their wording are
+ * git-status-rows.ts. The PR summary header and the reviewers list are ours; Conductor's Checks tab
+ * has neither.
  * Must handle: no PR yet (the Git status rows), PR info loading, offline, no GitHub access
  * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
  * says checks need GitHub).
@@ -45,6 +48,7 @@ import { toast, toastError } from "../../../ui/Toast.tsx";
 import { PrInlineEditor } from "../../pr/PrInlineEditor.tsx";
 import { ChecksList } from "./ChecksList.tsx";
 import { DeploymentsList } from "./DeploymentsList.tsx";
+import { type GitStatusRow, gitStatusRows } from "./git-status-rows.ts";
 import { PrCommentsList } from "./PrCommentsList.tsx";
 import { PrSummaryHeader } from "./PrSummaryHeader.tsx";
 import { ReviewersList } from "./ReviewersList.tsx";
@@ -218,6 +222,7 @@ export function ChecksTab({ workspaceId, onGitAction, title, description }: Chec
 				git={git.data}
 				title={title}
 				description={description ?? null}
+				treatOptionalAsBlocking={optionalBlocking}
 				onGitAction={onGitAction}
 				onCreatePr={createOnGithub}
 			/>
@@ -250,6 +255,20 @@ export function ChecksTab({ workspaceId, onGitAction, title, description }: Chec
 				onOpenOnGithub={() => openPullRequest(pullRequest.url)}
 				onCopy={copy}
 			/>
+			<GitStatusSection
+				className="px-4 py-2"
+				rows={gitStatusRows(git.data, optionalBlocking)}
+				onGitAction={onGitAction}
+				onCreatePr={createOnGithub}
+			/>
+			<DeploymentsList
+				deployments={pullRequest.deployments}
+				onOpenUrl={(url) => {
+					void actions.app.openUrl(url).then((result) => {
+						if (!result.ok) toastError("Couldn't open the deployment", result.error);
+					});
+				}}
+			/>
 			<ChecksList
 				workspaceId={workspaceId}
 				checks={pullRequest.checks}
@@ -261,14 +280,6 @@ export function ChecksTab({ workspaceId, onGitAction, title, description }: Chec
 				onOpenCheckUrl={(url) => {
 					void actions.app.openUrl(url).then((result) => {
 						if (!result.ok) toastError("Couldn't open the check", result.error);
-					});
-				}}
-			/>
-			<DeploymentsList
-				deployments={pullRequest.deployments}
-				onOpenUrl={(url) => {
-					void actions.app.openUrl(url).then((result) => {
-						if (!result.ok) toastError("Couldn't open the deployment", result.error);
 					});
 				}}
 			/>
@@ -321,7 +332,42 @@ function StatusRow({
 	);
 }
 
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+/**
+ * "Git status" and its rows. Nothing is drawn when no row applies, as in Conductor. Create PR opens
+ * GitHub's new pull request page, as this tab did before; every other action is the git header's.
+ */
+function GitStatusSection({
+	rows,
+	onGitAction,
+	onCreatePr,
+	className,
+}: {
+	rows: GitStatusRow[];
+	className?: string;
+	onGitAction?: (action: GitHeaderActionId) => void;
+	onCreatePr: () => void;
+}) {
+	if (rows.length === 0) return null;
+	const run = (action: GitHeaderActionId) => {
+		if (action === "create_pr") return onCreatePr;
+		return onGitAction === undefined ? undefined : () => onGitAction(action);
+	};
+	return (
+		<section aria-label="Git status" className={className}>
+			<h3 className="mb-1 text-xs text-fg-muted">Git status</h3>
+			<ul className="flex flex-col">
+				{rows.map((row) => (
+					<StatusRow
+						key={row.id}
+						text={row.text}
+						action={row.action?.label ?? ""}
+						onAction={row.action === null ? undefined : run(row.action.id)}
+					/>
+				))}
+			</ul>
+		</section>
+	);
+}
 
 /**
  * The Checks tab before a pull request exists, after Conductor: the workspace's title and its drafted
@@ -331,18 +377,18 @@ function GitStatusView({
 	git,
 	title,
 	description,
+	treatOptionalAsBlocking,
 	onGitAction,
 	onCreatePr,
 }: {
 	git: GitState;
 	title: string | undefined;
 	description: string | null;
+	treatOptionalAsBlocking: boolean;
 	onGitAction?: (action: GitHeaderActionId) => void;
 	/** Create PR here opens GitHub's new pull request page, as this tab did before. */
 	onCreatePr: () => void;
 }) {
-	const act = (action: GitHeaderActionId) =>
-		onGitAction === undefined ? undefined : () => onGitAction(action);
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-4 overflow-auto px-4 py-3">
 			{title === undefined ? null : (
@@ -355,26 +401,11 @@ function GitStatusView({
 					)}
 				</div>
 			)}
-			<section aria-label="Git status">
-				<h3 className="mb-1 text-xs text-fg-muted">Git status</h3>
-				<ul className="flex flex-col">
-					<StatusRow text="No PR open" action="Create PR" onAction={onCreatePr} />
-					{git.uncommittedFiles > 0 ? (
-						<StatusRow
-							text={plural(git.uncommittedFiles, "uncommitted change")}
-							action="Commit and push"
-							onAction={act("commit_and_push")}
-						/>
-					) : null}
-					{git.sync.behind > 0 ? (
-						<StatusRow
-							text={`${plural(git.sync.behind, "commit")} behind the remote branch`}
-							action="Pull"
-							onAction={act("pull")}
-						/>
-					) : null}
-				</ul>
-			</section>
+			<GitStatusSection
+				rows={gitStatusRows(git, treatOptionalAsBlocking)}
+				onGitAction={onGitAction}
+				onCreatePr={onCreatePr}
+			/>
 		</div>
 	);
 }

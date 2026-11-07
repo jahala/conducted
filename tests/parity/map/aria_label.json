@@ -45,10 +45,12 @@
 		"by": "seed"
 	},
 	"aria_label:R2269190": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PR-04"
+		"status": "matched",
+		"state": "git-checks",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R2623047": {
 		"status": "gap",
@@ -291,13 +293,16 @@
 		"backlog": "CHAT-24"
 	},
 	"aria_label:R8147878": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "chat-question",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > div > input",
+		"by": "seed"
 	},
 	"aria_label:R8148495": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R8700214": {
@@ -522,10 +527,10 @@
 	},
 	"aria_label:R10188365": {
 		"status": "matched",
-		"state": "settings-general",
+		"state": "home-sort-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(14) > div > div > div > span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(4) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"aria_label:R10224337": {

@@ -107,6 +107,7 @@ First runs on #347, 7 November 2026. The full gap list is `docs/reports/parity-g
 - Counts at c8860c66: 3,814 entries, 703 matched, 57 decided, 3,054 gaps (891 unshown, 2,163 missing); 1,209 ours-only strings (256 distinct); 141 backend names of ours unmatched; 5 of 7 drivable flows pass, and 3 add-project flows are not drivable.
 
 - Step 5's first pass (#363), from run 42330292848's dump of e996940e: 1,007 matched, 847 decided, 771 unshown, 6 wording, 1,183 feature gaps; 64 catalogue states; 514 distinct strings of ours unaccounted for, listed for the owner in the gap report; all 7 drivable flows pass. The instrument check passed on every run.
+- Step 5's second pass (#366), from run 42333992371's dump of 3871650d, with the spec rebuilt (3,821 entries): 1,018 matched, 847 decided, 770 unshown, 6 wording, 1,180 feature gaps; 68 catalogue states; 507 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
 
 Not checked yet:
 

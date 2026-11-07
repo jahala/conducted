@@ -197,13 +197,60 @@ describe("CHAT-11 tool approval card", () => {
 		expect(screen.getByText("/etc/hosts")).toBeTruthy();
 	});
 
-	it("offers the suggested rules as a third choice", async () => {
-		await renderCard({ suggestedRules: ["Allow npm test in this project"] });
+	it("offers the suggested rule as the Cmd+Enter choice, in Conductor's words", async () => {
+		await renderCard({ suggestedRules: ["Bash(npm test:*)"] });
 
-		expect(screen.getByText("Allow npm test in this project")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Allow with suggested rules" }));
+		expect(
+			screen.getByRole("button", { name: "Yes, and don't ask again for: Bash(npm test:*)" }),
+		).toBeTruthy();
+		fireEvent.keyDown(card(), { key: "Enter", metaKey: true });
 
 		await waitFor(() => expect(sent()?.decision).toBe("allow_with_suggested_rules"));
+	});
+
+	it("cuts a long suggested rule at 40 characters, as Conductor does", async () => {
+		const rule = `Bash(${"a".repeat(50)})`;
+		await renderCard({ suggestedRules: [rule] });
+
+		expect(
+			screen.getByRole("button", {
+				name: `Yes, and don't ask again for: ${rule.slice(0, 40)}...`,
+			}),
+		).toBeTruthy();
+	});
+
+	it("keeps our Yes always beside the suggested rule", async () => {
+		await renderCard({ suggestedRules: ["Bash(npm test:*)"] });
+
+		fireEvent.click(screen.getByRole("button", { name: "Yes always" }));
+
+		await waitFor(() => expect(sent()?.decision).toBe("always_allow"));
+	});
+
+	it("names the tool in the always choice for MCP tools and web tools", async () => {
+		for (const toolName of ["mcp__git__git_fetch_x", "WebSearch", "WebFetch"]) {
+			const { unmount } = await renderCard({ toolName, input: {} });
+			fireEvent.click(screen.getByRole("button", { name: `Always allow ${toolName}` }));
+			await waitFor(() => expect(sent()?.decision).toBe("always_allow"));
+			answer.mockClear();
+			unmount();
+		}
+	});
+
+	it("stacks Yes, the Cmd+Enter choice and No, each with its live key", async () => {
+		await renderCard();
+
+		const keyed = Array.from(card().querySelectorAll("button")).filter(
+			(button) => button.querySelector("kbd") !== null,
+		);
+		expect(keyed.map((button) => button.querySelector("kbd")?.textContent)).toEqual([
+			"↵",
+			"⌘↵",
+			"⌫",
+		]);
+		expect(keyed.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(
+			["Yes", "Yes always", "No"].map((name) => expect.stringContaining(name)),
+		);
 	});
 
 	it("carries the deny message back to the agent", async () => {
@@ -271,7 +318,6 @@ describe("CHAT-11 tool approval card", () => {
 		await renderCard();
 
 		expect(document.activeElement).toBe(document.body);
-		expect(screen.getByText(/Shortcuts work while a control in this card has focus/)).toBeTruthy();
 	});
 
 	it("shows a long command in the tool card", async () => {

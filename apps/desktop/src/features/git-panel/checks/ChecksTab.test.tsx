@@ -103,7 +103,7 @@ describe("PR-04 Checks tab", () => {
 			);
 
 			expect(await screen.findByText("Build")).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Re-run failed checks" }));
+			fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
 			await waitFor(() => expect(rerun).toHaveBeenCalledWith(workspaceId));
 		} finally {
 			test.close();

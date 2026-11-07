@@ -32,8 +32,7 @@ export const PAGE_STATES: CatalogueState[] = [
 			await seedCast(world);
 			return {
 				route: "/all-workspaces",
-				after: ({ document }) =>
-					typeInto(document, "input", "Search workspaces", "no such workspace"),
+				after: ({ document }) => typeInto(document, "input", "Search", "no such workspace"),
 				ready: (document) => shows(document, "No matching workspaces"),
 			};
 		},
@@ -59,6 +58,41 @@ export const PAGE_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	...(
+		[
+			["home-projects-menu", "Home with the project filter open", "In all projects", "menu"],
+			["home-archive-menu", "Home with the archive filter open", "Archived workspaces", "select"],
+			["home-sort-menu", "Home with the sort menu open", "Sort workspaces", "select"],
+			["home-display-menu", "Home with the Display menu open", "Display", "menu"],
+		] as const
+	).map(
+		([id, title, control, kind]): CatalogueState => ({
+			id,
+			group: "Pages",
+			title,
+			seed: async (world) => {
+				await seedCast(world);
+				return {
+					route: "/all-workspaces",
+					after: async ({ document }) => {
+						// Only Home's own controls: the sidebar's view menu is also named "Sort workspaces".
+						if (kind === "menu") {
+							await click(document, "main button", control);
+							return;
+						}
+						const trigger = await find(document, "main button", control);
+						trigger.focus();
+						trigger.dispatchEvent(
+							new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+						);
+					},
+					// A select keeps its options in a hidden native list, so wait for the open popup itself.
+					ready: (document) =>
+						document.querySelector(kind === "menu" ? "[role=menu]" : "[role=listbox]") !== null,
+				};
+			},
+		}),
+	),
 	{
 		id: "new-workspace",
 		group: "Pages",

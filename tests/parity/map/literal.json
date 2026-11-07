@@ -1,4 +1,9 @@
 {
+	"literal:M18119": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
 	"literal:M18192": {
 		"status": "gap",
 		"reason": "unshown",
@@ -943,6 +948,11 @@
 		"reason": "unshown",
 		"screen": "Unplaced"
 	},
+	"literal:R2259789": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
 	"literal:R2271909": {
 		"status": "gap",
 		"reason": "unshown",
@@ -955,6 +965,11 @@
 		"role": "span",
 		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(3)",
 		"by": "seed"
+	},
+	"literal:R2273883": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:R2517578": {
 		"status": "gap",
@@ -1123,6 +1138,11 @@
 		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
 		"by": "rule:key-name"
 	},
+	"literal:R3392824": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
 	"literal:R3396439": {
 		"status": "matched",
 		"state": "settings-account",
@@ -1217,7 +1237,7 @@
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button:nth-of-type(2) > span > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(4) > div > button:nth-of-type(1) > span > span",
 		"by": "seed"
 	},
 	"literal:R3896824": {
@@ -1370,7 +1390,7 @@
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(4) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(4) > span > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R7864999": {
@@ -1383,7 +1403,7 @@
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(1) > span > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R8034448": {
@@ -1404,9 +1424,9 @@
 	"literal:R8150453": {
 		"status": "matched",
 		"state": "chat-question",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(3) > button",
 		"by": "seed"
 	},
 	"literal:R8418352": {
@@ -1570,10 +1590,23 @@
 		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
+	"literal:R9260202": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
 	"literal:R9294532": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+	},
+	"literal:R9294548": {
+		"status": "matched",
+		"state": "chat-plan-review",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(3) > textarea",
+		"by": "seed"
 	},
 	"literal:R9294586": {
 		"status": "matched",
@@ -1759,9 +1792,12 @@
 		"by": "seed"
 	},
 	"literal:R10218594": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "home-archive-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R10218617": {
 		"status": "matched",
@@ -1780,14 +1816,20 @@
 		"by": "seed"
 	},
 	"literal:R10222950": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "home-display-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R10222980": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "home-display-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(3) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R10223000": {
 		"status": "gap",
@@ -1803,9 +1845,12 @@
 		"by": "seed"
 	},
 	"literal:R10224116": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "home-sort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R10227903": {
 		"status": "gap",
@@ -1921,6 +1966,14 @@
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+	},
+	"literal:R11141968": {
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(10) > div > div > p",
+		"by": "seed"
 	},
 	"literal:R11285199": {
 		"status": "gap",

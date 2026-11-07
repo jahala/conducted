@@ -27,5 +27,8 @@ describe("NAV-05 HomeEmptyState", () => {
 		);
 		const link = await screen.findByRole("link", { name: "Create a workspace" });
 		expect(link.getAttribute("href")).toBe("/create");
+		// Conductor draws one block for both cases (renderApp @10277012): the same line, then the action.
+		expect(screen.getByRole("heading", { name: "No matching workspaces" })).toBeTruthy();
+		expect(screen.queryByText("No workspaces yet")).toBeNull();
 	});
 });

@@ -64,7 +64,7 @@ describe("CHAT-10 question card", () => {
 			}),
 		]);
 
-		fireEvent.click(screen.getByRole("button", { name: "Postgres" }));
+		fireEvent.click(screen.getByRole("radio", { name: "Postgres" }));
 		fireEvent.keyDown(card(), { key: "Enter" });
 
 		await waitFor(() =>
@@ -104,8 +104,8 @@ describe("CHAT-10 question card", () => {
 		];
 		const { unmount } = renderCard(questions);
 
-		fireEvent.click(screen.getByRole("button", { name: "EU" }));
-		fireEvent.click(screen.getByRole("button", { name: "Asia" }));
+		fireEvent.click(screen.getByRole("checkbox", { name: "EU" }));
+		fireEvent.click(screen.getByRole("checkbox", { name: "Asia" }));
 		fireEvent.keyDown(card(), { key: "Enter" });
 
 		await waitFor(() =>
@@ -132,9 +132,9 @@ describe("CHAT-10 question card", () => {
 		renderCard([question({ question: "Which database?", options: [option("SQLite")] })]);
 
 		fireEvent.keyDown(card(), { key: "0" });
-		expect(document.activeElement).toBe(screen.getByLabelText("Other answer"));
+		expect(document.activeElement).toBe(screen.getByLabelText("Other response"));
 
-		fireEvent.change(screen.getByLabelText("Other answer"), { target: { value: "DuckDB" } });
+		fireEvent.change(screen.getByLabelText("Other response"), { target: { value: "DuckDB" } });
 		fireEvent.keyDown(card(), { key: "Enter" });
 
 		await waitFor(() =>
@@ -155,9 +155,9 @@ describe("CHAT-10 question card", () => {
 		fireEvent.keyDown(card(), { key: "ArrowRight" });
 		expect(screen.getByText("Which region?")).toBeTruthy();
 
-		fireEvent.click(screen.getByRole("button", { name: "EU" }));
+		fireEvent.click(screen.getByRole("radio", { name: "EU" }));
 		fireEvent.keyDown(card(), { key: "ArrowLeft" });
-		fireEvent.click(screen.getByRole("button", { name: "SQLite" }));
+		fireEvent.click(screen.getByRole("radio", { name: "SQLite" }));
 		fireEvent.keyDown(card(), { key: "Enter" });
 
 		await waitFor(() =>
@@ -198,7 +198,7 @@ describe("CHAT-10 question card", () => {
 	it("masks a secret answer", async () => {
 		renderCard([question({ question: "What is the token?", secret: true })]);
 
-		const input = screen.getByLabelText("What is the token?");
+		const input = screen.getByLabelText("Other response");
 		expect(input.getAttribute("type")).toBe("password");
 		fireEvent.change(input, { target: { value: "hunter2" } });
 		fireEvent.keyDown(card(), { key: "Enter" });
@@ -211,6 +211,20 @@ describe("CHAT-10 question card", () => {
 		);
 	});
 
+	it("focuses a secret field once, and does not take focus back on a later render", () => {
+		const questions = [question({ question: "What is the token?", secret: true })];
+		const { rerender } = renderCard(questions);
+		expect(document.activeElement).toBe(screen.getByLabelText("Other response"));
+
+		const cancel = screen.getByRole("button", { name: "Cancel agent" });
+		cancel.focus();
+		rerender(
+			<QuestionCard sessionId={sessionId} interactionId={interactionId} questions={questions} />,
+		);
+
+		expect(document.activeElement).toBe(cancel);
+	});
+
 	it("shows an option preview when the option is picked", () => {
 		renderCard([
 			question({
@@ -219,8 +233,56 @@ describe("CHAT-10 question card", () => {
 			}),
 		]);
 
-		fireEvent.click(screen.getByRole("button", { name: "Split" }));
+		fireEvent.click(screen.getByRole("radio", { name: "Split" }));
 		expect(screen.getByText("left | right")).toBeTruthy();
+	});
+
+	it("draws Conductor's rows: a number, the label and the choice state", () => {
+		renderCard([
+			question({
+				header: "Storage",
+				question: "Which database?",
+				options: [option("SQLite", { description: "One file" }), option("Postgres")],
+			}),
+		]);
+
+		const sqlite = screen.getByRole("radio", { name: /SQLite/ });
+		expect(sqlite.getAttribute("aria-checked")).toBe("false");
+		fireEvent.click(sqlite);
+		expect(sqlite.getAttribute("aria-checked")).toBe("true");
+		expect(sqlite.textContent).toBe("1SQLiteOne file");
+		expect(screen.getByText("Storage")).toBeTruthy();
+		expect(screen.getByPlaceholderText("Other…")).toBeTruthy();
+		expect(screen.queryByText("1 of 1")).toBeNull();
+	});
+
+	it("moves between questions with the dots and the arrow buttons", () => {
+		renderCard([
+			question({ question: "Which database?", options: [option("SQLite")] }),
+			question({ question: "Which region?", options: [option("EU")] }),
+		]);
+
+		expect(
+			(screen.getByRole("button", { name: "Previous question" }) as HTMLButtonElement).disabled,
+		).toBe(true);
+		fireEvent.click(screen.getByRole("button", { name: "Next question" }));
+		expect(screen.getByText("Which region?")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Question 1" }));
+		expect(screen.getByText("Which database?")).toBeTruthy();
+	});
+
+	it("ticks Other on a multi-select question while it holds text, and clears it when unticked", () => {
+		renderCard([
+			question({ question: "Which regions?", multiSelect: true, options: [option("EU")] }),
+		]);
+
+		const other = screen.getByLabelText("Other response");
+		const tick = screen.getByRole("checkbox", { name: "Select other response" });
+		expect(tick.getAttribute("aria-checked")).toBe("false");
+		fireEvent.change(other, { target: { value: "Mars" } });
+		expect(tick.getAttribute("aria-checked")).toBe("true");
+		fireEvent.click(tick);
+		expect((other as HTMLTextAreaElement).value).toBe("");
 	});
 
 	it("cancels the agent from the Cancel agent button", async () => {
@@ -237,7 +299,7 @@ describe("CHAT-10 question card", () => {
 			.mockResolvedValueOnce(ok(undefined));
 		renderCard([question({ question: "Which database?", options: [option("SQLite")] })]);
 
-		fireEvent.click(screen.getByRole("button", { name: "SQLite" }));
+		fireEvent.click(screen.getByRole("radio", { name: "SQLite" }));
 		fireEvent.keyDown(card(), { key: "Enter" });
 
 		expect(await screen.findByText("Could not send answers. Try again.")).toBeTruthy();

@@ -1,24 +1,38 @@
 # Parity gaps, 7 November 2026
 
-The gap report of the parity harness (`docs/plans/parity-harness.md`) after step 5's first pass (#363). The counts below come from the Parity workflow's dump of commit e996940e (run 42330292848), seeded and checked with this branch's harness. Mode `report`: the gaps do not fail a pull request yet. The first report, from c8860c66, is in this file's history.
+The gap report of the parity harness (`docs/plans/parity-harness.md`) after step 5's second pass (#366). The counts below come from the Parity workflow's dump of commit 3871650d (run 42333992371), seeded and checked with this branch's harness and a spec rebuilt from this branch's UI source. Mode `report`: the gaps do not fail a pull request yet. The first report, from c8860c66, and round 1's, from e996940e, are in this file's history.
 
 ## Before and after
 
-|                                                          |               At c8860c66 |                                                                        Now |
-| -------------------------------------------------------- | ------------------------: | -------------------------------------------------------------------------: |
-| Conductor entries                                        |                     3,814 |                                                                      3,814 |
-| Matched to a catalogue state or a name of ours           |                       703 |                                                                      1,007 |
-| a. Decided                                               |                        57 |                       847 (D002 31, D004 223, D025 309, D029 20, D086 264) |
-| b. Unshown: our source has it, no state draws it         |                       891 |                                                                        771 |
-| c. Wording or placement differs on a screen we draw      |                not sorted |                                                                          6 |
-| d. A feature or behaviour we lack                        | 2,163 missing, not sorted |                  1,183 (313 of them backend names; 211 with a backlog row) |
-| Catalogue states                                         |                        50 |                                                                         64 |
-| Strings of ours with no Conductor counterpart (distinct) |          256 in 50 states | 514 in 64 states, plus 50 kept or decided in `tests/parity/ours-only.json` |
-| Flows that pass, of 7 drivable                           |                         5 |                                                                          7 |
+|                                                          |               At c8860c66 | After round 1 (e996940e) |                                                             Now (3871650d) |
+| -------------------------------------------------------- | ------------------------: | -----------------------: | -------------------------------------------------------------------------: |
+| Conductor entries                                        |                     3,814 |                    3,814 |                                                                      3,821 |
+| Matched to a catalogue state or a name of ours           |                       703 |                    1,007 |                                                                      1,018 |
+| a. Decided                                               |                        57 |                      847 |                       847 (D002 31, D004 223, D025 309, D029 20, D086 264) |
+| b. Unshown: our source has it, no state draws it         |                       891 |                      771 |                                                                        770 |
+| c. Wording or placement differs on a screen we draw      |                not sorted |                        6 |                                                                          6 |
+| d. A feature or behaviour we lack                        | 2,163 missing, not sorted |                    1,183 |                  1,180 (313 of them backend names; 210 with a backlog row) |
+| Catalogue states                                         |                        50 |                       64 |                                                                         68 |
+| Strings of ours with no Conductor counterpart (distinct) |          256 in 50 states |         514 in 64 states | 507 in 68 states, plus 50 kept or decided in `tests/parity/ours-only.json` |
+| Flows that pass, of 7 drivable                           |                         5 |                        7 |                                                                          7 |
 
-How each class is sorted is in the plan, section 2, "Sorting the gaps". The class c count is low because each wording difference found was fixed on the screen in the same pass, which turns it into a match; what is left of c are six of Conductor's settings-search copies that differ from their page copies by case or a full stop.
+The spec grew by seven entries: rebuilding it finds the strings our UI source now shares with the bundle ("PR is in draft", "Re-run", "Copy plan to clipboard", "Enter your plan adjustments here...", and three from other changes on main). Of those, "Enter your plan adjustments here..." is matched; the rest are unshown because no catalogue state draws a draft pull request, a failing check or an open tooltip.
+
+How each class is sorted is in the plan, section 2, "Sorting the gaps". Most of round 2's work does not move the counts: a screen that takes Conductor's structure and wording for strings the inventories never caught (the approval card's button stack, the question card's dots, the Git status rows) shows up only in the ours-only list, and some of Conductor's own words are still reported as ours because no inventory holds them ("Hand off", "No PR open", "Waiting for PR review").
 
 ## Screens fixed (class c)
+
+### Round 2 (#366)
+
+Each is its own commit on #366, with Conductor's bundle offsets in the message.
+
+- Approval card (renderApp @8830523, @104412): one column of full-width buttons, each with its live key: "Yes", the second choice, "No". The second choice is Conductor's per request: "Allow all edits during this session" for an edit, "Yes, and don't ask again for: <rule>" (cut at 40 characters) for a suggested rule, "Always allow <tool name>" for an MCP tool, WebSearch or WebFetch. The line listing the keys is replaced by the keycaps.
+- Question card (@8144303): header and question beside a close button "Cancel agent"; option rows with their number (role radio, or checkbox on a multi-select question); the "Other…" row numbered 0, named "Other response", with the tick "Select other response"; dots "Question N" between "Previous question" and "Next question"; an icon Submit with its key in the tooltip. A secret answer is typed in the Other row, masked.
+- Plan review bar (@9259644): Conductor's row of small buttons, Copy (tooltip "Copy plan to clipboard"), Hand off, Approve with its live key; the feedback box takes "Enter your plan adjustments here..." in place of its label and placeholder; the line explaining Approve and Hand off is dropped because the tooltips carry it.
+- Checks tab (@2254553-2276000): Git status in both views, with Conductor's rows and wording in its order (`git-status-rows.ts`): Ready to merge, No PR open, PR is in draft, N uncommitted changes, N commits behind remote, N commits ahead of remote, Merge conflicts detected, Incompatible with remote, Waiting for PR review, PR changes requested. Sections in Conductor's order: Git status, Deployments, Checks, Comments. "Re-run" (tooltip "Re-run failed checks") and "Fix errors" sit quietly beside "Checks"; check and deployment rows end with "Open externally".
+- Home (@10274108-10277200): the search is named "Search", the project filter "In all projects"; the empty grid is Conductor's one block, "No matching workspaces" with "Create a workspace" or "Clear filters". Four catalogue states open the project, archive, sort and Display menus.
+
+### Round 1 (#363)
 
 Each is its own commit on #363, with Conductor's bundle offsets in the message.
 
@@ -36,7 +50,27 @@ Each is its own commit on #363, with Conductor's bundle offsets in the message.
 - Create a workspace: both were wrong, and it passes now. The catalogue did not answer the target branch's fetch, `worktree add`, the first message (`sendMessage`), the naming run (`runUtilityPrompt`), `gh pr list --head` or `git branch -m`, and its `for-each-ref` made the checkpoint prune try to delete `origin/main`; each is scripted now. Then the flow's screenshot showed the app's own fault: the new workspace opened on "No tab is open", because creating the first chat never made it the workspace's remembered tab. It does now (test in `workspace.test.ts`), so the workspace opens on its chat, as Conductor's does.
 - Create a pull request had started failing when the catalogue began answering `sendMessage`; the catalogue now logs the messages it answers, and it passes.
 
+## Sidecar event order
+
+Measured again in four runs (details in `docs/reports/sidecar-diff-2026-11-07.md`, "Event order, measured again"). Claude tool approvals: Conductor and ours send the `tool_use` first, every run. Codex approvals: Conductor's order changed from run to run (before `item.started` twice, after it once, before `turn.started` once), so it is timing; ours keeps events first. Plan mode: Conductor sends the plan approval one event ahead of ExitPlanMode's own `tool_use`, every run. Sending ours without waiting put it ahead of `system/init` too and raised the differences from 9 to 11, so ours keeps events first. No change to the sidecar.
+
 ## For the owner
+
+Kept from round 2, each needs your yes before it goes (Conductor shows none of them):
+
+- Approval card: "Yes always" on a command with no suggested rule (Conductor offers no second choice there), and a choice the second one displaced kept as an extra button; the suggested rules list ("The agent suggests these rules:"); the optional message on No ("Message to the agent (optional)", "Why are you denying this?"); the wrench icon; the reason shown above the tool card. Conductor also draws the card in place of the composer's text box; ours stays in the dock above the composer.
+- Question card: the group name "Agent question" and the option preview.
+- Plan review bar: the feedback box and "Reject plan" in the bar (Conductor takes feedback in the composer), the accessible name "Plan feedback", the title "Review plan" over the plan, the plan text with "Show all" and the plan file link (Conductor shows the plan in the chat's tool card).
+- Checks tab: the PR summary header ("Base: main", "Pull request menu"), the reviewers list ("Reviewers", "No reviewers requested."), "No review comments from GitHub.", and the failed, pending and total counts beside "Checks". The git header's "Waiting for a reviewer" note, where Conductor shows nothing.
+- Home: the hint lines under the empty block ("Try a different search, or clear the filters to see everything.", "Create one to give a task its own copy of the code and its own chats."), and "No PR open" shown even when the branch has no changes.
+
+Not built (no data for it yet): the Checks tab's merge queue row and "N commits behind <target branch>", which need fields GitState does not carry.
+
+To rule on: the sidecar event order for plan mode (above).
+
+Shared contract changes: none needed in round 2.
+
+### Still open from round 1
 
 Removals, none done (each needs your yes):
 
@@ -45,68 +79,7 @@ Removals, none done (each needs your yes):
 - The empty sidebar's "Add a project" button; Conductor shows only "Add a project to get started."
 - Descriptions of ours where Conductor shows none: Restart automatically on update, Arrange workspaces manually, the "absolutely right" switch, Review model, Codex personality, Terminal Font Size, and other settings rows.
 
-Decided by this pass, to confirm: the model names and the OpenCode provider list in Conductor's bundle are mapped to D086 as catalogue data, not wording; D086 was written for library defaults, code and city names.
-
-Invented wording of ours (514 distinct strings), by the states that show it. Each needs Conductor's wording where it has a counterpart, a decision, or your keep:
-
-- settings-key-bindings: "Change shortcut for …" and "Clear shortcut for …", the accessible names of the two buttons on each of 132 rows (264 strings).
-- settings-key-bindings: "Change"; "Create a section"; "Create a snippet"; "Go to the next unread workspace"; "Link a pull request"; "Mark the pull request ready for review"; "Move the workspace to a section"; "Open diagnostics"; "Open the changelog"; "Open the documentation"; "Open the place name map"; "Pick an answer option by number"; "Search commands"
-- settings-appearance: "$ conducted --preview"; "Black"; "Blue"; "Bright black"; "Bright blue"; "Bright cyan"; "Bright green"; "Bright magenta"; "Bright red"; "Bright white"; "Bright yellow"; "Code"; "Code preview"; "Cyan"; "Fonts and code"; "Green"; "Live preview"; "Magenta"; "Mono Font style"; "Red"; "Terminal Font style"; "Terminal preview"; "Text size in points for terminals."; "Theme and colours"; "White"; "Yellow"; "type Place name string const greet place Place , times = 1 string // Say hello. return `He"
-- settings-default-models: "Claude effort level"; "Claude effort level for reviews"; "Codex thinking level"; "Codex thinking level for reviews"; "Fast mode for reviews"; "Fast mode in new chats"; "First available model"; "How hard Codex thinks during AI code reviews."; "How hard Codex thinks in new chats."; "How much effort Claude spends during AI code reviews."; "How much effort Claude spends in new chats."; "Limit which provider models appear in the model picker."; "Model default"; "Model used by chats that start an AI code review. Empty uses the default model."; "Models shown in the picker"; "Start new chats in plan mode so the agent proposes a plan first."; "Start new chats with fast mode on."; "The tone Codex uses in new chats."
-- chat-approval, chat-finished, chat-markdown, chat-plan-review, c: "Changes and scripts"; "Claude Code: change agent"; "Collapse panel"; "Dev"; "Diff scope"; "Model picker"; "No preview URL yet"; "Review options"; "Search changed files"; "Turn details"; "composer"; "⌘L to focus"
-- settings-environment: "AWS access key ID for Bedrock, kept in the Keychain."; "AWS secret access key for Bedrock, kept in the Keychain."; "Access token for Codex, kept in the Keychain."; "Add variable"; "All repositories"; "Dotenv files found in your home folder. A path is listed here and its names can be importe"; "Names are stored in the app; values are stored in the macOS Keychain."; "No environment files yet."; "OpenAI API key, kept in the Keychain."; "Suggested variables"; "Variables for every repository, or only for one where they win over the shared value."
-- chat-markdown: "// Before: url.parse is gone in Node 24. const next new URL request url searchParams .get "; "1 failed"; "After"; "Before"; "Build"; "Check"; "Unit tests"; "all pass"; "nodejs.org"; "ts"
-- git-checks: "Base: main"; "Checks 0 failed · 1 pending · 3 total"; "No review comments from GitHub."; "No reviewers requested."; "Open lint on GitHub"; "Open test on GitHub"; "Open typecheck on GitHub"; "Pull request menu"; "Reviewers"; "lint"
-- settings-general: "Bring back every hint you dismissed."; "Default chime"; "Dismissible hints"; "Hints explain a control once. Dismiss this one, then choose Reset callout dismissals to br"; "Install a downloaded update and restart once no agent is working."; "Let you drag workspaces into your own order in the sidebar."; "No dismissed hints"; "Strip "You're absolutely right!" from AI messages"; "Use ⇧↵ for new lines"; "Use ⌘↵ to queue"
-- chat-finished, chat-tab-menu, chat-tool-calls, command-palette, : "3 tool calls, 2 messages"; "5files changed"; "Added: src/auth/safe-next.test.ts"; "Added: src/auth/safe-next.ts"; "Changed files"; "Files changed in this turn"; "Modified: src/auth/sign-in.ts"; "added"; "modified"
-- settings-repo-misc: ".env*"; "Add a file or pattern"; "If the repository has a .worktreeinclude file, the paths in it are copied as well. Edit th"; "New workspaces branch from the repository's default branch. Choosing another base is not b"; "No files are copied into new workspaces."; "The terminal panel's Open URLs. Use $CONDUCTED_PORT for the workspace port."; "Where to push, pull and create pull requests."; "http://localhost:$CONDUCTED_PORT"; "origin"
-- settings-repo-prompts: "General preferences"; "Rename branch"; "Resolve conflicts"; "Sent when the agent names the branch."; "Sent when you ask the agent to create a pull request."; "Sent when you ask the agent to resolve merge conflicts."; "Sent when you send failing checks to the agent."; "Sent when you start an AI code review."; "Uses only the built-in instructions."
-- chat-approval: "Add the switch component is running"; "Allow with suggested rules"; "Message to the agent"; "Message to the agent (optional)"; "Shortcuts work while a control in this card has focus: Enter approves, Backspace denies, C"; "The agent suggests these rules:"; "Why are you denying this?"
-- chat-plan-review: "Approve runs the plan in this chat. Hand off sends it to the chat above."; "Explain what the plan should do instead"; "Hand off"; "Plan feedback"; "Plan review"; "Reject plan"; "Tell the agent what to change"
-- settings-git: "After the first message, replace the placeholder branch name with one that describes the t"; "Ask the agent to put a link to this workspace in the pull request description. The link on"; "Custom branch prefix"; "Preview: sam/<name>"; "The text used when the prefix type is custom, for example feature/ or alex-."; "When the branch gets a real name, rename the workspace to match."; "Where the open pull request button sends you."
-- settings-repo-scripts: "$CONDUCTED_WORKSPACE_NAME $CONDUCTED_WORKSPACE_PATH $CONDUCTED_WORKSPACE_ID $CONDUCTED_ROO"; "Runs before a workspace is archived."; "Start the default action after setup"; "Start the repository's default action once the setup script has finished."; "Variables in scripts"; "pnpm clean"; "pnpm install"
-- git-scope-menu: "2 files changed"; "5e6f7a8 Sam RiveraNov 2"; "9c0d1e2 Sam RiveraNov 2"; "Commits"; "Current branch sam/fix-login-redirect"
-- settings-account: "Custom MCP servers are turned off."; "Generated chat titles are turned off."; "How Codex asks for approval before running tools."; "Signed in as sam on github.com"; "Signed in to github.com with gh"
-- backlog, backlog-empty, chat-approval, chat-finished, chat-markd: "Create workspace in atlas"; "Create workspace in relay"; "Main"; "Sidebar"
-- command-palette: "/Users/sam/code/relay"; "Choose"; "Open chat"; "Switch tabs"
-- create-project, new-workspace, new-workspace-project-menu: "First message"; "More options"; "Plan mode and more"; "Project: atlas"
-- file-viewer, git-files: "Changed"; "Changed from the target branch"; "Expand docs"; "Workspace files"
-- settings-advanced: "Choose folder"; "Configure new Conducted workspaces so plain git push sets a branch upstream. Turning this "; "No agent programs are managed."; "The Claude Code and Codex programs and the Cursor SDK, which the app downloads, verifies a"
-- settings-agents: "/Users/sam/Library/Applica...port/Conducted/bin/claude"; "/Users/sam/Library/Application Support/Conducted/bin/claude"; "CLI"; "claude.ai"
-- chat-question: "Agent question"; "Other answer"; "Type your answer"
-- chat-working: "1 queued"; "2 matches"; "grep for 'redis in src"
-- composer-draft, composer-empty, composer-model-picker: "Ask the agent to change something, or start with one of these."; "Fix a known bug"; "Read the docs"
-- file-viewer-missing: "Couldn't load this file"; "This file was deleted, so there is nothing to edit."; "fatal: path 'src/auth/old-login.ts' does not exist"
-- settings-experimental: "Big terminal command list"; "Detect Graphite stacks for the active local workspace and show stack-aware UI in the git p"; "Extra commands offered when you open a big terminal, one per line."
-- settings-repo-actions: "Shortcuts for quick actions, like running your dev server or test suite."; "Test"; "pnpm dev"
-- chat-tool-calls: "Collapse 3 tool calls, 2 messages"; "Read 7 lines"
-- first-run-home: "Create one to give a task its own copy of the code and its own chats."; "No workspaces yet"
-- new-workspace-project-menu: "~/code/atlas"; "~/code/relay"
-- settings-agents-error: "Couldn't load agents"; "getAgentInstalls failed: the agent program did not answer."
-- backlog: "atlas · Unstarted"
-- chat-approval, chat-finished, chat-tab-menu, chat-tool-calls, ch: "atlas icon"
-- chat-approval, chat-markdown, chat-plan-review, chat-question, g: "No changes"
-- chat-approval, chat-plan-review, chat-question, chat-working: "The agent is working"
-- chat-finished, chat-tab-menu, command-palette, git-changes, git-: "Expand 3 tool calls, 2 messages"
-- chat-markdown, chat-plan-review, chat-question: "relay icon"
-- command-palette, settings-repo-misc: "/Users/sam/code/atlas"
-- command-palette, workspace-actions-menu: "Link pull request"
-- composer-draft: "server.log"
-- create-project: "gstack"
-- file-viewer: "Expand http"
-- first-run, first-run-home: "Add a project"
-- first-run, sidebar: "Add a project, then give each task its own workspace. Pick a workspace in the sidebar to c"
-- first-run-home, home, home-archived, home-no-match: "Search workspaces"
-- git-checks, pr-open: "Waiting for a reviewer"
-- git-checks-empty: "No PR open"
-- git-files: "Expand src"
-- home-no-match: "Try a different search, or clear the filters to see everything."
-- pr-loading, pr-merged, pr-none, pr-open, pr-ready: "3files changed"
-- scripts-run-ended: "Shell exited with status 0."
-- settings-agents-loading: "Loading agents"
-- startup-blocked: "This database (schema version 9) was created by a newer version of Conducted than the one "
-- startup-failed: "/Users/sam/Library/Application Support/Conducted/sidecar.log"
-- startup-loading: "Opening the database"
+Decided by round 1, to confirm: the model names and the OpenCode provider list in Conductor's bundle are mapped to D086 as catalogue data, not wording; D086 was written for library defaults, code and city names.
 
 Contract changes needed (not made):
 
@@ -120,19 +93,21 @@ Other open items:
 - "Run claude /login" runs Conductor's command in an embedded terminal; ours opens our sign-in dialog.
 - A pre-existing flake on main: `UpdateNotice.test.tsx` leaves a sonner toast timer that fires after jsdom is torn down ("window is not defined"), which failed CI once on this branch.
 
+Invented wording of ours, by state, is in the "Gaps by screen" tables below (code `ours-only`).
+
 ## Inventories
 
 | Inventory            | Entries | Matched | of them unsure | Decided | Gaps |
 | -------------------- | ------: | ------: | -------------: | ------: | ---: |
-| text                 |     853 |     168 |              0 |     171 |  514 |
+| text                 |     853 |     171 |              0 |     171 |  511 |
 | label                |     498 |      86 |              0 |     222 |  190 |
-| aria_label           |     189 |      50 |              0 |      34 |  105 |
+| aria_label           |     189 |      52 |              0 |      34 |  103 |
 | placeholder          |      70 |      13 |              0 |      12 |   45 |
 | title                |     462 |     243 |              0 |      64 |  155 |
 | tooltip              |      25 |       3 |              0 |       2 |   20 |
 | description          |     281 |      78 |              0 |      96 |  107 |
 | toast                |     253 |       1 |              0 |      27 |  225 |
-| literal              |     374 |      67 |              0 |      76 |  231 |
+| literal              |     381 |      73 |              0 |      76 |  232 |
 | route                |      95 |       4 |              0 |      50 |   41 |
 | test_id              |      18 |       4 |              0 |       0 |   14 |
 | sidecar_rpc_method   |      87 |       7 |              0 |      15 |   65 |
@@ -143,30 +118,30 @@ Other open items:
 | tauri_event          |      40 |       0 |              0 |       0 |   40 |
 | settings_key         |     193 |     108 |              0 |      44 |   41 |
 | table                |      29 |       9 |              0 |       0 |   20 |
-| Total                |    3814 |    1007 |              0 |     847 | 1960 |
+| Total                |    3821 |    1018 |              0 |     847 | 1956 |
 
 ## Gaps by class
 
 | Class                                                       | Entries |
 | ----------------------------------------------------------- | ------: |
 | a. Decided (D002 31, D004 223, D025 309, D029 20, D086 264) |     847 |
-| b. Unshown: our source has it, no catalogue state draws it  |     771 |
+| b. Unshown: our source has it, no catalogue state draws it  |     770 |
 | c. Wording or placement differs on a screen we draw         |       6 |
-| d. A feature or behaviour we lack                           |    1183 |
+| d. A feature or behaviour we lack                           |    1180 |
 
 ## Findings by check
 
 | Check                | Code              | Gaps | Broken |
 | -------------------- | ----------------- | ---: | -----: |
-| a. Map completeness  | gap-missing       | 1183 |      0 |
-| a. Map completeness  | gap-unshown       |  777 |      0 |
-| b. Text and controls | ours-only         | 1414 |      0 |
+| a. Map completeness  | gap-missing       | 1180 |      0 |
+| a. Map completeness  | gap-unshown       |  776 |      0 |
+| b. Text and controls | ours-only         | 1427 |      0 |
 | d. Flows             | flow-step         |    3 |      0 |
 | e. Backend lists     | backend-ours-only |  141 |      0 |
 
 ## Gaps by screen
 
-### App shell (18)
+### App shell (15)
 
 | Check | Code      | Where                              | Text                                                                                                                  | Detail                                                                                                                                                           |
 | ----- | --------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -174,9 +149,7 @@ Other open items:
 | b     | ours-only | first-run, sidebar                 | Add a project, then give each task its own workspace. Pick a workspace in the sidebar to continue where you left off. | p text: [data-testid="main-content"] > div > main > div > div:nth-of-type(2) > section > p                                                                       |
 | b     | ours-only | first-run, first-run-home, sidebar | Sidebar                                                                                                               | aside aria-label: [data-testid="sidebar"] > div > aside                                                                                                          |
 | b     | ours-only | first-run, first-run-home, sidebar | Main                                                                                                                  | nav aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > nav                                                                           |
-| b     | ours-only | first-run-home, first-run-home     | No workspaces yet                                                                                                     | heading text: [data-testid="main-content"] > div > main > div > div > div > section > h2                                                                         |
-| b     | ours-only | first-run-home                     | Create one to give a task its own copy of the code and its own chats.                                                 | p text: [data-testid="main-content"] > div > main > div > div > div > section > p                                                                                |
-| b     | ours-only | first-run-home                     | Search workspaces                                                                                                     | textbox aria-label: [data-testid="main-content"] > div > main > div > header > div > label > input                                                               |
+| b     | ours-only | first-run-home                     | Create one to give a task its own copy of the code and its own chats.                                                 | p text: [data-testid="main-content"] > div > main > div > div > div > div > p                                                                                    |
 | b     | ours-only | sidebar, sidebar                   | Create workspace in atlas                                                                                             | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(1) |
 | b     | ours-only | sidebar, sidebar                   | Create workspace in relay                                                                                             | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(1) |
 
@@ -686,7 +659,7 @@ Other open items:
 | ----- | --------- | ----------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
 | d     | flow-step | add-project-quick-start | Drive it in the catalogue | not drivable: no catalogue state scripts the template copy and git init (ui-map.md 3.9) |
 
-### Git panel (247)
+### Git panel (245)
 
 | Check | Code      | Where                                                                                                                                                            | Text                                  | Detail                                                                                                                                                           |
 | ----- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -730,15 +703,13 @@ Other open items:
 | b     | ours-only | git-changes-clean, git-changes-clean                                                                                                                             | No changes                            | button text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(1) > div > button                                                                     |
 | b     | ours-only | git-checks                                                                                                                                                       | Waiting for a reviewer                | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(1) > span                                                                               |
 | b     | ours-only | git-checks                                                                                                                                                       | Base: main                            | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(1)            |
-| b     | ours-only | git-checks                                                                                                                                                       | Checks 0 failed · 1 pending · 3 total | heading text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(2) > div > h3                                         |
+| b     | ours-only | git-checks                                                                                                                                                       | Waiting for PR review                 | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(2) > ul > li > span                                      |
+| b     | ours-only | git-checks                                                                                                                                                       | Checks 0 failed · 1 pending · 3 total | heading text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(3) > div > h3                                         |
 | b     | ours-only | git-checks                                                                                                                                                       | lint                                  | span text: [data-testid="check-row"] > div > button:nth-of-type(1) > span:nth-of-type(1)                                                                         |
-| b     | ours-only | git-checks                                                                                                                                                       | No review comments from GitHub.       | p text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(3) > p                                                      |
-| b     | ours-only | git-checks, git-checks                                                                                                                                           | Reviewers                             | heading text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(4) > div > h3                                         |
-| b     | ours-only | git-checks                                                                                                                                                       | No reviewers requested.               | p text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(4) > p                                                      |
+| b     | ours-only | git-checks                                                                                                                                                       | No review comments from GitHub.       | p text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(4) > p                                                      |
+| b     | ours-only | git-checks, git-checks                                                                                                                                           | Reviewers                             | heading text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > div > h3                                         |
+| b     | ours-only | git-checks                                                                                                                                                       | No reviewers requested.               | p text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > p                                                      |
 | b     | ours-only | git-checks                                                                                                                                                       | Pull request menu                     | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2)  |
-| b     | ours-only | git-checks                                                                                                                                                       | Open test on GitHub                   | button aria-label: [data-testid="check-row"] > div > button:nth-of-type(2)                                                                                       |
-| b     | ours-only | git-checks                                                                                                                                                       | Open lint on GitHub                   | button aria-label: [data-testid="check-row"] > div > button:nth-of-type(2)                                                                                       |
-| b     | ours-only | git-checks                                                                                                                                                       | Open typecheck on GitHub              | button aria-label: [data-testid="check-row"] > div > button:nth-of-type(2)                                                                                       |
 | b     | ours-only | git-checks-empty                                                                                                                                                 | No PR open                            | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > section > ul > li > span                                                     |
 
 ### inventory-controls Agents (8)
@@ -1007,7 +978,7 @@ Other open items:
 | a     | gap-missing (feature) | description:R10710371 | Associates Codex API requests with an OpenAI project.        | not in our UI                                                                                                                       |
 | a     | gap-unshown (unshown) | toast:R10694452       | Failed to update env files                                   | no catalogue state shows it                                                                                                         |
 
-### inventory-controls Settings: Agents (29)
+### inventory-controls Settings: Agents (28)
 
 | Check | Code                  | Where                 | Text                                                      | Detail                      |
 | ----- | --------------------- | --------------------- | --------------------------------------------------------- | --------------------------- |
@@ -1021,7 +992,6 @@ Other open items:
 | a     | gap-missing (feature) | text:R10933927        | Checking login status...                                  | not in our UI               |
 | a     | gap-unshown (unshown) | text:R10945315        | No providers match your search.                           | no catalogue state shows it |
 | a     | gap-unshown (unshown) | text:R10948699        | Loaded from env                                           | no catalogue state shows it |
-| a     | gap-unshown (unshown) | text:R10950763        | Remove                                                    | no catalogue state shows it |
 | a     | gap-missing (feature) | label:R10918784       | Manage usage                                              | not in our UI               |
 | a     | gap-missing (feature) | label:R10929522       | ChatGPT                                                   | not in our UI               |
 | a     | gap-missing (feature) | aria_label:R10928433  | Copy Codex verification code                              | not in our UI               |
@@ -1115,7 +1085,7 @@ Other open items:
 | a     | gap-unshown (unshown) | literal:R5534203     | Link                                      | no catalogue state shows it |
 | a     | gap-missing (feature) | test_id:R10139472    | center-panel-drag-ghost                   | not in our UI               |
 
-### inventory-messages-sidecar Gap and Research only: toast messages and behaviours (199)
+### inventory-messages-sidecar Gap and Research only: toast messages and behaviours (198)
 
 | Check | Code                  | Where                 | Text                                                                                                    | Detail                                                                                          |
 | ----- | --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -1192,8 +1162,7 @@ Other open items:
 | a     | gap-missing (feature) | label:R11644626       | flush local storage after terminal shutdown                                                             | not in our UI                                                                                   |
 | a     | gap-missing (feature) | label:R11644788       | restart Conductor                                                                                       | not in our UI                                                                                   |
 | a     | gap-missing (feature) | label:R11644907       | quit Conductor                                                                                          | not in our UI                                                                                   |
-| a     | gap-missing (feature) | aria_label:R8147878   | Other response                                                                                          | not in our UI                                                                                   |
-| a     | gap-missing (feature) | aria_label:R8148495   | Select other response                                                                                   | not in our UI                                                                                   |
+| a     | gap-unshown (unshown) | aria_label:R8148495   | Select other response                                                                                   | no catalogue state shows it                                                                     |
 | a     | gap-missing (feature) | aria_label:R9068829   | Loading preview                                                                                         | not in our UI                                                                                   |
 | a     | gap-unshown (unshown) | aria_label:R9734762   | Edit comment                                                                                            | no catalogue state shows it                                                                     |
 | a     | gap-unshown (unshown) | aria_label:R9735022   | Delete comment                                                                                          | no catalogue state shows it                                                                     |
@@ -1722,15 +1691,14 @@ Other open items:
 | b     | ours-only | file-viewer-missing                                                                                                                                              | fatal: path 'src/auth/old-login.ts' does not exist  | p text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > section > p                  |
 | b     | ours-only | scripts-run-ended                                                                                                                                                | Shell exited with status 0.                         | p text: div > div > div:nth-of-type(3) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > p                                                                 |
 
-### Pages (77)
+### Pages (98)
 
 | Check | Code      | Where                                                                                                                                                            | Text                                                            | Detail                                                                                                                                                           |
 | ----- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| b     | ours-only | home, home-no-match, home-archived, new-workspace, new-workspace-project-menu, create-project, backlog, backlog-empty                                            | Sidebar                                                         | aside aria-label: [data-testid="sidebar"] > div > aside                                                                                                          |
-| b     | ours-only | home, home-no-match, home-archived, new-workspace, new-workspace-project-menu, create-project, backlog, backlog-empty                                            | Main                                                            | nav aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > nav                                                                           |
-| b     | ours-only | home, home, home-no-match, home-no-match, home-archived, home-archived, new-workspace, new-workspace, new-workspace-project-menu, new-workspace-project-menu, cr | Create workspace in atlas                                       | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(1) |
-| b     | ours-only | home, home, home-no-match, home-no-match, home-archived, home-archived, new-workspace, new-workspace, new-workspace-project-menu, new-workspace-project-menu, cr | Create workspace in relay                                       | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(1) |
-| b     | ours-only | home, home-no-match, home-archived                                                                                                                               | Search workspaces                                               | textbox aria-label: [data-testid="main-content"] > div > main > div > header > div > label > input                                                               |
+| b     | ours-only | home, home-no-match, home-archived, home-projects-menu, home-archive-menu, home-sort-menu, home-display-menu, new-workspace, new-workspace-project-menu, create- | Sidebar                                                         | aside aria-label: [data-testid="sidebar"] > div > aside                                                                                                          |
+| b     | ours-only | home, home-no-match, home-archived, home-projects-menu, home-archive-menu, home-sort-menu, home-display-menu, new-workspace, new-workspace-project-menu, create- | Main                                                            | nav aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > nav                                                                           |
+| b     | ours-only | home, home, home-no-match, home-no-match, home-archived, home-archived, home-projects-menu, home-projects-menu, home-archive-menu, home-archive-menu, home-sort- | Create workspace in atlas                                       | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(1) |
+| b     | ours-only | home, home, home-no-match, home-no-match, home-archived, home-archived, home-projects-menu, home-projects-menu, home-archive-menu, home-archive-menu, home-sort- | Create workspace in relay                                       | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(1) |
 | b     | ours-only | home-no-match                                                                                                                                                    | Try a different search, or clear the filters to see everything. | p text: [data-testid="main-content"] > div > main > div > div > div > div > p                                                                                    |
 | b     | ours-only | new-workspace, new-workspace, new-workspace-project-menu, new-workspace-project-menu, create-project, create-project                                             | First message                                                   | label text: div:nth-of-type(3) > form > div > label                                                                                                              |
 | b     | ours-only | new-workspace, new-workspace-project-menu, create-project                                                                                                        | Project: atlas                                                  | button aria-label: div:nth-of-type(3) > form > header > button:nth-of-type(1)                                                                                    |
@@ -1776,7 +1744,7 @@ Other open items:
 | b     | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged                                                    | No preview URL yet                | button title: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(1) |
 | b     | ours-only | pr-open                                                                                              | Waiting for a reviewer            | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(1) > span                                                                               |
 
-### Settings (433)
+### Settings (437)
 
 | Check | Code                  | Where                                                                     | Text                                                                                                                                                             | Detail                                                                                                                                                           |
 | ----- | --------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2149,6 +2117,10 @@ Other open items:
 | b     | ours-only             | settings-advanced                                                         | Configure new Conducted workspaces so plain git push sets a branch upstream. Turning this off avoids writing Git worktree config, but PR info may be less reliab | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div > div > p                                             |
 | b     | ours-only             | settings-advanced                                                         | The Claude Code and Codex programs and the Cursor SDK, which the app downloads, verifies and keeps up to date.                                                   | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(7) > div > p:nth-of-type(2)                                    |
 | b     | ours-only             | settings-advanced                                                         | No agent programs are managed.                                                                                                                                   | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(7) > p                                                         |
+| b     | ours-only             | settings-advanced                                                         | Helper programs                                                                                                                                                  | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > div > p:nth-of-type(1)                                    |
+| b     | ours-only             | settings-advanced                                                         | The GitHub CLI and watchexec, which the app downloads for GitHub and Spotlight.                                                                                  | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > div > p:nth-of-type(2)                                    |
+| b     | ours-only             | settings-advanced                                                         | GitHub CLI (gh)                                                                                                                                                  | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > ul > li:nth-of-type(1) > div:nth-of-type(1) > p:nth-of-ty |
+| b     | ours-only             | settings-advanced                                                         | watchexec                                                                                                                                                        | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > ul > li:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-ty |
 | b     | ours-only             | settings-repo-scripts, settings-repo-scripts                              | pnpm install                                                                                                                                                     | textbox text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > textarea                             |
 | b     | ours-only             | settings-repo-scripts                                                     | Runs before a workspace is archived.                                                                                                                             | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > p                                          |
 | b     | ours-only             | settings-repo-scripts, settings-repo-scripts                              | Start the default action after setup                                                                                                                             | p text: [data-testid="settings-screen"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(4) > div > p:nth-of-type(1)                     |
@@ -2209,7 +2181,7 @@ Other open items:
 | a     | gap-unshown (unshown) | tooltip:M2690256 | Approved | no catalogue state shows it |
 | a     | gap-unshown (unshown) | literal:M2685029 | Private  | no catalogue state shows it |
 
-### Unplaced (803)
+### Unplaced (801)
 
 | Check | Code                  | Where                 | Text                                                                                                               | Detail                                                                                               |
 | ----- | --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -2363,7 +2335,6 @@ Other open items:
 | a     | gap-missing (feature) | text:R10069947        | Waiting for background tasks                                                                                       | not in our UI                                                                                        |
 | a     | gap-missing (feature) | text:R10070194        | Cancelling                                                                                                         | not in our UI                                                                                        |
 | a     | gap-missing (feature) | text:R10076883        | ⌘⌥C                                                                                                                | not in our UI                                                                                        |
-| a     | gap-unshown (unshown) | text:R10214243        | All projects                                                                                                       | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | text:R10221548        | Anyone                                                                                                             | not in our UI                                                                                        |
 | a     | gap-unshown (unshown) | text:R10247990        | Unarchive workspace                                                                                                | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | text:R10289703        | Toggle sidebar                                                                                                     | not in our UI                                                                                        |
@@ -2437,7 +2408,6 @@ Other open items:
 | a     | gap-missing (feature) | text:R11160803        | 32768–60999                                                                                                        | CLOUD-10: not in our UI                                                                              |
 | a     | gap-missing (feature) | text:R11160879        | Forward those ports manually.                                                                                      | CLOUD-10: not in our UI                                                                              |
 | a     | gap-unshown (unshown) | text:R11187774        | Done                                                                                                               | no catalogue state shows it                                                                          |
-| a     | gap-unshown (unshown) | text:R11205556        | Re-download                                                                                                        | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | text:R11231761        | Could not load models.                                                                                             | not in our UI                                                                                        |
 | a     | gap-missing (feature) | text:R11320596        | No matching sections                                                                                               | not in our UI                                                                                        |
 | a     | gap-unshown (unshown) | text:R11324211        | Esc                                                                                                                | no catalogue state shows it                                                                          |
@@ -2537,7 +2507,6 @@ Other open items:
 | a     | gap-missing (feature) | label:R10081916       | Cloud desktop                                                                                                      | CLOUD-16: not in our UI                                                                              |
 | a     | gap-unshown (unshown) | label:R10091233       | Browser                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | label:R10091398       | Local terminal                                                                                                     | no catalogue state shows it                                                                          |
-| a     | gap-unshown (unshown) | label:R10213512       | All projects                                                                                                       | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | label:R10299290       | Other                                                                                                              | Checked by hand: the wording differs. Ours reads "Other..." (text) in chat-question.                 |
 | a     | gap-unshown (unshown) | label:R10461875       | Pinned                                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | label:R10480019       | My workspaces                                                                                                      | not in our UI                                                                                        |
@@ -2545,6 +2514,7 @@ Other open items:
 | a     | gap-unshown (unshown) | label:R10488999       | Sort by                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | label:R10489049       | Updated                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | label:R10489205       | Group by                                                                                                           | no catalogue state shows it                                                                          |
+| a     | gap-unshown (unshown) | label:R10489474       | Filter by project                                                                                                  | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | label:R10570025       | Non-zsh default shell env                                                                                          | APP-03: not in our UI                                                                                |
 | a     | gap-unshown (unshown) | label:R10676706       | Claude                                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | label:R10676910       | Amp                                                                                                                | not in our UI                                                                                        |
@@ -2569,7 +2539,6 @@ Other open items:
 | a     | gap-missing (feature) | aria_label:R511358    | Notifications                                                                                                      | not in our UI                                                                                        |
 | a     | gap-missing (feature) | aria_label:R1898003   | Loading recent repos                                                                                               | PRJ-02: not in our UI                                                                                |
 | a     | gap-unshown (unshown) | aria_label:R1898585   | Search repositories                                                                                                | no catalogue state shows it                                                                          |
-| a     | gap-missing (feature) | aria_label:R2269190   | Open externally                                                                                                    | PR-04: not in our UI                                                                                 |
 | a     | gap-unshown (unshown) | aria_label:R2623047   | Filter changed files                                                                                               | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | aria_label:R2623631   | Close filter                                                                                                       | not in our UI                                                                                        |
 | a     | gap-unshown (unshown) | aria_label:R2637434   | Stack PRs                                                                                                          | no catalogue state shows it                                                                          |
@@ -2821,6 +2790,7 @@ Other open items:
 | a     | gap-missing (feature) | toast:R11699632       | Failed to attach terminal selection                                                                                | not in our UI                                                                                        |
 | a     | gap-missing (feature) | toast:R11739982       | Failed to save keyboard shortcut                                                                                   | not in our UI                                                                                        |
 | a     | gap-missing (feature) | toast:R12096061       | You're up to date!                                                                                                 | not in our UI                                                                                        |
+| a     | gap-unshown (unshown) | literal:M18119        | Download                                                                                                           | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:M18192        | Video                                                                                                              | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:M271945       | Promise                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:M433895       | Geist Mono                                                                                                         | no catalogue state shows it                                                                          |
@@ -2883,7 +2853,9 @@ Other open items:
 | a     | gap-unshown (unshown) | literal:R2141279      | Incompatible with remote                                                                                           | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R2149903      | Stack needs a rebase                                                                                               | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R2236069      | Resolve branch incompatibility with remote                                                                         | no catalogue state shows it                                                                          |
+| a     | gap-unshown (unshown) | literal:R2259789      | PR is in draft                                                                                                     | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R2271909      | Skipped                                                                                                            | no catalogue state shows it                                                                          |
+| a     | gap-unshown (unshown) | literal:R2273883      | Re-run                                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R2517578      | Attach in chat                                                                                                     | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R2517763      | Open in                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R2518339      | Copy relative path                                                                                                 | no catalogue state shows it                                                                          |
@@ -2897,6 +2869,7 @@ Other open items:
 | a     | gap-unshown (unshown) | literal:R3123193      | Section                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R3167503      | Result                                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R3352836      | Channel                                                                                                            | no catalogue state shows it                                                                          |
+| a     | gap-unshown (unshown) | literal:R3392824      | Annotate                                                                                                           | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R3408782      | Confirm                                                                                                            | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R3418027      | Directory                                                                                                          | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R3420339      | Down                                                                                                               | no catalogue state shows it                                                                          |
@@ -2938,6 +2911,7 @@ Other open items:
 | a     | gap-unshown (unshown) | literal:R8914848      | Queue message                                                                                                      | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R9234615      | Not supported                                                                                                      | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R9235510      | Not supported for this model                                                                                       | no catalogue state shows it                                                                          |
+| a     | gap-unshown (unshown) | literal:R9260202      | Copy plan to clipboard                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R9324600      | Expand queue                                                                                                       | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R9325309      | Resume                                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R9328642      | Save and steer                                                                                                     | no catalogue state shows it                                                                          |
@@ -2948,11 +2922,7 @@ Other open items:
 | a     | gap-unshown (unshown) | literal:R9984405      | Edit PR title                                                                                                      | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R10013192     | Copy details                                                                                                       | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R10089377     | New chat, same files                                                                                               | no catalogue state shows it                                                                          |
-| a     | gap-unshown (unshown) | literal:R10218594     | Showing all                                                                                                        | no catalogue state shows it                                                                          |
-| a     | gap-unshown (unshown) | literal:R10222950     | Repository icon                                                                                                    | no catalogue state shows it                                                                          |
-| a     | gap-unshown (unshown) | literal:R10222980     | Line changes                                                                                                       | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R10223000     | Cost                                                                                                               | no catalogue state shows it                                                                          |
-| a     | gap-unshown (unshown) | literal:R10224116     | Newest                                                                                                             | no catalogue state shows it                                                                          |
 | a     | gap-unshown (unshown) | literal:R10227903     | Unstarted                                                                                                          | no catalogue state shows it                                                                          |
 | a     | gap-missing (feature) | literal:R10228149     | Working                                                                                                            | Checked by hand: the wording differs. Ours reads "Working..." (aria-label) in sidebar.               |
 | a     | gap-unshown (unshown) | literal:R10228299     | In merge queue                                                                                                     | no catalogue state shows it                                                                          |
@@ -3017,7 +2987,7 @@ Other open items:
 | a     | gap-missing (feature) | test_id:R11550278     | onboarding-setup-scene                                                                                             | not in our UI                                                                                        |
 | a     | gap-missing (feature) | test_id:R12001662     | routine-prompt-composer                                                                                            | not in our UI                                                                                        |
 
-### Workspace chat (262)
+### Workspace chat (255)
 
 | Check | Code      | Where                                                                                                                                                            | Text                                                                                                                                      | Detail                                                                                                                                                           |
 | ----- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -3068,19 +3038,12 @@ Other open items:
 | b     | ours-only | chat-working, chat-approval, chat-question, chat-plan-review                                                                                                     | The agent is working                                                                                                                      | status aria-label: [data-testid="virtuoso-scroller"] > div > div:nth-of-type(3) > div > div > span:nth-of-type(1)                                                |
 | b     | ours-only | chat-approval                                                                                                                                                    | The agent suggests these rules:                                                                                                           | span text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fiel |
 | b     | ours-only | chat-approval                                                                                                                                                    | Message to the agent (optional)                                                                                                           | label text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fie |
-| b     | ours-only | chat-approval                                                                                                                                                    | Shortcuts work while a control in this card has focus: Enter approves, Backspace denies, Cmd+Enter picks the alternate.                   | p text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldse |
-| b     | ours-only | chat-approval                                                                                                                                                    | Allow with suggested rules                                                                                                                | span text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fiel |
 | b     | ours-only | chat-approval                                                                                                                                                    | Add the switch component is running                                                                                                       | status aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2 |
 | b     | ours-only | chat-approval                                                                                                                                                    | Message to the agent                                                                                                                      | textbox aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type( |
 | b     | ours-only | chat-approval                                                                                                                                                    | Why are you denying this?                                                                                                                 | textbox placeholder: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type |
 | b     | ours-only | chat-question                                                                                                                                                    | Agent question                                                                                                                            | fieldset aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type |
-| b     | ours-only | chat-question                                                                                                                                                    | Other answer                                                                                                                              | textbox aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type( |
-| b     | ours-only | chat-question                                                                                                                                                    | Type your answer                                                                                                                          | textbox placeholder: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type |
-| b     | ours-only | chat-plan-review                                                                                                                                                 | Tell the agent what to change                                                                                                             | label text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fie |
-| b     | ours-only | chat-plan-review                                                                                                                                                 | Approve runs the plan in this chat. Hand off sends it to the chat above.                                                                  | p text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldse |
-| b     | ours-only | chat-plan-review                                                                                                                                                 | Hand off                                                                                                                                  | span text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fiel |
 | b     | ours-only | chat-plan-review                                                                                                                                                 | Reject plan                                                                                                                               | span text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fiel |
+| b     | ours-only | chat-plan-review                                                                                                                                                 | Hand off                                                                                                                                  | span text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fiel |
 | b     | ours-only | chat-plan-review                                                                                                                                                 | Plan review                                                                                                                               | fieldset aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type |
 | b     | ours-only | chat-plan-review                                                                                                                                                 | Plan feedback                                                                                                                             | textbox aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type( |
-| b     | ours-only | chat-plan-review                                                                                                                                                 | Explain what the plan should do instead                                                                                                   | textbox placeholder: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type |
 | b     | ours-only | workspace-actions-menu                                                                                                                                           | Link pull request                                                                                                                         | span text: div:nth-of-type(2) > div > div:nth-of-type(8) > span                                                                                                  |

@@ -3,6 +3,12 @@
 	"source": "our UI source, each string found as a literal in the bundle",
 	"entries": [
 		{
+			"id": "literal:M18119",
+			"text": "Download",
+			"file": "main-BE1h_1MP.js",
+			"offset": 18119
+		},
+		{
 			"id": "literal:M18192",
 			"text": "Video",
 			"file": "main-BE1h_1MP.js",
@@ -1011,6 +1017,12 @@
 			"offset": 2236069
 		},
 		{
+			"id": "literal:R2259789",
+			"text": "PR is in draft",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2259789
+		},
+		{
 			"id": "literal:R2271909",
 			"text": "Skipped",
 			"file": "renderApp-DeUrsznk.js",
@@ -1021,6 +1033,12 @@
 			"text": "Passed",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 2271954
+		},
+		{
+			"id": "literal:R2273883",
+			"text": "Re-run",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2273883
 		},
 		{
 			"id": "literal:R2517578",
@@ -1189,6 +1207,12 @@
 			"text": "Cmd",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 3352892
+		},
+		{
+			"id": "literal:R3392824",
+			"text": "Annotate",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3392824
 		},
 		{
 			"id": "literal:R3396439",
@@ -1671,10 +1695,22 @@
 			"offset": 9245336
 		},
 		{
+			"id": "literal:R9260202",
+			"text": "Copy plan to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9260202
+		},
+		{
 			"id": "literal:R9294532",
 			"text": "Set a goal",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 9294532
+		},
+		{
+			"id": "literal:R9294548",
+			"text": "Enter your plan adjustments here...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9294548
 		},
 		{
 			"id": "literal:R9294586",
@@ -2041,6 +2077,12 @@
 			"text": "Images",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 11088872
+		},
+		{
+			"id": "literal:R11141968",
+			"text": "Show an automerge button in the git panel when checks are pending. Requires automerge to be enabled in your GitHub repository settings. Automerge is not supported for stacked pull requests.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11141968
 		},
 		{
 			"id": "literal:R11285199",

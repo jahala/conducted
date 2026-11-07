@@ -6,6 +6,13 @@
  * (tooltip 'Send plan to a new chat for implementation'), 'Approve' (Cmd+Shift+Enter, tooltip
  * 'Execute plan in current chat'); a feedback box can reject the plan; sidebar text 'Review plan'),
  * claude-runner.md 3.5.
+ * Structure (Conductor's plan bar, renderApp @9259644): one row of small buttons on the right:
+ * 'Copy' (tooltip 'Copy plan to clipboard'), 'Hand off' (tooltip 'Send plan to a new chat for
+ * implementation') and 'Approve' with its live key (tooltip 'Execute plan in current chat').
+ * Conductor takes plan feedback in the composer, whose placeholder then reads 'Enter your plan
+ * adjustments here...'; ours keeps its feedback box and 'Reject plan' in the bar, with that
+ * placeholder. The plan text, 'Show all' and the plan file link are ours too: Conductor shows the
+ * plan in the chat's tool card.
  * Our design choice: 'Approve' is the one primary button. 'Hand off' calls
  * useActions().sessions.startFromPlan(sessionId, planText, target), where target is the chat picked
  * in 'Sending to <chat>', or null for a new chat. After a hand-off this chat's plan is answered as
@@ -31,7 +38,7 @@ import { useActions, useChat, useLiveShortcut, useSessions } from "../../../core
 import type { Session } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { CopyButton } from "../../../ui/CopyButton.tsx";
-import { Label, Textarea } from "../../../ui/Input.tsx";
+import { Textarea } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { Tooltip } from "../../../ui/Tooltip.tsx";
 import { FileLink, textLines } from "../tools/ToolCardFrame.tsx";
@@ -220,17 +227,13 @@ function PlanReviewForm({
 					disabled={disabled}
 					size="sm"
 				/>
-				<CopyButton text={request.plan} onCopy={(text) => actions.app.copyText(text)} />
 			</div>
 
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="plan-feedback" className="text-xs font-medium text-fg-muted">
-					Tell the agent what to change
-				</Label>
 				<Textarea
 					id="plan-feedback"
 					aria-label="Plan feedback"
-					placeholder="Explain what the plan should do instead"
+					placeholder="Enter your plan adjustments here..."
 					value={feedback}
 					onChange={(event) => setFeedback(event.target.value)}
 					disabled={disabled}
@@ -245,24 +248,30 @@ function PlanReviewForm({
 			)}
 
 			{chosen === null ? (
-				<>
-					<p className="text-xs text-fg-subtle">
-						Approve runs the plan in this chat. Hand off sends it to the chat above.
-					</p>
-					<div className="flex flex-wrap items-center gap-2">
-						<Tooltip content="Execute plan in current chat" shortcut={approveShortcut ?? undefined}>
-							<Button
-								ref={focusOnMount}
-								onClick={() => void answer({ kind: "plan_approval", approved: true })}
-								loading={pending === "approve"}
-								disabled={disabled}
-							>
-								Approve
-							</Button>
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						variant="outline"
+						size="xs"
+						onClick={submitFeedback}
+						loading={pending === "reject"}
+						disabled={disabled || feedback.trim().length === 0}
+					>
+						Reject plan
+					</Button>
+					<div className="ml-auto flex items-center gap-2">
+						<Tooltip content="Copy plan to clipboard">
+							<CopyButton
+								text={request.plan}
+								onCopy={(text) => actions.app.copyText(text)}
+								size="xs"
+								className="px-3"
+							/>
 						</Tooltip>
 						<Tooltip content="Send plan to a new chat for implementation">
 							<Button
-								variant="secondary"
+								variant="ghost"
+								size="xs"
+								className="px-3"
 								onClick={() => void handOff()}
 								loading={pending === "handOff"}
 								disabled={disabled}
@@ -270,16 +279,26 @@ function PlanReviewForm({
 								Hand off
 							</Button>
 						</Tooltip>
-						<Button
-							variant="outline"
-							onClick={submitFeedback}
-							loading={pending === "reject"}
-							disabled={disabled || feedback.trim().length === 0}
-						>
-							Reject plan
-						</Button>
+						<Tooltip content="Execute plan in current chat">
+							<Button
+								ref={focusOnMount}
+								size="xs"
+								className="px-3"
+								onClick={() => void answer({ kind: "plan_approval", approved: true })}
+								loading={pending === "approve"}
+								disabled={disabled}
+							>
+								Approve
+								{approveShortcut === null ? null : (
+									// The key glyphs are a visual hint. A screen reader hears only "Approve".
+									<span aria-hidden="true" className="opacity-70">
+										{approveShortcut}
+									</span>
+								)}
+							</Button>
+						</Tooltip>
 					</div>
-				</>
+				</div>
 			) : (
 				<p role="status" className="text-sm font-medium text-fg">
 					{chosen}

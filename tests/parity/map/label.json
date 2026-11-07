@@ -1111,7 +1111,7 @@
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(3) > span > span",
 		"by": "seed"
 	},
 	"label:R319291": {
@@ -1753,10 +1753,10 @@
 	},
 	"label:R5628664": {
 		"status": "matched",
-		"state": "settings-general",
+		"state": "home-sort-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(14) > div > div > div > span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(4) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R5629122": {
@@ -2226,7 +2226,7 @@
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > button > span",
 		"by": "seed"
 	},
 	"label:R10091233": {
@@ -2277,9 +2277,12 @@
 		"by": "seed"
 	},
 	"label:R10213512": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "home-projects-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R10223448": {
 		"status": "matched",
@@ -2348,10 +2351,10 @@
 	},
 	"label:R10363007": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "home-sort-menu",
 		"via": "text",
-		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R10363513": {
@@ -2418,12 +2421,9 @@
 		"screen": "Unplaced"
 	},
 	"label:R10489474": {
-		"status": "matched",
-		"state": "home",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > main > div > header > div > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"label:R10546377": {
 		"status": "matched",

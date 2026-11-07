@@ -133,7 +133,7 @@ export function HomeFilters({
 				<SearchIcon className="size-4 shrink-0 text-fg-muted" />
 				<input
 					type="search"
-					aria-label="Search workspaces"
+					aria-label="Search"
 					placeholder="Search"
 					value={search}
 					onChange={(event) => setSearch(event.target.value)}
@@ -150,7 +150,7 @@ export function HomeFilters({
 			{repos.length > 1 ? (
 				<Menu>
 					<MenuTrigger asChild>
-						<button type="button" aria-label="Filter by project" className={ghostTrigger}>
+						<button type="button" className={ghostTrigger}>
 							<FolderIcon className="size-4 shrink-0" />
 							<span className="truncate">{projectLabel(repos, filters.projects)}</span>
 							<ChevronDownIcon className="size-3 shrink-0" />

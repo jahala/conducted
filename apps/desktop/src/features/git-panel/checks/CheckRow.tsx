@@ -8,6 +8,7 @@
  * Must handle: a log that is still loading, one that fails to load ("Couldn't load the logs"),
  * one that expired or was never recorded, a check that has no job (external status), ANSI escape
  * codes in the log, and the log being copyable.
+ * Conductor's row ends with a button named "Open externally" (renderApp @2268501); ours does too.
  * Test first: expanding a failed check requests its log once, and collapsing and expanding again
  * does not request it twice.
  */
@@ -18,10 +19,10 @@ import { useActions, useCheckLog } from "../../../core/hooks.ts";
 import type { CheckRun, CheckState } from "../../../core/model.ts";
 import { IconButton } from "../../../ui/IconButton.tsx";
 import {
+	ArrowUpRightIcon,
 	CheckCircleIcon,
 	CircleIcon,
 	ClockIcon,
-	GlobeIcon,
 	XCircleIcon,
 } from "../../../ui/icons.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
@@ -113,9 +114,10 @@ export function CheckRow({ workspaceId, check, expanded, onToggle, onOpenUrl }: 
 				</button>
 				{url === null || onOpenUrl === undefined ? null : (
 					<IconButton
-						label={`Open ${check.name} on GitHub`}
-						icon={<GlobeIcon />}
+						label="Open externally"
+						icon={<ArrowUpRightIcon className="size-3.5" />}
 						size="sm"
+						className="text-fg-muted hover:text-fg"
 						onClick={() => onOpenUrl(url)}
 					/>
 				)}
