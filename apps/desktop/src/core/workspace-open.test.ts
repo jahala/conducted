@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canOpenWorkspace } from "./workspace-open.ts";
+import { canOpenWorkspace, canShowWorkspaceRoute } from "./workspace-open.ts";
 
 describe("NAV-02 canOpenWorkspace", () => {
 	it("opens a ready workspace that has not been archived", () => {
@@ -21,5 +21,14 @@ describe("NAV-02 canOpenWorkspace", () => {
 
 	it("refuses a ready workspace that already carries an archived date", () => {
 		expect(canOpenWorkspace({ state: "ready", archivedAt: 10 })).toBe(false);
+	});
+});
+
+describe("NAV-02 canShowWorkspaceRoute", () => {
+	it("an archived workspace's route stays; an archiving one's does not", () => {
+		expect(canShowWorkspaceRoute({ state: "archived", archivedAt: 10 })).toBe(true);
+		expect(canShowWorkspaceRoute({ state: "archiving", archivedAt: null })).toBe(false);
+		expect(canShowWorkspaceRoute({ state: "ready", archivedAt: 10 })).toBe(false);
+		expect(canShowWorkspaceRoute({ state: "ready", archivedAt: null })).toBe(true);
 	});
 });

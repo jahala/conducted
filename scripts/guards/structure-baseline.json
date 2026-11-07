@@ -18,7 +18,6 @@
 		"apps/desktop/src/core/registries/commands.ts": 1,
 		"apps/desktop/src/core/registries/settings.ts": 3,
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
-		"apps/desktop/src/features/composer/ArchivedComposerBar.tsx": 1,
 		"apps/desktop/src/features/workspace/tab-layout.ts": 1,
 		"apps/desktop/src/ui/Card.tsx": 6,
 		"apps/desktop/src/ui/ContextMenu.tsx": 5,
