@@ -3,6 +3,7 @@
 Read only. Checked on branch `slice3/step-1a` at 8dc74b3. I did not run the test suite. Line numbers are for that commit.
 
 Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md` (rows 73, 77, 94, 95, 98, 99, 103). Each issue's "Done when" says to set the row to `done`. That is one LATER item that applies to every feature below; I list it once here and not per feature.
+Outcome: fixed already, aba7f6d0 (and 0dc3e8d9) all seven rows now read `done` (for example `docs/plans/backlog.md:73, 77, 94, 99, 103`).
 
 ## AGENT-09 Cursor: SDK in process
 
@@ -16,7 +17,9 @@ Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md`
 - MUST `cursor-session.ts:73-86`. `isCursorAuthError` matches the substrings "auth", "login", "401", "403" anywhere in any message. A resume failure such as "author not found", or an id containing 401, is treated as a sign-in problem and shows "Add your API key in Settings". The same check decides "resume failed, create a new agent". Fix: match on the SDK's own error class or code, with a test of a message that must not match.
 - MUST `cursor-runner.ts:132` and `translate.ts:267-274`. `isRecord`, `asRecord` and `readString` are copies of helpers that also exist in `codex/translate.ts:547-551`, `codex/approvals.ts:443-449`, `codex/codex-session.ts:651-655`, `codex/codex-runner.ts:483`, `codex/goals.ts:284`, `acp/adapters/opencode.ts:40`. Fix: one `util/records.ts`, used by all.
 - LATER `cursor-session.ts:144` and `:302-311`. `runTurn` stores `input.config`, but the agent keeps the options of the config it was created with. If the manager ever skips `applyConfig`, the turn runs on the old model. Fix: compare in `ensureAgent` and drop the agent on a change.
+  Outcome: open, item AGENT-09 (`ensureAgent` still returns the live agent without comparing its config, `cursor-session.ts:277-278`).
 - LATER `cursor-session.ts:198-200`. `steer` can throw from the SDK; the manager's steer-failed path handles it, but no test covers a throwing `run.steer`.
+  Outcome: open, item AGENT-09 (`cursor-session.test.ts` covers `SteerNotSupportedError`, `SteerRevertedError` and `NoActiveTurnError`, but not a `run.steer` that throws a plain SDK error).
 - Tests with no real test (item, what is missing): "Rust gives the sidecar a Cursor store folder" (no Rust test); "App tools reach Cursor" and "Cursor gets the app tools as SDK objects" (no test); "agent detector reads Cursor sign-in" (no test); "The Cursor SDK is loaded lazily" is tested only against the fake loader, not `loadCursorSdk`. The remote-MCP-fields item (headers, OAuth, CA bundle) is covered only by a pass-through of unknown keys in one test, which would still pass if the validator dropped them for another reason.
 
 ## AGENT-10 Cursor: translate to the neutral format
@@ -25,7 +28,9 @@ Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md`
 - MUST `translate.ts:8` ("checked against @cursor/sdk 1.0.11"). See the AGENT-09 finding: nothing in the repo supports the claim.
 - MUST `translate.ts:87-92`, `cursor-session.ts:174-183`. Buffered text is lost on cancel and on error (see AGENT-09). The header's "Must handle: flush() at the end of the turn" holds only for success.
 - LATER `translate.ts:180-205`. A Cursor `error` message becomes an error item, but the turn still resolves `success` (`cursor-session.ts:178`). Check against the research whether an error message ends the turn.
+  Outcome: open, item AGENT-10 (`translate.ts` still emits the error item and `cursor-session.ts` still resolves the turn from the run's final outcome; the research lists the error event but does not say it ends the turn).
 - LATER `tool-names.ts:16-25`. The table holds eight names, taken from the research. No test shows what happens to the SDK's other tools; they become `unknown`, which is what the header says.
+  Outcome: wrong, the test exists: `tool-names.test.ts:14` asserts `canonicalToolForCursor("mystery")` is `"unknown"` and `:22-24` covers case and plan names (present since 3b100adb).
 - Tests: both checklist items (error type, tool-name renaming) have tests that fail without them.
 
 ## AGENT-13 Codex goals
@@ -35,14 +40,18 @@ Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md`
 - MUST `goals.ts:259-281`. `onServerGoalEvent` tells "updated" from "cleared" by the payload shape, not by the notification name. An update with `goal: null` logs "no goal" and is dropped, and an update with a `threadId` and no `goal` key clears the bar. Fix: pass the method name (`CODEX_GOAL_NOTIFICATIONS.updated` or `.cleared`) from `codex-session.ts:449-454` and decide on that. Add a test for each shape.
 - MUST `apps/desktop/src/core/sidecar/handlers.ts:221`. The sidecar sends `goalChanged` (`manager.ts:278`), and the app's handler for it is `notImplemented("COMP-10")`. Every goal change throws in the app. This is tracked by COMP-10 (#163), so the wiring exists as a checklist item, but the throw runs on a live path today. Fix: land COMP-10 together with this, or make the handler ignore the notification until then (needs the user's yes, because it is a placeholder swap).
 - LATER `goals.ts:122-131`. `readCodexGoal` falls back to the whole payload when `goal` is absent (`asRecord(root.goal) ?? root`). A response without a `goal` object but with an `objective` field is accepted. Check against the generated bindings (the header says 0.154.0) and drop the fallback if it is not in them.
+  Outcome: open, item AGENT-13 (`readCodexGoal` still falls back to the root, `goals.ts:129`; the generated bindings have not been checked).
 - LATER `goals.ts:41-42`. Thirty seconds for a goal call is an invented value (the header does not say where it came from). Mark it as "Our design choice".
+  Outcome: fixed already, 0dc3e8d9 the comment now says "Our design choice: one of the app server's cheap calls" (`goals.ts:45`).
 - Tests: set, read, pause, resume, clear and notifications have tests (`goals.wiring.test.ts`, `goals-session.test.ts`). Missing: the idle `/goal` case, the usage error on `/goal` alone through the manager, a goal call on a non-Codex chat through the RPC handler, an unknown status kept as `blocked`.
 
 ## AGENT-14 Codex /compact
 
 - MUST `session/manager.ts:993-1030` (steer path). While a turn runs, a typed `/compact` is sent as a steer with the text `/compact` into the running turn (`deliverSteer` handles only `/goal`). The issue says `/compact` runs through `thread/compact/start`. Only the `compact` RPC and the idle path do. Fix: in `deliverSteer`, answer a compact request with `started: false` or queue it, never steer it. Add a test.
 - LATER `codex-session.ts:152-153`. `/compact the old turns` is accepted, and the text after `/compact` is dropped silently. `thread/compact/start` takes no text (`protocol.ts:131`). Show the user that the text was ignored, or refuse it. The test at `codex-session.test.ts:662` fixes the current behaviour in place.
+  Outcome: open, item AGENT-14 (`isCompactCommand` still accepts trailing text (`codex-session.ts:174-175`) and `codex-session.test.ts:718` still expects `true`, with no notice to the user).
 - LATER `codex-session.ts:218-240` and `:438-448`. A compact run waits for `thread/compacted` or `turn/completed` with no timeout. If the server sends neither, the chat stays "working" until cancelled.
+  Outcome: open, item AGENT-14 (the compact run still waits on `Promise.race` of completion and cancellation only, `codex-session.ts:275-279`).
 - Tests: the three behaviours (starts through `thread/compact/start`, refuses, only the command takes the path) have tests in `codex-session.test.ts:611-665` and `manager.test.ts:1435-1470`. No test for the UI action reaching the RPC in this batch (outside it).
 
 ## AGENT-18 Bundled skill
@@ -50,7 +59,9 @@ Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md`
 - MUST `claude/skill-plugin.ts:22`. `SKILL_PLUGIN_ENV` is exported and nothing in the sidecar uses it. `config.ts:35` holds a second copy of the variable name (`SIDECAR_ENV.skillPluginDir`), and `config.ts:52` already requires an absolute path, so the relative-path check at `skill-plugin.ts:30-37` repeats it. The header says `config.ts` reads the variable. Fix: delete `SKILL_PLUGIN_ENV` and the relative-path branch with its test (`skill-plugin.test.ts:30`), or have `config.ts` use the constant.
 - MUST `claude/claude-session.ts:414-420`. The header says a folder that does not exist is "an error value that names it, and Claude starts without the plugin". The code only logs a warning on every start. The user is not told that a packaged build lost its skill. Fix: this is the "error that is only logged" shape from `docs/engineering.md`. Either show a notice once per chat or state in the header that it is log-only by choice, with the user's yes.
 - LATER `apps/desktop/src-tauri/conducted-skill/skills/conducted/SKILL.md:1-5`. The front matter has a blank line after the first `---`. Claude accepts it, but the plugin loader's rule is not checked by any test. The Rust test (`sidecar.rs:1739`) reads the file but does not parse the front matter.
+  Outcome: open, item AGENT-18 (`SKILL.md:1-5` still has the blank line; no test parses the front matter).
 - LATER SKILL.md checks. Tool names (`AskUserQuestion` ... `SetTargetBranch`), the `CONDUCTED_*` list, the settings file paths and the script names match the code (`protocol/src/tools.ts:86-92`, `shell-env/env.ts:88-96`, `core/app-paths.ts:78-84`, `bin/`). Claims about plan mode, background tasks and mentions are not checked by any test.
+  Outcome: open, item AGENT-18 (the prose claims about plan mode, background tasks and mentions still have no test).
 - Tests: the Rust half (folder found only when it exists, variable set, absent when no folder, manifest and guide present) and `bundledSkillPlugins` each have a test. No sidecar test shows `ClaudeSession` passing the plugin to the SDK options end to end (`options.ts:92` is covered by a unit test only).
 
 ## SIDE-18 Sidecar logs
@@ -59,8 +70,11 @@ Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md`
 - MUST `logging/logger.ts:325-335`. `redactEnv` is exported and called only from `logger.test.ts`. No live path uses it, and the header claims "redaction hides values but keeps key names" and "no module logs a raw secret". Also, the debug tap (`claude-session.ts:753-760`) logs whole SDK messages in the sidecar with no redaction; only the Rust writer redacts, on disk. Fix: call `redactEnv` where an environment is logged, or delete it; and redact in the sink, so the stderr line is clean before it leaves the process.
 - MUST `logger.ts:7-12`, `:101-110`. The "setLogLevel notification" claim is wired (`sidecar-mode.ts:841`), but the console reroute and the folding have no wiring test at the composition root: `sidecar-mode.ts:439-446` sets both, and no test starts `sidecar-mode` and checks that a `console.log` becomes a JSON line on stderr. Fix: add that test.
 - LATER `logger.ts:326`. The pattern `(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|PAT)$` matches any name ending in `PAT` (for example `REACT_COMPAT`) and misses `AUTHORIZATION`, `COOKIE` and `SSH_AUTH_SOCK`. State the rule you want and test it with names that must and must not match.
+  Outcome: fixed already, 0dc3e8d9 the rule is stated in the header (`logger.ts:18-20`: `key` and `pat` only after another word, `REACT_COMPAT` stays visible) and tested (`logging/logger.test.ts:55-83`); `authorization` and `cookie` are now secret words.
 - LATER `logger.ts:105-109`. A throwing sink is swallowed with no trace. That is the stated choice, and a failing stderr write leaves nothing to report to, so this is acceptable; keep it in the header as it is.
+  Outcome: wrong, not a defect: the audit accepts the choice and the header still states it (`logger.ts:10-12, 113-116`).
 - LATER the checklist items "The sidecar log path is available so an Open sidecar logs command can show it" and "A debug tap logs every SDK message in both directions" are partly built: the tap exists only for Claude (`claude-session.ts:754`); Codex, Cursor and ACP have none. Find the path item's code or put it on a later feature.
+  Outcome: open, item SIDE-18 (the tap is still Claude-only, `runners/claude/claude-session.ts:1102`; no Codex, Cursor or ACP tap).
 - Owning files `logger-mode.ts`, `log-ring.ts` and `logger-server.ts` do not exist, as D026 says. `docs/plans/tauri-commands.md:85` agrees. The issue text still lists their "Test first" lines; regenerate the issue.
 - Tests: the fold timings (5 s, 60 s, 1000 repeats, 1000 groups) and the level filter are tested in `logger.test.ts`.
 
@@ -71,8 +85,11 @@ Backlog rows for all seven features still read `stub` in `docs/plans/backlog.md`
 - MUST `completions-cache.ts:340-342`. A local `messageOf` copies `util/errors.ts:18` (the shared helper in `docs/architecture.md`). Fix: import it.
 - MUST `completions-cache.ts:308-319` against header line 13. The compare-and-set reads the file, compares, then renames. Two writers can both pass the compare before either renames, so the last one wins. The header presents this as the guard for "two writers". Fix: say "best-effort check before rename" in the header, or take a lock file (`flag: "wx"`) around the compare and rename. The test at `completions-cache.test.ts:261` uses a fake that forces a lost swap, so it does not show the race.
 - LATER `completions-cache.ts:261` (comment) against `:293-305`. The comment says an unreadable file is an empty cache; the code returns an error for any read error except a missing file. The handler then returns that error to the app. Match the comment to the code.
+  Outcome: open, item SIDE-22 (the comment still says "a missing or unreadable file is an empty cache" while `load()` returns the read error, `completions-cache.ts:274-277`).
 - LATER `completions-cache.ts:322`. `rm` is used for the cache's own temp file, which the same call created, so the rule in `CLAUDE.md` allows it. The guard `pnpm guards` covers scripts only.
+  Outcome: wrong, not a defect: the audit itself records that the rule allows removing a temp file the same call created.
 - Checklist items outside the sidecar: "Typing @ before a workspace exists searches the chosen repository's files" and "Typing / also lists skills as a Skills group" are marked partly in the issue. I found `SlashCommandExtension.ts` and the pre-workspace loader but no pre-workspace file search; confirm which feature owns it.
+  Outcome: open, item SIDE-22 (no pre-workspace file search exists in the sidecar; the item is still `partly`, `docs/plans/items/system.tsv:2282, 2286`).
 - Tests: the cache rules (30 days, 500 entries, 5 MiB, 0600/0700, retry once, invalid JSON, wrong shape) each have a test in `completions-cache.test.ts`. The handler's fallback ("a failed refresh only logs; the last good list stays") is covered by `rpc/handlers.side-22.test.ts`. The Rust variable has a test in `sidecar.rs:1646`.
 
 Summary: AGENT-09 9 MUST + 2 LATER; AGENT-10 3 MUST + 2 LATER; AGENT-13 4 MUST + 2 LATER; AGENT-14 1 MUST + 2 LATER; AGENT-18 2 MUST + 2 LATER; SIDE-18 3 MUST + 3 LATER; SIDE-22 4 MUST + 3 LATER (plus one LATER for all seven: the backlog rows still read `stub`).

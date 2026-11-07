@@ -3048,3 +3048,357 @@ PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of
 PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	covered
 SET-05	rpc	McpService.refresh sends the chat's launch with listMcpServers (the container's launchFor), so MCP status runs the program and keys the user chose; the sidecar already lists with it (moved from the SIDE-21 contract change).	docs/reports/slice-2	missing
 SIDE-16	rpc	listMcpServers carries each server's recent log lines, so the MCP status dialog shows a log and not only the failure text (moved from the SET-05 audit of slice 3 part 1e).	ui-map 3.10	missing
+AGENT-12	state	Merge rawInput and title from a non-terminal ACP tool_call_update into the emitted tool call, with a two-update test	other-runners 3	missing
+AGENT-12	test	Text buffered before a plan or usage update keeps its order, and a test proves the flush those updates cause	other-runners 3	missing
+AGENT-12	test	The ACP command-list wait has a timeout test, and permissionEnv's value is proven never to reach a log	other-runners 2.2	missing
+PLAT-15	rule	Write a menu routing failure to the app log instead of eprintln	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-15	state	menu_set_shortcuts applies no item until the whole plan can be applied, or reports what already applied	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-36	test	Test build_menu, handle_menu_event, menu_set_shortcuts, window_toggle_inspector and the devtools feature in a running or mock Tauri app	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-15	test	Every MENU_ITEMS command id exists in the UI command registry	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-20	state	Return the path actually written (canonical target) from a materialized attachment	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-20	rule	Reject an image whose probed pixel count would exhaust memory before decoding it	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-20	rule	Write attachment cleanup failures to the app log, including the test Drop	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-20	test	Remove the duplicate image_resize test or drive the command body	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+PLAT-36	test	End-to-end test of attachments running on the blocking pool and the Tauri commands	docs/reports/audits/s2-step-1-rust-rebuilt	missing
+NAV-11	message	Pressing R on a row whose only unread chat waits says why it was not marked read	docs/reports/audits/s2-step-1-ui-2	missing
+NAV-11	test	TabContextMenu tests use createTestContainer and prove a live hint changes after a rebind	docs/reports/audits/s2-step-1-ui-2	missing
+NAV-11	rule	Composer send button reads its live shortcut with useLiveShortcut instead of defaultShortcuts[0]	docs/reports/audits/s2-step-1-ui-2	missing
+NAV-11	rule	markWorkspaceUnread picks the newest open chat, with a test	docs/reports/audits/s2-step-1-ui-2	missing
+NAV-11	test	refreshDockBadge failure path is tested	docs/reports/audits/s2-step-1-ui-2	missing
+NAV-15	test	The surface layer stays below menus and dialogs	docs/reports/audits/s2-step-1-ui-2	missing
+SET-07	rule	Repo settings saves run through one serial queue per repo, with a two-overlapping-calls test	docs/reports/audits/s2-step-1-ui-2	missing
+SET-07	state	A repo settings draft keeps an unsaved edit until blur when the config object changes	docs/reports/audits/s2-step-1-ui-2	missing
+SET-07	message	RemoveRepoDialog takes a Result and shows its message	docs/reports/audits/s2-step-1-ui-2	missing
+SET-07	rule	The repo service takes a storage dependency instead of reading globalThis.localStorage	docs/reports/audits/s2-step-1-ui-2	missing
+SET-07	rule	resetRunAction reports a partial result when its second write fails	docs/reports/audits/s2-step-1-ui-2	missing
+AGENT-09	state	ensureAgent compares the live agent's config and drops the agent when it differs	docs/reports/audits/s3-1-sidecar	missing
+AGENT-09	test	Test a run.steer that throws a plain SDK error	docs/reports/audits/s3-1-sidecar	missing
+AGENT-10	rule	Decide from the research whether a Cursor error message ends the turn, and test it	docs/reports/audits/s3-1-sidecar	missing
+AGENT-13	rule	Check readCodexGoal's root fallback against the generated bindings and drop it if absent	docs/reports/audits/s3-1-sidecar	missing
+AGENT-14	message	Tell the user that text after /compact is ignored, or refuse it	docs/reports/audits/s3-1-sidecar	missing
+AGENT-14	timeout	A compact run times out when neither thread/compacted nor turn/completed arrives	docs/reports/audits/s3-1-sidecar	missing
+AGENT-18	test	Parse the bundled SKILL.md front matter in a test	docs/reports/audits/s3-1-sidecar	missing
+AGENT-18	test	Test the SKILL.md claims about plan mode, background tasks and mentions	docs/reports/audits/s3-1-sidecar	missing
+SIDE-18	rule	A debug tap covers Codex, Cursor and ACP as well as Claude	docs/reports/audits/s3-1-sidecar	missing
+SIDE-22	message	Match the completions-cache comment to the code for an unreadable file	docs/reports/audits/s3-1-sidecar	missing
+SIDE-22	rpc	Typing @ before a workspace exists searches the chosen repository's files	docs/reports/audits/s3-1-sidecar	missing
+CHAT-01	state	delete removes every per-chat store key, including progress	docs/reports/audits/step-3-s1-core-1	missing
+CHAT-01	rule	Reopened chats keep the compareNewest order before and after a restart	docs/reports/audits/step-3-s1-core-1	missing
+CHAT-01	test	ChatHistoryButton and TabContextMenu tests use createTestContainer instead of vi.mock	docs/reports/audits/step-3-s1-core-1	missing
+DATA-03	test	Startup repair order is tested through the container	docs/reports/audits/step-3-s1-core-1	missing
+DATA-04	test	Ingest is tested through the pooled database	docs/reports/audits/step-3-s1-core-1	missing
+GIT-02	rule	A metadata poll with no previous snapshot stores nothing	docs/reports/audits/step-3-s1-core-1	missing
+PLAT-02	command	The clipboard image item names the plugin path, not write_encoded_image_to_clipboard	docs/reports/audits/step-3-s1-core-1	missing
+PRJ-01	rule	readRemoteUrl distinguishes a missing origin from a git failure	docs/reports/audits/step-3-s1-core-1	missing
+PRJ-01	rule	normaliseRootPath resolves the real path	docs/reports/audits/step-3-s1-core-1	missing
+PRJ-01	control	AddProjectButton takes a label prop	docs/reports/audits/step-3-s1-core-1	missing
+PRJ-01	test	One repository test runs against a real temp repository	docs/reports/audits/step-3-s1-core-1	missing
+SET-01	control	The Git settings page offers the pull request open target	docs/reports/audits/step-3-s1-core-1	missing
+CHAT-07	test	classifyTurnsChange names the mixed last-turn-changed-and-appended case, with a test	docs/reports/audits/step-4-s1-core	missing
+CHAT-07	test	The 20,000-event turn build is timed or its differ is exercised at 5,000 turns	docs/reports/audits/step-4-s1-core	missing
+NAV-07	rule	docs/design.md records the modifier order choice	docs/reports/audits/step-4-s1-core	missing
+NAV-07	test	The command registry is compared with ui-map 5.4 or its gaps are listed	docs/reports/audits/step-4-s1-core	missing
+NAV-07	test	Every command id prefix in commandRequirement is covered by a test	docs/reports/audits/step-4-s1-core	missing
+PRJ-04	test	Repo config reload after an error and a re-render after updateConfig are tested	docs/reports/audits/step-4-s1-core	missing
+CHAT-02	rule	firstMessage comes from the service state so two fast sends cannot both be first	docs/reports/audits/step-5-s1-core	missing
+CHAT-02	rule	An unknown default_message_send_mode errors instead of becoming steer	docs/reports/audits/step-5-s1-core	missing
+CHAT-02	test	A failed attachment materialisation and a contract test for the sidecar and composer are added	docs/reports/audits/step-5-s1-core	missing
+WS-01	test	A taken port block, a prepare failure and a no-remote repository are tested	docs/reports/audits/step-5-s1-core	missing
+SIDE-06	message	The corrupt outbox item says the sidecar refuses to start, matching the header	docs/reports/audits/step-6-s1-sidecar	missing
+SIDE-06	rule	append and open refuse a duplicate eventId for one chat	docs/reports/audits/step-6-s1-sidecar	missing
+SIDE-06	test	The 30-day sweep is tested with the real storage and a pending event survives a host restart	docs/reports/audits/step-6-s1-sidecar	missing
+SIDE-06	rule	One helper removes outbox temp files, used by writeAtomic and cleanTempFiles	docs/reports/audits/step-6-s1-sidecar	missing
+SIDE-08	test	One contract test runs bin/checkpointer.sh through ScriptCheckpointService in a temp repo	docs/reports/audits/step-6-s1-sidecar	missing
+DATA-08	operation	Test migrating existing attachments and terminals rows through 0004's rename-copy-drop rebuild.	docs/reports/audits/s2-step-1-core-1	missing
+DATA-08	rule	providerKeyToParams rejects acpAgent set when agent is not acp, with a test.	docs/reports/audits/s2-step-1-core-1	missing
+DATA-09	rule	Remove the hard-coded "origin" in the repo add path and the settings remote layer, or state in the header why they cannot read the configured remote.	docs/reports/audits/s2-step-1-core-1	missing
+DATA-09	startup	Load each repo config before gitContext or prContext can be called from a palette or sidecar path, with a real-container test.	docs/reports/audits/s2-step-1-core-1	missing
+GIT-04	state	Label the Pull action with the target branch ("Pull latest from <target>") as ui-map 3.6 does.	docs/reports/audits/s2-step-1-core-1	missing
+GIT-08	rule	setTargetBranch: decide and test the store-before-fetch order, including a failed fetch.	docs/reports/audits/s2-step-1-core-1	missing
+GIT-08	rule	Run setTargetBranch through createKeyedQueue per workspace and re-read the context inside the lock.	docs/reports/audits/s2-step-1-core-1	missing
+GIT-08	operation	Refresh the git state after a successful target change or reset.	docs/reports/audits/s2-step-1-core-1	missing
+GIT-06	test	Add a test that a push or pull started after the previous one finished runs again.	docs/reports/audits/s2-step-1-rebuilt	missing
+GIT-06	test	Add a contract test against a real temp git repository for push -u and fast-forward pull.	docs/reports/audits/s2-step-1-rebuilt	missing
+GIT-06	control	Put "Set upstream on plain git push" on the Git settings page header as ui-map 6 asks; it sits on Advanced.	docs/reports/audits/s2-step-1-rebuilt	missing
+GIT-07	test	Build git.git-07.test.ts's service with createTestContainer instead of hand-cast deps.	docs/reports/audits/s2-step-1-rebuilt	missing
+SIDE-20	test	Add a protocol schema test for agentConfigChanged and its reason enum.	docs/reports/audits/s2-step-1-rebuilt	missing
+SIDE-20	rule	Document in the item map that the Codex and ACP runners do not report onConfigChanged.	docs/reports/audits/s2-step-1-rebuilt	missing
+SIDE-20	test	Add a real-wiring test from the sidecar handlers to sessions.applyAgentConfig.	docs/reports/audits/s2-step-1-rebuilt	missing
+AGENT-07	rule	Move agent_usage_limit, agent_rate_limit, agent_context_window and agent_codex_error into AGENT_ERROR_CODES and render them.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-07	rule	Narrow the Codex sign-in match to codexErrorInfo "unauthorized" and a short phrase list.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-07	rule	Read a real total in readTokenUsage or remove CodexThreadTokenUsage.total.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-07	rule	Clear startedTools on an interrupt or turn end so it does not grow.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-08	rule	Stop tagging permission-grant logs with CodexMcpConsent; keep the tag for MCP consent.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Wait for the chosen model value, and report when no model option exists, including waitForModelCatalogMs 0.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Check the 429 or rate-limit case before the credit regex so a "quota" 429 is retryable.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Tell the user when a permission or form request could not be delivered instead of only logging and answering cancelled.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Read a slice instead of the whole file, report the slice size, and cut on a UTF-8 boundary.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Take ACP_CLIENT_VERSION from the single app version and cover it by the version guard.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Share one stderr-tail implementation between the ACP and Codex clients.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Refuse runTurn after dispose instead of reconnecting into a closed event queue.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-11	rule	Replace the "tool" fallback, the toolCallId as never escape, and display-name option matching in questionPermission.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-15	rule	Set the live state before releasing the run guard so a user message cannot start a second turn in the gap.	docs/reports/audits/s2-step-1-sidecar-1	missing
+AGENT-15	rule	Keep one identity per self-started turn (processKey or sessionId), not both.	docs/reports/audits/s2-step-1-sidecar-1	missing
+SIDE-07	rule	Declare warm?() on AgentSession instead of casting to Partial<WarmableAgent>.	docs/reports/audits/s2-step-1-sidecar-1	missing
+SIDE-07	rule	Return a Result from claimActive and a failed start instead of throwing Error.	docs/reports/audits/s2-step-1-sidecar-1	missing
+SIDE-07	test	Test the agent-type change disconnect in the manager and the warm-cap tie-break with equal lastIdleAt.	docs/reports/audits/s2-step-1-sidecar-1	missing
+CHAT-16	test	Test the fork cleanup on a failed setAgentSessionId or append, not only copyCheckpoints.	docs/reports/audits/s3-1-core-1	missing
+CHAT-16	rule	Extract one open-tab-after-fork helper used by TurnFooter and TabStrip.	docs/reports/audits/s3-1-core-1	missing
+CHAT-17	rule	Explain the JOIN sessions (deleted-chat drop) or replace it with EXISTS.	docs/reports/audits/s3-1-core-1	missing
+CHAT-17	rule	Keep palette history hits for chats not yet loaded and debounce the query.	docs/reports/audits/s3-1-core-1	missing
+CHAT-17	rule	Share one blockTexts(turn) between transcript search and ChatSearchBar.	docs/reports/audits/s3-1-core-1	missing
+DATA-07	rule	Record D038 against the cache.db decision items in docs/plans/items.	docs/reports/audits/s3-1-core-1	missing
+GIT-14	rule	Extract resolveBranches(context) shared by synthesizePrInfo and mergeIntoTarget.	docs/reports/audits/s3-1-core-1	missing
+GIT-14	rule	Wire a repository prompt into mergeIntoTarget or drop its customPrompt parameter.	docs/reports/audits/s3-1-core-1	missing
+GIT-14	test	Add a local-git-forge test for a workspace with an empty remote.	docs/reports/audits/s3-1-core-1	missing
+PR-08	rule	Use or remove PrStackInfo size, position and baseRefName.	docs/reports/audits/s3-1-core-1	missing
+PR-08	rule	Mark the optional setting dependency unwired for PR-08 or make it required.	docs/reports/audits/s3-1-core-1	missing
+PR-09	rule	Bound the Linear search #cache or state its lifetime.	docs/reports/audits/s3-1-core-1	missing
+PRJ-03	rule	Replace the invented "A repository for <name>" description with a design choice or the project name.	docs/reports/audits/s3-1-core-1	missing
+PRJ-03	rule	Show check.error.message in CreateProjectDialog when the name check fails.	docs/reports/audits/s3-1-core-1	missing
+PRJ-03	rule	Create the Quick start destination exclusively so two runs cannot race.	docs/reports/audits/s3-1-core-1	missing
+CHAT-21	rule	Validate the chat copy before creating the worktree and running setup.	docs/reports/audits/s3-1c-core	missing
+CHAT-21	rule	Make createWorkspaceFromCommit, forkSessionInto and removeWorkspace required.	docs/reports/audits/s3-1c-core	missing
+CHAT-21	test	Test chat_fork_unwired, a removeWorkspace failure, and two concurrent forks of one turn.	docs/reports/audits/s3-1c-core	missing
+CHAT-21	rule	Replace the as never search casts in TurnFooter with the typed WorkspaceSearch.	docs/reports/audits/s3-1c-core	missing
+NAV-17	rule	Drop the unreachable workspaceId === null branch and give the missing-workspace parse its own title.	docs/reports/audits/s3-1c-core	missing
+NAV-17	rule	Handle or document the linear_id create form and the raw-space new URL failure.	docs/reports/audits/s3-1c-core	missing
+NAV-17	rule	Navigate to the workspace that create-from-plan starts.	docs/reports/audits/s3-1c-core	missing
+NAV-17	test	Test the main.tsx notification-click path and a second link overwriting the create page.	docs/reports/audits/s3-1c-core	missing
+WS-09	test	Use core/db/test-fixtures.ts in hooks.workspace-status.test.tsx and test sameChatStatus.	docs/reports/audits/step-3-s1-core-2	missing
+PLAT-09	rule	Set the getHealth-removed item to covered and correct "Rust has no restart loop" in items/system.tsv.	docs/reports/audits/step-4-s1-rust	missing
+PLAT-22	test	Test install_guard, guard_navigation and OPEN_WINDOW_SHIM, and that lib.rs installs the guard.	docs/reports/audits/step-4-s1-rust	missing
+PLAT-22	rule	Evaluate the window.open shim once, idempotently, and guard window.open before page load finishes.	docs/reports/audits/step-4-s1-rust	missing
+SIDE-04	rule	Return early from cancel() before start() so no end checkpoint is taken without a start.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-04	rule	Have markWorking call updateLive(beginTurn) instead of repeating the wrapper.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-04	rule	State the "aborted by user" cancel error text in turn.ts's header.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-04	rule	Move the "wait for the previous turn's end checkpoint" claim to the file that enforces it.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-04	test	Add a store-level test for the compare-and-set claim that an older update is dropped.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-05	test	Test the minimalEvent last-resort branch when even the shrunk event exceeds the limit.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-05	rule	State the queue-growth bound or surface backpressure when the outbox stays stuck.	docs/reports/audits/step-5-s1-sidecar	missing
+SIDE-11	test	Test withdrawAll for the new-message, steer, resetAgent and shutdown call sites, not only cancel.	docs/reports/audits/step-5-s1-sidecar	missing
+CHAT-06	rule	Keep nested list indentation instead of flattening, and give callouts a per-kind icon.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	rule	Load only the language chunk Shiki needs instead of the whole bundle.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	rule	Log a code-highlight failure instead of swallowing it.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	rule	Replace the as never search casts in workspace-links.ts with the typed search.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	rule	Let the turn details tooltip preserve newlines (whitespace-pre).	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	rule	Tie the scroll-to-bottom "New" marker to content that arrived while away, not liveState working.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	rule	Say in MessageList's header that older-history loading is not built.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-06	test	Test the scroll-to-bottom button, loading, error and an Interrupted banner in MessageList.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-10	control	Add visible Previous and Next controls to the question card pages.	docs/reports/audits/step-6-s1-ui	missing
+CHAT-10	rule	Resolve whether the question card or the composer keeps focus; update ChatPane's header or the card.	docs/reports/audits/step-6-s1-ui	missing
+NAV-02	rule	Send a bookmarked missing workspace Home even when the workspace list is empty.	docs/reports/audits/step-6-s1-ui	missing
+NAV-02	rule	Restore file, terminal and git-panel state on a workspace route, not only the chat tab.	docs/reports/audits/step-6-s1-ui	missing
+NAV-02	rule	Treat a closed chat as missing in SessionRouteRepair.	docs/reports/audits/step-6-s1-ui	missing
+NAV-02	rule	Check repositoryId against workspace.repoId before rendering the workspace route.	docs/reports/audits/step-6-s1-ui	missing
+NAV-03	rule	Split the live-shortcut hint out so WorkspaceRow stops calling it with a fake switch1.	docs/reports/audits/step-6-s1-ui	missing
+NAV-03	rule	Log or fail on an unknown stored group-by value instead of falling back silently.	docs/reports/audits/step-6-s1-ui	missing
+NAV-03	rule	Fix the sidebar_repo_filter description to say it is a comma-joined list.	docs/reports/audits/step-6-s1-ui	missing
+NAV-03	test	Test the Dashboard setting key, the Settings footer link and the remaining status labels.	docs/reports/audits/step-6-s1-ui	missing
+GIT-09	message	Return the final branch name from a rename and toast it when the free-name rule picks a suffix	services-map 3.11	missing
+GIT-09	rule	Re-read the workspace row after a branch rename so a concurrent change is not overwritten	services-map 3.11	missing
+GIT-16	message	Probe again or react when a git command fails with git_xcode_license, so the toast appears after start-up	services-map 5A.8.1	missing
+GIT-16	rule	Use one door for the Xcode licence probe and its fix instead of platform.shell plus an action	services-map 5A.8.1	missing
+PLAT-21	setting	Say "10% or less" in the caffeinate setting text to match the rule	services-map 5B.2	missing
+PLAT-21	message	Tell the user when pmset or caffeinate fails instead of logging only	services-map 5B.2	missing
+PLAT-31	rule	Report a failed window-event subscription instead of swallowing it	research native-and-sidecar-map A4	missing
+PLAT-31	rule	Test focus and blur against the real window binding	research native-and-sidecar-map A4	missing
+PR-11	operation	Search pull requests beyond the 50 newest, as the research does with search/issues	services-map 5B.1.10	missing
+PR-11	rule	One GitHub repository parser instead of parseGithubRepos and parseGithubRepositories	services-map 5B.1	missing
+PR-11	rule	Update core/hooks/github.ts from @feature DATA-01 and the old Test-first line	services-map 2.5	missing
+PRJ-02	operation	Guard a double-click clone and name the cloned folder in a post-clone failure	services-map 5B.1	missing
+PLAT-06	rule	Decide and test how fuzzy lists a symlink to a file while the tree lists it	native-and-sidecar-map A1	missing
+PLAT-06	rule	Test .git/info/exclude and the global ignore file in the walk	native-and-sidecar-map A1	missing
+PLAT-06	rule	Cap fuzzy collection by MAX_TREE_ENTRIES and test at real size	native-and-sidecar-map A1	missing
+PLAT-06	rule	Read grep files through a reader and drop the redundant binary check	native-and-sidecar-map A1	missing
+PLAT-06	rule	One shared TempDir helper for the Rust tests	docs/engineering.md	missing
+PLAT-10	rule	Test to_error for each denial status code and for a non-UTF-8 value	native-and-sidecar-map A2	missing
+PLAT-10	store	Document the GitHub and Linear Keychain key names in data-model.md	native-and-sidecar-map A2	missing
+PLAT-10	rule	Say which CI job runs the real-Keychain round-trip test, or gate it on a self-hosted runner	native-and-sidecar-map A2	missing
+PLAT-11	rule	Test notify, set_dock_badge and the click-handler glue	native-and-sidecar-map A5	missing
+PLAT-18	rule	Test the log export at real size after the io::copy change	native-and-sidecar-map A7	missing
+PLAT-18	rule	Decide and record whether a log folder that cannot be created fails app start-up	native-and-sidecar-map A7	missing
+PLAT-18	rule	Test a full writer queue instead of seeding the dropped counter	native-and-sidecar-map A7	missing
+PLAT-19	menu	Put the Open in menu in the research's order	ui-map 3.10	missing
+PLAT-19	rule	Move open_with, reveal_in_finder and installed_apps onto the blocking pool	native-and-sidecar-map A3	missing
+PLAT-19	rule	Test run_open's open_failed path	native-and-sidecar-map A3	missing
+PLAT-19	rule	Find JetBrains tools in nested Toolbox application folders	native-and-sidecar-map A3	missing
+PLAT-25	rule	Sign the sidecar with its own entitlements plist and report extra entitlements	native-and-sidecar-map A1	missing
+PLAT-25	rule	Check the Developer ID authority and team id, and run spctl --assess	native-and-sidecar-map A1	missing
+PLAT-25	rule	Build only the arm64 sidecar target	native-and-sidecar-map C	missing
+PLAT-25	rule	Add NSSpeechRecognitionUsageDescription to REQUIRED_PRIVACY_KEYS	native-and-sidecar-map A1	missing
+PLAT-25	rule	Read the bundle with fs rather than ls and add a real fixture-bundle test	native-and-sidecar-map A1	missing
+SIDE-12	tool	The agent's get-diff tool saves a checkpoint, then runs git diff against it	services-map 3.4.6	missing
+SIDE-12	rule	Test unexpected_answer, app_request_failed, alwaysLoad, other annotations and the CLAUDE_DISALLOWED_TOOLS path	services-map 3.4.6	missing
+SIDE-12	rule	Stop reading the SDK's private _registeredTools in the tools test	services-map 3.4.6	missing
+SIDE-12	rule	Replace the seven AnyTool casts with a defineTool helper	services-map 3.4.6	missing
+SIDE-12	rule	Keep one set of registry-switch assertions	services-map 3.4.6	missing
+SIDE-16	rule	Report the real source of Codex entries instead of marking every one skill	services-map 5B	missing
+CHAT-14	message	Move the cost-per-turn and turn-footer card items to CHAT-14	ui-map 3.3	missing
+SIDE-24	rule	Replace the invented utility workspace values with a UtilityWorkspace type	services-map 2.9	missing
+SIDE-24	rule	Use a fake timer in the utility-prompt timeout test	services-map 2.9	missing
+SIDE-24	rule	Fold the two chat-title request blocks into one ask helper	services-map 2.9	missing
+REV-04	operation	Sync review comments when the Checks tab opens or on a timer, not only on updatedAt	services-map 5B	missing
+REV-04	rpc	Pass the parsed remote's owner and name to the review GraphQL calls	services-map 5B	missing
+REV-04	rule	Test parallel reads, an unchanged poll and overlapping syncs	services-map 5B	missing
+RUN-02	operation	Stop only Spotlights of the same repository and through the keyed queue	services-map 3.12	missing
+RUN-02	rule	Test openRepoTerminal's failure log and that quitting does not restore	services-map 3.12	missing
+RUN-02	message	Surface a failed start-up Spotlight heal to the user	services-map 3.12	missing
+RUN-02	rule	Make stopRuns required on the Spotlight service	services-map 3.12	missing
+SET-13	store	Prune the last shim folder when both chosen paths are cleared	services-map 5A.8.2	missing
+SET-13	rule	Remove the pointless key === undefined check in pathPrefix	services-map 5A.8.2	missing
+SET-13	rule	Test a directory path for the chosen program	services-map 5A.8.2	missing
+SET-13	rule	Test the real login-shell resolution of a chosen program	services-map 5A.8.2	missing
+WS-07	operation	Report which setLinkedPaths step failed and retry the chat update	ui-map 3.10	missing
+WS-07	rule	Make applyLinkedPaths required on WorkspaceSessionsPort	ui-map 3.10	missing
+WS-07	dialog	Drop or flag missing linked paths and refuse the workspace's own folder	ui-map 3.10	missing
+WS-07	rule	Test the Workspace column, the empty line and a trailing-slash folder name	ui-map 3.10	missing
+WS-11	region	Decide whether unstarted workspaces stay on a separate /backlog screen or join the sidebar	ui-map 3.1, 3.8	missing
+WS-11	rule	Update the workspace-status.ts header now WS-11 exists	ui-map 3.8	missing
+WS-11	rule	Test loading, an empty backlog and a failed start, and make the selected row clear	ui-map 3.9	missing
+PR-08	rule	Test dispose timers, two repositories polling separately and the real 30 s timeout	services-map 3.8	missing
+PR-08	rule	Check for a running agent inside GitService.switchBranch	ui-map 3.6	missing
+PR-08	rule	One helper for the stacked-PRs-off check and one GraphiteService type	services-map 3.8	missing
+AGENT-03	message	Emit the compacted notice from one frame only	claude-runner 3	missing
+AGENT-03	rule	Remove the three duplicate read-only tool names and fix the comment	claude-runner 3	missing
+AGENT-03	state	Clear droppedToolUses when a turn settles	claude-runner 3	missing
+AGENT-03	message	Skip an empty thinking block, or say why it is kept	claude-runner 3	missing
+AGENT-04	state	Keep the allow-edits grant across a respawn and remove the unused members	claude-runner 3.2	missing
+AGENT-04	rule	Verify the bypassPermissions path-check claim, or add a PreToolUse hook	claude-runner 3.2	missing
+SIDE-02	rpc	Scan only the new chunk in LineDecoder and add a real-size test	sessions 10	missing
+SIDE-02	rule	Test a bad result schema, bad params, a non-JSON-RPC payload and an oversize line	sessions 10	missing
+SIDE-02	rpc	Replace the isResult heuristic with a real Result guard	sessions 10	missing
+SIDE-02	rpc	Drop a timed-out request from the library's pending map	sessions 10	missing
+SIDE-02	rpc	Bind the socket without a short default-mode window	sessions 10	missing
+SIDE-02	rpc	Respect socket.write backpressure	sessions 10	missing
+SIDE-10	rule	Compare captured PATHs in the Rust and sidecar contract test	services-map 5A.4	missing
+SIDE-10	operation	Warm the shell environment once the worktree exists	services-map 5A.4	missing
+SIDE-23	rule	Test that --version not first prints the usage message	overview 3	missing
+SIDE-23	timeout	Bound check_version_blocking's --version call	overview 3	missing
+SIDE-03	rule	Remove the unused cancelled steer kind and drop action, or route the epoch check through it	sessions 3	missing
+SIDE-03	rule	Stop withdrawing the open interaction when a message is only queued	sessions 3	missing
+SIDE-03	rule	Test serialised option changes and a queued message after an agent-kind change	sessions 3	missing
+SIDE-03	rule	Say in the header that warm failures are best-effort and test a failed start	sessions 3	missing
+APP-01	rule	Record whether a mutation body or path may be logged in full	docs/engineering.md	missing
+APP-01	rule	Test the typed actions object and each service's narrow dependency object	docs/engineering.md	missing
+CHAT-08	message	Show the Claude Code retry note only for Claude Code	ui-map 3.3	missing
+CHAT-08	rule	Keep one ANSI-stripping helper shared by ToolCardFrame and memory.ts	ui-map 3.3	missing
+CHAT-08	rule	Test the Context7 and Linear MCP cards and the Garry Mode setting toggle	ui-map 3.3	missing
+NAV-03	rule	Build the status matrix (WS-09) and give Planning... a label	ui-map 3.8	missing
+NAV-03	rule	Test Cmd+Alt+Up/Down, line counts, Draft badge, Planning... and the retry action	ui-map 3.8	missing
+NAV-14	rule	Test a real Radix menu scope, a StrictMode unmount and a rejecting menu.setShortcuts	ui-map 5.4	missing
+REV-02	rule	Read fs.stat and the guard facts once per uncached diff load	services-map 3.4.2	missing
+REV-02	rule	Avoid a stat per viewed file per poll and fingerprint the file's scope	services-map 3.3	missing
+REV-02	rule	Test Ctrl+V, ArrowUp and the Diff-state settings round trip	ui-map 3.6	missing
+CHAT-18	timeout	Cite the RPC timeout values in the research or record them in decisions.md	sessions 10	missing
+REV-09	rule	Two parallel changesForTurn calls for one turn run the two git diffs twice; use createSingleFlight keyed by session and turn (checkpoint.ts:207-215).	docs/reports/audits/s2-step-1-core-3	missing
+REV-09	operation	Add a test that runs bin/checkpointer.sh diff over a real temp repository, proving the argument shape (checkpoint.rev-09.test.ts still uses FakeGitRunner).	docs/reports/audits/s2-step-1-core-3	missing
+RUN-01	operation	runArchive runs the archive script through a hard-coded zsh -lc with no timeout; use platform.shell.loginEnv().shell and add a timeout (run-scripts.ts:436-442).	docs/reports/audits/s2-step-1-core-3	missing
+RUN-01	state	RunTab always passes canAskAgent={false}, and "Add action manually" still uses onConfigure instead of opening AddActionDialog (RunTab.tsx:251-257).	docs/reports/audits/s2-step-1-core-3	missing
+RUN-01	rule	auto_run_after_setup has two homes, RepoConfig.autoRunAfterSetup (repo.ts:421) and the settings registry (settings.ts:1342); pick one.	docs/reports/audits/s2-step-1-core-3	missing
+RUN-07	rule	pickTerminal for "auto" prefers the newest Spotlight terminal even when it has ended and a run terminal is live; prefer live terminals (terminals.ts:334-348).	docs/reports/audits/s2-step-1-core-3	missing
+RUN-07	rule	runScript returns terminal_unknown after a successful spawn when the record is missing, leaving the process running; kill the handle first (terminals.ts:1064-1068).	docs/reports/audits/s2-step-1-core-3	missing
+PLAT-08	rule	Test that an ended terminal reads its saved scrollback once, so a second open does not read it again (historyLoaded).	docs/reports/audits/s2-step-1-core-3	missing
+WS-05	operation	Add a real temp-repo test with a conflicted merge for discardGitOperationState (worktree.ws-05.test.ts uses a fake runner).	docs/reports/audits/s2-step-1-core-3	missing
+WS-05	rule	The archive rollback swallows a failed transitionState back and leaves the row archiving with no message; return the secondary error with the first (workspace.ts:1389-1398).	docs/reports/audits/s2-step-1-core-3	missing
+WS-05	operation	Test the whole archive flow (snapshot, pin, script, remove) over a real repository with a real checkpointer, not the fake git harness.	docs/reports/audits/s2-step-1-core-3	missing
+PLAT-29	rule	sleep, echo and true are in the production ALLOWED_PROGRAMS only for the platform contract test; let the contract pass its own list or use the shell (shell.rs:1147-1149).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-29	rule	tauri_plugin_shell and tauri_plugin_fs stay registered though no grant uses them; remove both plugins and their Cargo lines, or say why they stay (lib.rs:694-695).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-29	rule	sql:default plus sql:allow-execute let the window open and write any database the plugin can load; scope it to the app database (capabilities/default.json:23-24).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-32	command	system_info is synchronous and starts three child processes on the main thread; make it async with spawn_blocking (lib.rs:616-624).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-32	rule	Split a pure parse_os_version(&str) out of read_os_version and test "", "abc" and "15.4.1" (lib.rs:525-539).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-32	rule	read_sysctl turns every non-zero exit into None and loses stderr; return the stderr text in the error for a real failure (lib.rs:568-572).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-32	rule	The two in-memory PLAT-32 tests only set a fake value and read it back; remove them or stop counting them toward the checklist (platform/system.plat-32.test.ts:6-33).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-34	rule	copy_entry follows symlinks with fs::metadata, so a link loop in bin/ recurses; use symlink_metadata and copy links as links (binaries.rs:432-445).	docs/reports/audits/s2-step-1-rust-2	missing
+PLAT-34	rule	A failed re-copy returns through ? and drops the failures already collected for other programs; collect it as that program's VerificationError (binaries.rs:252).	docs/reports/audits/s2-step-1-rust-2	missing
+APP-02	rule	A sign-in left running when the user leaves the onboarding step or screen is never cancelled on unmount (AgentStep.tsx/use-agent-login.ts have no cancel cleanup).	docs/reports/audits/s2-step-1-ui-1	missing
+APP-02	operation	Add tests for Codex/Cursor auto-finish and a failed openUrl or copyText in the onboarding agents step.	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-11	rule	"Yes always" is offered for every non-edit tool whatever the agent, but only Claude persists it; match the label to the runner (ToolApprovalCard.tsx:69-70).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-11	state	Live state carries since but no expiresAt, so a pending Codex card cannot mark itself timed out after a reload (packages/protocol/src/live-state.ts:28).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-11	rule	interactionClosed with delivery_failed returns silently; tell the user the answer did not arrive (sessions.ts:1179-1181).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-11	rule	McpFormCard accepts 1.5 for a JSON Schema integer and drops non-string enum options without a notice (McpFormCard.tsx:74,93,114).	docs/reports/audits/s2-step-1-ui-1	missing
+CHAT-11	operation	Add tests for a separate Network access card, approval-card focus behaviour, and an expiry timer firing while the card is open.	docs/reports/audits/s2-step-1-ui-1	missing
+COMP-03	rule	Plan and accept-edits chips are hidden for every non-Claude agent with no decision entry; record the decision or show them (ModeChips.tsx:36-38).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-04	rule	The draggable workspace row wrapper is copied in PinnedSection and SectionList; extract one DraggableWorkspaceRow (PinnedSection.tsx:134, SectionList.tsx:295,355).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-04	state	A section's open state starts from section.collapsed and is not re-synced, and Pinned's collapsed state is local and not saved (SectionList.tsx:236, PinnedSection.tsx:56).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-04	rule	The section emoji field accepts any text of any length (SectionDialog.tsx:97-104).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-04	state	#place reads the section list before an await and uses the older snapshot after it; guard against a concurrent reload (sections.ts:143-170).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-04	rule	The section actions button is the literal character "…"; use an icon (SectionList.tsx:330).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-05	rule	Home drops workspaces whose repository is not in the list with no hint to the user (HomeScreen.tsx:71-72).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-05	rule	The effect that copies filters.search into the search box can reset the box to older text after the debounce fires (HomeFilters.tsx:101-103).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-05	rule	The no-workspace empty state shows only "Create a workspace" while the checklist names both it and "Clear filters"; record the design choice or show both (HomeEmptyState.tsx:41-49).	docs/reports/audits/s2-step-1-ui-1	missing
+NAV-05	rule	relativeTime and useNow are imported from the sidebar by Home; move both to a shared place (WorkspaceCard.tsx:38, HomeScreen.tsx:28).	docs/reports/audits/s2-step-1-ui-1	missing
+PLAT-23	state	The PLAT-23, PLAT-24, PLAT-26 and PLAT-27 rows in docs/plans/items/system.tsv still say missing though the Rust commands exist; mark them.	docs/reports/audits/s3-1-rust	missing
+PLAT-08	state	At the cap every chunk drains the front of a 20 MiB vector; measure and use a ring buffer or chunk list, and drop bytes of a recorder that never sees input (terminal_history.rs:84-94,276).	docs/reports/audits/s3-1-rust	missing
+PLAT-08	rule	history_dir runs evict and a single eviction error fails the whole load; report the eviction error separately (terminal_history.rs:315-327).	docs/reports/audits/s3-1-rust	missing
+PLAT-12	rule	The speech event set is Partial/Final/Level/Error/Ended with error codes, not the research's names; record it as a design choice in the header (speech.rs:10-12,54-70).	docs/reports/audits/s3-1-rust	missing
+PLAT-12	rule	The five-second stop limit is never checked by an assert, and the Swift 4.5 s timer is not in the header (speech.rs:64).	docs/reports/audits/s3-1-rust	missing
+PLAT-12	rule	The two on-device recognition tests only grep source text; add a behaviour test or say the recogniser is verified by hand (speech.rs:1137,1148).	docs/reports/audits/s3-1-rust	missing
+PLAT-14	rule	Resource sampling builds a fresh System and reads every process on the Mac each call; measure on a busy Mac and refresh only the app's pids if slow (resource_usage.rs:103-108).	docs/reports/audits/s3-1-rust	missing
+PLAT-14	operation	Add a test that gives collect_usage a prefilled previous map and checks a busy process returns a non-zero percentage and vanished pids are dropped.	docs/reports/audits/s3-1-rust	missing
+PLAT-16	rule	focus_main only calls set_focus; a minimised or hidden window is not shown or un-minimised (deep_link.rs:119-132).	docs/reports/audits/s3-1-rust	missing
+PLAT-16	rule	Check whether the macOS plugin also delivers the launch URL to on_open_url, which would create two workspaces for a create-workspace link; add dedup or a test (deep_link.rs:104-115).	docs/reports/audits/s3-1-rust	missing
+PLAT-16	rule	plat_16_run_registers_the_open_url_handler greps lib.rs source text; replace it with a mock-runtime test that runs the handler.	docs/reports/audits/s3-1-rust	missing
+PLAT-23	rule	The traffic lights are moved once and AppKit can relay them out, while tauri.conf.json keeps the same fact; re-apply on resize/full screen or drop the command (window.rs:123).	docs/reports/audits/s3-1-rust	missing
+PLAT-23	operation	Add mock-runtime tests for window_set_vibrancy and move_traffic_lights, which currently have none.	docs/reports/audits/s3-1-rust	missing
+PLAT-23	rule	The header promises window_platform_unsupported for a non-macOS build but only the traffic-light path returns it; cut the claim or add the check (window.rs:10,137).	docs/reports/audits/s3-1-rust	missing
+PLAT-24	command	The Full Disk Access commands are synchronous and run open on the main thread; make them async with blocking (permissions.rs:80-89).	docs/reports/audits/s3-1-rust	missing
+PLAT-24	rule	The x-apple.systempreferences opener capability is unused by this feature (the code calls /usr/bin/open); give it a UI user or delete it (permissions.rs:86).	docs/reports/audits/s3-1-rust	missing
+PLAT-26	state	The network watcher's CFRunLoop runs for the process lifetime with no stop; add a dispose or an explicit note (network.rs:147).	docs/reports/audits/s3-1-rust	missing
+PLAT-26	rule	A network watcher that cannot start aborts app startup through setup's ?; decide whether an offline badge should take the app down (lib.rs:743).	docs/reports/audits/s3-1-rust	missing
+PLAT-26	operation	Add a test that drives the real SCNetworkReachability callback, not only publish_change.	docs/reports/audits/s3-1-rust	missing
+PLAT-27	rule	The instance lock lives in the folder named by the bundle identifier, which tauri dev shares; use a per-channel lock name so a dev build does not exit (lib.rs:271-283).	docs/reports/audits/s3-1-rust	missing
+PLAT-27	rule	SIGHUP is declared in lib.rs while the other signal numbers live in process_group.rs; move it next to SIGTERM and SIGKILL (lib.rs:306).	docs/reports/audits/s3-1-rust	missing
+PLAT-27	operation	The file-limit test only asserts after >= before, and no test checks that RunEvent::Exit calls terminate_terminals.	docs/reports/audits/s3-1-rust	missing
+PLAT-27	rule	deep_link, network, lib and pty still report failures with eprintln! although the logger exists; send them through the log writer (network.rs:110,152; lib.rs:684,722,860).	docs/reports/audits/s3-1-rust	missing
+APP-03	rule	createDiagnosticsChat never trashes the redacted report file and leaves the draft behind when the send fails (sessions.ts:1307-1341).	docs/reports/audits/s3-1d-ui-1	missing
+APP-03	rule	The memory stand-in names conducted-logs.zip while the real export writes .ndjson; name it .ndjson (platform/memory.ts:1134).	docs/reports/audits/s3-1d-ui-1	missing
+APP-03	rule	Copy logs reads the whole log file into the clipboard with no size limit (DiagnosticsScreen.tsx:134-139).	docs/reports/audits/s3-1d-ui-1	missing
+APP-07	rule	A process above the 512 MB dial is logged on every 5 s poll, even when the table is hidden; log on crossing the threshold and name the dial (ResourceUsageTable.tsx:162-180).	docs/reports/audits/s3-1d-ui-1	missing
+APP-07	rule	Two byte formatters: ResourceUsageTable imports formatFileSize from a component file while AdvancedPage keeps formatBytes; move one to a shared helper (ResourceUsageTable.tsx:46, AdvancedPage.tsx:325).	docs/reports/audits/s3-1d-ui-1	missing
+APP-10	rule	dismissCallout does a read-modify-write in a page and can lose one of two quick dismissals; add a useCalloutDismissal hook (GeneralPage.tsx:91-96).	docs/reports/audits/s3-1d-ui-1	missing
+APP-10	rule	A failed callout reset shows both a toast and an inline error; pick one (GeneralPage.tsx:101, ResetCalloutDismissals.tsx:70-73).	docs/reports/audits/s3-1d-ui-1	missing
+APP-10	rule	ResetCalloutDismissals mirrors the stored ids in local state with a sync effect; derive from props and clear on success (ResetCalloutDismissals.tsx:33-43).	docs/reports/audits/s3-1d-ui-1	missing
+APP-10	rule	The only live Callout is the General page's own hint; no real feature proves the component is used (GeneralPage.tsx:105).	docs/reports/audits/s3-1d-ui-1	missing
+COMP-01	rule	ComposerEditor keeps the legacy keyCode === 229 IME check; verify isComposing alone suffices in the Tauri webview (ComposerEditor.tsx:143).	docs/reports/audits/step-3-s1-ui	missing
+NAV-01	rule	"Go forward" is never disabled although the header and the test name say it is; bind it to the router's can-go-forward (ShellControls.tsx:41-45).	docs/reports/audits/step-3-s1-ui	missing
+RUN-06	rule	TerminalFindBar hand-writes buffer search, rebuilds every line on every step, and searches buffer.normal only; decide on @xterm/addon-search or move the function out and test it at real size (TerminalFindBar.tsx:6,81-112).	docs/reports/audits/step-3-s1-ui	missing
+RUN-06	rule	convertEol: true is wrong for a PTY that already translates line ends; verify against a real shell (TerminalSurface.tsx:160).	docs/reports/audits/step-3-s1-ui	missing
+RUN-06	rule	Verify the history/live handoff: the buffered connection copies history at construction and subscribes only in start(), and no test covers output between the two (TerminalView.tsx:72-123).	docs/reports/audits/step-3-s1-ui	missing
+RUN-06	operation	Add one test with the real @xterm/xterm core for the history-then-live order and the ack count, instead of stubs (TerminalSurface.test.tsx:20-27).	docs/reports/audits/step-3-s1-ui	missing
+COMP-02	rule	"Opens in new chat" is shown after the chat already exists, and neither it nor the "slower and costs more" toast has a test (ModelPicker.tsx:136,431).	docs/reports/audits/step-4-s1-ui	missing
+COMP-02	rule	"Not supported for this model" can show while the model list is loading or failed; show it only when the list is ready (ModelPicker.tsx:582,613).	docs/reports/audits/step-4-s1-ui	missing
+COMP-02	rule	visible_provider_models has no documented format and modelsForPicker has no test (ModelPicker.tsx:198, settings.ts:638-646).	docs/reports/audits/step-4-s1-ui	missing
+COMP-02	operation	Add tests for the agent-not-installed state, loading/error model rows, Fast hidden, the visible-provider filter, an unavailable favourite and "Opens in new chat".	docs/reports/audits/step-4-s1-ui	missing
+COMP-02	operation	Run the favourite-model service tests once against the real repository on an in-memory database instead of a hand-written fake.	docs/reports/audits/step-4-s1-ui	missing
+REV-01	rule	The discard confirmation is a hand-built Dialog; use ui/AlertDialog (features/git-panel/files/FileRowMenu.tsx:85-105).	docs/reports/audits/step-4-s1-ui	missing
+REV-01	rule	The back bar shows only for commit and turn scopes, so target and uncommitted have no back button (ChangesTab.tsx:257,358).	docs/reports/audits/step-4-s1-ui	missing
+REV-01	rule	The target scope has no radio item and "Current branch" is a label rather than an entry; the submenu trigger sits inside a radio group (DiffScopeMenu.tsx:150-183).	docs/reports/audits/step-4-s1-ui	missing
+REV-01	rule	GitHeader draws the title twice and its popover prints the internal kind wording (GitHeader.tsx:81-101).	docs/reports/audits/step-4-s1-ui	missing
+REV-01	rule	ChangedFileList falls back to a 560 px viewport in production code when the element has no layout (ChangedFileList.tsx:21).	docs/reports/audits/step-4-s1-ui	missing
+REV-01	rule	Every changed row uses FileTextIcon, the row menu has no Copy path, and the header's Ctrl+V Viewed shortcut has no code (ChangedFileRow.tsx:80).	docs/reports/audits/step-4-s1-ui	missing
+REV-01	operation	Add tests for the two empty states, the untracked note, loading/error, the target-branch flow, Cmd+Shift+D, discarding an added file, the conflict badge and a stale commit scope.	docs/reports/audits/step-4-s1-ui	missing
+SET-03	rule	AgentCard uses a plain Copy button and its own middleTruncate instead of the kit, and builds a 6 px card where design.md says 8 px (AgentCard.tsx:85,216-218).	docs/reports/audits/step-4-s1-ui	missing
+SET-03	rule	A program found on the login PATH is still labelled "Loaded from env" (AgentCard.tsx:76).	docs/reports/audits/step-4-s1-ui	missing
+SET-03	rule	needsPastedCode hard-codes Claude and AgentLoginDialog compares the display string "Claude Code" to choose a label (AgentsPage.tsx:76, AgentLoginDialog.tsx:129).	docs/reports/audits/step-4-s1-ui	missing
+SET-03	operation	Add tests for the model-list race, the sign-in close/cancel flow, the setup-token path, the Codex toasts and agentInstallsChanged.	docs/reports/audits/step-4-s1-ui	missing
+CHAT-05	rule	The composer computes "working" from live.status and ignores the service's cancelling flag; expose one selector (Composer.tsx:244, sessions.ts:988).	docs/reports/audits/step-6-s1-core	missing
+CHAT-05	operation	Add a contract test for droppedMessageIds against the real SessionManager.cancel instead of a canned sidecar reply.	docs/reports/audits/step-6-s1-core	missing
+CHAT-05	rule	A failed requeue of one sending row skips the reorder with no retry; add a partial-failure test (follow-up-queue.ts:150-175).	docs/reports/audits/step-6-s1-core	missing
+PR-02	rule	The Create PR instruction has no PR-skills step and no draft/title/body options (agent-instructions.ts:44-66).	docs/reports/audits/step-6-s1-core	missing
+PR-02	rule	The PR template is found after reading the whole git ls-files output; use a pathspec for the three names (github.ts:2584,2595).	docs/reports/audits/step-6-s1-core	missing
+PR-02	operation	Add a Create PR button test and a test that the real gh argument list is built, instead of only a fake git runner.	docs/reports/audits/step-6-s1-core	missing
+WS-03	rule	SETUP_TAB_TEXT.log_missing.body ?? fallback is dead code, and the empty state still opens /settings/repos instead of the Scripts settings page (SetupTab.tsx:254-258).	docs/reports/audits/step-6-s1-core	missing
+WS-03	rule	SetupTab calls readSetupLog directly rather than through an action or hook, and loads a 20,000-line log as one string into a pre (SetupTab.tsx:117,206).	docs/reports/audits/step-6-s1-core	missing
+WS-03	rule	cancelSetup ends as failed while the tab shows cancelled, and it stops every script of the workspace rather than only setup (workspace.ts:1202-1218).	docs/reports/audits/step-6-s1-core	missing
+WS-03	operation	Add tests over real script runners and terminals for the file count, log reload, readSetupLog, attach errors, double Retry, Stop and a quit during setup.	docs/reports/audits/step-6-s1-core	missing
+NAV-10	rule	TabStrip sets lastClosed before the close is known to have worked, so a failed close can be reopened by Cmd+Shift+T (TabStrip.tsx:254-255).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	hostOf returns the raw URL when parsing fails; make that fallback explicit or show an error (TabStrip.tsx:57-63).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	Inactive tabs have tabIndex -1 and there is no arrow-key handling; add roving focus (TabStrip.tsx:333, TabItem.tsx:73).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	The URL holds one file/comment/PR/browser tab at a time; decide whether that matches Conductor (TabStrip header design choice).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	WorkspaceHeader and RenameDialog reset their field on every data change rather than only on open (WorkspaceHeader.tsx:55-57, RenameDialog.tsx:35-39).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	The Target branch picker is free text with no existence check; link WS-02 in the backlog row (WorkspaceHeader.tsx:217-255).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	WorkspaceActionsMenu casts result.error and wraps Result calls in try/catch; type the action as Result-returning (WorkspaceActionsMenu.tsx:89-98).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	moveTo always places at index 0 and archive passes deleteBranch: false; both are invented defaults to confirm against ui-map 3.1 (WorkspaceActionsMenu.tsx:90-98,196).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	The folder-path chip uses FolderPlusIcon, which reads as "add folder"; use a folder or copy icon (WorkspaceHeader.tsx:172).	docs/reports/audits/step-7-s1-ui	missing
+NAV-10	rule	TabStrip Retry calls the whole sessions.start(); check that a second start does not add a second subscription (TabStrip.tsx:295).	docs/reports/audits/step-7-s1-ui	missing
