@@ -46,7 +46,7 @@ describe("SET-02 AdvancedPage", () => {
 		const mounted = await mountPage();
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
-		const input = screen.getByLabelText("Claude Code program path");
+		const input = screen.getByLabelText("Claude Code executable path");
 		fireEvent.change(input, { target: { value: "/definitely/not/here/claude" } });
 		fireEvent.blur(input);
 
@@ -138,7 +138,7 @@ describe("SET-02 AdvancedPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Change root path" }));
 
 		await waitFor(() =>
-			expect((screen.getByLabelText("Root folder") as HTMLInputElement).value).toBe(
+			expect((screen.getByLabelText("Conducted root directory") as HTMLInputElement).value).toBe(
 				"/tmp/new-root",
 			),
 		);
