@@ -37,6 +37,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudPairing,
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
@@ -111,8 +112,10 @@ export interface MemoryPlatformControls {
 	readonly cloudSent: readonly { relayId: string; line: string }[];
 	/** The ids of the relays the app opened and has not closed. */
 	readonly cloudRelayIds: readonly string[];
-	/** Changes what `cloud.paired` reports. */
-	setCloudPaired(paired: boolean): void;
+	/** The channel each open relay asked for, by relay id. */
+	readonly cloudRelayChannels: Readonly<Record<string, string>>;
+	/** Changes what `cloud.status` reports and what `cloud.pair` would replace. */
+	setCloudPairing(pairing: CloudPairing): void;
 	/** Delivers a line to every listener of one relay. False when the relay is not open. */
 	emitCloudLine(relayId: string, line: string): boolean;
 	/** Ends one relay, as the Worker or the network would. False when the relay is not open. */
@@ -1138,17 +1141,32 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const cloudScripts: CloudScript[] = [];
 	const cloudRequests: CloudRequest[] = [];
 	const cloudSent: { relayId: string; line: string }[] = [];
-	let cloudPaired = true;
+	let cloudPairing: CloudPairing = {
+		paired: true,
+		url: "https://conducted.example.workers.dev",
+	};
 	interface MemoryRelay {
 		url: string;
 		vmId: string;
+		channel: string;
 		lineListeners: Set<(line: string) => void>;
 		closedListeners: Set<(reason: string) => void>;
 		closed: string | null;
 	}
 	const cloudRelays = new Map<string, MemoryRelay>();
 	const cloud: Cloud = {
-		paired: async () => ok(cloudPaired),
+		status: async () => ok(cloudPairing),
+		// The stand-in keeps the same two facts as the shell. Whether the Worker refuses the token
+		// is the Worker's and Rust's rule; scriptCloud cannot carry the token (it has no headers),
+		// so a rejected pairing is covered by the Worker's tests and the live run.
+		pair: async (input) => {
+			cloudPairing = { paired: true, url: input.url };
+			return ok(cloudPairing);
+		},
+		unpair: async () => {
+			cloudPairing = { paired: false, url: null };
+			return ok(undefined);
+		},
 		request: async (request) => {
 			cloudRequests.push(request);
 			for (const script of cloudScripts) {
@@ -1164,6 +1182,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			const state: MemoryRelay = {
 				url: input.url,
 				vmId: input.vmId,
+				channel: input.channel ?? "rpc",
 				lineListeners: new Set(),
 				closedListeners: new Set(),
 				closed: null,
@@ -1245,8 +1264,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		get cloudRelayIds() {
 			return [...cloudRelays.keys()];
 		},
-		setCloudPaired: (paired) => {
-			cloudPaired = paired;
+		get cloudRelayChannels() {
+			return Object.fromEntries([...cloudRelays].map(([id, relay]) => [id, relay.channel]));
+		},
+		setCloudPairing: (pairing) => {
+			cloudPairing = pairing;
 		},
 		emitCloudLine: (relayId, line) => {
 			const relay = cloudRelays.get(relayId);

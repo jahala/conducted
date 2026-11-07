@@ -303,3 +303,91 @@ Everything was deleted: the Worker `conducted-dev-c05-1320` (URL 404), its conta
 `conducted-cloud-sandbox` (`81addf386f7146a3a8816216b51e103f`), and the image
 `conducted-dev-c05-1320-workspace-sandbox:wrangler-mw6fjhw5`. Both container lists then held no
 `conducted` entry. The local build folder and `/tmp` files were trashed.
+
+## Follow-up: pairing with the Worker (CLOUD-07, 2026-11-07)
+
+A throwaway Worker under the owner's account, named `conducted-dev-c07-131515`, deployed from
+`apps/cloud` with the product sandbox image (`conducted-dev-c07-131515-workspace-sandbox`,
+`wrangler-mw6feown`, digest `sha256:28d8ad87fee6…`). No sandbox was started: the pairing route
+touches no Durable Object, so this run cost no sandbox time.
+
+| Check (`GET /pair` unless noted)                         | Answer                                                    | Time     |
+| -------------------------------------------------------- | --------------------------------------------------------- | -------- |
+| a bearer token that is the Worker's `PAIRING_TOKEN`       | 200, `{"service":"conducted-cloud","paired":true}`         | 0.099 s  |
+| no token                                                 | 401                                                       | 0.425 s  |
+| a wrong token                                            | 401                                                       | 0.052 s  |
+| `POST` with the right token                              | 405                                                       | 0.051 s  |
+| the shell's own `ask_worker_for_pairing` (temporary Rust integration test) | good token accepted, wrong token refused | 0.09 s   |
+
+The 0.425 s on the first request is the Worker's cold start; every later answer was about 0.05 s.
+The deploy took 17.5 s to upload and 2.1 s to publish its triggers; the image was cached from the
+CLOUD-04 local build. The Rust test used `cloud::ask_worker_for_pairing`, the function
+`cloud_pair` calls; it was removed after the run.
+
+Not exercised in this live run: the macOS Keychain writes of `cloud_pair`/`cloud_unpair` (their
+storage is the same `keychain.rs` round trip PLAT-10 tests, and the save order is the ordering
+`cloud.rs`'s unit test describes), and the Connections form in a running app window (the container
+test over the real composition root and the Connections page test cover it).
+
+Everything the run created was deleted: Worker `conducted-dev-c07-131515` (its URL now answers
+404), container application `conducted-dev-c07-sandbox-131515` (`4cea4f9a…`), registry image
+`conducted-dev-c07-131515-workspace-sandbox:wrangler-mw6feown`, and the local Docker tag. Final
+`wrangler containers list` and `wrangler containers images list` hold no `c07` entry. The local
+`apps/cloud/sandbox/build/` folder was removed, and the token file and run notes under `/tmp` were
+trashed.
+
+## Follow-up: cloud terminals, run scripts and previews (CLOUD-09, 2026-11-07)
+
+Built the terminal WebSocket and the preview proxy on the owner's account with the product image,
+one `basic` instance, Worker `conducted-dev-c09-1408`, driven from this Mac with Node's `ws` client.
+The driver opened the Worker's `/w/c09-live/terminal` WebSocket with the pairing token in the
+`Authorization` header, sent one JSON `start` message, and read base64 `data`, `exit` and `error`
+messages back.
+
+- **Cold start:** `/start` answered in **15,318 ms** round trip, with the Worker reporting
+  `readyMs` **14,386 ms** and the sidecar ready 1,175 ms after the entry started.
+- **Warm start:** **123 ms** round trip, `readyMs` **25 ms**, `started: false`.
+- **A command terminal:** the WebSocket opened in **140 ms**; `ready` arrived at **160 ms**, the
+  first output byte at **165 ms**, and `exit: 0` at **167 ms**. The output was
+  `HELLO_FROM_CLOUD`. This is the `run` shape a run script uses.
+- **An interactive terminal:** `ready` at **141 ms**, first prompt byte at **151 ms**. A resize to
+  100x30 and typing `echo INTERACTIVE_OK` both took effect, and `exit` typed in it ended the
+  process with code 0.
+- **Strict shell options for a cloud setup script:** a command beginning
+  `set -euo pipefail\nprintf 'SETUP_OK\n'\nfalse\nprintf 'UNREACHABLE\n'` printed `SETUP_OK` and
+  exited **1**; `UNREACHABLE` was absent. In the desktop this prefix is added only for a cloud
+  host (`run-scripts.setup.test.ts`).
+- **A preview:** a Node HTTP server on port 3000 was started inside the sandbox. `POST
+  /w/c09-live/preview-url` with `{"port":3000}` 200'd with a URL, and fetching that URL with no
+  pairing token answered **200** with body `preview ok`, in **139 ms** including the URL request.
+  A URL with one character changed in its token answered **403**; port 22 answered **400**.
+- **Deploy:** the first deploy uploaded the image and Worker in **40.25 s**; a redeploy of code
+  only took **7.88 s**.
+
+A bug the run found, fixed before the passing run: a Durable Object RPC method that returns a
+`Response` carrying a `webSocket` throws `DataCloneError` ("Could not serialize object of type
+\"WebSocket\"") and the Worker answers 500. The terminal and preview routes now go through the
+object's own `fetch` handler, where a 101 response and a streamed proxy body are allowed. The
+same applies to a preview that upgrades a WebSocket.
+
+Not measured or not built:
+
+- **Previews are under the Worker's hostname, not their own.** The URL is
+  `/w/<name>/preview/<token>/<port>/...`, so a dev server that builds absolute asset URLs from `/`
+  will not render through it. The spike's note that previews need their own hostname still stands;
+  a hostname per preview needs a custom domain and a wildcard route, which this run did not test.
+  D108 records the choice and the gap.
+- **Terminal text is a bounded line mirror, not a VT screen.** The renderer holds the real screen;
+  the mirror serves the agent's output tool and the saved scrollback.
+- **No reconnect.** A terminal that loses its stream ends and shows "Connection lost."; it does not
+  resume. The sidecar relay's reconnect backoff does not apply to a terminal process.
+
+Everything the run created was deleted: the Worker `conducted-dev-c09-1408` (the URL then answered
+404 with Cloudflare error 1042), the container application `conducted-cloud-sandbox`
+(`8589fc968e1c466294841c155b90dab9`), the image
+`conducted-dev-c09-1408-workspace-sandbox:wrangler-mw6hb5fq`
+(`sha256:db4d337bebafc1bf90aeb4122b7148854c29693a72f54e705af088665a42ebac`), the R2 bucket
+`conducted-cloud-backups`, and the local Docker image by id `db4d337bebaf`. Final
+`wrangler containers list` and `containers images list` held no `conducted` entry, the bucket list
+held no `conducted-cloud-backups`, and the local `apps/cloud/sandbox/build/` folder and the run's
+`/tmp` files were trashed.

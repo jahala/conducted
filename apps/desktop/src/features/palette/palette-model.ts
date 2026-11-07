@@ -18,6 +18,7 @@ import type { CommandEntry } from "../../core/api.ts";
 import { rankFuzzy } from "../../core/fuzzy.ts";
 import type { Repo, Section, Session, Workspace } from "../../core/model.ts";
 import { SETTING_PAGES, type SettingPage } from "../../core/registries/settings.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
 
@@ -251,8 +252,8 @@ export function buildPaletteGroups(props: PaletteInput): PaletteGroup[] {
 	const reposById = new Map(props.repos.map((repo) => [repo.id, repo]));
 	const commandsById = new Map(props.commands.map((entry) => [entry.id, entry]));
 	const workspaces = uniqueWorkspaces(props.workspaces);
-	const active = workspaces.filter((workspace) => workspace.state !== "archived");
-	const archived = workspaces.filter((workspace) => workspace.state === "archived");
+	const active = workspaces.filter((workspace) => !isArchivedWorkspace(workspace));
+	const archived = workspaces.filter(isArchivedWorkspace);
 	const groups: PaletteGroup[] = [];
 
 	const addGroup = (heading: string, items: PaletteItem[]) => {

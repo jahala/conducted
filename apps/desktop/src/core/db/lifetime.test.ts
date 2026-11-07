@@ -15,6 +15,7 @@ import {
 	DEFAULT_LIFETIME_LIMITS,
 	LIFETIME_LAST_RUN_KEY,
 	LIFETIME_STEPS,
+	LIFETIME_TOOL_OUTPUT_WATERMARK_KEY,
 	type LifetimeLimits,
 	MS_PER_DAY,
 	runDataLifetimeJob,
@@ -316,6 +317,59 @@ describe("DATA-02 data lifetime", () => {
 		};
 		expect(old.message.items).toEqual([{ ...toolResult("x".repeat(10)), truncated: true }]);
 		expect((await readEvent(h.deps.db, "s1", "new")).content).toContain("y".repeat(50));
+	});
+
+	it("advances the tool-output watermark so history older than the last run is skipped", async () => {
+		const h = harness({ toolOutputMaxAgeDays: 30, toolOutputMaxBytes: 10 });
+		await insertRepo(h.deps.db, "r1", NOW);
+		await insertWorkspace(h.deps.db, { id: "w1", repoId: "r1" });
+		await insertSession(h.deps.db, "s1", "w1", NOW);
+		// A short old output is never cut, but the first run must still record how far it looked.
+		await insertEvent(h.deps.db, {
+			sessionId: "s1",
+			idx: 0,
+			eventId: "short",
+			type: "agent",
+			turnId: "t1",
+			content: agentContent("short", "t1", NOW - 40 * DAY, [toolResult("short")]),
+			receivedAt: NOW - 40 * DAY,
+		});
+
+		expect(must(await runStep(h, "cut-tool-outputs")).rowsChanged).toBe(0);
+		const watermark = await h.deps.db.select<{ value: string }>(
+			"SELECT value FROM settings WHERE key = $1",
+			[LIFETIME_TOOL_OUTPUT_WATERMARK_KEY],
+		);
+		expect(JSON.parse(watermark[0]?.value ?? "null")).toBe(NOW - 30 * DAY);
+
+		// Two days later a long output crosses the 30-day line: it is cut.
+		h.setNow(NOW + 2 * DAY);
+		await insertEvent(h.deps.db, {
+			sessionId: "s1",
+			idx: 1,
+			eventId: "crossed",
+			type: "agent",
+			turnId: "t2",
+			content: agentContent("crossed", "t2", NOW - 29 * DAY, [toolResult("y".repeat(50))]),
+			receivedAt: NOW - 29 * DAY,
+		});
+		expect(must(await runStep(h, "cut-tool-outputs")).rowsChanged).toBe(1);
+		expect((await readEvent(h.deps.db, "s1", "crossed")).compacted_at).toBe(NOW + 2 * DAY);
+
+		// History older than the last run is not scanned again, even a later write at that time.
+		await insertEvent(h.deps.db, {
+			sessionId: "s1",
+			idx: 2,
+			eventId: "below-watermark",
+			type: "agent",
+			turnId: "t3",
+			content: agentContent("below-watermark", "t3", NOW - 40 * DAY, [toolResult("z".repeat(50))]),
+			receivedAt: NOW - 40 * DAY,
+		});
+		expect(must(await runStep(h, "cut-tool-outputs")).rowsChanged).toBe(0);
+		const untouched = await readEvent(h.deps.db, "s1", "below-watermark");
+		expect(untouched.compacted_at).toBeNull();
+		expect(untouched.content).toContain("z".repeat(50));
 	});
 
 	it("removes old and orphaned drafts and keeps a live recent one", async () => {

@@ -37,6 +37,7 @@ import {
 import type { Platform } from "../../platform/platform.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import type { Session, Workspace } from "../model.ts";
+import { isArchivedWorkspace } from "../status/archived.ts";
 
 export const SETTLE_DELAY_MS = 2_000;
 export const NOTIFICATION_TITLE_MAX = 50;
@@ -133,7 +134,7 @@ export function dockBadgeCount(
 	for (const session of sessions) {
 		if (session.unreadCount <= 0 || session.closedAt !== null) continue;
 		const workspace = workspaces.get(session.workspaceId);
-		if (workspace === undefined || workspace.state === "archived") continue;
+		if (workspace === undefined || isArchivedWorkspace(workspace)) continue;
 		unread.add(session.workspaceId);
 	}
 	return unread.size;
@@ -293,7 +294,7 @@ export class NotificationService {
 			isSuppressed({
 				kind: input.kind,
 				sessionHidden: session.closedAt !== null,
-				workspaceArchived: workspace.state === "archived",
+				workspaceArchived: isArchivedWorkspace(workspace),
 				viewingThisChat: this.#deps.isViewing(input.sessionId),
 				windowFocused: this.#deps.windowFocused(),
 			})

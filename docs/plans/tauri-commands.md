@@ -79,7 +79,9 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `programs.syncPathOverrides`                     | `programs_sync_path_overrides`                                               | binaries.rs         |                                        |
 | `http.fetch`                                     | `http_fetch`                                                                 | http.rs             |                                        |
 | `http.download`, `HttpDownload.cancel`           | `http_download` (Channel for progress), `http_cancel`                        | http.rs             |                                        |
-| `cloud.paired`                                   | `cloud_paired`                                                               | cloud.rs            |                                        |
+| `cloud.status`                                   | `cloud_pairing`                                                              | cloud.rs            |                                        |
+| `cloud.pair`                                     | `cloud_pair`                                                                 | cloud.rs            |                                        |
+| `cloud.unpair`                                   | `cloud_unpair`                                                               | cloud.rs            |                                        |
 | `cloud.request`                                  | `cloud_request`                                                              | cloud.rs            |                                        |
 | `cloud.openRelay`, `CloudRelay.send`, `.close`   | `cloud_relay_open`, `cloud_relay_send`, `cloud_relay_close`                  | cloud.rs            | `cloud://line`, `cloud://closed`       |
 

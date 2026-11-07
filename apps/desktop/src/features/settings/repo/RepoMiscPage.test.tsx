@@ -1,4 +1,5 @@
 import { ok } from "@conducted/shared";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
@@ -48,6 +49,16 @@ async function renderPage(
 	const testContainer = createTestContainer();
 	test = testContainer;
 	const container = testContainer.container;
+	testContainer.memory.controls.scriptShell((command) => {
+		if (
+			command.program === "git" &&
+			command.args.includes("branch") &&
+			command.args.some((arg) => arg.startsWith("--format=%(refname:short)"))
+		) {
+			return ok({ stdout: "main\ndevelop\n", stderr: "", exitCode: 0 });
+		}
+		return null;
+	});
 	const repo = await seedRepo(container, { icon });
 	for (let index = 0; index < workspaceCount; index += 1) {
 		await seedWorkspace(container, { repoId: repo.id });
@@ -56,10 +67,13 @@ async function renderPage(
 		...state,
 		configs: { ...state.configs, [repo.id]: config(changes) },
 	}));
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	render(
-		<ServicesProvider container={container}>
-			<RepoMiscPage repoId={repo.id} />
-		</ServicesProvider>,
+		<QueryClientProvider client={client}>
+			<ServicesProvider container={container}>
+				<RepoMiscPage repoId={repo.id} />
+			</ServicesProvider>
+		</QueryClientProvider>,
 	);
 	await screen.findByText("Root path");
 	return { repo, container };
@@ -95,9 +109,9 @@ describe("SET-07 RepoMiscPage", () => {
 				"Do not move or delete the workspace subdirectories. Instead, archive workspaces in Conducted.",
 			),
 		).toBeTruthy();
-		expect((screen.getByLabelText("Branch new workspaces from") as HTMLInputElement).readOnly).toBe(
-			true,
-		);
+		expect(
+			screen.getByRole("button", { name: "Branch new workspaces from" }).textContent,
+		).toContain(repo.defaultBranch);
 	});
 
 	it("saves a changed remote name and ignores the shown default", async () => {
@@ -177,12 +191,27 @@ describe("SET-07 RepoMiscPage", () => {
 		expect(screen.getByRole("button", { name: "Remove emoji" })).toBeTruthy();
 	});
 
-	it("shows and protects the branch new workspaces start from", async () => {
-		const { repo } = await renderPage();
+	it("changes the branch new workspaces start from", async () => {
+		const { repo, container } = await renderPage();
 
-		const branch = screen.getByLabelText("Branch new workspaces from") as HTMLInputElement;
-		expect(branch.value).toBe(repo.defaultBranch);
-		expect(branch.readOnly).toBe(true);
-		expect(screen.getByText(/Choosing another base is not built yet \(WS-01\)/)).toBeTruthy();
+		const trigger = screen.getByRole("button", { name: "Branch new workspaces from" });
+		expect(trigger.textContent).toContain(repo.defaultBranch);
+		fireEvent.click(trigger);
+
+		const option = await screen.findByRole("option", { name: /develop/ });
+		fireEvent.click(option);
+
+		await waitFor(async () => {
+			const rows = await test?.database.select<{ default_branch: string }>(
+				"SELECT default_branch FROM repos WHERE id = $1",
+				[repo.id],
+			);
+			expect(rows?.[0]?.default_branch).toBe("develop");
+		});
+		expect(
+			(container.services.repo.store.getState().reposById[repo.id]?.defaultBranch ?? null) as
+				| string
+				| null,
+		).toBe("develop");
 	});
 });

@@ -23,6 +23,7 @@ import { useCallback, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { CopyIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuLabel } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -42,7 +43,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const { apps, defaultApp, storedDefault, recentNames, listFailed } = useOpenInApps();
 	const { remember, setDefault } = useOpenInChoices(recentNames);
 
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const disabledReason =
 		workspace.state === "loading"
 			? "Loading the workspace."
@@ -54,7 +55,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const open = useCallback(
 		(app: OpenInApp): Promise<void> => {
-			if (workspace.state !== "ready" || workspace.data.state === "archived") {
+			if (workspace.state !== "ready" || isArchivedWorkspace(workspace.data)) {
 				return Promise.resolve();
 			}
 			return flight.run("open", async () => {

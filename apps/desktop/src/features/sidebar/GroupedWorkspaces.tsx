@@ -12,7 +12,9 @@
  * order Conductor uses. Pinned and the user's sections are rendered by PinnedSection and
  * SectionList, which own their drag targets; this component supplies their data and the saved
  * manual order. A row dragged within a main group saves its new order in the `sidebar_manual_order`
- * setting. The row's right-click actions menu comes from NAV-10.
+ * setting. A project group header dragged onto another saves the project order through
+ * `Actions.projects.reorder` (NAV-04), the way Conductor reorders its project groups. The row's
+ * right-click actions menu comes from NAV-10.
  * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; a group
  * with no workspaces is hidden; a main group starts closed unless it holds the open workspace, and
  * the user's toggle then wins, as in Conductor (renderApp's sidebar groups); a collapsed group shows
@@ -24,10 +26,11 @@
  * the user cannot see gets no shortcut number. The "+" on a project header carries the project to the
  * create page as the search param `repo`.
  * Test first: Given three workspaces in two repos, grouping by project gives two groups; pinning
- * one moves it to Pinned and removes it from its group.
+ * one moves it to Pinned and removes it from its group; dragging one project header onto another
+ * saves the new project order.
  */
 
-import type { Result, WorkspaceId } from "@conducted/shared";
+import type { RepoId, Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
@@ -62,6 +65,9 @@ import {
 } from "./use-workspace-drag.ts";
 import { ViewOptionsMenu } from "./ViewOptionsMenu.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
+
+/** The drag payload for a project group header, so a drop knows which project moved (NAV-04). */
+export const REPO_DRAG_MIME = "application/x-conducted-repo";
 
 export interface GroupedWorkspacesProps {
 	repos: Repo[];
@@ -138,6 +144,8 @@ function GroupSection({
 	open,
 	onOpenChange,
 	onReorder,
+	repoReorderable,
+	onReorderRepo,
 }: {
 	group: SidebarGroup;
 	rows: Map<WorkspaceId, { workspace: Workspace; repo: Repo }>;
@@ -148,11 +156,15 @@ function GroupSection({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onReorder: (orderedIds: readonly WorkspaceId[]) => Promise<Result<unknown>> | undefined;
+	/** True when this project header is one of several that can be dragged into a new order. */
+	repoReorderable: boolean;
+	onReorderRepo: (draggedId: string, targetId: string) => void;
 }) {
 	const actions = useActions();
 	const repoId = group.key.kind === "project" ? group.key.repoId : null;
 	const repo =
 		repoId === null ? null : (repos.find((candidate) => candidate.id === repoId) ?? null);
+	const canReorderRepo = repoReorderable && repo !== null;
 	const drag = useWorkspaceDrag({
 		order: group.workspaceIds,
 		sectionId: null,
@@ -165,7 +177,28 @@ function GroupSection({
 	return (
 		<section aria-label={group.label} className="px-1.5 pt-1.5 pb-3">
 			<Collapsible open={open} onOpenChange={onOpenChange}>
-				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: a project header is a drag source; its trigger and create link are the interactive parts. */}
+				<div
+					className="group/header mt-0.5 mb-1 flex items-center gap-0.5"
+					data-repo-id={repo?.id}
+					draggable={canReorderRepo}
+					onDragStart={(event) => {
+						if (!canReorderRepo || repo === null) return;
+						event.dataTransfer?.setData(REPO_DRAG_MIME, repo.id);
+						event.dataTransfer?.setData("text/plain", repo.id);
+					}}
+					onDragOver={(event) => {
+						if (!canReorderRepo) return;
+						event.preventDefault();
+					}}
+					onDrop={(event) => {
+						if (!canReorderRepo || repo === null) return;
+						const dragged = event.dataTransfer?.getData(REPO_DRAG_MIME) ?? "";
+						if (dragged === "" || dragged === repo.id) return;
+						event.preventDefault();
+						onReorderRepo(dragged, repo.id);
+					}}
+				>
 					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-sm font-semibold text-sidebar-fg-muted hover:bg-hover">
 						{repo !== null ? (
 							<span className="relative flex size-4 shrink-0 items-center justify-center">
@@ -310,6 +343,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	const mainGroups = groups.filter(
 		(group) => group.key.kind === "status" || group.key.kind === "project",
 	);
+	const projectGroupCount = mainGroups.filter((group) => group.key.kind === "project").length;
 
 	// The user's own open or closed choice per main group. A group the user has not toggled starts
 	// closed unless it holds the open workspace, as in Conductor (renderApp's sidebar groups).
@@ -405,6 +439,24 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	const saveOrder = (key: string) => (ids: readonly WorkspaceId[]) =>
 		actions.settings.set("sidebar_manual_order", writeManualOrder(manualOrder, key, ids));
 
+	/**
+	 * Moves the dragged project to the target's slot, the way Conductor reorders its project groups
+	 * (renderApp @10510000): the dragged id leaves the visible order and is inserted where the
+	 * target sits, so dropping onto the row below swaps the two.
+	 */
+	const reorderProjects = (draggedId: string, targetId: string) => {
+		const ids = repos.map((repo) => repo.id);
+		const from = ids.indexOf(draggedId as RepoId);
+		const to = ids.indexOf(targetId as RepoId);
+		if (from === -1 || to === -1 || from === to) return;
+		const [moved] = ids.splice(from, 1);
+		if (moved === undefined) return;
+		ids.splice(to, 0, moved);
+		void actions.projects.reorder(ids).then((result) => {
+			if (!result.ok) toastError("Couldn't reorder the projects", result.error);
+		});
+	};
+
 	const clearFilter = () => changeView({ ...view, projectFilter: [] });
 
 	return (
@@ -467,6 +519,8 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 								open={!isCollapsed(group)}
 								onOpenChange={(open) => setGroupOpen(key, open)}
 								onReorder={saveOrder(key)}
+								repoReorderable={projectGroupCount > 1}
+								onReorderRepo={reorderProjects}
 							/>
 						);
 					})

@@ -37,6 +37,7 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"updater.check": `${NEEDS_RUST}: reads the release feed (updater.rs tests own it)`,
 	"updater.installed-update": `${NEEDS_RUST}: reads the installed update record (updater.rs tests own it)`,
 	"cloud.request-scripted": `${NEEDS_RUST}: needs a deployed Worker (CLOUD-03's Worker tests own the routes)`,
+	"cloud.pairing": `${NEEDS_RUST}: writes the real Keychain and needs a deployed Worker (CLOUD-07's live run owns it)`,
 	"cloud.relay": `${NEEDS_RUST}: needs a deployed Worker (CLOUD-03's Worker tests own the relay)`,
 };
 

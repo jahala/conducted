@@ -27,6 +27,7 @@ const GROUPS = [
 	"artifacts",
 	"mcp",
 	"attachments",
+	"cloud",
 	"snippets",
 	"settings",
 	"agents",
@@ -81,6 +82,10 @@ describe("DATA-01 createActions", () => {
 			sections: {
 				run: () => actions.sections.remove("sec" as never),
 				path: "sections.remove",
+			},
+			cloud: {
+				run: () => actions.cloud.unpair(),
+				path: "cloudPairing.unpair",
 			},
 			sessions: {
 				run: () => actions.sessions.close("s" as never),

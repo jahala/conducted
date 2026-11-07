@@ -25,6 +25,7 @@ import {
 	SETUP_FAILED_MESSAGE,
 	SETUP_LOG_MISSING_MESSAGE,
 } from "../../../core/services/workspace.ts";
+import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
@@ -147,7 +148,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 	const kind = setupTabKind(view);
 	const text = SETUP_TAB_TEXT[kind];
 	const terminalId: TerminalId | null = view.terminalId;
-	const archived = workspaceRow.state === "archived" || workspaceRow.state === "archiving";
+	const archived = isArchivedWorkspace(workspaceRow) || workspaceRow.state === "archiving";
 	const activeSession =
 		workspaceRow.activeSessionId === null
 			? sessions.data[0]

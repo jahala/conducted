@@ -105,6 +105,20 @@ describe("NAV-08 palette model", () => {
 		expect(labels(groups, "Archived")).toEqual(["old"]);
 	});
 
+	it("lists a workspace being restored among the live workspaces, not Archived", () => {
+		const groups = buildPaletteGroups({
+			tab: "workspaces",
+			query: "",
+			workspaces: [workspace("restoring", "r1", { state: "initializing", archivedAt: 10 })],
+			repos: [],
+			commands: [],
+			currentWorkspaceId: null,
+			branchPrefix: "",
+		});
+		expect(labels(groups, "Workspaces")).toEqual(["restoring"]);
+		expect(labels(groups, "Archived")).toEqual([]);
+	});
+
 	it("shows workspace actions only when a workspace is open", () => {
 		const groups = buildPaletteGroups({
 			tab: "actions",

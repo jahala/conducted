@@ -2,50 +2,33 @@
  * Guard: the sidecar's file, process, socket and environment edges are the ones
  * docs/architecture.md names. `packages/sidecar/src/adapters` holds the ports the composition root
  * wires; the modules that touch the outside world directly are the implementations of those ports
- * or the one edge for an external program, and each is listed there. This guard fails on a new
- * module that reaches the file system, a socket or a process without joining that list.
+ * or the one edge for an external program, and each is listed in the architecture table. This guard
+ * reads that table, so the doc is the only home of the list, and fails on a new module that reaches
+ * the file system, a socket or a process without joining it.
  */
 import { join } from "node:path";
 import { type Problem, read, rel, walk } from "./lib.ts";
 
-/** Modules outside `adapters/` that are themselves an I/O edge, and why. */
-export const ALLOWED_EDGE_MODULES = new Map<string, string>([
-	["packages/sidecar/src/outbox/node-storage.ts", "the node:fs implementation of OutboxStorage"],
-	[
-		"packages/sidecar/src/models/completions-cache.ts",
-		"createNodeCompletionsFiles, the cache's file edge",
-	],
-	["packages/sidecar/src/prompt/pull-request-stub.ts", "the pull-request stub writer port"],
-	["packages/sidecar/src/rpc/server.ts", "the Unix socket listener itself"],
-	["packages/sidecar/src/tools/socket-bridge.ts", "the app-tools bridge's private Unix socket"],
-	[
-		"packages/sidecar/src/tools/mcp-stdio-server.ts",
-		"the helper process that connects to that socket",
-	],
-	[
-		"packages/sidecar/src/process/spawn-child.ts",
-		"the one spawn helper for long-lived agent children",
-	],
-	[
-		"packages/sidecar/src/checkpoints/run-checkpointer.ts",
-		"the checkpointer's detached process group",
-	],
-	["packages/sidecar/src/runners/managed-programs.ts", "reads the program manager's links"],
-	["packages/sidecar/src/runners/claude/transcript.ts", "reads Claude's own transcript files"],
-	["packages/sidecar/src/runners/claude/claude-session.ts", "checks the bundled skill plugin file"],
-	[
-		"packages/sidecar/src/runners/acp/acp-client.ts",
-		"answers an ACP agent's file reads and writes",
-	],
-	["packages/sidecar/src/runners/cursor/cursor-runner.ts", "reads the Cursor SDK launch script"],
-	["packages/sidecar/src/util/read-text.ts", "the read-a-text-file helper"],
-	["packages/sidecar/src/main.ts", "the entry point reads the launcher environment once"],
-	["packages/sidecar/src/packaging.ts", "build-time packaging, not the sidecar process"],
-	[
-		"packages/sidecar/src/cloud-build.ts",
-		"build-time packaging for the cloud image, not the sidecar process",
-	],
-]);
+export const ARCHITECTURE = "docs/architecture.md";
+const EDGES_HEADING = "### Sidecar I/O edges";
+
+/**
+ * The modules the Sidecar I/O edges table allows, or null when the doc has no such table. The
+ * table's first column is the module, in backticks; the rest explains why it is the edge.
+ */
+export function edgeModulesFromDoc(doc: string): Set<string> | null {
+	const start = doc.indexOf(EDGES_HEADING);
+	if (start === -1) return null;
+	const rest = doc.slice(start + EDGES_HEADING.length);
+	const end = rest.search(/\n#{2,3} /);
+	const section = end === -1 ? rest : rest.slice(0, end);
+	const modules = new Set<string>();
+	for (const line of section.split("\n")) {
+		const match = /^\|\s*`([^`]+)`\s*\|/.exec(line);
+		if (match?.[1]) modules.add(match[1]);
+	}
+	return modules.size === 0 ? null : modules;
+}
 
 const EDGE_IMPORT =
 	/from\s+"node:(?:fs|fs\/promises|net|child_process|os|http|https|dns|tls|worker_threads)"/;
@@ -63,17 +46,26 @@ export function codeOnly(text: string): string {
 
 export function checkSidecarEdges(root: string): Problem[] {
 	const problems: Problem[] = [];
+	const allowed = edgeModulesFromDoc(read(join(root, ARCHITECTURE)));
+	if (allowed === null) {
+		return [
+			{
+				guard: "sidecar-edges",
+				message: `${ARCHITECTURE} has no "Sidecar I/O edges" table to read the allowed modules from`,
+			},
+		];
+	}
 	const src = join(root, "packages/sidecar/src");
 	for (const path of walk(root, src, /\.ts$/)) {
 		const file = rel(root, path);
 		if (/\.test\.ts$/.test(file) || file.startsWith("packages/sidecar/src/test-support/")) continue;
 		if (file.startsWith("packages/sidecar/src/adapters/")) continue;
-		if (ALLOWED_EDGE_MODULES.has(file)) continue;
+		if (allowed.has(file)) continue;
 		const code = codeOnly(read(path));
 		if (EDGE_IMPORT.test(code) || EDGE_CALL.test(code)) {
 			problems.push({
 				guard: "sidecar-edges",
-				message: `${file} touches the outside world; move it behind an adapter or name it in docs/architecture.md`,
+				message: `${file} touches the outside world; move it behind an adapter or name it in ${ARCHITECTURE}`,
 			});
 		}
 	}
