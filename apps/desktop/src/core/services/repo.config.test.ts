@@ -136,6 +136,9 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 
 	const settings = {
 		updateSettingsFile: writer.updateSettingsFile.bind(writer),
+		async removeEnvVarsForRepo(): Promise<Result<void>> {
+			return ok(undefined);
+		},
 		async readSettingsFile(path: string): Promise<Result<SettingsFileContents>> {
 			// Read the text now, so a held read answers with the contents it saw when it started.
 			const result = read(path);
