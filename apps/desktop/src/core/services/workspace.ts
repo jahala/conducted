@@ -230,6 +230,15 @@ export const FIRST_CHAT_APP_TOOLS = {
 	setTargetBranch: true,
 } as const;
 
+/** A new chat's model when the setting is empty: the agent's own default. */
+export const NEW_CHAT_MODEL_FALLBACK = "default";
+
+/**
+ * A new chat's effort when the setting is empty ("Model default"). A chat config needs a level, so
+ * it opens at "high" until the protocol can say "the model's own default".
+ */
+export const NEW_CHAT_EFFORT_FALLBACK = "high";
+
 /** The settings a new workspace's first chat takes from the create form or a deep link. */
 export interface NewWorkspaceSessionDefaults {
 	model: string;
@@ -244,8 +253,10 @@ export function newWorkspaceSessionConfig(defaults: NewWorkspaceSessionDefaults)
 	const model = defaults.model.trim();
 	return {
 		agent: "claude",
-		model: model === "" ? "default" : model,
-		effort: (defaults.effort === "" ? "high" : defaults.effort) as SessionConfig["effort"],
+		model: model === "" ? NEW_CHAT_MODEL_FALLBACK : model,
+		effort: (defaults.effort === ""
+			? NEW_CHAT_EFFORT_FALLBACK
+			: defaults.effort) as SessionConfig["effort"],
 		fastMode: defaults.fastMode,
 		planMode: defaults.planMode,
 		requireToolApproval: defaults.requireToolApproval,
@@ -2334,9 +2345,11 @@ export class WorkspaceService {
 	}
 
 	/**
-	 * The first chat's config: the app's one default-config rule, with the user's model and plan
-	 * mode changes on top. Without the injected rule the page's config stands. When the rule
-	 * cannot be read the chat is not started with a guessed config.
+	 * The first chat's config: the app's one default-config rule, with what the create page chose on
+	 * top: the agent (and ACP agent), model, effort, fast mode and plan mode. The defaults keep the
+	 * rest (directories, app tools, the per-agent options, Remote Control). Without the injected rule
+	 * the page's config stands. When the rule cannot be read the chat is not started with a guessed
+	 * config.
 	 */
 	async #firstChatInput(
 		workspaceId: WorkspaceId,
@@ -2346,9 +2359,14 @@ export class WorkspaceService {
 		const defaults = await this.#deps.defaultConfig(workspaceId);
 		if (!defaults.ok) return defaults;
 		const requested = input.config;
+		const { acpAgent: _defaultAcpAgent, ...base } = defaults.value;
 		const config: SessionConfig = {
-			...defaults.value,
+			...base,
+			agent: requested.agent,
+			...(requested.acpAgent === undefined ? {} : { acpAgent: requested.acpAgent }),
 			model: requested.model.trim() === "" ? defaults.value.model : requested.model.trim(),
+			effort: requested.effort,
+			fastMode: requested.fastMode,
 			planMode: requested.planMode,
 		};
 		return ok({ ...input, config });

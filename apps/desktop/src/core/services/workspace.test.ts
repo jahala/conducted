@@ -772,10 +772,36 @@ describe("WS-01 WorkspaceService.create", () => {
 		expect(createFirstChat.mock.calls[0]?.[1]).toMatchObject({
 			config: {
 				model: "chosen-model",
-				effort: "low",
+				effort: "max",
 				planMode: true,
 				appTools: defaults.appTools,
 			},
+		});
+	});
+
+	it("starts the first chat with the agent, effort and fast mode chosen on the create page", async () => {
+		const defaults: SessionConfig = {
+			...sampleConfig,
+			agent: "claude",
+			model: "default",
+			effort: "high",
+			fastMode: false,
+		};
+		const requested: SessionConfig = {
+			...sampleConfig,
+			agent: "codex",
+			model: "gpt-5.5",
+			effort: "low",
+			fastMode: true,
+			planMode: false,
+		};
+		const { service, createFirstChat } = makeHarness({ defaultConfigValue: defaults });
+
+		const result = await service.create({ ...newInput, config: requested });
+
+		expect(result.ok).toBe(true);
+		expect(createFirstChat.mock.calls[0]?.[1]).toMatchObject({
+			config: { agent: "codex", model: "gpt-5.5", effort: "low", fastMode: true },
 		});
 	});
 
