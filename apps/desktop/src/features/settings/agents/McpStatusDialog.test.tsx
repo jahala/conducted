@@ -7,7 +7,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { McpServerView } from "../../../core/model.ts";
-import "../../../test/dom-polyfills.ts";
 import { McpStatusDialog } from "./McpStatusDialog.tsx";
 
 const server = (changes: Partial<McpServerView> = {}): McpServerView => ({

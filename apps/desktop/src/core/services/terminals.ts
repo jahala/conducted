@@ -56,6 +56,7 @@
  * the shell runs. A script that already carries the variable keeps it.
  * Test first: buildScriptEnv sets CONDUCTED_PORT and CONDUCTED_WORKSPACE_PATH from the workspace.
  */
+
 import {
 	type AppError,
 	appError,
@@ -69,6 +70,7 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform, PtyHandle } from "../../platform/platform.ts";
+import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 import type { Loadable } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
@@ -299,8 +301,6 @@ const MISSING_FOR_SOURCE: Readonly<Record<TerminalOutputSource, string>> = {
 const sourceLabel = (source: TerminalOutputSource): string =>
 	SOURCE_LABELS[source === "auto" ? "terminal" : KIND_FOR_SOURCE[source]];
 
-const ANSI_SEQUENCE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g");
-
 /** Plain text of a saved screen snapshot. Invalid JSON and a missing `data` field are errors. */
 export function snapshotText(json: string): Result<string> {
 	let parsed: unknown;
@@ -318,7 +318,7 @@ export function snapshotText(json: string): Result<string> {
 	if (typeof data !== "string") {
 		return err(appError("terminal_output_failed", "The saved terminal screen could not be read."));
 	}
-	return ok(data.replace(ANSI_SEQUENCE, "").replace(/\r/g, ""));
+	return ok(stripTerminalEscapes(data).replace(/\r/g, ""));
 }
 
 const lastLines = (text: string, maxLines: number): string => {

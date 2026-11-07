@@ -17,12 +17,14 @@
 //! - The content security policy replaces `"csp": null`. It allows the app's own origin, the IPC
 //!   channel and, in development only, the dev server and its web socket. It lists no remote
 //!   script source. Images from `https` hosts (avatars, GitHub attachments) and `data:` URLs stay
-//!   allowed for pictures only. The directives the policy must contain are checked against
+//!   allowed for pictures only. Local files reach `<object>` (PDF previews) and `<video>` (video
+//!   previews, chat videos) through the asset protocol only (`asset:` and `http://asset.localhost`). The directives the policy must contain are checked against
 //!   `tauri.conf.json` in this module's test. Loading every screen with the policy on is not
 //!   covered by a test yet.
 //!
 //! Our design choice: the decision is a pure function of the URL and the allowed origins, so it is
-//! tested without a window. `install_guard` is the only part that touches Tauri. It registers a
+//! tested without a window. The `window.open` script is tested in JavaScript
+//! (`src/platform/navigation-shim.plat-22.test.ts` reads it from this file and runs it in jsdom). `install_guard` is the only part that touches Tauri. It registers a
 //! plugin for navigation, because a handler cannot be attached to a window after it was built, and
 //! injects a small script for `window.open`, which WebKit otherwise sends to a new-window request
 //! that nothing handles.
@@ -347,5 +349,31 @@ mod tests {
                 .any(|source| source == DEV_ORIGIN),
             "dev default-src allows the dev server"
         );
+    }
+
+    /// The asset protocol URL `convertFileSrc` gives a local file: `asset://localhost/...` on macOS,
+    /// `http://asset.localhost/...` elsewhere. PDF previews load it in `<object>`, and video previews
+    /// and chat videos in `<video>`, so both directives must allow it, in release and in development.
+    #[test]
+    fn plat_22_csp_lets_pdf_and_video_previews_load_local_files() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json parses");
+        let security = &config["app"]["security"];
+        for key in ["csp", "devCsp"] {
+            let csp = security[key].as_str().expect("the policy is a string");
+            for name in ["object-src", "media-src"] {
+                let sources = directive(csp, name);
+                for asset in ["asset:", "http://asset.localhost"] {
+                    assert!(
+                        sources.split_whitespace().any(|source| source == asset),
+                        "{key} {name} allows {asset}: {sources}"
+                    );
+                }
+                assert!(
+                    !sources.contains("'none'") && !sources.contains('*'),
+                    "{key} {name} names its sources and nothing wider: {sources}"
+                );
+            }
+        }
     }
 }

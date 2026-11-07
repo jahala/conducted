@@ -41,7 +41,7 @@
  * the new branch name unless the user set a name.
  * Built now (WS-10): delete a workspace by id and every workspace of a repository. It cancels the
  * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log,
- * viewed-files file and git cache files (DATA-07) to the Trash, deletes its chats with their
+ * viewed-files file, Cursor run store and git cache files (DATA-07) to the Trash, deletes its chats with their
  * attachment files, then deletes the row and forgets it in the store. A repository removal stops
  * every workspace's processes first.
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
@@ -105,7 +105,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
-import { setupLogFile, viewedFilesFile } from "../app-paths.ts";
+import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -113,6 +113,8 @@ import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-hel
 import {
 	branchDeleteForce,
 	branchShowCurrent,
+	diffQuietHead,
+	diffToolKsdiff,
 	fetch,
 	lsFiles,
 	lsFilesIgnoredNul,
@@ -218,12 +220,24 @@ export function createPlaceNames(random: () => number = Math.random): PlaceNames
 	};
 }
 
+/** The Open in app that shows a workspace's changes as a diff instead of its folder. */
+const KALEIDOSCOPE_APP = "Kaleidoscope";
+
 /** The app tools a new chat exposes (ui-map 3.9). One home for the create form and the defaults. */
 export const FIRST_CHAT_APP_TOOLS = {
 	diffComments: true,
 	progressUpdates: true,
 	setTargetBranch: true,
 } as const;
+
+/** A new chat's model when the setting is empty: the agent's own default. */
+export const NEW_CHAT_MODEL_FALLBACK = "default";
+
+/**
+ * A new chat's effort when the setting is empty ("Model default"). A chat config needs a level, so
+ * it opens at "high" until the protocol can say "the model's own default".
+ */
+export const NEW_CHAT_EFFORT_FALLBACK = "high";
 
 /** The settings a new workspace's first chat takes from the create form or a deep link. */
 export interface NewWorkspaceSessionDefaults {
@@ -239,8 +253,10 @@ export function newWorkspaceSessionConfig(defaults: NewWorkspaceSessionDefaults)
 	const model = defaults.model.trim();
 	return {
 		agent: "claude",
-		model: model === "" ? "default" : model,
-		effort: (defaults.effort === "" ? "high" : defaults.effort) as SessionConfig["effort"],
+		model: model === "" ? NEW_CHAT_MODEL_FALLBACK : model,
+		effort: (defaults.effort === ""
+			? NEW_CHAT_EFFORT_FALLBACK
+			: defaults.effort) as SessionConfig["effort"],
 		fastMode: defaults.fastMode,
 		planMode: defaults.planMode,
 		requireToolApproval: defaults.requireToolApproval,
@@ -1801,6 +1817,12 @@ export class WorkspaceService {
 			viewedFilesFile(this.#deps.platform.fs.paths, id),
 		);
 		if (!viewed.ok) return viewed;
+		// Cursor's SDK keeps one run store per workspace path; nothing else ever removes it (D084).
+		const cursorStore = await trashIfPresent(
+			this.#deps.platform.fs,
+			await cursorStoreFolder(this.#deps.platform.fs.paths, workspace.path),
+		);
+		if (!cursorStore.ok) return cursorStore;
 		const cached = await this.#deps.gitCache?.remove(id);
 		if (cached !== undefined && !cached.ok) return cached;
 
@@ -1994,11 +2016,25 @@ export class WorkspaceService {
 		return this.#deps.sessions.markAllRead(id);
 	}
 
-	/** Backs `Actions.workspaces.openIn`: opens the workspace folder in another app. */
+	/**
+	 * Backs `Actions.workspaces.openIn`: opens the workspace folder in another app. Kaleidoscope is a
+	 * diff tool, so as in Conductor (renderApp @2492504, services-map.md 3.11) a workspace with
+	 * changes against HEAD opens those changes through `git difftool` with ksdiff; a workspace
+	 * with none opens its folder in the app.
+	 */
 	async openIn(id: WorkspaceId, appName: string): Promise<Result<void>> {
 		const workspace = this.store.getState().workspacesById[id];
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (appName === KALEIDOSCOPE_APP) {
+			const cwd = workspace.path;
+			const changed = await this.#deps.git.runChecked(diffQuietHead(), { cwd });
+			if (!changed.ok) return changed;
+			if (changed.value.exitCode === 1) {
+				const opened = await this.#deps.git.runChecked(diffToolKsdiff(), { cwd });
+				return opened.ok ? ok(undefined) : opened;
+			}
+		}
 		return this.#deps.platform.opener.openWith(appName, workspace.path);
 	}
 
@@ -2309,9 +2345,11 @@ export class WorkspaceService {
 	}
 
 	/**
-	 * The first chat's config: the app's one default-config rule, with the user's model and plan
-	 * mode changes on top. Without the injected rule the page's config stands. When the rule
-	 * cannot be read the chat is not started with a guessed config.
+	 * The first chat's config: the app's one default-config rule, with what the create page chose on
+	 * top: the agent (and ACP agent), model, effort, fast mode and plan mode. The defaults keep the
+	 * rest (directories, app tools, the per-agent options, Remote Control). Without the injected rule
+	 * the page's config stands. When the rule cannot be read the chat is not started with a guessed
+	 * config.
 	 */
 	async #firstChatInput(
 		workspaceId: WorkspaceId,
@@ -2321,9 +2359,14 @@ export class WorkspaceService {
 		const defaults = await this.#deps.defaultConfig(workspaceId);
 		if (!defaults.ok) return defaults;
 		const requested = input.config;
+		const { acpAgent: _defaultAcpAgent, ...base } = defaults.value;
 		const config: SessionConfig = {
-			...defaults.value,
+			...base,
+			agent: requested.agent,
+			...(requested.acpAgent === undefined ? {} : { acpAgent: requested.acpAgent }),
 			model: requested.model.trim() === "" ? defaults.value.model : requested.model.trim(),
+			effort: requested.effort,
+			fastMode: requested.fastMode,
 			planMode: requested.planMode,
 		};
 		return ok({ ...input, config });

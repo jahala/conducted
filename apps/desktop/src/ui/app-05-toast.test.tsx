@@ -1,7 +1,6 @@
 import { appError, err, type WorkspaceId } from "@conducted/shared";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../test/dom-polyfills.ts";
 import { AppProviders, createQueryClient } from "../app/providers.tsx";
 import { Button } from "./Button.tsx";
 import {

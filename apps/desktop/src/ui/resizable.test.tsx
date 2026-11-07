@@ -2,7 +2,6 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import type { GroupImperativeHandle } from "react-resizable-panels";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../test/dom-polyfills.ts";
 import { PanelLayoutProvider, ResizableGroup, ResizablePanel, ResizeHandle } from "./resizable.tsx";
 
 afterEach(cleanup);

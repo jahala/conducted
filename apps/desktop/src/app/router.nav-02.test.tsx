@@ -1,8 +1,8 @@
 /**
  * @feature NAV-02 Routes and per-workspace URL state
  * Owns: the route tree, the workspace route's repair and chat-tab restore, and the repository settings route.
- * Behaviour: ui-map.md 2 (routes and search params), services-map.md 6 (a deleted or archived workspace or chat
- * sends the route Home).
+ * Behaviour: ui-map.md 2 (routes and search params), services-map.md 6 (a deleted workspace or chat, or one
+ * being archived, sends the route Home; an archived one stays open, as in Conductor, renderApp @10132431).
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
 import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
@@ -11,7 +11,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
-import "../test/dom-polyfills.ts";
 import { CommandRegistryProvider, createCommandRegistry } from "./command-dispatcher.ts";
 import { SAVED_LOCATION_KEY } from "./navigation-history.ts";
 import { useOverlayStore } from "./overlay-store.ts";
@@ -174,10 +173,21 @@ describe("NAV-02 last location", () => {
 });
 
 describe("NAV-02 route repair", () => {
-	it("sends an archived workspace to Home", async () => {
-		const { router } = await openApp("/repository/r1/workspace/w1?tab=pr", {
+	it("keeps an archived workspace open, as Conductor does", async () => {
+		const { router } = await openApp("/repository/r1/workspace/w1?tab=file&path=a.ts", {
 			repos: [repo("r1")],
 			workspaces: [workspace({ id: "w1", state: "archived", archivedAt: 10 })],
+		});
+
+		const main = await screen.findByRole("main");
+		expect(await within(main).findByText("Workspace archived")).toBeTruthy();
+		expect(router.state.location.pathname).toBe("/repository/r1/workspace/w1");
+	});
+
+	it("sends a workspace that is being archived to Home", async () => {
+		const { router } = await openApp("/repository/r1/workspace/w1?tab=pr", {
+			repos: [repo("r1")],
+			workspaces: [workspace({ id: "w1", state: "archiving" })],
 		});
 
 		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));

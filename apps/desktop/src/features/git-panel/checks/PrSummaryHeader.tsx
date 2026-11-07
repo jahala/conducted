@@ -1,11 +1,12 @@
 /**
  * @feature PR-04 PR summary header
- * Owns: the top block of the Checks tab. PR number and title, state badge, base branch, the
- * "Open on GitHub" button and a menu with Copy link and Copy number.
+ * Owns: the block under the Checks tab's inline title editor: PR number, state badge, base branch,
+ * the "Open on GitHub" button and a menu with Copy link and Copy number. The title is not repeated
+ * here: the inline editor above shows it, as Conductor's Checks tab does (PR-07's PrInlineEditor).
  * Behaviour: ui-map.md 3.6, "Checks" paragraph ("PR header, Git status"); services-map.md 3.7.1
  * ("Open on GitHub"); ui-map.md 5.3 (the header menu).
- * Must handle: no PR (shows the branch and a Create PR button instead), a long title (two lines,
- * truncated), draft, merged and closed badges, and copying.
+ * Must handle: no PR (shows the branch and a Create PR button instead), draft, merged and closed
+ * badges, and copying.
  * Test first: a draft PR renders the "Draft" badge and the number "#12".
  */
 import type { PullRequest } from "../../../core/model.ts";
@@ -60,15 +61,9 @@ export function PrSummaryHeader({
 	return (
 		<section aria-label="Pull request" className="border-b border-separator px-2 py-2">
 			<div className="flex items-start gap-2">
-				<span className="shrink-0 pt-0.5 font-mono text-xs text-fg-muted">
+				<span className="min-w-0 flex-1 pt-0.5 font-mono text-xs text-fg-muted">
 					#{pullRequest.number}
 				</span>
-				<h2
-					className="line-clamp-2 min-w-0 flex-1 text-sm font-medium text-fg"
-					title={pullRequest.title}
-				>
-					{pullRequest.title}
-				</h2>
 				<Badge tone={STATE_TONE[pullRequest.state]}>{STATE_LABEL[pullRequest.state]}</Badge>
 				<Button variant="outline" size="xs" onClick={onOpenOnGithub}>
 					Open on GitHub

@@ -10,7 +10,6 @@ import { idleLiveState } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { UPDATE_FOCUS_RECHECK_MS } from "../../core/services/updates.ts";

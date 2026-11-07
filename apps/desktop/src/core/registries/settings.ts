@@ -70,6 +70,8 @@ export type SettingDef = {
 	description: string;
 	/** A small hint under the description, such as the key that adds a new line. */
 	detail?: string;
+	/** A detail that warns, drawn in the warning colour (Graphite's performance note). */
+	detailTone?: "warning";
 	/** Extra words that find this setting in search. */
 	searchTerms: readonly string[];
 	/** Backlog id of the feature that owns the behaviour. */
@@ -848,6 +850,9 @@ const SETTINGS_TABLE = [
 		title: "Graphite stack support",
 		description:
 			"Detect Graphite stacks for the active local workspace and show stack-aware UI in the git panel. Cloud workspaces are unaffected. When off, Conducted never runs the gt CLI.",
+		// Conductor shows this line under the description, in its warning colour (renderApp @11110873).
+		detail: "Warning: appears to sometimes cause performance issues",
+		detailTone: "warning",
 		searchTerms: ["graphite", "stack", "detect", "gt"],
 		feature: "PR-08",
 		type: "bool",

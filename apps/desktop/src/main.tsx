@@ -33,7 +33,7 @@ import { AppProviders, createQueryClient, createRootErrorHandlers } from "./app/
 import { AppRoutes, createAppRouter } from "./app/router.tsx";
 import { type StartupBlocker, StartupFailure } from "./app/StartupFailure.tsx";
 import { StartupScreen } from "./app/StartupScreen.tsx";
-import { runStartup, type StartupState } from "./app/startup.ts";
+import { installGlobalHandlers, runStartup, type StartupState } from "./app/startup.ts";
 import { type Container, type ContainerInputs, createContainer } from "./core/container.ts";
 import { ServicesProvider } from "./core/context.tsx";
 import { useSystemInfo } from "./core/hooks.ts";
@@ -259,7 +259,7 @@ export interface StartedApp {
 	router: ReturnType<typeof createAppRouter>;
 	/** Resolves when the ordered start ends, with the same result `runStartup` returns. */
 	started: Promise<Result<void>>;
-	/** Removes the mounted root. */
+	/** Removes the mounted root and the process-wide handlers the entry installed. */
 	unmount: () => void;
 }
 
@@ -319,10 +319,15 @@ export function startApp(options: StartAppOptions): StartedApp {
 		</StrictMode>,
 	);
 
-	const started = runStartup(container, report, {
-		installHandlers: options.installHandlers ?? true,
-	});
-	return { container, queryClient, router, started, unmount: () => root.unmount() };
+	// The entry installs the process-wide handlers itself, so unmounting the app removes them.
+	const removeHandlers =
+		(options.installHandlers ?? true) ? installGlobalHandlers(platform) : () => {};
+	const started = runStartup(container, report, { installHandlers: false });
+	const unmount = (): void => {
+		root.unmount();
+		removeHandlers();
+	};
+	return { container, queryClient, router, started, unmount };
 }
 
 const rootElement = typeof document === "undefined" ? null : document.getElementById("root");

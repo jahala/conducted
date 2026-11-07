@@ -14,6 +14,8 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 const { AssistantText } = await import("./AssistantText.tsx");
+const { ServicesProvider } = await import("../../core/context.tsx");
+const { createTestContainer } = await import("../../test/container.ts");
 
 beforeEach(() => {
 	state.openUrl.mockReset().mockResolvedValue(ok(undefined));
@@ -73,8 +75,20 @@ describe("CHAT-06 assistant text", () => {
 	});
 
 	it("renders an image from assistant text", () => {
-		render(<AssistantText text={"![A chart](/tmp/chart.png)"} />);
-		expect(screen.getByRole("img", { name: "A chart" }).getAttribute("src")).toBe("/tmp/chart.png");
+		const opened = createTestContainer();
+		try {
+			render(
+				<ServicesProvider container={opened.container}>
+					<AssistantText text={"![A chart](/tmp/chart.png)"} />
+				</ServicesProvider>,
+			);
+			expect(screen.getByRole("img", { name: "A chart" }).getAttribute("src")).toBe(
+				opened.container.platform.fs.assetUrl("/tmp/chart.png"),
+			);
+		} finally {
+			cleanup();
+			opened.close();
+		}
 	});
 
 	it("gives a non-web link no link element, so nothing can navigate the app window", () => {

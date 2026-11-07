@@ -32,7 +32,6 @@ import {
 	type ShortcutOverrides,
 } from "../../core/registries/commands.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { ShortcutsDialog } from "./ShortcutsDialog.tsx";
 
 let test: TestContainer | undefined;

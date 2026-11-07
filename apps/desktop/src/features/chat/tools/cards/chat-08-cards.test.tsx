@@ -11,7 +11,6 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../../../test/dom-polyfills.ts";
 import { ServicesProvider } from "../../../../core/context.tsx";
 import type { ToolCallView } from "../../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../../test/container.ts";

@@ -9,7 +9,6 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { RepoMiscPage } from "./RepoMiscPage.tsx";
 
 let test: TestContainer | undefined;

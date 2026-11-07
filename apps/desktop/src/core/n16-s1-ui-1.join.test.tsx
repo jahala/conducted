@@ -30,7 +30,6 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../test/container.ts";
-import "../test/dom-polyfills.ts";
 // biome-ignore lint/style/noRestrictedImports: the join test clears the toasts the app root shows
 import { toast } from "../ui/Toast.tsx";
 import { ServicesProvider } from "./context.tsx";

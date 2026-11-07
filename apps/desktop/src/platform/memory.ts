@@ -67,6 +67,7 @@ import type {
 	Unsubscribe,
 	Updater,
 } from "./platform.ts";
+import { stripTerminalEscapes } from "./terminal-escapes.ts";
 
 /** A scripted answer for a shell command. Return null when the script does not know the command. */
 export type ShellScript = (command: ShellCommand) => Result<ShellOutput> | null;
@@ -261,10 +262,6 @@ const ancestors = (path: string): string[] => {
 const byteLength = (text: string): number => new TextEncoder().encode(text).length;
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g");
-
-const stripAnsi = (text: string): string => text.replace(ANSI_PATTERN, "");
 
 interface IgnoreRule {
 	pattern: RegExp;
@@ -785,7 +782,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				return listen(state.exitListeners, (exit) => listener(exit.code, exit.historyError));
 			},
 			screenText: async (maxLines) => {
-				const lines = stripAnsi(state.output).split("\n");
+				const lines = stripTerminalEscapes(state.output).split("\n");
 				return lines.slice(Math.max(0, lines.length - maxLines)).join("\n");
 			},
 			screenSnapshot: async (): Promise<Result<ScreenSnapshot>> =>

@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { ExperimentalPage } from "./ExperimentalPage.tsx";
 
 let test: TestContainer | undefined;

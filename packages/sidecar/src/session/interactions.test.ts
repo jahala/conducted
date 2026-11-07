@@ -11,6 +11,7 @@ import { appError } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
+import { until } from "../test-support/until.ts";
 import { answerMatches, SessionInteractionBroker } from "./interactions.ts";
 import { LiveStateStore } from "./live-state.ts";
 
@@ -84,14 +85,6 @@ function harness(flushed: (sessionId: SessionId) => Promise<void> = async () => 
 		}),
 	});
 	return { app, liveState, broker };
-}
-
-async function until(check: () => boolean, description: string): Promise<void> {
-	const deadline = Date.now() + 2000;
-	while (!check()) {
-		if (Date.now() > deadline) throw new Error(`Timed out waiting for ${description}`);
-		await new Promise<void>((resolve) => setTimeout(resolve, 0));
-	}
 }
 
 function requestAt(app: FakeApp, index: number): InteractionRequest | undefined {

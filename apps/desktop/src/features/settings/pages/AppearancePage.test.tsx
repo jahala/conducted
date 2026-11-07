@@ -5,7 +5,6 @@ import { CommandDispatcher } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { AppearanceController } from "../appearance/AppearanceController.tsx";
 import { AppearancePage } from "./AppearancePage.tsx";
 

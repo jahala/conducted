@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { renderWithRouter } from "../../../test/render-with-router.tsx";
 import { SettingsScreen } from "../SettingsScreen.tsx";
 import { RemoteControlPage } from "./RemoteControlPage.tsx";

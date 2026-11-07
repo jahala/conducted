@@ -15,7 +15,6 @@ import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import type { FileDiff } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { FileTab } from "./FileTab.tsx";
 
 afterEach(cleanup);

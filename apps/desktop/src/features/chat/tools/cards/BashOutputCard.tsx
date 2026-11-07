@@ -6,20 +6,14 @@
  * text from the agent); no new output since the last read.
  * Test first: A bash_output call shows the new output lines.
  */
-import {
-	asRecord,
-	stripAnsi,
-	ToolCardFrame,
-	ToolOutput,
-	textField,
-	toolStatus,
-} from "../ToolCardFrame.tsx";
+import { stripTerminalEscapes } from "../../../../platform/terminal-escapes.ts";
+import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function BashOutputCard({ call, defaultExpanded }: ToolCardProps) {
 	const input = asRecord(call.item.input);
 	const shellId = textField(input, "bash_id", "shell_id", "id");
-	const output = stripAnsi(call.result?.output ?? "");
+	const output = stripTerminalEscapes(call.result?.output ?? "");
 	return (
 		<ToolCardFrame
 			title="Bash output"

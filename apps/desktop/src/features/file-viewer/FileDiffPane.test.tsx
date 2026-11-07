@@ -12,7 +12,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiffScope, FileDiff } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { FileDiffPane } from "./FileDiffPane.tsx";
 
 afterEach(cleanup);

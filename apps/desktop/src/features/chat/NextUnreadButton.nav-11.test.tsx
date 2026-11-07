@@ -14,7 +14,6 @@ import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Workspace } from "../../core/model.ts";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 
 const navigate = vi.hoisted(() => vi.fn());
 const currentSession = vi.hoisted(() => ({ id: null as string | null }));

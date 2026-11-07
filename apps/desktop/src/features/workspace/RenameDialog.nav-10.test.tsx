@@ -7,7 +7,6 @@
 import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { RenameDialog } from "./RenameDialog.tsx";
 
 afterEach(cleanup);

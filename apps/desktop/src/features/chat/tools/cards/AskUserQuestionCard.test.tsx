@@ -4,7 +4,6 @@
 import type { SessionId, ToolUseId } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../../../../test/dom-polyfills.ts";
 import type { ToolCallView } from "../../../../core/model.ts";
 import { AskUserQuestionCard } from "./AskUserQuestionCard.tsx";
 

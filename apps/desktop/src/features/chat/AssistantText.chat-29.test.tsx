@@ -35,6 +35,14 @@ async function renderReply(text: string): Promise<TestContainer> {
 }
 
 describe("CHAT-29 assistant image", () => {
+	it("loads a reply image through the app's file server, never from its raw path", async () => {
+		const opened = await renderReply("![A chart](/tmp/chart.png)");
+
+		const image = await screen.findByRole("img", { name: "A chart" });
+
+		expect(image.getAttribute("src")).toBe(opened.container.platform.fs.assetUrl("/tmp/chart.png"));
+	});
+
 	it("saves a reply image from its menu and says Image saved", async () => {
 		const opened = await renderReply("![A chart](/tmp/chart.png)");
 		vi.spyOn(opened.container.platform.dialogs, "pickSavePath").mockResolvedValue(
@@ -74,7 +82,11 @@ describe("CHAT-29 assistant image", () => {
 			</ServicesProvider>,
 		);
 
-		fireEvent.contextMenu(await screen.findByRole("img", { name: "Shot" }));
+		const shot = await screen.findByRole("img", { name: "Shot" });
+		expect(shot.getAttribute("src")).toBe(
+			opened.container.platform.fs.assetUrl("/code/workspaces/reply/shots/shot.png"),
+		);
+		fireEvent.contextMenu(shot);
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy image" }));
 		expect(await screen.findByText("Copied image to clipboard")).toBeTruthy();
 		expect(run.mock.calls[0]?.[0].args.at(-1)).toBe("/code/workspaces/reply/shots/shot.png");

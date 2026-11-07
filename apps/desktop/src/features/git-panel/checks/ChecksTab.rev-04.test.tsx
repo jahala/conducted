@@ -14,7 +14,6 @@ import { ServicesProvider } from "../../../core/context.tsx";
 import type { PullRequest } from "../../../core/model.ts";
 import type { GithubReviewThread } from "../../../core/services/github.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { ChecksTab } from "./ChecksTab.tsx";
 

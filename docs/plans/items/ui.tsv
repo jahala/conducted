@@ -13,7 +13,7 @@ NAV-12	setting	Left and right panel open state kept as two settings	ui-map 1.1	c
 NAV-12	shortcut	Cmd+B toggles the left sidebar, Cmd+Alt+B toggles the right sidebar	ui-map 1.1, 5.4	covered
 NAV-12	action	Zen mode closes both panels and restores them	ui-map 1.1	covered
 APP-05	region	One toast area mounted once at the root	ui-map 1.1	covered
-NAV-14	rule	Root listeners for menu events and deep links feed the command dispatcher	ui-map 1.1	partly
+NAV-14	rule	Root listeners for menu events and deep links feed the command dispatcher	ui-map 1.1	covered
 NAV-15	rule	Terminals and browser previews stay alive when the user switches tabs	ui-map 1.1, 8	partly
 NAV-01	rule	Cmd+A selects only inside text fields, never the whole UI	ui-map 5.4	missing
 NAV-03	control	Sidebar nav 'Dashboard' row, shown only with the Dashboard setting	ui-map 1.2, 4.3	partly

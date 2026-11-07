@@ -2,7 +2,6 @@ import type { CanonicalTool } from "@conducted/protocol";
 import { notImplemented } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import type { ToolCallView } from "../../../core/model.ts";
 import { TOOL_CARDS } from "./registry.ts";
 

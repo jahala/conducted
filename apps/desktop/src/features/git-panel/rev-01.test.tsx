@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ShortcutOverrides } from "../../core/registries/commands.ts";
 import type { GitHeader as GitHeaderModel } from "../../core/status/git-header.ts";
-import "../../test/dom-polyfills.ts";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs } from "./GitPanelTabs.tsx";
 import { ReviewButton } from "./ReviewButton.tsx";

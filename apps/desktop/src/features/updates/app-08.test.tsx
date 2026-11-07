@@ -17,11 +17,10 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { useSystemInfo } from "../../core/hooks.ts";
 import { createTestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
-import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { MacosVersionWarning } from "./MacosVersionWarning.tsx";
 import { isWrongCpuBuild, RosettaConfirm } from "./RosettaConfirm.tsx";

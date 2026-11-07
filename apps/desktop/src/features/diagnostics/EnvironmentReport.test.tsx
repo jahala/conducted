@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiagnosticsCapture } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
 import { EnvironmentReport } from "./EnvironmentReport.tsx";
 
 afterEach(cleanup);

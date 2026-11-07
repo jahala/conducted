@@ -6,21 +6,15 @@
  * the command and the agent's reason for watching it.
  * Test first: A monitor call renders 'Start monitor' and the watched command.
  */
-import {
-	asRecord,
-	stripAnsi,
-	ToolCardFrame,
-	ToolOutput,
-	textField,
-	toolStatus,
-} from "../ToolCardFrame.tsx";
+import { stripTerminalEscapes } from "../../../../platform/terminal-escapes.ts";
+import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function MonitorCard({ call, defaultExpanded }: ToolCardProps) {
 	const input = asRecord(call.item.input);
 	const command = textField(input, "command", "cmd") ?? "";
 	const description = textField(input, "description", "reason");
-	const output = stripAnsi(call.result?.output ?? "");
+	const output = stripTerminalEscapes(call.result?.output ?? "");
 	return (
 		<ToolCardFrame
 			title="Start monitor"

@@ -2,7 +2,6 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
 	rename: vi.fn(),

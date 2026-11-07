@@ -2,7 +2,6 @@ import type { SessionId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
 

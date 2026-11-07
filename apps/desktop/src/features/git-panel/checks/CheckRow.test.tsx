@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { CheckRun, PullRequest } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { CheckRow } from "./CheckRow.tsx";
 
 const workspaceId = "w1" as WorkspaceId;

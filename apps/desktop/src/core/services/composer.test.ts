@@ -138,7 +138,8 @@ const timers = (): Timers => {
 	};
 };
 
-const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+/** Waits for every draft write the service started, the event a fixed wait used to guess at. */
+const settle = (service: ComposerService): Promise<void> => service.flush();
 
 const harness = () => {
 	const fake = fakeFs();
@@ -168,7 +169,7 @@ describe("COMP-01 drafts", () => {
 		service.saveDraft(sessionId, { text: "hello", attachmentPaths: ["/a.txt"] });
 		expect(files.size).toBe(0);
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(JSON.parse(files.get(file()) ?? "")).toEqual({
 			text: "hello",
 			attachmentPaths: ["/a.txt"],
@@ -185,7 +186,7 @@ describe("COMP-01 drafts", () => {
 		});
 		first.saveDraft(sessionId, { text: "unsent", attachmentPaths: [] });
 		firstClock.flush();
-		await settle();
+		await settle(first);
 		const secondClock = timers();
 		const restarted = new ComposerService({
 			platform: { fs: fake.fs } as Pick<Platform, "fs" | "dialogs" | "clipboard">,
@@ -216,10 +217,12 @@ describe("COMP-01 drafts", () => {
 		const { service, clock, files } = harness();
 		service.saveDraft(sessionId, { text: "draft", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(files.has(file())).toBe(true);
 		service.saveDraft(sessionId, { text: "", attachmentPaths: [] });
-		await settle();
+		// The removal starts at once: no debounce is left for the flush below to force.
+		expect(clock.callbacks.size).toBe(0);
+		await settle(service);
 		expect(files.has(file())).toBe(false);
 	});
 
@@ -227,7 +230,7 @@ describe("COMP-01 drafts", () => {
 		const { service, clock, files } = harness();
 		service.saveDraft(sessionId, { text: "sent", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect((await service.clearDraft(sessionId)).ok).toBe(true);
 		expect(files.has(file())).toBe(false);
 		expect(service.store.getState().drafts[sessionId]).toBeUndefined();
@@ -240,7 +243,7 @@ describe("COMP-01 drafts", () => {
 			attachmentPaths: [],
 		});
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(files.has(file())).toBe(false);
 		expect(service.draftOf(sessionId).text).toHaveLength(DRAFT_STORE_LIMIT_BYTES);
 		expect(service.store.getState().errors[sessionId]?.code).toBe("draft_too_large");
@@ -251,13 +254,13 @@ describe("COMP-01 drafts", () => {
 		fail.write = true;
 		service.saveDraft(sessionId, { text: "hello", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(service.store.getState().errors[sessionId]?.code).toBe("fs_denied");
 
 		fail.write = false;
 		service.saveDraft(sessionId, { text: "hello again", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(service.store.getState().errors[sessionId]).toBeUndefined();
 	});
 
@@ -266,7 +269,7 @@ describe("COMP-01 drafts", () => {
 		fail.trash = true;
 		service.saveDraft(sessionId, { text: "sent", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		const result = await service.clearDraft(sessionId);
 		expect(result.ok).toBe(false);
 		expect(service.store.getState().errors[sessionId]?.code).toBe("fs_denied");
@@ -279,12 +282,12 @@ describe("COMP-01 drafts", () => {
 		const half = Math.floor(DRAFT_STORE_LIMIT_BYTES / 2);
 		service.saveDraft(oldSession, { text: "o".repeat(half), attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		const oldFile = draftFile(paths, oldSession);
 		expect(files.has(oldFile)).toBe(true);
 		service.saveDraft(sessionId, { text: "n".repeat(half), attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(trashed.has(oldFile)).toBe(true);
 	});
 
@@ -299,7 +302,7 @@ describe("COMP-01 drafts", () => {
 		const { service, clock } = harness();
 		service.saveDraft(sessionId, { text: "sent", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 
 		const clearing = service.clearDraft(sessionId);
 		const loaded = await service.loadDraft(sessionId);
@@ -313,7 +316,7 @@ describe("COMP-01 drafts", () => {
 		fail.readDir = true;
 		service.saveDraft(sessionId, { text: "hello", attachmentPaths: [] });
 		clock.flush();
-		await settle();
+		await settle(service);
 		expect(files.has(file())).toBe(false);
 		expect(service.store.getState().errors[sessionId]?.code).toBe("fs_denied");
 	});

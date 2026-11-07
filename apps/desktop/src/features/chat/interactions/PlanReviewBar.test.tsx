@@ -13,7 +13,6 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import { CommandDispatcher } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { Session } from "../../../core/model.ts";

@@ -58,6 +58,85 @@ describe("GIT-15 through the real container", () => {
 		}
 	});
 
+	it("Open in Kaleidoscope shows the working tree's changes in Kaleidoscope, as Conductor does", async () => {
+		const harness = createTestContainer();
+		try {
+			const repo = await seedRepo(harness.container, { rootPath: "/code/projects/git-15-open" });
+			const workspace = await seedWorkspace(harness.container, {
+				repoId: repo.id,
+				path: "/code/workspaces/git-15-open",
+			});
+			const commands: { args: string[]; cwd: string | undefined }[] = [];
+			harness.memory.controls.scriptShell((command) => {
+				const args = argv(command);
+				commands.push({ args: [...args], cwd: command.cwd });
+				if (args[0] === "diff" && args[1] === "--quiet") return output("", "", 1);
+				if (args[0] === "-c" && args[1]?.startsWith("difftool.ksdiff.cmd=")) return output();
+				return null;
+			});
+			const opened: string[] = [];
+			harness.memory.platform.opener.openWith = async (app, path) => {
+				opened.push(`${app} ${path}`);
+				return ok(undefined);
+			};
+
+			const result = await harness.container.actions.workspaces.openIn(
+				workspace.id,
+				"Kaleidoscope",
+			);
+
+			expect(result).toEqual(ok(undefined));
+			const tool = commands.find(({ args }) => args.includes("difftool"));
+			expect(tool).toEqual({
+				args: [
+					"-c",
+					'difftool.ksdiff.cmd=ksdiff --partial-changeset --relative-path "$MERGED" -- "$LOCAL" "$REMOTE"',
+					"difftool",
+					"--tool=ksdiff",
+					"--no-prompt",
+					"HEAD",
+				],
+				cwd: "/code/workspaces/git-15-open",
+			});
+			expect(opened).toEqual([]);
+		} finally {
+			await harness.container.stop();
+			harness.close();
+		}
+	});
+
+	it("Open in Kaleidoscope opens the folder in the app when nothing changed", async () => {
+		const harness = createTestContainer();
+		try {
+			const repo = await seedRepo(harness.container, { rootPath: "/code/projects/git-15-clean" });
+			const workspace = await seedWorkspace(harness.container, {
+				repoId: repo.id,
+				path: "/code/workspaces/git-15-clean",
+			});
+			harness.memory.controls.scriptShell((command) => {
+				const args = argv(command);
+				if (args[0] === "diff" && args[1] === "--quiet") return output();
+				return null;
+			});
+			const opened: string[] = [];
+			harness.memory.platform.opener.openWith = async (app, path) => {
+				opened.push(`${app} ${path}`);
+				return ok(undefined);
+			};
+
+			const result = await harness.container.actions.workspaces.openIn(
+				workspace.id,
+				"Kaleidoscope",
+			);
+
+			expect(result).toEqual(ok(undefined));
+			expect(opened).toEqual(["Kaleidoscope /code/workspaces/git-15-clean"]);
+		} finally {
+			await harness.container.stop();
+			harness.close();
+		}
+	});
+
 	it("edits and reads back a workspace's sparse checkout through the real actions", async () => {
 		const harness = createTestContainer();
 		try {

@@ -109,3 +109,19 @@ export const viewedFilesFile = (paths: AppPaths, workspaceId: string): string =>
 /** A path under the app data folder, for a feature that names its own folders in its own file. */
 export const appDataPath = (paths: AppPaths, ...parts: string[]): string =>
 	join(paths.appData, ...parts);
+
+/** The root of Cursor's SDK run stores. The Rust launcher creates it (sidecar.rs CURSOR_STORE_FOLDER). */
+export const CURSOR_STORE_FOLDER = "cursor-sdk-store";
+
+/**
+ * The folder of one workspace's Cursor run store: the first 16 hex digits of the SHA-256 of the
+ * workspace path, under CURSOR_STORE_FOLDER. The sidecar names the folder by the same rule
+ * (cursor-runner.ts `cursorStoreFolder`); both tests check the same path, so a change to one fails.
+ */
+export async function cursorStoreFolder(paths: AppPaths, workspacePath: string): Promise<string> {
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(workspacePath));
+	const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(
+		"",
+	);
+	return join(paths.appData, CURSOR_STORE_FOLDER, hex.slice(0, 16));
+}

@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
 import type { Repo } from "../../core/model.ts";
-import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
 	addLocal: vi.fn(),

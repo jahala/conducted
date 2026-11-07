@@ -7,7 +7,6 @@ import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { createAppRouter } from "../../app/router.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 
 const ENVIRONMENT = [
 	"LANG=en_AU.UTF-8",

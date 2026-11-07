@@ -6,7 +6,6 @@
 import type { SessionId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { TabItem } from "./TabItem.tsx";
 import type { TabDescriptor } from "./tab-layout.ts";
 

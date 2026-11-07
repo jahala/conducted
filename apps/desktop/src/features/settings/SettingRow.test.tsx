@@ -1,6 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { Input } from "../../ui/Input.tsx";
 import { SettingRow } from "./SettingRow.tsx";
 

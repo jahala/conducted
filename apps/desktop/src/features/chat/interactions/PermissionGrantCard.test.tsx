@@ -12,7 +12,6 @@ import {
 } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { PermissionGrantCard } from "./PermissionGrantCard.tsx";

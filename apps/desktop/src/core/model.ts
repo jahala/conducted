@@ -490,15 +490,6 @@ export interface StackEntryView {
 export type PrActivityEntry =
 	| { kind: "commit"; id: string; at: number; sha: string; subject: string; authorName: string }
 	| {
-			kind: "review";
-			id: string;
-			at: number;
-			authorLogin: string;
-			authorAvatarUrl: string | null;
-			state: "approved" | "changes_requested" | "commented" | "dismissed";
-			body: string;
-	  }
-	| {
 			kind: "comment";
 			id: string;
 			at: number;
@@ -509,12 +500,6 @@ export type PrActivityEntry =
 			filePath: string | null;
 			line: number | null;
 			commentId: string | null;
-	  }
-	| {
-			kind: "status";
-			id: string;
-			at: number;
-			change: "ready_for_review" | "merged" | "closed" | "reopened";
 	  };
 
 /** The tabs of the Git panel. The workspace URL stores the active one. */

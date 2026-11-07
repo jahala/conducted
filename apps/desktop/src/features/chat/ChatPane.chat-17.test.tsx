@@ -23,7 +23,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, useCommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { ChatPane } from "./ChatPane.tsx";
 import { ChatSearchBar } from "./ChatSearchBar.tsx";
 

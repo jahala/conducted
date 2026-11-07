@@ -200,6 +200,14 @@ describe("AGENT-09 Cursor runner", () => {
 		expect(path.basename(one)).toMatch(/^[0-9a-f]{16}$/);
 	});
 
+	test("gives the run store path the app trashes when it deletes the workspace", () => {
+		// The app's core/app-paths.ts cursorStoreFolder and its WS-10 container test name this folder
+		// for the same path. Both checks hold the same value, so a change to either rule fails one.
+		expect(cursorStoreFolder("/app-data/cursor-sdk-store", "/code/workspaces/oslo")).toBe(
+			"/app-data/cursor-sdk-store/7b65ddb1510ad78c",
+		);
+	});
+
 	test("environment placeholders are filled and other values are kept", () => {
 		const expanded = expandCursorEnv(
 			{

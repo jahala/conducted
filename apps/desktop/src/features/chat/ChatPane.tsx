@@ -1,7 +1,8 @@
 /**
  * @feature CHAT-06 Chat tab; CHAT-17 Chat search bar and copy transcript
  * Owns: the layout of one chat tab: the message list on top and, below it, the messages that were not sent,
- * the open interaction, the Codex goal bar (COMP-10), the progress line, the follow-up queue and the composer. It also loads the chat's
+ * the open interaction, the Codex goal bar (COMP-10), the progress line, the follow-up queue and the composer,
+ * or the archived bar in its place when the workspace is archived (ui-map.md 3.3). It also loads the chat's
  * stored messages, records the chat on screen, clears the workspace's unread chats that do not wait for
  * the user, and hosts the find bar and the copy-transcript shortcut. It owns the message list's
  * scroll handle, so the find bar can bring a virtualised-out turn into view, and it keeps one find
@@ -22,9 +23,10 @@ import { useEffect, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { ArchivedComposer } from "../composer/ArchivedComposerBar.tsx";
 import { Composer } from "../composer/Composer.tsx";
 import { GoalBar } from "../composer/GoalBar.tsx";
 import { QueueBox } from "../composer/QueueBox.tsx";
@@ -44,6 +46,8 @@ export function ChatPane({
 }) {
 	const { services } = useServices();
 	const actions = useActions();
+	const workspace = useWorkspace(workspaceId);
+	const archived = workspace.state === "ready" && workspace.data.state === "archived";
 	const [findOpen, setFindOpen] = useState(false);
 	// The find bar scrolls the message list to a match in a turn the list has not mounted.
 	const listRef = useRef<VirtuosoHandle>(null);
@@ -126,7 +130,11 @@ export function ChatPane({
 				</div>
 				<div data-region="composer">
 					<NotBuiltYet area="Composer" resetKey={sessionId}>
-						<Composer workspaceId={workspaceId} sessionId={sessionId} />
+						{archived ? (
+							<ArchivedComposer workspaceId={workspaceId} />
+						) : (
+							<Composer workspaceId={workspaceId} sessionId={sessionId} />
+						)}
 					</NotBuiltYet>
 				</div>
 			</div>

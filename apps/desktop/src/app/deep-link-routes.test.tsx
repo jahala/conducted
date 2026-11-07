@@ -18,7 +18,6 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../test/container.ts";
-import "../test/dom-polyfills.ts";
 import { toast } from "../ui/Toast.tsx";
 import { type DeepLinkDeps, openDeepLink, parseDeepLinkRoute } from "./deep-link-routes.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";

@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { PullRequest } from "../../../core/model.ts";
 import { createTestContainer, seedWorkspace } from "../../../test/container.ts";
-import "../../../test/dom-polyfills.ts";
 import { ChecksTab } from "./ChecksTab.tsx";
 
 const shown = vi.hoisted(() => ({ comments: [] as unknown[] }));
@@ -218,6 +217,18 @@ describe("PR-04 Checks tab", () => {
 
 			await waitFor(() => expect(openUrl).toHaveBeenCalledWith("https://github.com/o/r/pull/12"));
 			expect(create).not.toHaveBeenCalled();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("shows the pull request's title once, in the inline editor, as Conductor does", async () => {
+		const { test } = await mountWithPullRequest();
+		try {
+			const field = await screen.findByDisplayValue("Add the checks tab");
+			expect(field).toBeTruthy();
+			expect(screen.queryByText("Add the checks tab")).toBeNull();
+			expect(screen.getByText("#12")).toBeTruthy();
 		} finally {
 			test.close();
 		}

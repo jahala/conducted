@@ -1,13 +1,11 @@
 /**
  * @feature NAV-10 Workspace gate
  * Owns: tests for what the centre shows before any tab.
- * Test first: an archived workspace shows "Workspace archived"; a ready one renders its
- * children.
+ * Test first: an archived workspace renders its tabs; a ready one renders its children.
  */
 import { appError } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import type { Loadable } from "../../core/api.ts";
 import type { Workspace } from "../../core/model.ts";
 
@@ -22,17 +20,18 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 const { WorkspaceGate } = await import("./WorkspaceGate.tsx");
+const { ArchivedTabNotice } = await import("./ArchivedNotice.tsx");
 
 const id = "w1" as Parameters<typeof WorkspaceGate>[0]["workspaceId"];
 
 afterEach(cleanup);
 
 describe("NAV-10 WorkspaceGate", () => {
-	it("shows the archived notice and hides the tabs", () => {
+	it("renders the tabs of an archived workspace, as Conductor does", () => {
 		state.workspace = { state: "ready", data: { id, state: "archived" } as Workspace };
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
-		expect(screen.getByText("Workspace archived")).toBeTruthy();
-		expect(screen.queryByText("content")).toBeNull();
+		expect(screen.queryByText("Workspace archived")).toBeNull();
+		expect(screen.getByText("content")).toBeTruthy();
 	});
 
 	it("renders its children for a ready workspace", () => {
@@ -60,13 +59,13 @@ describe("NAV-10 WorkspaceGate", () => {
 		expect(screen.queryByText("Workspace not found")).toBeNull();
 	});
 
-	it("unarchives from the notice", async () => {
+	it("unarchives from an archived tab's notice", async () => {
 		state.workspace = { state: "ready", data: { id, state: "archived" } as Workspace };
 		state.unarchive.mockResolvedValue({
 			ok: true,
 			value: { needsBranchName: false, uncommittedChangesLost: false },
 		});
-		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
+		render(<ArchivedTabNotice workspaceId={id} />);
 		fireEvent.click(screen.getByRole("button", { name: "Unarchive" }));
 		await waitFor(() =>
 			expect(state.unarchive).toHaveBeenCalledWith(id, {

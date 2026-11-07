@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import "../../test/dom-polyfills.ts";
 import { GeneralPage } from "./pages/GeneralPage.tsx";
 
 let test: TestContainer | undefined;

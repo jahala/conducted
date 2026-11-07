@@ -5,7 +5,6 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../test/dom-polyfills.ts";
 import { DiffLayoutToggles, DiffViewOptions, SPLIT_MIN_WIDTH } from "./DiffToolbar.tsx";
 import type { DiffPreferences } from "./diff-types.ts";
 

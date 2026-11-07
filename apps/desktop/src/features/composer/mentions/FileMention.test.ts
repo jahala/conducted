@@ -1,7 +1,6 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../../../test/dom-polyfills.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import {
 	createFileMention,

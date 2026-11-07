@@ -1,7 +1,6 @@
 import { appError, err } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "../test/dom-polyfills.ts";
 import { Alert, AlertDescription, AlertTitle } from "./Alert.tsx";
 import { AlertDialog, AlertDialogContent } from "./AlertDialog.tsx";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card.tsx";

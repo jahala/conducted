@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PullRequest } from "../../../core/model.ts";
-import "../../../test/dom-polyfills.ts";
 import { PrSummaryHeader } from "./PrSummaryHeader.tsx";
 
 afterEach(cleanup);
@@ -40,7 +39,8 @@ describe("PR-04 PR summary header", () => {
 		);
 		expect(screen.getByText("#12")).toBeTruthy();
 		expect(screen.getByText("Draft")).toBeTruthy();
-		expect(screen.getByText("Add the checks tab")).toBeTruthy();
+		// The inline editor above the header shows the title; the header does not repeat it.
+		expect(screen.queryByText("Add the checks tab")).toBeNull();
 	});
 
 	it("copies the link and the number from the header menu", async () => {

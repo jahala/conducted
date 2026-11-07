@@ -8,12 +8,13 @@
  * Test first: A bash call with output shows the command line and the output text; a result with
  * isError shows Failed.
  */
+
 import { useState } from "react";
+import { stripTerminalEscapes } from "../../../../platform/terminal-escapes.ts";
 import {
 	asRecord,
 	boolField,
 	formatJson,
-	stripAnsi,
 	ToolCardFrame,
 	ToolOutput,
 	textField,
@@ -27,7 +28,7 @@ export function BashCard({ call, defaultExpanded }: ToolCardProps) {
 	const input = asRecord(call.item.input);
 	const command = textField(input, "command", "cmd") ?? "";
 	const description = textField(input, "description");
-	const output = stripAnsi(call.result?.output ?? "");
+	const output = stripTerminalEscapes(call.result?.output ?? "");
 	const background = boolField(input, "run_in_background");
 	const hasOutput = output.length > 0 && !cleared;
 	return (
