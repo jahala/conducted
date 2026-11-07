@@ -31,6 +31,7 @@ import { type AppError, appError, err, ok, type Result } from "@conducted/shared
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import { asRecord, isRecord } from "../../util/records.ts";
+import { codexCloudMcpArgs } from "../cloud-mcp.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import { findAgentProgram } from "../launch-env.ts";
 import type {
@@ -136,7 +137,7 @@ export class CodexRunner implements Runner {
 						codexPath,
 						cwd: options.workspace.workspacePath,
 						env: { ...options.env, ...appTools.env },
-						extraArgs: appTools.args,
+						extraArgs: [...appTools.args, ...codexCloudMcpArgs(this.deps.cloudMcpServers ?? [])],
 					});
 					const connected = await client.connect();
 					if (!connected.ok) {
@@ -220,7 +221,7 @@ export class CodexRunner implements Runner {
 			codexPath,
 			cwd: workspacePath,
 			env: context.env,
-			extraArgs: [],
+			extraArgs: codexCloudMcpArgs(this.deps.cloudMcpServers ?? []),
 		});
 		const connected = await client.connect();
 		if (!connected.ok) throw connected.error;

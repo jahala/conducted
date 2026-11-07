@@ -6,8 +6,9 @@
  * @feature AGENT-09 Cursor: SDK in process
  * Owns: reading the sidecar startup settings from the environment the Rust shell sets: the bin
  * folder, the managed programs folder (PLAT-28), the outbox root, the slash-command cache folder, the Cursor run store folder, the log
- * folder, the app version, the log level, the memory watchdog's incident marker (CLOUD-04) and,
- * when the build has one, the bundled skill plugin folder. Nothing else. Every other module
+ * folder, the app version, the log level, the memory watchdog's incident marker (CLOUD-04), the
+ * cloud MCP servers a sandbox's Worker set (CLOUD-17) and, when the build has one, the bundled
+ * skill plugin folder. Nothing else. Every other module
  * receives plain values from here, never process.env.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 steps 6 and 7 and B4 (Rust passes
  * these through environment variables), other-runners.md 2.3 (the Cursor SDK's local run store).
@@ -23,6 +24,10 @@
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { z } from "zod";
 import { LOG_LEVELS, type LogLevel } from "./logging/logger.ts";
+import { type CloudMcpServer, parseCloudMcpServers } from "./runners/cloud-mcp.ts";
+
+/** The value a sandbox's Worker sets to name its cloud MCP servers (CLOUD-17). */
+export const CLOUD_MCP_ENV = "CONDUCTED_CLOUD_MCP_SERVERS_JSON";
 
 /** Names of the environment variables the Rust launcher sets for the sidecar. */
 export const SIDECAR_ENV = {
@@ -49,6 +54,8 @@ export const SIDECAR_ENV = {
 	logLevel: "CONDUCTED_LOG_LEVEL",
 	/** The cloud memory watchdog's incident marker (CLOUD-04). */
 	incidentMarkerPath: "CONDUCTED_MEMORY_INCIDENT_MARKER_PATH",
+	/** The cloud MCP servers a Worker sets on a sandbox, with placeholder credentials (CLOUD-17). */
+	cloudMcpServers: CLOUD_MCP_ENV,
 } as const;
 
 const absolutePath = z
@@ -68,7 +75,11 @@ const zSidecarConfig = z.object({
 	logLevel: z.enum(LOG_LEVELS),
 	incidentMarkerPath: absolutePath.optional(),
 });
-export type SidecarConfig = z.infer<typeof zSidecarConfig> & { logLevel: LogLevel };
+export type SidecarConfig = z.infer<typeof zSidecarConfig> & {
+	logLevel: LogLevel;
+	/** The cloud MCP servers the Worker set, or none for a local sidecar (CLOUD-17). */
+	cloudMcpServers: CloudMcpServer[];
+};
 
 export function parseSidecarConfig(
 	env: Readonly<Record<string, string | undefined>>,
@@ -85,7 +96,12 @@ export function parseSidecarConfig(
 		logLevel: env[SIDECAR_ENV.logLevel],
 		incidentMarkerPath: env[SIDECAR_ENV.incidentMarkerPath],
 	});
-	if (parsed.success) return ok(parsed.data);
+	if (parsed.success) {
+		return ok({
+			...parsed.data,
+			cloudMcpServers: parseCloudMcpServers(env[SIDECAR_ENV.cloudMcpServers]),
+		});
+	}
 	const problems = parsed.error.issues.map((issue) => {
 		const key = issue.path[0] as keyof typeof SIDECAR_ENV;
 		return `${SIDECAR_ENV[key]}: ${issue.message}`;

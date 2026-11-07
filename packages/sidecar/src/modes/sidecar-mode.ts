@@ -138,6 +138,7 @@ import {
 } from "../runners/claude/transcript.ts";
 import { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
+import { type CloudMcpServer, cloudClaudeServers } from "../runners/cloud-mcp.ts";
 import type { SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { type CodexAppTools, CodexRunner } from "../runners/codex/codex-runner.ts";
 import { type CursorAppTools, CursorRunner } from "../runners/cursor/cursor-runner.ts";
@@ -796,6 +797,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		bridge,
 		skillPluginDir: config.skillPluginDir,
 		cursorStoreDir: config.cursorStoreDir,
+		cloudMcpServers: config.cloudMcpServers,
 		cursorSdk,
 		findManagedProgram,
 		realPath: files.realPath,
@@ -913,6 +915,8 @@ function createRunnerRegistry(input: {
 	skillPluginDir: string | undefined;
 	/** The root of the Cursor SDK's local run stores (AGENT-09). */
 	cursorStoreDir: string;
+	/** The cloud MCP servers this sandbox's Worker set, with placeholder credentials (CLOUD-17). */
+	cloudMcpServers: readonly CloudMcpServer[];
 	/** Finds and loads the Cursor SDK the program manager installed (AGENT-09). */
 	cursorSdk: CursorSdkLoader;
 	/** The app's managed copies of the agent programs (PLAT-28). */
@@ -935,6 +939,7 @@ function createRunnerRegistry(input: {
 		probe: ports.probe,
 		findExecutable: ports.findExecutable,
 		findManagedProgram: input.findManagedProgram,
+		cloudMcpServers: input.cloudMcpServers,
 	};
 	const queueForCursor = createKeyedQueue();
 	/**
@@ -1008,6 +1013,7 @@ function createRunnerRegistry(input: {
 				createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
 				createMcpServers: (options) => ({
 					[APP_TOOL_SERVER]: createAppToolsServer(options),
+					...cloudClaudeServers(input.cloudMcpServers),
 				}),
 			}),
 		},
