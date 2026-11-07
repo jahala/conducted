@@ -321,4 +321,42 @@ describe("REV-04 GitHub comment sync from the poll", () => {
 		expect((await service.pollNow(workspaceId)).ok).toBe(true);
 		expect(changed).toEqual([workspaceId, workspaceId]);
 	});
+
+	it("starts the sync once the poll's pull request is in the store, so the sync can find its number", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "git") {
+				if (command.args[0] === "remote") return gitOutput("git@github.com:octo/repo.git\n");
+				if (command.args[0] === "config") {
+					return gitOutput(
+						command.args[2]?.endsWith(".remote") === true ? "origin\n" : "refs/heads/feat\n",
+					);
+				}
+				if (command.args[0] === "rev-parse") return gitOutput("/repo/.git\n");
+				return gitOutput("abc123\n");
+			}
+			return gitOutput(
+				JSON.stringify({
+					data: {
+						viewer: { login: "me" },
+						rateLimit: { cost: 1, remaining: 5_000 },
+						repository: {
+							viewerPermission: "WRITE",
+							squashMergeAllowed: true,
+							rebaseMergeAllowed: true,
+							mergeCommitAllowed: true,
+							pr0ByNumber: node("2026-01-02T00:00:00Z"),
+						},
+					},
+				}),
+			);
+		});
+		const seen: (number | undefined)[] = [];
+		const service: GithubService = makeService(git, (id) => {
+			seen.push(service.store.getState().byWorkspace[String(id)]?.pullRequest?.number);
+		});
+
+		expect((await service.pollNow(workspaceId)).ok).toBe(true);
+
+		expect(seen).toEqual([12]);
+	});
 });

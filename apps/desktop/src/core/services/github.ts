@@ -2452,7 +2452,17 @@ export class GithubService {
 			this.#recordPollFailure(workspaceId, result.error);
 			return err(result.error);
 		}
+		const previous = this.store.getState().byWorkspace[key]?.pullRequest ?? null;
 		this.#writeEntry(key, result.value);
+		// After the write, so the sync this starts reads the pull request the poll just found.
+		const next = result.value.pullRequest;
+		if (
+			next !== null &&
+			next.state === "open" &&
+			(previous === null || previous.updatedAt !== next.updatedAt)
+		) {
+			this.#deps.onPullRequestChanged?.(workspaceId);
+		}
 		return ok(undefined);
 	}
 
@@ -2491,9 +2501,6 @@ export class GithubService {
 		this.#headByWorkspace.set(key, raw.headRefOid);
 		if (state === "merged" && previous?.state !== "merged") {
 			this.#deps.onMerged(found.workspaceId, raw.number);
-		}
-		if (state === "open" && (previous === null || previous.updatedAt !== updatedAt)) {
-			this.#deps.onPullRequestChanged?.(found.workspaceId);
 		}
 		return ok({ pullRequest: pr, unavailable: "none", fetchedAt: now });
 	}
