@@ -9,8 +9,8 @@
  *   (nothing is downloaded), at 1440 by 900 in dark mode with reduced motion and `Date` fixed to the
  *   catalogue's moment. Every request to any other origin is aborted and listed.
  * - Waits for the screen to settle: no call to the backend waiting, no new calls and no change to the
- *   page for ten animation frames in a row. The wait is bounded by frames; a page that never settles is
- *   still captured, and listed with that reason.
+ *   page for sixty animation frames (about a second) in a row. The wait is bounded by frames; a page
+ *   that never settles is still captured, and listed with that reason.
  * - Writes `<shots>/<state>-dark.png`, `<shots>/index.json` (route, settle result, page errors, refused
  *   requests per state) and `<shots>/unanswered.json` (every call nobody answered, per state).
  *
@@ -27,8 +27,8 @@ import { defaultPaths } from "./paths.ts";
 import { flag, loadMapping, startReferenceServer } from "./server.ts";
 
 const VIEWPORT = { width: 1440, height: 900 };
-/** Frames the page must stay quiet before it counts as settled. */
-const QUIET_FRAMES = 10;
+/** Frames the page must stay quiet to count as settled: long enough for a short timer or debounce. */
+const QUIET_FRAMES = 60;
 /** The most frames the settle wait may take, about twenty seconds at 60 frames a second. */
 const MAX_FRAMES = 1_200;
 /** Catches a page that never loads. It is not a way to wait. */

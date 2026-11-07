@@ -32,6 +32,20 @@ const mapping: ReferenceMapping<Sample> = {
 			throw new Declined(String(args.command));
 		},
 		ask: (args, context) => context.decline(`ask ${String(args.what)}`),
+		shell: async (args, context) =>
+			await context.tools.runShellString(
+				String(args.command),
+				{ cwd: context.state.home, env: {} },
+				{
+					run: async ({ program, cwd }) => ({
+						code: 0,
+						stdout: `${program} in ${cwd}\n`,
+						stderr: "",
+					}),
+					stat: async () => null,
+					mkdirp: async () => true,
+				},
+			),
 		watch: (args, context) => {
 			const channel = Number(String(args.onEvent).replace("__CHANNEL__:", ""));
 			context.send(channel, "first");
@@ -91,6 +105,17 @@ describe("a reference backend session", () => {
 		expect(log.list()).toEqual([
 			{ kind: "command", name: "open_window", count: 2, firstArgs: { label: "x" } },
 		]);
+		backend.close();
+	});
+
+	test("hands handlers the shell reader through their context", async () => {
+		const { backend } = session();
+		expect(
+			await backend.invoke("shell", { command: "cd /repo && git status 2>/dev/null" }),
+		).toEqual({
+			ok: true,
+			value: { code: 0, stdout: "git in /repo\n", stderr: "" },
+		});
 		backend.close();
 	});
 

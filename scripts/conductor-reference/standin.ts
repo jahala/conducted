@@ -4,7 +4,7 @@
  * module, so it is in place before any of the frontend's code runs.
  *
  * - `invoke` posts every call to the reference backend on the same origin and resolves or rejects with
- *   its answer. The event plugin's `listen` and `unlisten` are kept here, since the callbacks live in
+ *   its answer. A byte body goes as `{ payload, headers }`, since JSON has no bytes. The event plugin's `listen` and `unlisten` are kept here, since the callbacks live in
  *   the page.
  * - `transformCallback` and `unregisterCallback` keep callbacks by number, as Tauri does; events and
  *   channel messages from the backend arrive on one streamed response and are handed to them.
@@ -78,7 +78,30 @@ export function installStandin(host: Host, boot: StandinBoot): void {
 		}
 	};
 
-	const invoke = async (command: string, args?: Record<string, unknown>): Promise<unknown> => {
+	/**
+	 * A byte body (a typed array or an ArrayBuffer), as Tauri's fs plugin sends file contents, goes as
+	 * `{ payload: number[], headers }`: the call's options travel in its headers.
+	 */
+	const asArgs = (args: unknown, options?: { headers?: unknown }): unknown => {
+		const bytes =
+			args instanceof ArrayBuffer
+				? new Uint8Array(args)
+				: ArrayBuffer.isView(args)
+					? new Uint8Array(args.buffer, args.byteOffset, args.byteLength)
+					: null;
+		if (bytes === null) return args;
+		const headers =
+			options?.headers instanceof Headers
+				? Object.fromEntries(options.headers.entries())
+				: ((options?.headers as Record<string, string> | undefined) ?? {});
+		return { payload: Array.from(bytes), headers };
+	};
+
+	const invoke = async (
+		command: string,
+		args?: Record<string, unknown>,
+		options?: { headers?: unknown },
+	): Promise<unknown> => {
 		if (command === "plugin:event|listen") {
 			const eventId = nextId++;
 			listeners.set(eventId, { event: String(args?.event), handler: Number(args?.handler) });
@@ -88,7 +111,7 @@ export function installStandin(host: Host, boot: StandinBoot): void {
 			listeners.delete(Number(args?.eventId));
 			return null;
 		}
-		return await post(command, args);
+		return await post(command, asArgs(args, options));
 	};
 
 	const deliver = (push: Push): void => {
