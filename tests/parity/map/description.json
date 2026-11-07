@@ -727,52 +727,92 @@
 	"description:R10708838": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10708911": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10708982": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709071": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709163": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709245": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709343": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709429": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709509": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709605": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709703": {
 		"status": "gap",
@@ -785,22 +825,38 @@
 	"description:R10709805": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709909": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10710015": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10710098": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10710192": {
 		"status": "gap",
@@ -897,7 +953,11 @@
 	"description:R11028884": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-07",
+		"item": "Git: the Scripts page description reads 'Commands that run when workspaces are set up or archived.'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11092256": {
 		"status": "decided",
@@ -1438,7 +1498,11 @@
 	"description:R11262744": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-02",
+		"item": "Default models: 'Default model'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11263033": {
 		"status": "matched",
@@ -1578,17 +1642,29 @@
 	"description:R11299318": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-06",
+		"item": "Appearance: Theme (Light, Dark, System)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11299568": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-06",
+		"item": "Appearance: low-contrast dark mode",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11299822": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PLAT-23",
+		"item": "Appearance: app zoom slider (one range, a way to zoom the webview)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11300055": {
 		"status": "matched",

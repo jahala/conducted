@@ -49,7 +49,11 @@
 	"aria_label:R2248531": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-01",
+		"item": "Popover: PR status details (aria 'PR status details')",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"aria_label:R2269190": {
 		"status": "matched",
@@ -213,7 +217,11 @@
 	"aria_label:R5017441": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-01",
+		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"aria_label:R5434122": {
 		"status": "gap",
@@ -292,7 +300,11 @@
 	"aria_label:R5625996": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-15",
+		"item": "Cloud workspace header's rename control is named 'Rename workspace'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"aria_label:R5627430": {
 		"status": "matched",
@@ -385,7 +397,11 @@
 	"aria_label:R8842839": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "REV-03",
+		"item": "Draft comment attachment offers 'Edit in diff viewer' (aria), which opens the comment in the diff",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"aria_label:R8874837": {
 		"status": "gap",
@@ -456,7 +472,11 @@
 	"aria_label:R9234010": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Model picker 'Model' submenu with 'Search models' and 'No models found'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"aria_label:R9246234": {
 		"status": "matched",
@@ -1363,9 +1383,10 @@
 		"by": "hand"
 	},
 	"aria_label:R11996180": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D018",
+		"note": "Conductor's Routines page ('Untitled routine', Active/Disabled), a team feature that D018 leaves out. 'Status' is a common word, so the source check found it, but the bundle region is a routine toggle, not a screen of ours.",
+		"by": "hand"
 	},
 	"aria_label:R11996272": {
 		"status": "decided",
@@ -1386,9 +1407,10 @@
 		"by": "hand"
 	},
 	"aria_label:R12021308": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's internal-only Pull requests page (`internal_pull_requests_page`, hidden in release builds); D025 leaves developer tools out.",
+		"by": "hand"
 	},
 	"aria_label:R12021849": {
 		"status": "decided",

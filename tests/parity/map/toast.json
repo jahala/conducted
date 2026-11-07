@@ -194,11 +194,10 @@
 		"owner": "rule:quote"
 	},
 	"toast:M3825227": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"by": "hand",
-		"note": "Not owned: no backlog row covers this component."
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's Linux terminal fallback; on macOS it opens Terminal.app, which is our path, so this toast never fires here.",
+		"by": "hand"
 	},
 	"toast:R140842": {
 		"status": "gap",

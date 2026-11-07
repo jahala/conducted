@@ -2091,9 +2091,10 @@
 		"by": "hand"
 	},
 	"title:R10912930": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The Prompts page title of Conductor's organisation settings; organisations stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R10967435": {
 		"status": "gap",
@@ -2204,7 +2205,11 @@
 	"title:R11058782": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "PR-01",
+		"item": "Account: GitHub personal access token field (Keychain)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"title:R11092223": {
 		"status": "decided",
@@ -2987,7 +2992,11 @@
 	"title:R11262722": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-02",
+		"item": "Default models: 'Default model'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"title:R11263302": {
 		"status": "matched",
