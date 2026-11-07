@@ -35,22 +35,47 @@ How they talk:
 
 ## Where each kind of logic lives
 
-| Logic                                               | One home                                           | Also used by                                                                 |
-| --------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Message shapes between UI and sidecar               | `packages/protocol`                                | both sides parse with the same schemas                                       |
-| Mention tokens (`@file`, `#PR`)                     | `packages/protocol/src/mentions.ts`                | composer writes them, sidecar expands them                                   |
-| Canonical tool names                                | `packages/protocol/src/tools.ts`                   | runners map to them, chat cards key on them                                  |
-| Agent providers, sign-ins and their key variables   | `packages/protocol/src/agent-providers.ts`         | the sidecar's key filter and routing, the Providers dialog, the app's launch |
-| Workspace status (sidebar, Home, tabs, Git panel)   | `apps/desktop/src/core/status/workspace-status.ts` | every screen that shows a status                                             |
-| Git panel header state and its main action          | `apps/desktop/src/core/status/git-header.ts`       | Git panel, command palette                                                   |
-| Commands and their shortcuts                        | `apps/desktop/src/core/registries/commands.ts`     | menus (sent to Rust), palette, shortcut dialog, tooltips                     |
-| Shortcut conflict rule                              | `apps/desktop/src/core/registries/commands.ts`     | settings page, custom bindings                                               |
-| Settings, their scopes and defaults                 | `apps/desktop/src/core/registries/settings.ts`     | settings pages, settings search, services                                    |
-| Session lifecycle (queue, steer, cancel, idle)      | `packages/sidecar/src/session`                     | every runner                                                                 |
-| Sidecar process, file, socket and environment edges | `packages/sidecar/src/adapters`                    | `modes/sidecar-mode.ts` wires them; each adapter's test uses the real thing  |
-| Turn grouping for display                           | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                |
-| Database schema                                     | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                 |
-| Which host a workspace's calls may use (D092)       | `apps/desktop/src/core/host.ts` (`checkHost`)      | lookups, terminals, workspace lifecycle; the chat context carries it         |
+| Logic                                               | One home                                           | Also used by                                                                                                                        |
+| --------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Message shapes between UI and sidecar               | `packages/protocol`                                | both sides parse with the same schemas                                                                                              |
+| Mention tokens (`@file`, `#PR`)                     | `packages/protocol/src/mentions.ts`                | composer writes them, sidecar expands them                                                                                          |
+| Canonical tool names                                | `packages/protocol/src/tools.ts`                   | runners map to them, chat cards key on them                                                                                         |
+| Agent providers, sign-ins and their key variables   | `packages/protocol/src/agent-providers.ts`         | the sidecar's key filter and routing, the Providers dialog, the app's launch                                                        |
+| Workspace status (sidebar, Home, tabs, Git panel)   | `apps/desktop/src/core/status/workspace-status.ts` | every screen that shows a status                                                                                                    |
+| Git panel header state and its main action          | `apps/desktop/src/core/status/git-header.ts`       | Git panel, command palette                                                                                                          |
+| Commands and their shortcuts                        | `apps/desktop/src/core/registries/commands.ts`     | menus (sent to Rust), palette, shortcut dialog, tooltips                                                                            |
+| Shortcut conflict rule                              | `apps/desktop/src/core/registries/commands.ts`     | settings page, custom bindings                                                                                                      |
+| Settings, their scopes and defaults                 | `apps/desktop/src/core/registries/settings.ts`     | settings pages, settings search, services                                                                                           |
+| Session lifecycle (queue, steer, cancel, idle)      | `packages/sidecar/src/session`                     | every runner                                                                                                                        |
+| Sidecar process, file, socket and environment edges | `packages/sidecar/src/adapters`                    | `modes/sidecar-mode.ts` wires them; the modules that are themselves an edge are listed under [Sidecar I/O edges](#sidecar-io-edges) |
+| Turn grouping for display                           | `apps/desktop/src/core/services` (turn builder)    | the chat list                                                                                                                       |
+| Database schema                                     | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                                                                                                        |
+| Which host a workspace's calls may use (D092)       | `apps/desktop/src/core/host.ts` (`checkHost`)      | lookups, terminals, workspace lifecycle; the chat context carries it                                                                |
+
+### Sidecar I/O edges
+
+`packages/sidecar/src/adapters` holds the process, file, socket and environment ports the composition root (`modes/sidecar-mode.ts`) wires and passes down. A module outside `adapters/` may touch the outside world directly only when it is itself the edge: the implementation of a port, a listener, or the one helper for an external program. `scripts/guards/sidecar-edges.ts` fails on a new such module, and this list is the rule:
+
+| Module                                                  | Why it is the edge                                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `packages/sidecar/src/outbox/node-storage.ts`           | the `node:fs` implementation of `OutboxStorage`, whose port is `outbox/outbox-file.ts` |
+| `packages/sidecar/src/models/completions-cache.ts`      | `createNodeCompletionsFiles`, the slash-command cache's file edge                      |
+| `packages/sidecar/src/prompt/pull-request-stub.ts`      | the pull-request stub writer, passed to the assembler as a port                        |
+| `packages/sidecar/src/rpc/server.ts`                    | the Unix socket listener itself; `adapters/sockets.ts` only builds its path            |
+| `packages/sidecar/src/tools/socket-bridge.ts`           | the private Unix socket the app-tools helpers call                                     |
+| `packages/sidecar/src/tools/mcp-stdio-server.ts`        | the helper process that connects to that socket                                        |
+| `packages/sidecar/src/process/spawn-child.ts`           | the one spawn helper for long-lived agent children, wired by `adapters/process.ts`     |
+| `packages/sidecar/src/checkpoints/run-checkpointer.ts`  | runs `bin/checkpointer.sh` as a detached process group, behind the checkpointer's port |
+| `packages/sidecar/src/runners/managed-programs.ts`      | reads the program manager's links in the app's bin folder                              |
+| `packages/sidecar/src/runners/claude/transcript.ts`     | reads Claude's own transcript files, whose folder the agent owns                       |
+| `packages/sidecar/src/runners/claude/claude-session.ts` | checks whether a bundled skill plugin file exists                                      |
+| `packages/sidecar/src/runners/acp/acp-client.ts`        | answers an ACP agent's file reads and writes, restricted to the workspace              |
+| `packages/sidecar/src/runners/cursor/cursor-runner.ts`  | reads the launch script the Cursor SDK needs                                           |
+| `packages/sidecar/src/util/read-text.ts`                | the one "read a text file, a missing file is null" helper                              |
+| `packages/sidecar/src/main.ts`                          | the entry point: the launcher environment enters here once, for `config.ts`            |
+| `packages/sidecar/src/packaging.ts`                     | build-time packaging run by the package's `build` script, not by the sidecar process   |
+
+Every other module receives its files, processes, sockets and environment as values or ports from the composition root.
 
 ## Shared helpers
 
@@ -82,7 +107,9 @@ Use these before writing your own. A second copy is a finding in review.
 
 ## State and time
 
-- Services hold state in zustand stores owned by the service, created by `core/container.ts`. There is no module-level mutable state.
+- Product state lives in a zustand store the service owns, built by `core/container.ts`. A module-level singleton is allowed only for state that belongs to the one web view and dies with it, where a service would add indirection and no testability. The three are `useWorkspaceToastStore` (`ui/Toast.tsx`, the workspace-scoped toasts the host is showing), `useOverlayStore` (`app/overlay-store.ts`, which window-level overlay is open) and `useSnippetDialogsStore` (`features/composer/snippet-dialogs-store.ts`, which snippet dialog is open and the insert callback of the composer that opened it). Each holds no product data, does no I/O and starts empty on every web-view load. `scripts/guards/module-state.ts` fails on a new one.
+- One module-level singleton should move into the container: `defaultRegistry` in `app/command-dispatcher.ts`. The real registry is created by `CommandDispatcher`, so the fallback exists only for a screen rendered without its provider, which hides a missing provider in tests. APP-16 moves it into `core/container.ts` and makes the helpers take the container's registry.
+- In the Rust shell, a `static` is allowed for a value that must live as long as the process and cannot be passed in: a cache that saves a second Keychain read (`CACHED_KEY` in `terminal_history.rs`), a lock that serialises two threads (`KEY_LOCK` there and `PATH_OVERRIDES_SYNC` in `binaries.rs`), and an atomic counter that makes a temp file's name unique. Product state lives in Tauri-managed state. `scripts/guards/module-state.ts` fails on any other module-level cache or lock (`Mutex`, `RwLock`, `OnceLock`, `OnceCell` or `Lazy`).
 - The sidecar keeps per-chat state inside its session manager, keyed by session id. A restart loses it by design: chats resume from the agent's own transcript and the UI's database.
 - Time, ids, the Platform and the shell environment are passed in from the composition roots (`apps/desktop/src/core/container.ts`, `packages/sidecar/src/modes/sidecar-mode.ts`).
 - One home per fact. A stored value that can be read or derived from another row is not stored again; a copy that must exist names its reason and the code that keeps it in step. No guard holds this yet: the per-PR audits check it, and docs/reports/audits/system-2026-11-07.md lists the copies that exist today (#395).

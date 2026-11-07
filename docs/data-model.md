@@ -37,6 +37,11 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | `model_context_windows` | The context window an agent last reported for one model. agent is the agent kind, or 'acp:<agent>' for an ACP agent; model is the model id the chat was started with. | one row per agent and model, replaced by the next report for that model; the table grows only with the number of models used. | 0006_model_context_windows.sql |
 <!-- /generated:tables -->
 
+The generated rows quote each migration's comment. Two comments in `0001_init.sql` are out of date, and an applied migration is never edited, so the corrections live here:
+
+- `session_events`: its row above quotes "Both limits are settings". That is wrong. The 30-day tool-output cut and the 90-day archived-chat compaction have fixed limits, `DEFAULT_LIFETIME_LIMITS` in `apps/desktop/src/core/db/lifetime.ts`, which `core/container.ts` passes unchanged; no setting changes them (DATA-02). `scripts/guards/lifetime-limits.ts` fails when a settings key takes one over.
+- `settings`: its row above quotes "fixed set of keys". That is wrong. The table holds the settings registry's keys and one internal bookkeeping key, `data_lifetime_last_run_at`, which stores when the data-lifetime job last ran (DATA-02). `scripts/guards/settings-keys.ts` fails on a `_KEY` constant in `core/db` that this file does not name.
+
 ## Stores outside the database
 
 | Store | Where | Lifetime | Enforced by |
@@ -54,6 +59,10 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |
 | Uploaded repository icons | app data `icons/<repo>-<id>.<ext>` | One image per project with an uploaded icon, at most 10 MB. The earlier image moves to the Trash once the project points to a new one; clearing the icon, choosing an emoji or removing the project moves it to the Trash too. | PRJ-05 |
 | Workspace panel layouts | the web view's `localStorage`, key `conducted.panel-layout:<group id>` | Removed with its workspace when WS-05 deletes or archives it; a saved layout for a panel that no longer exists is ignored. The app shell's sidebar lives in the settings table, not here. | WS-05 |
+| Run history | the web view's `localStorage`, key `conducted.run-history:<workspace id>` | The last 20 run actions of one workspace; removed when the workspace is deleted or archived. | RUN-01 |
+| Hidden run actions | the web view's `localStorage`, key `conducted.hidden-run-actions:<repo id>` | The shared run actions this user hid for one project; removed when the project is removed. | SET-07, removed by PRJ-01 |
+| Last workspace location | the web view's `localStorage`, key `conducted.workspace-location-v1` | Replaced on every route change; removed when the route has no workspace to reopen. | NAV-02 |
+| Dismissed macOS warning | the web view's `localStorage`, key `conducted.macos-version-warning-dismissed` | The app version whose "macOS is too old" warning the user dismissed; the warning returns after an update, which replaces the value. | APP-08 |
 | Cached changes and PR info | app data `git-cache/changes/<workspace>.json` and `git-cache/pr-info/<workspace>.json` | 25 MB for changes and 5 MB for PR info in total; the oldest files go first. Removed with the workspace. | DATA-07 |
 | Terminal shell integration | app data `terminal-shell-integration/zsh/` | Four small files, rewritten at every app start. | RUN-09 |
 | Setup script logs | app data `setup-logs/<workspace>.log` | Removed with the workspace. | WS-10 |
