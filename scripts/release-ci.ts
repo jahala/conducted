@@ -96,8 +96,9 @@ const env: Record<string, string | undefined> = {
 };
 
 /**
- * The build's environment without Apple's signing and notary variables. Tauri signs and notarises
- * by itself when they are present, and this release signs and notarises once, after the build.
+ * The build's environment without any credential. Tauri signs and notarises by itself when Apple's
+ * variables are present, and this release signs and notarises once, after the build. The updater key
+ * stays out too, because the build runs the packages' own build code.
  */
 function unsignedBuildEnv(): Record<string, string | undefined> {
 	const copy: Record<string, string | undefined> = { ...process.env };
@@ -115,18 +116,17 @@ function unsignedBuildEnv(): Record<string, string | undefined> {
 	]) {
 		delete copy[name];
 	}
-	return {
-		...copy,
-		TAURI_SIGNING_PRIVATE_KEY: process.env.TAURI_SIGNING_PRIVATE_KEY,
-		TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
-	};
+	delete copy.TAURI_SIGNING_PRIVATE_KEY;
+	delete copy.TAURI_SIGNING_PRIVATE_KEY_PASSWORD;
+	return copy;
 }
 
 try {
 	// The sidecar binary is built first because the release config lists it as an external binary.
 	sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
-	// createUpdaterArtifacts makes the build sign an update archive from the unsigned app. Only the
-	// build gets the updater key; that archive is replaced below by one made from the notarised app.
+	// The build gets no credential: it runs the packages' build code. The release config makes no
+	// update archive, because the archive must be made from the notarised app; only `tauri signer
+	// sign` below sees the updater key.
 	sh(
 		appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json"),
 		root,

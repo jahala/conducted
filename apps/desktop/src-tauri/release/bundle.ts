@@ -146,8 +146,8 @@ export function sidecarBinaryPath(appPath: string): Result<string> {
 
 /**
  * The `tauri build` arguments for a release. Only the app is bundled, so Tauri never makes a disk
- * image from an unsigned app. `createUpdaterArtifacts` still makes it write an update archive from
- * the unsigned app; `scripts/release-ci.ts` makes the disk image and that archive again after signing.
+ * image from an unsigned app. The release config makes no update archive either: `scripts/release-ci.ts`
+ * makes the disk image and the archive from the notarised app, and only its signing step sees the key.
  */
 export function appBuildArguments(target: string, configPath: string): readonly string[] {
 	return [

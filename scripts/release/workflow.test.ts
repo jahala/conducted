@@ -50,3 +50,43 @@ test("never writes a credential to the log", () => {
 	expect(workflow).not.toContain("echo $APPLE_API_KEY_P8");
 	expect(workflow).not.toContain("echo $TAURI_SIGNING_PRIVATE_KEY");
 });
+
+interface Step {
+	name?: string;
+	uses?: string;
+	run?: string;
+	env?: Record<string, string>;
+	with?: Record<string, string>;
+}
+const parsed = Bun.YAML.parse(workflow) as {
+	jobs: { release: { env?: Record<string, string>; steps: Step[] } };
+};
+const job = parsed.jobs.release;
+const readsSecret = (values: Record<string, string> | undefined): boolean =>
+	Object.values(values ?? {}).some((value) => String(value).includes("secrets."));
+
+test("gives each secret only to the steps that need it, never to third-party code", () => {
+	// The job's env reaches every step, including `pnpm install` and the actions.
+	expect(readsSecret(job.env)).toBe(false);
+	const install = job.steps.find((step) => step.run?.includes("pnpm install"));
+	expect(install).toBeDefined();
+	expect(readsSecret(install?.env)).toBe(false);
+	const actions = job.steps.filter((each) => each.uses !== undefined);
+	expect(actions.length).toBeGreaterThan(0);
+	for (const step of actions) {
+		expect({ step: step.uses, secret: readsSecret(step.env) || readsSecret(step.with) }).toEqual({
+			step: step.uses,
+			secret: false,
+		});
+	}
+});
+
+test("makes no update archive in the build, so the build never needs the updater key", () => {
+	const config = JSON.parse(
+		readFileSync(
+			join(import.meta.dir, "../../apps/desktop/src-tauri/tauri.release.conf.json"),
+			"utf8",
+		),
+	) as { bundle: { createUpdaterArtifacts?: boolean } };
+	expect(config.bundle.createUpdaterArtifacts).toBe(false);
+});
