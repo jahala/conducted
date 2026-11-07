@@ -204,10 +204,13 @@ export function writeHiddenRunActions(repoId: RepoId, actionIds: readonly string
 	return ok(undefined);
 }
 
-/** Forgets the shared run actions this user hid for a repository. Its project is gone. */
+/**
+ * Forgets the shared run actions this user hid for a repository whose project is being removed.
+ * Where the web view has no storage, nothing was ever saved there, so there is nothing to clear.
+ */
 export function clearHiddenRunActions(repoId: RepoId): Result<void> {
 	const store = hiddenRunActionsStorage();
-	if (!store.ok) return store;
+	if (!store.ok) return ok(undefined);
 	try {
 		store.value.removeItem(hiddenRunActionsStorageKey(repoId));
 	} catch (cause) {
@@ -909,6 +912,10 @@ export class RepoService {
 		// Its variables' secrets go with them before the row that cascades their names (SET-04).
 		const secrets = await this.#deps.settings.removeEnvVarsForRepo(repoId);
 		if (!secrets.ok) return secrets;
+		// The hidden actions of a project being removed have nothing left to hide them for. They go
+		// before the row, so a failure leaves the project in place rather than half removed.
+		const hiddenCleared = clearHiddenRunActions(repoId);
+		if (!hiddenCleared.ok) return hiddenCleared;
 		const workspaces = await this.#deps.removal.removeWorkspacesOf(repoId);
 		if (!workspaces.ok) return workspaces;
 		const deleted = await this.#deps.repos.repos.delete(repoId);
@@ -934,9 +941,6 @@ export class RepoService {
 			configDropped,
 			order: state.order.filter((id) => id !== repoId),
 		});
-		// The hidden actions of a deleted project have nothing left to hide them for.
-		const hiddenCleared = clearHiddenRunActions(repoId);
-		if (!hiddenCleared.ok) return hiddenCleared;
 		// An uploaded icon belongs to its project and goes to the Trash with it.
 		const icon = fileIconPath(found.value.icon);
 		if (icon === null) return ok(undefined);
