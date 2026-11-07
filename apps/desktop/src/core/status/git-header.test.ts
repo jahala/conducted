@@ -171,7 +171,23 @@ describe("GIT-04 git header state machine", () => {
 				name: "changes",
 				input: inputs({ git: gitState({ changedFiles: 2 }) }),
 				kind: "changes",
-				title: "Changes",
+				title: "",
+				action: "create_pr",
+			},
+			{
+				// Conductor's header offers Create PR, with no title, before uncommitted files,
+				// conflicts or an unpushed branch whenever there is no pull request yet.
+				name: "changes with uncommitted files and no pull request",
+				input: inputs({
+					agentWorking: true,
+					git: gitState({
+						changedFiles: 5,
+						uncommittedFiles: 3,
+						sync: { ahead: 1, behind: 0, rewritten: false, hasUpstream: true },
+					}),
+				}),
+				kind: "changes",
+				title: "",
 				action: "create_pr",
 			},
 			{

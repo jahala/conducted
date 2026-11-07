@@ -104,7 +104,8 @@ describe("REV-01 git panel with unbuilt tabs", () => {
 		// Conductor's Checks tab before a pull request: Git status rows, the first "No PR open".
 		expect(screen.getByText("No PR open")).toBeTruthy();
 		expect(screen.getByRole("tab", { name: /Changes/ })).toBeTruthy();
-		expect(screen.getAllByText("Uncommitted changes").length).toBeGreaterThan(0);
+		// The header stays: with no pull request yet it offers Create PR, as Conductor's does.
+		expect(screen.getAllByRole("button", { name: /Create PR/ }).length).toBeGreaterThan(0);
 
 		choose(/^Changes/);
 		expect(screen.getByText("changes body")).toBeTruthy();

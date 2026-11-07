@@ -102,7 +102,12 @@ const gitState = (over: Partial<GitState> = {}): GitState => ({
 });
 
 beforeEach(() => {
-	state.git = { state: "ready", data: gitState({ uncommittedFiles: 2, changedFiles: 2 }) };
+	// Conductor offers Commit and push once a pull request is open; before that the header
+	// offers Create PR.
+	state.git = {
+		state: "ready",
+		data: gitState({ uncommittedFiles: 2, changedFiles: 2, pullRequest: pullRequest() }),
+	};
 	state.commitAndPush.mockReset();
 	state.create.mockReset();
 	state.requestAiReview.mockReset();
