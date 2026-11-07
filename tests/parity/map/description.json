@@ -849,20 +849,18 @@
 		"owner": "rule:neighbour"
 	},
 	"description:R11026691": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Settings",
-		"class": "wording",
+		"status": "matched",
+		"state": "settings-repo-scripts",
+		"via": "text",
 		"by": "hand",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
+		"note": "Conductor's repository Scripts page (@11026712) has no full stop; ours dropped its stop to match."
 	},
 	"description:R11027029": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Settings",
-		"class": "wording",
+		"status": "matched",
+		"state": "settings-repo-scripts",
+		"via": "text",
 		"by": "hand",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
+		"note": "Conductor's repository Scripts page (@11027050) has no full stop; ours dropped its stop to match."
 	},
 	"description:R11028884": {
 		"status": "matched",
@@ -1417,12 +1415,11 @@
 		"by": "seed"
 	},
 	"description:R11264866": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Settings",
-		"class": "wording",
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "text",
 		"by": "hand",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
+		"note": "Conductor's Actions page and its search copy both read it without a full stop; ours dropped its stop to match."
 	},
 	"description:R11265371": {
 		"status": "matched",
@@ -1566,19 +1563,23 @@
 	},
 	"description:R11300514": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Settings",
-		"class": "wording",
 		"by": "hand",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
+		"note": "Conductor's settings search copy (its registry, @11300535 to @11300934); its page copy differs by a full stop or case and ours matches that. Ours has one copy per setting and no live settings search yet.",
+		"backlog": "SET-02",
+		"item": "Settings search results show the search copy of a setting's title and description where Conductor keeps one apart from the page's: 'Font used for code and diffs.', 'Rendering style for markdown files.', 'Terminal font'.",
+		"owner": "rule:cite"
 	},
 	"description:R11300742": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Settings",
-		"class": "wording",
 		"by": "hand",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
+		"note": "Conductor's settings search copy (its registry, @11300535 to @11300934); its page copy differs by a full stop or case and ours matches that. Ours has one copy per setting and no live settings search yet.",
+		"backlog": "SET-02",
+		"item": "Settings search results show the search copy of a setting's title and description where Conductor keeps one apart from the page's: 'Font used for code and diffs.', 'Rendering style for markdown files.', 'Terminal font'.",
+		"owner": "rule:quote"
 	},
 	"description:R11300941": {
 		"status": "gap",
@@ -1834,12 +1835,10 @@
 		"by": "seed"
 	},
 	"description:R11725533": {
-		"status": "matched",
-		"state": "settings-repo-scripts",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
-		"by": "seed"
+		"status": "decided",
+		"decision": "D004",
+		"by": "hand",
+		"note": "The organisation repository settings' Scripts tab, whose setup script lives under org/<repo>/setup.sh. Team features stay out (D004); round 2 had matched our own Scripts page to this copy."
 	},
 	"description:R11730099": {
 		"status": "decided",

@@ -144,7 +144,7 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 					<div className="flex flex-col gap-6">
 						<div className="flex flex-col gap-1.5 border-t border-border pt-4">
 							<Label htmlFor="repo-setup-script">Setup script</Label>
-							<p className="text-sm text-fg-muted">Runs when a new workspace is created.</p>
+							<p className="text-sm text-fg-muted">Runs when a new workspace is created</p>
 							<Textarea
 								id="repo-setup-script"
 								value={setupScript}
@@ -157,7 +157,7 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 
 						<div className="flex flex-col gap-1.5 border-t border-border pt-4">
 							<Label htmlFor="repo-archive-script">Archive script</Label>
-							<p className="text-sm text-fg-muted">Runs before a workspace is archived.</p>
+							<p className="text-sm text-fg-muted">Runs before a workspace is archived</p>
 							<Textarea
 								id="repo-archive-script"
 								value={archiveScript}

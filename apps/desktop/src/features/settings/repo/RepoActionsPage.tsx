@@ -203,7 +203,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Actions</h1>
 				<p className="text-sm text-fg-muted">
-					Shortcuts for quick actions, like running your dev server or test suite.
+					Shortcuts for quick actions, like running your dev server or test suite
 				</p>
 			</div>
 

@@ -2840,7 +2840,9 @@
 	"title:R11264843": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"title:R11265341": {
 		"status": "matched",
@@ -3004,11 +3006,13 @@
 	},
 	"title:R11300919": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "Settings",
-		"class": "wording",
 		"by": "hand",
-		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
+		"note": "Conductor's settings search copy (its registry, @11300535 to @11300934); its page copy differs by a full stop or case and ours matches that. Ours has one copy per setting and no live settings search yet.",
+		"backlog": "SET-02",
+		"item": "Settings search results show the search copy of a setting's title and description where Conductor keeps one apart from the page's: 'Font used for code and diffs.', 'Rendering style for markdown files.', 'Terminal font'.",
+		"owner": "rule:quote"
 	},
 	"title:R11301147": {
 		"status": "gap",

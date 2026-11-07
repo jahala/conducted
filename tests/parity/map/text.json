@@ -4231,7 +4231,9 @@
 	"text:R11027519": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PLAT-16",
+		"owner": "rule:neighbour"
 	},
 	"text:R11028395": {
 		"status": "gap",
@@ -4593,9 +4595,7 @@
 	"text:R11264124": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"text:R11274850": {
 		"status": "gap",
