@@ -211,6 +211,20 @@ describe("CHAT-10 question card", () => {
 		);
 	});
 
+	it("focuses a secret field once, and does not take focus back on a later render", () => {
+		const questions = [question({ question: "What is the token?", secret: true })];
+		const { rerender } = renderCard(questions);
+		expect(document.activeElement).toBe(screen.getByLabelText("Other response"));
+
+		const cancel = screen.getByRole("button", { name: "Cancel agent" });
+		cancel.focus();
+		rerender(
+			<QuestionCard sessionId={sessionId} interactionId={interactionId} questions={questions} />,
+		);
+
+		expect(document.activeElement).toBe(cancel);
+	});
+
 	it("shows an option preview when the option is picked", () => {
 		renderCard([
 			question({

@@ -66,6 +66,7 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 	const matchKey = useScopedKeyMatch("chat-question");
 	const submitKey = useLiveShortcut("chat.question.submit");
 	const busy = useRef(false);
+	const secretFocused = useRef<number | null>(null);
 	/** Focuses a control when it mounts, so the wizard takes the keys as it opens. */
 	const focusOnMount = useCallback((node: HTMLElement | null) => {
 		node?.focus();
@@ -271,7 +272,11 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 					<input
 						ref={(node) => {
 							otherRefs.current[page] = node;
-							if (current.secret) focusOnMount(node);
+							// A secret page takes the keys once, when it first shows; a later render leaves focus alone.
+							if (current.secret && node !== null && secretFocused.current !== page) {
+								secretFocused.current = page;
+								node.focus();
+							}
 						}}
 						type={current.secret ? "password" : "text"}
 						aria-label="Other response"
