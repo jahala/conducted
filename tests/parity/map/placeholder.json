@@ -12,12 +12,15 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "APP-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Search repositories...\" (placeholder, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"placeholder:R1959277": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "PRJ-03",
+		"owner": "rule:neighbour"
 	},
 	"placeholder:R2255965": {
 		"status": "matched",
@@ -311,7 +314,8 @@
 		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "CLOUD-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Email\" (placeholder, inventory-controls Settings: General); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"placeholder:R11138955": {
 		"status": "gap",
@@ -333,7 +337,9 @@
 	"placeholder:R11267721": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"placeholder:R11281056": {
 		"status": "gap",
@@ -392,7 +398,8 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Settings and agents",
 		"backlog": "SET-03",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Paste here\" (placeholder, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"placeholder:R11656136": {
 		"status": "matched",

@@ -61,7 +61,8 @@
 		"reason": "unshown",
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-12",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Copy plan\" (tooltip, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"tooltip:R8821619": {
 		"status": "matched",
@@ -109,7 +110,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Chat view",
 		"backlog": "CHAT-27",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Copy error details\" (tooltip, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"tooltip:R9587964": {
 		"status": "matched",

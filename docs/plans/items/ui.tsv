@@ -1101,3 +1101,13 @@ APP-13	rule	AlertDialog and Dialog cite the 200 ms fade and 0.95 scale but apply
 APP-13	rule	Card and Separator are still imported by no feature; use them or record why the kit keeps them (ui/Card.tsx, ui/Separator.tsx).	docs/reports/audits/step-4-s1-ui	missing
 APP-13	rule	system-app-13.test.ts casts a bare clipboard object to the Platform type; check the stand-in against the real Platform clipboard (core/services/system-app-13.test.ts:5-9).	docs/reports/audits/step-4-s1-ui	missing
 APP-13	operation	The TruncatedText test checks the title and Copy click but not that the shown text is shortened inside the component.	docs/reports/audits/step-4-s1-ui	missing
+CHAT-27	control	Conductor shows "Copy error details" (tooltip, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory tooltip R@9535913	missing
+CHAT-23	message	Conductor shows "Connecting" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory literal R@2215964	missing
+CHAT-23	message	Conductor shows "Deleted" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory literal R@2216274	missing
+CHAT-23	message	Conductor shows "Unknown" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory literal R@2216298	missing
+APP-04	control	Conductor shows "Search repositories..." (placeholder, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory placeholder R@1898620	missing
+APP-04	control	Conductor shows "Loading recent repos" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory aria_label R@1898003	missing
+APP-04	control	Conductor shows "Search repositories" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory aria_label R@1898585	missing
+APP-04	message	Conductor shows "Recent repos" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@1897964	missing
+CHAT-24	message	Conductor shows "Failed to render diagram" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@8047788	missing
+CHAT-22	message	Conductor shows "Couldn’t load visualization" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@9498978	missing

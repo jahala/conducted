@@ -148,49 +148,56 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-16",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Try again to start a new connection.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R4406017": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Sync files needs to be ready before this terminal starts.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R4407497": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Runs against a synced copy on your Mac.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R4407633": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"The local sync folder was removed. Sync files will recreate it when it resumes.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R4409379": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"The workspace is not ready yet.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R4409969": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"The local terminal cannot start until Sync files recovers.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R4410270": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-11",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Restart sync to recreate the local folder.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R5493845": {
 		"status": "gap",
@@ -612,7 +619,8 @@
 		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CHAT-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Other turns are still available.\" (description, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R9949297": {
 		"status": "gap",
@@ -632,7 +640,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "NAV-10",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Switch tabs or try rendering this chat again.\" (description, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R10584497": {
 		"status": "matched",
@@ -661,7 +670,9 @@
 	"description:R10678507": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R10708838": {
 		"status": "matched",
@@ -855,7 +866,8 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Settings and agents",
 		"backlog": "SET-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Style to use when a new chat starts with a Codex model\" (description, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11026691": {
 		"status": "matched",
@@ -1190,14 +1202,16 @@
 		"reason": "missing",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "CLOUD-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Name and email used for commits in cloud workspaces.\" (description, inventory-controls Settings: General); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11135262": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "CLOUD-17",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Each workspace is an isolated copy of your codebase.\" (description, inventory-controls Settings: General); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11136046": {
 		"status": "matched",
@@ -1252,21 +1266,24 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Turning on port forwarding in one workspace turns it off everywhere else\" (description, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11160364": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"How new forwards choose their local port. Existing forwards keep their ports.\" (description, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11161304": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Used for forwards that don't match their remote port number.\" (description, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11194342": {
 		"status": "decided",
@@ -1413,7 +1430,8 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "AGENT-16",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Choose which models you want to use\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11263695": {
 		"status": "matched",
@@ -1443,29 +1461,37 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Add custom instructions sent to the agent when you click the Review button.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11266620": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Add custom instructions sent to the agent when you click the Create PR button.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11266812": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11267037": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11267246": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11267436": {
 		"status": "matched",
@@ -1568,7 +1594,8 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Syntax highlighting theme for code and diffs.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11300514": {
 		"status": "gap",
@@ -1595,43 +1622,53 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Font family and size for the terminal.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11301175": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Theme, typography, color, and editor appearance.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11301393": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Configure Claude Code authentication and behavior.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11301758": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Configure Codex authentication and behavior.\" (description, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R11301958": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11302151": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11302430": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-02",
+		"owner": "rule:neighbour"
 	},
 	"description:R11302764": {
 		"status": "gap",
@@ -1865,14 +1902,16 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "APP-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"The update will download automatically in the background.\" (description, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R12096092": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "APP-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"You're running the latest version of Conductor.\" (description, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"description:R12119124": {
 		"status": "matched",

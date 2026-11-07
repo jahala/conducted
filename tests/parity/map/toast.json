@@ -280,14 +280,16 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "WS-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"No workspace path available\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R2504925": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "WS-08",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Workspace is still loading, try again\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R2505067": {
 		"status": "gap",
@@ -323,7 +325,8 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "WS-03",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"No active session to attach setup logs to\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R2977083": {
 		"status": "gap",
@@ -338,14 +341,16 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "WS-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to copy prompt\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R2984388": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "WS-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Copied prompt to clipboard\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R2985423": {
 		"status": "gap",
@@ -504,7 +509,8 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CLOUD-12",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to copy SSH command\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R5643180": {
 		"status": "gap",
@@ -805,7 +811,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Workspace path unavailable.\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R9513466": {
 		"status": "decided",
@@ -818,7 +825,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to copy request\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R9549716": {
 		"status": "gap",
@@ -887,7 +895,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "RUN-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Terminal settings are still loading.\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R10085400": {
 		"status": "gap",
@@ -963,7 +972,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "APP-03",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to copy logs\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R10582102": {
 		"status": "gap",
@@ -1038,7 +1048,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Settings: Agents",
 		"backlog": "SET-03",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Failed to copy Codex verification code.\" (toast, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R10954108": {
 		"status": "gap",
@@ -1095,7 +1106,8 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Settings and agents",
 		"backlog": "PR-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Some GitHub details couldn't be updated\" (toast, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R11086629": {
 		"status": "gap",
@@ -1402,7 +1414,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Section no longer exists\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R11512106": {
 		"status": "gap",
@@ -1498,7 +1511,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Platform",
 		"backlog": "PR-09",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"Linear issue not found\" (toast, inventory-controls Platform); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R11637313": {
 		"status": "gap",
@@ -1570,7 +1584,8 @@
 		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"GitHub isn't connected yet. Finish the sign-in and try again.\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"toast:R11652358": {
 		"status": "gap",

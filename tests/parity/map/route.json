@@ -164,7 +164,8 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "WS-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/repository/$repositoryId/workspace/$localWorkspaceId\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R1715305": {
 		"status": "matched",
@@ -182,7 +183,8 @@
 		"reason": "missing",
 		"screen": "inventory-ui-text Projects and workspaces",
 		"backlog": "PRJ-03",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/settings/user/account\" (route, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R2049956": {
 		"status": "matched",
@@ -202,21 +204,24 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "NAV-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/settings/repos/$repoId/scripts\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R2961215": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "NAV-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/settings/repos/$repoId/actions\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R2983757": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "WS-01",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/settings/user/providers\" (route, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R2986285": {
 		"status": "decided",
@@ -251,7 +256,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Chat view",
 		"backlog": "CHAT-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/settings/user/general\" (route, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R10181173": {
 		"status": "gap",
@@ -356,7 +362,10 @@
 	"route:R11779761": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "PRJ-03",
+		"item": "Conductor shows \"/settings/user/account\" (route, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:quote"
 	},
 	"route:R11783496": {
 		"status": "gap",
@@ -406,19 +415,24 @@
 	"route:R11784537": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"route:R11784600": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-02",
+		"owner": "rule:neighbour"
 	},
 	"route:R11785462": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "NAV-02",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/repos\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R11785714": {
 		"status": "gap",
@@ -495,14 +509,16 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "COMP-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/prompts\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R11786851": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
 		"backlog": "COMP-06",
-		"owner": "rule:neighbour"
+		"item": "Conductor shows \"/repositories/$owner/$repo\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"owner": "rule:cite"
 	},
 	"route:R11929822": {
 		"status": "decided",
