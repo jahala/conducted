@@ -754,9 +754,12 @@ export class WorkspaceService {
 		}
 		// The file commands reach a workspace folder only once it is registered, on every start.
 		// A workspace made before the workspaces folder setting changed lives under the old one.
+		// A cloud workspace's folder is not on this Mac, so only local rows are registered; the
+		// merged list still fills the store below (CLOUD-13).
+		const local = listed.value.filter((workspace) => workspace.host.kind === "local");
 		const reachable = await this.#registerFolders([
 			this.#worktreesRoot(),
-			...listed.value.map((workspace) => workspace.path),
+			...local.map((workspace) => workspace.path),
 		]);
 		if (!reachable.ok) {
 			this.store.setState((state) => ({ ...state, loaded: true }));
@@ -767,6 +770,7 @@ export class WorkspaceService {
 		let logError: AppError | null = null;
 		for (const workspace of listed.value) {
 			workspacesById[workspace.id] = workspace;
+			if (workspace.host.kind !== "local") continue;
 			if (workspace.state !== "failed" && workspace.state !== "ready") continue;
 			const logPath = await this.#deps.repos.workspaces.getSetupLogPath(workspace.id);
 			if (!logPath.ok) {
