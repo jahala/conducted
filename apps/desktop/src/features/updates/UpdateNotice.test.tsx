@@ -203,6 +203,9 @@ describe("APP-06 UpdateNotice", () => {
 		expect(screen.getByText("The update feed answered 500")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "See changes" }));
 		await waitFor(() => expect(openUrl).toHaveBeenCalledWith("https://example.test/notes"));
+		// The action closes the toast, and sonner removes it on a timer. Wait until it has left the
+		// page, so no timer is still pending when the file's test page is torn down (as in #341).
+		await waitFor(() => expect(screen.queryByText("Update failed")).toBeNull());
 	});
 
 	it("shows what changed after an update until the last-seen key matches", async () => {
