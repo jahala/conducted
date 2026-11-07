@@ -78,6 +78,8 @@ export type SettingDef = {
 	detail?: string;
 	/** A detail that warns, drawn in the warning colour (Graphite's performance note). */
 	detailTone?: "warning";
+	/** A page that explains the setting, linked as "Learn more" after the description. */
+	learnMoreUrl?: string;
 	/** Extra words that find this setting in search. */
 	searchTerms: readonly string[];
 	/** Backlog id of the feature that owns the behaviour. */
@@ -863,6 +865,8 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Auto permission mode",
 		description: "Turns on Claude auto mode.",
+		// Claude's glossary entry on auto mode, which Conductor's "Learn more" opens.
+		learnMoreUrl: "https://code.claude.com/docs/en/glossary#auto-mode",
 		searchTerms: ["auto", "permission", "claude", "mode"],
 		feature: "AGENT-04",
 		type: "bool",

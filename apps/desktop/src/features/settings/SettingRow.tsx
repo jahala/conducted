@@ -39,6 +39,7 @@ import { cn } from "../../ui/cn.ts";
 import { Input, Label, Textarea } from "../../ui/Input.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { Switch } from "../../ui/Switch.tsx";
+import { ExternalLink } from "../chat/ExternalLink.tsx";
 
 const DISABLED_TAGS = new Set(["input", "button", "select", "textarea", "fieldset"]);
 
@@ -355,6 +356,20 @@ export function SettingControl({
 	);
 }
 
+/** The row's description, followed by "Learn more" when the registry names a page for it. */
+function describedWithLink(def: SettingDef): ReactNode {
+	const text = pageDescriptionOf(def);
+	if (def.learnMoreUrl === undefined) return text;
+	return (
+		<>
+			{text}{" "}
+			<ExternalLink url={def.learnMoreUrl} title="Learn more" className="underline hover:text-fg">
+				Learn more
+			</ExternalLink>
+		</>
+	);
+}
+
 /** How a page lays out one registry row where Conductor's page component differs from the plain row. */
 export interface RowLayout {
 	/** The description with its link, in place of the registry's plain text. */
@@ -405,7 +420,7 @@ function RegistrySettingRow({
 		<SettingRow
 			settingKey={def.key}
 			title={def.title}
-			description={layout?.description ?? pageDescriptionOf(def)}
+			description={layout?.description ?? describedWithLink(def)}
 			stacked={layout?.stacked === true}
 			detail={def.detail ?? null}
 			{...(def.detailTone === undefined ? {} : { detailTone: def.detailTone })}

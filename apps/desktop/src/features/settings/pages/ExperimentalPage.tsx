@@ -2,7 +2,7 @@
  * @feature SET-02 Experimental settings page
  * Owns: the Experimental page of Settings: switches for features that are still changing, under
  * Conductor's subtitle and in its order (renderApp, the experimental tab): Auto permission mode
- * first, its text followed by "Learn more" (Claude's page on auto mode), and Graphite stack support
+ * first, its text followed by "Learn more" (Claude's page on auto mode, the registry's learnMoreUrl), and Graphite stack support
  * last. Ours sit beside their kin (D098): the big terminal's
  * preset and command list after Big terminal mode, Unstarted workspaces after New workspace page.
  * Behaviour: ui-map.md 6, "Experimental" table; services-map.md 4.1.5 and 4.2.3 (experimental
@@ -20,13 +20,8 @@
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useSetting } from "../../../core/hooks.ts";
-import { pageDescriptionOf } from "../../../core/registries/settings.ts";
-import { ExternalLink } from "../../chat/ExternalLink.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
-
-/** Claude's glossary entry on auto mode, which Conductor's "Learn more" opens. */
-const AUTO_MODE_URL = "https://code.claude.com/docs/en/glossary#auto-mode";
 
 export function ExperimentalPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
@@ -49,25 +44,6 @@ export function ExperimentalPage({ focusSettingKey = null }: { focusSettingKey?:
 				page="experimental"
 				focusSettingKey={focusSettingKey}
 				unavailableFor={(def) => (def.key === "graphite_disabled" ? gtUnavailable(gt) : null)}
-				layoutFor={(def) =>
-					def.key === "experimental_auto_permission_mode"
-						? {
-								// Conductor follows the text with a link to Claude's page on auto mode.
-								description: (
-									<>
-										{pageDescriptionOf(def)}{" "}
-										<ExternalLink
-											url={AUTO_MODE_URL}
-											title="Learn more"
-											className="underline hover:text-fg"
-										>
-											Learn more
-										</ExternalLink>
-									</>
-								),
-							}
-						: null
-				}
 				extraFor={(def) =>
 					def.key === "experimental_sidebar_transparency" && transparency ? (
 						<p role="status" className="text-xs text-fg-muted">
