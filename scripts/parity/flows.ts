@@ -207,9 +207,10 @@ export const FLOWS: Flow[] = [
 		state: "command-palette",
 		steps: [
 			{
-				step: "Type Open settings and press Enter",
+				// The palette's item is "Settings", as Conductor's is; "Open settings" matches nothing.
+				step: "Type Settings and press Enter",
 				run: async (page) => {
-					await page.keyboard.type("Open settings");
+					await page.keyboard.type("Settings");
 					await page.keyboard.press("Enter");
 				},
 			},
