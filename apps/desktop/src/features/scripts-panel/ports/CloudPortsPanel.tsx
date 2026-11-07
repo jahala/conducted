@@ -1,8 +1,8 @@
 /**
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: the Ports tab of a cloud workspace: Start forwarding (Cmd+Y), Waiting for ports, and the
- * Forward ports popover with detected ports, forwarded ports, a typed remote port, per-forward
- * toggles, Auto-forwarding and a shareable preview URL.
+ * Forward ports popover with detected ports, forwarded ports (each moveable up or down), a typed
+ * remote port, per-forward toggles, Auto-forwarding and a shareable preview URL.
  * Behaviour: ui-map.md 3.7 (the popover's labels and the Start forwarding button), 6 (the
  * Connections settings that this view obeys), services-map.md 5A.3.3 (forward, toggle, cancel and
  * discovery). Messages are Conductor's: "Enter a valid port (1-65535)", "Port 22 is reserved for
@@ -26,7 +26,9 @@ import {
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
+import { IconButton } from "../../../ui/IconButton.tsx";
 import { Input } from "../../../ui/Input.tsx";
+import { ArrowDownIcon, ArrowUpIcon } from "../../../ui/icons.tsx";
 import { Kbd } from "../../../ui/Kbd.tsx";
 import { Popover } from "../../../ui/Popover.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
@@ -192,12 +194,42 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 								{view.forwards.length === 0 ? (
 									<p className="text-xs text-fg-subtle">Nothing is forwarded yet.</p>
 								) : (
-									view.forwards.map((forward) => (
+									view.forwards.map((forward, index) => (
 										<div key={forward.id} className="flex flex-col gap-1">
 											<div className="flex items-center justify-between gap-2">
 												<span className="font-mono text-sm text-fg">
 													localhost:{forward.localPort} → {forward.remotePort}
 												</span>
+												<div className="flex items-center gap-0.5">
+													<IconButton
+														size="xs"
+														variant="ghost"
+														label="Move forwarded port up"
+														icon={<ArrowUpIcon className="size-3.5" />}
+														disabled={index === 0}
+														onClick={() =>
+															void actions.portForwards.move(forward.id, "up").then((result) => {
+																if (!result.ok) {
+																	toastError("Couldn't move the forward", result.error);
+																}
+															})
+														}
+													/>
+													<IconButton
+														size="xs"
+														variant="ghost"
+														label="Move forwarded port down"
+														icon={<ArrowDownIcon className="size-3.5" />}
+														disabled={index === view.forwards.length - 1}
+														onClick={() =>
+															void actions.portForwards.move(forward.id, "down").then((result) => {
+																if (!result.ok) {
+																	toastError("Couldn't move the forward", result.error);
+																}
+															})
+														}
+													/>
+												</div>
 												<Switch
 													checked={forward.enabled}
 													aria-label={`Forward remote port ${forward.remotePort}`}

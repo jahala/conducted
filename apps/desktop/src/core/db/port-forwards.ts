@@ -4,7 +4,8 @@
  * remote port carried to one local port, and whether the workspace forwards or discovers ports.
  * Behaviour: services-map.md 5A.3.3 (Conductor's table: id, workspace_id, remote_port, local_port,
  * protocol 'tcp', label, enabled, created_at, auto_detected; local_port unique on the machine;
- * (workspace_id, remote_port) unique) and 2.7.1 (rows removed on archive or delete).
+ * (workspace_id, remote_port) unique) and 2.7.1 (rows removed on archive or delete). Our own
+ * `position` column keeps the order the user set by moving a forward up or down.
  * Must handle: a duplicate remote port or local port is refused by the unique indexes and comes
  * back as an error Result; a row of a workspace that is archived or gone is removed on startup;
  * a bad flag reads as false; deleting a workspace cascades its rows.
@@ -35,6 +36,8 @@ export interface PortForward {
 	label: string | null;
 	autoDetected: boolean;
 	enabled: boolean;
+	/** Its place in the Forward ports popover; the user can move it up or down. */
+	position: number;
 	createdAt: number;
 }
 
@@ -47,6 +50,7 @@ export interface PortForwardRow {
 	label: string | null;
 	auto_detected: number;
 	enabled: number;
+	position: number;
 	created_at: number;
 }
 
@@ -71,6 +75,7 @@ export function portForwardFromRow(row: PortForwardRow): Result<PortForward> {
 			label: row.label,
 			autoDetected: fromFlag(row.auto_detected),
 			enabled: fromFlag(row.enabled),
+			position: row.position,
 			createdAt: row.created_at,
 		},
 	};
@@ -87,21 +92,23 @@ export function portForwardToParams(forward: PortForward): readonly unknown[] {
 		forward.label,
 		toFlag(forward.autoDetected),
 		toFlag(forward.enabled),
+		forward.position,
 		forward.createdAt,
 	];
 }
 
 const COLUMNS = `id, workspace_id, remote_port, local_port, protocol, label, auto_detected,
-	enabled, created_at`;
+	enabled, position, created_at`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const PORT_FORWARDS_SQL = {
-	listAll: `SELECT ${COLUMNS} FROM port_forwards ORDER BY workspace_id, remote_port, id`,
+	listAll: `SELECT ${COLUMNS} FROM port_forwards ORDER BY workspace_id, position, remote_port, id`,
 	get: `SELECT ${COLUMNS} FROM port_forwards WHERE id = $1`,
 	listLocalPorts: "SELECT local_port FROM port_forwards",
-	insert: `INSERT INTO port_forwards (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+	insert: `INSERT INTO port_forwards (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 	setEnabled: "UPDATE port_forwards SET enabled = $1 WHERE id = $2",
 	setLocalPort: "UPDATE port_forwards SET local_port = $1 WHERE id = $2",
+	setPosition: "UPDATE port_forwards SET position = $1 WHERE id = $2",
 	delete: "DELETE FROM port_forwards WHERE id = $1",
 	deleteForWorkspace: "DELETE FROM port_forwards WHERE workspace_id = $1",
 	/** Rows of archived workspaces, or of workspaces that no longer exist, are removed at startup. */
@@ -125,6 +132,8 @@ export interface PortForwardRepository {
 	setEnabled(id: string, enabled: boolean): Promise<Result<void>>;
 	/** Moves a forward to another local port, after a bind failure. */
 	setLocalPort(id: string, localPort: number): Promise<Result<void>>;
+	/** Moves a forward to another place in its workspace's list. */
+	setPosition(id: string, position: number): Promise<Result<void>>;
 	delete(id: string): Promise<Result<void>>;
 	deleteForWorkspace(workspaceId: WorkspaceId): Promise<Result<void>>;
 	/** Removes rows of archived workspaces and of workspaces that no longer exist. */
@@ -192,6 +201,13 @@ export function createPortForwardRepository(
 				PORT_FORWARDS_SQL.setLocalPort,
 				[localPort, id],
 				"Moving a port forward to another local port",
+			),
+		setPosition: (id, position) =>
+			executeVoid(
+				db,
+				PORT_FORWARDS_SQL.setPosition,
+				[position, id],
+				"Moving a port forward in the list",
 			),
 		delete: (id) => executeVoid(db, PORT_FORWARDS_SQL.delete, [id], "Removing a port forward"),
 		deleteForWorkspace: (workspaceId) =>

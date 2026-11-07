@@ -264,6 +264,7 @@ export function createActions(
 			add: (workspaceId, remotePort) => services.portForwards.add(workspaceId, remotePort),
 			remove: (forwardId) => services.portForwards.remove(forwardId),
 			toggle: (forwardId, enabled) => services.portForwards.toggle(forwardId, enabled),
+			move: (forwardId, direction) => services.portForwards.move(forwardId, direction),
 			pauseWorkspace: (workspaceId) => services.portForwards.pauseWorkspace(workspaceId),
 			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
 			previewUrl: (workspaceId, remotePort) =>

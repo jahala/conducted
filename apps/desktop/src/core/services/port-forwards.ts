@@ -1,15 +1,16 @@
 /**
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * Owns: the rules around a cloud workspace's port forwards: the Start forwarding switch, the
- * per-forward toggle, adding a typed remote port, automatic forwarding of discovered ports, the
- * exclusive mode, allocation, and stopping everything when a workspace is archived or the app
- * starts with stale rows.
+ * per-forward toggle, adding a typed remote port, moving a forward up or down, automatic
+ * forwarding of discovered ports, the exclusive mode, allocation, and stopping everything when a
+ * workspace is archived or the app starts with stale rows.
  * Behaviour: docs/research/conductor/services-map.md 5A.3.3 (strategy, local range, mappings,
  * exclusive mode, discovery reconciliation, archive and startup cleanup) and ui-map.md 3.7, 6
  * (the Forward ports popover, Cmd+Y, and the Connections settings). The local listener itself is
  * Rust's (port_forward.rs); this service decides what should be listening.
  * Must handle: a port that is not a number or is outside 1..65535; port 22; a duplicate remote
- * port; a bind failure retried up to five times with a new local port; exclusive mode turning off
+ * port; a move past either end of the list (nothing changes); a bind failure retried up to five
+ * times with a new local port; exclusive mode turning off
  * every other cloud workspace before it turns this one on; an auto-detected port that disappears
  * (stopped and removed), while a port the user turned off stays; one discovery answer never
  * replacing a newer one; a discovery call to an unpaired Mac reported as the workspace's error and
@@ -73,6 +74,7 @@ export function viewOf(forward: PortForward): PortForwardEntry {
 		label: forward.label,
 		autoDetected: forward.autoDetected,
 		enabled: forward.enabled,
+		position: forward.position,
 	};
 }
 
@@ -81,6 +83,11 @@ function viewWith(
 	patch: Partial<PortForwardView>,
 ): PortForwardView {
 	return { ...(view ?? EMPTY_VIEW), ...patch };
+}
+
+/** The place a new forward takes: after every forward the workspace already has. */
+function nextPosition(forwards: readonly PortForwardEntry[]): number {
+	return forwards.reduce((highest, forward) => Math.max(highest, forward.position), -1) + 1;
 }
 
 function errorCode(error: AppError): string {
@@ -374,6 +381,7 @@ export class PortForwardsService {
 				label: null,
 				autoDetected: false,
 				enabled: true,
+				position: nextPosition(view.forwards),
 			});
 			if (!added.ok) return added;
 			this.#patch(workspaceId, { forwards: [...view.forwards, viewOf(added.value)] });
@@ -398,6 +406,33 @@ export class PortForwardsService {
 			const view = this.view(found.workspaceId);
 			this.#patch(found.workspaceId, {
 				forwards: view.forwards.filter((forward) => forward.id !== forwardId),
+			});
+			return ok(undefined);
+		});
+	}
+
+	/**
+	 * Moves one forward up or down in its workspace's list. The list's positions are rewritten
+	 * from zero, so removals leave no gaps behind. A move past either end changes nothing.
+	 */
+	async move(forwardId: string, direction: "up" | "down"): Promise<Result<void>> {
+		return this.#serial(async () => {
+			const found = this.#find(forwardId);
+			if (found === null) return ok(undefined);
+			const view = this.view(found.workspaceId);
+			const index = view.forwards.findIndex((forward) => forward.id === forwardId);
+			const target = direction === "up" ? index - 1 : index + 1;
+			if (index === -1 || target < 0 || target >= view.forwards.length) return ok(undefined);
+			const next = [...view.forwards];
+			const [moved] = next.splice(index, 1);
+			if (moved === undefined) return ok(undefined);
+			next.splice(target, 0, moved);
+			for (const [position, forward] of next.entries()) {
+				const saved = await this.#deps.repos.portForwards.setPosition(forward.id, position);
+				if (!saved.ok) return saved;
+			}
+			this.#patch(found.workspaceId, {
+				forwards: next.map((forward, position) => ({ ...forward, position })),
 			});
 			return ok(undefined);
 		});
@@ -579,6 +614,7 @@ export class PortForwardsService {
 				label: null,
 				autoDetected: true,
 				enabled: true,
+				position: nextPosition(current.forwards),
 			});
 			if (!added.ok) continue;
 			taken.value.add(added.value.localPort);

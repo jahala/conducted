@@ -13,8 +13,24 @@ const view = (overrides: Partial<PortForwardView> = {}): PortForwardView => ({
 	autoForwardEnabled: false,
 	waiting: false,
 	forwards: [
-		{ id: "a", remotePort: 3000, localPort: 3000, label: null, autoDetected: false, enabled: true },
-		{ id: "b", remotePort: 5173, localPort: 5173, label: null, autoDetected: false, enabled: true },
+		{
+			id: "a",
+			remotePort: 3000,
+			localPort: 3000,
+			label: null,
+			autoDetected: false,
+			enabled: true,
+			position: 0,
+		},
+		{
+			id: "b",
+			remotePort: 5173,
+			localPort: 5173,
+			label: null,
+			autoDetected: false,
+			enabled: true,
+			position: 1,
+		},
 	],
 	detectedPorts: [
 		{ port: 3000, processName: "node" },
@@ -42,6 +58,7 @@ describe("CLOUD-10 Forwarding ports toast", () => {
 					label: null,
 					autoDetected: false,
 					enabled: true,
+					position: 0,
 				},
 				{
 					id: "b",
@@ -50,6 +67,7 @@ describe("CLOUD-10 Forwarding ports toast", () => {
 					label: null,
 					autoDetected: false,
 					enabled: true,
+					position: 0,
 				},
 				{
 					id: "c",
@@ -58,6 +76,7 @@ describe("CLOUD-10 Forwarding ports toast", () => {
 					label: null,
 					autoDetected: false,
 					enabled: true,
+					position: 0,
 				},
 				{
 					id: "d",
@@ -66,6 +85,7 @@ describe("CLOUD-10 Forwarding ports toast", () => {
 					label: null,
 					autoDetected: false,
 					enabled: true,
+					position: 0,
 				},
 			],
 			detectedPorts: [],
@@ -86,6 +106,7 @@ describe("CLOUD-10 Forwarding ports toast", () => {
 							label: null,
 							autoDetected: false,
 							enabled: false,
+							position: 0,
 						},
 					],
 				}),

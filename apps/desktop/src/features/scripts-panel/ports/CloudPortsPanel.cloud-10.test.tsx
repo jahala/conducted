@@ -18,7 +18,7 @@ afterEach(() => {
 	for (const test of containers.splice(0)) test.close();
 });
 
-async function setup() {
+async function setup(options: { remotePorts?: readonly number[] } = {}) {
 	const test = createTestContainer();
 	containers.push(test);
 	const repo = await seedRepo(test.container);
@@ -26,18 +26,18 @@ async function setup() {
 		repoId: repo.id,
 		host: { kind: "cloud", url: "https://w.example.dev", vmId: "oslo" },
 	});
+	const portForwards = test.container.services.portForwards;
+	for (const remotePort of options.remotePorts ?? []) {
+		await portForwards.add(workspace.id, remotePort);
+	}
 	test.container.services.portForwards.store.setState({
 		byWorkspace: {
 			[workspace.id]: {
-				forwardingEnabled: false,
-				autoForwardEnabled: false,
-				waiting: false,
-				forwards: [],
+				...portForwards.view(workspace.id),
 				detectedPorts: [
 					{ port: 3000, processName: "node" },
 					{ port: 5173, processName: "vite" },
 				],
-				error: null,
 			},
 		},
 	});
@@ -57,6 +57,18 @@ describe("CLOUD-10 cloud Ports tab", () => {
 		expect(screen.getByText(/localhost:5173/)).toBeTruthy();
 		expect(screen.getByText("node")).toBeTruthy();
 		expect(screen.getByText("vite")).toBeTruthy();
+	});
+
+	it("moves a forwarded port down the list", async () => {
+		const { test, workspace } = await setup({ remotePorts: [3000, 4000] });
+		fireEvent.click(await screen.findByRole("button", { name: "Forward ports" }));
+		const order = () => test.container.services.portForwards.view(workspace.id).forwards;
+		expect(order().map((forward) => forward.remotePort)).toEqual([3000, 4000]);
+
+		const down = screen.getAllByRole("button", { name: "Move forwarded port down" })[0];
+		fireEvent.click(down as HTMLElement);
+
+		await waitFor(() => expect(order().map((forward) => forward.remotePort)).toEqual([4000, 3000]));
 	});
 
 	it("Start forwarding turns the workspace's switch on", async () => {

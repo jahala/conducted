@@ -159,6 +159,8 @@ export interface PortForwardEntry {
 	label: string | null;
 	autoDetected: boolean;
 	enabled: boolean;
+	/** Its place in the Forward ports popover; the user can move it up or down. */
+	position: number;
 }
 
 /** A port the sandbox listens on, with the process behind it when /proc names one. */
@@ -755,6 +757,8 @@ export interface Actions {
 		remove: Act<[forwardId: string], void>;
 		/** Turns one forward on or off without deleting it. */
 		toggle: Act<[forwardId: string, enabled: boolean], void>;
+		/** Moves one forward up or down in its workspace's list. */
+		move: Act<[forwardId: string, direction: "up" | "down"], void>;
 		/** Stops every forward and clears the rows when a workspace is archived (CLOUD-10). */
 		pauseWorkspace: Act<[workspaceId: WorkspaceId], void>;
 		/** Reads the sandbox's listening ports now, for the Forward ports popover. */

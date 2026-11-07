@@ -109,6 +109,34 @@ describe("CLOUD-10 forwarding service", () => {
 		expect(running.ok && running.value.map((entry) => entry.remotePort)).toEqual([5173]);
 	});
 
+	it("moves a forward up and down and keeps the order on disk", async () => {
+		const ws = await cloudWorkspace();
+		const first = await service.add(ws.id, 3000);
+		const second = await service.add(ws.id, 4000);
+		const third = await service.add(ws.id, 5000);
+		expect([first, second, third].every((result) => result.ok)).toBe(true);
+		if (!first.ok || !second.ok || !third.ok) return;
+		const order = (): number[] => service.view(ws.id).forwards.map((entry) => entry.remotePort);
+		expect(order()).toEqual([3000, 4000, 5000]);
+
+		expect((await service.move(third.value.id, "up")).ok).toBe(true);
+		expect(order()).toEqual([3000, 5000, 4000]);
+		expect((await service.move(third.value.id, "up")).ok).toBe(true);
+		expect(order()).toEqual([5000, 3000, 4000]);
+		// The first row cannot move up, and the last cannot move down.
+		expect((await service.move(third.value.id, "up")).ok).toBe(true);
+		expect(order()).toEqual([5000, 3000, 4000]);
+		expect((await service.move(third.value.id, "down")).ok).toBe(true);
+		expect(order()).toEqual([3000, 5000, 4000]);
+
+		const rows = await forwardsOf(repositories, ws.id);
+		expect(rows.ok && rows.value.map((row) => row.remotePort)).toEqual([3000, 5000, 4000]);
+
+		const fourth = await service.add(ws.id, 6000);
+		expect(fourth.ok).toBe(true);
+		expect(order()).toEqual([3000, 5000, 4000, 6000]);
+	});
+
 	it("stops every forward when the switch turns off but keeps the rows", async () => {
 		const ws = await cloudWorkspace();
 		await service.setForwarding(ws.id, true);
