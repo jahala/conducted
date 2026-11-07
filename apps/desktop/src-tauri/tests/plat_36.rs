@@ -131,9 +131,7 @@ impl TestApp {
                 // The app is macOS-only, where this is the local app origin. The
                 // `http://tauri.localhost` form the Tauri example uses is a remote origin on
                 // macOS, which would ask the ACL for a capability the app does not have.
-                url: "tauri://localhost"
-                    .parse()
-                    .expect("the test URL parses"),
+                url: "tauri://localhost".parse().expect("the test URL parses"),
                 body: InvokeBody::Json(body),
                 headers: Default::default(),
                 invoke_key: INVOKE_KEY.to_string(),
@@ -250,7 +248,9 @@ fn plat_36_fs_paths_returns_the_app_folders() {
     fs::create_dir_all(&macos).expect("create the bundle folder");
     fs::create_dir_all(&resources).expect("create the resources folder");
     fs::create_dir_all(&app_data).expect("create the app data folder");
-    let app_data = app_data.canonicalize().expect("the app data folder resolves");
+    let app_data = app_data
+        .canonicalize()
+        .expect("the app data folder resolves");
 
     let copy = macos.join("plat-36-test");
     fs::copy(std::env::current_exe().expect("the test exe"), &copy)
