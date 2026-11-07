@@ -11,18 +11,16 @@ const commit = (id: string, at: number): PrActivityEntry => ({
 	authorName: "Ada",
 });
 
-const review = (
-	id: string,
-	at: number,
-	state: "approved" | "changes_requested" | "commented" | "dismissed" = "approved",
-): PrActivityEntry => ({
-	kind: "review",
+const comment = (id: string, at: number): PrActivityEntry => ({
+	kind: "comment",
 	id,
 	at,
 	authorLogin: "octocat",
 	authorAvatarUrl: null,
-	state,
-	body: "",
+	body: `Comment ${id}`,
+	filePath: null,
+	line: null,
+	commentId: id,
 });
 
 describe("PR-07 sortActivity", () => {
@@ -43,10 +41,7 @@ describe("PR-07 sortActivity", () => {
 	});
 
 	it("keeps equal times in id order", () => {
-		const sorted = sortActivity(
-			[review("b", 5, "changes_requested"), review("a", 5), review("c", 5)],
-			"newest-first",
-		);
+		const sorted = sortActivity([comment("b", 5), commit("a", 5), comment("c", 5)], "newest-first");
 		expect(sorted.map((entry) => entry.id)).toEqual(["a", "b", "c"]);
 	});
 

@@ -1,7 +1,7 @@
 /**
  * @feature PR-07 PR activity list
- * Owns: the Activity section: commits, reviews, comments and status changes of the PR in time
- * order.
+ * Owns: the Activity section: the commits and comments of the PR in time order, as Conductor's
+ * list shows them (D078).
  * Behaviour: ui-map.md 3.2 (PR tab: "Activity"); services-map.md 3.7.2 and 3.7.4 for the data
  * available (reviews, review threads, general comments). A sort order setting exists in
  * Conductor (pr_activity_sort_order, newest-first or oldest-first, services-map.md 4.2.3).

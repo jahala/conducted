@@ -117,13 +117,12 @@ describe("REV-13 pull request comments without a file", () => {
 		).toBe(false);
 		expect(
 			isPrLevelComment({
-				kind: "review",
-				id: "review",
+				kind: "commit",
+				id: "commit:abc",
 				at: 1_000,
-				authorLogin: "octocat",
-				authorAvatarUrl: null,
-				state: "approved",
-				body: "",
+				sha: "abc",
+				subject: "Not a comment",
+				authorName: "Ada",
 			}),
 		).toBe(false);
 	});
