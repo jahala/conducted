@@ -1026,10 +1026,10 @@
 	},
 	"label:M3753682": {
 		"status": "matched",
-		"state": "pr-merged",
+		"state": "workspace-actions-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(10) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:M3754095": {
@@ -2114,9 +2114,12 @@
 		"by": "seed"
 	},
 	"label:R9643040": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"status": "matched",
+		"state": "git-diff-view-options",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > label:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R9857501": {
 		"status": "gap",
