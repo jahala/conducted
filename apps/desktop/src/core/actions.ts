@@ -247,6 +247,10 @@ export function createActions(
 			setGitHubToken: (token) => services.github.setToken(token),
 			setLinearKey: (key) => services.linear.setApiKey(key),
 		},
+		cloud: {
+			pair: (input) => services.cloudPairing.pair(input),
+			unpair: () => services.cloudPairing.unpair(),
+		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
 			checkForUpdates: () => services.updates.check(),

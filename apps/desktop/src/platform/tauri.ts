@@ -67,6 +67,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudPairing,
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
@@ -387,7 +388,9 @@ export const COMMANDS = {
 	httpFetch: "http_fetch", // PLAT-30
 	httpDownload: "http_download", // PLAT-30
 	httpCancel: "http_cancel", // PLAT-30
-	cloudPaired: "cloud_paired", // CLOUD-03
+	cloudPairing: "cloud_pairing", // CLOUD-07
+	cloudPair: "cloud_pair", // CLOUD-07
+	cloudUnpair: "cloud_unpair", // CLOUD-07
 	cloudRequest: "cloud_request", // CLOUD-03
 	cloudRelayOpen: "cloud_relay_open", // CLOUD-03
 	cloudRelaySend: "cloud_relay_send", // CLOUD-03
@@ -1327,13 +1330,16 @@ interface CloudClosedPayload {
 }
 
 /**
- * `cloud_paired`, `cloud_request`, `cloud_relay_open`, `cloud_relay_send`, `cloud_relay_close`,
- * and the `cloud://line` and `cloud://closed` events (CLOUD-03). The pairing token is read in Rust
- * and never crosses into the web view. One relay's listeners filter the shared events by its id.
+ * `cloud_pairing`, `cloud_pair`, `cloud_unpair`, `cloud_request`, `cloud_relay_open`,
+ * `cloud_relay_send`, `cloud_relay_close`, and the `cloud://line` and `cloud://closed` events
+ * (CLOUD-03, CLOUD-07). The pairing token is written and read in Rust and never crosses back into
+ * the web view. One relay's listeners filter the shared events by its id.
  */
 export function createTauriCloud(bindings: TauriBindings): Cloud {
 	return {
-		paired: () => invokeResult<boolean>(bindings, COMMANDS.cloudPaired),
+		status: () => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPairing),
+		pair: (input) => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPair, { input }),
+		unpair: () => invokeResult<void>(bindings, COMMANDS.cloudUnpair),
 		request: (request: CloudRequest) =>
 			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
 		openRelay: async (input) => {
