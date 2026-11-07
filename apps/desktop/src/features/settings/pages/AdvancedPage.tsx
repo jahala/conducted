@@ -69,7 +69,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 	return (
 		<SettingsPageFrame
 			title="Advanced"
-			description="Where the app keeps its data, which programs it runs, and how much terminal history it keeps."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
@@ -80,7 +80,6 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 					rootDef?.description ??
 					"Where Conducted stores repositories and workspaces. This should be an empty directory that you don't modify directly."
 				}
-				scope="user"
 				disabledReason={null}
 				highlighted={focusSettingKey === ROOT_PATH_KEY}
 				saveError={saves.errorOf(ROOT_PATH_KEY)}

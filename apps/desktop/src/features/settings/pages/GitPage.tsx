@@ -32,12 +32,7 @@ export function GitPage({ focusSettingKey = null }: { focusSettingKey?: string |
 	};
 
 	return (
-		<SettingsPageFrame
-			title="Git"
-			description="Defaults for branches, pull requests and archiving. Each project can override them."
-			{...load}
-			focusSettingKey={focusSettingKey}
-		>
+		<SettingsPageFrame title="Git" description={null} {...load} focusSettingKey={focusSettingKey}>
 			<RegistrySettingRows
 				page="git"
 				focusSettingKey={focusSettingKey}

@@ -41,28 +41,10 @@
 		"note": "Create project: our description and \"Creates folder\" line."
 	},
 	{
-		"text": "Custom instructions for the buttons that send work to the agent, and for every new chat.",
-		"state": "settings-repo-prompts",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
-		"text": "Defaults for branches, pull requests and archiving. Each project can override them.",
-		"state": "settings-git",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
 		"text": "Draft a workspace now and start it when you are ready.",
 		"state": "backlog-empty",
 		"keep": "parity-round2-report.md (kept for the owner)",
 		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
-	},
-	{
-		"text": "Everyday behaviour for messages, notifications and the app window.",
-		"state": "settings-general",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
 	},
 	{
 		"text": "Favourite models",
@@ -77,12 +59,6 @@
 		"note": "Settings: the Connections page."
 	},
 	{
-		"text": "Follow and steer Claude chats from claude.ai/code or the Claude app while they run on this Mac.",
-		"state": "settings-remote-control",
-		"decision": "D019",
-		"note": "Claude Remote Control for chats, which Conductor does not offer."
-	},
-	{
 		"text": "GitHub sign-in method",
 		"state": "settings-account",
 		"keep": "parity-round2-report.md (kept for the owner)",
@@ -94,21 +70,10 @@
 		"note": "Conductor's own project filter label, composed as \"In <projects>\" (renderApp @10213824); the spec holds no template for it."
 	},
 	{
-		"text": "Install status, versions and sign-in for each agent program.",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
 		"text": "Last port",
 		"state": "settings-connections",
 		"keep": "ui-parity-report.md (kept for the owner)",
 		"note": "Settings: the Connections page."
-	},
-	{
-		"text": "Local sign-ins and connections. There is no Conducted account or billing.",
-		"state": "settings-account",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
 	},
 	{
 		"text": "MCP status comes from a running chat.",
@@ -227,34 +192,10 @@
 		"note": "Onboarding: the agent and project steps."
 	},
 	{
-		"text": "The local ports workspaces draw from. Cloud port forwarding is not part of this app.",
-		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
-	},
-	{
-		"text": "The model and options a new chat starts with.",
-		"state": "settings-default-models",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
-		"text": "Theme, colours, zoom, fonts, and live previews.",
-		"state": "settings-appearance",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
 		"text": "Welcome to Conducted",
 		"state": "onboarding",
 		"keep": "ui-parity-report.md (kept for the owner)",
 		"note": "Onboarding: the agent and project steps."
-	},
-	{
-		"text": "Where the app keeps its data, which programs it runs, and how much terminal history it keeps.",
-		"state": "settings-advanced",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
 	},
 	{
 		"text": "Workspace port range",

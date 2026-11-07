@@ -107,7 +107,7 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	return (
 		<SettingsPageFrame
 			title="General"
-			description="Everyday behaviour for messages, notifications and the app window."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
