@@ -29,7 +29,7 @@
  * The output is also written to docs/research/db-scans-2026-11-07.md by hand.
  */
 import { Database } from "bun:sqlite";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ATTACHMENTS_SQL } from "../../apps/desktop/src/core/db/attachments.ts";
