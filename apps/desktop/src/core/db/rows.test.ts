@@ -46,13 +46,6 @@ import { workspaceFromRow, workspaceToParams } from "./workspaces.ts";
 const rowFrom = <Row>(columns: readonly string[], params: readonly unknown[]): Row =>
 	Object.fromEntries(columns.map((column, index) => [column, params[index]])) as Row;
 
-/** A row of a local workspace; the host columns the codecs check (CLOUD-13). */
-const LOCAL_HOST_COLUMNS = {
-	host_kind: "local",
-	host_url: null,
-	host_vm_id: null,
-} as const;
-
 describe("row-codec", () => {
 	it("returns an error for text that is not JSON", () => {
 		const result = parseJsonColumn("{", z.object({}), "x.col");
@@ -182,20 +175,14 @@ describe("sessions", () => {
 	it("round-trips the config", () => {
 		const params = sessionToParams(sampleSession);
 		if (!params.ok) throw new Error("fixture must serialise");
-		const row = {
-			...rowFrom<Parameters<typeof sessionFromRow>[0]>(columns, params.value),
-			...LOCAL_HOST_COLUMNS,
-		};
+		const row = rowFrom<Parameters<typeof sessionFromRow>[0]>(columns, params.value);
 		expect(sessionFromRow(row)).toEqual({ ok: true, value: sampleSession });
 	});
 
 	it("returns an error Result when config is invalid", () => {
 		const params = sessionToParams(sampleSession);
 		if (!params.ok) throw new Error("fixture must serialise");
-		const row = {
-			...rowFrom<Parameters<typeof sessionFromRow>[0]>(columns, params.value),
-			...LOCAL_HOST_COLUMNS,
-		};
+		const row = rowFrom<Parameters<typeof sessionFromRow>[0]>(columns, params.value);
 		expect(sessionFromRow({ ...row, config: "{" }).ok).toBe(false);
 		expect(sessionFromRow({ ...row, config: '{"agent":"claude"}' }).ok).toBe(false);
 		expect(sessionFromRow({ ...row, config: '{"agent":"nobody","model":"x"}' }).ok).toBe(false);
@@ -223,7 +210,6 @@ describe("session events", () => {
 			];
 			const stored = sessionEventFromRow({
 				session_id: session,
-				...LOCAL_HOST_COLUMNS,
 				idx,
 				event_id: eventId as never,
 				type: type as never,
@@ -239,7 +225,6 @@ describe("session events", () => {
 	it("returns an error Result for bad content", () => {
 		const row = {
 			session_id: sessionId,
-			...LOCAL_HOST_COLUMNS,
 			idx: 0,
 			event_id: "e1" as never,
 			type: "user_message" as const,
@@ -269,19 +254,14 @@ describe("live state", () => {
 			const params = liveStateToParams(sessionId, state, 7);
 			if (!params.ok) throw new Error("fixture must serialise");
 			const [id, json, updatedAt] = params.value as [SessionId, string, number];
-			expect(
-				liveStateFromRow({
-					session_id: id,
-					...LOCAL_HOST_COLUMNS,
-					live_state: json,
-					updated_at: updatedAt,
-				}),
-			).toEqual({ ok: true, value: { sessionId, liveState: state, updatedAt: 7 } });
+			expect(liveStateFromRow({ session_id: id, live_state: json, updated_at: updatedAt })).toEqual(
+				{ ok: true, value: { sessionId, liveState: state, updatedAt: 7 } },
+			);
 		}
 	});
 
 	it("returns an error Result for bad live_state", () => {
-		const row = { session_id: sessionId, ...LOCAL_HOST_COLUMNS, updated_at: 1 };
+		const row = { session_id: sessionId, updated_at: 1 };
 		expect(liveStateFromRow({ ...row, live_state: "{" }).ok).toBe(false);
 		expect(liveStateFromRow({ ...row, live_state: '{"status":"sleeping"}' }).ok).toBe(false);
 	});

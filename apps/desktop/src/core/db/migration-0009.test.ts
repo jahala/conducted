@@ -8,10 +8,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openTestDatabase } from "../../test/sqlite.ts";
-import { hostFromRow } from "./host-rows.ts";
 import { REPOS_SQL, repoToParams } from "./repos.ts";
 import { createRepositories, type Repositories } from "./repositories.ts";
 import { sampleRepo, type sampleWorkspace } from "./test-fixtures.ts";
+import { hostFromRow } from "./workspaces.ts";
 
 let store: ReturnType<typeof openTestDatabase>;
 let repositories: Repositories;

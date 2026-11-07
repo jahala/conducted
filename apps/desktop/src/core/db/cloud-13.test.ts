@@ -1,11 +1,12 @@
 // @vitest-environment node
 /**
  * @feature CLOUD-13 Local copy of cloud data, kept apart by host
- * Owns: the proof that a cloud workspace's rows are stored marked with its host, that the queries
- * local work runs over never return them, and that removing the host takes all of them in one
- * transaction.
+ * Owns: the proof that a cloud workspace's rows are reached only through its workspace's host,
+ * that the queries local work runs over never return them, and that removing the host takes all
+ * of them in one transaction.
  * Behaviour: services-map.md 1.2 (the host picks the record's database) and 2.6.2 (the local copy
- * of a remote host's data). Our design choice: one database, so the rows carry the host (D103).
+ * of a remote host's data). Our design choice: one database, so the host has one home on the
+ * workspace and its children follow by reference (D103).
  * Must handle: local queries (ports, folder names, the archive scan, startup repair) leave cloud
  * rows alone; a local row is never removed by a host sweep; a second sweep changes nothing.
  * Test first: removing a cloud host deletes its rows in every table and leaves local rows alone.
@@ -130,61 +131,30 @@ async function seed(host: Host, name: string, port: number): Promise<WorkspaceId
 	return workspace.id;
 }
 
+/** The workspaces of one host, as a subquery the child tables are counted through. */
+const workspacesOf = (host: Host): string =>
+	host.kind === "local"
+		? "SELECT id FROM workspaces WHERE host_kind = 'local'"
+		: "SELECT id FROM workspaces WHERE host_kind = 'cloud' AND host_url = $1 AND host_vm_id = $2";
+
+/** The chats of one host, as a subquery the chat-owned tables are counted through. */
+const sessionsOf = (host: Host): string =>
+	`SELECT id FROM sessions WHERE workspace_id IN (${workspacesOf(host)})`;
+
+/** A count per table, each reached the way the schema reaches it: through workspaces. */
 const countForHost = async (table: string, host: Host): Promise<number> => {
-	if (host.kind === "local") {
-		const rows = await database.select<{ total: number }>(
-			`SELECT COUNT(*) AS total FROM ${table} WHERE host_kind = 'local'`,
-		);
-		return rows[0]?.total ?? 0;
-	}
+	const chatOwned = table === "session_events" || table === "session_live_state";
+	const column = chatOwned ? "session_id" : table === "workspaces" ? "id" : "workspace_id";
+	const scope = chatOwned ? sessionsOf(host) : workspacesOf(host);
+	const params = host.kind === "local" ? [] : [host.url, host.vmId];
 	const rows = await database.select<{ total: number }>(
-		`SELECT COUNT(*) AS total FROM ${table} WHERE host_kind = 'cloud'
-			AND host_url = $1 AND host_vm_id = $2`,
-		[host.url, host.vmId],
+		`SELECT COUNT(*) AS total FROM ${table} WHERE ${column} IN (${scope})`,
+		params,
 	);
 	return rows[0]?.total ?? 0;
 };
 
 describe("CLOUD-13 cloud rows kept apart by host", () => {
-	it("stores every cloud row marked with its workspace's host", async () => {
-		const cloudId = await seed(CLOUD, "lisbon", 55101);
-
-		const rows = await database.select<{
-			table_name: string;
-			host_kind: string;
-			host_url: string | null;
-			host_vm_id: string | null;
-		}>(
-			`SELECT 'sessions' AS table_name, host_kind, host_url, host_vm_id FROM sessions
-				WHERE workspace_id = $1
-			UNION ALL SELECT 'session_events', host_kind, host_url, host_vm_id FROM session_events
-				WHERE session_id IN (SELECT id FROM sessions WHERE workspace_id = $1)
-			UNION ALL SELECT 'session_live_state', host_kind, host_url, host_vm_id
-				FROM session_live_state
-				WHERE session_id IN (SELECT id FROM sessions WHERE workspace_id = $1)
-			UNION ALL SELECT 'diff_comments', host_kind, host_url, host_vm_id FROM diff_comments
-				WHERE workspace_id = $1
-			UNION ALL SELECT 'terminals', host_kind, host_url, host_vm_id FROM terminals
-				WHERE workspace_id = $1`,
-			[cloudId],
-		);
-
-		expect(rows).toHaveLength(5);
-		for (const row of rows) {
-			expect({
-				table: row.table_name,
-				kind: row.host_kind,
-				url: row.host_url,
-				vm: row.host_vm_id,
-			}).toEqual({
-				table: row.table_name,
-				kind: "cloud",
-				url: CLOUD.url,
-				vm: CLOUD.vmId,
-			});
-		}
-	});
-
 	it("a local query never returns cloud rows", async () => {
 		const localId = await seed({ kind: "local" }, "oslo", 55100);
 		await seed(CLOUD, "lisbon", 55101);
@@ -211,16 +181,19 @@ describe("CLOUD-13 cloud rows kept apart by host", () => {
 
 		const states = await database.select<{ status: string }>(
 			`SELECT json_extract(live_state, '$.status') AS status FROM session_live_state
-				WHERE host_kind = 'cloud'`,
+				WHERE session_id IN (${sessionsOf(CLOUD)})`,
+			[CLOUD.url, CLOUD.vmId],
 		);
 		expect(states).toEqual([{ status: "working" }]);
 		const terminals = await database.select<{ ended_at: number | null }>(
-			"SELECT ended_at FROM terminals WHERE host_kind = 'cloud'",
+			`SELECT ended_at FROM terminals WHERE workspace_id IN (${workspacesOf(CLOUD)})`,
+			[CLOUD.url, CLOUD.vmId],
 		);
 		expect(terminals).toEqual([{ ended_at: null }]);
 		const open = await database.select<{ total: number }>(
-			`SELECT COUNT(*) AS total FROM session_events e JOIN sessions s ON s.id = e.session_id
-				WHERE s.host_kind = 'cloud' AND e.type = 'turn_ended'`,
+			`SELECT COUNT(*) AS total FROM session_events
+				WHERE session_id IN (${sessionsOf(CLOUD)}) AND type = 'turn_ended'`,
+			[CLOUD.url, CLOUD.vmId],
 		);
 		expect(open[0]?.total).toBe(0);
 	});
@@ -246,6 +219,27 @@ describe("CLOUD-13 cloud rows kept apart by host", () => {
 		// A second sweep changes nothing.
 		must(await repositories.hostCopy.remove(CLOUD));
 		expect(await countForHost("workspaces", { kind: "local" })).toBe(1);
+	});
+
+	it("a cloud workspace's session_event goes with its host sweep", async () => {
+		const cloudId = await seed(CLOUD, "lisbon", 55101);
+		const [session] = await database.select<{ id: string }>(
+			"SELECT id FROM sessions WHERE workspace_id = $1",
+			[cloudId],
+		);
+		const event = await database.select<{ event_id: string }>(
+			"SELECT event_id FROM session_events WHERE session_id = $1",
+			[session?.id],
+		);
+		expect(event.length).toBeGreaterThan(0);
+
+		must(await repositories.hostCopy.remove(CLOUD));
+
+		const left = await database.select<{ total: number }>(
+			"SELECT COUNT(*) AS total FROM session_events WHERE event_id = $1",
+			[event[0]?.event_id],
+		);
+		expect(left[0]?.total).toBe(0);
 	});
 
 	it("refuses to remove the local host's rows", async () => {
