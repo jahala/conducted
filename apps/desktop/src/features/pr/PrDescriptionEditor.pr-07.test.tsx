@@ -6,7 +6,7 @@
  * Behaviour: ui-map.md 3.2, 3.6 and 7.2.
  * Test first: with an empty description the placeholder shows and clicking it enters edit mode.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -61,8 +61,12 @@ describe("PR-07 PrDescriptionEditor", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(screen.queryByRole("textbox")).toBeNull());
+		// Let every effect of leaving edit mode run: the saved text must stay, not fall back to the
+		// old description before the next poll brings the new one.
+		await act(async () => {});
 		expect(onSave).toHaveBeenCalledWith("Second text");
 		expect(screen.getByText("Second text")).toBeTruthy();
+		expect(screen.queryByText("First text")).toBeNull();
 	});
 
 	it("puts the description back on Discard and on Escape, saving nothing", () => {
