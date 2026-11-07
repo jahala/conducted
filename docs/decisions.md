@@ -632,3 +632,15 @@ Chosen:
 - **Left out under D004 and D018.** Nothing in this row is organisation-only. Exclusive forwarding is described in the research as an org+server setting; here it applies to the Mac's cloud workspaces, which is the same rule without an organisation.
 
 Why: the tunnel reuses the connection the Worker already authenticates and the Rust shell already owns, keeps every secret on the Rust side, and gives raw TCP (SSH, databases, dev servers) rather than only HTTP, which the preview path cannot do. The cost is Conductor's per-connection WebSocket and a three-second poll instead of its multiplexed subscription.
+
+## D117. The Cloud desktop tab is Conductor's hosted computer, and is left out (2026-11-07)
+
+Context: CLOUD-16 (#258) lists six items behind "if the spike shows it is wanted": the centre "Cloud desktop" tab (ui-map 3.2), the git panel's "Desktop" tab (ui-map 3.6) and the "Cloud desktop" dialog (ui-map 3.10), with Reconnect and the notices "You need edit access to use the cloud desktop" and "Cloud desktop is available in cloud workspaces". The research records the labels but not the surface behind them. Conductor's extracted frontend bundle (the `virtual-desktop` component in renderApp, read 2026-11-07) settles it: the tab opens a noVNC (RFB) session. It asks Conductor's own service for the connection (`/direct/desktop`, scope `desktop:connect`) on the workspace host's `hostingServerUrl` and `vmId`, and renders only while the remote computer reports `remoteState.status === "running"` (the states are `initializing` with `building_snapshot`, `preparing` or `updating`, then `running`, `stopped`, `unresponsive`, `restarting` and `deleted`). The "edit access" notice reads the shared workspace's permission level (`write`, `read` or `admin`), and ui-map section 1.2 files the cloud desktop with the cloud (team) features.
+
+Chosen: all six items are left out.
+
+- The centre Cloud desktop tab, including its Reconnect button, the edit-access notice and the notice for workspaces that are not cloud, is not built.
+- The git panel's Desktop tab with the cloud desktop stream is not built.
+- The Cloud desktop dialog for cloud workspaces is not built.
+
+Why: the cloud desktop is a GUI on Conductor's hosted computers, the service it runs for its own cloud product. D025 already leaves those computers and Conductor's cloud backend out, and D004 keeps the team half out. Our cloud workspaces are headless Cloudflare sandbox containers with an agent, a shell and files (D018, D101); they have no display server, no VNC/RFB endpoint and no hosted computer to stream. Building these items would mean inventing a remote-desktop layer that the research does not describe and the plan does not include, and nothing in the CLOUD-02 spike shows a desktop is wanted. Their wording stays out too (D002).
