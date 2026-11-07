@@ -8,7 +8,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { DefaultModelsPage } from "./DefaultModelsPage.tsx";
@@ -17,6 +17,7 @@ let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
 });
@@ -158,6 +159,13 @@ describe("SET-02 DefaultModelsPage", () => {
 		const fast = await screen.findByRole("menuitemcheckbox", { name: "Fast mode" });
 		expect(fast.getAttribute("aria-disabled")).toBe("true");
 		expect(screen.getByText("The chosen model does not support fast mode.")).toBeTruthy();
+	});
+
+	it("asks for the agent list when nothing has read it yet, as the Agents page does", async () => {
+		const { container } = await renderPage();
+		const refresh = vi.spyOn(container.actions.agents, "refresh");
+		container.services.agentCatalog.store.setState({ installs: { state: "loading" } });
+		await waitFor(() => expect(refresh).toHaveBeenCalled());
 	});
 
 	it("follows the Loadout with Conductor's rows in its order", async () => {
