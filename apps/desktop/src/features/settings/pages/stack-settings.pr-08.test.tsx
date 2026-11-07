@@ -79,7 +79,7 @@ describe("PR-08 stack settings", () => {
 		expect(toggle.getAttribute("aria-checked")).toBe("true");
 		expect(
 			screen.getByText(
-				"Detect Graphite stacks for the active local workspace and show stack-aware UI in the git panel.",
+				"Detect Graphite stacks for the active local workspace and show stack-aware UI in the git panel. Cloud workspaces are unaffected. When off, Conducted never runs the gt CLI.",
 			),
 		).toBeTruthy();
 

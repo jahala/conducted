@@ -23,14 +23,14 @@ describe("SET-02 ExperimentalPage", () => {
 			</ServicesProvider>,
 		);
 
-		fireEvent.click(screen.getByRole("switch", { name: "Transparent sidebar" }));
+		fireEvent.click(screen.getByRole("switch", { name: "Sidebar transparency" }));
 
 		expect(
 			await screen.findByText(/Quit and reopen the app to apply sidebar transparency/),
 		).toBeTruthy();
 	});
 
-	it("shows Run after setup, where the settings search sends it", async () => {
+	it("shows Auto-run after setup, where the settings search sends it", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();
 		render(
@@ -39,7 +39,7 @@ describe("SET-02 ExperimentalPage", () => {
 			</ServicesProvider>,
 		);
 
-		expect(screen.getByRole("switch", { name: "Run after setup" })).toBeTruthy();
+		expect(screen.getByRole("switch", { name: "Auto-run after setup" })).toBeTruthy();
 		expect(
 			document
 				.querySelector('[data-setting-key="auto_run_after_setup"]')
