@@ -6,7 +6,7 @@
  */
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { textOf, turnSignalOf } from "./relay.ts";
+import { textOf, turnChangeOf, turnSignalOf } from "./relay.ts";
 
 const request = (method: string, params: unknown): string =>
 	JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
@@ -35,6 +35,19 @@ describe("CLOUD-03 reading turn state from the relay", () => {
 		).toBeNull();
 	});
 
+	it("reads the chat each turn signal belongs to", () => {
+		expect(turnChangeOf(live("working"))).toEqual({ sessionId: "s1", status: "working" });
+		expect(turnChangeOf(request("sendMessage", { sessionId: "s2" }))).toEqual({
+			sessionId: "s2",
+			status: "working",
+		});
+		expect(turnChangeOf(request("sendMessage", {}))).toEqual({
+			sessionId: null,
+			status: "working",
+		});
+		expect(turnChangeOf("not json")).toBeNull();
+	});
+
 	it("reads binary frames as text and refuses bytes that are not UTF-8", () => {
 		expect(textOf(new TextEncoder().encode("hello").buffer as ArrayBuffer)).toBe("hello");
 		expect(textOf(new Uint8Array([0xff, 0xfe]).buffer as ArrayBuffer)).toBeNull();
@@ -59,6 +72,15 @@ describe("CLOUD-03 the workspace's keep-alive alarm", () => {
 		expect(state.turnActive).toBe(false);
 		expect(state.alarmAt).toBeNull();
 		expect(state.running).toBe(false);
+	});
+
+	it("reads every line of one relayed frame for turn state", async () => {
+		const workspace = env.WORKSPACE.getByName("frame-test");
+		await workspace.noteTurn(request("sendMessage", {}));
+		const frame = `${request("getSessionStatus", {})}\n${live("idle")}`;
+		expect(await workspace.noteTurn(frame)).toEqual({ turnActive: false, alarmAt: null });
+		const coalesced = `${live("working")}\n${live("idle")}`;
+		expect(await workspace.noteTurn(coalesced)).toEqual({ turnActive: false, alarmAt: null });
 	});
 
 	it("leaves the alarm alone for a frame with no turn signal", async () => {

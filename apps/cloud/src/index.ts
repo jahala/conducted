@@ -1,12 +1,15 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
+ * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
  * desktop's pairing check (`/pair`), and routes each workspace's git, shell, file and
- * sidecar-relay calls to that workspace's Durable Object.
+ * sidecar-relay calls to that workspace's Durable Object. Its outbound handler also carries the
+ * sandbox entry's turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
  * HTTPS and one WebSocket; the Worker authenticates, routes and swaps the model key outside the
- * sandbox). Route list and measurements: docs/research/cloud-spike-2026-11-06.md.
+ * sandbox) and D105 (the entry asks for a backup over an internal hostname). Route list and
+ * measurements: docs/research/cloud-spike-2026-11-06.md.
  * Must handle: 401 before any Durable Object for a missing or wrong token; 404 for an unknown
  * route; 400 for a bad workspace name or body; 405 for the wrong method; 426 for a non-WebSocket
  * relay request; the sandbox's own error text in a 500 rather than a stack. The model key is never
@@ -16,12 +19,14 @@
  * Test first: every route answers 401 without the token, and a good token reaches the route.
  */
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { DirectoryBackupGateway } from "@cloudflare/sandbox";
 import { INVALID_BODY, zExecBody, zFileBody, zGitBody } from "./args.ts";
 import { isAuthorized, PAIR_PATH, pairAnswer } from "./auth.ts";
+import { turnEndWorkspaceName } from "./backup.ts";
 import type { Env } from "./env.ts";
 import { Workspace } from "./workspace.ts";
 
-export { Workspace };
+export { DirectoryBackupGateway, Workspace };
 
 const ROUTE = /^\/w\/([^/]+)\/(start|git|exec|files|state|rpc)$/;
 /** A sandbox name is safe in a URL and stable across deploys. */
@@ -64,6 +69,14 @@ async function bodyOf<T>(
 export class Outbound extends WorkerEntrypoint<Env> {
 	override async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
+		const backupOf = turnEndWorkspaceName(url);
+		if (backupOf !== null) {
+			if (request.method !== "POST") {
+				return new Response("Method not allowed", { status: 405, headers: { allow: "POST" } });
+			}
+			if (!NAME.test(backupOf)) return new Response("Bad workspace name", { status: 400 });
+			return Response.json(await this.env.WORKSPACE.getByName(backupOf).backupAtTurnEnd());
+		}
 		if (url.protocol === "https:" && url.hostname === "api.anthropic.com") {
 			if (this.env.ANTHROPIC_API_KEY === undefined || this.env.ANTHROPIC_API_KEY === "") {
 				return new Response("The Workspace has no model key.\n", { status: 503 });

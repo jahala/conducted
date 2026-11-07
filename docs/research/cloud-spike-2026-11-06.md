@@ -222,6 +222,23 @@ Built `apps/cloud/sandbox/Dockerfile` on this Mac with `nice -n 10 docker build 
 - **The sidecar's health:** the entry's `/health` went from 503 to 200 after 3.2 s; the sidecar itself was ready 3.1 s after the entry started, under this Mac's amd64 emulation.
 - **Emulation note, not an image defect:** `gh --version` crashed in Go's regexp setup under Docker's QEMU (`sigsegv` in `regexp.mergeRuneSets`). With `GODEBUG=asyncpreemptoff=1` it printed the version above. The variable is a QEMU workaround and is not baked into the image; Cloudflare's containers run real amd64.
 
+## Follow-up: keep work across restarts (CLOUD-06, 2026-11-07)
+
+Built the parts the spike's criterion 4 said the product needs: an R2 `DirectoryBackup` of `/workspace`, the agents' transcript folders and a restore when a stopped sandbox starts, driven by the turn-end signal the entry reads from the relay (D105). Run on the owner's account with the product image, one `basic` instance, Worker `conducted-dev-c06-131323`.
+
+- **Cold start after the deploy:** `POST /w/c06-live/start` took **10.1 s** round trip; the Worker reported `readyMs` **9,333 ms**, with the sidecar ready **818 ms** after the entry started.
+- **A successful Claude turn:** 7 session events, idle **7.3 s** after the send. The turn-end hook saved three objects straight away: `/workspace` **20,311 B**, `/root/.claude` **41,075 B**, `/root/.codex` **261 B**.
+- **The restart:** `kill -TERM 1` inside the container (the entry's own shutdown path) took the sandbox out; the Durable Object reported `running: false` **1.1 s** later. `POST /start` then took **1.4 s** (1,372 ms) and restored the three directories before it answered.
+- **What came back:** the uncommitted `wip.txt` ("uncommitted work"), both marker files in `/root/.claude` and `/root/.codex`, the real Claude transcript `projects/-workspace-repo/59fb91db-….jsonl` (184 KB of `/root/.claude` restored), and all 8 `refs/conducted/checkpoints` refs of the session.
+- **The chat rehydrated:** a follow-up sent to the restored chat id with `resume.agentSessionId` finished in **16.6 s** with 7 events and answered with the exact first prompt, "Reply with the single word pong and nothing else."
+- **One object per directory:** the cleanup Worker's list found exactly the 3 current objects; each turn's save had deleted the 3 it replaced.
+
+A bug the run found, fixed before the restart check: the Durable Object read each relayed WebSocket frame as one JSON message, but the sidecar's Unix socket coalesces several NDJSON lines into one chunk. The idle line was inside a multi-line frame, so the object missed it and kept the keep-alive alarm running. `noteTurn` now reads every line of a frame in order, and a test covers a coalesced working+idle frame.
+
+Everything was deleted: Worker `conducted-dev-c06-131323`, its container application `conducted-dev-c06-sandbox-131323` (`4340dbfde03a49c7a55a3261d076546a`), the image `conducted-dev-c06-131323-workspace-sandbox:wrangler-mw6fcmcq` (`sha256:d2dd8adf…`), the R2 bucket `conducted-dev-c06-131323` and its 3 objects, and the local Docker image by id `d2dd8adfc27e`. Final `wrangler containers list`, `containers images list` and `r2 bucket list` each have no `conducted-dev-c06` entry.
+
+Not measured or not built: a turn that ends while the desktop is disconnected (the entry sees sidecar lines only through the app's WebSocket, so that turn is saved at the next connected turn end); the sidecar's write-ahead event log is not part of the backup, as the spike's loss list has it.
+
 ## Follow-up: pairing with the Worker (CLOUD-07, 2026-11-07)
 
 A throwaway Worker under the owner's account, named `conducted-dev-c07-131515`, deployed from
