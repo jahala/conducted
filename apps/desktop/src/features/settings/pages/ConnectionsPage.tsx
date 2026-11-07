@@ -271,6 +271,9 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 									}}
 								/>
 							</div>
+							<Button variant="secondary" loading={deployBusy} onClick={() => void deployWorker()}>
+								Deploy to Cloudflare
+							</Button>
 							<Button
 								variant="outlineDestructive"
 								loading={deployBusy}
