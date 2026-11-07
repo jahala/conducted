@@ -75,13 +75,12 @@ export const PAGE_STATES: CatalogueState[] = [
 				return {
 					route: "/all-workspaces",
 					after: async ({ document }) => {
+						// Only Home's own controls: the sidebar's view menu is also named "Sort workspaces".
 						if (kind === "menu") {
-							await click(document, "button", control);
+							await click(document, "main button", control);
 							return;
 						}
-						// A select opens from the keyboard the same way every time; a scripted pointer press
-						// left the sort select closed on GitHub's runner.
-						const trigger = await find(document, "button", control);
+						const trigger = await find(document, "main button", control);
 						trigger.focus();
 						trigger.dispatchEvent(
 							new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
