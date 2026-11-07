@@ -17,7 +17,7 @@
  * first slot is the default model of new chats, which start with Claude Code (core/lookups.ts), so
  * it takes Claude Code models only and stays first; the others reorder among themselves. Pi, our
  * own agent, has its column after OpenCode (D098). Conductor's "Share" needs a Conductor account
- * and is left out (D025, D104). Agent logos are not shipped, so headers and slots name the agent.
+ * and is left out (D025, D107). Agent logos are not shipped, so headers and slots name the agent.
  * Must handle: the agent list not read yet (the editor asks for it, as the Agents page does);
  * models loading or failing per agent; an agent not installed; a full loadout (Enter
  * replaces the last slot, as Conductor's does); a choice already in another slot (it moves there);
