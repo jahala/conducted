@@ -20,6 +20,7 @@
  * `internal_remote_local_execution_mcp` (CLOUD-14), because both are built user controls.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
+import type { PreviewUrlEntry } from "../model.ts";
 
 export type SettingPage =
 	| "general"
@@ -100,6 +101,7 @@ export type SettingDef = {
 		| { type: "number"; default: number; min?: number; max?: number }
 		| { type: "enum"; default: string; options: readonly { value: string; label: string }[] }
 		| { type: "string-list"; default: readonly string[] }
+		| { type: "preview-urls"; default: string }
 	);
 
 const SETTINGS_TABLE = [
@@ -1446,7 +1448,8 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
-	// Our design choice: the list holds URLs only; the file reader keeps the optional name of each entry.
+	// Our design choice: the file holds one JSON string of `{name, url}` entries, as Conductor's
+	// does. A plain string or a list of strings from an older file still reads as URLs with no name.
 	{
 		key: "open_url_template",
 		page: "misc",
@@ -1458,8 +1461,8 @@ const SETTINGS_TABLE = [
 		tomlKey: "preview_urls",
 		fileLayers: "user-and-repo",
 		feature: "RUN-03",
-		type: "string-list",
-		default: [],
+		type: "preview-urls",
+		default: "",
 	},
 	{
 		key: "file_include_globs",
@@ -1993,10 +1996,61 @@ export function searchSettings(query: string, limit = 30): SettingDef[] {
 const invalid = (def: SettingDef, why: string) =>
 	err(appError("setting_invalid", `"${def.key}" ${why}.`));
 
+/** One entry of a raw preview URL list: an object with a URL, or a plain URL string. */
+function previewUrlsFromArray(raw: readonly unknown[]): PreviewUrlEntry[] | null {
+	const entries: PreviewUrlEntry[] = [];
+	for (const item of raw) {
+		if (typeof item === "string") {
+			const url = item.trim();
+			if (url !== "") entries.push({ name: "", url });
+			continue;
+		}
+		if (typeof item !== "object" || item === null || Array.isArray(item)) return null;
+		const record = item as Record<string, unknown>;
+		if (typeof record.url !== "string") return null;
+		const url = record.url.trim();
+		if (url === "") continue;
+		entries.push({ name: typeof record.name === "string" ? record.name.trim() : "", url });
+	}
+	return entries;
+}
+
+/**
+ * Reads a preview URL setting. Conductor stores a JSON string of `{name, url}` entries; a plain
+ * string (one URL) and a list of strings (an older file) still read as URLs with no name.
+ */
+export function previewUrlsFrom(raw: unknown): PreviewUrlEntry[] | null {
+	if (typeof raw === "string") {
+		const text = raw.trim();
+		if (text === "") return [];
+		if (text.startsWith("[")) {
+			try {
+				const parsed: unknown = JSON.parse(text);
+				if (Array.isArray(parsed)) return previewUrlsFromArray(parsed);
+			} catch {
+				// A plain URL that starts with "[" is kept as one entry, as Conductor does.
+			}
+		}
+		return [{ name: "", url: text }];
+	}
+	if (Array.isArray(raw)) return previewUrlsFromArray(raw);
+	return null;
+}
+
+/** Writes the setting as Conductor does: one JSON string, or an empty string for no entries. */
+export function previewUrlsToText(entries: readonly PreviewUrlEntry[]): string {
+	const cleaned = entries
+		.map((entry) => ({ name: entry.name.trim(), url: entry.url.trim() }))
+		.filter((entry) => entry.url !== "");
+	return cleaned.length === 0 ? "" : JSON.stringify(cleaned);
+}
+
 /**
  * Checks a raw value against a setting and returns it in the right type.
  * The settings table stores text, so bool accepts "true" and "false", number accepts numeric text,
- * and string-list accepts one entry per line. Null means "no value set" and is always accepted.
+ * and string-list accepts one entry per line. Preview URLs accept Conductor's JSON string, a plain
+ * string or a list of strings, and are returned as the JSON string. Null means "no value set" and
+ * is always accepted.
  */
 export function coerceSettingValue(def: SettingDef, raw: unknown): Result<SettingValue> {
 	if (raw === null) {
@@ -2050,6 +2104,11 @@ export function coerceSettingValue(def: SettingDef, raw: unknown): Result<Settin
 				);
 			}
 			return invalid(def, "must be a list of text lines");
+		}
+		case "preview-urls": {
+			const entries = previewUrlsFrom(raw);
+			if (entries === null) return invalid(def, "must be a list of preview URLs");
+			return ok(previewUrlsToText(entries));
 		}
 	}
 }

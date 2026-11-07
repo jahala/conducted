@@ -452,8 +452,9 @@ describe("PRJ-04 repo config reads", () => {
 			prompts: { general: "shared prompt" },
 		});
 		const config = must(await ctx.service.loadConfig(repoId));
+		expect(config.previewUrls).toEqual([{ name: "", url: "http://localhost:3000" }]);
 		config.copyFiles = [];
-		config.previewUrlTemplate = null;
+		config.previewUrls = [];
 		config.setupScript = null;
 		config.prompts.general = null;
 
@@ -461,13 +462,73 @@ describe("PRJ-04 repo config reads", () => {
 
 		const localText = ctx.files.get(localPath) ?? "";
 		expect(localText).toContain("file_include_globs = []");
-		expect(localText).toContain("preview_urls = []");
+		expect(localText).toContain('preview_urls = ""');
 
 		const reloaded = must(await ctx.service.loadConfig(repoId));
 		expect(reloaded.copyFiles).toEqual([]);
-		expect(reloaded.previewUrlTemplate).toBeNull();
+		expect(reloaded.previewUrls).toEqual([]);
 		expect(reloaded.setupScript).toBeNull();
 		expect(reloaded.prompts.general).toBeNull();
+	});
+
+	it("keeps every preview URL's name and order and writes Conductor's string", async () => {
+		const ctx = makeService();
+		write(ctx.files, sharedPath, {
+			preview_urls: [
+				{ name: "Local", url: "http://localhost:3000" },
+				"https://example.test/preview",
+			],
+		});
+
+		const config = must(await ctx.service.loadConfig(repoId));
+		expect(config.previewUrls).toEqual([
+			{ name: "Local", url: "http://localhost:3000" },
+			{ name: "", url: "https://example.test/preview" },
+		]);
+
+		config.previewUrls = [
+			{ name: "Preview", url: "https://example.test/preview" },
+			{ name: "Local", url: "http://localhost:3000" },
+			{ name: "", url: "http://localhost:3001" },
+		];
+		must(await ctx.service.updateConfig(repoId, config));
+
+		const localText = ctx.files.get(localPath) ?? "";
+		const stored = must(tomlCodec.parse(localText));
+		expect(stored.preview_urls).toBe(JSON.stringify(config.previewUrls));
+
+		const reloaded = must(await ctx.service.loadConfig(repoId));
+		expect(reloaded.previewUrls).toEqual(config.previewUrls);
+	});
+
+	it("reads a plain string and a list of strings as preview URLs with no name", async () => {
+		const plain = makeService();
+		write(plain.files, sharedPath, { preview_urls: "https://old.example" });
+		const plainConfig = must(await plain.service.loadConfig(repoId));
+		expect(plainConfig.previewUrls).toEqual([{ name: "", url: "https://old.example" }]);
+
+		const listed = makeService();
+		write(listed.files, sharedPath, {
+			preview_urls: ["https://one.example", "https://two.example"],
+		});
+		const listedConfig = must(await listed.service.loadConfig(repoId));
+		expect(listedConfig.previewUrls).toEqual([
+			{ name: "", url: "https://one.example" },
+			{ name: "", url: "https://two.example" },
+		]);
+	});
+
+	it("keeps a comment beside preview_urls when the entry changes", async () => {
+		const ctx = makeService();
+		ctx.files.set(localPath, '# keep me\npreview_urls = ["https://old.example"]\n# after\n');
+		const config = must(await ctx.service.loadConfig(repoId));
+
+		config.previewUrls = [{ name: "New", url: "https://new.example" }];
+		must(await ctx.service.updateConfig(repoId, config));
+
+		const localText = ctx.files.get(localPath) ?? "";
+		expect(localText).toContain("# keep me");
+		expect(localText).toContain("# after");
 	});
 
 	it("reports a wrongly typed value and falls back to the registry default", () => {

@@ -21,7 +21,7 @@ export interface RunToolbarProps {
 	onSelectAction: (id: string) => void;
 	button: RunButtonModel;
 	onButtonClick: () => void;
-	urls: { label: string; url: string; source?: "run_output" | "detected_port" | "template" }[];
+	urls: { label: string; url: string; source?: "run_output" | "template" }[];
 	onOpenUrl: (url: string) => void;
 	defaultUrl?: string | null;
 	onSetDefault?: (url: string) => void;

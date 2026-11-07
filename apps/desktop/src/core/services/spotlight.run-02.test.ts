@@ -89,7 +89,7 @@ const baseConfig = (overrides: Partial<RepoConfig> = {}): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: true,
 	autoRunAfterSetup: false,
 	remoteName: null,
