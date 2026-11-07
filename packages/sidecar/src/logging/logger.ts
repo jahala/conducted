@@ -13,16 +13,15 @@
  * process with a raw secret under a secret-looking name), an error line repeated many times is
  * written once with its count after 5 s of quiet (60 s at most or 1000 repeats), at most 1000
  * distinct error messages are tracked, and console calls reach the logger instead of stderr.
- * Our design choice: a name is secret-looking when its last word (split at `_`, `-`, `.` and
- * camelCase) is token, secret, password, passwd, credential(s), authorization, cookie or apikey, or
- * is key or pat after another word (ANTHROPIC_API_KEY, GH_PAT), or when it starts with
- * CONDUCTED_INTERNAL_. A bare `key` (a process key, a cache key) and REACT_COMPAT stay visible.
+ * Our design choice: which names hold a secret is the shared rule (isSecretName in
+ * packages/shared), so the sidecar, the diagnostics report and the Rust logger hide the same
+ * names. The Rust copy answers the same fixture (packages/shared/fixtures/secret-names.json).
  * Test first: with level "warn", info calls reach no sink and error calls reach it once.
  * Our design choice: the sink is a parameter, so modules never touch the file system to log. The
  * composition root asks for folding and the console reroute; a test can pass its own clock and
  * timer source.
  */
-import type { Clock } from "@conducted/shared";
+import { type Clock, isSecretName } from "@conducted/shared";
 
 export const LOG_LEVELS = ["error", "warn", "info", "debug"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -327,35 +326,6 @@ function formatConsoleArg(value: unknown): string {
 	} catch {
 		return String(value);
 	}
-}
-
-/** Last words that mark a name as a secret on their own. */
-const SECRET_WORDS = new Set([
-	"token",
-	"secret",
-	"password",
-	"passwd",
-	"credential",
-	"credentials",
-	"authorization",
-	"cookie",
-	"apikey",
-]);
-/** Last words that mark a name as a secret only after another word. */
-const QUALIFIED_SECRET_WORDS = new Set(["key", "pat"]);
-
-/** True when a variable or data key name looks like it holds a secret (see the header). */
-export function isSecretName(name: string): boolean {
-	if (/^CONDUCTED_INTERNAL_/i.test(name)) return true;
-	const words = name
-		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-		.split(/[\s_.-]+/)
-		.filter((word) => word !== "")
-		.map((word) => word.toLowerCase());
-	const last = words.at(-1);
-	if (last === undefined) return false;
-	if (SECRET_WORDS.has(last)) return true;
-	return QUALIFIED_SECRET_WORDS.has(last) && words.length > 1;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

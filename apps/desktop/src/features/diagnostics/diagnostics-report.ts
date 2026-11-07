@@ -14,12 +14,11 @@
  * Must handle: an empty environment, values that contain newlines, PATH entries (shown one per
  * line), the home folder in PATH, the shell, the agent paths and the sidecar log (replaced by "~"
  * in the redacted report), the same variable twice, very long values (cut in the report with a
- * note), and names that look secret (anything with TOKEN, KEY, SECRET, PASSWORD: always hashed
- * even if on the safe list).
+ * note), and names the shared isSecretName rule hides (always hashed even if on the safe list).
  * Test first: redactCapture hashes a variable named API_TOKEN even when the safe list names it, and
  * keeps LANG as it is.
  */
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, err, isSecretName, ok, type Result } from "@conducted/shared";
 import type { DiagnosticsCapture } from "../../core/model.ts";
 import type { Platform } from "../../platform/platform.ts";
 
@@ -37,9 +36,6 @@ export const SAFE_ENV_NAMES: ReadonlySet<string> = new Set([
 	"USER",
 ]);
 
-/** A name that may hold a secret, whatever the safe list says. */
-const SECRET_NAME = /(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i;
-
 /** Longest value the text report keeps before it says how much it left out. */
 export const MAX_REPORT_VALUE_LENGTH = 2_000;
 
@@ -54,11 +50,6 @@ export interface RedactionOptions {
 export function redactHome(path: string, homeDir: string): string {
 	if (homeDir === "" || homeDir === "/") return path;
 	return path.split(homeDir).join("~");
-}
-
-/** True when a variable name says it may hold a secret. */
-export function isSecretName(name: string): boolean {
-	return SECRET_NAME.test(name);
 }
 
 export async function redactCapture(
