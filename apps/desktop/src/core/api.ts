@@ -36,6 +36,7 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudWorkspaceResources } from "./cloud/state.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -165,6 +166,17 @@ export interface PortForwardEntry {
 export interface DetectedRemotePort {
 	port: number;
 	processName: string | null;
+}
+
+/** What a cloud workspace's header shows (CLOUD-15). */
+export interface CloudWorkspaceView {
+	/** The sandbox's state. Unknown until the first answer, or when the Worker cannot be reached. */
+	status: "unknown" | "running" | "stopped";
+	resources: CloudWorkspaceResources;
+	/** The estimated cost of every agent turn so far, in US dollars. Null before the first read. */
+	agentCostUsd: number | null;
+	/** The last Worker error, shown in place of a status it could not read. */
+	error: string | null;
 }
 
 /** What the Ports tab shows for a cloud workspace: its forwards, switches and discovery. */
@@ -304,6 +316,8 @@ export interface Queries {
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
 	/** The forwarding switches, forwards and discovered ports of a cloud workspace (CLOUD-10). */
 	usePortForwards(workspaceId: WorkspaceId): PortForwardView;
+	/** A cloud workspace's status, resource meters and agent cost (CLOUD-15). */
+	useCloudWorkspace(workspaceId: WorkspaceId): CloudWorkspaceView;
 	useSetting<T>(key: string): T;
 	useAgentInstalls(): Loadable<AgentInstall[]>;
 	useModels(agent: AgentKind, acpAgent?: AcpAgent, host?: Host): Loadable<ModelInfo[]>;
@@ -437,6 +451,8 @@ export interface Actions {
 			UnarchiveOutcome
 		>;
 		remove: Act<[id: WorkspaceId]>;
+		/** Saves a cloud workspace's work, stops its sandbox and starts it again (CLOUD-15). */
+		restart: Act<[id: WorkspaceId]>;
 		rename: Act<[id: WorkspaceId, name: string]>;
 		setPinned: Act<[id: WorkspaceId, pinned: boolean]>;
 		setKanbanStatus: Act<[id: WorkspaceId, status: KanbanStatus]>;

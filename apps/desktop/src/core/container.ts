@@ -74,6 +74,7 @@ import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { type CloudPairingService, createCloudPairing } from "./services/cloud-pairing.ts";
+import { CloudWorkspaceService } from "./services/cloud-workspace.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { ContextWindowService } from "./services/context-windows.ts";
@@ -169,6 +170,7 @@ export interface Services {
 	linear: LinearService;
 	cloudPairing: CloudPairingService;
 	cloudDeploy: CloudDeployService;
+	cloudWorkspace: CloudWorkspaceService;
 	git: GitService;
 	graphite: GraphiteService;
 	gitCache: GitCache;
@@ -903,6 +905,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		settings,
 	});
+	// The cloud header's status, meters and agent cost read the workspace store and its events.
+	// Built before the workspace service so a restart can re-read the status at once (CLOUD-15).
+	const cloudWorkspace = new CloudWorkspaceService({
+		platform,
+		repos: repositories,
+	});
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		cloud: platform.cloud,
@@ -912,6 +920,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		portForwards,
+		cloudState: cloudWorkspace,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
@@ -1142,6 +1151,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		linear,
 		cloudPairing,
 		cloudDeploy,
+		cloudWorkspace,
 		portForwards,
 		git,
 		graphite,
@@ -1186,6 +1196,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		{ name: "repos", phase: "services", fatal: true, run: () => repo.start() },
 		{ name: "workspaces", phase: "services", fatal: true, run: () => workspace.start() },
+		{
+			name: "cloud workspaces",
+			phase: "services",
+			fatal: false,
+			run: () => cloudWorkspace.start(),
+		},
 		{
 			name: "git cache",
 			phase: "services",
@@ -1508,6 +1524,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		});
 		// The local listeners are Rust's, but their timers and event listener are this service's.
 		await step("port forwards", () => portForwards.stop());
+		await step("cloud workspace polls", () => cloudWorkspace.stop());
 	};
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:

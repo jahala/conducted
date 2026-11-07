@@ -51,6 +51,7 @@ export function createActions(
 			archive: (id, options) => services.workspace.archive(id, options),
 			unarchive: (id, options) => services.workspace.unarchive(id, options),
 			remove: (id) => services.workspace.remove(id),
+			restart: (id) => services.workspace.restart(id),
 			rename: (id, name) => services.workspace.rename(id, name),
 			setPinned: (id, pinned) => services.workspace.setPinned(id, pinned),
 			setKanbanStatus: (id, status) => services.workspace.setKanbanStatus(id, status),
