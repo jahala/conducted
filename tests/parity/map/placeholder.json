@@ -185,12 +185,12 @@
 	},
 	"placeholder:R10669494": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced"
 	},
 	"placeholder:R10672939": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced"
 	},
 	"placeholder:R10680280": {
@@ -249,7 +249,7 @@
 	},
 	"placeholder:R11117637": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-controls Settings: General"
 	},
 	"placeholder:R11129925": {

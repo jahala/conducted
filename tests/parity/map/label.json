@@ -1404,26 +1404,26 @@
 	},
 	"label:R2960047": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-repo-scripts",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(8) > span:nth-of-type(1)",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R2960087": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-repo-scripts",
 		"via": "text",
-		"role": "tab",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(4)",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"label:R2960124": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-repo-scripts",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(10) > span:nth-of-type(1)",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"label:R2960160": {
@@ -1475,9 +1475,12 @@
 		"by": "rule:hosted-computer"
 	},
 	"label:R2960659": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-scripts",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(4)",
+		"by": "seed"
 	},
 	"label:R2960724": {
 		"status": "gap",
@@ -1560,10 +1563,10 @@
 	},
 	"label:R4993174": {
 		"status": "matched",
-		"state": "scripts-run-ended",
-		"via": "aria-label",
-		"role": "section",
-		"selector": "div > div > div:nth-of-type(3) > div > div > div:nth-of-type(1) > section",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "figcaption",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(4) > div > figure:nth-of-type(2) > figcaption",
 		"by": "seed"
 	},
 	"label:R4994069": {
@@ -1782,9 +1785,12 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"label:R8697662": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > fieldset > div > button > span",
+		"by": "seed"
 	},
 	"label:R8822100": {
 		"status": "gap",
@@ -1976,14 +1982,20 @@
 		"screen": "Unplaced"
 	},
 	"label:R9354304": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(4) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9369573": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(17) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9369840": {
 		"status": "matched",
@@ -2876,9 +2888,12 @@
 		"by": "rule:team-wording"
 	},
 	"label:R11723671": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-scripts",
+		"via": "text",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"label:R11748740": {
 		"status": "decided",

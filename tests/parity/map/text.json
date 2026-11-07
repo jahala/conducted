@@ -361,9 +361,12 @@
 		"screen": "Unplaced"
 	},
 	"text:R2277683": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R2277819": {
 		"status": "gap",
@@ -413,10 +416,10 @@
 	},
 	"text:R2556484": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(8) > span:nth-of-type(2)",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > h2",
 		"by": "seed"
 	},
 	"text:R2557374": {
@@ -752,9 +755,12 @@
 		"screen": "Unplaced"
 	},
 	"text:R5017572": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"text:R5018396": {
 		"status": "gap",
@@ -995,18 +1001,18 @@
 	},
 	"text:R5560559": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "kbd",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(9) > kbd",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(11) > div > div:nth-of-type(2) > kbd",
 		"by": "seed"
 	},
 	"text:R5562242": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "kbd",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(16) > kbd",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(8) > div > div:nth-of-type(2) > kbd",
 		"by": "seed"
 	},
 	"text:R5584687": {
@@ -2119,9 +2125,12 @@
 		"screen": "Unplaced"
 	},
 	"text:R10077276": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "kbd",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(8) > div > div:nth-of-type(2) > kbd",
+		"by": "seed"
 	},
 	"text:R10077327": {
 		"status": "gap",
@@ -2189,10 +2198,10 @@
 	},
 	"text:R10180387": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(10) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(6) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10180754": {
@@ -2413,9 +2422,12 @@
 		"by": "seed"
 	},
 	"text:R10341617": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(16) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10359782": {
 		"status": "gap",
@@ -2543,9 +2555,12 @@
 		"screen": "Unplaced"
 	},
 	"text:R10465481": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > ul > li:nth-of-type(1) > div:nth-of-type(1) > div > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"text:R10474958": {
 		"status": "gap",
@@ -2565,16 +2580,19 @@
 	},
 	"text:R10502058": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "kbd",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(1) > kbd",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(1) > div > div:nth-of-type(2) > kbd",
 		"by": "seed"
 	},
 	"text:R10502494": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "kbd",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(2) > div > div:nth-of-type(2) > kbd",
+		"by": "seed"
 	},
 	"text:R10502967": {
 		"status": "gap",
@@ -2668,14 +2686,20 @@
 		"by": "hand"
 	},
 	"text:R10662089": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10662643": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div > fieldset > button > span",
+		"by": "seed"
 	},
 	"text:R10662685": {
 		"status": "gap",
@@ -2688,34 +2712,52 @@
 		"screen": "Unplaced"
 	},
 	"text:R10663577": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10664733": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(2) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10665334": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10665424": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10666063": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(3) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10666149": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10666456": {
 		"status": "matched",
@@ -2727,7 +2769,7 @@
 	},
 	"text:R10666519": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced"
 	},
 	"text:R10666587": {
@@ -2736,28 +2778,40 @@
 		"screen": "Unplaced"
 	},
 	"text:R10667356": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(1) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10667435": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10668642": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(2) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10668720": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10669114": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced"
 	},
 	"text:R10669800": {
@@ -2781,24 +2835,36 @@
 		"screen": "Unplaced"
 	},
 	"text:R10670896": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(3) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10670979": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10671582": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(4) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10671665": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(4) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10672006": {
 		"status": "gap",
@@ -2806,19 +2872,28 @@
 		"screen": "Unplaced"
 	},
 	"text:R10672817": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(5) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10673328": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(5) > div > div > p",
+		"by": "seed"
 	},
 	"text:R10673659": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(6) > div > div > div > p",
+		"by": "seed"
 	},
 	"text:R10674386": {
 		"status": "gap",
@@ -2888,9 +2963,12 @@
 		"screen": "inventory-controls Settings"
 	},
 	"text:R10701209": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(9) > div > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R10705286": {
 		"status": "matched",
@@ -2917,9 +2995,12 @@
 		"by": "seed"
 	},
 	"text:R10715128": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R10725742": {
 		"status": "gap",
@@ -3427,7 +3508,7 @@
 	},
 	"text:R10971526": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"text:R10976147": {
@@ -3487,9 +3568,12 @@
 		"screen": "Unplaced"
 	},
 	"text:R11023334": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > fieldset > div > button > span",
+		"by": "seed"
 	},
 	"text:R11023365": {
 		"status": "gap",
@@ -3498,10 +3582,10 @@
 	},
 	"text:R11026106": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-repo-scripts",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(8) > span:nth-of-type(1)",
+		"role": "button",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(4) > div:nth-of-type(1) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11027519": {
@@ -3644,7 +3728,7 @@
 	},
 	"text:R11138708": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-controls Settings: General"
 	},
 	"text:R11140791": {
@@ -4005,9 +4089,12 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"text:R11456439": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(4) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R11456954": {
 		"status": "gap",
@@ -4499,10 +4586,10 @@
 	},
 	"text:R11928069": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(2)",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > h2",
 		"by": "seed"
 	},
 	"text:R11940194": {
