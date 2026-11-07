@@ -15,7 +15,7 @@
  * Groups, one file per store or service, under core/hooks/:
  *   repos.ts      useRepos, useRepoConfig
  *   workspaces.ts useWorkspaces, useWorkspace, useWorkspaceStatus, useBacklogWorkspaces,
- *                 useSetupState, useInstalledApps
+ *                 useSetupState, useInstalledApps, useAppIcon
  *   sections.ts   useSections
  *   chats.ts      useSessions, useChat, useClosedSessions, usePlans, useChangedSinceTurn
  *   composer.ts   useDraft, useSnippets

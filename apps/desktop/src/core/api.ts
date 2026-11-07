@@ -301,6 +301,8 @@ export interface Queries {
 	useGitHubAccess(): Loadable<GitHubAccess>;
 	/** Names of the apps on this Mac that the "Open in" menu can use. */
 	useInstalledApps(): Loadable<string[]>;
+	/** An "Open in" app's own icon as a PNG data URL; null when the app has no icon file. */
+	useAppIcon(appName: string): Loadable<string | null>;
 	/** The MCP servers of one chat and their status. */
 	useMcpServers(sessionId: SessionId): Loadable<McpServerView[]>;
 	/** What the diagnostics screen shows about the app, the machine and the agents. */
