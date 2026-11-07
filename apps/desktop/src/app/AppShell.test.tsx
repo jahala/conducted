@@ -55,7 +55,7 @@ describe("NAV-01 app shell", () => {
 		expect(screen.getByRole("main")).toBeTruthy();
 		const nav = screen.getByRole("navigation", { name: "Main" });
 		expect(within(nav).getByRole("link", { name: /Home/ })).toBeTruthy();
-		expect(screen.getByText("No projects yet")).toBeTruthy();
+		expect(screen.getByText("Add a project to get started.")).toBeTruthy();
 	});
 
 	it("comes back with the sidebar collapsed when the saved settings say so", async () => {

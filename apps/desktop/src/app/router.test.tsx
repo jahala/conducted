@@ -96,7 +96,7 @@ describe("app shell", () => {
 		);
 		expect(within(nav).getByRole("link", { name: "Create" }).getAttribute("href")).toBe("/create");
 		// The workspace list is built now and shows its empty state, while the footer keeps its own boundary.
-		expect(screen.getByText("No projects yet")).toBeTruthy();
+		expect(screen.getByText("Add a project to get started.")).toBeTruthy();
 	});
 
 	it("opens the command palette from the Search row", async () => {

@@ -38,9 +38,6 @@ const { WorkspaceRow, relativeTime, compactCount } = await import("./WorkspaceRo
 
 afterEach(cleanup);
 
-// The workspace helper below was last active at 1_000.
-const NOW = 1_000;
-
 function repo(): Repo {
 	return {
 		id: "app" as RepoId,
@@ -116,7 +113,6 @@ describe("NAV-03 WorkspaceRow", () => {
 				repo={repo()}
 				selected={false}
 				shortcutIndex={null}
-				now={NOW}
 			/>,
 		);
 		expect(await screen.findByText("Fix the login flow")).toBeTruthy();
@@ -126,13 +122,7 @@ describe("NAV-03 WorkspaceRow", () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [{ unreadCount: 2 } as Session] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
 		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
 	});
@@ -142,9 +132,7 @@ describe("NAV-03 WorkspaceRow", () => {
 	it("names the status on its icon, with no second line, and marks the selected row", async () => {
 		hooks.status = { kind: "agent", label: "needs_permission" };
 		hooks.sessions = { state: "ready", data: [] };
-		renderRow(
-			<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} now={NOW} />,
-		);
+		renderRow(<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} />);
 		const icon = await screen.findByRole("img", { name: "Need permission" });
 		expect(icon.getAttribute("title")).toBe("Need permission");
 		expect(screen.queryByText("Need permission")).toBeNull();
@@ -160,13 +148,7 @@ describe("NAV-03 WorkspaceRow", () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={2}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={2} />,
 		);
 		expect(await screen.findByText("⌃2")).toBeTruthy();
 		expect(screen.queryByText("⌘2")).toBeNull();
@@ -185,7 +167,6 @@ describe("NAV-03 row padding", () => {
 					repo={repo()}
 					selected={false}
 					shortcutIndex={null}
-					now={NOW}
 					indent={indent}
 				/>,
 			);
@@ -202,13 +183,7 @@ describe("NAV-03 row status", () => {
 		hooks.status = { kind: "agent", label: "working" };
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
 		expect(await screen.findByRole("img", { name: "Working…" })).toBeTruthy();
 		expect(screen.queryByText("Working…")).toBeNull();
@@ -217,19 +192,14 @@ describe("NAV-03 row status", () => {
 });
 
 describe("NAV-03 row time", () => {
-	it("shows how long ago from the time the list gives it", async () => {
+	// This test asserted "5m" on a row with no line counts. Conductor's row shows no time (D098).
+	it("shows no time on a row without line counts", async () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={1_000 + 5 * 60_000}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
-		expect((await screen.findByRole("link")).querySelector("time")?.textContent).toBe("5m");
+		expect((await screen.findByRole("link")).querySelector("time")).toBeNull();
 	});
 });
 
@@ -260,13 +230,7 @@ describe("NAV-03 row line counts", () => {
 		hooks.sessions = { state: "ready", data: [] };
 		hooks.git = { state: "ready", data: { linesAdded: 4_100, linesRemoved: 3 } };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
 		expect(await screen.findByText("+4.1k")).toBeTruthy();
 		expect(screen.getByText("-3")).toBeTruthy();

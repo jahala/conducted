@@ -3,13 +3,16 @@
  * Owns: Showing the sidebar's workspaces in the order the user sees them: Pinned, the user's
  * sections, then the main list grouped by status or by project.
  * Behaviour: ui-map.md 4 items 4 to 7 and the View options menu (group by Status or Project, filter
- * by project, sort by Updated or Created; manual order when it is on).
+ * by project, sort by Updated or Created; manual order when it is on). The list opens with
+ * Conductor's "My workspaces" header, whose hover ellipsis holds that menu (renderApp @10494900).
+ * Our design choice: the header does not collapse the list; whether Conductor's local list
+ * collapses from it is not settled by the bundle.
  * Our design choice: The view options (group, filter, sort) are kept in a setting so they survive a
  * restart. Status groups run in this order: done, in review, in progress, backlog, canceled, the
  * order Conductor uses. Pinned and the user's sections are rendered by PinnedSection and
  * SectionList, which own their drag targets; this component supplies their data and the saved
  * manual order. A row dragged within a main group saves its new order in the `sidebar_manual_order`
- * setting. The row actions menu comes from NAV-10.
+ * setting. The row's right-click actions menu comes from NAV-10.
  * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; a group
  * with no workspaces is hidden; a collapsed group shows its count; a project filter that matches
  * nothing shows a short empty note with a way to clear it; archived workspaces are never listed;
@@ -49,7 +52,6 @@ import {
 	type SidebarView,
 	writeGroupBySetting,
 } from "./sidebar-view.ts";
-import { useNow } from "./use-now.ts";
 import {
 	draggedSection,
 	draggedWorkspace,
@@ -130,7 +132,6 @@ function GroupSection({
 	repos,
 	selectedId,
 	shortcutIndexes,
-	now,
 	manualOrder,
 	open,
 	onOpenChange,
@@ -141,7 +142,6 @@ function GroupSection({
 	repos: Repo[];
 	selectedId: WorkspaceId | null;
 	shortcutIndexes: ReadonlyMap<WorkspaceId, number>;
-	now: number;
 	manualOrder: boolean;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -235,7 +235,6 @@ function GroupSection({
 										repo={row.repo}
 										selected={selectedId === workspaceId}
 										shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
-										now={now}
 										showRepo={group.key.kind !== "project"}
 										indent="grouped"
 									/>
@@ -259,7 +258,6 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	const storedManualOrder = useSetting<string>("sidebar_manual_order");
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
-	const now = useNow();
 	const [newSectionOpen, setNewSectionOpen] = useState(false);
 	const runCommand = useRunCommandHandlers();
 	const groupByMode = readGroupBySetting(groupBy);
@@ -417,7 +415,15 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 			}
 		>
 			<div className="flex flex-col" data-sidebar-list="">
-				<div className="relative flex h-8 shrink-0 items-center justify-end px-2">
+				{/* Conductor's list header (Rtr, renderApp @10494900): "My workspaces" in 12px semibold
+				    muted text, its actions behind an ellipsis that shows on hover (D098). */}
+				<div className="group/header relative mt-0.5 px-2">
+					<div className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 group-hover/header:bg-hover">
+						<h2 className="min-w-0 flex-1 truncate text-xs font-semibold text-sidebar-fg-muted">
+							My workspaces
+						</h2>
+						<span aria-hidden="true" className="w-6 shrink-0" />
+					</div>
 					<ViewOptionsMenu
 						view={view}
 						repos={repos}
@@ -458,7 +464,6 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 								repos={repos}
 								selectedId={selectedId}
 								shortcutIndexes={shortcutIndexes}
-								now={now}
 								manualOrder={view.manualOrder}
 								open={!collapsed.has(key)}
 								onOpenChange={(open) => setGroupOpen(key, open)}
