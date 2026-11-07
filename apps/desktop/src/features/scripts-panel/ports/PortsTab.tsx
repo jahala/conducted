@@ -2,8 +2,8 @@
  * @feature RUN-03 Ports tab
  * Owns: the list of local ports the workspace's processes are listening on, with open actions.
  * Behaviour: ui-map.md 3.7 ("Ports" special tab; empty text "No local servers running. Start your
- * dev server and it'll show up here."; "Open localhost URL" Cmd+Shift+B). Port forwarding to a
- * cloud machine is left out.
+ * dev server and it'll show up here."; "Open localhost URL" Cmd+Shift+B). A cloud workspace shows
+ * CloudPortsPanel instead, because its ports live in the sandbox (CLOUD-10).
  * Data: useRunState (detectedPorts), useWorkspace (the workspace's own port), useUrlOpeners (the
  * system browser, and the in-app browser tab when its setting is on), useActions (clipboard and app
  * activation), and the run service's port errors.
@@ -21,6 +21,7 @@ import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { useUrlOpeners } from "../open-url.ts";
+import { CloudPortsPanel } from "./CloudPortsPanel.tsx";
 import { DetectedPortRow } from "./DetectedPortRow.tsx";
 
 const localhostUrl = (port: number): string => `http://localhost:${port}`;
@@ -37,7 +38,25 @@ export function PortsTab({ workspaceId }: PortsTabProps) {
 	const runService = useServices().services.runScripts;
 	const portError = useStore(runService.store, (state) => state.portErrors[workspaceId]);
 
-	if (run.state === "loading" || workspace.state === "loading") {
+	if (workspace.state === "loading") {
+		return (
+			<div className="flex h-full items-center justify-center">
+				<Spinner label="Loading the Ports tab" />
+			</div>
+		);
+	}
+	if (workspace.state === "error") {
+		return (
+			<EmptyState title="Ports are unavailable" body={workspace.error.message} tone="failed" />
+		);
+	}
+
+	// A cloud workspace's ports live in the sandbox and do not need the Mac's run state (CLOUD-10).
+	if (workspace.data.host.kind === "cloud") {
+		return <CloudPortsPanel workspaceId={workspaceId} />;
+	}
+
+	if (run.state === "loading") {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<Spinner label="Loading the Ports tab" />
@@ -46,11 +65,6 @@ export function PortsTab({ workspaceId }: PortsTabProps) {
 	}
 	if (run.state === "error") {
 		return <EmptyState title="Ports are unavailable" body={run.error.message} tone="failed" />;
-	}
-	if (workspace.state === "error") {
-		return (
-			<EmptyState title="Ports are unavailable" body={workspace.error.message} tone="failed" />
-		);
 	}
 
 	if (portError !== undefined) {

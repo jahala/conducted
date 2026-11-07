@@ -3,6 +3,7 @@
  * @feature CLOUD-06 Keep work across sandbox restarts
  * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
@@ -63,6 +64,12 @@ export const READY_DEADLINE_MS = 150_000;
 export const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 /** How often the alarm touches a sandbox that is running a turn. */
 export const ALARM_INTERVAL_MS = 60_000;
+/** One listening port reported by the sandbox, with its process name when it has one. */
+export interface DetectedRemotePort {
+	port: number;
+	processName: string | null;
+}
+
 /** The CA the Worker's outbound handler terminates TLS with, so clients in the sandbox trust it. */
 export const CA_PATH = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 
@@ -327,6 +334,37 @@ export class Workspace extends DurableObject<Env> {
 	}
 
 	/**
+	 * The TCP ports listening in the sandbox, read from /proc by the entry. A port forward's
+	 * discovery uses this; starting a stopped sandbox is the caller's choice, so a read does not
+	 * bill a container nobody asked for.
+	 */
+	async listeningPorts(): Promise<{ ports: DetectedRemotePort[] }> {
+		await this.ensureSetUp();
+		const response = await this.requireContainer()
+			.getTcpPort(SIDECAR_PORT)
+			.fetch("http://container/ports", { signal: AbortSignal.timeout(5_000) });
+		if (!response.ok) {
+			throw new Error(`The sandbox could not list its ports: ${response.status}`);
+		}
+		const body = (await response.json()) as { ports?: unknown };
+		const byPort = new Map<number, DetectedRemotePort>();
+		if (Array.isArray(body.ports)) {
+			for (const entry of body.ports) {
+				if (typeof entry !== "object" || entry === null) continue;
+				const port = (entry as { port?: unknown }).port;
+				const name = (entry as { processName?: unknown }).processName;
+				if (typeof port !== "number" || !Number.isInteger(port)) continue;
+				if (port <= 0 || port > 65_535 || port === 22 || port === SIDECAR_PORT) continue;
+				byPort.set(port, {
+					port,
+					processName: typeof name === "string" && name !== "" ? name : null,
+				});
+			}
+		}
+		return { ports: [...byPort.values()].sort((left, right) => left.port - right.port) };
+	}
+
+	/**
 	 * Stops a workspace's sandbox the way an archive does (CLOUD-08): the work and the transcripts
 	 * are saved to R2 first, then the container stops. A sandbox that is already stopped is left
 	 * alone, and nothing is started to save it. Returning the archive to a running workspace is
@@ -576,6 +614,7 @@ export class Workspace extends DurableObject<Env> {
 		// because their Response holds a WebSocket or a stream that RPC cannot serialize.
 		const path = new URL(request.url).pathname;
 		if (path.endsWith("/terminal")) return this.terminal(request);
+		if (path.endsWith("/tunnel")) return this.tunnel(request);
 		const preview = PREVIEW_IN_WORKSPACE.exec(path);
 		if (preview !== null) {
 			return this.preview(request, Number(preview[1]), preview[2] ?? "/");
@@ -664,6 +703,31 @@ export class Workspace extends DurableObject<Env> {
 			session.disconnect();
 		});
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	/**
+	 * The port-forward tunnel. The Rust shell keeps a local listener and opens one WebSocket per
+	 * accepted connection; this hands the upgrade to the sandbox entry, which connects it to the
+	 * requested loopback port (CLOUD-10, D110).
+	 */
+	async tunnel(request: Request): Promise<Response> {
+		if (this.container === undefined) {
+			return new Response("This workspace has no sandbox configured", { status: 503 });
+		}
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return new Response("Expected a WebSocket", { status: 426 });
+		}
+		const raw = new URL(request.url).searchParams.get("port");
+		if (raw === null || !/^\d{1,5}$/.test(raw)) {
+			return new Response("Bad tunnel port", { status: 400 });
+		}
+		const port = Number(raw);
+		if (port < 1 || port > 65_535 || port === 22) {
+			return new Response("Bad tunnel port", { status: 400 });
+		}
+		await this.ensureSetUp();
+		const target = new URL(`http://container/tunnel?port=${port}`);
+		return this.requireContainer().getTcpPort(SIDECAR_PORT).fetch(new Request(target, request));
 	}
 
 	/**

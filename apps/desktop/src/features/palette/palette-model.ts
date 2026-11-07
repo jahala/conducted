@@ -125,6 +125,7 @@ const SETTING_PAGE_LABELS: Readonly<Record<Exclude<SettingPage, "state">, string
 	experimental: "Experimental",
 	advanced: "Advanced",
 	"remote-control": "Remote control",
+	connections: "Connections",
 };
 
 const PROVIDERS: readonly { id: string; label: string }[] = [

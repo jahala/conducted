@@ -25,7 +25,7 @@ import { Node } from "@tiptap/react";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { rankFuzzy } from "../../../core/fuzzy.ts";
-import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import { closeSuggestionRoot, SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
 import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 export interface FileMentionItem {
@@ -243,8 +243,8 @@ class MentionPopupView {
 		const host = this.#host;
 		this.#root = null;
 		this.#host = null;
-		if (root !== null) root.unmount();
-		host?.remove();
+		if (root === null) return;
+		closeSuggestionRoot(root, host);
 	}
 }
 

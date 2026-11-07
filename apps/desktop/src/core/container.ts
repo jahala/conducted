@@ -95,6 +95,7 @@ import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { PortForwardsService } from "./services/port-forwards.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
 import { ReviewService } from "./services/review.ts";
@@ -185,6 +186,7 @@ export interface Services {
 	runScripts: RunScriptsService;
 	spotlight: SpotlightService;
 	ports: PortService;
+	portForwards: PortForwardsService;
 	terminals: TerminalsService;
 	notifications: NotificationService;
 	updates: UpdatesService;
@@ -910,6 +912,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		ids,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
+	// Built before the workspace service so archive and delete can pause its forwards (CLOUD-10).
+	const portForwards = new PortForwardsService({
+		platform,
+		repos: repositories,
+		settings,
+	});
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		cloud: platform.cloud,
@@ -918,6 +926,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		portForwards,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
@@ -1166,6 +1175,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		linear,
 		cloudPairing,
 		cloudDeploy,
+		portForwards,
 		cloudFileSync,
 		git,
 		graphite,
@@ -1231,6 +1241,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
 		{ name: "linear access", phase: "services", fatal: false, run: () => linear.start() },
 		{ name: "cloud pairing", phase: "services", fatal: false, run: () => cloudPairing.start() },
+		{ name: "port forwards", phase: "services", fatal: false, run: () => portForwards.start() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
@@ -1530,6 +1541,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 			for (const cloudTunnel of cloudTunnels.values()) cloudTunnel.stop();
 			for (const transport of cloudTransports) await transport.close();
 		});
+		// The local listeners are Rust's, but their timers and event listener are this service's.
+		await step("port forwards", () => portForwards.stop());
 	};
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:

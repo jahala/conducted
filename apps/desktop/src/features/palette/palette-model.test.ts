@@ -235,6 +235,7 @@ describe("NAV-08 palette model", () => {
 			"Experimental",
 			"Advanced",
 			"Remote control",
+			"Connections",
 			"Claude Code",
 			"Codex",
 			"Cursor",

@@ -260,6 +260,19 @@ export function createActions(
 			deploy: () => services.cloudDeploy.deploy(),
 			uninstall: () => services.cloudDeploy.uninstall(),
 		},
+		portForwards: {
+			setForwarding: (workspaceId, enabled) =>
+				services.portForwards.setForwarding(workspaceId, enabled),
+			setAutoForward: (workspaceId, enabled) =>
+				services.portForwards.setAutoForward(workspaceId, enabled),
+			add: (workspaceId, remotePort) => services.portForwards.add(workspaceId, remotePort),
+			remove: (forwardId) => services.portForwards.remove(forwardId),
+			toggle: (forwardId, enabled) => services.portForwards.toggle(forwardId, enabled),
+			pauseWorkspace: (workspaceId) => services.portForwards.pauseWorkspace(workspaceId),
+			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
+			previewUrl: (workspaceId, remotePort) =>
+				services.portForwards.previewUrl(workspaceId, remotePort),
+		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
 			checkForUpdates: () => services.updates.check(),

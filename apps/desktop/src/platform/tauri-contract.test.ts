@@ -39,6 +39,7 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"cloud.request-scripted": `${NEEDS_RUST}: needs a deployed Worker (CLOUD-03's Worker tests own the routes)`,
 	"cloud.pairing": `${NEEDS_RUST}: writes the real Keychain and needs a deployed Worker (CLOUD-07's live run owns it)`,
 	"cloud.relay": `${NEEDS_RUST}: needs a deployed Worker (CLOUD-03's Worker tests own the relay)`,
+	"portForward.start-stop": `${NEEDS_RUST}: binds a loopback listener and reads the Keychain (port_forward.rs tests own it)`,
 };
 
 runPlatformContract(
