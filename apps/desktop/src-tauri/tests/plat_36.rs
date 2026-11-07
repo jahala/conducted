@@ -16,7 +16,7 @@ use conducted_lib::pty::PtyState;
 use conducted_lib::shell::{LoginEnv, ShellState};
 use serde_json::{Value, json};
 use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
-use tauri::test::{INVOKE_KEY, MockRuntime, mock_builder, mock_context, noop_assets};
+use tauri::test::{INVOKE_KEY, MockRuntime, mock_builder};
 use tauri::utils::config::AppDirectoriesOverride;
 use tauri::webview::InvokeRequest;
 use tauri::{App, Listener, WebviewWindow};
@@ -60,7 +60,9 @@ struct TestApp {
 impl TestApp {
     fn new() -> Self {
         let folder = TempDir::new();
-        let mut context = mock_context(noop_assets());
+        // The app's own context, so the commands are reached through the same capabilities the
+        // real window has. Only the app data folder moves, into the folder this test removes.
+        let mut context = tauri::generate_context!();
         context.config_mut().app.app_directories_override =
             Some(AppDirectoriesOverride::Root(folder.path().to_path_buf()));
 
