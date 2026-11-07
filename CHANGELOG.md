@@ -3,6 +3,25 @@
 Release notes, newest first. `pnpm release` writes each version's section from the commit subjects
 since the last tag, and the GitHub release body is cut from that section (PLAT-39).
 
+## 0.3.2 (2026-11-07)
+
+### Cloud
+
+- a local terminal and Local actions in the mirror, binary files, attachments, and a measured read cap (CLOUD-11) (#472)
+- SSH into a cloud workspace and open it in VS Code, Cursor or Zed (CLOUD-12) (#469)
+
+### Docs
+
+- PLAT-37 and PLAT-38 are done (#475)
+
+### Fixes
+
+- first-run bugs: Quit, a default clone folder, tall dialogs, and Create with no projects (#474)
+
+### Parity
+
+- catalogue states for unshown gaps, round 2, and the bug that hid the MCP server list (#471)
+
 ## 0.3.1 (2026-11-07)
 
 The first published 0.3 release. v0.3.0 was tagged but its build failed before publishing, so this release carries everything listed under 0.3.0 below.
