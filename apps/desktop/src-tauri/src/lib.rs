@@ -423,9 +423,16 @@ const SIGHUP: i32 = 1;
 
 /// Saves the history of every running terminal, then ends them all (PLAT-08, PLAT-27). Returns
 /// one line per terminal whose history could not be saved or that could not be killed.
-fn close_terminals(state: &pty::PtyState, history_dir: CommandResult<PathBuf>) -> Vec<String> {
+fn close_terminals<F>(
+    state: &pty::PtyState,
+    history_dir: CommandResult<PathBuf>,
+    key: F,
+) -> Vec<String>
+where
+    F: FnOnce() -> CommandResult<[u8; terminal_history::KEY_BYTES]>,
+{
     let mut failures = match history_dir {
-        Ok(dir) => pty::save_live_histories(state, &dir)
+        Ok(dir) => pty::save_live_histories_with(state, &dir, key)
             .into_iter()
             .map(|failure| format!("history of {failure}"))
             .collect(),
@@ -720,6 +727,15 @@ pub fn run() {
         .setup(|app| {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
+            // A plain scrollback file left by an earlier version is encrypted here, before any
+            // terminal opens. The key is read from the Keychain only when such a file exists.
+            if let Err(error) = terminal_history::history_dir(app.handle()) {
+                log_or_stderr(
+                    app.handle(),
+                    "error",
+                    &format!("could not prepare the saved terminal history: {error}"),
+                );
+            }
             navigation::install_guard(app.handle())?;
             deep_link::register(app.handle())?;
             attachments::allow_draft_assets(app.handle())?;
@@ -819,6 +835,7 @@ pub fn run() {
                 let terminal_failures = close_terminals(
                     &app.state::<pty::PtyState>(),
                     terminal_history::history_dir(app),
+                    terminal_history::entry_key,
                 );
                 if !terminal_failures.is_empty() {
                     // The writer thread may not run again, so the record is written now.
@@ -1245,10 +1262,11 @@ mod startup_tests {
         let root = unique_temp_dir();
         let dir = root.join("terminal-history");
 
-        let failures = close_terminals(&state, Ok(dir.clone()));
+        let key = [7u8; terminal_history::KEY_BYTES];
+        let failures = close_terminals(&state, Ok(dir.clone()), || Ok(key));
         assert!(failures.is_empty(), "failed to close: {failures:?}");
 
-        let saved = terminal_history::load_entry(&dir, "plat-08-open-at-quit")
+        let saved = terminal_history::load_entry_with_key(&dir, "plat-08-open-at-quit", &key)
             .expect("the history of a terminal open at quit is on disk");
         assert_eq!(saved, b"still running at quit\n");
         let status = wait_for_exit(&mut spawned.child);
@@ -1266,6 +1284,7 @@ mod startup_tests {
                 code: "history_app_data",
                 message: "no data folder".to_string(),
             }),
+            || Ok([7u8; terminal_history::KEY_BYTES]),
         );
         assert_eq!(
             failures,

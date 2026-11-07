@@ -85,7 +85,7 @@ fn to_error(error: security_framework::base::Error, key: &str) -> CommandError {
 }
 
 /// Reads a secret from one service. `None` when it does not exist.
-fn read_secret(service: &str, key: &str) -> CommandResult<Option<String>> {
+pub(crate) fn read_secret(service: &str, key: &str) -> CommandResult<Option<String>> {
     match get_generic_password(service, key) {
         Ok(bytes) => String::from_utf8(bytes)
             .map(Some)
@@ -99,12 +99,12 @@ fn read_secret(service: &str, key: &str) -> CommandResult<Option<String>> {
 }
 
 /// Stores or replaces a secret in one service.
-fn write_secret(service: &str, key: &str, value: &str) -> CommandResult<()> {
+pub(crate) fn write_secret(service: &str, key: &str, value: &str) -> CommandResult<()> {
     set_generic_password(service, key, value.as_bytes()).map_err(|error| to_error(error, key))
 }
 
 /// Removes a secret from one service. A missing item is not an error.
-fn remove_secret(service: &str, key: &str) -> CommandResult<()> {
+pub(crate) fn remove_secret(service: &str, key: &str) -> CommandResult<()> {
     match delete_generic_password(service, key) {
         Ok(()) => Ok(()),
         Err(error) if error.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),

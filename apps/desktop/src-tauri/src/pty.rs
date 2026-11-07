@@ -50,7 +50,8 @@
 //!   watcher saves it to the history folder, and `save_live_histories` saves every running
 //!   terminal when the app quits. A failed save is written to the app log and sent on
 //!   `pty://exit` as `historyError`, which `PtyHandle.onExit` hands to the UI. The request's
-//!   `scrollbackLimitBytes` caps what the recorder keeps.
+//!   `scrollbackLimitBytes` caps what the recorder keeps. The entry is encrypted by
+//!   `terminal_history.rs` (D087).
 //! - `pty-ready` is dropped by design: `pty_spawn` returns once the process exists.
 //!
 //! Our design choice: ids are made in Rust and are unique across restarts (start time plus a
@@ -672,12 +673,33 @@ pub fn start_io_threads(
 /// when it quits, before it ends the terminals, because their exit watchers may not get to run
 /// before the process ends. Returns one line per terminal whose history could not be saved.
 pub fn save_live_histories(state: &PtyState, dir: &std::path::Path) -> Vec<String> {
+    save_live_histories_with(state, dir, crate::terminal_history::entry_key)
+}
+
+/// `save_live_histories` with the key getter passed in, so a test does not read the Keychain.
+/// The getter runs only when at least one terminal has input to save.
+pub(crate) fn save_live_histories_with(
+    state: &PtyState,
+    dir: &std::path::Path,
+    key: impl FnOnce() -> CommandResult<[u8; crate::terminal_history::KEY_BYTES]>,
+) -> Vec<String> {
     let sessions: Vec<Arc<PtySession>> = lock(&state.sessions).values().cloned().collect();
-    sessions
+    let saving: Vec<Arc<PtySession>> = sessions
+        .into_iter()
+        .filter(|session| lock(&session.history).has_received_input())
+        .collect();
+    if saving.is_empty() {
+        return Vec::new();
+    }
+    let key = match key() {
+        Ok(key) => key,
+        Err(error) => return vec![format!("the scrollback encryption key: {error}")],
+    };
+    saving
         .iter()
         .filter_map(|session| {
             lock(&session.history)
-                .save(dir)
+                .save_with_key(dir, &key)
                 .err()
                 .map(|error| format!("{}: {error}", session.id))
         })
