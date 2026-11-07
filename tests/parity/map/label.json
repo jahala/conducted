@@ -916,9 +916,12 @@
 		"by": "hand"
 	},
 	"label:M2683302": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-map 6. Settings"
+		"status": "matched",
+		"state": "settings-general-sound-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:M2683334": {
 		"status": "decided",
@@ -1131,44 +1134,68 @@
 		"by": "seed"
 	},
 	"label:R361903": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R362312": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R362719": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R363111": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R363491": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(6) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R363877": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(7) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R364271": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(8) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R364668": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-code-theme-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(9) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R629189": {
 		"status": "gap",
@@ -1657,9 +1684,12 @@
 		"owner": "rule:quote"
 	},
 	"label:R5599685": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"label:R5599753": {
 		"status": "matched",
@@ -2240,10 +2270,10 @@
 	},
 	"label:R9857803": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-agents-bedrock",
 		"via": "text",
-		"role": "button",
-		"selector": "div:nth-of-type(3) > div > button",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(3) > button > span",
 		"by": "seed"
 	},
 	"label:R9983794": {
@@ -2599,9 +2629,12 @@
 		"screen": "Unplaced"
 	},
 	"label:R10677114": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-models-codex-thinking-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10726210": {
 		"status": "matched",
@@ -2998,44 +3031,44 @@
 		"owner": "rule:cite"
 	},
 	"label:R11586078": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"label:R11586195": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > label",
+		"by": "seed"
 	},
 	"label:R11586320": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(3) > label",
+		"by": "seed"
 	},
 	"label:R11586442": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"label:R11586559": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2) > label",
+		"by": "seed"
 	},
 	"label:R11634023": {
 		"status": "gap",

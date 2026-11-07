@@ -3373,14 +3373,20 @@
 		"by": "seed"
 	},
 	"text:R10666519": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-colors-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R10666587": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-appearance-colors-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R10667356": {
 		"status": "matched",
@@ -3472,12 +3478,12 @@
 		"by": "seed"
 	},
 	"text:R10672006": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-06",
-		"item": "Markdown 'Tufte' style also applies to assistant text",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-appearance-markdown-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R10672817": {
 		"status": "matched",
@@ -3536,10 +3542,10 @@
 	},
 	"text:R10686757": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-agents-bedrock",
 		"via": "text",
-		"role": "button",
-		"selector": "div:nth-of-type(3) > div > button",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(3) > button > span",
 		"by": "seed"
 	},
 	"text:R10692019": {
@@ -3635,9 +3641,12 @@
 		"screen": "inventory-controls Settings"
 	},
 	"text:R10725984": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-models-codex-thinking-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R10726669": {
 		"status": "gap",
@@ -4336,9 +4345,12 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"text:R11111478": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R11120103": {
 		"status": "matched",
@@ -5039,11 +5051,12 @@
 		"by": "seed"
 	},
 	"text:R11585673": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-agents-bedrock",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"text:R11585847": {
 		"status": "gap",
@@ -5137,12 +5150,12 @@
 		"by": "rule:team-wording"
 	},
 	"text:R11655044": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls App shell",
-		"backlog": "APP-09",
-		"item": "'Feedback' dialog: message, email, drop images, 'Include recent app logs'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "feedback-dialog",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > h2",
+		"by": "seed"
 	},
 	"text:R11655076": {
 		"status": "decided",
@@ -5151,16 +5164,20 @@
 		"by": "rule:conductor-service"
 	},
 	"text:R11655591": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls App shell",
-		"backlog": "APP-09",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "feedback-dialog",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > form > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"text:R11656078": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"status": "matched",
+		"state": "feedback-dialog",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > form > div:nth-of-type(2) > label",
+		"by": "seed"
 	},
 	"text:R11656536": {
 		"status": "gap",
@@ -5173,9 +5190,12 @@
 		"screen": "inventory-controls App shell"
 	},
 	"text:R11657833": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls App shell"
+		"status": "matched",
+		"state": "feedback-dialog",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > form > div:nth-of-type(3) > label > span",
+		"by": "seed"
 	},
 	"text:R11658123": {
 		"status": "matched",

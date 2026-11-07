@@ -359,14 +359,20 @@
 		"by": "seed"
 	},
 	"literal:M320106": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"status": "matched",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M320119": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"status": "matched",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M320133": {
 		"status": "matched",
@@ -377,44 +383,68 @@
 		"by": "seed"
 	},
 	"literal:M320146": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"status": "matched",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M320163": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"status": "matched",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(6) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M320179": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"status": "matched",
+		"state": "settings-models-effort-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(7) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M321953": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Agents"
+		"status": "matched",
+		"state": "settings-models-codex-thinking-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(8) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M345281": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "matched",
+		"state": "settings-models-style-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M345301": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "matched",
+		"state": "settings-models-style-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M345323": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "matched",
+		"state": "settings-models-style-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M345346": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "matched",
+		"state": "settings-models-style-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M346428": {
 		"status": "matched",
@@ -425,9 +455,12 @@
 		"by": "seed"
 	},
 	"literal:M347948": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "matched",
+		"state": "settings-models-personality-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M433895": {
 		"status": "gap",
@@ -2379,16 +2412,15 @@
 	"literal:R11654231": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls App shell",
-		"backlog": "APP-09",
-		"owner": "rule:neighbour"
+		"screen": "inventory-controls App shell"
 	},
 	"literal:R11655766": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls App shell",
-		"backlog": "APP-09",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "feedback-dialog",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > form > div:nth-of-type(1) > textarea",
+		"by": "seed"
 	},
 	"literal:R11708982": {
 		"status": "gap",

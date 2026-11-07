@@ -889,10 +889,10 @@
 	},
 	"aria_label:R11085226": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-agents-bedrock",
 		"via": "text",
-		"role": "button",
-		"selector": "div:nth-of-type(3) > div > button",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(3) > button > span",
 		"by": "seed"
 	},
 	"aria_label:R11088269": {
