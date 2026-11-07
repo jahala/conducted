@@ -69,7 +69,7 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { checkHost } from "./host.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import type { DiagnosticsCapture, Session } from "./model.ts";
+import type { DiagnosticsCapture, Session, Workspace } from "./model.ts";
 import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
@@ -545,9 +545,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return ready(repo.ok ? ok(repo.value.rootPath) : repo);
 		},
 		launchFor: (agent, acpAgent, sessionId) => {
-			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null, null, null);
 			const ws = lookups.workspaceOfSession(sessionId);
-			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+			return ws.ok ? launchForWorkspace(agent, acpAgent, ws.value) : ready(ws);
 		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
@@ -571,10 +571,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
-	 * region or project, the Environment page's variables (a repository's replacing the global one
-	 * of the same name) and the provider keys that belong to that agent and its sign-in choice
-	 * (`launchTakesKey`). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
-	 * the sidecar fills from the login shell it captured. A list that
+	 * region or project, the Environment page's variables and env files (a repository's replacing the
+	 * global one of the same name, SET-04) and the provider keys that belong to that agent and its
+	 * sign-in choice (`launchTakesKey`). Secrets come from the Keychain or an env file; a key chosen
+	 * from the Mac goes as a marker the sidecar fills from the login shell it captured. A list that
 	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
 	 * that names it, so the send or warm that asked shows it instead of starting without it.
 	 */
@@ -582,6 +582,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agent: AgentKind,
 		acpAgent: AcpAgent | undefined,
 		repoId: RepoId | null,
+		repoRootPath: string | null,
+		workspacePath: string | null,
 	): Promise<Result<AgentLaunch>> => {
 		const env: Record<string, string> = {};
 		const providerKeys: AgentLaunch["providerKeys"] = {};
@@ -620,9 +622,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const project = setting<string>("vertex_project_id").trim();
 			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
 		}
-		// The Environment page's variables, by the one rule the repository scripts also use. Without a
-		// repository (a model list), only the global ones.
-		const variables = await settings.environmentFor(repoId);
+		// The Environment page's variables, and the env files its settings layers name. Without a
+		// repository (a model list), only the user's layer applies.
+		const variables = await settings.environmentForLaunch(repoId, repoRootPath, workspacePath);
 		if (!variables.ok) return variables;
 		Object.assign(env, variables.value);
 		const keys = await repositories.providerKeys.listForAgent(agent, acpAgent ?? null);
@@ -659,10 +661,25 @@ export function createContainer(inputs: ContainerInputs): Container {
 			...(provider === undefined ? {} : { provider }),
 		});
 	};
+	/**
+	 * Builds a launch for one workspace's chat. A local workspace's repository layers live in its
+	 * checkout; a cloud workspace holds the project at its own sandbox folder, which the platform's
+	 * file calls reach through the Worker (CLOUD-03), so both layers come from there (SET-04).
+	 */
+	const launchForWorkspace = (
+		agent: AgentKind,
+		acpAgent: AcpAgent | undefined,
+		workspace: Workspace,
+	): Promise<Result<AgentLaunch>> => {
+		const repo = lookups.repoOf(workspace.id);
+		if (!repo.ok) return ready(repo);
+		const repoRootPath = workspace.host.kind === "local" ? repo.value.rootPath : workspace.path;
+		return launchForAgent(agent, acpAgent, workspace.repoId, repoRootPath, workspace.path);
+	};
 	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
 		const workspace = lookups.workspace(session.workspaceId);
 		if (!workspace.ok) return workspace;
-		return launchForAgent(session.config.agent, session.config.acpAgent, workspace.value.repoId);
+		return launchForWorkspace(session.config.agent, session.config.acpAgent, workspace.value);
 	};
 	const chatTitles = new ChatTitleService({
 		sidecar: client,
@@ -858,7 +875,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		shell: platform.shell,
 		ports,
 		log,
-		environmentFor: (repoId) => settings.environmentFor(repoId),
+		environmentFor: (repo, workspace) =>
+			settings.environmentForLaunch(
+				repo.id,
+				workspace.host.kind === "local" ? repo.rootPath : workspace.path,
+				workspace.path,
+			),
 		pathPrefixFor: () => system.pathPrefix(),
 	});
 	const repo: RepoService = new RepoService({
@@ -907,9 +929,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return ok({ agent: session.config.agent, acpAgent: session.config.acpAgent });
 		},
 		launchFor: (agent, acpAgent, sessionId) => {
-			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null, null, null);
 			const ws = lookups.workspaceOfSession(sessionId);
-			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+			return ws.ok ? launchForWorkspace(agent, acpAgent, ws.value) : ready(ws);
 		},
 	});
 	const linear = new LinearService({
