@@ -92,11 +92,13 @@ describe("SET-11 EnvVarSuggestions", () => {
 		]);
 	});
 
-	it("says a secret's value goes to the Keychain", () => {
+	// The meanings are Conductor's now (renderApp @10709071); the Secret mark says the value is one.
+	it("marks a secret and gives Conductor's meaning", () => {
 		render(<EnvVarSuggestions query="anthropic_api" existingNames={[]} onPick={() => {}} />);
 
 		const option = screen.getByRole("button", { name: /ANTHROPIC_API_KEY/ });
-		expect(option.textContent).toContain("Keychain");
+		expect(option.textContent).toContain("Secret");
+		expect(option.textContent).toContain("Authenticates Claude Code with the Anthropic API.");
 	});
 });
 

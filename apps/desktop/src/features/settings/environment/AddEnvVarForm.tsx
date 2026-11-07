@@ -129,7 +129,7 @@ export function AddEnvVarForm({ existingNames, reservedNames, onAdd }: AddEnvVar
 						autoComplete="off"
 						autoCapitalize="off"
 						spellCheck={false}
-						placeholder="TOKEN"
+						placeholder="MY_VARIABLE"
 						className="font-mono"
 						onKeyDown={onNameKeyDown}
 						onChange={(event) => changeName(event.target.value)}
@@ -142,7 +142,7 @@ export function AddEnvVarForm({ existingNames, reservedNames, onAdd }: AddEnvVar
 						type="password"
 						value={value}
 						autoComplete="off"
-						placeholder="Value, kept in the Keychain"
+						placeholder="Use an empty value to set this variable to an empty string."
 						onChange={(event) => setValue(event.target.value)}
 					/>
 				</div>

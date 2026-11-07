@@ -101,13 +101,12 @@ describe("SET-04 EnvironmentPage", () => {
 		);
 		await waitFor(() => expect(screen.queryByRole("button", { name: "Import" })).toBeNull());
 	});
-	it("says the variables reach agents, setup scripts and actions, and not terminals", async () => {
+	// Conductor's page description (renderApp @10719274), with our product's name.
+	it("says the variables are used by the app and passed to agents", async () => {
 		await mountPage();
 
 		expect(
-			screen.getByText(
-				"Variables given to agents, setup scripts and actions. Values stay in the macOS Keychain.",
-			),
+			screen.getByText("Configure environment variables used by Conducted and passed to agents."),
 		).toBeTruthy();
 	});
 

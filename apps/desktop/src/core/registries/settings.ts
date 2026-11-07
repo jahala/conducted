@@ -987,7 +987,7 @@ const SETTINGS_TABLE = [
 		key: "environment_variable_files",
 		page: "environment",
 		scopes: ["user", "repo"],
-		title: "Environment files",
+		title: "Env files",
 		description:
 			"Dotenv files to read into the environment of scripts and terminals. Paths may be relative to the settings folder or repository.",
 		searchTerms: ["env", "dotenv", ".env", "variables", "files"],
