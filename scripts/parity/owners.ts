@@ -10,7 +10,7 @@
  *
  * Usage: bun scripts/parity/owners.ts
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { mainCheckout } from "../conductor-reference/paths.ts";
 import {
@@ -190,20 +190,21 @@ function neighbours(
 	return maps;
 }
 
-/** The site of row `row` of `<kind>.tsv`, as a spec id's suffix (`R8853002`). */
-function rowSites(inventoryDir: string): (kind: string, row: number) => string | undefined {
+/**
+ * The site of row `row` of `<kind>.tsv`, as a spec id's suffix (`R8853002`). A cited inventory that
+ * is not there is thrown, naming the file: a silent miss would drop every owner it cites.
+ */
+export function rowSites(
+	read: (kind: string) => string,
+): (kind: string, row: number) => string | undefined {
 	const cache = new Map<string, string[][]>();
 	return (kind, row) => {
 		let rows = cache.get(kind);
 		if (rows === undefined) {
-			try {
-				rows = readFileSync(join(inventoryDir, `${kind}.tsv`), "utf8")
-					.split("\n")
-					.slice(1)
-					.map((line) => line.split("\t"));
-			} catch {
-				rows = [];
-			}
+			rows = read(kind)
+				.split("\n")
+				.slice(1)
+				.map((line) => line.split("\t"));
 			cache.set(kind, rows);
 		}
 		const found = rows[row - 1];
@@ -214,7 +215,12 @@ function rowSites(inventoryDir: string): (kind: string, row: number) => string |
 
 if (import.meta.main) {
 	const inventoryDir = join(mainCheckout(), ".context/conductor-re/inventory");
-	const next = owners(readSpec(), readMaps(), readItems(), rowSites(inventoryDir));
+	const read = (kind: string) => {
+		const path = join(inventoryDir, `${kind}.tsv`);
+		if (!existsSync(path)) throw new Error(`${path} does not exist; an item cites it by row.`);
+		return readFileSync(path, "utf8");
+	};
+	const next = owners(readSpec(), readMaps(), readItems(), rowSites(read));
 	writeJsonFiles(
 		[...next].map(([inventory, map]) => ({ path: join(MAP_DIR, `${inventory}.json`), value: map })),
 	);
