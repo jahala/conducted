@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -95,6 +95,11 @@ describe("CLOUD-04 the sidecar's Linux build", () => {
 async function oneRequest(program: string, folder: string): Promise<unknown> {
 	const home = path.join(folder, "home");
 	await mkdir(home, { recursive: true });
+	// A login shell that finds only the system programs, so the detector starts no agent from this
+	// Mac while the test checks the compiled sidecar's one request. The fallback capture uses zsh.
+	const profile = "PATH=/usr/bin:/bin\nexport PATH\n";
+	await writeFile(path.join(home, ".profile"), profile);
+	await writeFile(path.join(home, ".zprofile"), profile);
 	const child = spawn(program, ["sidecar"], {
 		env: {
 			PATH: "/usr/bin:/bin",

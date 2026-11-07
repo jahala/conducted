@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,6 +79,10 @@ describe("CLOUD-04 the sandbox entry point", () => {
 
 			const home = path.join(folder, "home");
 			await mkdir(home, { recursive: true });
+			// A login shell that finds only the system programs: the detector must not start an
+			// agent installed on this Mac (OpenCode is on the real login PATH). The sidecar's
+			// fallback capture uses zsh, so both profiles carry the same PATH.
+			await writeLoginProfiles(home);
 			const child = spawn(process.execPath, [ENTRY], {
 				env: {
 					PATH: "/usr/bin:/bin",
@@ -149,10 +153,35 @@ describe("CLOUD-04 the sandbox entry point", () => {
 			child.kill("SIGTERM");
 			const ended = await exited;
 			expect(ended.code).toBe(0);
+			// The entry stops the sidecar, and the sidecar's parent watchdog stops it as well if
+			// the entry went first. Wait for that pid (the one its socket name carries) before the
+			// folder is removed, or a late shutdown leaves the folder behind.
+			const sidecarPid = /conducted-sidecar-(\d+)\.sock/.exec(out)?.[1];
+			if (sidecarPid !== undefined) await waitForGone(Number(sidecarPid));
 		},
 		HANG_LIMIT_MS,
 	);
 });
+
+/** Gives a temp home's login shells only the system programs. */
+async function writeLoginProfiles(home: string): Promise<void> {
+	const profile = "PATH=/usr/bin:/bin\nexport PATH\n";
+	await writeFile(path.join(home, ".profile"), profile);
+	await writeFile(path.join(home, ".zprofile"), profile);
+}
+
+/** Waits, with a bound, for a process this test started to be gone. */
+async function waitForGone(pid: number): Promise<void> {
+	for (let attempt = 0; attempt < 250; attempt++) {
+		try {
+			process.kill(pid, 0);
+		} catch {
+			return;
+		}
+		await Bun.sleep(20);
+	}
+	process.kill(pid, "SIGKILL");
+}
 
 /** Waits for the entry's health route, with a bound so a broken start fails instead of hanging. */
 async function waitForHealth(port: number): Promise<boolean> {
