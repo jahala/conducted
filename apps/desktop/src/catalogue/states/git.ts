@@ -2,8 +2,8 @@
  * @feature catalogue States of the Git panel and the pull request header
  * Owns: the Changes tab with files, a file's diff and its View options menu, the workspace header's
  * actions menu, a chat tab's context menu, the diff scope menu with the branch's commits, the
- * All files tab, the Checks tab, the header with no pull request, an open one, one ready to merge and a
- * merged one, and the Changes tab when the tree is clean and when git fails.
+ * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
+ * failed check, one ready to merge and a merged one, and the Changes tab when the tree is clean and when git fails.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
  * Test first: not applicable; the screenshot run opens every state.
@@ -187,6 +187,18 @@ export const GIT_STATES: CatalogueState[] = [
 		group: "Pull request header",
 		title: "Open pull request, checks running",
 		seed: arborScene({ git: prOf("open") }),
+	},
+	{
+		id: "pr-draft",
+		group: "Pull request header",
+		title: "Draft pull request",
+		seed: arborScene({ git: prOf("draft") }),
+	},
+	{
+		id: "pr-failing",
+		group: "Pull request header",
+		title: "Open pull request, a check failed",
+		seed: arborScene({ git: prOf("failing") }),
 	},
 	{
 		id: "pr-ready",
