@@ -1,8 +1,8 @@
 import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 
 const toast = vi.hoisted(() => ({ toastError: vi.fn() }));
 vi.mock("../../ui/Toast.tsx", () => toast);
@@ -10,20 +10,23 @@ vi.mock("../../ui/Toast.tsx", () => toast);
 const { ExternalLink } = await import("./ExternalLink.tsx");
 
 const openUrl = vi.fn();
+let test: TestContainer;
 
 beforeEach(() => {
+	test = createTestContainer();
+	vi.spyOn(test.container.actions.app, "openUrl").mockImplementation(openUrl);
 	openUrl.mockReset().mockResolvedValue(ok(undefined));
 	toast.toastError.mockReset();
 });
 
-afterEach(cleanup);
-
-/** `createTestContainer` needs a node environment, so the container here holds only the action table. */
-const container = { actions: { app: { openUrl } } } as unknown as Container;
+afterEach(() => {
+	cleanup();
+	test.close();
+});
 
 function show(url: string) {
 	return render(
-		<ServicesProvider container={container}>
+		<ServicesProvider container={test.container}>
 			<ExternalLink url={url}>the link</ExternalLink>
 		</ServicesProvider>,
 	);

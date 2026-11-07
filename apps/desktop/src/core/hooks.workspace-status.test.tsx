@@ -2,16 +2,13 @@ import type { FileChange, LiveState } from "@conducted/protocol";
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
-import type { Container } from "./container.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
 import type { ChangesSnapshot } from "./git/status.ts";
 import { useWorkspaceStatus } from "./hooks.ts";
 import type { PullRequest, Session, Workspace, WorkspaceStatus } from "./model.ts";
-import { GitService, type GitServiceDeps } from "./services/git.ts";
-import { GithubService, type GithubServiceDeps, type WorkspacePrEntry } from "./services/github.ts";
-import { SessionsService, type SessionsServiceDeps } from "./services/sessions.ts";
-import { WorkspaceService, type WorkspaceServiceDeps } from "./services/workspace.ts";
+import type { WorkspacePrEntry } from "./services/github.ts";
 
 const workspaceId = "ws-1" as WorkspaceId;
 const sessionId = "chat-1" as SessionId;
@@ -25,44 +22,40 @@ const idle: LiveState = {
 
 const working: LiveState = { ...idle, status: "working" };
 
-function makeServices() {
-	return {
-		workspace: new WorkspaceService({} as WorkspaceServiceDeps),
-		sessions: new SessionsService({} as SessionsServiceDeps),
-		git: new GitService({} as GitServiceDeps),
-		github: new GithubService({} as GithubServiceDeps),
-	};
-}
-
-type TestServices = ReturnType<typeof makeServices>;
-
-function renderStatus(services: TestServices) {
+function renderStatus() {
 	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={{ services } as unknown as Container}>{children}</ServicesProvider>
+		<ServicesProvider container={test.container}>{children}</ServicesProvider>
 	);
 	return renderHook(() => useWorkspaceStatus(workspaceId), { wrapper });
 }
 
-function setWorkspace(services: TestServices, state: Workspace["state"]): void {
-	services.workspace.store.setState({
+function setWorkspace(state: Workspace["state"]): void {
+	test.container.services.workspace.store.setState({
 		workspacesById: { [workspaceId]: { state } as unknown as Workspace },
 	});
 }
 
-function setSettingUp(services: TestServices, running: boolean): void {
-	services.workspace.store.setState({
+function setSettingUp(running: boolean): void {
+	test.container.services.workspace.store.setState({
 		setup: { [workspaceId]: running ? "running" : "idle" },
 	});
 }
 
 function setChat(
-	services: TestServices,
 	liveState: LiveState,
 	options: { closed?: boolean; cancelling?: boolean } = {},
 ): void {
-	services.sessions.store.setState({
+	test.container.services.sessions.store.setState({
 		sessions: {
-			[sessionId]: { closedAt: options.closed === true ? 1 : null } as Session,
+			[sessionId]: {
+				closedAt: options.closed === true ? 1 : null,
+				config: {
+					agent: "claude",
+					model: "",
+					effort: "high",
+					fastMode: false,
+				} as Session["config"],
+			} as Session,
 		},
 		byWorkspace: { [workspaceId]: [sessionId] },
 		liveStates: { [sessionId]: liveState },
@@ -99,8 +92,8 @@ function changedFile(path: string): FileChange {
 	};
 }
 
-function setGit(services: TestServices, value: ChangesSnapshot | null): void {
-	services.git.store.setState({
+function setGit(value: ChangesSnapshot | null): void {
+	test.container.services.git.store.setState({
 		byWorkspace: { [workspaceId]: { snapshot: value, error: null, refreshedAt: 0 } },
 	});
 }
@@ -130,11 +123,10 @@ function pullRequest(overrides: Partial<PullRequest> = {}): PullRequest {
 }
 
 function setPullRequest(
-	services: TestServices,
 	value: PullRequest | null,
 	unavailable: WorkspacePrEntry["unavailable"] = "none",
 ): void {
-	services.github.store.setState({
+	test.container.services.github.store.setState({
 		byWorkspace: { [workspaceId]: { pullRequest: value, unavailable, fetchedAt: 0 } },
 	});
 }
@@ -143,93 +135,95 @@ function label(status: WorkspaceStatus | null): string {
 	return status === null ? "none" : `${status.kind}:${status.label}`;
 }
 
-afterEach(cleanup);
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
 
 describe("WS-09 useWorkspaceStatus", () => {
 	it("lets a working chat outrank a merged pull request", () => {
-		const services = makeServices();
-		setWorkspace(services, "ready");
-		setChat(services, working);
-		setGit(services, snapshot());
-		setPullRequest(services, pullRequest({ state: "merged" }));
+		setWorkspace("ready");
+		setChat(working);
+		setGit(snapshot());
+		setPullRequest(pullRequest({ state: "merged" }));
 
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(label(result.current)).toBe("agent:working");
 	});
 
 	it("labels the git state from the git and pull request entries", () => {
-		const services = makeServices();
-		setWorkspace(services, "ready");
-		setChat(services, idle);
-		setGit(services, snapshot());
-		setPullRequest(services, pullRequest({ state: "merged" }));
+		setWorkspace("ready");
+		setChat(idle);
+		setGit(snapshot());
+		setPullRequest(pullRequest({ state: "merged" }));
 
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(label(result.current)).toBe("git:merged");
 	});
 
 	it("follows each store after the first render", () => {
-		const services = makeServices();
-		setWorkspace(services, "ready");
-		setChat(services, idle);
-		setGit(services, snapshot());
+		setWorkspace("ready");
+		setChat(idle);
+		setGit(snapshot());
 
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(label(result.current)).toBe("git:clean");
 
 		act(() => {
-			services.sessions.store.setState({ liveStates: { [sessionId]: working } });
+			test.container.services.sessions.store.setState({ liveStates: { [sessionId]: working } });
 		});
 		expect(label(result.current)).toBe("agent:working");
 
 		act(() => {
-			setWorkspace(services, "archived");
+			setWorkspace("archived");
 		});
 		expect(result.current).toBeNull();
 	});
 
 	it("reports the lifecycle labels from the workspace state", () => {
-		const services = makeServices();
-		setWorkspace(services, "initializing");
-		setChat(services, idle);
-		setGit(services, snapshot());
+		setWorkspace("initializing");
+		setChat(idle);
+		setGit(snapshot());
 
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(label(result.current)).toBe("lifecycle:initializing");
 
 		act(() => {
-			setSettingUp(services, true);
+			setSettingUp(true);
 		});
 		expect(label(result.current)).toBe("lifecycle:setting_up");
 
 		act(() => {
-			setWorkspace(services, "failed");
+			setWorkspace("failed");
 		});
 		expect(label(result.current)).toBe("lifecycle:failed");
 	});
 
 	it("ignores closed chats", () => {
-		const services = makeServices();
-		setWorkspace(services, "ready");
-		setChat(services, working, { closed: true });
-		setGit(services, snapshot());
-		setPullRequest(services, pullRequest({ state: "merged" }));
+		setWorkspace("ready");
+		setChat(working, { closed: true });
+		setGit(snapshot());
+		setPullRequest(pullRequest({ state: "merged" }));
 
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(label(result.current)).toBe("git:merged");
 	});
 
 	it("shows changes and never claims clean while git state has not loaded", () => {
-		const services = makeServices();
-		setWorkspace(services, "ready");
-		setChat(services, idle);
+		setWorkspace("ready");
+		setChat(idle);
 
-		const withoutGit = renderStatus(services);
+		const withoutGit = renderStatus();
 		expect(withoutGit.result.current).toBeNull();
 
 		act(() => {
 			setGit(
-				services,
 				snapshot({ files: [changedFile("src/app.ts")], uncommittedFiles: 1, changedFiles: 1 }),
 			);
 		});
@@ -237,19 +231,17 @@ describe("WS-09 useWorkspaceStatus", () => {
 	});
 
 	it("reads the status from the git service's own counts", () => {
-		const services = makeServices();
-		setWorkspace(services, "ready");
-		setChat(services, idle);
+		setWorkspace("ready");
+		setChat(idle);
 		// A working-tree change is enough for "changes" even when the file list itself is empty.
-		setGit(services, snapshot({ files: [], uncommittedFiles: 1, changedFiles: 0 }));
+		setGit(snapshot({ files: [], uncommittedFiles: 1, changedFiles: 0 }));
 
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(label(result.current)).toBe("git:changes");
 	});
 
 	it("returns null for an unknown workspace", () => {
-		const services = makeServices();
-		const { result } = renderStatus(services);
+		const { result } = renderStatus();
 		expect(result.current).toBeNull();
 	});
 });
