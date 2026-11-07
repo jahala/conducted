@@ -804,6 +804,7 @@ export class SessionsService implements AgentMessenger {
 				session.id,
 				workspace.value.workspacePath,
 				resolvedMessageId,
+				paths,
 			);
 			if (!materialized.ok) return materialized;
 			paths = materialized.value;

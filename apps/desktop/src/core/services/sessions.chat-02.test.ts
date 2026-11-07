@@ -386,6 +386,21 @@ describe("CHAT-03 steering through the send path", () => {
 		expect(call?.params.delivery).toBe("steer");
 	});
 
+	it("materialises the attachments the message carries, not the draft's", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+
+		await h.service.send(session.id, "Queued", ["/draft/a.txt"], "auto", "queued-7" as MessageId);
+
+		expect(h.composer.materializeForSend).toHaveBeenCalledWith(
+			session.id,
+			workspace.workspacePath,
+			"queued-7",
+			["/draft/a.txt"],
+		);
+	});
+
 	it("refuses a steer asked for by name when the agent cannot steer, and queues nothing", async () => {
 		seedWorkspace();
 		const h = harness();

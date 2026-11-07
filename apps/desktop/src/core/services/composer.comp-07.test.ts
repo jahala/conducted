@@ -157,7 +157,12 @@ describe("COMP-07 attachments service", () => {
 		addFile(test, "/tmp/one.txt", "one");
 		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt"]));
 
-		const sent = must(await composer.materializeForSend(session.id, workspace.path, "message-1"));
+		const sent = must(await composer.materializeForSend(
+			session.id,
+			workspace.path,
+			"message-1",
+			composer.draftOf(session.id).attachmentPaths,
+		));
 
 		expect(sent).toHaveLength(1);
 		expect(sent[0]).toContain(`${workspace.path}/.context/attachments/`);
@@ -169,12 +174,53 @@ describe("COMP-07 attachments service", () => {
 		expect(staged).toHaveLength(1);
 	});
 
+	it("keeps the draft's path list equal to the chat's draft attachment rows", async () => {
+		const { test, session, composer } = await setup();
+		addFile(test, "/tmp/one.txt", "one");
+		addFile(test, "/tmp/two.md", "two");
+		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt", "/tmp/two.md"]));
+
+		const rows = await rowsFor(test, session.id);
+		expect(new Set(composer.draftOf(session.id).attachmentPaths)).toEqual(
+			new Set(rows.map((row) => row.path)),
+		);
+
+		must(await composer.removeAttachment(session.id, staged[0] ?? ""));
+
+		const left = await rowsFor(test, session.id);
+		expect(composer.draftOf(session.id).attachmentPaths).toEqual(left.map((row) => row.path));
+	});
+
+	it("materialises the paths a queued message carries after its draft was cleared", async () => {
+		const { test, workspace, session, composer } = await setup();
+		addFile(test, "/tmp/one.txt", "one");
+		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt"]));
+		const queuedPaths = [...composer.draftOf(session.id).attachmentPaths];
+		must(await composer.clearDraft(session.id));
+
+		const sent = must(
+			await composer.materializeForSend(session.id, workspace.path, "queued-1", queuedPaths),
+		);
+
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toContain(`${workspace.path}/.context/attachments/`);
+		expect(sent[0]?.endsWith("/one.txt")).toBe(true);
+		const rows = await rowsFor(test, session.id);
+		expect(rows[0]?.is_draft).toBe(0);
+		expect(staged).toHaveLength(1);
+	});
+
 	it("removes the staging copy when the message is sent", async () => {
 		const { test, workspace, session, composer } = await setup();
 		addFile(test, "/tmp/one.txt", "one");
 		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt"]));
 
-		must(await composer.materializeForSend(session.id, workspace.path, "message-1"));
+		must(await composer.materializeForSend(
+			session.id,
+			workspace.path,
+			"message-1",
+			composer.draftOf(session.id).attachmentPaths,
+		));
 
 		expect(test.memory.controls.files.has(staged[0] ?? "")).toBe(false);
 	});
@@ -185,7 +231,12 @@ describe("COMP-07 attachments service", () => {
 		addFile(test, "/tmp/two.txt", "two");
 
 		const adding = composer.addAttachments(session.id, ["/tmp/one.txt", "/tmp/two.txt"]);
-		const during = await composer.materializeForSend(session.id, workspace.path, "message-1");
+		const during = await composer.materializeForSend(
+			session.id,
+			workspace.path,
+			"message-1",
+			composer.draftOf(session.id).attachmentPaths,
+		);
 		await adding;
 
 		expect(during.ok).toBe(false);
@@ -199,7 +250,12 @@ describe("COMP-07 attachments service", () => {
 		const staged = must(await composer.addAttachments(session.id, ["/tmp/one.txt"]));
 		test.memory.controls.files.delete(staged[0] ?? "");
 
-		const result = await composer.materializeForSend(session.id, workspace.path, "message-1");
+		const result = await composer.materializeForSend(
+			session.id,
+			workspace.path,
+			"message-1",
+			composer.draftOf(session.id).attachmentPaths,
+		);
 
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
