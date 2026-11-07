@@ -648,11 +648,6 @@ export interface WorkspaceSessionsPort {
 	createFirstChat(workspaceId: WorkspaceId, input: NewWorkspaceInput): Promise<Result<Session>>;
 	/** The first chat's draft, for "Recover prompt" after a failed creation. */
 	firstDraftOf(workspaceId: WorkspaceId): Promise<Result<Draft>>;
-	/**
-	 * WS-07: stores the workspace's linked folders in every chat already open in it, so the next
-	 * message carries them. Optional for a caller that has no chats to update.
-	 */
-	applyLinkedPaths?(workspaceId: WorkspaceId, paths: readonly string[]): Promise<Result<void>>;
 	cancelAll(workspaceId: WorkspaceId): Promise<Result<void>>;
 	hasWorkingChats(workspaceId: WorkspaceId): boolean;
 	markAllRead(workspaceId: WorkspaceId): Promise<Result<void>>;
@@ -1778,7 +1773,7 @@ export class WorkspaceService {
 			linkedPaths: normalised.value,
 			updatedAt: this.#deps.now(),
 		});
-		return (await this.#deps.sessions.applyLinkedPaths?.(id, normalised.value)) ?? ok(undefined);
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.remove`. */

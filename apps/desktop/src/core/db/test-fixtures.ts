@@ -41,7 +41,7 @@ export const sessionConfig: Session["config"] = {
 	fastMode: false,
 	planMode: false,
 	requireToolApproval: true,
-	additionalDirectories: ["/tmp/extra"],
+	additionalDirectories: [],
 	appTools: { diffComments: true, progressUpdates: false, setTargetBranch: true },
 };
 

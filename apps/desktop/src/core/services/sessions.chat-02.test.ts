@@ -201,7 +201,7 @@ describe("CHAT-02 sends a message as a new turn", () => {
 			delivery: "new_turn",
 			firstMessage: true,
 			attachmentPaths: ["/ws/.context/a.txt"],
-			config: session.config,
+			config: { ...session.config, additionalDirectories: sampleWorkspace.linkedPaths },
 			workspace: { ...workspace, userPreferences: "Be brief. Show the diff before editing." },
 		});
 		expect(params.launch).toEqual({ env: {}, providerKeys: {} });
@@ -566,7 +566,10 @@ describe("CHAT-02 config compare-and-set", () => {
 		expect(must(await repositories.sessions.get(session.id))?.config.model).toBe("haiku");
 		expect(h.service.store.getState().sessions[session.id]?.config.model).toBe("haiku");
 		const call = h.calls.find((entry) => entry.method === "updateConfig");
-		expect(call?.params).toEqual({ sessionId: session.id, config: next });
+		expect(call?.params).toEqual({
+			sessionId: session.id,
+			config: { ...next, additionalDirectories: sampleWorkspace.linkedPaths },
+		});
 	});
 
 	it("stores the agent session id for resume", async () => {
@@ -732,6 +735,9 @@ describe("SIDE-20 a config the agent changed is stored", () => {
 		must(await h.service.send(session.id, "next", [], "auto"));
 
 		const [call] = sendMessageCalls(h.calls);
-		expect(call?.params.config).toEqual(entered);
+		expect(call?.params.config).toEqual({
+			...entered,
+			additionalDirectories: sampleWorkspace.linkedPaths,
+		});
 	});
 });
