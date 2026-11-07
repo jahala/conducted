@@ -215,7 +215,7 @@ describe("AGENT-02 turn tracker", () => {
 		const decision = tracker.onSdkMessage(
 			resultMessage({ uuid: "ours", isError: true, text: "API Error: 500 Internal server error" }),
 		);
-		const outcome = {
+		const outcome: TurnOutcome = {
 			kind: "error",
 			message: "API Error: 500 Internal server error",
 			retryable: false,
