@@ -170,6 +170,28 @@ describe("PLAT-01 in-memory Platform", () => {
 		}
 	});
 
+	it("keeps a held command terminal running until it is killed", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			memory.controls.holdNextPty();
+			const spawn = { terminalId: "setup", cwd: "/", cols: 80, rows: 24 };
+			const command = { program: "/bin/zsh", args: ["-lc", "pnpm install"] };
+			const held = await memory.platform.pty.spawn({ ...spawn, command });
+			const next = await memory.platform.pty.spawn({ ...spawn, terminalId: "next", command });
+			if (!held.ok || !next.ok) throw new Error("A terminal did not start.");
+			const exits: (number | null)[] = [];
+			held.value.onExit((code) => exits.push(code));
+			// The hold is used once: the next command terminal ends at once, as before.
+			const nextEnded = await new Promise<number | null>((resolve) => next.value.onExit(resolve));
+			expect(nextEnded).toBe(0);
+			expect(exits).toEqual([]);
+			await held.value.kill();
+			expect(exits).toEqual([143]);
+		} finally {
+			db.close();
+		}
+	});
+
 	it("ends a cancelled shell.start with shell_cancelled, as the Rust shell does", async () => {
 		const { db, memory } = freshPlatform();
 		try {

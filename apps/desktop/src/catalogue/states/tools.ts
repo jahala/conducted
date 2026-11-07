@@ -4,7 +4,8 @@
  * (Workspace diff, Review comments, Code review comments, Get terminal output), a sub-agent, a
  * slash command, Glob, List files and a plain Bash call with its raw input shown; and a design fix
  * that activates a skill, reads a mockup image, asks the user, retries an edit Claude Code refused
- * and opens the edit that worked.
+ * and opens the edit that worked; a turn that keeps a task list, runs JavaScript in a Node
+ * REPL and generates an image; and a reply with a Mermaid diagram.
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -244,6 +245,100 @@ async function designChat(world: World): Promise<Scene> {
 	};
 }
 
+/** A turn in grove that tracks its tasks, checks a value in a Node REPL and draws an image. */
+async function taskToolsChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Release notes for Node 24" });
+	const talk = conversation("grove-tools", CATALOGUE_NOW - 12 * MINUTE);
+	const turn = talk.user(
+		"Write the release notes for the Node 24 upgrade, check the new minimum version, and make a small banner image for the post.",
+	);
+	talk.tool(turn, {
+		tool: "task_create",
+		rawName: "TaskCreate",
+		input: {
+			subject: "Write the Node 24 release notes",
+			description: "List the runtime change, the Dockerfile change and the url.parse fix.",
+		},
+		output: "Task #1 created successfully: Write the Node 24 release notes",
+	});
+	talk.tool(turn, {
+		tool: "task_get",
+		rawName: "TaskGet",
+		input: { taskId: "1" },
+		output: [
+			"Task #1: Write the Node 24 release notes",
+			"Status: in_progress",
+			"Description: List the runtime change, the Dockerfile change and the url.parse fix.",
+		].join("\n"),
+	});
+	talk.tool(turn, {
+		tool: "node_repl",
+		rawName: "node_repl",
+		input: { code: "process.versions.node.split('.')[0]" },
+		output: "'24'",
+	});
+	talk.tool(turn, {
+		tool: "image_generation",
+		rawName: "image_generation",
+		input: { prompt: "A flat banner with a green hexagon and the words Node 24" },
+		output: "Saved the image to docs/release/node-24-banner.png",
+	});
+	talk.usage(turn, 31_000);
+	talk.text(
+		turn,
+		"The release notes are in `docs/release/node-24.md`, the minimum version is 24, and the banner is beside them.",
+	);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+			// The turn's work shows open, as the only work of the chat; open two of its rows.
+			await openRow(document, "Task created");
+			await openRow(document, "Node REPL");
+		},
+		ready: (document) => shows(document, "process.versions.node"),
+	};
+}
+
+/** A reply in arbor that explains the sign-in redirect with a Mermaid sequence diagram. */
+async function mermaidChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "How the redirect works" });
+	const talk = conversation("arbor-mermaid", CATALOGUE_NOW - 6 * MINUTE);
+	const turn = talk.user("Draw how a sign-in keeps the page the user asked for.");
+	talk.text(
+		turn,
+		[
+			"Here is the path a request takes now:",
+			"",
+			"```mermaid",
+			"sequenceDiagram",
+			"  Browser->>Server: GET /billing",
+			"  Server-->>Browser: 303 /login?next=/billing",
+			"  Browser->>Server: POST /login",
+			"  Server-->>Browser: 303 /billing",
+			"```",
+			"",
+			"`safeNext` refuses any `next` that leaves the site, so the last step falls back to `/` for those.",
+		].join("\n"),
+	);
+	talk.usage(turn, 18_000);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.arbor);
+		},
+		ready: (document) => shows(document, "Mermaid diagram"),
+	};
+}
+
 export const TOOL_STATES: CatalogueState[] = [
 	{
 		id: "chat-tool-cards-review",
@@ -257,5 +352,17 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A design turn opened: a skill, an image read, a question, a refused edit and its retry",
 		seed: designChat,
+	},
+	{
+		id: "chat-tool-cards-tasks",
+		group: "Workspace chat",
+		title: "A turn opened: a task created and read, a Node REPL and a generated image",
+		seed: taskToolsChat,
+	},
+	{
+		id: "chat-mermaid",
+		group: "Workspace chat",
+		title: "A reply with a Mermaid sequence diagram",
+		seed: mermaidChat,
 	},
 ];

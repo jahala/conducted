@@ -68,12 +68,12 @@
 		"owner": "hand"
 	},
 	"placeholder:R4632855": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Add-action dialog icon picker with 'Search icons' and 'No icons found'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R4978748": {
 		"status": "matched",
@@ -84,12 +84,12 @@
 		"by": "seed"
 	},
 	"placeholder:R4987113": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Add-action dialog: 'Action name'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"placeholder:R5444083": {
 		"status": "gap",
@@ -125,12 +125,12 @@
 		"by": "seed-unsure"
 	},
 	"placeholder:R5664306": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-09",
-		"item": "Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-link-issue",
+		"via": "placeholder",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5685793": {
 		"status": "gap",
@@ -323,20 +323,19 @@
 		"owner": "hand"
 	},
 	"placeholder:R11021601": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11117637": {
 		"status": "matched",
 		"state": "settings-git",
 		"via": "text",
 		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > fieldset > label:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > fieldset > label:nth-of-type(2)",
 		"by": "seed"
 	},
 	"placeholder:R11129925": {
@@ -350,26 +349,27 @@
 	},
 	"placeholder:R11133626": {
 		"status": "matched",
-		"state": "home-sort-menu",
+		"state": "sidebar-section-edit",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > label",
 		"by": "seed"
 	},
 	"placeholder:R11133908": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "CLOUD-17",
-		"item": "Conductor shows \"Email\" (placeholder, inventory-controls Settings: General); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > input:nth-of-type(2)",
+		"by": "seed"
 	},
 	"placeholder:R11138955": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "SET-02",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-git-custom-prefix",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > fieldset > div > input",
+		"by": "seed"
 	},
 	"placeholder:R11204617": {
 		"status": "decided",
@@ -391,12 +391,12 @@
 		"owner": "rule:neighbour"
 	},
 	"placeholder:R11281056": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "PRJ-05",
-		"item": "Repo icon picker: 'Icons', 'Emoji', 'Favicon', 'Upload', 'Search emoji', 'Remove emoji'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-repo-icon-picker",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R11319420": {
 		"status": "gap",
@@ -435,12 +435,12 @@
 		"by": "seed"
 	},
 	"placeholder:R11515575": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-09",
-		"item": "Snippet picker with 'Search snippets...', loading state and 'Create snippet'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-snippet-picker",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11570753": {
 		"status": "gap",

@@ -19,7 +19,13 @@ import type { StartedApp } from "../main.tsx";
 import type { ShellScript } from "../platform/memory.ts";
 import { type Conversation, conversation } from "./conversation.ts";
 import type { ScriptedFile, ScriptedRepo } from "./git-repo.ts";
-import { type GitHubFailure, type ScriptedPr, scriptGitHub } from "./github.ts";
+import {
+	type GitHubFailure,
+	type ScriptedIssue,
+	type ScriptedPr,
+	type ScriptedStack,
+	scriptGitHub,
+} from "./github.ts";
 import { deliverEvents, openInteraction, setLiveState } from "./live.ts";
 import { addChat, addEvents, addRepo, addWorkspace } from "./seeds.ts";
 import { CATALOGUE_NOW, DAY, HOUR, MINUTE } from "./time.ts";
@@ -610,6 +616,17 @@ export interface GitWorld {
 	arborRemoteRewritten?: boolean;
 	/** Every request to GitHub's API fails this way. */
 	github?: GitHubFailure;
+	/** The GitHub stacks pull requests belong to. */
+	stacks?: ScriptedStack[];
+	/** atlas's open issues on GitHub. */
+	issues?: ScriptedIssue[];
+	/** The merge methods atlas allows on GitHub; all three unless given. */
+	mergeMethods?: { squash: boolean; rebase: boolean; merge: boolean };
+	/**
+	 * What `gt state` prints in atlas's clone, as Graphite's JSON of branches; without it, `gt` is
+	 * not installed.
+	 */
+	graphiteState?: Record<string, unknown>;
 }
 
 /**
@@ -691,7 +708,31 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 				: null,
 		);
 	}
-	world.scriptShell(scriptGitHub(options.prs ?? [], options.github));
+	world.scriptShell(
+		scriptGitHub({
+			prs: options.prs,
+			failure: options.github,
+			stacks: options.stacks,
+			issues: options.issues,
+			mergeMethods: options.mergeMethods,
+		}),
+	);
+	const graphiteState = options.graphiteState;
+	if (graphiteState !== undefined) {
+		world.scriptShell((command) => {
+			if (command.program !== "gt" || command.cwd !== cast.atlas.rootPath) return null;
+			const [verb] = command.args;
+			if (verb === "--version")
+				return { ok: true, value: { stdout: "1.6.2\n", stderr: "", exitCode: 0 } };
+			if (verb === "state") {
+				return {
+					ok: true,
+					value: { stdout: JSON.stringify(graphiteState), stderr: "", exitCode: 0 },
+				};
+			}
+			return null;
+		});
+	}
 	for (const repo of [cast.atlas, cast.relay]) {
 		world.memory.controls.files.set(`${repo.rootPath}/.conducted/settings.toml`, PROJECT_SETTINGS);
 	}

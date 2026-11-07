@@ -190,7 +190,7 @@ describe("s1-ui-3 join SET-05 MCP servers", () => {
 		const test = testContainer();
 		const workspace = await seedWorkspace(test.container);
 		const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
-		test.container.services.sessions.store.setState({ viewingSessionId: created.id });
+		test.container.services.sessions.setViewing(created.id);
 		vi.spyOn(test.container.sidecar, "request").mockResolvedValue({
 			ok: true,
 			value: {
