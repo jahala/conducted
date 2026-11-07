@@ -53,6 +53,7 @@ beforeEach(() => {
 		repoRootPath: "/code/conducted",
 		targetBranch: "origin/main",
 		placeholderBranch: true,
+		host: { kind: "local" },
 		port: 55_000,
 	};
 });
@@ -78,6 +79,7 @@ async function seedChat(): Promise<Session> {
 			path: "/code/workspaces/oslo",
 			branch: "jahala/oslo",
 			branchIsPlaceholder: true,
+			host: { kind: "local" },
 			targetBranch: "origin/main",
 			port: 55_000,
 			linkedPaths: [],

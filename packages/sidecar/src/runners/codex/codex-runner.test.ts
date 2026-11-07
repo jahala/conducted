@@ -419,6 +419,7 @@ describe("SIDE-21 and SIDE-13 a Codex chat's program and app tools token", () =>
 		repoRootPath: "/work/lisbon",
 		targetBranch: "origin/main",
 		placeholderBranch: false,
+		host: { kind: "local" },
 		port: 5100,
 	};
 	const callbacks: TurnCallbacks = {

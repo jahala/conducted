@@ -47,6 +47,7 @@ function startOptions(overrides: Partial<StartOptions> = {}): StartOptions {
 			repoRootPath: "/repo",
 			targetBranch: "origin/main",
 			placeholderBranch: false,
+			host: { kind: "local" },
 			port: 4310,
 		},
 		env: { CURSOR_API_KEY: "cursor-key", HOME: "/home/tester" },

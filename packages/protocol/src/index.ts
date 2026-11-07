@@ -1,6 +1,7 @@
 export * from "./agent-message.ts";
 export * from "./agent-providers.ts";
 export * from "./events.ts";
+export * from "./host.ts";
 export * from "./ids.ts";
 export * from "./interactions.ts";
 export * from "./live-state.ts";

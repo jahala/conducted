@@ -40,6 +40,7 @@ const workspace = (path: string): Workspace => ({
 	path,
 	branch: "oslo",
 	branchIsPlaceholder: true,
+	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
 	state: "initializing",

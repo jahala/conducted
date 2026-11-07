@@ -147,6 +147,7 @@ const seedChat = async (h: Harness, config: SessionConfig): Promise<SessionId> =
 			path: "/code/demo",
 			branch: "demo",
 			branchIsPlaceholder: false,
+			host: { kind: "local" },
 			targetBranch: "origin/main",
 			port: 55_000,
 			linkedPaths: [],

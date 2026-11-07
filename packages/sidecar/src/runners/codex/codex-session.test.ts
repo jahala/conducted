@@ -104,6 +104,7 @@ const startOptions = (resume?: string): StartOptions => ({
 		repoRootPath: "/repo",
 		targetBranch: "origin/main",
 		placeholderBranch: false,
+		host: { kind: "local" },
 		port: 4310,
 	},
 	env: {},

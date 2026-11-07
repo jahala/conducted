@@ -35,6 +35,7 @@ const workspace = (id: string, repoId: string, overrides: Partial<Workspace> = {
 	path: `/code/${id}`,
 	branch: `jahala/${id}`,
 	branchIsPlaceholder: false,
+	host: { kind: "local" },
 	// Rows are named as the sidebar names them; this fixture's name is its id.
 	displayName: id,
 	targetBranch: "origin/main",

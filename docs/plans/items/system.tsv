@@ -34,7 +34,7 @@ DATA-05	store	Global settings file in the user's home folder; the settings regis
 PRJ-04	store	Per-repo settings file inside the repo (scripts, files to copy, prompts).	overview 5	covered
 DATA-01	store	Main tables: repos, workspaces, sessions, session_events and others (session_messages is dropped by D006).	overview 5	covered
 DATA-02	rule	Conductor writes every agent JSON line as its own row twice and reached 12 GB; ours has one log and states each store's lifetime.	overview 5	covered
-CLOUD-01	capability	Cloud workspaces in Linux sandboxes.	overview not verified	covered
+CLOUD-04	capability	Cloud workspaces in Linux sandboxes.	overview not verified	covered
 DATA-04	rule	The UI writes every chat message and event to the database itself.	sessions-and-chats who does what	covered
 PLAT-09	rpc	The Rust shell relays JSON-RPC lines between the UI and the sidecar.	sessions-and-chats who does what	covered
 DATA-04	rule	The sidecar never writes the database; the UI is the only writer.	sessions-and-chats who does what	covered
@@ -932,7 +932,7 @@ SIDE-01	rule	Sidecar default paths under ~/.conductor are not used; ours require
 WS-01	store	Main clones live under ~/conductor/repos/<repo>.	native-and-sidecar-map D3	covered
 WS-01	store	Worktrees live under ~/conductor/workspaces/<repo>/<city> with a .context folder.	native-and-sidecar-map D3	covered
 WS-05	store	~/conductor/archived-contexts holds the .context folders of archived workspaces.	native-and-sidecar-map D3	missing
-CLOUD-01	store	The cloud-workspaces folder holds cloud workspace data on the Mac.	native-and-sidecar-map D3	covered
+CLOUD-11	store	The cloud-workspaces folder holds cloud workspace data on the Mac.	native-and-sidecar-map D3	covered
 CLOUD-11	store	The remote-workspace-sync folder holds the local mirror of a cloud workspace.	native-and-sidecar-map D3	missing
 PLAT-02	rule	The Platform object is the only door from the web code to Tauri; no other module calls Tauri directly.	services-map 1.1	covered
 APP-01	rule	A service container builds every service in an explicit start order.	services-map 1.1	covered
@@ -1280,14 +1280,14 @@ DATA-01	rule	The cancelled_at writer question is closed because the column is no
 CHAT-04	rule	One queue, queued_messages, replaces both the transcript queue and the outbox.	services-map 2.7.3	covered
 PLAT-03	rule	All git and gh commands run through one shell door that uses the login-shell PATH, a timeout and cancel.	services-map 3.0.1	covered
 GIT-01	git	Git runs with core.quotePath turned off so file names come back unescaped.	services-map 3.0.1	covered
-CLOUD-01	git	Git in a cloud workspace runs with a credential helper that supplies the GitHub login.	services-map 3.0.1	covered
+CLOUD-05	git	Git in a cloud workspace runs with a credential helper that supplies the GitHub login.	services-map 3.0.1	covered
 GIT-01	rule	A git call returns stdout on success and fails with the stderr text otherwise.	services-map 3.0.1	covered
 GIT-01	rule	When SSH is blocked on the network, the network git command is retried once over HTTPS.	services-map 3.0.1, 3.6.2	covered
 PRJ-02	rule	Clone streams its progress output to the UI while git clone --progress runs.	services-map 3.0.1	partly
 WS-01	git	Worktree add runs as an internal script with hook output in a log file; a failing post-checkout hook is only a warning.	services-map 3.0.1	covered
 PLAT-03	timeout	A shell command ends with a distinct timeout result or cancel result, so callers can tell them apart.	services-map 3.0.1	covered
 PR-03	timeout	gh api graphql calls time out after 10 seconds.	services-map 3.0.2	covered
-CLOUD-01	timeout	Reads of branch config on a remote host time out after 10 seconds.	services-map 3.0.2	covered
+CLOUD-03	timeout	Reads of branch config on a remote host time out after 10 seconds.	services-map 3.0.2	covered
 PR-08	timeout	gt state calls time out after 30 seconds.	services-map 3.0.2	covered
 GIT-01	timeout	Waiting for a git lock for 10 seconds is logged as a warning and never aborts the action.	services-map 3.0.2	covered
 SIDE-08	timeout	A checkpoint save times out after 60 seconds: SIGTERM first, then SIGKILL.	services-map 3.0.2	covered
@@ -1616,7 +1616,7 @@ RUN-06	rule	There is one repository-level terminal per repository, created lazil
 RUN-06	rule	A terminal can be opened with a starting command.	services-map 5A.4.9	missing
 RUN-06	rule	The xterm renderer settings, link confirmation and key handler follow Conductor.	services-map 5A.4.10	covered
 REV-06	rule	Local file calls take a workspace path and refuse paths outside it.	services-map 5A.5.1	covered
-CLOUD-01	rpc	Cloud file routes cover list, search, grep, bounded text read and streamed write.	services-map 5A.5.1	covered
+CLOUD-03	rpc	Cloud file routes cover list, search, grep, bounded text read and streamed write.	services-map 5A.5.1	covered
 PLAT-06	rule	Directory listing applies the standard ignore filters.	services-map 5A.5.1	covered
 REV-07	rule	Fuzzy search and grep work with a minimum of 2 characters, case, whole word and regex options, and pattern errors.	services-map 5A.5.1	covered
 PLAT-05	rule	Files can be read, stat-ed and written atomically.	services-map 5A.5.1	covered

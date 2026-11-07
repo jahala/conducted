@@ -31,6 +31,7 @@ const workspace: Workspace = {
 	path: "/workspaces/Project/oslo",
 	branch: "oslo",
 	branchIsPlaceholder: true,
+	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
 	state: "ready",

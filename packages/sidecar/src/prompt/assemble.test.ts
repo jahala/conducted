@@ -14,6 +14,7 @@ const workspace: WorkspaceContext = {
 	repoRootPath: "/repos/app",
 	targetBranch: "origin/main",
 	placeholderBranch: false,
+	host: { kind: "local" },
 	port: 5100,
 };
 

@@ -30,7 +30,7 @@ Desktop app ──HTTPS / WebSocket──▶ user's Worker ──▶ Workspace D
 ```
 
 - **The sidecar runs inside the sandbox unchanged.** Its session core, runners and write-ahead log already take their I/O as parameters. In the cloud, its NDJSON stream travels over a WebSocket through the Worker instead of a Unix socket. Conductor reuses its session core the same way for its cloud workspaces (research: sessions.md section 0).
-- **The UI gains a host per workspace.** Today `core/` runs git, shell, files and terminals on the Mac through the Platform. A workspace now names its host (`local`, or `cloud` with the Worker URL and sandbox name), and `core/` reaches git, shell, files, terminals and the sidecar through a `Host` interface. The local host wraps the Platform; the cloud host talks to the Worker. This is the seam D004 removed; it is cheap to add now because those bodies are still placeholders.
+- **The UI gains a host per workspace.** Today `core/` runs git, shell, files and terminals on the Mac through the Platform. A workspace names its host (`local`, or `cloud` with the Worker URL and sandbox id), and every git, shell, file, terminal and chat call checks it before it runs (CLOUD-01, D092). A local host goes on to the Platform as before; a cloud host's calls belong to the Worker (CLOUD-03) and the cloud runtime (CLOUD-09). This is the seam D004 removed.
 - **Secrets never enter the sandbox.** Following Cloudflare's runner example, the model key lives in AI Gateway or as a Worker secret. The sandbox gets a placeholder key, and the Worker's outbound handler swaps in the real credential. The GitHub token is handled the same way for `git` and `gh`.
 - **Network is closed by default.** The outbound allow-list holds GitHub, the model gateway and the package registries the setup script needs.
 - **The desktop database stays the record.** Cloud workspaces' events arrive over the same protocol and are stored locally, as for local workspaces.
@@ -120,7 +120,7 @@ Verdict against the kill criterion: path A works without reverse-engineering a p
 
 ## Order
 
-1. Add the `Host` seam to the shared contracts now, while `core/` is still placeholders (CLOUD-01).
+1. Add the `Host` seam to the shared contracts (CLOUD-01). Done: the host value and its check (D092).
 2. Run the Remote Control spike (small, local, needs a claude.ai subscription). Done: path A passed (D074).
 3. Run the cloud spike on a test Cloudflare account. Done: it passed (D075).
-4. Build the parts the spikes confirm. Remote Control is built (RC-02 to RC-04): a per-chat switch in a Claude chat's composer, messages and approvals from claude.ai, and its settings page. The cloud rows (CLOUD-01, CLOUD-03 to CLOUD-18) are next.
+4. Build the parts the spikes confirm. Remote Control is built (RC-02 to RC-04): a per-chat switch in a Claude chat's composer, messages and approvals from claude.ai, and its settings page. The host seam is built (CLOUD-01); the other cloud rows (CLOUD-03 to CLOUD-18) are next.

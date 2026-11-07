@@ -114,6 +114,7 @@ function workspace(over: Partial<Workspace> = {}): Workspace {
 		path: "/tmp/workspace",
 		branch: "conducted/workspace",
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
 		state: "ready",

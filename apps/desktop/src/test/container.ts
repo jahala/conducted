@@ -11,7 +11,7 @@
  * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
-import type { SessionEvent } from "@conducted/protocol";
+import { LOCAL_HOST, type SessionEvent } from "@conducted/protocol";
 import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
@@ -205,6 +205,7 @@ export async function seedWorkspace(
 		port: partial.port ?? 55_000,
 		linkedPaths: partial.linkedPaths ?? [],
 		setupLogPath: partial.setupLogPath ?? null,
+		host: partial.host ?? LOCAL_HOST,
 	});
 	must(await container.services.workspace.start());
 	return must(created);

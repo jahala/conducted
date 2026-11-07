@@ -34,6 +34,7 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 		path: `/workspaces/${id}`,
 		branch: `jahala/${id}`,
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: id,
 		targetBranch: "main",
 		state: "ready",

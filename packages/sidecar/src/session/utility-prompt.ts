@@ -91,6 +91,9 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 			repoRootPath: params.cwd,
 			targetBranch: "",
 			placeholderBranch: false,
+			// The prompt runs in `cwd` on the machine this sidecar runs on, which is the app's Mac
+			// today; a cloud sandbox's sidecar is CLOUD-04's.
+			host: { kind: "local" },
 			port: 1,
 		};
 

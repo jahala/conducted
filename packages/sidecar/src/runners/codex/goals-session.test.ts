@@ -76,6 +76,7 @@ function makeSession(child: FakeChild, events: unknown[]): CodexSession {
 			repoRootPath: "/repo",
 			targetBranch: "origin/main",
 			placeholderBranch: false,
+			host: { kind: "local" },
 			port: 4310,
 		},
 		env: {},

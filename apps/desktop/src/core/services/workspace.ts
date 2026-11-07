@@ -82,12 +82,15 @@
  * them, and the create page reads them back after the action returns. The composition root
  * supplies the repository config reader; the default-config reader remains optional until the
  * composition root passes it.
+ * CLOUD-01: setup, the first-message branch rename, archive, unarchive, delete and Open in check
+ * the workspace's host before they touch its folder (core/host.ts). Creating a workspace makes a
+ * worktree on this Mac, so it stores the local host.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
  * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix;
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
  * the archive time; a branch checked out elsewhere asks for a new name.
  */
-import type { SessionConfig } from "@conducted/protocol";
+import { LOCAL_HOST, type SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -139,6 +142,7 @@ import {
 	restoreArchiveCheckpoint,
 	saveArchiveSnapshot,
 } from "../git/worktree.ts";
+import { checkHost } from "../host.ts";
 import type {
 	BacklogWorkspace,
 	KanbanStatus,
@@ -925,6 +929,9 @@ export class WorkspaceService {
 			port: port.value,
 			linkedPaths: [],
 			setupLogPath: null,
+			// Creating a workspace makes a worktree on this Mac. A cloud workspace is made by its
+			// Worker (CLOUD-03).
+			host: LOCAL_HOST,
 		});
 		if (!row.ok) return row;
 		this.#upsert(row.value);
@@ -1147,6 +1154,7 @@ export class WorkspaceService {
 			if (workspace === null) {
 				return err(appError("workspace_unknown", "That workspace no longer exists."));
 			}
+			checkHost(workspace.host, "shell");
 			if (workspace.state === "archived" || workspace.state === "archiving") {
 				return err(appError("workspace_not_ready", "That workspace is archived."));
 			}
@@ -1299,6 +1307,7 @@ export class WorkspaceService {
 		if (workspace === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		checkHost(workspace.host, "git");
 		if (!workspace.branchIsPlaceholder || workspace.prNumber !== null) return ok(undefined);
 		const message = firstUserMessage.trim();
 		if (message === "") return ok(undefined);
@@ -1373,6 +1382,7 @@ export class WorkspaceService {
 		const workspace = found.value;
 		if (workspace === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		checkHost(workspace.host, "git");
 		if (workspace.state === "archived") return ok(undefined);
 		if (workspace.state === "archiving") {
 			return err(appError("workspace_archiving", "This workspace is already being archived."));
@@ -1555,6 +1565,7 @@ export class WorkspaceService {
 		if (workspace === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		checkHost(workspace.host, "git");
 		if (workspace.state !== "archived") {
 			return err(appError("workspace_not_archived", "This workspace is not archived."));
 		}
@@ -1775,6 +1786,7 @@ export class WorkspaceService {
 		const workspace = found.value;
 		// Deleting a workspace that is already gone changes nothing.
 		if (workspace === null) return ok(undefined);
+		checkHost(workspace.host, "files");
 
 		const repo = await this.#deps.repos.repos.get(workspace.repoId);
 		if (!repo.ok) return repo;
@@ -2026,6 +2038,7 @@ export class WorkspaceService {
 		const workspace = this.store.getState().workspacesById[id];
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		checkHost(workspace.host, "files");
 		if (appName === KALEIDOSCOPE_APP) {
 			const cwd = workspace.path;
 			const changed = await this.#deps.git.runChecked(diffQuietHead(), { cwd });
@@ -2054,6 +2067,7 @@ export class WorkspaceService {
 		const workspace = found.value;
 		if (workspace === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		checkHost(workspace.host, "shell");
 		if (workspace.state !== "failed" && workspace.state !== "ready") return ok(undefined);
 
 		const repoResult = await this.#deps.repos.repos.get(workspace.repoId);

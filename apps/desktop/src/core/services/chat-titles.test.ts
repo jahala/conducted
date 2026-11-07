@@ -52,6 +52,7 @@ function workspace(changes: Partial<Workspace> = {}): Workspace {
 		path: "/work/alpha",
 		branch: "placeholder-branch",
 		branchIsPlaceholder: true,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "origin/main",
 		state: "ready",

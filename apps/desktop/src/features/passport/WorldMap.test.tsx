@@ -21,6 +21,7 @@ function workspace(directoryName: string, state: WorkspaceState = "ready"): Work
 		path: `/code/workspaces/${directoryName}`,
 		branch: `me/${directoryName}`,
 		branchIsPlaceholder: false,
+		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "origin/main",
 		state,
