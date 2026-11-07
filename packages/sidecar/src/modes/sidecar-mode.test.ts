@@ -4,22 +4,31 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AgentInstall } from "@conducted/protocol";
 import { appError, err, ok, systemClock } from "@conducted/shared";
+import {
+	createLoginShellEnvProvider,
+	createProcessEnvironment,
+	newEnvironmentMarker,
+	nodeProcessFacts,
+} from "../adapters/environment.ts";
+import { createNodeFilesAdapters } from "../adapters/files.ts";
+import {
+	bunSpawnProbe,
+	createProbeCommand,
+	createScheduler,
+	createSpawnText,
+	nodeTimers,
+	PROBE_KILL_GRACE_MS,
+	type ProcessErrorHooks,
+} from "../adapters/process.ts";
 import type { SidecarConfig } from "../config.ts";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import type { ShutdownStep } from "../shutdown.ts";
 import {
 	announceAgentInstalls,
 	createDefaultIo,
-	createPromptFiles,
-	createScheduler,
-	createShellEnvProvider,
 	EXIT_START_FAILED,
 	handleAppAttached,
 	installErrorHandlers,
-	PROBE_KILL_GRACE_MS,
-	type ProcessErrorHooks,
-	preflightDirectories,
-	probeCommand,
 	refreshAgentInstalls,
 	runSidecarMode,
 	runStartupSteps,
@@ -132,7 +141,7 @@ describe("SIDE-01 sidecar mode", () => {
 		await chmod(config.outboxRoot, 0o500);
 		let error = "";
 		const io = fakeIo({
-			preflight: preflightDirectories,
+			preflight: createNodeFilesAdapters({}).preflight,
 			writeError: (text) => {
 				error += text;
 			},
@@ -348,7 +357,7 @@ describe("SIDE-01 composition ports", () => {
 		const base = await tempDir("files");
 		const target = path.join(base, "note.md");
 		await writeFile(target, "hello", "utf8");
-		const files = createPromptFiles();
+		const files = createNodeFilesAdapters({}).promptFiles;
 		expect(await files.size(target)).toBe(5);
 		expect(await files.readText(target)).toEqual({ ok: true, value: "hello" });
 	});
@@ -356,7 +365,7 @@ describe("SIDE-01 composition ports", () => {
 	test("SIDE-01 the prompt file port reports a missing file as no size and an error", async () => {
 		const base = await tempDir("missing");
 		const target = path.join(base, "gone.md");
-		const files = createPromptFiles();
+		const files = createNodeFilesAdapters({}).promptFiles;
 		expect(await files.size(target)).toBeNull();
 		const read = await files.readText(target);
 		expect(read.ok).toBe(false);
@@ -364,7 +373,7 @@ describe("SIDE-01 composition ports", () => {
 	});
 
 	test("SIDE-01 the scheduler runs its callback after the delay", async () => {
-		const scheduler = createScheduler();
+		const scheduler = createScheduler(nodeTimers);
 		await new Promise<void>((resolve, reject) => {
 			const guard = setTimeout(() => reject(new Error("The scheduler did not run")), 1_000);
 			scheduler.after(0, () => {
@@ -375,7 +384,7 @@ describe("SIDE-01 composition ports", () => {
 	});
 
 	test("SIDE-01 cancelling a scheduled callback stops it", async () => {
-		const scheduler = createScheduler();
+		const scheduler = createScheduler(nodeTimers);
 		const fired: string[] = [];
 		await new Promise<void>((resolve, reject) => {
 			const guard = setTimeout(() => reject(new Error("The follow-up did not run")), 1_000);
@@ -571,7 +580,10 @@ describe("SIDE-01 startup folders", () => {
 		await mkdir(config.logDir, { recursive: true });
 		await chmod(config.logDir, 0o500);
 		try {
-			expect(await preflightDirectories(config)).toEqual({ ok: true, value: undefined });
+			expect(await createNodeFilesAdapters({}).preflight(config)).toEqual({
+				ok: true,
+				value: undefined,
+			});
 		} finally {
 			await chmod(config.logDir, 0o700);
 		}
@@ -604,8 +616,16 @@ describe("SIDE-10 shell capture failures reach the app", () => {
 	test("SIDE-10 a capture that fails in both shells sends shellEnvFailed with the folder", async () => {
 		const { logger } = recordingLogger();
 		const failures: unknown[] = [];
-		const provider = createShellEnvProvider({ SHELL: "/bin/sh" }, logger, (failure) => {
-			failures.push(failure);
+		const environment = createProcessEnvironment(nodeProcessFacts);
+		const probe = createProbeCommand(bunSpawnProbe, nodeTimers);
+		const provider = createLoginShellEnvProvider({
+			launcherEnv: { SHELL: "/bin/sh" },
+			logger,
+			notifyFailure: (failure) => {
+				failures.push(failure);
+			},
+			spawnText: createSpawnText(probe, environment.snapshot),
+			newMarker: newEnvironmentMarker,
 		});
 
 		// A folder that does not exist makes the capture script fail in every shell.
@@ -621,7 +641,8 @@ describe("SIDE-10 shell capture failures reach the app", () => {
 describe("SIDE-01 command probes", () => {
 	test("SIDE-01 a probe that ignores SIGTERM is killed after the grace and does not hang", async () => {
 		const started = Date.now();
-		const result = await probeCommand("/bin/sh", ["-c", 'trap "" TERM; while :; do :; done'], {
+		const probe = createProbeCommand(bunSpawnProbe, nodeTimers);
+		const result = await probe("/bin/sh", ["-c", 'trap "" TERM; while :; do :; done'], {
 			env: { PATH: "/usr/bin:/bin" },
 			cwd: tmpdir(),
 			timeoutMs: 100,

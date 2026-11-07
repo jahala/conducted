@@ -1,9 +1,10 @@
 /**
  * @feature SIDE-01 Entry point and modes: the "sidecar" mode
  * @feature SIDE-22 Slash command cache that works before a chat starts
- * Owns: starting the agent host. It is the composition root: the one place that creates every
- * real port (processes, files, sockets, clocks) and passes them to the modules. That includes the
- * slash-command cache, built over the folder from `config.ts` (SIDE-22).
+ * Owns: starting the agent host. It is the composition root: it imports the real process, file,
+ * socket and environment edges from `adapters/`, wires them, and passes them to the modules. It
+ * builds nothing that touches `node:fs`, `Bun.spawn`, a socket or `process.env` itself. That
+ * includes the slash-command cache, built over the folder from `config.ts` (SIDE-22).
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 and B1 and sessions.md sections 0, 5
  * and 8. Startup order:
  *  1. read the settings from the environment (config.ts); a bad value prints a message and exits 64
@@ -45,10 +46,7 @@
  * world it is given (`SidecarPorts`): the host passes the real processes, files and SDK, and the
  * join test (`s1-sidecar.join.test.ts`) passes scripted ones, so it drives this wiring itself.
  */
-import { randomBytes, randomUUID } from "node:crypto";
-import { constants as fsConstants } from "node:fs";
-import { access, mkdir, mkdtemp, open, readFile, realpath, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import {
@@ -63,7 +61,6 @@ import {
 	type Clock,
 	createKeyedQueue,
 	cryptoIds,
-	err,
 	type IdSource,
 	messageOf,
 	ok,
@@ -71,6 +68,32 @@ import {
 	type SessionId,
 	systemClock,
 } from "@conducted/shared";
+import {
+	createLoginShellEnvProvider,
+	createProcessEnvironment,
+	newEnvironmentMarker,
+	nodeProcessFacts,
+	PARENT_PID_ENV,
+} from "../adapters/environment.ts";
+import { createNodeFilesAdapters } from "../adapters/files.ts";
+import {
+	bunSpawnProbe,
+	createChildSpawners,
+	createIntervalScheduler,
+	createProbeCommand,
+	createScheduler,
+	createSleep,
+	createSpawnText,
+	createTimeout,
+	nodeProcessHooks,
+	nodeSignals,
+	nodeStandardStreams,
+	nodeTimers,
+	type ProcessErrorHooks,
+	type ShutdownSignal,
+	type SignalPort,
+} from "../adapters/process.ts";
+import { createNodeSocketAdapters } from "../adapters/sockets.ts";
 import {
 	type RunCheckpointer,
 	ScriptCheckpointService,
@@ -91,18 +114,18 @@ import type { OutboxStorage } from "../outbox/outbox-file.ts";
 import { OutboxReplayer } from "../outbox/replay.ts";
 import { AgentProcessManager } from "../process/process-manager.ts";
 import { startChild } from "../process/spawn-child.ts";
-import { MessagePromptAssembler, type PromptFiles } from "../prompt/assemble.ts";
+import { MessagePromptAssembler } from "../prompt/assemble.ts";
 import { writePullRequestStubFile } from "../prompt/pull-request-stub.ts";
 import { buildHandlers } from "../rpc/handlers.ts";
 import { RpcPeer } from "../rpc/peer.ts";
-import { handshakeLine, SocketServer, socketPathFor } from "../rpc/server.ts";
+import { handshakeLine, SocketServer } from "../rpc/server.ts";
 import type {
 	SidecarToApp,
 	SidecarToAppNotificationParams,
 	SidecarToAppRequestParams,
 	SidecarToAppRequestResult,
 } from "../rpc/types.ts";
-import type { AcpChild, SpawnAcpChild } from "../runners/acp/acp-client.ts";
+import type { SpawnAcpChild } from "../runners/acp/acp-client.ts";
 import { type AcpAppTools, AcpRunner } from "../runners/acp/acp-runner.ts";
 import { ACP_ADAPTERS } from "../runners/acp/adapters/registry.ts";
 import { ClaudeRunner, type ClaudeRunnerDeps } from "../runners/claude/claude-runner.ts";
@@ -114,7 +137,7 @@ import {
 } from "../runners/claude/transcript.ts";
 import { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
-import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
+import type { SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { type CodexAppTools, CodexRunner } from "../runners/codex/codex-runner.ts";
 import { type CursorAppTools, CursorRunner } from "../runners/cursor/cursor-runner.ts";
 import type { CursorSdkLoader } from "../runners/cursor/cursor-sdk.ts";
@@ -139,12 +162,7 @@ import {
 	type ShutdownReason,
 } from "../session/manager.ts";
 import { AgentUtilityPromptRunner } from "../session/utility-prompt.ts";
-import {
-	FALLBACK_SHELL,
-	LoginShellEnvProvider,
-	type NotifyShellEnvFailure,
-	type ShellEnvProvider,
-} from "../shell-env/capture.ts";
+import type { ShellEnvProvider } from "../shell-env/capture.ts";
 import { runShutdownSteps, type ShutdownReport, type ShutdownStep } from "../shutdown.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { createAppToolsServer } from "../tools/in-process-server.ts";
@@ -186,53 +204,8 @@ export interface SidecarModeIo {
 	startHost: StartSidecarHost;
 }
 
-/** The environment variable that holds the Rust shell's pid. */
-export const PARENT_PID_ENV = "CONDUCTED_PARENT_PID";
-
-/**
- * Checks the folders the sidecar writes to. A missing bin folder or an unwritable outbox is a
- * startup failure: there is no silent fallback to a default path under the user's home (D027,
- * native-and-sidecar-map D2). The log folder is required by config.ts but is not probed here: the
- * Rust launcher creates it and writes the sidecar's stderr there (D026).
- */
-export async function preflightDirectories(
-	config: Pick<SidecarConfig, "binDir" | "outboxRoot">,
-): Promise<Result<void, AppError>> {
-	const bin = await directoryExists(config.binDir);
-	if (!bin) {
-		return err(
-			appError("bin_dir_missing", `The sidecar's bin folder (${config.binDir}) does not exist.`),
-		);
-	}
-	return probeWritable("outbox folder", config.outboxRoot);
-}
-
-async function directoryExists(folder: string): Promise<boolean> {
-	try {
-		return (await stat(folder)).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-async function probeWritable(label: string, folder: string): Promise<Result<void, AppError>> {
-	const probe = path.join(folder, `.conducted-write-${process.pid}-${randomUUID()}`);
-	try {
-		await mkdir(folder, { recursive: true, mode: 0o700 });
-		const handle = await open(probe, "wx", 0o600);
-		await handle.close();
-		await rm(probe);
-		return ok(undefined);
-	} catch (cause) {
-		await rm(probe, { force: true }).catch(() => {});
-		return err(
-			appError(
-				"folder_not_writable",
-				`The sidecar cannot write to its ${label} (${folder}): ${messageOf(cause)}`,
-			),
-		);
-	}
-}
+/** The environment variable that holds the Rust shell's pid (see `adapters/environment.ts`). */
+export { PARENT_PID_ENV };
 
 /**
  * A sink that writes one JSON object per line, as the Rust launcher expects (D026). Every record's
@@ -244,13 +217,7 @@ export function stderrLogSink(write: (text: string) => void): LogSink {
 	};
 }
 
-/** The process-level error events the mode handles. Narrow, so a test needs no real process. */
-export interface ProcessErrorHooks {
-	on(event: "uncaughtException", listener: (error: unknown) => void): void;
-	on(event: "unhandledRejection", listener: (reason: unknown) => void): void;
-	off(event: "uncaughtException", listener: (error: unknown) => void): void;
-	off(event: "unhandledRejection", listener: (reason: unknown) => void): void;
-}
+export type { ProcessErrorHooks };
 
 /**
  * Logs an uncaught exception or an unhandled rejection and keeps running (sessions.md 8). The
@@ -258,7 +225,7 @@ export interface ProcessErrorHooks {
  */
 export function installErrorHandlers(
 	logger: Logger,
-	hooks: ProcessErrorHooks = process,
+	hooks: ProcessErrorHooks = nodeProcessHooks,
 ): () => void {
 	const onException = (error: unknown): void => {
 		logger.error("Uncaught exception in the sidecar; it keeps running", {
@@ -342,18 +309,7 @@ export function handleAppAttached(deps: {
 /** The log tag Conductor uses for the signal handlers. */
 export const SIGNAL_LOG_TAG = "SIGNAL";
 
-export type ShutdownSignal = "SIGINT" | "SIGTERM";
-
-/** The narrow process surface the signal handlers need, so a test passes a fake. */
-export interface SignalPort {
-	on(signal: ShutdownSignal, listener: () => void): void;
-	off(signal: ShutdownSignal, listener: () => void): void;
-}
-
-export const processSignals: SignalPort = {
-	on: (signal, listener) => process.on(signal, listener),
-	off: (signal, listener) => process.off(signal, listener),
-};
+export type { ShutdownSignal, SignalPort };
 
 /**
  * One handler per signal. Each logs the signal under the SIGNAL tag and starts the graceful
@@ -460,6 +416,7 @@ export function createDefaultIo(streams: {
 	writeError(text: string): void;
 	writeOut(text: string): void;
 }): SidecarModeIo {
+	const files = createNodeFilesAdapters({});
 	return {
 		writeError: (text) => streams.writeError(text),
 		writeOut: (text) => streams.writeOut(text),
@@ -472,16 +429,13 @@ export function createDefaultIo(streams: {
 				foldRepeats: true,
 				rerouteConsole: true,
 			}),
-		preflight: preflightDirectories,
+		preflight: (config) => files.preflight(config),
 		installErrorHandlers: (logger) => installErrorHandlers(logger),
 		startHost: (input) => startSidecarHost(input),
 	};
 }
 
-const defaultIo: SidecarModeIo = createDefaultIo({
-	writeError: (text) => process.stderr.write(text),
-	writeOut: (text) => process.stdout.write(text),
-});
+const defaultIo: SidecarModeIo = createDefaultIo(nodeStandardStreams);
 
 /**
  * Runs the sidecar mode. A bad environment exits 64 before anything is created; an unwritable
@@ -590,40 +544,37 @@ export function announceAgentInstalls(
 export async function startSidecarHost(input: SidecarHostInput): Promise<number> {
 	const { config, env, logger, writeOut } = input;
 	const app = new DelegatingApp();
+	const environment = createProcessEnvironment(nodeProcessFacts);
+	const probe = createProbeCommand(bunSpawnProbe, nodeTimers);
+	const { spawnJsonRpcChild, spawnAcpChild } = createChildSpawners(startChild, logger);
+	const files = createNodeFilesAdapters({ fallbackPath: env.PATH });
+	const sockets = createNodeSocketAdapters();
 	const runShutdown = (steps: readonly ShutdownStep[]): Promise<ShutdownReport> =>
-		runShutdownSteps(steps, {
-			logger,
-			timeout: (ms) => {
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				const done = new Promise<"timeout">((resolve) => {
-					timer = setTimeout(() => resolve("timeout"), ms);
-				});
-				return {
-					done,
-					cancel: () => {
-						if (timer !== undefined) clearTimeout(timer);
-					},
-				};
-			},
-		});
+		runShutdownSteps(steps, { logger, timeout: createTimeout(nodeTimers) });
 
 	const host = composeSidecar(config, {
 		app,
 		query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
-		spawnCodex: (options) => spawnJsonRpcChild(options, logger),
-		spawnAcp: (options) => spawnAcpChild(options, logger),
+		spawnCodex: spawnJsonRpcChild,
+		spawnAcp: spawnAcpChild,
 		// Cursor's SDK is imported from app data at the first Cursor chat (runners/cursor/load-sdk.ts).
 		importCursorSdk: (entry) => import(entry),
-		probe: probeCommand,
-		findExecutable: createFindExecutable(env),
-		shellEnv: createShellEnvProvider(env, logger, (failure) => {
-			app.notify("shellEnvFailed", failure);
+		probe,
+		findExecutable: files.findExecutable,
+		shellEnv: createLoginShellEnvProvider({
+			launcherEnv: env,
+			logger,
+			notifyFailure: (failure) => {
+				app.notify("shellEnvFailed", failure);
+			},
+			spawnText: createSpawnText(probe, environment.snapshot),
+			newMarker: newEnvironmentMarker,
 		}),
 		runCheckpointer,
 		outboxStorage: createOutboxStorage(config.outboxRoot),
-		makeTempDir: (prefix) => mkdirTemp(prefix),
+		makeTempDir: files.makeTempDir,
 		readText: readTextIfPresent,
-		sidecarExecutable: process.execPath,
+		sidecarExecutable: environment.execPath,
 		// Pinned once, so a later environment change cannot move the transcript path.
 		hasTranscript: createTranscriptCheck(claudeConfigDir(env)),
 		readUserMessageText: createUserMessageReader(claudeConfigDir(env)),
@@ -640,7 +591,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	});
 	app.setPeer(peer);
 	const replayer = new OutboxReplayer({ outbox, app, logger });
-	const socketPath = socketPathFor(tmpdir(), process.pid);
+	const socketPath = sockets.path();
 	const server = new SocketServer({ peer, logger, socketPath });
 
 	const started = await runStartupSteps(
@@ -710,21 +661,16 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		finish: (code) => finish(code),
 	});
 	watchdog = new ParentWatchdog({
-		scheduler: {
-			every: (ms, fn) => {
-				const timer = setInterval(fn, ms);
-				return () => clearInterval(timer);
-			},
-		},
-		initialParentPid: parentPidFrom(env),
-		currentParentPid: () => process.ppid,
+		scheduler: createIntervalScheduler(nodeTimers),
+		initialParentPid: environment.parentPid(env),
+		currentParentPid: () => environment.ppid,
 		processes,
 		onParentGone: () => {
 			void coordinator.shutdown("parent_gone");
 		},
 		logger,
 	});
-	removeSignalHandlers = installSignalHandlers(logger, processSignals, () => {
+	removeSignalHandlers = installSignalHandlers(logger, nodeSignals, () => {
 		void coordinator.shutdown("signal");
 	});
 	// Ready only now: a SIGTERM sent right after the handshake must reach the handler above, or the
@@ -792,6 +738,9 @@ const MANAGED_AGENTS: ReadonlySet<string> = new Set(["claude", "codex"]);
 /** Builds every module of the host from the ports, in dependency order. Starts nothing. */
 export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): SidecarComposition {
 	const { app, clock, ids, logger } = ports;
+	const files = createNodeFilesAdapters({});
+	const environment = createProcessEnvironment(nodeProcessFacts);
+	const sleep = createSleep(nodeTimers);
 	const queue = createKeyedQueue();
 	const outbox = new FileEventOutbox({ storage: ports.outboxStorage, queue, clock, logger });
 	const processes = new AgentProcessManager({ clock, logger });
@@ -800,7 +749,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		app,
 		clock,
 		logger,
-		sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+		sleep,
 	});
 	const liveState = new LiveStateStore({
 		app,
@@ -832,7 +781,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 	});
 	const cursorSdk = createCursorSdkLoader({
 		agentBinariesDir: config.agentBinariesDir,
-		cpu: process.arch,
+		cpu: environment.arch,
 		readText: ports.readText,
 		importModule: ports.importCursorSdk,
 	});
@@ -844,6 +793,10 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		cursorStoreDir: config.cursorStoreDir,
 		cursorSdk,
 		findManagedProgram,
+		realPath: files.realPath,
+		scheduler: createScheduler(nodeTimers),
+		sleep,
+		cursorEnvironment: environment.target(),
 	});
 	const models = new RunnerModelCatalog({ runners, shellEnv, logger, clock });
 	const utilityPrompt = new AgentUtilityPromptRunner({
@@ -886,7 +839,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		}),
 		prompt: new MessagePromptAssembler({
 			writePullRequestStub: writePullRequestStubFile,
-			files: createPromptFiles(),
+			files: files.promptFiles,
 			logger,
 		}),
 		shellEnv,
@@ -933,139 +886,6 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 	};
 }
 
-function parentPidFrom(env: Readonly<Record<string, string | undefined>>): number {
-	const raw = env[PARENT_PID_ENV];
-	const parsed = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
-	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : process.ppid;
-}
-
-function mkdirTemp(prefix: string): Promise<string> {
-	return mkdtemp(path.join(tmpdir(), prefix));
-}
-
-function currentEnvironment(): Record<string, string> {
-	const out: Record<string, string> = {};
-	for (const [key, value] of Object.entries(process.env)) {
-		if (value !== undefined) out[key] = value;
-	}
-	return out;
-}
-
-export function createShellEnvProvider(
-	env: Readonly<Record<string, string | undefined>>,
-	logger: Logger,
-	notifyFailure: NotifyShellEnvFailure,
-): LoginShellEnvProvider {
-	return new LoginShellEnvProvider({
-		spawnText: spawnText,
-		shellPath: env.SHELL ?? FALLBACK_SHELL,
-		newMarker: () => `__conducted_env_${randomBytes(8).toString("hex")}__`,
-		logger,
-		notifyFailure,
-	});
-}
-
-/** Timers for the runner's settlement watchdog. */
-export function createScheduler(): Scheduler {
-	return {
-		after(ms, fn) {
-			const timer = setTimeout(fn, ms);
-			return () => clearTimeout(timer);
-		},
-	};
-}
-
-/** Reads the file facts prompt assembly needs, straight from the file system. */
-export function createPromptFiles(): PromptFiles {
-	return {
-		async size(target) {
-			try {
-				return (await stat(target)).size;
-			} catch {
-				return null;
-			}
-		},
-		async readText(target) {
-			try {
-				return ok(await readFile(target, "utf8"));
-			} catch (cause) {
-				return err(
-					appError(
-						"prompt_file_read_failed",
-						`Could not read ${target}: ${messageOf(cause)}`,
-						cause,
-					),
-				);
-			}
-		},
-	};
-}
-
-/** How long a probe may ignore SIGTERM before it is killed outright. */
-export const PROBE_KILL_GRACE_MS = 500;
-
-/**
- * Runs a short command for a probe. A program that ignores SIGTERM is killed after a short grace,
- * so a child that keeps its pipes open cannot hang the read (claude-runner 8: probes have a
- * timeout).
- */
-export const probeCommand: ProbeCommand = async (command, args, options) => {
-	try {
-		const child = Bun.spawn({
-			cmd: [command, ...args],
-			cwd: options.cwd,
-			env: options.env,
-			stdin: "ignore",
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const timer = setTimeout(() => child.kill(), options.timeoutMs);
-		const killTimer = setTimeout(
-			() => child.kill("SIGKILL"),
-			options.timeoutMs + PROBE_KILL_GRACE_MS,
-		);
-		try {
-			const [stdout, stderr] = await Promise.all([
-				new Response(child.stdout).text(),
-				new Response(child.stderr).text(),
-			]);
-			const exitCode = await child.exited;
-			return ok({ stdout, stderr, exitCode: exitCode ?? -1 });
-		} finally {
-			clearTimeout(timer);
-			clearTimeout(killTimer);
-		}
-	} catch (cause) {
-		return err(appError("probe_failed", messageOf(cause), cause));
-	}
-};
-
-/**
- * Finds a program on the PATH of the environment it is given, else on the sidecar's own PATH. A
- * name with a slash is a path, checked as it is, as a shell does.
- */
-function createFindExecutable(env: Readonly<Record<string, string | undefined>>): FindExecutable {
-	return async (name, searchEnv) => {
-		if (name.includes("/")) return (await isExecutableFile(name)) ? name : null;
-		const pathValue = searchEnv.PATH ?? env.PATH ?? "";
-		for (const folder of pathValue.split(":")) {
-			if (folder === "") continue;
-			const candidate = path.join(folder, name);
-			if (await isExecutableFile(candidate)) return candidate;
-		}
-		return null;
-	};
-}
-
-async function isExecutableFile(candidate: string): Promise<boolean> {
-	try {
-		await access(candidate, fsConstants.X_OK);
-		return (await stat(candidate)).isFile();
-	} catch {
-		return false;
-	}
-}
-
 /** The Codex config files a Codex chat reads: the user's own, and the repository's. */
 function codexConfigFiles(options: StartOptions): string[] {
 	const files: string[] = [];
@@ -1088,6 +908,14 @@ function createRunnerRegistry(input: {
 	cursorSdk: CursorSdkLoader;
 	/** The app's managed copies of the agent programs (PLAT-28). */
 	findManagedProgram: FindManagedProgram;
+	/** Resolves a path, or null when it does not exist. */
+	realPath(target: string): Promise<string | null>;
+	/** Timers for the Claude runner's settlement watchdog. */
+	scheduler: Scheduler;
+	/** Waits between Codex delivery attempts. */
+	sleep(ms: number): Promise<void>;
+	/** The live environment the Cursor SDK's lock writes into. */
+	cursorEnvironment: Readonly<Record<string, string | undefined>>;
 }): RunnerRegistry {
 	const { ports, bridge } = input;
 	const { logger } = ports;
@@ -1099,7 +927,6 @@ function createRunnerRegistry(input: {
 		findExecutable: ports.findExecutable,
 		findManagedProgram: input.findManagedProgram,
 	};
-	const scheduler = createScheduler();
 	const queueForCursor = createKeyedQueue();
 	/**
 	 * Registers the chat's token and builds the helper entry. The release ends the token when the
@@ -1166,9 +993,9 @@ function createRunnerRegistry(input: {
 				translator: () => new ClaudeTranslator({ logger }),
 				hasTranscript: ports.hasTranscript,
 				readUserMessageText: ports.readUserMessageText,
-				realPath,
+				realPath: input.realPath,
 				newUuid: () => ports.ids.uuid(),
-				scheduler,
+				scheduler: input.scheduler,
 				createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
 				createMcpServers: (options) => ({
 					[APP_TOOL_SERVER]: createAppToolsServer(options),
@@ -1181,7 +1008,7 @@ function createRunnerRegistry(input: {
 				...common,
 				spawn: ports.spawnCodex,
 				random: () => Math.random(),
-				sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+				sleep: input.sleep,
 				appToolsConfig: codexAppTools,
 			}),
 		},
@@ -1190,7 +1017,7 @@ function createRunnerRegistry(input: {
 			runner: new CursorRunner({
 				...common,
 				sdk: input.cursorSdk,
-				envLock: new EnvLock({ queue: queueForCursor, target: process.env }),
+				envLock: new EnvLock({ queue: queueForCursor, target: input.cursorEnvironment }),
 				storeRoot: input.cursorStoreDir,
 				appToolsServer: cursorAppTools,
 			}),
@@ -1208,105 +1035,4 @@ function createRunnerRegistry(input: {
 		});
 	}
 	return new MapRunnerRegistry(entries);
-}
-
-const realPath = async (target: string): Promise<string | null> => {
-	try {
-		return await realpath(target);
-	} catch {
-		return null;
-	}
-};
-
-function spawnJsonRpcChild(
-	options: {
-		command: string;
-		args: readonly string[];
-		cwd: string;
-		env: Readonly<Record<string, string>>;
-	},
-	logger: Logger,
-): Promise<Result<JsonRpcChild, AppError>> {
-	const started = startChild({ ...options, logger });
-	if (!started.ok) return Promise.resolve(started);
-	const child = started.value;
-	const lineListeners: ((line: string) => void)[] = [];
-	void (async () => {
-		const decoder = new TextDecoder();
-		let buffer = "";
-		for await (const chunk of child.stdout) {
-			buffer += decoder.decode(chunk, { stream: true });
-			let index = buffer.indexOf("\n");
-			while (index >= 0) {
-				const line = buffer.slice(0, index);
-				buffer = buffer.slice(index + 1);
-				for (const listener of lineListeners) listener(line);
-				index = buffer.indexOf("\n");
-			}
-		}
-	})().catch((cause: unknown) => {
-		logger.warn("Could not read a child's stdout", {
-			command: options.command,
-			reason: messageOf(cause),
-		});
-	});
-	return Promise.resolve(
-		ok({
-			writeLine: (line) => child.write(`${line}\n`),
-			onLine: (listener) => {
-				lineListeners.push(listener);
-			},
-			onStderr: (listener) => child.onStderr(listener),
-			onExit: (listener) => child.onExit(listener),
-			stop: (graceMs) => child.stop(graceMs),
-		}),
-	);
-}
-
-function spawnAcpChild(
-	options: {
-		command: string;
-		args: readonly string[];
-		cwd: string;
-		env: Readonly<Record<string, string>>;
-	},
-	logger: Logger,
-): Promise<Result<AcpChild, AppError>> {
-	const started = startChild({ ...options, logger });
-	if (!started.ok) return Promise.resolve(started);
-	const child = started.value;
-	const stdin = new WritableStream<Uint8Array>({
-		write: (chunk) => child.write(chunk),
-		close: () => child.endInput(),
-	});
-	return Promise.resolve(
-		ok({
-			stdin,
-			stdout: child.stdout,
-			onStderr: (listener) => child.onStderr(listener),
-			onExit: (listener) => child.onExit(listener),
-			stop: (graceMs) => child.stop(graceMs),
-		}),
-	);
-}
-
-/** Runs a login-shell capture command and returns its stdout. */
-async function spawnText(
-	command: { command: string; args: string[] },
-	options: { timeoutMs: number },
-): Promise<Result<string, AppError>> {
-	const result = await probeCommand(command.command, command.args, {
-		env: currentEnvironment(),
-		timeoutMs: options.timeoutMs,
-	});
-	if (!result.ok) return result;
-	if (result.value.exitCode !== 0) {
-		return err(
-			appError(
-				"shell_capture_failed",
-				`${command.command} exited with ${result.value.exitCode}: ${result.value.stderr}`,
-			),
-		);
-	}
-	return ok(result.value.stdout);
 }
