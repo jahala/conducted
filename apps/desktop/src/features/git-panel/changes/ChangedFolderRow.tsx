@@ -7,7 +7,7 @@
  * expand and collapse by click. The parent owns the collapsed set.
  * Test first: a folder with two files shows the sum of their line counts.
  */
-import { ChevronDownIcon, ChevronRightIcon, FolderPlusIcon } from "../../../ui/icons.tsx";
+import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "../../../ui/icons.tsx";
 
 export interface ChangedFolderRowProps {
 	name: string;
@@ -40,7 +40,7 @@ export function ChangedFolderRow({
 			<span className="text-fg-muted">
 				{collapsed ? <ChevronRightIcon /> : <ChevronDownIcon />}
 			</span>
-			<FolderPlusIcon className="size-4 shrink-0 text-fg-muted" />
+			<FolderIcon className="size-4 shrink-0 text-fg-muted" />
 			<span className="truncate" title={name}>
 				{name}
 			</span>
