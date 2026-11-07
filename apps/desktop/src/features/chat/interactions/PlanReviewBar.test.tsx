@@ -120,6 +120,16 @@ afterEach(() => {
 });
 
 describe("CHAT-12 plan review bar", () => {
+	it("uses Conductor's words: the adjustments placeholder and Approve with its live key", async () => {
+		const { test, session } = await setup();
+
+		renderBar(test, session.id);
+
+		expect(screen.getByPlaceholderText("Enter your plan adjustments here...")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Approve" }).textContent).toBe("Approve⌘⇧↵");
+		expect(screen.queryByText(/Hand off sends it to the chat above/)).toBeNull();
+	});
+
 	it("approves the plan and turns plan mode off", async () => {
 		const { test, session } = await setup();
 		const answer = vi
