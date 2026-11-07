@@ -390,3 +390,17 @@ Why: a user can install the SDK, pick Cursor and chat with it, which is what the
 Context: the parity harness (`docs/plans/parity-harness.md`) maps every entry of Conductor's inventories to our screen or to a decision. The inventories were read from the bundle by pattern, so they also hold strings no person reads as Conductor's wording: a bundled library's default that Conductor replaces (the editor's "Write something …" placeholder, which Conductor's composer never shows), code identifiers the pattern caught, and city names, which both apps use as sample workspace names.
 Chosen: such an entry is mapped to D086 with a one-line reason per entry, or through a named rule in `scripts/parity/rules.ts`. It is never used to account for a string of ours. Wording Conductor does show stays a match or a gap, however small.
 Why: a gap list that mixes these in hides the real gaps, and matching our text to a library default would let a wrong placeholder pass.
+
+## D089. Claude's model list comes from a throwaway Claude process (2026-11-07)
+
+Proposed by the sidecar-diff fix PR; not yet ruled on by the owner.
+Context: the sidecar differential run (docs/reports/sidecar-diff-2026-11-07.md) found that for `listModels` and `warmAgent`, our Claude runner starts a throwaway Claude process and reads the program's own list (`supportedModels()`, SIDE-14). Conductor has no sidecar call for this: its catalog is hosted, with a bundled copy. `catalog.ts` states the choice, but no decision recorded it. Since this PR, a chat's start also reads the list (`StartOptions.lookUpModel`), because the program's `supportsAdaptiveThinking` decides between adaptive thinking and a token budget (claude-runner.md 1.2).
+Chosen: the model catalog reads each agent's list from the agent program, Claude's through a throwaway metadata query of the program and keys the chat's launch names. It caches the list in memory for one hour per launch, the interval at which Conductor refreshes its hosted catalog, so a warmed chat starts without a second listing. A chat started without a warm, on an empty cache, waits for one listing process before its own.
+Why: model ids and their abilities change with each Claude release; the installed program knows them, and a table of ours would go stale. The cost is one extra short-lived process per launch per hour.
+
+## D090. The sidecar tells the app the agent's own session id in its own notification (2026-11-07)
+
+Proposed by the sidecar-diff fix PR; not yet ruled on by the owner.
+Context: the agent's own session id (Codex's thread id, an ACP session id, Claude's session id) is what a chat resumes with. In Conductor the sidecar reads it off each agent payload (`thread_id`, `session_id`, other-runners.md 3) and every payload carries it to the app. Ours translates payloads into our own format (D005), which has no such field, and the sidecar differential run listed our `agentSessionId` notification as a difference that no decision records.
+Chosen: when the agent's session id first becomes known, or changes, the session manager sends one `agentSessionId` notification (`sessionId`, `agentSessionId`). The app stores it in `sessions.agent_session_id` and passes it back as `resume` when it starts the chat's agent again.
+Why: the id is a fact about the chat, not about each message, so it travels once; the stored events stay in our neutral format; and the user sees no difference, since resume works the same way.

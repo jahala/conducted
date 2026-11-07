@@ -1,7 +1,8 @@
 /**
  * @feature SIDE-14 Model catalog per agent
- * Owns: the list of models the picker shows for each agent (listModels) and that warmAgent checks
- * a chat's model against (session/manager.ts), and validate(), the check of a chosen model against
+ * Owns: the list of models the picker shows for each agent (listModels), that warmAgent checks
+ * a chat's model against and that a chat's start looks its model up in (session/manager.ts,
+ * `StartOptions.lookUpModel`; D089), and validate(), the check of a chosen model against
  * that list. sessions.md 2 step 4 runs that check before every send; nothing calls validate() on a
  * live path yet, because a send would then wait for a list that can take a throwaway agent process
  * or 15 s to read, and fail when the list cannot be read (a decision for SIDE-14).
