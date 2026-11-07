@@ -26,6 +26,8 @@ Every source file starts with a header comment. `pnpm guards` fails on a source 
 
 Rust files use `//!` with the same fields. Shell scripts use `#` lines. Mark our own design choices with "Our design choice:" so they are not mistaken for observed behaviour.
 
+`pnpm guards` also checks the parts of a header a script can verify: each `@feature` id is a backlog row, each code name in `Owns:` or `Exports:` appears in the file, and each `Test first:` line shares a phrase with a test title, so the test it names exists. Write a `Test first:` line in the words of its test's title. A backticked name in `Owns:` is a claim about this file; name another file's function in plain words. Today's failures are in `scripts/guards/header-claims-baseline.json`, which may only shrink (D055).
+
 The header says what the file does now, not what the feature will do one day. When you build part of a feature, cut the claims you did not build, or move them to the feature that owns them. A "Must handle" line with no code and no test is a defect. This was the most common finding of the first overnight build's audits (D045).
 
 ## Code
@@ -75,6 +77,7 @@ The catalogue draws the real app in a browser, one screen state at a time, with 
 - `pnpm --dir apps/desktop catalogue` serves it on a free port and prints `Catalogue: <url>`. That page lists every state, with a link for light and for dark.
 - `bun scripts/catalogue/shots.ts [state-id ...]` starts the server, captures each state in light and dark at 1440 x 900 into `.context/shots/ours/<state-id>-<theme>.png`, writes `index.json` beside them, and stops the server. It uses the Chromium already in Playwright's cache and downloads nothing. It exits 1 when a state fails or never settles.
 - On a ready pull request that touches the desktop's screens, `.github/workflows/catalogue-shots.yml` runs the same script on GitHub and uploads the PNGs as the `catalogue-shots` artefact, kept 14 days. Screens can be read that way when no browser may run on the owner's Mac.
+- The parity harness reads every state the same way and compares it with Conductor's inventories: `.github/workflows/parity.yml` runs it on GitHub and uploads the gap report as the `parity-report` artefact. What it checks, and the instrument check that must pass first, are in `docs/plans/parity-harness.md`.
 - A state is registered once, in `apps/desktop/src/catalogue/states/`. Its seed writes rows through the repositories and scripts the shell (`git-repo.ts`, `github.ts`) and the sidecar (`world.ts`, `live.ts`); its after-step drives the app through its own actions and real DOM events. Most states share one cast of two projects (`cast.ts`).
 - The release build never contains it: `pnpm build` runs `scripts/catalogue/check-bundle.ts` on `dist`, and `scripts/catalogue/check-bundle.build.test.ts` builds the real bundle and checks it.
 
@@ -87,6 +90,7 @@ The owner's ruling: Conductor's own frontend runs on this Mac only, from the git
 - `server.ts` serves the bundle on 127.0.0.1 with `standin.ts` injected before its first module. The stand-in is `window.__TAURI_INTERNALS__`; `backend.ts` answers through the SQL plugin over sql.js, the event plugin, the sidecar tunnel and the mapping's handlers. A call nobody answers is logged and answered with an error, never a made-up value.
 - `check.ts` needs no browser: it seeds every state (through `apps/desktop/src/catalogue/seeded.ts`), builds the mapped databases, prepares the frontend's own SQL on them and counts the calls the stand-in answers.
 - `run.ts [state-id ...]` is the browser run: one picture per state at 1440 by 900 in dark mode, into `.context/shots/conductor-run/`, with `index.json` and `unanswered.json`. Every request to another origin is refused and listed. It is a browser run, so on the owner's Mac it waits for 08:00.
+- `sidecar-diff/diff.ts [scenario-id ...]` runs Conductor's sidecar (from the installed app, in place) and ours side by side on the same scenario calls and the same fake `claude` and `codex` programs, one at a time, each under `sandbox-exec` with a throwaway home, no network beyond loopback and no writes under the owner's home. Raw output and the in-order comparison go to `.context/day/conductor-ref/sidecar-diff/`; the findings of the first run are in `docs/reports/sidecar-diff-2026-11-07.md`.
 - `pnpm guards` fails when the repository holds a file named like a bundle chunk, a copy of a bundle code file, or any of the stretches of Conductor's code listed by hash in `scripts/guards/conductor-fingerprints.json` (`scripts/guards/conductor-code.ts`). `fingerprints.ts` rewrites that list from the bundle.
 
 ## A run leaves nothing behind

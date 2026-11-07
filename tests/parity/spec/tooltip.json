@@ -1,0 +1,156 @@
+{
+	"inventory": "tooltip",
+	"source": ".context/conductor-re/inventory/tooltip.tsv",
+	"entries": [
+		{
+			"id": "tooltip:M1432993",
+			"text": "This message could not be displayed.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1432993
+		},
+		{
+			"id": "tooltip:M2690256",
+			"text": "Approved",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2690256
+		},
+		{
+			"id": "tooltip:R1717507",
+			"text": "Copy error",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1717507
+		},
+		{
+			"id": "tooltip:R2973448",
+			"text": "Copy logs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2973448
+		},
+		{
+			"id": "tooltip:R5588285",
+			"text": "Copy sync folder path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5588285
+		},
+		{
+			"id": "tooltip:R5591578",
+			"text": "Copy sync error",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5591578
+		},
+		{
+			"id": "tooltip:R5592527",
+			"text": "Copy internal sync error",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5592527
+		},
+		{
+			"id": "tooltip:R5608488",
+			"text": "Copy internal resource details",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5608488
+		},
+		{
+			"id": "tooltip:R8048058",
+			"text": "Copy Mermaid source",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8048058
+		},
+		{
+			"id": "tooltip:R8414164",
+			"text": "inline*",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8414164
+		},
+		{
+			"id": "tooltip:R8800031",
+			"text": "Copy plan",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8800031
+		},
+		{
+			"id": "tooltip:R8821619",
+			"text": "Copy path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8821619
+		},
+		{
+			"id": "tooltip:R8843427",
+			"text": "Copy file contents to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8843427
+		},
+		{
+			"id": "tooltip:R8922004",
+			"text": "block+",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8922004
+		},
+		{
+			"id": "tooltip:R8925669",
+			"text": "text*",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8925669
+		},
+		{
+			"id": "tooltip:R8966854",
+			"text": "paragraph block*",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8966854
+		},
+		{
+			"id": "tooltip:R9523634",
+			"text": "Copy message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9523634
+		},
+		{
+			"id": "tooltip:R9525824",
+			"text": "Copy summary",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9525824
+		},
+		{
+			"id": "tooltip:R9535913",
+			"text": "Copy error details",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9535913
+		},
+		{
+			"id": "tooltip:R9587964",
+			"text": "Copy final message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9587964
+		},
+		{
+			"id": "tooltip:R9642788",
+			"text": "Copy file contents",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9642788
+		},
+		{
+			"id": "tooltip:R10033594",
+			"text": "Request review",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10033594
+		},
+		{
+			"id": "tooltip:R10720405",
+			"text": "Copy OAuth callback URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10720405
+		},
+		{
+			"id": "tooltip:R11579984",
+			"text": "Copy command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11579984
+		},
+		{
+			"id": "tooltip:R11916650",
+			"text": "Run now",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11916650
+		}
+	]
+}

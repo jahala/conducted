@@ -1,0 +1,114 @@
+{
+	"inventory": "test_id",
+	"source": ".context/conductor-re/inventory/test_id.tsv",
+	"entries": [
+		{
+			"id": "test_id:R2597888",
+			"text": "virtuoso-scroller",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2597888
+		},
+		{
+			"id": "test_id:R2608648",
+			"text": "virtuoso-item-list",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2608648
+		},
+		{
+			"id": "test_id:R2987806",
+			"text": "virtual-desktop-surface",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2987806
+		},
+		{
+			"id": "test_id:R5587249",
+			"text": "remote-file-sync-button",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5587249
+		},
+		{
+			"id": "test_id:R8915522",
+			"text": "composer-send-button",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8915522
+		},
+		{
+			"id": "test_id:R9050252",
+			"text": "composer-input",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9050252
+		},
+		{
+			"id": "test_id:R9473251",
+			"text": "virtuoso-list",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9473251
+		},
+		{
+			"id": "test_id:R10139472",
+			"text": "center-panel-drag-ghost",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10139472
+		},
+		{
+			"id": "test_id:R10242215",
+			"text": "workspace-status-matrix-merged-pattern",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10242215
+		},
+		{
+			"id": "test_id:R10242406",
+			"text": "workspace-status-matrix-error-pattern",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10242406
+		},
+		{
+			"id": "test_id:R10242632",
+			"text": "workspace-status-matrix-overlay",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10242632
+		},
+		{
+			"id": "test_id:R10242893",
+			"text": "workspace-status-matrix-automation-arrow",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10242893
+		},
+		{
+			"id": "test_id:R10432376",
+			"text": "workspace-draft-indicator",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10432376
+		},
+		{
+			"id": "test_id:R10434951",
+			"text": "workspace-port-forwarding-indicator",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10434951
+		},
+		{
+			"id": "test_id:R10441458",
+			"text": "left-sidebar-workspace-item",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10441458
+		},
+		{
+			"id": "test_id:R10441716",
+			"text": "workspace-leading-visual",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10441716
+		},
+		{
+			"id": "test_id:R11550278",
+			"text": "onboarding-setup-scene",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11550278
+		},
+		{
+			"id": "test_id:R12001662",
+			"text": "routine-prompt-composer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12001662
+		}
+	]
+}

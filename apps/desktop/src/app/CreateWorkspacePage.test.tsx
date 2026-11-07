@@ -8,13 +8,11 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NewWorkspaceInput } from "../core/api.ts";
-import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Section, Workspace } from "../core/model.ts";
-import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import "../test/dom-polyfills.ts";
 import { toast } from "../ui/Toast.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
@@ -68,94 +66,50 @@ const workspace: Workspace = {
 	updatedAt: 1000,
 };
 
+let test: TestContainer;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
+
 function makeContainer(sectionRows: readonly Section[] = []) {
-	const repoService = new RepoService({} as RepoServiceDeps);
-	repoService.store.setState({
+	const { services, actions } = test.container;
+	services.repo.store.setState({
 		loaded: true,
 		reposById: { [repo.id]: repo },
 		order: [repo.id],
 		configs: {},
 	});
-	const settings = {
-		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
-		get: <T,>(key: string): T =>
-			({
-				default_model: "",
-				default_claude_effort_level: "",
-				default_fast_mode: false,
-				default_plan_mode: false,
-				tool_approvals_enabled: false,
-				visible_provider_models: "",
-				keybinding_overrides_v1: "",
-			})[key] as T,
-		set: async () => ok(undefined),
-	};
-	const sections = createStore<{ loaded: boolean; sections: readonly Section[] }>(() => ({
-		loaded: true,
-		sections: sectionRows,
-	}));
+	services.sections.store.setState({ loaded: true, sections: sectionRows });
+	services.favoriteModels.store.setState({ loaded: true, favorites: [] });
+	// The dialog's model menu is the composer's: it reads the agent catalogue and the favourites.
+	services.agentCatalog.store.setState({
+		installs: { state: "loading" },
+		models: {},
+		slashCommands: {},
+	});
 	const create = vi.fn(
 		async (_input: NewWorkspaceInput): Promise<Result<Workspace>> => ok(workspace),
 	);
 	const retrySetup = vi.fn(async () => ok(undefined));
 	const recoverPrompt = vi.fn(async () => ok({ text: "Fix the login bug", attachmentPaths: [] }));
-	const workspaceStore = createStore<{
-		lastFailedCreate: Workspace | null;
-		warnings: Record<string, readonly string[]>;
-	}>(() => ({ lastFailedCreate: null, warnings: {} }));
-	const composerStore = createStore<{
-		drafts: Record<string, { text: string; attachmentPaths: string[] }>;
-	}>(() => ({ drafts: {} }));
-	const composer = {
-		store: composerStore,
-		loadDraft: async (id: string) => {
-			const existing = composerStore.getState().drafts[id];
-			if (existing !== undefined) return ok(existing);
-			const draft = { text: "", attachmentPaths: [] };
-			composerStore.setState((state) => ({ drafts: { ...state.drafts, [id]: draft } }));
-			return ok(draft);
-		},
-		saveDraft: (id: string, draft: { text: string; attachmentPaths: string[] }) =>
-			composerStore.setState((state) => ({ drafts: { ...state.drafts, [id]: draft } })),
-		clearDraft: async (id: string) => {
-			composerStore.setState((state) => {
-				const drafts = { ...state.drafts };
-				delete drafts[id];
-				return { drafts };
-			});
-			return ok(undefined);
-		},
+	vi.spyOn(actions.workspaces, "create").mockImplementation(create);
+	vi.spyOn(actions.workspaces, "retrySetup").mockImplementation(retrySetup);
+	vi.spyOn(actions.workspaces, "recoverPrompt").mockImplementation(recoverPrompt);
+	vi.spyOn(actions.app, "pickFolder").mockResolvedValue(ok(null));
+	vi.spyOn(actions.projects, "addLocal").mockResolvedValue(ok(repo));
+	return {
+		container: test.container,
+		create,
+		retrySetup,
+		recoverPrompt,
+		workspaceStore: services.workspace.store,
 	};
-	// The dialog's model menu is the composer's: it reads the agent catalogue and the favourites.
-	const agentCatalog = {
-		store: createStore(() => ({
-			installs: { state: "loading" as const },
-			models: {},
-			slashCommands: {},
-		})),
-		loadModels: async () => ok([]),
-	};
-	const favoriteModels = {
-		store: createStore(() => ({ loaded: true, favorites: [] })),
-		start: async () => ok(undefined),
-	};
-	const container = {
-		services: {
-			repo: repoService,
-			settings,
-			agentCatalog,
-			favoriteModels,
-			sections: { store: sections },
-			workspace: { store: workspaceStore },
-			composer,
-		},
-		actions: {
-			workspaces: { create, retrySetup, recoverPrompt },
-			app: { pickFolder: async () => ok(null) },
-			projects: { addLocal: async () => ok(repo) },
-		},
-	} as unknown as Container;
-	return { container, create, retrySetup, recoverPrompt, workspaceStore };
 }
 
 async function renderCreatePage(path = "/create", sectionRows: readonly Section[] = []) {
@@ -185,8 +139,6 @@ async function renderCreatePage(path = "/create", sectionRows: readonly Section[
 	await router.load();
 	return { router, create, retrySetup, recoverPrompt, workspaceStore };
 }
-
-afterEach(cleanup);
 
 /**
  * Opens the create-from picker (closed by default, as in Conductor's dialog) and picks its "Branches"

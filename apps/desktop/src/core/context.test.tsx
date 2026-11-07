@@ -6,7 +6,7 @@
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
-import type { Container } from "./container.ts";
+import { createTestContainer } from "../test/container.ts";
 import { ServicesProvider, useServices } from "./context.tsx";
 
 describe("useServices", () => {
@@ -15,16 +15,20 @@ describe("useServices", () => {
 	});
 
 	it("returns the very container the provider was given, across re-renders", () => {
-		const container = { services: {} } as unknown as Container;
-		const { result, rerender } = renderHook(() => useServices(), {
-			wrapper: ({ children }: { children: ReactNode }) => (
-				<ServicesProvider container={container}>{children}</ServicesProvider>
-			),
-		});
-		const first = result.current;
-		rerender();
+		const test = createTestContainer();
+		try {
+			const { result, rerender } = renderHook(() => useServices(), {
+				wrapper: ({ children }: { children: ReactNode }) => (
+					<ServicesProvider container={test.container}>{children}</ServicesProvider>
+				),
+			});
+			const first = result.current;
+			rerender();
 
-		expect(first).toBe(container);
-		expect(result.current).toBe(container);
+			expect(first).toBe(test.container);
+			expect(result.current).toBe(test.container);
+		} finally {
+			test.close();
+		}
 	});
 });

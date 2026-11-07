@@ -3,17 +3,12 @@ import { appError, err, ok, type SessionId, type WorkspaceId } from "@conducted/
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
 import "../../test/dom-polyfills.ts";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
-import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { ComposerService, type ComposerServiceDeps } from "../../core/services/composer.ts";
-import type { SessionsState } from "../../core/services/sessions.ts";
-import type { SettingsState } from "../../core/services/settings.ts";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
-import { memoryPlatformForShape } from "../../test/memory-platform.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { Composer } from "./Composer.tsx";
 
@@ -97,7 +92,6 @@ interface HarnessOptions {
 
 const harness = (options: HarnessOptions = {}) => {
 	if (real === undefined) throw new Error("The workspace container is built in beforeEach.");
-	const workspace = real.container.services.workspace;
 	const fake = options.fake ?? fakeFs();
 	const callbacks = new Map<number, () => void>();
 	let next = 1;
@@ -111,7 +105,11 @@ const harness = (options: HarnessOptions = {}) => {
 		},
 	};
 	const composer = new ComposerService(deps);
-	const sessions = createStore<SessionsState>(() => ({
+	const container = real.container;
+	const { services, actions } = container;
+	services.composer = composer;
+	const sessions = services.sessions.store;
+	sessions.setState({
 		loaded: true,
 		sessions: {},
 		byWorkspace: {},
@@ -123,8 +121,9 @@ const harness = (options: HarnessOptions = {}) => {
 		acpConfigOptions: { [sessionId]: { state: "ready", data: [] } },
 		openInteractions: {},
 		viewingSessionId: null,
-	}));
-	const settings = createStore<SettingsState>(() => ({
+	});
+	const settings = services.settings.store;
+	settings.setState({
 		loaded: true,
 		values: {
 			message_send_key: options.sendKey ?? "enter",
@@ -133,7 +132,7 @@ const harness = (options: HarnessOptions = {}) => {
 		},
 		dropped: [],
 		warnings: [],
-	}));
+	});
 	const send = options.sendFails
 		? vi.fn(async () => err(appError("sidecar_down", "The sidecar is not running.")))
 		: options.sendCancelled
@@ -141,49 +140,16 @@ const harness = (options: HarnessOptions = {}) => {
 			: vi.fn(async () => ok(undefined));
 	const cancel = vi.fn(async () => ok(undefined));
 	const refreshMcp = vi.fn(async () => ok(undefined));
-	const settingsService = {
-		store: settings,
-		get: <T,>(key: string): T => settings.getState().values[key] as T,
-	};
-	const commands = {
-		isEnabled: vi.fn(() => true),
-		run: vi.fn(async () => ok(undefined)),
-	};
-	const agentCatalog = {
-		store: createStore(() => ({ slashCommands: {} })),
-		loadSlashCommands: vi.fn(async () => ok([])),
-	};
-	const platform = {
-		app: { writeLog: vi.fn(), onDeepLink: () => () => {}, onDeepLinkRejected: () => () => {} },
-		menu: {
-			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
-			onCommand: () => () => {},
-		},
-		// The composer listens for files dropped on the window (COMP-07).
-		window: memoryPlatformForShape().window,
-	};
-	const container = {
-		platform,
-		services: {
-			composer,
-			sessions: { store: sessions },
-			settings: settingsService,
-			workspace,
-			commands,
-			agentCatalog,
-			// The context wheel reads the sizes agents reported (CHAT-14); this chat has none.
-			contextWindows: { store: createStore(() => ({ byModel: {} })) },
-		},
-		actions: {
-			sessions: {
-				send,
-				cancel,
-				saveDraft: (id: SessionId, draft: { text: string; attachmentPaths: string[] }) =>
-					composer.saveDraft(id, draft),
-			},
-			mcp: { refresh: refreshMcp },
-		},
-	} as unknown as Container;
+	actions.sessions.send = send;
+	actions.sessions.cancel = cancel;
+	actions.sessions.saveDraft = (id, draft) => composer.saveDraft(id, draft);
+	actions.mcp.refresh = refreshMcp;
+	services.commands.isEnabled = () => true;
+	services.commands.run = async () => ok(undefined);
+	services.agentCatalog.store.setState({ slashCommands: {} });
+	services.agentCatalog.loadSlashCommands = async () => ok([]);
+	// The context wheel reads the sizes agents reported (CHAT-14); this chat has none.
+	services.contextWindows.store.setState({ byModel: {} });
 	const wrapper = ({ children }: { children: ReactNode }) => (
 		<ServicesProvider container={container}>
 			<CommandDispatcher>{children}</CommandDispatcher>

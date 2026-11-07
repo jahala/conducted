@@ -133,6 +133,38 @@ describe("CHAT-06 chat turn", () => {
 		expect(screen.getByText("banner:This turn stopped before it finished.")).toBeTruthy();
 	});
 
+	it("shows a failed turn's error once when the agent's own error block already says it", () => {
+		const text = "API Error: 500 Internal server error";
+		const value = turn({
+			outcome: "error",
+			error: text,
+			blocks: [
+				{
+					kind: "error",
+					item: { kind: "error", code: "agent_server_error", message: text, retryable: true },
+				},
+			],
+		});
+		render(<TurnItem turn={value} sessionId={sessionId} />);
+		expect(screen.getByText("block:error")).toBeTruthy();
+		expect(screen.queryByText(`banner:${text}`)).toBeNull();
+	});
+
+	it("still shows a failed turn's error when the turn's error blocks say something else", () => {
+		const value = turn({
+			outcome: "error",
+			error: "The Claude session ended unexpectedly.",
+			blocks: [
+				{
+					kind: "error",
+					item: { kind: "error", code: "agent_error", message: "Tool failed", retryable: false },
+				},
+			],
+		});
+		render(<TurnItem turn={value} sessionId={sessionId} />);
+		expect(screen.getByText("banner:The Claude session ended unexpectedly.")).toBeTruthy();
+	});
+
 	it("keeps a streaming text block mounted while its text grows", () => {
 		const first = turn({
 			outcome: "running",

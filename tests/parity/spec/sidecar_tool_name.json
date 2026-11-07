@@ -1,0 +1,84 @@
+{
+	"inventory": "sidecar_tool_name",
+	"source": ".context/conductor-re/inventory/sidecar_tool_name.tsv",
+	"entries": [
+		{
+			"id": "sidecar_tool_name:S1920840",
+			"text": "AskUserQuestion",
+			"file": "sidecar.js",
+			"offset": 1920840
+		},
+		{
+			"id": "sidecar_tool_name:S1923930",
+			"text": "GetWorkspaceDiff",
+			"file": "sidecar.js",
+			"offset": 1923930
+		},
+		{
+			"id": "sidecar_tool_name:S1925419",
+			"text": "GetDiffComments",
+			"file": "sidecar.js",
+			"offset": 1925419
+		},
+		{
+			"id": "sidecar_tool_name:S1926561",
+			"text": "DiffComment",
+			"file": "sidecar.js",
+			"offset": 1926561
+		},
+		{
+			"id": "sidecar_tool_name:S1927562",
+			"text": "GetTerminalOutput",
+			"file": "sidecar.js",
+			"offset": 1927562
+		},
+		{
+			"id": "sidecar_tool_name:S1928941",
+			"text": "UpdateProgress",
+			"file": "sidecar.js",
+			"offset": 1928941
+		},
+		{
+			"id": "sidecar_tool_name:S1929461",
+			"text": "SetTargetBranch",
+			"file": "sidecar.js",
+			"offset": 1929461
+		},
+		{
+			"id": "sidecar_tool_name:S1930565",
+			"text": "RunLocalCommand",
+			"file": "sidecar.js",
+			"offset": 1930565
+		},
+		{
+			"id": "sidecar_tool_name:S1932580",
+			"text": "ListComputers",
+			"file": "sidecar.js",
+			"offset": 1932580
+		},
+		{
+			"id": "sidecar_tool_name:S1933040",
+			"text": "GetComputerConfiguration",
+			"file": "sidecar.js",
+			"offset": 1933040
+		},
+		{
+			"id": "sidecar_tool_name:S1933611",
+			"text": "CreateComputerConfiguration",
+			"file": "sidecar.js",
+			"offset": 1933611
+		},
+		{
+			"id": "sidecar_tool_name:S1934250",
+			"text": "GetComputerBuildStatus",
+			"file": "sidecar.js",
+			"offset": 1934250
+		},
+		{
+			"id": "sidecar_tool_name:S1934826",
+			"text": "UpdateRepositorySetupScript",
+			"file": "sidecar.js",
+			"offset": 1934826
+		}
+	]
+}

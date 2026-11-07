@@ -30,9 +30,11 @@ export function PrDescriptionEditor({ body, editable, onSave }: PrDescriptionEdi
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	// Follow a new description from the poll. Leaving edit mode is not a reason to read the prop
+	// again: after a save it still holds the old text until the next poll.
 	useEffect(() => {
-		if (!editing) setCurrent(body);
-	}, [body, editing]);
+		setCurrent(body);
+	}, [body]);
 
 	const start = () => {
 		setDraft(current);

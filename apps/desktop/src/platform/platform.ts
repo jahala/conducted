@@ -211,6 +211,10 @@ export interface Pty {
 /** Raw line transport to the sidecar. JSON-RPC framing lives in core/sidecar/tunnel.ts. */
 export interface SidecarTransport {
 	ensureStarted(): Promise<Result<void>>;
+	/**
+	 * Sends one line. The line holds no newline: the transport adds it, and refuses a line with a
+	 * newline in it (Err `sidecar_bad_line`).
+	 */
 	send(line: string): Promise<Result<void>>;
 	onLine(listener: (line: string) => void): Unsubscribe;
 	/** Fires when the sidecar process exits or restarts. */

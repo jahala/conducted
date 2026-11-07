@@ -204,6 +204,18 @@ describe("AGENT-02 Claude SDK options", () => {
 		expect(ultracode.effort).toBeUndefined();
 	});
 
+	test("a model without adaptive thinking starts with a thinking budget", () => {
+		const options = buildClaudeOptions({
+			...input({ start: start({ config: config({ effort: "high" }) }) }),
+			adaptiveThinking: false,
+		});
+		expect(options.thinking).toEqual({
+			type: "enabled",
+			budgetTokens: 16_000,
+			display: "summarized",
+		});
+	});
+
 	test("options the research leaves unset are absent", () => {
 		const options: Options = buildClaudeOptions(input());
 		expect(options.includePartialMessages).toBeUndefined();

@@ -9,7 +9,10 @@
  * Must handle: a request that times out (the Err carries code `rpc_timeout`); the sidecar
  * restarting while requests are pending (all of them fail with `sidecar_restarted`, then
  * `onReconnected` listeners run once the new connection is up); params or results that fail
- * validation (an Err with code `rpc_invalid`, never a throw into the caller); a sidecar request
+ * validation (an Err with code `rpc_invalid`, never a throw into the caller); a message the
+ * transport could not send (an Err with code `rpc_failed` whose message keeps the transport's
+ * reason); each message handed to the transport as one line without its newline, which the
+ * transport adds (Platform `SidecarTransport.send`); a sidecar request
  * for a method we have no handler for (answer -32601); a handler that throws (answer -32603,
  * logged); lines that are not JSON (logged and skipped); messages sent before `start` finishes
  * wait for it; a reconnect that fails is retried with growing waits (`createBackoff`), and
@@ -262,7 +265,10 @@ export class SidecarTunnel implements SidecarClient {
 					return err(
 						generation !== this.#generation
 							? appError("sidecar_restarted", "The sidecar restarted before it answered.")
-							: appError("rpc_failed", response.error.message),
+							: appError(
+									"rpc_failed",
+									`The ${method} call to the sidecar failed: ${response.error.message}`,
+								),
 					);
 				}
 				return err(
@@ -283,7 +289,13 @@ export class SidecarTunnel implements SidecarClient {
 			if (cause instanceof RpcTimeoutError) {
 				return err(appError("rpc_timeout", cause.message));
 			}
-			return err(appError("rpc_failed", `The ${method} call to the sidecar failed`, cause));
+			return err(
+				appError(
+					"rpc_failed",
+					`The ${method} call to the sidecar failed: ${messageOf(cause)}`,
+					cause,
+				),
+			);
 		} finally {
 			cancelTimer();
 		}
@@ -306,7 +318,13 @@ export class SidecarTunnel implements SidecarClient {
 			await endpoint.client.send(createJSONRPCNotification(method, parsed.data), undefined);
 			return ok(undefined);
 		} catch (cause) {
-			return err(appError("rpc_failed", `The ${method} notification to the sidecar failed`, cause));
+			return err(
+				appError(
+					"rpc_failed",
+					`The ${method} notification to the sidecar failed: ${messageOf(cause)}`,
+					cause,
+				),
+			);
 		}
 	}
 
@@ -337,7 +355,8 @@ export class SidecarTunnel implements SidecarClient {
 			return createJSONRPCErrorResponse(id, failure.code, failure.message, failure.data);
 		};
 		const client = new JSONRPCClient(async (payload) => {
-			const sent = await this.#deps.transport.send(`${JSON.stringify(payload)}\n`);
+			// One line, without its newline: the transport adds it and refuses a line holding one.
+			const sent = await this.#deps.transport.send(JSON.stringify(payload));
 			if (!sent.ok) throw new Error(sent.error.message);
 		});
 		const endpoint = new JSONRPCServerAndClient(server, client, { errorListener });

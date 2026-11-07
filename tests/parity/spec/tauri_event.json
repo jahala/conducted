@@ -1,0 +1,246 @@
+{
+	"inventory": "tauri_event",
+	"source": ".context/day/conductor-ref/call-inventory.json (events)",
+	"entries": [
+		{
+			"id": "tauri_event:tauri://resize",
+			"text": "tauri://resize",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15839
+		},
+		{
+			"id": "tauri_event:tauri://move",
+			"text": "tauri://move",
+			"file": "main-BE1h_1MP.js",
+			"offset": 15932
+		},
+		{
+			"id": "tauri_event:tauri://close-requested",
+			"text": "tauri://close-requested",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16032
+		},
+		{
+			"id": "tauri_event:tauri://drag-enter",
+			"text": "tauri://drag-enter",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16194
+		},
+		{
+			"id": "tauri_event:tauri://drag-over",
+			"text": "tauri://drag-over",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16325
+		},
+		{
+			"id": "tauri_event:tauri://drag-drop",
+			"text": "tauri://drag-drop",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16432
+		},
+		{
+			"id": "tauri_event:tauri://drag-leave",
+			"text": "tauri://drag-leave",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16561
+		},
+		{
+			"id": "tauri_event:tauri://focus",
+			"text": "tauri://focus",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16692
+		},
+		{
+			"id": "tauri_event:tauri://blur",
+			"text": "tauri://blur",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16755
+		},
+		{
+			"id": "tauri_event:tauri://scale-change",
+			"text": "tauri://scale-change",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16860
+		},
+		{
+			"id": "tauri_event:tauri://theme-changed",
+			"text": "tauri://theme-changed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 16937
+		},
+		{
+			"id": "tauri_event:rpc_from_sidecar",
+			"text": "rpc_from_sidecar",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2681984
+		},
+		{
+			"id": "tauri_event:pty-ready",
+			"text": "pty-ready",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2706210
+		},
+		{
+			"id": "tauri_event:pty-data",
+			"text": "pty-data",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2706536
+		},
+		{
+			"id": "tauri_event:pty-exit",
+			"text": "pty-exit",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2707073
+		},
+		{
+			"id": "tauri_event:raw-websocket-event",
+			"text": "raw-websocket-event",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2942811
+		},
+		{
+			"id": "tauri_event:remote-file-sync-direct-info-request",
+			"text": "remote-file-sync-direct-info-request",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3055984
+		},
+		{
+			"id": "tauri_event:remote-file-sync-status",
+			"text": "remote-file-sync-status",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3065010
+		},
+		{
+			"id": "tauri_event:agent_binary_progress",
+			"text": "agent_binary_progress",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3584137
+		},
+		{
+			"id": "tauri_event:port-forward-token-request",
+			"text": "port-forward-token-request",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3869909
+		},
+		{
+			"id": "tauri_event:port-forward-event",
+			"text": "port-forward-event",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3870859
+		},
+		{
+			"id": "tauri_event:deep-link://new-url",
+			"text": "deep-link://new-url",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3900620
+		},
+		{
+			"id": "tauri_event:binary_verification_errors",
+			"text": "binary_verification_errors",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629460
+		},
+		{
+			"id": "tauri_event:tauri://destroyed",
+			"text": "tauri://destroyed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199007
+		},
+		{
+			"id": "tauri_event:tauri://error",
+			"text": "tauri://error",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199127
+		},
+		{
+			"id": "tauri_event:open_settings_page",
+			"text": "open_settings_page",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11395990
+		},
+		{
+			"id": "tauri_event:open_keyboard_shortcuts_dialog",
+			"text": "open_keyboard_shortcuts_dialog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396106
+		},
+		{
+			"id": "tauri_event:open_feedback_dialog",
+			"text": "open_feedback_dialog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396197
+		},
+		{
+			"id": "tauri_event:open_documentation_url",
+			"text": "open_documentation_url",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396278
+		},
+		{
+			"id": "tauri_event:open_best_practices_url",
+			"text": "open_best_practices_url",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396320
+		},
+		{
+			"id": "tauri_event:open_changelog_url",
+			"text": "open_changelog_url",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396363
+		},
+		{
+			"id": "tauri_event:open_diagnostics_page",
+			"text": "open_diagnostics_page",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396401
+		},
+		{
+			"id": "tauri_event:open_submit_prompt_dialog",
+			"text": "open_submit_prompt_dialog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396483
+		},
+		{
+			"id": "tauri_event:toggle_left_sidebar",
+			"text": "toggle_left_sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396569
+		},
+		{
+			"id": "tauri_event:toggle_right_sidebar",
+			"text": "toggle_right_sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11396608
+		},
+		{
+			"id": "tauri_event:manual_update_status",
+			"text": "manual_update_status",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11397801
+		},
+		{
+			"id": "tauri_event:notification-deep-link-click",
+			"text": "notification-deep-link-click",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11630253
+		},
+		{
+			"id": "tauri_event:quit_requested",
+			"text": "quit_requested",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11645284
+		},
+		{
+			"id": "tauri_event:tauri://created",
+			"text": "tauri://created",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11669341
+		},
+		{
+			"id": "tauri_event:network-changed",
+			"text": "network-changed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12043420
+		}
+	]
+}

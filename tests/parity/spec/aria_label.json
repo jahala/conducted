@@ -1,0 +1,1140 @@
+{
+	"inventory": "aria_label",
+	"source": ".context/conductor-re/inventory/aria_label.tsv",
+	"entries": [
+		{
+			"id": "aria_label:R511358",
+			"text": "Notifications",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 511358
+		},
+		{
+			"id": "aria_label:R1875559",
+			"text": "Enter",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1875559
+		},
+		{
+			"id": "aria_label:R1898003",
+			"text": "Loading recent repos",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1898003
+		},
+		{
+			"id": "aria_label:R1898585",
+			"text": "Search repositories",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1898585
+		},
+		{
+			"id": "aria_label:R1959218",
+			"text": "Owner",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1959218
+		},
+		{
+			"id": "aria_label:R2049152",
+			"text": "Toggle left sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2049152
+		},
+		{
+			"id": "aria_label:R2248531",
+			"text": "PR status details",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2248531
+		},
+		{
+			"id": "aria_label:R2269190",
+			"text": "Open externally",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2269190
+		},
+		{
+			"id": "aria_label:R2623047",
+			"text": "Filter changed files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2623047
+		},
+		{
+			"id": "aria_label:R2623631",
+			"text": "Close filter",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2623631
+		},
+		{
+			"id": "aria_label:R2637434",
+			"text": "Stack PRs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2637434
+		},
+		{
+			"id": "aria_label:R2765026",
+			"text": "Filter files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2765026
+		},
+		{
+			"id": "aria_label:R2990489",
+			"text": "Open cloud desktop",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2990489
+		},
+		{
+			"id": "aria_label:R2991910",
+			"text": "Close cloud desktop",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2991910
+		},
+		{
+			"id": "aria_label:R2996778",
+			"text": "Show message actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2996778
+		},
+		{
+			"id": "aria_label:R3015261",
+			"text": "Message workspace chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3015261
+		},
+		{
+			"id": "aria_label:R3015628",
+			"text": "Send message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3015628
+		},
+		{
+			"id": "aria_label:R3983288",
+			"text": "Branch options",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3983288
+		},
+		{
+			"id": "aria_label:R3991063",
+			"text": "Upload files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3991063
+		},
+		{
+			"id": "aria_label:R4004238",
+			"text": "Loading artifacts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4004238
+		},
+		{
+			"id": "aria_label:R4419387",
+			"text": "Choose preview URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4419387
+		},
+		{
+			"id": "aria_label:R4421044",
+			"text": "Start forwarding",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4421044
+		},
+		{
+			"id": "aria_label:R4421815",
+			"text": "Waiting for ports",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4421815
+		},
+		{
+			"id": "aria_label:R4632115",
+			"text": "Choose action icon",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4632115
+		},
+		{
+			"id": "aria_label:R4987086",
+			"text": "Action name",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4987086
+		},
+		{
+			"id": "aria_label:R5011963",
+			"text": "New terminal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5011963
+		},
+		{
+			"id": "aria_label:R5016246",
+			"text": "Select task",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5016246
+		},
+		{
+			"id": "aria_label:R5017441",
+			"text": "Add action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5017441
+		},
+		{
+			"id": "aria_label:R5434122",
+			"text": "Copy preview URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5434122
+		},
+		{
+			"id": "aria_label:R5434782",
+			"text": "Choose preview URL port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5434782
+		},
+		{
+			"id": "aria_label:R5444519",
+			"text": "Forward port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5444519
+		},
+		{
+			"id": "aria_label:R5445011",
+			"text": "Cancel forwarding port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5445011
+		},
+		{
+			"id": "aria_label:R5446340",
+			"text": "Add port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5446340
+		},
+		{
+			"id": "aria_label:R5477936",
+			"text": "Dismiss",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5477936
+		},
+		{
+			"id": "aria_label:R5501496",
+			"text": "General workspace access",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5501496
+		},
+		{
+			"id": "aria_label:R5503843",
+			"text": "Add people",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5503843
+		},
+		{
+			"id": "aria_label:R5509389",
+			"text": "General workspace permission",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5509389
+		},
+		{
+			"id": "aria_label:R5521072",
+			"text": "Toggle right sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5521072
+		},
+		{
+			"id": "aria_label:R5625996",
+			"text": "Rename workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5625996
+		},
+		{
+			"id": "aria_label:R5627430",
+			"text": "Workspace actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5627430
+		},
+		{
+			"id": "aria_label:R5628168",
+			"text": "Open on GitHub",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5628168
+		},
+		{
+			"id": "aria_label:R8060854",
+			"text": "Clear output",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8060854
+		},
+		{
+			"id": "aria_label:R8075890",
+			"text": "Seek",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8075890
+		},
+		{
+			"id": "aria_label:R8082977",
+			"text": "Video player",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8082977
+		},
+		{
+			"id": "aria_label:R8085928",
+			"text": "Playback speed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8085928
+		},
+		{
+			"id": "aria_label:R8087654",
+			"text": "Volume",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8087654
+		},
+		{
+			"id": "aria_label:R8147878",
+			"text": "Other response",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8147878
+		},
+		{
+			"id": "aria_label:R8148495",
+			"text": "Select other response",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8148495
+		},
+		{
+			"id": "aria_label:R8700214",
+			"text": "Setting actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8700214
+		},
+		{
+			"id": "aria_label:R8717346",
+			"text": "Loading MCP servers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8717346
+		},
+		{
+			"id": "aria_label:R8842839",
+			"text": "Edit in diff viewer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8842839
+		},
+		{
+			"id": "aria_label:R8874837",
+			"text": "Context usage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8874837
+		},
+		{
+			"id": "aria_label:R8880898",
+			"text": "MCP servers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8880898
+		},
+		{
+			"id": "aria_label:R8881675",
+			"text": "Refresh MCP status",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8881675
+		},
+		{
+			"id": "aria_label:R8906778",
+			"text": "Add",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8906778
+		},
+		{
+			"id": "aria_label:R9068829",
+			"text": "Loading preview",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9068829
+		},
+		{
+			"id": "aria_label:R9222951",
+			"text": "Fast mode on",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9222951
+		},
+		{
+			"id": "aria_label:R9226139",
+			"text": "Opens in new chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9226139
+		},
+		{
+			"id": "aria_label:R9227258",
+			"text": "Reorder",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9227258
+		},
+		{
+			"id": "aria_label:R9234010",
+			"text": "Search models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9234010
+		},
+		{
+			"id": "aria_label:R9246234",
+			"text": "Fast mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9246234
+		},
+		{
+			"id": "aria_label:R9323764",
+			"text": "Queued messages",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9323764
+		},
+		{
+			"id": "aria_label:R9327423",
+			"text": "Queued attachments",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9327423
+		},
+		{
+			"id": "aria_label:R9340087",
+			"text": "Delete",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9340087
+		},
+		{
+			"id": "aria_label:R9387590",
+			"text": "Dismiss fast mode warning",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9387590
+		},
+		{
+			"id": "aria_label:R9413717",
+			"text": "Table of contents",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9413717
+		},
+		{
+			"id": "aria_label:R9494117",
+			"text": "Loading artifact",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9494117
+		},
+		{
+			"id": "aria_label:R9500541",
+			"text": "Create snippet",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9500541
+		},
+		{
+			"id": "aria_label:R9523816",
+			"text": "Delete queued message",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9523816
+		},
+		{
+			"id": "aria_label:R9573518",
+			"text": "Also reset files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9573518
+		},
+		{
+			"id": "aria_label:R9605986",
+			"text": "Scroll to bottom",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9605986
+		},
+		{
+			"id": "aria_label:R9627873",
+			"text": "Download progress",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9627873
+		},
+		{
+			"id": "aria_label:R9629615",
+			"text": "View options",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9629615
+		},
+		{
+			"id": "aria_label:R9637465",
+			"text": "Unsaved changes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9637465
+		},
+		{
+			"id": "aria_label:R9637821",
+			"text": "Update failed. Retry",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9637821
+		},
+		{
+			"id": "aria_label:R9643573",
+			"text": "Preview",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9643573
+		},
+		{
+			"id": "aria_label:R9734762",
+			"text": "Edit comment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9734762
+		},
+		{
+			"id": "aria_label:R9735022",
+			"text": "Delete comment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9735022
+		},
+		{
+			"id": "aria_label:R9964533",
+			"text": "Updating diff",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9964533
+		},
+		{
+			"id": "aria_label:R9970155",
+			"text": "Dismiss diff rendering warning",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9970155
+		},
+		{
+			"id": "aria_label:R9987343",
+			"text": "Loading attachment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9987343
+		},
+		{
+			"id": "aria_label:R10032976",
+			"text": "Request review",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10032976
+		},
+		{
+			"id": "aria_label:R10145652",
+			"text": "Create in section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10145652
+		},
+		{
+			"id": "aria_label:R10149394",
+			"text": "Add to backlog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10149394
+		},
+		{
+			"id": "aria_label:R10188365",
+			"text": "Repository",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10188365
+		},
+		{
+			"id": "aria_label:R10224337",
+			"text": "Sort workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10224337
+		},
+		{
+			"id": "aria_label:R10247681",
+			"text": "Unarchive workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10247681
+		},
+		{
+			"id": "aria_label:R10276677",
+			"text": "Loading workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10276677
+		},
+		{
+			"id": "aria_label:R10289853",
+			"text": "Toggle sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10289853
+		},
+		{
+			"id": "aria_label:R10292173",
+			"text": "Resize sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10292173
+		},
+		{
+			"id": "aria_label:R10295355",
+			"text": "Unavailable in this version",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10295355
+		},
+		{
+			"id": "aria_label:R10311628",
+			"text": "Online",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10311628
+		},
+		{
+			"id": "aria_label:R10329806",
+			"text": "Private workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10329806
+		},
+		{
+			"id": "aria_label:R10374081",
+			"text": "Dismiss macOS version warning",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10374081
+		},
+		{
+			"id": "aria_label:R10374710",
+			"text": "Settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10374710
+		},
+		{
+			"id": "aria_label:R10375692",
+			"text": "View pricing",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10375692
+		},
+		{
+			"id": "aria_label:R10381913",
+			"text": "Account menu",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10381913
+		},
+		{
+			"id": "aria_label:R10424742",
+			"text": "Copy internal resource details",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10424742
+		},
+		{
+			"id": "aria_label:R10432418",
+			"text": "Open draft",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10432418
+		},
+		{
+			"id": "aria_label:R10433438",
+			"text": "Archive workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10433438
+		},
+		{
+			"id": "aria_label:R10434319",
+			"text": "Admin workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10434319
+		},
+		{
+			"id": "aria_label:R10434919",
+			"text": "Forwarding ports",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10434919
+		},
+		{
+			"id": "aria_label:R10464425",
+			"text": "Pinned workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10464425
+		},
+		{
+			"id": "aria_label:R10504137",
+			"text": "Creating workspace...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10504137
+		},
+		{
+			"id": "aria_label:R10506740",
+			"text": "Create workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10506740
+		},
+		{
+			"id": "aria_label:R10515645",
+			"text": "My workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10515645
+		},
+		{
+			"id": "aria_label:R10537138",
+			"text": "Go back",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10537138
+		},
+		{
+			"id": "aria_label:R10537547",
+			"text": "Go forward",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10537547
+		},
+		{
+			"id": "aria_label:R10549112",
+			"text": "Close tab",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10549112
+		},
+		{
+			"id": "aria_label:R10551711",
+			"text": "New tab",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10551711
+		},
+		{
+			"id": "aria_label:R10693791",
+			"text": "Cancel adding env file",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10693791
+		},
+		{
+			"id": "aria_label:R10770111",
+			"text": "Scanning local MCP servers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10770111
+		},
+		{
+			"id": "aria_label:R10808801",
+			"text": "GitHub organizations",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10808801
+		},
+		{
+			"id": "aria_label:R10822492",
+			"text": "Done",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10822492
+		},
+		{
+			"id": "aria_label:R10831131",
+			"text": "Back",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10831131
+		},
+		{
+			"id": "aria_label:R10844512",
+			"text": "Add repository",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10844512
+		},
+		{
+			"id": "aria_label:R10864060",
+			"text": "Loading cloud computer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10864060
+		},
+		{
+			"id": "aria_label:R10876245",
+			"text": "Loading environment variables",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10876245
+		},
+		{
+			"id": "aria_label:R10928433",
+			"text": "Copy Codex verification code",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10928433
+		},
+		{
+			"id": "aria_label:R10948284",
+			"text": "Validation failed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10948284
+		},
+		{
+			"id": "aria_label:R10948372",
+			"text": "API key configured",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10948372
+		},
+		{
+			"id": "aria_label:R11022769",
+			"text": "Show action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11022769
+		},
+		{
+			"id": "aria_label:R11023000",
+			"text": "Hide action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11023000
+		},
+		{
+			"id": "aria_label:R11023468",
+			"text": "Delete action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11023468
+		},
+		{
+			"id": "aria_label:R11029463",
+			"text": "Connected",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11029463
+		},
+		{
+			"id": "aria_label:R11029622",
+			"text": "Not connected",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11029622
+		},
+		{
+			"id": "aria_label:R11083786",
+			"text": "Upload progress",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11083786
+		},
+		{
+			"id": "aria_label:R11085226",
+			"text": "Close",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11085226
+		},
+		{
+			"id": "aria_label:R11088269",
+			"text": "Edit photo",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11088269
+		},
+		{
+			"id": "aria_label:R11090623",
+			"text": "Display name",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11090623
+		},
+		{
+			"id": "aria_label:R11147513",
+			"text": "First local port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11147513
+		},
+		{
+			"id": "aria_label:R11147939",
+			"text": "Last local port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11147939
+		},
+		{
+			"id": "aria_label:R11156373",
+			"text": "Remote port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11156373
+		},
+		{
+			"id": "aria_label:R11156789",
+			"text": "Local port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11156789
+		},
+		{
+			"id": "aria_label:R11157100",
+			"text": "Add override",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11157100
+		},
+		{
+			"id": "aria_label:R11167685",
+			"text": "Device details",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11167685
+		},
+		{
+			"id": "aria_label:R11184538",
+			"text": "Pairing QR code",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11184538
+		},
+		{
+			"id": "aria_label:R11189729",
+			"text": "Regenerate QR code",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11189729
+		},
+		{
+			"id": "aria_label:R11201189",
+			"text": "App logger bearer token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11201189
+		},
+		{
+			"id": "aria_label:R11269882",
+			"text": "Move preview URL up",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11269882
+		},
+		{
+			"id": "aria_label:R11270077",
+			"text": "Move preview URL down",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11270077
+		},
+		{
+			"id": "aria_label:R11270292",
+			"text": "Remove preview URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11270292
+		},
+		{
+			"id": "aria_label:R11276904",
+			"text": "Refresh files to copy preview",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11276904
+		},
+		{
+			"id": "aria_label:R11281401",
+			"text": "Remove emoji",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11281401
+		},
+		{
+			"id": "aria_label:R11293940",
+			"text": "Change repository icon",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11293940
+		},
+		{
+			"id": "aria_label:R11319788",
+			"text": "Back to commands",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11319788
+		},
+		{
+			"id": "aria_label:R11328531",
+			"text": "Loading",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11328531
+		},
+		{
+			"id": "aria_label:R11329571",
+			"text": "More actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11329571
+		},
+		{
+			"id": "aria_label:R11462165",
+			"text": "Clear create from selection",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11462165
+		},
+		{
+			"id": "aria_label:R11487348",
+			"text": "Target branch",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11487348
+		},
+		{
+			"id": "aria_label:R11510611",
+			"text": "Loading sections",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11510611
+		},
+		{
+			"id": "aria_label:R11513606",
+			"text": "Section name",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11513606
+		},
+		{
+			"id": "aria_label:R11515814",
+			"text": "Loading snippets",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11515814
+		},
+		{
+			"id": "aria_label:R11538389",
+			"text": "Version",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11538389
+		},
+		{
+			"id": "aria_label:R11560462",
+			"text": "Computer color",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11560462
+		},
+		{
+			"id": "aria_label:R11613952",
+			"text": "Setup steps",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11613952
+		},
+		{
+			"id": "aria_label:R11676490",
+			"text": "Reload",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11676490
+		},
+		{
+			"id": "aria_label:R11676943",
+			"text": "Port and path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11676943
+		},
+		{
+			"id": "aria_label:R11677566",
+			"text": "Open in browser",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11677566
+		},
+		{
+			"id": "aria_label:R11703477",
+			"text": "Minimize",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11703477
+		},
+		{
+			"id": "aria_label:R11703813",
+			"text": "Maximize",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11703813
+		},
+		{
+			"id": "aria_label:R11725915",
+			"text": "Action scope",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11725915
+		},
+		{
+			"id": "aria_label:R11728005",
+			"text": "Default branch",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11728005
+		},
+		{
+			"id": "aria_label:R11762034",
+			"text": "Search settings shortcut",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11762034
+		},
+		{
+			"id": "aria_label:R11762597",
+			"text": "Clear settings search",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11762597
+		},
+		{
+			"id": "aria_label:R11914392",
+			"text": "Show routines",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11914392
+		},
+		{
+			"id": "aria_label:R11920904",
+			"text": "Delete routine",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11920904
+		},
+		{
+			"id": "aria_label:R11923218",
+			"text": "Loading routines",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11923218
+		},
+		{
+			"id": "aria_label:R11924271",
+			"text": "Run",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11924271
+		},
+		{
+			"id": "aria_label:R11924758",
+			"text": "Actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11924758
+		},
+		{
+			"id": "aria_label:R11940002",
+			"text": "Webhook instructions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11940002
+		},
+		{
+			"id": "aria_label:R11943631",
+			"text": "Weekday",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11943631
+		},
+		{
+			"id": "aria_label:R11944693",
+			"text": "Schedule expression",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11944693
+		},
+		{
+			"id": "aria_label:R11945598",
+			"text": "Remove trigger",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11945598
+		},
+		{
+			"id": "aria_label:R11947489",
+			"text": "Copy webhook URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11947489
+		},
+		{
+			"id": "aria_label:R11964430",
+			"text": "Filter field",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11964430
+		},
+		{
+			"id": "aria_label:R11968379",
+			"text": "Remove filter",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11968379
+		},
+		{
+			"id": "aria_label:R11969785",
+			"text": "Pull request event",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11969785
+		},
+		{
+			"id": "aria_label:R11982540",
+			"text": "Breadcrumb",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11982540
+		},
+		{
+			"id": "aria_label:R11983123",
+			"text": "Run routine",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11983123
+		},
+		{
+			"id": "aria_label:R11983451",
+			"text": "More",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11983451
+		},
+		{
+			"id": "aria_label:R11995698",
+			"text": "Title",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11995698
+		},
+		{
+			"id": "aria_label:R11996180",
+			"text": "Status",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11996180
+		},
+		{
+			"id": "aria_label:R11996272",
+			"text": "Enabled",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11996272
+		},
+		{
+			"id": "aria_label:R12009292",
+			"text": "Loading runs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12009292
+		},
+		{
+			"id": "aria_label:R12015527",
+			"text": "Loading routine",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12015527
+		},
+		{
+			"id": "aria_label:R12021308",
+			"text": "Pull requests",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12021308
+		},
+		{
+			"id": "aria_label:R12021849",
+			"text": "Loading more pull requests",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12021849
+		},
+		{
+			"id": "aria_label:R12050608",
+			"text": "Starting Conductor",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12050608
+		}
+	]
+}

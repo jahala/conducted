@@ -6,9 +6,8 @@
  * Test first: with a database marked newer than the app, runStartup reports blocked and starts no service.
  */
 import { appError, err, ok } from "@conducted/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Container } from "../core/container.ts";
-import type { Platform } from "../platform/platform.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { installGlobalHandlers, runStartup, type StartupState } from "./startup.ts";
 
 interface LogLine {
@@ -17,47 +16,43 @@ interface LogLine {
 	data?: unknown;
 }
 
-function fakePlatform(
-	logs: LogLine[],
-	warning: { databaseVersion: number; appVersion: number } | null = null,
-): Platform {
-	return {
-		app: {
-			dbVersionWarning: async () => ok(warning),
-			writeLog: (level: string, message: string, data?: unknown) => {
-				logs.push({ level, message, data });
-			},
-		},
-		sidecar: {
-			logPath: async () => "/tmp/sidecar.log",
-		},
-	} as unknown as Platform;
-}
+let test: TestContainer;
 
-function fakeContainer(platform: Platform, start: Container["start"]): Container {
-	return { platform, start } as unknown as Container;
-}
+beforeEach(() => {
+	test = createTestContainer();
+});
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	test.close();
 });
+
+/** Records every log line, including the data a test asserts on, as the app's log does. */
+function recordLogs(): LogLine[] {
+	const logs: LogLine[] = [];
+	vi.spyOn(test.container.platform.app, "writeLog").mockImplementation((level, message, data) => {
+		logs.push({ level, message, data });
+	});
+	return logs;
+}
+
+const start = () => vi.spyOn(test.container, "start");
 
 describe("APP-01 startup gate", () => {
 	it("reports blocked and starts nothing when the database is newer than the app", async () => {
-		const logs: LogLine[] = [];
-		const start = vi.fn();
-		const container = fakeContainer(
-			fakePlatform(logs, { databaseVersion: 7, appVersion: 4 }),
-			start as unknown as Container["start"],
+		recordLogs();
+		vi.spyOn(test.container.platform.app, "dbVersionWarning").mockResolvedValue(
+			ok({ databaseVersion: 7, appVersion: 4 }),
 		);
+		const startSpy = start();
 		const states: StartupState[] = [];
 
-		const result = await runStartup(container, (state) => states.push(state), {
+		const result = await runStartup(test.container, (state) => states.push(state), {
 			installHandlers: false,
 		});
 
 		expect(result.ok).toBe(true);
-		expect(start).not.toHaveBeenCalled();
+		expect(startSpy).not.toHaveBeenCalled();
 		expect(states.at(-1)).toEqual({
 			kind: "blocked",
 			reason: "database_newer_than_app",
@@ -67,17 +62,14 @@ describe("APP-01 startup gate", () => {
 	});
 
 	it("reports the phase and the sidecar log when a start step fails", async () => {
-		const logs: LogLine[] = [];
-		const container = fakeContainer(
-			fakePlatform(logs),
-			vi.fn(async (onProgress?: (progress: { step: string; phase: "services" }) => void) => {
-				onProgress?.({ step: "repos", phase: "services" });
-				return err(appError("repo_failed", "The projects could not be read."));
-			}) as unknown as Container["start"],
-		);
+		recordLogs();
+		start().mockImplementation(async (onProgress) => {
+			onProgress?.({ step: "repos", phase: "services" });
+			return err(appError("repo_failed", "The projects could not be read."));
+		});
 		const states: StartupState[] = [];
 
-		const result = await runStartup(container, (state) => states.push(state), {
+		const result = await runStartup(test.container, (state) => states.push(state), {
 			installHandlers: false,
 		});
 
@@ -86,25 +78,21 @@ describe("APP-01 startup gate", () => {
 			kind: "failed",
 			phase: "services",
 			message: "The projects could not be read.",
-			logPath: "/tmp/sidecar.log",
+			logPath: `${test.container.platform.fs.paths.appData}/sidecar.log`,
 		});
 	});
 
 	it("logs why the sidecar log path is missing when the Platform cannot give it", async () => {
-		const logs: LogLine[] = [];
-		const platform = fakePlatform(logs);
-		platform.sidecar.logPath = async () => {
-			throw new Error("no log directory");
-		};
-		const container = fakeContainer(
-			platform,
-			vi.fn(async () =>
-				err(appError("sidecar_failed", "The agent sidecar did not start.")),
-			) as unknown as Container["start"],
+		const logs = recordLogs();
+		vi.spyOn(test.container.platform.sidecar, "logPath").mockRejectedValue(
+			new Error("no log directory"),
+		);
+		start().mockImplementation(async () =>
+			err(appError("sidecar_failed", "The agent sidecar did not start.")),
 		);
 		const states: StartupState[] = [];
 
-		await runStartup(container, (state) => states.push(state), { installHandlers: false });
+		await runStartup(test.container, (state) => states.push(state), { installHandlers: false });
 
 		expect(states.at(-1)).toMatchObject({ kind: "failed", logPath: null });
 		expect(logs).toContainEqual({
@@ -115,17 +103,14 @@ describe("APP-01 startup gate", () => {
 	});
 
 	it("reports a sidecar that does not start as failed, with its log path", async () => {
-		const logs: LogLine[] = [];
-		const container = fakeContainer(
-			fakePlatform(logs),
-			vi.fn(async (onProgress?: (progress: { step: string; phase: "sidecar" }) => void) => {
-				onProgress?.({ step: "sidecar", phase: "sidecar" });
-				return err(appError("sidecar_failed", "The agent sidecar did not start."));
-			}) as unknown as Container["start"],
-		);
+		recordLogs();
+		start().mockImplementation(async (onProgress) => {
+			onProgress?.({ step: "sidecar", phase: "sidecar" });
+			return err(appError("sidecar_failed", "The agent sidecar did not start."));
+		});
 		const states: StartupState[] = [];
 
-		const result = await runStartup(container, (state) => states.push(state), {
+		const result = await runStartup(test.container, (state) => states.push(state), {
 			installHandlers: false,
 		});
 
@@ -134,33 +119,25 @@ describe("APP-01 startup gate", () => {
 			kind: "failed",
 			phase: "sidecar",
 			message: "The agent sidecar did not start.",
-			logPath: "/tmp/sidecar.log",
+			logPath: `${test.container.platform.fs.paths.appData}/sidecar.log`,
 		});
 	});
 
 	it("reports ready after the container's ordered start", async () => {
-		const logs: LogLine[] = [];
-		const start = vi.fn(
-			async (
-				onProgress?: (progress: {
-					step: string;
-					phase: "settings" | "services" | "sidecar";
-				}) => void,
-			) => {
-				onProgress?.({ step: "settings", phase: "settings" });
-				onProgress?.({ step: "repos", phase: "services" });
-				onProgress?.({ step: "sidecar", phase: "sidecar" });
-				return ok({ warnings: [] });
-			},
-		);
-		const container = fakeContainer(fakePlatform(logs), start as unknown as Container["start"]);
+		recordLogs();
+		const startSpy = start().mockImplementation(async (onProgress) => {
+			onProgress?.({ step: "settings", phase: "settings" });
+			onProgress?.({ step: "repos", phase: "services" });
+			onProgress?.({ step: "sidecar", phase: "sidecar" });
+			return ok({ warnings: [] });
+		});
 		const states: StartupState[] = [];
 
-		const result = await runStartup(container, (state) => states.push(state), {
+		const result = await runStartup(test.container, (state) => states.push(state), {
 			installHandlers: false,
 		});
 
-		expect(start).toHaveBeenCalledTimes(1);
+		expect(startSpy).toHaveBeenCalledTimes(1);
 		expect(result.ok).toBe(true);
 		expect(states).toEqual([
 			{ kind: "running", phase: "database" },
@@ -172,16 +149,13 @@ describe("APP-01 startup gate", () => {
 	});
 
 	it("reports a failure instead of throwing when a start step throws", async () => {
-		const logs: LogLine[] = [];
-		const container = fakeContainer(
-			fakePlatform(logs),
-			vi.fn(async () => {
-				throw new Error("The settings file could not be read.");
-			}) as unknown as Container["start"],
-		);
+		const logs = recordLogs();
+		start().mockImplementation(async () => {
+			throw new Error("The settings file could not be read.");
+		});
 		const states: StartupState[] = [];
 
-		const result = await runStartup(container, (state) => states.push(state), {
+		const result = await runStartup(test.container, (state) => states.push(state), {
 			installHandlers: false,
 		});
 
@@ -197,8 +171,8 @@ describe("APP-01 startup gate", () => {
 
 describe("APP-01 global handlers", () => {
 	it("logs an unhandled error and an unhandled promise rejection", () => {
-		const logs: LogLine[] = [];
-		const dispose = installGlobalHandlers({ app: fakePlatform(logs).app });
+		const logs = recordLogs();
+		const dispose = installGlobalHandlers({ app: test.container.platform.app });
 
 		window.dispatchEvent(
 			new ErrorEvent("error", { message: "render broke", error: new Error("render broke") }),
@@ -215,9 +189,9 @@ describe("APP-01 global handlers", () => {
 	});
 
 	it("forwards console.error into the local log and restores it afterwards", () => {
-		const logs: LogLine[] = [];
+		const logs = recordLogs();
 		const original = console.error;
-		const dispose = installGlobalHandlers({ app: fakePlatform(logs).app });
+		const dispose = installGlobalHandlers({ app: test.container.platform.app });
 
 		console.error("save failed", { code: "E1" });
 
@@ -228,8 +202,8 @@ describe("APP-01 global handlers", () => {
 	});
 
 	it("stops the webview navigating to a dropped file", () => {
-		const logs: LogLine[] = [];
-		const dispose = installGlobalHandlers({ app: fakePlatform(logs).app });
+		recordLogs();
+		const dispose = installGlobalHandlers({ app: test.container.platform.app });
 		const drop = new Event("drop", { cancelable: true });
 
 		window.dispatchEvent(drop);

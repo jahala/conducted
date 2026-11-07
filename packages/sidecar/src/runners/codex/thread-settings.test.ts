@@ -6,7 +6,12 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { SessionConfig } from "@conducted/protocol";
-import { codexEffort, codexSettingsChanged, codexThreadSettings } from "./thread-settings.ts";
+import {
+	codexEffort,
+	codexSettingsChanged,
+	codexThreadSettings,
+	narrowToRequirements,
+} from "./thread-settings.ts";
 
 function config(overrides: Partial<SessionConfig> = {}): SessionConfig {
 	return {
@@ -97,5 +102,64 @@ describe("AGENT-16 the effort levels Codex accepts", () => {
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.code).toBe("codex_effort_unsupported");
+	});
+});
+
+describe("AGENT-16 Codex managed requirements narrow the approval policy and sandbox", () => {
+	const allowed = (approvals: string[] | null, sandboxes: string[] | null) => ({
+		allowedApprovalPolicies: approvals,
+		allowedSandboxModes: sandboxes,
+	});
+	const ask = (approvalPolicy: string, sandbox: string) =>
+		({ approvalPolicy, sandbox, personality: undefined }) as ReturnType<typeof codexThreadSettings>;
+
+	// Each case is one run of Conductor's sidecar against codex requirements in the sidecar
+	// differential run (scenarios codex-requirements*), 7 November 2026.
+	test("an allowed request is kept, and no requirements change nothing", () => {
+		const settings = ask("on-request", "danger-full-access");
+		expect(narrowToRequirements(settings, null)).toEqual(settings);
+		expect(narrowToRequirements(settings, allowed(null, null))).toEqual(settings);
+		expect(
+			narrowToRequirements(settings, allowed(["on-request", "never"], ["danger-full-access"])),
+		).toEqual(settings);
+	});
+
+	test("a refused request falls to the widest allowed choice below it, in any list order", () => {
+		for (const lists of [
+			allowed(["untrusted", "on-request"], ["read-only", "workspace-write"]),
+			allowed(["on-request", "untrusted"], ["workspace-write", "read-only"]),
+		]) {
+			expect(narrowToRequirements(ask("never", "danger-full-access"), lists)).toMatchObject({
+				approvalPolicy: "on-request",
+				sandbox: "workspace-write",
+			});
+		}
+		for (const lists of [
+			allowed(["untrusted", "never"], ["read-only", "danger-full-access"]),
+			allowed(["never", "untrusted"], ["danger-full-access", "read-only"]),
+		]) {
+			expect(narrowToRequirements(ask("on-request", "workspace-write"), lists)).toMatchObject({
+				approvalPolicy: "untrusted",
+				sandbox: "read-only",
+			});
+		}
+	});
+
+	test("with nothing allowed below it, the policy takes the narrowest wider choice and the sandbox stays", () => {
+		for (const lists of [
+			allowed(["on-request", "never"], ["workspace-write", "danger-full-access"]),
+			allowed(["never", "on-request"], ["danger-full-access", "workspace-write"]),
+		]) {
+			expect(narrowToRequirements(ask("untrusted", "read-only"), lists)).toMatchObject({
+				approvalPolicy: "on-request",
+				sandbox: "read-only",
+			});
+		}
+		expect(
+			narrowToRequirements(
+				ask("on-request", "workspace-write"),
+				allowed(["never"], ["danger-full-access"]),
+			),
+		).toMatchObject({ approvalPolicy: "never", sandbox: "workspace-write" });
 	});
 });

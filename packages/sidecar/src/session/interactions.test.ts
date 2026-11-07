@@ -66,13 +66,14 @@ class TestLiveState extends LiveStateStore {
 	}
 }
 
-function harness() {
+function harness(flushed: (sessionId: SessionId) => Promise<void> = async () => {}) {
 	const app = new FakeApp({ holdRequests: true });
 	const liveState = new TestLiveState(app);
 	let nextId = 0;
 	const broker = new SessionInteractionBroker({
 		app,
 		liveState,
+		flushed,
 		clock: { now: () => 1_000 },
 		ids: { uuid: () => `interaction-${++nextId}` },
 		logger: createLogger({
@@ -131,6 +132,51 @@ describe("SIDE-11 interactions", () => {
 			"live state to clear",
 		);
 		expect(h.broker.openRequest(session)).toBeUndefined();
+	});
+
+	test("SIDE-11 an interaction reaches the app only after the chat's queued events are sent", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const flushedFor: SessionId[] = [];
+		const h = harness(async (sessionId) => {
+			flushedFor.push(sessionId);
+			await gate;
+		});
+		const session = sid("session-1");
+		const answer = h.broker.open(session, approval);
+		await until(() => flushedFor.length === 1, "the broker to wait for the chat's events");
+		expect(flushedFor).toEqual([session]);
+		expect(h.app.requests).toHaveLength(0);
+
+		release();
+		await until(() => h.app.requests.length === 1, "the approval request");
+		expect(h.app.requests[0]?.method).toBe("requestInteraction");
+		h.app.answerNext({ kind: "tool_approval", decision: "allow" });
+		expect(await answer).toEqual({ kind: "tool_approval", decision: "allow" });
+	});
+
+	test("SIDE-11 an interaction withdrawn while its chat's events are sent never reaches the app", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let waited = 0;
+		const h = harness(async () => {
+			waited += 1;
+			await gate;
+		});
+		const session = sid("session-1");
+		const answer = h.broker.open(session, approval);
+		await until(() => waited === 1, "the broker to wait for the chat's events");
+
+		h.broker.withdrawAll(session);
+		expect(await answer).toEqual({ kind: "withdrawn" });
+		release();
+		await gate;
+		await Promise.resolve();
+		expect(h.app.requests).toHaveLength(0);
 	});
 
 	test("SIDE-11 opens a second interaction only after the first is answered", async () => {

@@ -25,6 +25,10 @@
  *  - applyConfig sends a plan or approvals change with setPermissionMode first, then a model change
  *    with setModel, then an effort change with applyFlagSettings when the model supports it (else a
  *    restart); a change during a turn waits for the next turn
+ *  - thinking (AGENT-16) is fixed when the process starts, from the effort and whether the model
+ *    catalog says the model thinks adaptively (StartOptions.lookUpModel); a model or effort change
+ *    that needs other thinking (a budget for a model without adaptive thinking, a new budget for a
+ *    new effort, thinking turned off) restarts the process
  *  - a live config sync that fails before a turn ends that turn with an error the app sees, so it
  *    never runs in bypassPermissions; an effort change that needs a restart restarts the process
  *    before the message is sent
@@ -105,7 +109,7 @@ import { ClaudeBackgroundTasks } from "./background-tasks.ts";
 import { type CheckpointGate, createCheckpointHook } from "./checkpoint-hook.ts";
 import { classifyConfigChange } from "./config-change.ts";
 import { INTERRUPT_GRACE_MS } from "./constants.ts";
-import { claudeEffortOption } from "./launch-settings.ts";
+import { claudeEffortOption, claudeThinkingOption } from "./launch-settings.ts";
 import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
@@ -193,6 +197,8 @@ export class ClaudeSession implements AgentSession {
 	/** The settings the live process is known to run with, for live reconfiguration. */
 	private appliedModel: string | null = null;
 	private appliedEffort: Effort | null = null;
+	/** The thinking option the live process started with. */
+	private appliedThinking: Options["thinking"] | null = null;
 	private appliedPermissionMode: PermissionMode | null = null;
 	/**
 	 * The plan mode the app last asked for, until the agent changes the mode itself. A stale CLI init
@@ -533,6 +539,9 @@ export class ClaudeSession implements AgentSession {
 			this.sessionId,
 			this.start.workspace.workspacePath,
 		);
+		// The config this process starts with; a change during the lookup is applied live later.
+		const config = this.config;
+		const thinking = await this.thinkingFor(config);
 		if (this.disposed) throw new Error("The Claude session was disposed.");
 		if (this.query !== null) return;
 
@@ -558,16 +567,19 @@ export class ClaudeSession implements AgentSession {
 			if (!this.skillPluginToldUser) this.skillPluginProblem = plugins.error.message;
 		}
 		const options = buildClaudeOptions({
-			start: { ...start, config: this.config },
+			start: { ...start, config },
 			executablePath: this.deps.executablePath,
 			viaRuntime: this.deps.viaRuntime === true,
 			hasTranscript,
+			...(thinking.adaptiveThinking === undefined
+				? {}
+				: { adaptiveThinking: thinking.adaptiveThinking }),
 			plugins: plugins.ok ? plugins.value : undefined,
 			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
 			hooks: { PreToolUse: [createCheckpointHook(gate)] },
 			mcpServers: this.deps.createMcpServers({
 				sessionId: this.sessionId,
-				appTools: this.config.appTools,
+				appTools: config.appTools,
 				backend: this.deps.appTools,
 				logger: this.deps.logger,
 			}),
@@ -579,8 +591,9 @@ export class ClaudeSession implements AgentSession {
 		});
 
 		// The process starts bypassing checks, so the permission mode is applied live later.
-		this.appliedModel = this.config.model;
-		this.appliedEffort = this.config.effort;
+		this.appliedModel = config.model;
+		this.appliedEffort = config.effort;
+		this.appliedThinking = thinking.option;
 		this.appliedPermissionMode = "bypassPermissions";
 		this.stderrTail.length = 0;
 		this.agentSessionIdReported = false;
@@ -819,7 +832,8 @@ export class ClaudeSession implements AgentSession {
 
 	/**
 	 * Sends the model, effort and permission-mode control requests the live process is missing.
-	 * Returns true when the effort change needs a restart because the model cannot switch live.
+	 * Returns true when the change needs a restart: the model cannot switch effort live, or the
+	 * new model or effort needs thinking the process did not start with.
 	 */
 	private async syncLiveConfig(): Promise<boolean> {
 		const query = this.query;
@@ -828,6 +842,11 @@ export class ClaudeSession implements AgentSession {
 		// The permission mode goes first: it is the setting that must never be left at the old
 		// value, and an effort restart below still needs it applied to the new process.
 		await this.applyPermissionMode(permissionModeFor(config));
+		if (this.appliedModel !== config.model || this.appliedEffort !== config.effort) {
+			// Thinking is fixed at start, so other thinking needs a new process.
+			const thinking = await this.thinkingFor(config);
+			if (!sameThinking(thinking.option, this.appliedThinking)) return true;
+		}
 		if (this.appliedModel !== config.model) {
 			await query.setModel(config.model);
 			this.appliedModel = config.model;
@@ -853,6 +872,18 @@ export class ClaudeSession implements AgentSession {
 		if (query === null) return;
 		await query.setPermissionMode(mode);
 		this.appliedPermissionMode = mode;
+	}
+
+	/**
+	 * The thinking option for a config: whether the catalog says its model thinks adaptively, and
+	 * the option launch-settings.ts makes of that and the effort.
+	 */
+	private async thinkingFor(
+		config: SessionConfig,
+	): Promise<{ adaptiveThinking: boolean | undefined; option: Options["thinking"] }> {
+		const info = await this.start.lookUpModel?.(config.model);
+		const adaptiveThinking = info?.adaptiveThinking;
+		return { adaptiveThinking, option: claudeThinkingOption(config.effort, adaptiveThinking) };
 	}
 
 	/** True when the model reports that it can change effort without a new process. */
@@ -1078,6 +1109,10 @@ export class ClaudeSession implements AgentSession {
 }
 
 /** The SDK's effort setting for a chat effort; null clears it. */
+function sameThinking(a: Options["thinking"] | null, b: Options["thinking"] | null): boolean {
+	return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
 function effortSetting(effort: Effort): "low" | "medium" | "high" | "xhigh" | "max" | null {
 	const option = claudeEffortOption(effort);
 	return typeof option === "string" ? option : null;

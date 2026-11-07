@@ -2,22 +2,30 @@ import { appError, type Result, type WorkspaceId } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import type { ChangedFile } from "./api.ts";
-import type { Container } from "./container.ts";
 import { ServicesProvider } from "./context.tsx";
 import type { ChangesSnapshot } from "./git/status.ts";
 import { useBranchCommits, useChangedFiles } from "./hooks.ts";
 
 const workspaceId = "ws-1" as WorkspaceId;
 
-afterEach(cleanup);
+let test: TestContainer;
 
-const testWrapper = (container: Container, client: QueryClient) => {
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
+
+const testWrapper = (client: QueryClient) => {
 	return ({ children }: { children: ReactNode }) => (
 		<QueryClientProvider client={client}>
-			<ServicesProvider container={container}>{children}</ServicesProvider>
+			<ServicesProvider container={test.container}>{children}</ServicesProvider>
 		</QueryClientProvider>
 	);
 };
@@ -47,10 +55,6 @@ const snapshot = (): ChangesSnapshot =>
 		behindTarget: 0,
 	}) as ChangesSnapshot;
 
-function containerWith(git: Record<string, unknown>): Container {
-	return { services: { git } } as unknown as Container;
-}
-
 describe("REV-01 useChangedFiles", () => {
 	it("loads the changed files for the scope and reports an error value", async () => {
 		const changedFiles = vi.fn(
@@ -69,13 +73,10 @@ describe("REV-01 useChangedFiles", () => {
 				],
 			}),
 		);
+		vi.spyOn(test.container.services.git, "changedFiles").mockImplementation(changedFiles);
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-		const container = containerWith({
-			changedFiles,
-			store: createStore(() => ({ byWorkspace: {} })),
-		});
 		const { result, unmount } = renderHook(() => useChangedFiles(workspaceId, { kind: "branch" }), {
-			wrapper: testWrapper(container, client),
+			wrapper: testWrapper(client),
 		});
 		await waitFor(() => expect(result.current.state).toBe("ready"));
 		expect(result.current).toMatchObject({ state: "ready", data: [{ path: "src/a.ts" }] });
@@ -88,7 +89,7 @@ describe("REV-01 useChangedFiles", () => {
 			error: appError("git_failed", "nope"),
 		});
 		const failing = renderHook(() => useChangedFiles(workspaceId, { kind: "uncommitted" }), {
-			wrapper: testWrapper(container, client),
+			wrapper: testWrapper(client),
 		});
 		await waitFor(() => expect(failing.result.current.state).toBe("error"));
 		failing.unmount();
@@ -98,15 +99,14 @@ describe("REV-01 useChangedFiles", () => {
 
 describe("REV-01 useBranchCommits", () => {
 	it("maps the polled commits to view rows", () => {
-		const store = createStore(() => ({
+		test.container.services.git.store.setState({
 			byWorkspace: {
 				[workspaceId]: { snapshot: snapshot(), error: null, refreshedAt: 0 },
 			},
-		}));
-		const container = containerWith({ store });
+		});
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		const { result } = renderHook(() => useBranchCommits(workspaceId), {
-			wrapper: testWrapper(container, client),
+			wrapper: testWrapper(client),
 		});
 		expect(result.current).toEqual({
 			state: "ready",

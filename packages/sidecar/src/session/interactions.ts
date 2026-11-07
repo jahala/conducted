@@ -27,6 +27,10 @@
  *  - reconnect: an interaction that is still open is sent again on attach, because the app may
  *    have lost it
  *  - the live state shows the open interaction and clears it when the answer arrives
+ *  - order: the request goes to the app only after the chat's events queued before it have been
+ *    sent (`flushed`, the event publisher's flush that the live state waits on too), so the app
+ *    has the tool call an approval is about before the approval, as Conductor sends them. An
+ *    interaction withdrawn or answered meanwhile is never sent
  * Our design choice: a stale or unknown answer is reported by interaction id as
  * { accepted: false, superseded: true }; there is no separate sessionGone reply, because the
  * interaction id identifies the request and a missing chat cannot answer it either.
@@ -91,6 +95,8 @@ export class SessionInteractionBroker implements InteractionBroker {
 		protected readonly deps: {
 			app: SidecarToApp;
 			liveState: LiveStateStore;
+			/** Resolves when every event of the chat queued so far has been sent. */
+			flushed(sessionId: SessionId): Promise<void>;
 			clock: Clock;
 			ids: IdSource;
 			logger: Logger;
@@ -209,6 +215,9 @@ export class SessionInteractionBroker implements InteractionBroker {
 	private async send(sessionId: SessionId, entry: Waiting): Promise<void> {
 		let answer: InteractionAnswer;
 		try {
+			// The events that led to this interaction reach the app first.
+			await this.deps.flushed(sessionId);
+			if (entry.settled || this.sessions.get(sessionId)?.active !== entry) return;
 			const result = await this.deps.app.request("requestInteraction", entry.request);
 			answer = result.ok ? result.value : unavailableAnswer(entry.interaction);
 		} catch (cause) {

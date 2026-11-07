@@ -8,52 +8,48 @@
  */
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
-import type { Container } from "./container.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
-import type { Repositories } from "./db/repositories.ts";
 import { useSetting } from "./hooks.ts";
-import { type SettingsPlatform, SettingsService, type TomlCodec } from "./services/settings.ts";
+import type { SettingsService } from "./services/settings.ts";
 
-const service = (): SettingsService =>
-	new SettingsService({
-		platform: {} as SettingsPlatform,
-		repos: {} as Pick<Repositories, "settings" | "envVars">,
-		toml: {} as TomlCodec,
-	});
+let test: TestContainer;
 
-const wrapper =
-	(settings: SettingsService) =>
-	({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={{ services: { settings } } as unknown as Container}>
-			{children}
-		</ServicesProvider>
-	);
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+afterEach(() => {
+	test.close();
+});
+
+const settings = (): SettingsService => test.container.services.settings;
+
+const wrapper = ({ children }: { children: ReactNode }) => (
+	<ServicesProvider container={test.container}>{children}</ServicesProvider>
+);
 
 describe("SET-01 useSetting", () => {
 	it("returns the registry default before settings load", () => {
-		const { result } = renderHook(() => useSetting("theme"), {
-			wrapper: wrapper(service()),
-		});
+		const { result } = renderHook(() => useSetting("theme"), { wrapper });
 		expect(result.current).toBe("system");
 	});
 
 	it("returns the stored value and follows changes to it", () => {
-		const settings = service();
+		const service = settings();
 		const { result } = renderHook(() => useSetting<boolean>("notifications_enabled"), {
-			wrapper: wrapper(settings),
+			wrapper,
 		});
 		expect(result.current).toBe(true);
 		act(() => {
-			settings.store.setState({ loaded: true, values: { notifications_enabled: false } });
+			service.store.setState({ loaded: true, values: { notifications_enabled: false } });
 		});
 		expect(result.current).toBe(false);
 	});
 
 	it("returns undefined for a key the registry does not define", () => {
-		const { result } = renderHook(() => useSetting("no_such_setting"), {
-			wrapper: wrapper(service()),
-		});
+		const { result } = renderHook(() => useSetting("no_such_setting"), { wrapper });
 		expect(result.current).toBeUndefined();
 	});
 });

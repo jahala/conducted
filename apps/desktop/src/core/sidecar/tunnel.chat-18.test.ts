@@ -48,6 +48,10 @@ const fakeTransport = (
 	const transport: SidecarTransport = {
 		ensureStarted: vi.fn(ensureStarted),
 		send: vi.fn(async (line: string) => {
+			// The Rust command adds the newline itself and refuses a line that holds one.
+			if (line.includes("\n")) {
+				return err(appError("sidecar_bad_line", "A sidecar line must not contain a newline."));
+			}
 			sent.push(line);
 			const message = JSON.parse(line) as { id?: number; method?: string };
 			if (message.method !== undefined && message.id !== undefined) {
@@ -299,6 +303,47 @@ describe("CHAT-18 tunnel", () => {
 		expect(refused).toMatchObject({ ok: false, error: { code: "rpc_invalid" } });
 		expect(h.fake.sent).toHaveLength(1);
 	});
+	it("hands the transport each message as one line without a newline", async () => {
+		const h = harness();
+		h.fake.setResponder((message) =>
+			h.fake.emitLine(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { known: false } })),
+		);
+		await h.tunnel.start();
+
+		expect(await h.tunnel.notify("setLogLevel", { level: "debug" })).toEqual(ok(undefined));
+		expect(await h.tunnel.request("getSessionStatus", { sessionId })).toEqual({
+			ok: true,
+			value: { known: false },
+		});
+		expect(h.fake.sent).toHaveLength(2);
+		for (const line of h.fake.sent) expect(line).not.toContain("\n");
+	});
+
+	it("keeps the transport's reason in the error of a message it could not send", async () => {
+		const h = harness();
+		await h.tunnel.start();
+		vi.mocked(h.fake.transport.send).mockResolvedValue(
+			err(appError("sidecar_not_running", "The sidecar is not running.")),
+		);
+
+		const notified = await h.tunnel.notify("setLogLevel", { level: "debug" });
+		expect(notified).toMatchObject({
+			ok: false,
+			error: {
+				code: "rpc_failed",
+				message: "The setLogLevel notification to the sidecar failed: The sidecar is not running.",
+			},
+		});
+		const requested = await h.tunnel.request("getSessionStatus", { sessionId });
+		expect(requested).toMatchObject({
+			ok: false,
+			error: {
+				code: "rpc_failed",
+				message: "The getSessionStatus call to the sidecar failed: The sidecar is not running.",
+			},
+		});
+	});
+
 	it("retries a failed reconnect with a growing wait and fails requests meanwhile", async () => {
 		let calls = 0;
 		const h = harness(async () => {

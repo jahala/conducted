@@ -385,9 +385,29 @@ Context: D066 held AGENT-09 back for two reasons: the SDK could not ship, and th
 Chosen: AGENT-09 is done. Showing Cursor as signed in follows the fixer's proposal in D066: the desktop sets Cursor's signed-in state from whether its own provider key for Cursor is saved, a desktop-only change. That change, and removing a deleted workspace's `cursor-sdk-store/<hash>` folder, are follow-ups under APP-16 with the hardening.
 Why: a user can install the SDK, pick Cursor and chat with it, which is what the row's title says; the two follow-ups change what the Agents page shows and what is removed, not whether Cursor runs.
 
+## D086. Conductor strings that are not wording on its screens are decided out of the parity spec (2026-11-06)
+
+Context: the parity harness (`docs/plans/parity-harness.md`) maps every entry of Conductor's inventories to our screen or to a decision. The inventories were read from the bundle by pattern, so they also hold strings no person reads as Conductor's wording: a bundled library's default that Conductor replaces (the editor's "Write something …" placeholder, which Conductor's composer never shows), code identifiers the pattern caught, and city names, which both apps use as sample workspace names.
+Chosen: such an entry is mapped to D086 with a one-line reason per entry, or through a named rule in `scripts/parity/rules.ts`. It is never used to account for a string of ours. Wording Conductor does show stays a match or a gap, however small.
+Why: a gap list that mixes these in hides the real gaps, and matching our text to a library default would let a wrong placeholder pass.
+
 ## D087. Terminal scrollback is encrypted with a Keychain key (2026-11-07)
 
 Replaces D014.
 Context: D014 stored scrollback as plain owner-only files because it was simpler, though Conductor encrypts its scrollback. That is a security downgrade with no product reason, and D020 asks us to match Conductor where internals do not fix a documented problem. The research gives Conductor's scheme: the local-storage layer keeps a 32-byte key in the macOS Keychain under `local-storage-entry-encryption-key-v1`, and encrypts each entry with AES-GCM, a random 12-byte nonce and the entry's subsystem, id and version as additional authenticated data (services-map.md 4.2.9, native-and-sidecar-map.md A2 and D1).
 Chosen: each saved scrollback entry is AES-256-GCM encrypted under that key, created in the Keychain on first use and reused after that. The entry file holds our format magic, the random nonce and the ciphertext with its tag; the terminal id is also the additional authenticated data, and the entry is never read as plain text. A plain entry left by an earlier version is encrypted in place on the first start that opens the history folder. If encryption fails, the file is left and the failure is logged, so nothing is silently dropped and a later start retries. The migration also needs the terminal row id that names the entry, so `PtySpawn` carries `terminalId` into `pty_spawn`.
 Why: D020. The user's terminal output can hold secrets, and the Keychain is where the rest of the app's secrets already live. The file format is ours; only the scheme follows the research, as the issue asks.
+
+## D089. Claude's model list comes from a throwaway Claude process (2026-11-07)
+
+Proposed by the sidecar-diff fix PR; not yet ruled on by the owner.
+Context: the sidecar differential run (docs/reports/sidecar-diff-2026-11-07.md) found that for `listModels` and `warmAgent`, our Claude runner starts a throwaway Claude process and reads the program's own list (`supportedModels()`, SIDE-14). Conductor has no sidecar call for this: its catalog is hosted, with a bundled copy. `catalog.ts` states the choice, but no decision recorded it. Since this PR, a chat's start also reads the list (`StartOptions.lookUpModel`), because the program's `supportsAdaptiveThinking` decides between adaptive thinking and a token budget (claude-runner.md 1.2).
+Chosen: the model catalog reads each agent's list from the agent program, Claude's through a throwaway metadata query of the program and keys the chat's launch names. It caches the list in memory for one hour per launch, the interval at which Conductor refreshes its hosted catalog, so a warmed chat starts without a second listing. A chat started without a warm, on an empty cache, waits for one listing process before its own.
+Why: model ids and their abilities change with each Claude release; the installed program knows them, and a table of ours would go stale. The cost is one extra short-lived process per launch per hour.
+
+## D090. The sidecar tells the app the agent's own session id in its own notification (2026-11-07)
+
+Proposed by the sidecar-diff fix PR; not yet ruled on by the owner.
+Context: the agent's own session id (Codex's thread id, an ACP session id, Claude's session id) is what a chat resumes with. In Conductor the sidecar reads it off each agent payload (`thread_id`, `session_id`, other-runners.md 3) and every payload carries it to the app. Ours translates payloads into our own format (D005), which has no such field, and the sidecar differential run listed our `agentSessionId` notification as a difference that no decision records.
+Chosen: when the agent's session id first becomes known, or changes, the session manager sends one `agentSessionId` notification (`sessionId`, `agentSessionId`). The app stores it in `sessions.agent_session_id` and passes it back as `resume` when it starts the chat's agent again.
+Why: the id is a fact about the chat, not about each message, so it travels once; the stored events stay in our neutral format; and the user sees no difference, since resume works the same way.

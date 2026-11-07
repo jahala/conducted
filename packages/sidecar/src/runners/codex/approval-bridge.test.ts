@@ -463,6 +463,7 @@ describe("AGENT-08 approval bridge", () => {
 		const broker = new SessionInteractionBroker({
 			app,
 			liveState: new LiveStateStore({ app, flushed: async () => {} }),
+			flushed: async () => {},
 			clock: { now: () => 0 },
 			ids: (() => {
 				let next = 0;

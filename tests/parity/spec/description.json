@@ -1,0 +1,1692 @@
+{
+	"inventory": "description",
+	"source": ".context/conductor-re/inventory/description.tsv",
+	"entries": [
+		{
+			"id": "description:M948441",
+			"text": "Reconnect GitHub in Settings to keep pushing changes.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 948441
+		},
+		{
+			"id": "description:M952385",
+			"text": "Your personal access token may be expired or revoked. Update it in Settings.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 952385
+		},
+		{
+			"id": "description:M1183257",
+			"text": "Ask a teammate to share it with you.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1183257
+		},
+		{
+			"id": "description:M1183350",
+			"text": "It may have been deleted, belong to another device, or belong to another organization.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1183350
+		},
+		{
+			"id": "description:M1183514",
+			"text": "It belongs to a different organization.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1183514
+		},
+		{
+			"id": "description:M1603794",
+			"text": "session presentation feed batch",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1603794
+		},
+		{
+			"id": "description:M1607472",
+			"text": "session feed tail jump",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1607472
+		},
+		{
+			"id": "description:M1623894",
+			"text": "loaded session message refresh",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1623894
+		},
+		{
+			"id": "description:M1627482",
+			"text": "session feed cursor",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1627482
+		},
+		{
+			"id": "description:M1635994",
+			"text": "detached session history compaction",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1635994
+		},
+		{
+			"id": "description:M1637432",
+			"text": "session history page",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1637432
+		},
+		{
+			"id": "description:M3096133",
+			"text": "Agents will run without it.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3096133
+		},
+		{
+			"id": "description:M3096269",
+			"text": "Agents will run without your shell env.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3096269
+		},
+		{
+			"id": "description:M3140028",
+			"text": "Failed to start authentication",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3140028
+		},
+		{
+			"id": "description:M3799728",
+			"text": "Shows changes that have not been committed.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3799728
+		},
+		{
+			"id": "description:M3847184",
+			"text": "Use the same local port as the remote port when it's free. Otherwise pick from the local port range.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3847184
+		},
+		{
+			"id": "description:M3847345",
+			"text": "Pick every local port from the local port range.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3847345
+		},
+		{
+			"id": "description:R629105",
+			"text": "Run `sudo xcodebuild -license accept` in terminal to continue",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629105
+		},
+		{
+			"id": "description:R1717331",
+			"text": "Please try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1717331
+		},
+		{
+			"id": "description:R2030149",
+			"text": "Blank Git repo",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2030149
+		},
+		{
+			"id": "description:R2030220",
+			"text": "TypeScript, Tailwind, App Router",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2030220
+		},
+		{
+			"id": "description:R2030308",
+			"text": "Agent workflow template",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2030308
+		},
+		{
+			"id": "description:R2129942",
+			"text": "Check your connection and try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2129942
+		},
+		{
+			"id": "description:R2668060",
+			"text": "Its commits aren't in this workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2668060
+		},
+		{
+			"id": "description:R2990279",
+			"text": "Try again to start a new connection.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2990279
+		},
+		{
+			"id": "description:R4406017",
+			"text": "Sync files needs to be ready before this terminal starts.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4406017
+		},
+		{
+			"id": "description:R4407497",
+			"text": "Runs against a synced copy on your Mac.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4407497
+		},
+		{
+			"id": "description:R4407633",
+			"text": "The local sync folder was removed. Sync files will recreate it when it resumes.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4407633
+		},
+		{
+			"id": "description:R4409379",
+			"text": "The workspace is not ready yet.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4409379
+		},
+		{
+			"id": "description:R4409969",
+			"text": "The local terminal cannot start until Sync files recovers.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4409969
+		},
+		{
+			"id": "description:R4410270",
+			"text": "Restart sync to recreate the local folder.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4410270
+		},
+		{
+			"id": "description:R5493845",
+			"text": "This workspace failed to start.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5493845
+		},
+		{
+			"id": "description:R7860847",
+			"text": "Standard process shape",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7860847
+		},
+		{
+			"id": "description:R7861034",
+			"text": "Represents an event",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861034
+		},
+		{
+			"id": "description:R7861197",
+			"text": "Terminal point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861197
+		},
+		{
+			"id": "description:R7861338",
+			"text": "Subprocess",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861338
+		},
+		{
+			"id": "description:R7861498",
+			"text": "Database storage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861498
+		},
+		{
+			"id": "description:R7861646",
+			"text": "Data flow diagram data store",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861646
+		},
+		{
+			"id": "description:R7861781",
+			"text": "Folder or directory",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861781
+		},
+		{
+			"id": "description:R7861906",
+			"text": "Object storage bucket",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7861906
+		},
+		{
+			"id": "description:R7862032",
+			"text": "Terminal or console window",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862032
+		},
+		{
+			"id": "description:R7862145",
+			"text": "Browser window",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862145
+		},
+		{
+			"id": "description:R7862243",
+			"text": "Person (circular head above a rounded body)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862243
+		},
+		{
+			"id": "description:R7862369",
+			"text": "Starting point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862369
+		},
+		{
+			"id": "description:R7862478",
+			"text": "Bang",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862478
+		},
+		{
+			"id": "description:R7862688",
+			"text": "Decision-making step",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862688
+		},
+		{
+			"id": "description:R7862845",
+			"text": "Preparation or condition step",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7862845
+		},
+		{
+			"id": "description:R7863003",
+			"text": "Represents input or output",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7863003
+		},
+		{
+			"id": "description:R7863190",
+			"text": "Represents output or input",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7863190
+		},
+		{
+			"id": "description:R7863385",
+			"text": "Priority action",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7863385
+		},
+		{
+			"id": "description:R7863558",
+			"text": "Represents a manual task",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7863558
+		},
+		{
+			"id": "description:R7863758",
+			"text": "Represents a stop point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7863758
+		},
+		{
+			"id": "description:R7863930",
+			"text": "Text block",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7863930
+		},
+		{
+			"id": "description:R7864037",
+			"text": "Represents a card",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7864037
+		},
+		{
+			"id": "description:R7864200",
+			"text": "Lined process shape",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7864200
+		},
+		{
+			"id": "description:R7864381",
+			"text": "Small starting point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7864381
+		},
+		{
+			"id": "description:R7864555",
+			"text": "Stop point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7864555
+		},
+		{
+			"id": "description:R7864722",
+			"text": "Fork or join in process flow",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7864722
+		},
+		{
+			"id": "description:R7864887",
+			"text": "Represents a collate operation",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7864887
+		},
+		{
+			"id": "description:R7865038",
+			"text": "Adds a comment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7865038
+		},
+		{
+			"id": "description:R7865416",
+			"text": "Communication link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7865416
+		},
+		{
+			"id": "description:R7865557",
+			"text": "Represents a document",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7865557
+		},
+		{
+			"id": "description:R7865703",
+			"text": "Represents a delay",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7865703
+		},
+		{
+			"id": "description:R7865867",
+			"text": "Direct access storage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7865867
+		},
+		{
+			"id": "description:R7866025",
+			"text": "Disk storage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866025
+		},
+		{
+			"id": "description:R7866169",
+			"text": "Represents a display",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866169
+		},
+		{
+			"id": "description:R7866334",
+			"text": "Divided process shape",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866334
+		},
+		{
+			"id": "description:R7866498",
+			"text": "Extraction process",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866498
+		},
+		{
+			"id": "description:R7866648",
+			"text": "Internal storage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866648
+		},
+		{
+			"id": "description:R7866800",
+			"text": "Junction point",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866800
+		},
+		{
+			"id": "description:R7866957",
+			"text": "Loop limit step",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7866957
+		},
+		{
+			"id": "description:R7867115",
+			"text": "Manual file operation",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7867115
+		},
+		{
+			"id": "description:R7867280",
+			"text": "Manual input step",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7867280
+		},
+		{
+			"id": "description:R7867441",
+			"text": "Multiple documents",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7867441
+		},
+		{
+			"id": "description:R7867612",
+			"text": "Multiple processes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7867612
+		},
+		{
+			"id": "description:R7867782",
+			"text": "Stored data",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7867782
+		},
+		{
+			"id": "description:R7867934",
+			"text": "Summary",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7867934
+		},
+		{
+			"id": "description:R7868081",
+			"text": "Tagged document",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7868081
+		},
+		{
+			"id": "description:R7868238",
+			"text": "Tagged process",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7868238
+		},
+		{
+			"id": "description:R7868393",
+			"text": "Paper tape",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7868393
+		},
+		{
+			"id": "description:R7868501",
+			"text": "Odd shape",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7868501
+		},
+		{
+			"id": "description:R7868651",
+			"text": "Lined document",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 7868651
+		},
+		{
+			"id": "description:R8679569",
+			"text": "Authorization failed. Try connecting the MCP server again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8679569
+		},
+		{
+			"id": "description:R8684406",
+			"text": "Try connecting the MCP server again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8684406
+		},
+		{
+			"id": "description:R8846048",
+			"text": "Close this tab and start a fresh chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846048
+		},
+		{
+			"id": "description:R8846191",
+			"text": "Restart the agent process. Useful to pick up config changes.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846191
+		},
+		{
+			"id": "description:R8846351",
+			"text": "Link a directory or workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846351
+		},
+		{
+			"id": "description:R8846498",
+			"text": "Choose Codex's personality for this session and future ones",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846498
+		},
+		{
+			"id": "description:R8846651",
+			"text": "Set the objective Codex should keep working toward",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846651
+		},
+		{
+			"id": "description:R8846805",
+			"text": "View MCP server connection status",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846805
+		},
+		{
+			"id": "description:R8846942",
+			"text": "Manage MCP servers (opens terminal)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8846942
+		},
+		{
+			"id": "description:R8847082",
+			"text": "Manage agents (opens terminal)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847082
+		},
+		{
+			"id": "description:R8847208",
+			"text": "Manage hooks (opens terminal)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847208
+		},
+		{
+			"id": "description:R8847334",
+			"text": "Manage memory (opens terminal)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847334
+		},
+		{
+			"id": "description:R8847466",
+			"text": "Manage permissions (opens terminal)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847466
+		},
+		{
+			"id": "description:R8847599",
+			"text": "Manage plugins (opens terminal)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847599
+		},
+		{
+			"id": "description:R8847728",
+			"text": "Compact the context window",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847728
+		},
+		{
+			"id": "description:R8847864",
+			"text": "Enable Ultracode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8847864
+		},
+		{
+			"id": "description:R9608898",
+			"text": "Other turns are still available.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9608898
+		},
+		{
+			"id": "description:R9949297",
+			"text": "An error occurred while opening the editor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9949297
+		},
+		{
+			"id": "description:R10062116",
+			"text": "Unarchive this workspace to view files, terminals, and browser previews.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10062116
+		},
+		{
+			"id": "description:R10065346",
+			"text": "Switch tabs or try rendering this chat again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10065346
+		},
+		{
+			"id": "description:R10584497",
+			"text": "Each agent you spin up gets an isolated workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10584497
+		},
+		{
+			"id": "description:R10584662",
+			"text": "See who's working, what needs attention, and what's planned.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10584662
+		},
+		{
+			"id": "description:R10584822",
+			"text": "Review, comment, and merge from Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10584822
+		},
+		{
+			"id": "description:R10678507",
+			"text": "Configure big terminal mode behavior (⌘⇧T).",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10678507
+		},
+		{
+			"id": "description:R10708838",
+			"text": "Routes HTTP requests through a proxy.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10708838
+		},
+		{
+			"id": "description:R10708911",
+			"text": "Routes HTTPS requests through a proxy.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10708911
+		},
+		{
+			"id": "description:R10708982",
+			"text": "Skips the proxy for matching hosts and domains.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10708982
+		},
+		{
+			"id": "description:R10709071",
+			"text": "Authenticates Claude Code with the Anthropic API.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709071
+		},
+		{
+			"id": "description:R10709163",
+			"text": "Overrides the Anthropic API base URL.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709163
+		},
+		{
+			"id": "description:R10709245",
+			"text": "Sets the Anthropic auth token used by Claude Code.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709245
+		},
+		{
+			"id": "description:R10709343",
+			"text": "Switches Claude Code to Amazon Bedrock credentials.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709343
+		},
+		{
+			"id": "description:R10709429",
+			"text": "Selects the AWS region for Bedrock requests.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709429
+		},
+		{
+			"id": "description:R10709509",
+			"text": "Uses a named AWS profile for Bedrock credentials.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709509
+		},
+		{
+			"id": "description:R10709605",
+			"text": "Switches Claude Code to Vertex AI credentials.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709605
+		},
+		{
+			"id": "description:R10709703",
+			"text": "Selects the GCP project for Vertex AI requests.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709703
+		},
+		{
+			"id": "description:R10709805",
+			"text": "Points Claude Code at a Google service account file for Vertex AI.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709805
+		},
+		{
+			"id": "description:R10709909",
+			"text": "Authenticates Codex with an API key instead of the local CLI login.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10709909
+		},
+		{
+			"id": "description:R10710015",
+			"text": "Authenticates Cursor with a Cursor API key.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10710015
+		},
+		{
+			"id": "description:R10710098",
+			"text": "Overrides the base URL used for Codex API requests.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10710098
+		},
+		{
+			"id": "description:R10710192",
+			"text": "Authenticates Codex with the Vercel AI Gateway.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10710192
+		},
+		{
+			"id": "description:R10710274",
+			"text": "Associates Codex API requests with an OpenAI organization.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10710274
+		},
+		{
+			"id": "description:R10710371",
+			"text": "Associates Codex API requests with an OpenAI project.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10710371
+		},
+		{
+			"id": "description:R10719274",
+			"text": "Configure environment variables used by Conductor and passed to agents.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10719274
+		},
+		{
+			"id": "description:R10890728",
+			"text": "Applied to workspaces you create, and refreshed when those workspaces restart. May be visible to your teammates.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10890728
+		},
+		{
+			"id": "description:R10891786",
+			"text": "Applied to workspaces when they are created, and refreshed when those workspaces restart.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10891786
+		},
+		{
+			"id": "description:R10896035",
+			"text": "Your organization doesn't have a cloud computer yet. Pick up where you left off.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10896035
+		},
+		{
+			"id": "description:R10900096",
+			"text": "People in your organization.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10900096
+		},
+		{
+			"id": "description:R10910914",
+			"text": "Couldn't load this preference.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10910914
+		},
+		{
+			"id": "description:R10921020",
+			"text": "Restart workspaces to pick up new agent credentials.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10921020
+		},
+		{
+			"id": "description:R11006930",
+			"text": "Style to use when a new chat starts with a Codex model",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11006930
+		},
+		{
+			"id": "description:R11026691",
+			"text": "Runs when a new workspace is created",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11026691
+		},
+		{
+			"id": "description:R11027029",
+			"text": "Runs before a workspace is archived",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11027029
+		},
+		{
+			"id": "description:R11028884",
+			"text": "Commands that run when workspaces are set up or archived.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11028884
+		},
+		{
+			"id": "description:R11092256",
+			"text": "Your Conductor account, billing, GitHub access, and Linear connection.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11092256
+		},
+		{
+			"id": "description:R11095863",
+			"text": "Disable features requiring external AI providers, such as AI generated chat titles, as well as custom MCP servers.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11095863
+		},
+		{
+			"id": "description:R11096491",
+			"text": "Require manual approval before agents can run tools.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11096491
+		},
+		{
+			"id": "description:R11097928",
+			"text": "Sign out of your Conductor account.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11097928
+		},
+		{
+			"id": "description:R11098377",
+			"text": "Where Conductor stores repositories and workspaces. This should be an empty directory that you don't modify directly.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11098377
+		},
+		{
+			"id": "description:R11098700",
+			"text": "Override the bundled Claude Code executable with a custom one. Leave empty to use the bundled version (recommended).",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11098700
+		},
+		{
+			"id": "description:R11099014",
+			"text": "Override the bundled Codex executable with a custom one. Leave empty to use the bundled version (recommended).",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099014
+		},
+		{
+			"id": "description:R11099331",
+			"text": "Override the bundled OpenCode executable with a custom one. Leave empty to use the bundled version (recommended).",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099331
+		},
+		{
+			"id": "description:R11099596",
+			"text": "Use your own SSH key for cloud workspace access. Leave empty to auto-generate a key.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099596
+		},
+		{
+			"id": "description:R11099855",
+			"text": "Let remote agents request approved one-shot commands on this Mac. Each command still requires your approval.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099855
+		},
+		{
+			"id": "description:R11100138",
+			"text": "Run local commands from remote agents without asking. Turned on when you choose Yes always on a local command approval.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11100138
+		},
+		{
+			"id": "description:R11101588",
+			"text": "Approximate terminal output to keep.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11101588
+		},
+		{
+			"id": "description:R11103142",
+			"text": "Internal setting. Makes Conductor behave as if internal and experimental settings are set to their defaults without changing saved values.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11103142
+		},
+		{
+			"id": "description:R11103551",
+			"text": "Turns on Claude auto mode.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11103551
+		},
+		{
+			"id": "description:R11104267",
+			"text": "Create big terminals in the center pane with ⌘⇧T",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11104267
+		},
+		{
+			"id": "description:R11104634",
+			"text": "Full-screen workspace creation",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11104634
+		},
+		{
+			"id": "description:R11105073",
+			"text": "Allow up to 10 chat and terminal tabs per workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11105073
+		},
+		{
+			"id": "description:R11105437",
+			"text": "Split the center panel and move tabs between panes.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11105437
+		},
+		{
+			"id": "description:R11105807",
+			"text": "Fork a chat, even mid-turn, from its tab's context menu or with ⌘⌥↵.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11105807
+		},
+		{
+			"id": "description:R11106268",
+			"text": "Open the preview button in an in-app browser tab (with the annotation overlay) instead of your external browser.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11106268
+		},
+		{
+			"id": "description:R11107159",
+			"text": "Show estimated agent costs for cloud workspaces.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11107159
+		},
+		{
+			"id": "description:R11107602",
+			"text": "Use the matrix-style workspace status indicator for local workspaces in Home and the sidebar.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11107602
+		},
+		{
+			"id": "description:R11108043",
+			"text": "Let Conductor add existing local repositories even when they are not connected to GitHub.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11108043
+		},
+		{
+			"id": "description:R11108561",
+			"text": "Start a repository's default action automatically after a new local workspace finishes setup.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11108561
+		},
+		{
+			"id": "description:R11108953",
+			"text": "Show the dashboard and workspace sidebar.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11108953
+		},
+		{
+			"id": "description:R11109235",
+			"text": "Enables speech-to-text in the chat composer. Press Ctrl+Shift+D to start dictating.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11109235
+		},
+		{
+			"id": "description:R11109658",
+			"text": "Shows CPU and memory usage in the workspace sidebar footer.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11109658
+		},
+		{
+			"id": "description:R11110037",
+			"text": "Poke teammates in cloud organizations, and get poked.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11110037
+		},
+		{
+			"id": "description:R11110399",
+			"text": "Use native macOS vibrancy behind the workspace sidebar. Takes effect after you restart Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11110399
+		},
+		{
+			"id": "description:R11116968",
+			"text": "Choose which key combination sends messages",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11116968
+		},
+		{
+			"id": "description:R11117839",
+			"text": "Queue messages to send after the agent finishes, or steer the agent mid-turn.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11117839
+		},
+		{
+			"id": "description:R11118583",
+			"text": "Get notified when an agent finishes working.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11118583
+		},
+		{
+			"id": "description:R11118889",
+			"text": "Get notified when a teammate mentions you.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11118889
+		},
+		{
+			"id": "description:R11119185",
+			"text": "Choose what plays when AI finishes working in a chat.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11119185
+		},
+		{
+			"id": "description:R11119794",
+			"text": "To let agents work without repeated folder permission prompts.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11119794
+		},
+		{
+			"id": "description:R11120692",
+			"text": "Convert pasted text over 5000 characters into text attachments",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11120692
+		},
+		{
+			"id": "description:R11121418",
+			"text": "Always show context usage. By default, it is only shown when more than 70% is used.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11121418
+		},
+		{
+			"id": "description:R11121812",
+			"text": "Prevent your Mac from sleeping while an agent is actively working. Shuts off below 10% battery.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11121812
+		},
+		{
+			"id": "description:R11122227",
+			"text": "Give new workspaces access to the Conductor API",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11122227
+		},
+		{
+			"id": "description:R11123526",
+			"text": "Show all tool calls expanded by default instead of collapsed.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11123526
+		},
+		{
+			"id": "description:R11124023",
+			"text": "Copy skills, slash commands, and MCP servers between Claude Code and Codex.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11124023
+		},
+		{
+			"id": "description:R11134746",
+			"text": "Name and email used for commits in cloud workspaces.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11134746
+		},
+		{
+			"id": "description:R11135262",
+			"text": "Each workspace is an isolated copy of your codebase.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11135262
+		},
+		{
+			"id": "description:R11136046",
+			"text": "Where should we push, pull, and create PRs?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11136046
+		},
+		{
+			"id": "description:R11137902",
+			"text": "Prefix for new workspace branch names.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11137902
+		},
+		{
+			"id": "description:R11140194",
+			"text": "Delete the local branch when archiving a workspace. To delete the remote branch, configure it on GitHub.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11140194
+		},
+		{
+			"id": "description:R11141608",
+			"text": "Automatically archive a workspace after merging its PR in Conductor",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11141608
+		},
+		{
+			"id": "description:R11142411",
+			"text": "Hide the merge button when any check has failed, including checks GitHub considers optional.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11142411
+		},
+		{
+			"id": "description:R11143310",
+			"text": "Instruct agents that they can use `gh stack` for PR stacking.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11143310
+		},
+		{
+			"id": "description:R11160020",
+			"text": "Turning on port forwarding in one workspace turns it off everywhere else",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11160020
+		},
+		{
+			"id": "description:R11160364",
+			"text": "How new forwards choose their local port. Existing forwards keep their ports.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11160364
+		},
+		{
+			"id": "description:R11161304",
+			"text": "Used for forwards that don't match their remote port number.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11161304
+		},
+		{
+			"id": "description:R11194342",
+			"text": "Prevent sleep while a device is connected and this Mac is plugged in.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11194342
+		},
+		{
+			"id": "description:R11206406",
+			"text": "Logs an error without failing the request.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11206406
+		},
+		{
+			"id": "description:R11206509",
+			"text": "Throws during request handling and returns a 500.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11206509
+		},
+		{
+			"id": "description:R11206628",
+			"text": "Returns immediately, then throws on async work.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11206628
+		},
+		{
+			"id": "description:R11207716",
+			"text": "Exercises the Roundhouse server directly.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11207716
+		},
+		{
+			"id": "description:R11211130",
+			"text": "Show open workspaces as browser-style tabs across the top of the window, after a fixed Home tab. Only applies in team organizations.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11211130
+		},
+		{
+			"id": "description:R11211949",
+			"text": "Set the native Claude permission mode for new local Claude sessions. Inherit preserves the existing Conductor behavior.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11211949
+		},
+		{
+			"id": "description:R11212688",
+			"text": "Set native Codex approval policy and sandbox values for new local Codex sessions. Inherit preserves the existing Conductor behavior.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11212688
+		},
+		{
+			"id": "description:R11217010",
+			"text": "The commit this build was made from.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11217010
+		},
+		{
+			"id": "description:R11217649",
+			"text": "Make Conductor behave as if internal and experimental settings are set to their defaults without changing the saved values.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11217649
+		},
+		{
+			"id": "description:R11218682",
+			"text": "Open the app log viewer for this Conductor instance.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11218682
+		},
+		{
+			"id": "description:R11219033",
+			"text": "Open the real onboarding flows the way new users see them. Anything you change inside them is saved.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11219033
+		},
+		{
+			"id": "description:R11220223",
+			"text": "Log raw terminal input/output and renderer events through the app logger.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11220223
+		},
+		{
+			"id": "description:R11221327",
+			"text": "Prevent cloud workspaces from attaching to matching repositories on this Mac.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11221327
+		},
+		{
+			"id": "description:R11221748",
+			"text": "Show requested and returned model/runtime metadata in the context hover card and turn tooltips.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11221748
+		},
+		{
+			"id": "description:R11222168",
+			"text": "Track Claude token usage totals, show them in context usage, and log turn totals to Honeycomb.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11222168
+		},
+		{
+			"id": "description:R11222570",
+			"text": "Enable extra diagnostic logs in the frontend, Rust host, and sidecar.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11222570
+		},
+		{
+			"id": "description:R11222925",
+			"text": "Route native Tauri HTTP requests through a local proxy. Applies immediately to requests made through the shared Tauri fetch wrapper. Leave blank to disable.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11222925
+		},
+		{
+			"id": "description:R11223775",
+			"text": "Persist frontend-ingested session events on disk.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11223775
+		},
+		{
+			"id": "description:R11224292",
+			"text": "Trigger a crash to validate error reporting in Sentry.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11224292
+		},
+		{
+			"id": "description:R11224993",
+			"text": "Trigger logged, request-scoped, and async errors in Roundhouse and a ready cloud workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11224993
+		},
+		{
+			"id": "description:R11225732",
+			"text": "Feature flags the app reads, with their PostHog values for the current user. Toggle to override locally.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11225732
+		},
+		{
+			"id": "description:R11262744",
+			"text": "Model for new chats",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11262744
+		},
+		{
+			"id": "description:R11263033",
+			"text": "Choose which models you want to use",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11263033
+		},
+		{
+			"id": "description:R11263695",
+			"text": "Choose which output style to apply to new chats. Existing chats do not change.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11263695
+		},
+		{
+			"id": "description:R11264866",
+			"text": "Shortcuts for quick actions, like running your dev server or test suite",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11264866
+		},
+		{
+			"id": "description:R11265371",
+			"text": "Replace Run with Spotlight for this repository so workspace changes are tested in the repository root.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11265371
+		},
+		{
+			"id": "description:R11266434",
+			"text": "Add custom instructions sent to the agent when you click the Review button.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266434
+		},
+		{
+			"id": "description:R11266620",
+			"text": "Add custom instructions sent to the agent when you click the Create PR button.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266620
+		},
+		{
+			"id": "description:R11266812",
+			"text": "Add custom instructions sent to the agent when you click the Fix errors button.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266812
+		},
+		{
+			"id": "description:R11267037",
+			"text": "Add custom instructions sent to the agent when you click the Resolve conflicts button.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11267037
+		},
+		{
+			"id": "description:R11267246",
+			"text": "Add custom instructions for generating branch names from your messages.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11267246
+		},
+		{
+			"id": "description:R11267436",
+			"text": "Add custom instructions sent to the agent at the start of every new chat.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11267436
+		},
+		{
+			"id": "description:R11295038",
+			"text": "Shown next to the repository name in the sidebar.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11295038
+		},
+		{
+			"id": "description:R11295423",
+			"text": "Do not move or delete this directory. Instead, remove the repository in Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11295423
+		},
+		{
+			"id": "description:R11296071",
+			"text": "Do not move or delete the workspace subdirectories. Instead, archive workspaces in Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11296071
+		},
+		{
+			"id": "description:R11297407",
+			"text": "Conductor will automatically copy these file paths in each new workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11297407
+		},
+		{
+			"id": "description:R11297883",
+			"text": "Remove this repository and its workspaces from Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11297883
+		},
+		{
+			"id": "description:R11298888",
+			"text": "Always show line change colors in the sidebar, even for unselected workspaces.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11298888
+		},
+		{
+			"id": "description:R11299131",
+			"text": "Use font ligatures in file editors and diffs.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299131
+		},
+		{
+			"id": "description:R11299318",
+			"text": "Switch between light, dark, and system appearance.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299318
+		},
+		{
+			"id": "description:R11299568",
+			"text": "Soften the app's colors when using the dark theme.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299568
+		},
+		{
+			"id": "description:R11299822",
+			"text": "Adjust the size of the Conductor interface.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299822
+		},
+		{
+			"id": "description:R11300055",
+			"text": "Theme optimized for color vision differences.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300055
+		},
+		{
+			"id": "description:R11300296",
+			"text": "Syntax highlighting theme for code and diffs.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300296
+		},
+		{
+			"id": "description:R11300514",
+			"text": "Font used for code and diffs.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300514
+		},
+		{
+			"id": "description:R11300742",
+			"text": "Rendering style for markdown files.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300742
+		},
+		{
+			"id": "description:R11300941",
+			"text": "Font family and size for the terminal.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300941
+		},
+		{
+			"id": "description:R11301175",
+			"text": "Theme, typography, color, and editor appearance.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301175
+		},
+		{
+			"id": "description:R11301393",
+			"text": "Configure Claude Code authentication and behavior.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301393
+		},
+		{
+			"id": "description:R11301758",
+			"text": "Configure Codex authentication and behavior.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301758
+		},
+		{
+			"id": "description:R11301958",
+			"text": "Configure Cursor authentication and behavior.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301958
+		},
+		{
+			"id": "description:R11302151",
+			"text": "Configure Claude Code, Codex, Cursor, and ACP agents.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302151
+		},
+		{
+			"id": "description:R11302430",
+			"text": "Environment variables, files, and preview URLs.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302430
+		},
+		{
+			"id": "description:R11302764",
+			"text": "Setup and archive scripts for the selected repository.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302764
+		},
+		{
+			"id": "description:R11302999",
+			"text": "Configure the experimental center-pane terminal.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302999
+		},
+		{
+			"id": "description:R11303228",
+			"text": "Manage organization membership.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11303228
+		},
+		{
+			"id": "description:R11303436",
+			"text": "Configure the organization's cloud computer.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11303436
+		},
+		{
+			"id": "description:R11303660",
+			"text": "Configure personal and shared cloud environment variables.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11303660
+		},
+		{
+			"id": "description:R11303886",
+			"text": "Custom instructions for the Review, Create PR, and Resolve conflicts buttons.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11303886
+		},
+		{
+			"id": "description:R11304246",
+			"text": "Configure MCP servers for cloud workspaces.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11304246
+		},
+		{
+			"id": "description:R11334566",
+			"text": "This server has no preview domain set up.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11334566
+		},
+		{
+			"id": "description:R11400022",
+			"text": "Agents are still running in this workspace. Archiving will stop them and end any in-progress work.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11400022
+		},
+		{
+			"id": "description:R11415794",
+			"text": "Agent tool server definitions.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11415794
+		},
+		{
+			"id": "description:R11415928",
+			"text": "Direct slash command prompt files.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11415928
+		},
+		{
+			"id": "description:R11416057",
+			"text": "Reusable skill folders with SKILL.md files.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11416057
+		},
+		{
+			"id": "description:R11533583",
+			"text": "This permanently deletes the template. Artifacts started from it keep their content.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11533583
+		},
+		{
+			"id": "description:R11539515",
+			"text": "This permanently deletes the artifact and all its versions.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11539515
+		},
+		{
+			"id": "description:R11624015",
+			"text": "Your cloud agents use your GitHub account to clone repos, push branches, and open pull requests.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11624015
+		},
+		{
+			"id": "description:R11624220",
+			"text": "Add at least one agent subscription or API key so your cloud workspaces can run agents.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11624220
+		},
+		{
+			"id": "description:R11624419",
+			"text": "Press ⌘N any time to open the dispatcher and put an agent to work.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11624419
+		},
+		{
+			"id": "description:R11632319",
+			"text": "Browser deep links must include an http:// or https:// URL.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632319
+		},
+		{
+			"id": "description:R11632466",
+			"text": "Open a workspace first, or include workspace-id in the browser deep link.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632466
+		},
+		{
+			"id": "description:R11632861",
+			"text": "Something went wrong. Try again, or open the browser from a workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11632861
+		},
+		{
+			"id": "description:R11633125",
+			"text": "The authentication callback was invalid.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11633125
+		},
+		{
+			"id": "description:R11633250",
+			"text": "The authentication token could not be validated.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11633250
+		},
+		{
+			"id": "description:R11634706",
+			"text": "Please connect your Linear account to use this feature.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634706
+		},
+		{
+			"id": "description:R11634951",
+			"text": "Please add a repository before creating workspaces from Linear issues.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11634951
+		},
+		{
+			"id": "description:R11637139",
+			"text": "Please add a repository before creating workspaces from async plans.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637139
+		},
+		{
+			"id": "description:R11637518",
+			"text": "The plan could not be decoded. It may be corrupted.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637518
+		},
+		{
+			"id": "description:R11637630",
+			"text": "The plan content is empty.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637630
+		},
+		{
+			"id": "description:R11638444",
+			"text": "Something went wrong. Try again, or open it from the sidebar.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11638444
+		},
+		{
+			"id": "description:R11652399",
+			"text": "Thanks for making Conductor better.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11652399
+		},
+		{
+			"id": "description:R11660399",
+			"text": "Thanks for your suggestion.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11660399
+		},
+		{
+			"id": "description:R11660558",
+			"text": "Please try again later.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11660558
+		},
+		{
+			"id": "description:R11709576",
+			"text": "Settings for Conductor team members. These are not visible to external users.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709576
+		},
+		{
+			"id": "description:R11709706",
+			"text": "Configure action-specific behavior and instructions for this repository.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709706
+		},
+		{
+			"id": "description:R11709825",
+			"text": "Repository paths and workspace file behavior.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709825
+		},
+		{
+			"id": "description:R11725533",
+			"text": "Runs when a new workspace is created.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11725533
+		},
+		{
+			"id": "description:R11730099",
+			"text": "For your agents. Other users will connect their own subscriptions or API keys.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11730099
+		},
+		{
+			"id": "description:R11737185",
+			"text": "Couldn't load repository settings. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11737185
+		},
+		{
+			"id": "description:R12095963",
+			"text": "The update will download automatically in the background.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12095963
+		},
+		{
+			"id": "description:R12096092",
+			"text": "You're running the latest version of Conductor.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12096092
+		},
+		{
+			"id": "description:R12119124",
+			"text": "Conductor will not work. Please report this error.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12119124
+		}
+	]
+}

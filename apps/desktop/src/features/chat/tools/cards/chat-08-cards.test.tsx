@@ -10,11 +10,11 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../../test/dom-polyfills.ts";
-import type { Container } from "../../../../core/container.ts";
 import { ServicesProvider } from "../../../../core/context.tsx";
 import type { ToolCallView } from "../../../../core/model.ts";
+import { createTestContainer, type TestContainer } from "../../../../test/container.ts";
 import { TOOL_CARDS } from "../registry.ts";
 import { AppToolCard } from "./AppToolCard.tsx";
 import { BashCard } from "./BashCard.tsx";
@@ -38,12 +38,16 @@ import { WriteCard } from "./WriteCard.tsx";
 const sessionId = "s1" as SessionId;
 
 const openUrl = vi.fn();
+let test: TestContainer;
 
-/** The web cards open addresses through the action table; `createTestContainer` needs a node environment. */
+beforeEach(() => {
+	test = createTestContainer();
+	vi.spyOn(test.container.actions.app, "openUrl").mockImplementation(openUrl);
+});
+
+/** The web cards open addresses through the action table. */
 const withActions = (ui: ReactNode) => (
-	<ServicesProvider container={{ actions: { app: { openUrl } } } as unknown as Container}>
-		{ui}
-	</ServicesProvider>
+	<ServicesProvider container={test.container}>{ui}</ServicesProvider>
 );
 
 let sequence = 0;
@@ -91,6 +95,7 @@ async function renderInRouter(ui: ReactNode) {
 afterEach(() => {
 	cleanup();
 	openUrl.mockReset();
+	test.close();
 });
 
 describe("CHAT-08 slash command card", () => {

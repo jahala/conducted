@@ -1,0 +1,527 @@
+{
+	"tauri_command:get_db_uri": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_http_proxy": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:is_cef_runtime": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:native_http_fetch_cancel": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:native_http_fetch": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:native_http_upload_cancel": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:native_http_upload_file": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:materialize_local_path_attachment": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:list_file_tree": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:list_workspace_artifacts": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:fuzzy_filter_files": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:grep_workspace": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:rpc_to_sidecar": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:send_native_notification": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_spawn": {
+		"status": "matched",
+		"ours": "pty_spawn",
+		"by": "seed"
+	},
+	"tauri_command:pty_resize": {
+		"status": "matched",
+		"ours": "pty_resize",
+		"by": "seed"
+	},
+	"tauri_command:pty_write": {
+		"status": "matched",
+		"ours": "pty_write",
+		"by": "seed"
+	},
+	"tauri_command:pty_kill": {
+		"status": "matched",
+		"ours": "pty_kill",
+		"by": "seed"
+	},
+	"tauri_command:pty_ack_bytes": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_screen_snapshot": {
+		"status": "matched",
+		"ours": "pty_screen_snapshot",
+		"by": "seed"
+	},
+	"tauri_command:pty_screen_text": {
+		"status": "matched",
+		"ours": "pty_screen_text",
+		"by": "seed"
+	},
+	"tauri_command:pty_write_mirror": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_persist_terminal_history": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_create_mirror": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_resize_mirror": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_delete_mirror": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:raw_websocket_send_text": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:raw_websocket_ping": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:raw_websocket_close": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:raw_websocket_open": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_user_shell": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:pty_load_terminal_history": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:set_remote_file_sync_foreground": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:start_remote_file_sync": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:resolve_remote_file_sync_direct_info": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:reject_remote_file_sync_direct_info": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:trigger_remote_file_sync": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:cleanup_remote_file_sync": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:stop_remote_file_sync": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_path_env": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:set_posthog_user_context": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:start_on_device_speech": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_deepgram_api_key": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:stop_on_device_speech": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:cancel_on_device_speech": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:on_device_speech_available": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_agent_binary_state": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:request_agent_binary_download": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:execute_shell_command_cancellable": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:cancel_shell_command": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:execute_shell_command": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:ensure_app_logger_started": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_app_logger_connection": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_app_logger_persistence": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_sentry_external_logging_disabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_app_logger_external_logging_disabled": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_verbose_logging": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_sidecar_internal_user": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:configure_sidecar_inspect": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:write_file_async": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:find_available_local_port": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:start_port_forward": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:stop_port_forward": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:resolve_port_forward_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:reject_port_forward_token": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:list_port_forwards": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_or_create_local_storage_encryption_key": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_keychain_setting": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:set_keychain_setting": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:delete_keychain_setting": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:submit_app_logs": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:fuzzy_match_files": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_file_metadata": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:set_dock_badge": {
+		"status": "matched",
+		"ours": "set_dock_badge",
+		"by": "seed"
+	},
+	"tauri_command:update_window_vibrancy": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:open_devtools": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_binary_verification_errors": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:write_encoded_image_to_clipboard": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:sync_agent_path_overrides": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:native_http_download_file": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_resource_usage": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:export_app_logs": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:prefetch_agent_binaries_from_updater_endpoint": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_installed_manual_update": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:check_for_updates": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:check_codex_auth": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_openai_api_key_from_env": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_anthropic_api_key_from_env": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:check_full_disk_access": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:set_agent_binary_failure_injection": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:remove_agent_binary": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:redownload_agent_binary": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:check_sidecar_http_health": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:crash_rust": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:get_sidecar_log_path": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:update_traffic_light_position": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:take_pending_notification_deep_links": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:quit_app": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:set_quit_handler_ready": {
+		"status": "matched",
+		"ours": "set_quit_handler_ready",
+		"by": "seed"
+	},
+	"tauri_command:get_db_version_warning": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:is_running_under_rosetta": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:poll_app_action": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:submit_app_action_result": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:ensure_app_actions_started": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_command:ensure_sidecar_started": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

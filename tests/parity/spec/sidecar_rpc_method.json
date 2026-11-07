@@ -1,0 +1,528 @@
+{
+	"inventory": "sidecar_rpc_method",
+	"source": ".context/conductor-re/inventory/sidecar_rpc_method.tsv",
+	"entries": [
+		{
+			"id": "sidecar_rpc_method:S193879",
+			"text": "cancel",
+			"file": "sidecar.js",
+			"offset": 193879
+		},
+		{
+			"id": "sidecar_rpc_method:S193897",
+			"text": "steer",
+			"file": "sidecar.js",
+			"offset": 193897
+		},
+		{
+			"id": "sidecar_rpc_method:S193913",
+			"text": "claudeAuth",
+			"file": "sidecar.js",
+			"offset": 193913
+		},
+		{
+			"id": "sidecar_rpc_method:S193940",
+			"text": "codexAuth",
+			"file": "sidecar.js",
+			"offset": 193940
+		},
+		{
+			"id": "sidecar_rpc_method:S193965",
+			"text": "codexCloudAuthStart",
+			"file": "sidecar.js",
+			"offset": 193965
+		},
+		{
+			"id": "sidecar_rpc_method:S194012",
+			"text": "codexCloudAuthFinish",
+			"file": "sidecar.js",
+			"offset": 194012
+		},
+		{
+			"id": "sidecar_rpc_method:S194061",
+			"text": "cursorCloudAuthStart",
+			"file": "sidecar.js",
+			"offset": 194061
+		},
+		{
+			"id": "sidecar_rpc_method:S194110",
+			"text": "cursorCloudAuthFinish",
+			"file": "sidecar.js",
+			"offset": 194110
+		},
+		{
+			"id": "sidecar_rpc_method:S194161",
+			"text": "cursorCloudAuthCancel",
+			"file": "sidecar.js",
+			"offset": 194161
+		},
+		{
+			"id": "sidecar_rpc_method:S194212",
+			"text": "fetchAvailableMCP",
+			"file": "sidecar.js",
+			"offset": 194212
+		},
+		{
+			"id": "sidecar_rpc_method:S194254",
+			"text": "fetchSlashCommands",
+			"file": "sidecar.js",
+			"offset": 194254
+		},
+		{
+			"id": "sidecar_rpc_method:S194298",
+			"text": "fetchPreWorkspaceCompletions",
+			"file": "sidecar.js",
+			"offset": 194298
+		},
+		{
+			"id": "sidecar_rpc_method:S194363",
+			"text": "contextUsage",
+			"file": "sidecar.js",
+			"offset": 194363
+		},
+		{
+			"id": "sidecar_rpc_method:S194394",
+			"text": "warmShellEnv",
+			"file": "sidecar.js",
+			"offset": 194394
+		},
+		{
+			"id": "sidecar_rpc_method:S194426",
+			"text": "warmAgent",
+			"file": "sidecar.js",
+			"offset": 194426
+		},
+		{
+			"id": "sidecar_rpc_method:S194451",
+			"text": "getShellEnv",
+			"file": "sidecar.js",
+			"offset": 194451
+		},
+		{
+			"id": "sidecar_rpc_method:S194481",
+			"text": "codexRollback",
+			"file": "sidecar.js",
+			"offset": 194481
+		},
+		{
+			"id": "sidecar_rpc_method:S194514",
+			"text": "codexCompact",
+			"file": "sidecar.js",
+			"offset": 194514
+		},
+		{
+			"id": "sidecar_rpc_method:S194545",
+			"text": "codexGoalSet",
+			"file": "sidecar.js",
+			"offset": 194545
+		},
+		{
+			"id": "sidecar_rpc_method:S194577",
+			"text": "codexGoalClear",
+			"file": "sidecar.js",
+			"offset": 194577
+		},
+		{
+			"id": "sidecar_rpc_method:S194613",
+			"text": "codexGoalGet",
+			"file": "sidecar.js",
+			"offset": 194613
+		},
+		{
+			"id": "sidecar_rpc_method:S194645",
+			"text": "getSessionStatus",
+			"file": "sidecar.js",
+			"offset": 194645
+		},
+		{
+			"id": "sidecar_rpc_method:S194685",
+			"text": "getHarnessVersions",
+			"file": "sidecar.js",
+			"offset": 194685
+		},
+		{
+			"id": "sidecar_rpc_method:S194729",
+			"text": "answerUserQuestion",
+			"file": "sidecar.js",
+			"offset": 194729
+		},
+		{
+			"id": "sidecar_rpc_method:S194773",
+			"text": "startAgentationProxy",
+			"file": "sidecar.js",
+			"offset": 194773
+		},
+		{
+			"id": "sidecar_rpc_method:S194821",
+			"text": "listLocalhostPorts",
+			"file": "sidecar.js",
+			"offset": 194821
+		},
+		{
+			"id": "sidecar_rpc_method:S194865",
+			"text": "listAcpModels",
+			"file": "sidecar.js",
+			"offset": 194865
+		},
+		{
+			"id": "sidecar_rpc_method:S194899",
+			"text": "fetchAcpSessionConfigOptions",
+			"file": "sidecar.js",
+			"offset": 194899
+		},
+		{
+			"id": "sidecar_rpc_method:S194965",
+			"text": "syncAcpSessionModel",
+			"file": "sidecar.js",
+			"offset": 194965
+		},
+		{
+			"id": "sidecar_rpc_method:S195012",
+			"text": "setAcpSessionConfigOption",
+			"file": "sidecar.js",
+			"offset": 195012
+		},
+		{
+			"id": "sidecar_rpc_method:S195072",
+			"text": "listCodexModels",
+			"file": "sidecar.js",
+			"offset": 195072
+		},
+		{
+			"id": "sidecar_rpc_method:S195110",
+			"text": "acpOneShotPrompt",
+			"file": "sidecar.js",
+			"offset": 195110
+		},
+		{
+			"id": "sidecar_rpc_method:S195151",
+			"text": "cursorOneShotPrompt",
+			"file": "sidecar.js",
+			"offset": 195151
+		},
+		{
+			"id": "sidecar_rpc_method:S195198",
+			"text": "remoteControlStart",
+			"file": "sidecar.js",
+			"offset": 195198
+		},
+		{
+			"id": "sidecar_rpc_method:S195242",
+			"text": "remoteControlStop",
+			"file": "sidecar.js",
+			"offset": 195242
+		},
+		{
+			"id": "sidecar_rpc_method:S195284",
+			"text": "remoteControlStatus",
+			"file": "sidecar.js",
+			"offset": 195284
+		},
+		{
+			"id": "sidecar_rpc_method:S195330",
+			"text": "remoteControlCreatePairingOffer",
+			"file": "sidecar.js",
+			"offset": 195330
+		},
+		{
+			"id": "sidecar_rpc_method:S195402",
+			"text": "remoteControlClearPairingOffer",
+			"file": "sidecar.js",
+			"offset": 195402
+		},
+		{
+			"id": "sidecar_rpc_method:S195472",
+			"text": "remoteControlListPairedDevices",
+			"file": "sidecar.js",
+			"offset": 195472
+		},
+		{
+			"id": "sidecar_rpc_method:S195542",
+			"text": "remoteControlRemovePairedDevice",
+			"file": "sidecar.js",
+			"offset": 195542
+		},
+		{
+			"id": "sidecar_rpc_method:S195623",
+			"text": "query",
+			"file": "sidecar.js",
+			"offset": 195623
+		},
+		{
+			"id": "sidecar_rpc_method:S195639",
+			"text": "updatePermissionMode",
+			"file": "sidecar.js",
+			"offset": 195639
+		},
+		{
+			"id": "sidecar_rpc_method:S195687",
+			"text": "setClaudeEditAutoAccept",
+			"file": "sidecar.js",
+			"offset": 195687
+		},
+		{
+			"id": "sidecar_rpc_method:S195743",
+			"text": "resetGenerator",
+			"file": "sidecar.js",
+			"offset": 195743
+		},
+		{
+			"id": "sidecar_rpc_method:S195778",
+			"text": "setVerboseLogging",
+			"file": "sidecar.js",
+			"offset": 195778
+		},
+		{
+			"id": "sidecar_rpc_method:S195820",
+			"text": "setInternalUser",
+			"file": "sidecar.js",
+			"offset": 195820
+		},
+		{
+			"id": "sidecar_rpc_method:S195858",
+			"text": "setAppLoggerUrl",
+			"file": "sidecar.js",
+			"offset": 195858
+		},
+		{
+			"id": "sidecar_rpc_method:S195897",
+			"text": "crashTest",
+			"file": "sidecar.js",
+			"offset": 195897
+		},
+		{
+			"id": "sidecar_rpc_method:S195922",
+			"text": "setPostHogDistinctId",
+			"file": "sidecar.js",
+			"offset": 195922
+		},
+		{
+			"id": "sidecar_rpc_method:S195971",
+			"text": "setExternalLoggingDisabled",
+			"file": "sidecar.js",
+			"offset": 195971
+		},
+		{
+			"id": "sidecar_rpc_method:S196032",
+			"text": "setModelCatalog",
+			"file": "sidecar.js",
+			"offset": 196032
+		},
+		{
+			"id": "sidecar_rpc_method:S196070",
+			"text": "persistedSessionEvent",
+			"file": "sidecar.js",
+			"offset": 196070
+		},
+		{
+			"id": "sidecar_rpc_method:S196120",
+			"text": "remoteControlChanges",
+			"file": "sidecar.js",
+			"offset": 196120
+		},
+		{
+			"id": "sidecar_rpc_method:S196177",
+			"text": "message",
+			"file": "sidecar.js",
+			"offset": 196177
+		},
+		{
+			"id": "sidecar_rpc_method:S196197",
+			"text": "queryError",
+			"file": "sidecar.js",
+			"offset": 196197
+		},
+		{
+			"id": "sidecar_rpc_method:S196224",
+			"text": "sessionEventNotification",
+			"file": "sidecar.js",
+			"offset": 196224
+		},
+		{
+			"id": "sidecar_rpc_method:S196267",
+			"text": "sessionStatusNotification",
+			"file": "sidecar.js",
+			"offset": 196267
+		},
+		{
+			"id": "sidecar_rpc_method:S196312",
+			"text": "sessionStateNotification",
+			"file": "sidecar.js",
+			"offset": 196312
+		},
+		{
+			"id": "sidecar_rpc_method:S196355",
+			"text": "enterPlanModeNotification",
+			"file": "sidecar.js",
+			"offset": 196355
+		},
+		{
+			"id": "sidecar_rpc_method:S196401",
+			"text": "fastModeUnavailableNotification",
+			"file": "sidecar.js",
+			"offset": 196401
+		},
+		{
+			"id": "sidecar_rpc_method:S196459",
+			"text": "checkpointCreated",
+			"file": "sidecar.js",
+			"offset": 196459
+		},
+		{
+			"id": "sidecar_rpc_method:S196500",
+			"text": "shellEnvCaptureNotification",
+			"file": "sidecar.js",
+			"offset": 196500
+		},
+		{
+			"id": "sidecar_rpc_method:S196550",
+			"text": "harnessVersionsNotification",
+			"file": "sidecar.js",
+			"offset": 196550
+		},
+		{
+			"id": "sidecar_rpc_method:S196599",
+			"text": "codexMcpConsentDeliveryFailed",
+			"file": "sidecar.js",
+			"offset": 196599
+		},
+		{
+			"id": "sidecar_rpc_method:S196667",
+			"text": "keepAwake",
+			"file": "sidecar.js",
+			"offset": 196667
+		},
+		{
+			"id": "sidecar_rpc_method:S196692",
+			"text": "remoteControlState",
+			"file": "sidecar.js",
+			"offset": 196692
+		},
+		{
+			"id": "sidecar_rpc_method:S196736",
+			"text": "remoteControlPairedDevicesChanged",
+			"file": "sidecar.js",
+			"offset": 196736
+		},
+		{
+			"id": "sidecar_rpc_method:S196821",
+			"text": "deliverSessionEvent",
+			"file": "sidecar.js",
+			"offset": 196821
+		},
+		{
+			"id": "sidecar_rpc_method:S196867",
+			"text": "exitPlanMode",
+			"file": "sidecar.js",
+			"offset": 196867
+		},
+		{
+			"id": "sidecar_rpc_method:S196899",
+			"text": "askUserQuestion",
+			"file": "sidecar.js",
+			"offset": 196899
+		},
+		{
+			"id": "sidecar_rpc_method:S196937",
+			"text": "codexMcpElicitation",
+			"file": "sidecar.js",
+			"offset": 196937
+		},
+		{
+			"id": "sidecar_rpc_method:S196983",
+			"text": "codexPermissionApproval",
+			"file": "sidecar.js",
+			"offset": 196983
+		},
+		{
+			"id": "sidecar_rpc_method:S197037",
+			"text": "toolApproval",
+			"file": "sidecar.js",
+			"offset": 197037
+		},
+		{
+			"id": "sidecar_rpc_method:S197068",
+			"text": "getDiff",
+			"file": "sidecar.js",
+			"offset": 197068
+		},
+		{
+			"id": "sidecar_rpc_method:S197089",
+			"text": "getDiffComments",
+			"file": "sidecar.js",
+			"offset": 197089
+		},
+		{
+			"id": "sidecar_rpc_method:S197127",
+			"text": "diffComment",
+			"file": "sidecar.js",
+			"offset": 197127
+		},
+		{
+			"id": "sidecar_rpc_method:S197156",
+			"text": "getTerminalOutput",
+			"file": "sidecar.js",
+			"offset": 197156
+		},
+		{
+			"id": "sidecar_rpc_method:S197198",
+			"text": "frontendRelay",
+			"file": "sidecar.js",
+			"offset": 197198
+		},
+		{
+			"id": "sidecar_rpc_method:S982464",
+			"text": "router",
+			"file": "sidecar.js",
+			"offset": 982464
+		},
+		{
+			"id": "sidecar_rpc_method:S982482",
+			"text": "plugin",
+			"file": "sidecar.js",
+			"offset": 982482
+		},
+		{
+			"id": "sidecar_rpc_method:S988506",
+			"text": "middleware",
+			"file": "sidecar.js",
+			"offset": 988506
+		},
+		{
+			"id": "sidecar_rpc_method:S3657346",
+			"text": "true",
+			"file": "sidecar.js",
+			"offset": 3657346
+		},
+		{
+			"id": "sidecar_rpc_method:S3658037",
+			"text": "false",
+			"file": "sidecar.js",
+			"offset": 3658037
+		},
+		{
+			"id": "sidecar_rpc_method:S4668000",
+			"text": "native",
+			"file": "sidecar.js",
+			"offset": 4668000
+		},
+		{
+			"id": "sidecar_rpc_method:S4914911",
+			"text": "cat",
+			"file": "sidecar.js",
+			"offset": 4914911
+		},
+		{
+			"id": "sidecar_rpc_method:S9075729",
+			"text": "dumb",
+			"file": "sidecar.js",
+			"offset": 9075729
+		},
+		{
+			"id": "sidecar_rpc_method:S11289804",
+			"text": "off",
+			"file": "sidecar.js",
+			"offset": 11289804
+		}
+	]
+}
