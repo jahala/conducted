@@ -20,7 +20,8 @@
  * (agents/AgentCard). "Use Claude Code with Chrome" sits in Claude Code's panel under a rule.
  * Our design choice: "Search providers" filters the tabs and sits at the right of the tab row; the MCP
  * servers region stays under the panel. Conductor's "Claude Code executable path" is our Advanced page's
- * program path (SET-02).
+ * program path (SET-02); the capture also shows it in the agent's panel, which needs a way for this
+ * page to check a path (a new hook or action, listed in docs/reports/parity-gaps-2026-11-07.md).
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after

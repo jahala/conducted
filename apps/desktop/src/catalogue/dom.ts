@@ -53,6 +53,25 @@ export async function click(
 	if (document.activeElement === element) element.blur();
 }
 
+/** Right-clicks like a pointer does, which opens the element's context menu. */
+export async function rightClick(
+	document: Document,
+	selector: string,
+	name: string,
+): Promise<void> {
+	const element = await find(document, selector, name);
+	const box = element.getBoundingClientRect();
+	const init = {
+		bubbles: true,
+		cancelable: true,
+		button: 2,
+		clientX: box.left + box.width / 2,
+		clientY: box.top + box.height / 2,
+	} as const;
+	element.dispatchEvent(new PointerEvent("pointerdown", { ...init, pointerType: "mouse" }));
+	element.dispatchEvent(new MouseEvent("contextmenu", init));
+}
+
 /**
  * Presses a key with nothing focused, as after clicking an empty part of the window. Returns whether
  * the app took the key (its handler prevented the default).

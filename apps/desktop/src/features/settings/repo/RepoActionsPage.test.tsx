@@ -172,7 +172,7 @@ describe("SET-07 RepoActionsPage", () => {
 			</ServicesProvider>,
 		);
 
-		fireEvent.click(await screen.findByRole("switch", { name: "Use Spotlight testing" }));
+		fireEvent.click(await screen.findByRole("switch", { name: "Use spotlight testing" }));
 
 		expect(await screen.findByText("Failed to update spotlight testing")).toBeTruthy();
 		expect(screen.queryByText("Couldn't save the actions")).toBeNull();

@@ -39,7 +39,7 @@ describe("SET-02 ShortcutRow", () => {
 			<ShortcutRow
 				command={{ ...command, shortcut: "⌘K", defaultShortcut: "⌘P" }}
 				changedFromDefault
-				conflictWith="Open the command palette"
+				conflictWith="Command palette"
 				recording={false}
 				onStartRecording={() => undefined}
 				onClear={() => undefined}
@@ -49,6 +49,6 @@ describe("SET-02 ShortcutRow", () => {
 
 		expect(screen.getByText("⌘K")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Reset shortcut for Test command" })).toBeTruthy();
-		expect(screen.getByRole("alert").textContent).toContain("Open the command palette");
+		expect(screen.getByRole("alert").textContent).toContain("Command palette");
 	});
 });

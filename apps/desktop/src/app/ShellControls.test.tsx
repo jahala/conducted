@@ -12,22 +12,30 @@ function ToggleHarness() {
 }
 
 describe("NAV-01 window controls", () => {
-	it("names the sidebar button for what a click does", async () => {
+	it("names the sidebar button as Conductor does and says whether it is open", async () => {
 		renderWithRouter(<ToggleHarness />);
 
-		const hide = await screen.findByRole("button", { name: "Hide sidebar" });
+		const hide = await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true });
 		fireEvent.click(hide);
 
-		const show = await screen.findByRole("button", { name: "Show sidebar" });
+		const show = await screen.findByRole("button", {
+			name: "Toggle left sidebar",
+			expanded: false,
+		});
 		fireEvent.click(show);
 
-		expect(await screen.findByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+		expect(
+			await screen.findByRole("button", { name: "Toggle left sidebar", expanded: true }),
+		).toBeTruthy();
 	});
 
 	it("keeps the buttons inside a drag region clear of the traffic lights", async () => {
 		renderWithRouter(<ShellControls sidebarOpen onToggleSidebar={() => {}} />);
 
-		const sidebarButton = await screen.findByRole("button", { name: "Hide sidebar" });
+		const sidebarButton = await screen.findByRole("button", {
+			name: "Toggle left sidebar",
+			expanded: true,
+		});
 		const cluster = sidebarButton.parentElement;
 
 		expect(cluster?.getAttribute("data-tauri-drag-region")).not.toBeNull();

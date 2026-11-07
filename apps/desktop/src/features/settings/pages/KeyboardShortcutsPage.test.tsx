@@ -27,19 +27,19 @@ describe("SET-02 KeyboardShortcutsPage", () => {
 
 		fireEvent.click(
 			screen.getByRole("button", {
-				name: "Change shortcut for Switch between light and dark theme",
+				name: "Change shortcut for Toggle theme (dark/light)",
 			}),
 		);
 		const recorder = screen.getByRole("button", { name: "Recording shortcut" });
 		fireEvent.keyDown(recorder, { key: "k", metaKey: true });
 
-		expect(await screen.findByText(/Already used by Open the command palette/)).toBeTruthy();
+		expect(await screen.findByText(/Already used by Command palette/)).toBeTruthy();
 		expect(set).not.toHaveBeenCalled();
 
 		fireEvent.click(screen.getByRole("button", { name: "Replace" }));
 		await waitFor(() => expect(set).toHaveBeenCalledTimes(1));
 		expect(set.mock.calls[0]?.[0]).toBe("keybinding_overrides_v1");
-		const palette = COMMANDS.find((command) => command.title === "Open the command palette");
+		const palette = COMMANDS.find((command) => command.title === "Command palette");
 		const saved = JSON.parse(String(set.mock.calls[0]?.[1])) as Record<string, string[]>;
 		expect(saved["app.toggleTheme"]).toEqual(["Cmd+K"]);
 		expect(saved[palette?.id ?? "missing"]).toEqual([]);
@@ -57,7 +57,7 @@ describe("SET-02 KeyboardShortcutsPage", () => {
 
 		fireEvent.click(
 			screen.getByRole("button", {
-				name: "Change shortcut for Switch between light and dark theme",
+				name: "Change shortcut for Toggle theme (dark/light)",
 			}),
 		);
 		fireEvent.keyDown(screen.getByRole("button", { name: "Recording shortcut" }), {
@@ -67,7 +67,7 @@ describe("SET-02 KeyboardShortcutsPage", () => {
 
 		expect(await screen.findByRole("alert")).toHaveProperty(
 			"textContent",
-			expect.stringContaining("reserved for Quit the app"),
+			expect.stringContaining("reserved for Quit"),
 		);
 		expect(set).not.toHaveBeenCalled();
 	});

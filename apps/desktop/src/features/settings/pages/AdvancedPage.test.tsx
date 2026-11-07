@@ -46,7 +46,7 @@ describe("SET-02 AdvancedPage", () => {
 		const mounted = await mountPage();
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
-		const input = screen.getByLabelText("Claude Code program path");
+		const input = screen.getByLabelText("Claude Code executable path");
 		fireEvent.change(input, { target: { value: "/definitely/not/here/claude" } });
 		fireEvent.blur(input);
 
@@ -54,6 +54,19 @@ describe("SET-02 AdvancedPage", () => {
 			await screen.findByText("No program exists at /definitely/not/here/claude."),
 		).toBeTruthy();
 		expect(set).not.toHaveBeenCalled();
+	});
+
+	it("warns under a custom program path, as Conductor does, and not under an empty one", async () => {
+		const mounted = await mountPage();
+		const warning =
+			"Changing this may cause issues if the executable is not compatible with Conducted.";
+		expect(screen.queryByText(warning)).toBeNull();
+
+		await act(async () => {
+			await mounted.container.actions.settings.set("codex_executable_path", "/opt/bin/codex");
+		});
+
+		expect(await screen.findByText(warning)).toBeTruthy();
 	});
 
 	it("re-downloads an installed agent program from the Agent binaries section", async () => {
@@ -138,7 +151,7 @@ describe("SET-02 AdvancedPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Change root path" }));
 
 		await waitFor(() =>
-			expect((screen.getByLabelText("Root folder") as HTMLInputElement).value).toBe(
+			expect((screen.getByLabelText("Conducted root directory") as HTMLInputElement).value).toBe(
 				"/tmp/new-root",
 			),
 		);

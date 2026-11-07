@@ -22,22 +22,26 @@
 	"tooltip:R5588285": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"tooltip:R5591578": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"tooltip:R5592527": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"tooltip:R5608488": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Internal details of Conductor's hosted sandbox. Our cloud is D018's.",
+		"by": "hand"
 	},
 	"tooltip:R8048058": {
 		"status": "gap",
@@ -129,8 +133,9 @@
 		"screen": "inventory-ui-text Settings and agents"
 	},
 	"tooltip:R11916650": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Routines and automations, a team feature, stay out (D004, kept by D018).",
+		"by": "hand"
 	}
 }

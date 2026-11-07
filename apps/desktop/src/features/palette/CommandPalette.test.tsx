@@ -154,6 +154,15 @@ describe("NAV-08 CommandPalette", () => {
 		);
 	});
 
+	it("opens settings when Settings is typed and Enter is pressed, with a workspace open", async () => {
+		const { input, router } = await openPalette(true);
+		fireEvent.change(input, { target: { value: "Settings" } });
+		await waitFor(() => expect(document.querySelector("[cmdk-item]")).not.toBeNull());
+		fireEvent.keyDown(input, { key: "Enter" });
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/general"));
+	});
+
 	it("says so when the apps to open a workspace in cannot be listed", async () => {
 		await openPalette(true, (container) => {
 			vi.spyOn(container.platform.opener, "installedApps").mockRejectedValue(

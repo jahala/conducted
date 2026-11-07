@@ -117,7 +117,7 @@ describe("NAV-07 getCommand and commandsByCategory", () => {
 	});
 
 	it("finds a known command", () => {
-		expect(getCommand("workspace.create")?.title).toBe("Create a workspace");
+		expect(getCommand("workspace.create")?.title).toBe("Create new workspace");
 	});
 
 	it("groups every command exactly once", () => {
@@ -315,7 +315,7 @@ describe("NAV-07 toCommandEntries", () => {
 		const create = entries.find((e) => e.id === "workspace.create");
 		expect(create).toEqual({
 			id: "workspace.create",
-			title: "Create a workspace",
+			title: "Create new workspace",
 			category: "Workspace",
 			shortcut: "⌘N",
 			defaultShortcut: "⌘N",

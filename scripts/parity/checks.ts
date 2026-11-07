@@ -14,6 +14,8 @@ import {
 	type BackendInventory,
 	type Dump,
 	type DumpState,
+	type GapClass,
+	gapClass,
 	type Inventory,
 	isUiInventory,
 	type MapEntry,
@@ -36,6 +38,10 @@ export interface Finding {
 	id?: string;
 	state?: string;
 	text?: string;
+	/** Check a's gaps: how the gap is closed (docs/plans/parity-harness.md section 2). */
+	class?: GapClass;
+	/** A feature gap's backlog row, when the map names one. */
+	backlog?: string;
 }
 
 export interface Inputs {
@@ -142,6 +148,8 @@ function entryProblems(
 				severity: "gap",
 				code: `gap-${mapped.reason}`,
 				screen: mapped.screen,
+				class: gapClass(mapped),
+				...(mapped.backlog === undefined ? {} : { backlog: mapped.backlog }),
 				detail:
 					mapped.note ??
 					(mapped.reason === "unshown" ? "no catalogue state shows it" : "not in our UI"),
@@ -218,6 +226,12 @@ export function accountedFor(text: string, removable: string[]): boolean {
 
 /** Letters and digits only: a value split over several elements still reads as one. */
 export const squash = (text: string): string => text.replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * An environment variable's name, such as ANTHROPIC_API_KEY: an identifier both apps show as it is,
+ * never wording. It needs an underscore, so a capitalised word or "TOKEN" is still read as wording.
+ */
+const ENV_NAME = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
 
 /** A piece this long can be part of a sample value; a shorter one must be all of it. */
 const SAMPLE_PIECE = 12;
@@ -317,6 +331,21 @@ export function routePath(route: string | null): string {
 	return (route ?? "").split("?")[0] ?? "";
 }
 
+/**
+ * The lines of a multi-line sample value, without Markdown's line marks: a reply's heading or list
+ * item, a file's line of code. A line counts when it has two words or code punctuation, so a
+ * one-word line (a table cell, "Done") cannot hide a label of ours.
+ */
+export function sampleLines(sample: string): string[] {
+	if (!sample.includes("\n")) return [];
+	return sample
+		.replace(/\\`/g, "`")
+		.replace(/\$\{[^}]*\}/g, "\n")
+		.split("\n")
+		.map((line) => normalise(line.replace(/^\s*(?:#{1,6}\s|[-*>]\s|\d+\.\s)/, "")))
+		.filter((line) => /\S\s+\S/.test(line) || /[{}();=]/.test(line));
+}
+
 function oursOnlyGaps(inputs: Inputs, dump: Dump): Finding[] {
 	const findings: Finding[] = [];
 	const matched = matchedTexts(inputs);
@@ -337,6 +366,7 @@ function oursOnlyGaps(inputs: Inputs, dump: Dump): Finding[] {
 				continue;
 			}
 			if (templates.some((template) => template.test(name.text))) continue;
+			if (ENV_NAME.test(name.text)) continue;
 			if (isSample(name.text, squashedSample)) continue;
 			if (accountedFor(name.text, removable)) continue;
 			findings.push({

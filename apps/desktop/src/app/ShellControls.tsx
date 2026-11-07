@@ -8,9 +8,10 @@
  * @10538807): the resource usage chip sits in the sidebar's top strip just before Go back.
  * Our design choice: the buttons float over the window at a fixed spot, so they stay in place when the sidebar
  * closes. Headers that can reach the left edge start with <TitleBarInset> to stay clear of them.
- * Must handle: back is disabled at the start of history; the toggle label says what a click does; the cluster is
- * a window drag region, the buttons themselves are not.
- * Test first: the sidebar button is named "Hide sidebar" while open and "Show sidebar" while closed.
+ * Must handle: back is disabled at the start of history; the toggle has Conductor's name, "Toggle left
+ * sidebar", and says whether the sidebar is open through aria-expanded; the cluster is a window drag
+ * region, the buttons themselves are not.
+ * Test first: the sidebar button is "Toggle left sidebar", expanded while the sidebar is open.
  */
 import { useCanGoBack, useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -33,7 +34,8 @@ export function ShellControls({ sidebarOpen, onToggleSidebar, resources }: Shell
 			className="absolute left-0 top-0 z-30 flex h-(--titlebar-height) items-center gap-0.5 pl-(--traffic-lights-clearance)"
 		>
 			<IconButton
-				label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+				label="Toggle left sidebar"
+				aria-expanded={sidebarOpen}
 				icon={<SidebarLeftIcon />}
 				onClick={onToggleSidebar}
 			/>

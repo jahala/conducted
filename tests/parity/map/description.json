@@ -10,49 +10,58 @@
 		"screen": "Unplaced"
 	},
 	"description:M1183257": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:M1183350": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:M1183514": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:M1603794": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1607472": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1623894": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1627482": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1635994": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M1637432": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A performance-trace label in code, never shown.",
+		"by": "hand"
 	},
 	"description:M3096133": {
 		"status": "gap",
@@ -72,7 +81,8 @@
 	"description:M3799728": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"screen": "inventory-ui-text Terminal, run and files",
+		"backlog": "NAV-07"
 	},
 	"description:M3847184": {
 		"status": "gap",
@@ -131,37 +141,44 @@
 	"description:R2990279": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-16"
 	},
 	"description:R4406017": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"description:R4407497": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"description:R4407633": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"description:R4409379": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"description:R4409969": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"description:R4410270": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"description:R5493845": {
 		"status": "gap",
@@ -169,264 +186,316 @@
 		"screen": "Unplaced"
 	},
 	"description:R7860847": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861034": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861197": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861338": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861498": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861646": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861781": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7861906": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862032": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862145": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862243": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862369": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862478": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862688": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7862845": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863003": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863190": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863385": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863558": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863758": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7863930": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864037": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864200": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864381": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864555": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864722": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7864887": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865038": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865416": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865557": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865703": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7865867": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866025": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866169": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866334": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866498": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866648": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866800": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7866957": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867115": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867280": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867441": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867612": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867782": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7867934": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868081": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868238": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868393": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868501": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R7868651": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A shape description from the bundled diagram library (Mermaid), not Conductor's wording.",
+		"by": "hand"
 	},
 	"description:R8679569": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05"
 	},
 	"description:R8684406": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-05"
 	},
 	"description:R8846048": {
 		"status": "gap",
@@ -535,64 +604,98 @@
 		"by": "seed"
 	},
 	"description:R10584822": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "onboarding",
+		"via": "text",
+		"role": "span",
+		"selector": "div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > ol > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10678507": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "RUN-06"
 	},
 	"description:R10708838": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10708911": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10708982": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > ul > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709071": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709163": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709245": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709343": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709429": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709509": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(3) > ul > li:nth-of-type(3) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709605": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(4) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709703": {
 		"status": "gap",
@@ -600,24 +703,36 @@
 		"screen": "inventory-controls Settings"
 	},
 	"description:R10709805": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(4) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709909": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(5) > ul > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710015": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(6) > ul > li > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710098": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(7) > ul > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710192": {
 		"status": "gap",
@@ -635,34 +750,42 @@
 		"screen": "inventory-controls Settings"
 	},
 	"description:R10719274": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"status": "matched",
+		"state": "settings-environment",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > header > p",
+		"by": "seed"
 	},
 	"description:R10890728": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R10891786": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared cloud computer, environment and members pages. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"description:R10896035": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R10900096": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R10910914": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation's shared prompts page. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"description:R10921020": {
 		"status": "gap",
@@ -676,23 +799,33 @@
 	},
 	"description:R11026691": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11027029": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11028884": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"status": "matched",
+		"state": "settings-repo-scripts",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11092256": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11095863": {
 		"status": "matched",
@@ -711,29 +844,42 @@
 		"by": "seed"
 	},
 	"description:R11097928": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11098377": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11098700": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11099014": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11099331": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11099596": {
 		"status": "gap",
@@ -751,9 +897,12 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11101588": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(6) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11103142": {
 		"status": "gap",
@@ -761,84 +910,130 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11103551": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11104267": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11104634": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(7) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11105073": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(9) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11105437": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(10) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11105807": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(11) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11106268": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(12) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11107159": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(13) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11107602": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(14) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11108043": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(8) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11108561": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(15) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11108953": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(16) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11109235": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(17) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11109658": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(18) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11110037": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11110399": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-experimental",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(19) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11116968": {
 		"status": "matched",
@@ -865,9 +1060,10 @@
 		"by": "seed"
 	},
 	"description:R11118889": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11119185": {
 		"status": "matched",
@@ -894,24 +1090,34 @@
 		"by": "seed"
 	},
 	"description:R11121418": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(9) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11121812": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(10) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11122227": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11123526": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(12) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11124023": {
 		"status": "matched",
@@ -932,164 +1138,210 @@
 		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11136046": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(6) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11137902": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11140194": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11141608": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(7) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11142411": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(11) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11143310": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(12) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11160020": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10"
 	},
 	"description:R11160364": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10"
 	},
 	"description:R11161304": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10"
 	},
 	"description:R11194342": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's phone relay page: pairing a device and the device list. Remote control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"description:R11206406": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11206509": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11206628": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11207716": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11211130": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11211949": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11212688": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11217010": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11217649": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11218682": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11219033": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11220223": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11221327": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11221748": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11222168": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11222570": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11222925": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11223775": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11224292": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11224993": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11225732": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Wording about Conductor's own service: its account, plan, billing, hosted backend or telemetry. Each needs a service we do not have.",
+		"by": "rule:conductor-service"
 	},
 	"description:R11262744": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-default-models",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11263033": {
 		"status": "gap",
@@ -1097,19 +1349,28 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11263695": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-default-models",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(9) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11264866": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11265371": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11266434": {
 		"status": "gap",
@@ -1137,64 +1398,100 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11267436": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-prompts",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11295038": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11295423": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11296071": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11297407": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11297883": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(7) > div > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11298888": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11299131": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(3) > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11299318": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11299568": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11299822": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11300055": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11300296": {
 		"status": "gap",
@@ -1203,13 +1500,19 @@
 	},
 	"description:R11300514": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11300742": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"reason": "unshown",
+		"screen": "Settings",
+		"class": "wording",
+		"by": "hand",
+		"note": "Conductor's settings-search copy of a string whose page copy ours shows; it differs by case or a full stop, so check b cannot match it."
 	},
 	"description:R11300941": {
 		"status": "gap",
@@ -1257,14 +1560,16 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11303228": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11303436": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
+		"by": "rule:team-wording"
 	},
 	"description:R11303660": {
 		"status": "gap",
@@ -1282,9 +1587,10 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11334566": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Community artifacts and templates, served by Conductor's service.",
+		"by": "hand"
 	},
 	"description:R11400022": {
 		"status": "gap",
@@ -1402,9 +1708,10 @@
 		"screen": "inventory-controls App shell"
 	},
 	"description:R11709576": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings page: staff and developer tools stay out.",
+		"by": "hand"
 	},
 	"description:R11709706": {
 		"status": "gap",
@@ -1412,19 +1719,26 @@
 		"screen": "Unplaced"
 	},
 	"description:R11709825": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-misc",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11725533": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-scripts",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"description:R11730099": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Shared agent credentials of an organisation. Team features stay out.",
+		"by": "hand"
 	},
 	"description:R11737185": {
 		"status": "gap",
@@ -1442,8 +1756,11 @@
 		"screen": "Unplaced"
 	},
 	"description:R12119124": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "startup-failed",
+		"via": "text",
+		"role": "p",
+		"selector": "div > div > div:nth-of-type(2) > section > p",
+		"by": "seed"
 	}
 }

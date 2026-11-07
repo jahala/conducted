@@ -14,6 +14,7 @@ import type { Interaction } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import type { Repo, Session, Workspace } from "../core/model.ts";
 import type { StartedApp } from "../main.tsx";
+import type { ShellScript } from "../platform/memory.ts";
 import { type Conversation, conversation } from "./conversation.ts";
 import { type ScriptedFile, type ScriptedRepo, scriptRepo } from "./git-repo.ts";
 import { type ScriptedPr, scriptGitHub } from "./github.ts";
@@ -526,6 +527,34 @@ command = "pnpm test"
 `;
 
 /** The folders the shell answers for: each workspace, and each project's own clone. */
+/** The base commit a new workspace starts from, after the fetch of its target branch. */
+const FETCHED_BASE = "3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d";
+
+/**
+ * The git a project's main clone answers while a workspace is created (services-map 3.1): the fetch
+ * of the target branch, its remote-tracking commit, and `worktree add`, which makes the new folder
+ * a clean scripted repository on its new branch. Without it, the create flow stops at the fetch.
+ */
+function scriptWorkspaceCreation(world: World, rootPath: string): ShellScript {
+	const done = (stdout = "") => ({ ok: true as const, value: { stdout, stderr: "", exitCode: 0 } });
+	return (command) => {
+		if (command.cwd !== rootPath || command.program !== "git") return null;
+		const args = command.args[0] === "-c" ? command.args.slice(2) : [...command.args];
+		const [verb] = args;
+		if (verb === "fetch" && args.some((arg) => arg.startsWith("+refs/heads/"))) return done();
+		if (verb === "rev-parse" && args.length === 2 && args[1]?.startsWith("refs/remotes/")) {
+			return done(`${FETCHED_BASE}\n`);
+		}
+		if (verb === "worktree" && args[1] === "add" && args[3] === "-b") {
+			const path = args[2] ?? "";
+			world.memory.controls.addFolder(path);
+			world.scriptShell(scriptRepo(cleanRepo(path, args[4] ?? "")));
+			return done();
+		}
+		return null;
+	};
+}
+
 function cleanRepo(path: string, branch: string): ScriptedRepo {
 	return {
 		path,
@@ -564,6 +593,7 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 	});
 	for (const repo of [cast.atlas, cast.relay]) {
 		world.scriptShell(scriptRepo(cleanRepo(repo.rootPath, repo.defaultBranch)));
+		world.scriptShell(scriptWorkspaceCreation(world, repo.rootPath));
 	}
 	for (const place of [cast.atlas.rootPath, cast.relay.rootPath])
 		world.memory.controls.addFolder(place);

@@ -720,7 +720,8 @@ export function useCommandDispatcher(
 			report: (message) => platform.app.writeLog("warn", message),
 			failed: (commandId, error) => {
 				platform.app.writeLog("warn", `Command ${commandId} failed: ${error.message}`);
-				toastError(`Couldn't ${(getCommand(commandId)?.title ?? commandId).toLowerCase()}`, error);
+				// Conductor's command titles are names, not verbs ("Settings", "Toggle zen mode").
+				toastError(`Couldn't run ${getCommand(commandId)?.title ?? commandId}`, error);
 			},
 		}),
 		[registry, services, platform],

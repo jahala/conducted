@@ -346,9 +346,12 @@
 		"screen": "Unplaced"
 	},
 	"literal:M272041": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(9) > div > div:nth-of-type(2) > button > span",
+		"by": "seed"
 	},
 	"literal:M320106": {
 		"status": "gap",
@@ -410,10 +413,10 @@
 	},
 	"literal:M346428": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-agents",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(18) > span:nth-of-type(1)",
+		"role": "tab",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"literal:M347948": {
@@ -513,39 +516,46 @@
 		"screen": "Unplaced"
 	},
 	"literal:M2127772": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128258": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128298": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128475": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128654": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2128823": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2136907": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2277052": {
 		"status": "matched",
@@ -574,14 +584,16 @@
 		"by": "seed"
 	},
 	"literal:M2375276": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2515566": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M2515610": {
 		"status": "gap",
@@ -637,32 +649,38 @@
 		"screen": "Unplaced"
 	},
 	"literal:M3777807": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Shortcuts"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M3809603": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M3809609": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:M3815626": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > h2",
 		"by": "seed"
 	},
 	"literal:M3815658": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files"
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(6) > h2",
+		"by": "seed"
 	},
 	"literal:M3833560": {
 		"status": "gap",
@@ -993,29 +1011,34 @@
 		"by": "seed"
 	},
 	"literal:R2826600": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2826688": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2826700": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2827004": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2827190": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R2972645": {
 		"status": "gap",
@@ -1095,9 +1118,10 @@
 		"screen": "Unplaced"
 	},
 	"literal:R3352892": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R3396439": {
 		"status": "matched",
@@ -1210,9 +1234,10 @@
 		"by": "seed"
 	},
 	"literal:R3897624": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R4011805": {
 		"status": "gap",
@@ -1283,9 +1308,12 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"literal:R5558634": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"status": "matched",
+		"state": "workspace-actions-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R5601737": {
 		"status": "gap",
@@ -1382,9 +1410,10 @@
 		"by": "seed"
 	},
 	"literal:R8418352": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A key name that keyboard handling compares against. Nobody reads it as wording.",
+		"by": "rule:key-name"
 	},
 	"literal:R8684721": {
 		"status": "gap",
@@ -1701,14 +1730,20 @@
 		"screen": "Unplaced"
 	},
 	"literal:R10029987": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > fieldset > button > span",
+		"by": "seed"
 	},
 	"literal:R10076553": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "workspace-actions-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R10089377": {
 		"status": "gap",
@@ -1950,26 +1985,26 @@
 	},
 	"literal:R11375161": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(40) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11375549": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(5) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(41) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11375732": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(6) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(35) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11376118": {
@@ -1977,7 +2012,7 @@
 		"state": "command-palette",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(8) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(9) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11376885": {
@@ -1985,7 +2020,7 @@
 		"state": "command-palette",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(11) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(12) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11378588": {
@@ -1998,10 +2033,10 @@
 	},
 	"literal:R11379238": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(5) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(16) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11379842": {
@@ -2022,10 +2057,10 @@
 	},
 	"literal:R11381448": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(12) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(12) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11381672": {
@@ -2046,10 +2081,10 @@
 	},
 	"literal:R11382700": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "settings-key-bindings",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(6) > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(5) > div > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R11382892": {
@@ -2116,8 +2151,11 @@
 		"screen": "Unplaced"
 	},
 	"literal:R11713772": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-repo-actions",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > ul > li:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	}
 }

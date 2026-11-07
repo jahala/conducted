@@ -19,7 +19,7 @@ describe("NAV-09 KeybindingEditor", () => {
 		);
 
 		fireEvent.click(
-			screen.getByRole("button", { name: "Change shortcut for Show or hide the left sidebar" }),
+			screen.getByRole("button", { name: "Change shortcut for Toggle left sidebar" }),
 		);
 		fireEvent.keyDown(screen.getByRole("button", { name: "Recording shortcut" }), {
 			key: "k",
@@ -37,7 +37,7 @@ describe("NAV-09 KeybindingEditor", () => {
 		);
 
 		fireEvent.click(
-			screen.getByRole("button", { name: "Change shortcut for Show or hide the left sidebar" }),
+			screen.getByRole("button", { name: "Change shortcut for Toggle left sidebar" }),
 		);
 		fireEvent.keyDown(screen.getByRole("button", { name: "Recording shortcut" }), {
 			key: "Escape",
@@ -54,16 +54,16 @@ describe("NAV-09 KeybindingEditor", () => {
 		);
 
 		fireEvent.click(
-			screen.getByRole("button", { name: "Change shortcut for Show or hide the left sidebar" }),
+			screen.getByRole("button", { name: "Change shortcut for Toggle left sidebar" }),
 		);
 		const recorder = screen.getByRole("button", { name: "Recording shortcut" });
 
 		fireEvent.keyDown(recorder, { key: "q", metaKey: true });
-		expect(screen.getByRole("alert").textContent).toContain("reserved for Quit the app");
+		expect(screen.getByRole("alert").textContent).toContain("reserved for Quit");
 		expect(onChange).not.toHaveBeenCalled();
 
 		fireEvent.keyDown(recorder, { key: ",", metaKey: true });
-		expect(screen.getByRole("alert").textContent).toContain("reserved for Open settings");
+		expect(screen.getByRole("alert").textContent).toContain("reserved for Settings");
 		expect(onChange).not.toHaveBeenCalled();
 	});
 
@@ -74,7 +74,7 @@ describe("NAV-09 KeybindingEditor", () => {
 		);
 
 		fireEvent.click(
-			screen.getByRole("button", { name: "Change shortcut for Show or hide the left sidebar" }),
+			screen.getByRole("button", { name: "Change shortcut for Toggle left sidebar" }),
 		);
 		fireEvent.keyDown(screen.getByRole("button", { name: "Recording shortcut" }), {
 			key: "Shift",
@@ -88,7 +88,7 @@ describe("NAV-09 KeybindingEditor", () => {
 		const onChange = vi.fn();
 		render(<KeybindingEditor commandId="app.quit" current="Cmd+Q" onChange={onChange} />);
 
-		expect(screen.queryByRole("button", { name: "Change shortcut for Quit the app" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Change shortcut for Quit" })).toBeNull();
 		expect(screen.getByText("⌘Q")).toBeTruthy();
 		expect(screen.getByText("Command Q")).toBeTruthy();
 	});

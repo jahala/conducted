@@ -8,9 +8,9 @@
  * and OpenAI keys and base URL; descriptions #106 to #123); ui-map.md 6 (Environment page).
  * Data: names already set in the scope come from useEnvVars (core/hooks.ts) through the page; the
  * parent AddEnvVarForm owns the name field and the keyboard.
- * Our design choice: the one-line meanings are ours, one constant list of `EnvVarSuggestion` grouped
- * by `EnvSuggestionGroup`. A secret's meaning says its value stays in the Keychain, and its row
- * carries a Secret mark. The names the agent-provider table owns (provider keys, base URLs, the
+ * The one-line meanings are Conductor's (renderApp @10708700), one constant list of `EnvVarSuggestion`
+ * grouped by `EnvSuggestionGroup`. Our four extra names (the AWS access key pair, CODEX_ACCESS_TOKEN
+ * and OPENAI_API_KEY) keep meanings of ours. A secret's row carries a Secret mark. The names the agent-provider table owns (provider keys, base URLs, the
  * Bedrock and Vertex switches) are read from it. The list stays the names Conductor suggests: a new
  * provider key in the table is not added here by itself, and the names the table lacks
  * (`ANTHROPIC_AUTH_TOKEN`, `CODEX_API_KEY`, `CODEX_ACCESS_TOKEN`, the AWS region and profile, the
@@ -65,55 +65,55 @@ const claudeRouting = (signIn: SignInId): string =>
 const ENV_VAR_SUGGESTIONS: readonly EnvVarSuggestion[] = [
 	{
 		name: "HTTP_PROXY",
-		meaning: "Send plain HTTP requests through this proxy.",
+		meaning: "Routes HTTP requests through a proxy.",
 		group: "proxy",
 		secret: false,
 	},
 	{
 		name: "HTTPS_PROXY",
-		meaning: "Send HTTPS requests through this proxy.",
+		meaning: "Routes HTTPS requests through a proxy.",
 		group: "proxy",
 		secret: false,
 	},
 	{
 		name: "NO_PROXY",
-		meaning: "Hosts that skip the proxy, separated by commas.",
+		meaning: "Skips the proxy for matching hosts and domains.",
 		group: "proxy",
 		secret: false,
 	},
 	{
 		name: tableName(keyEnvVarFor("claude", "anthropic"), "Anthropic key"),
-		meaning: "Anthropic API key, kept in the Keychain.",
+		meaning: "Authenticates Claude Code with the Anthropic API.",
 		group: "anthropic",
 		secret: true,
 	},
 	{
 		name: tableName(AGENT_PROVIDER_TABLE.claude.baseUrlEnvVar, "Claude base URL"),
-		meaning: "Send Anthropic requests to this base URL.",
+		meaning: "Overrides the Anthropic API base URL.",
 		group: "anthropic",
 		secret: false,
 	},
 	{
 		name: "ANTHROPIC_AUTH_TOKEN",
-		meaning: "Token for a custom Anthropic endpoint, kept in the Keychain.",
+		meaning: "Sets the Anthropic auth token used by Claude Code.",
 		group: "anthropic",
 		secret: true,
 	},
 	{
 		name: claudeRouting("bedrock"),
-		meaning: "Run Claude through Amazon Bedrock.",
+		meaning: "Switches Claude Code to Amazon Bedrock credentials.",
 		group: "bedrock",
 		secret: false,
 	},
 	{
 		name: "AWS_REGION",
-		meaning: "AWS region for Bedrock requests.",
+		meaning: "Selects the AWS region for Bedrock requests.",
 		group: "bedrock",
 		secret: false,
 	},
 	{
 		name: "AWS_PROFILE",
-		meaning: "AWS profile whose credentials Bedrock uses.",
+		meaning: "Uses a named AWS profile for Bedrock credentials.",
 		group: "bedrock",
 		secret: false,
 	},
@@ -131,19 +131,19 @@ const ENV_VAR_SUGGESTIONS: readonly EnvVarSuggestion[] = [
 	},
 	{
 		name: claudeRouting("vertex"),
-		meaning: "Run Claude through Google Vertex AI.",
+		meaning: "Switches Claude Code to Vertex AI credentials.",
 		group: "vertex",
 		secret: false,
 	},
 	{
 		name: tableName(keyEnvVarFor("claude", "vertex"), "Vertex credentials file"),
-		meaning: "Path to a Google service account JSON file.",
+		meaning: "Points Claude Code at a Google service account file for Vertex AI.",
 		group: "vertex",
 		secret: false,
 	},
 	{
 		name: "CODEX_API_KEY",
-		meaning: "OpenAI key that Codex uses, kept in the Keychain.",
+		meaning: "Authenticates Codex with an API key instead of the local CLI login.",
 		group: "codex",
 		secret: true,
 	},
@@ -155,7 +155,7 @@ const ENV_VAR_SUGGESTIONS: readonly EnvVarSuggestion[] = [
 	},
 	{
 		name: tableName(keyEnvVarFor("cursor", "cursor"), "Cursor key"),
-		meaning: "Cursor API key, kept in the Keychain.",
+		meaning: "Authenticates Cursor with a Cursor API key.",
 		group: "cursor",
 		secret: true,
 	},
@@ -167,7 +167,7 @@ const ENV_VAR_SUGGESTIONS: readonly EnvVarSuggestion[] = [
 	},
 	{
 		name: tableName(AGENT_PROVIDER_TABLE.codex.baseUrlEnvVar, "Codex base URL"),
-		meaning: "Send OpenAI requests to this base URL.",
+		meaning: "Overrides the base URL used for Codex API requests.",
 		group: "openai",
 		secret: false,
 	},

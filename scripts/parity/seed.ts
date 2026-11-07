@@ -4,7 +4,7 @@
  * decision, and everything else becomes a gap with its screen and whether our UI source has it.
  * Behaviour: docs/plans/parity-harness.md section 2.
  * Must handle: an entry a person checked (`"by": "hand"`, a match or a gap) or a decision is never
- * overwritten; a match that needs case folding or dropped end punctuation is `seed-unsure`, for a
+ * overwritten; a gap that stays a gap keeps its class, backlog row and note; a match that needs case folding or dropped end punctuation is `seed-unsure`, for a
  * person to check; the first state in catalogue order wins when several show the same text, and the
  * seed is the same on every run for one dump.
  *
@@ -47,6 +47,17 @@ export interface SeedInputs {
 	ourStrings: Set<string>;
 	screenFor: (file: string, offset: number | null) => string;
 	rules: RuleContext;
+}
+
+/** A gap that stays a gap keeps what a person wrote about it: its class, backlog row and note. */
+function keepSorting(previous: MapEntry | undefined, next: MapEntry): MapEntry {
+	if (previous?.status !== "gap" || next.status !== "gap") return next;
+	return {
+		...next,
+		...(previous.class === undefined ? {} : { class: previous.class }),
+		...(previous.backlog === undefined ? {} : { backlog: previous.backlog }),
+		...(previous.note === undefined ? {} : { note: previous.note }),
+	};
 }
 
 const kept = (entry: MapEntry | undefined): boolean =>
@@ -95,7 +106,7 @@ export function seedMaps(inputs: SeedInputs): Map<Inventory, MapFile> {
 				next[entry.id] = previous;
 				continue;
 			}
-			next[entry.id] = seedOne(inventory, entry, inputs, routes);
+			next[entry.id] = keepSorting(previous, seedOne(inventory, entry, inputs, routes));
 		}
 		seeded.set(inventory, next);
 	}

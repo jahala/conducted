@@ -11,11 +11,13 @@
  *
  * Usage: bun scripts/parity/dump.ts [--app <apps/desktop dir>] [--out <dir>] [--commit <label>] [state-id ...]
  */
+
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 import { CATALOGUE_NOW } from "../../apps/desktop/src/catalogue/time.ts";
 import { listStates, startServer, stopServer } from "../catalogue/shots.ts";
+import { sampleLines } from "./checks.ts";
 import { collectState, type LayoutProbe } from "./collect.ts";
 import { DATA, type Dump, type DumpState, normalise, ROOT, readJson } from "./lib.ts";
 import { sourceStrings, uiSourceFiles } from "./spec.ts";
@@ -62,7 +64,11 @@ export function sampleStrings(src: string): string[] {
 			if (entry.isDirectory()) read(path);
 			else if (/\.tsx?$/.test(entry.name)) {
 				const source = readFileSync(path, "utf8").replace(CATALOGUE_CHECKS, "");
-				for (const text of sourceStrings(source)) {
+				// A multi-line template (a sample reply, a sample file) shows line by line.
+				const lines = [...source.matchAll(/`((?:[^`\\]|\\.)*)`/g)].flatMap((match) =>
+					sampleLines(match[1] ?? ""),
+				);
+				for (const text of [...sourceStrings(source), ...lines]) {
 					const clean = normalise(text);
 					if (!/\p{L}/u.test(clean) || ours.has(clean)) continue;
 					found.add(clean);

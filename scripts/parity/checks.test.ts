@@ -7,6 +7,7 @@ import {
 	checkText,
 	type Inputs,
 	isSample,
+	sampleLines,
 	squash,
 	templatePattern,
 } from "./checks.ts";
@@ -81,6 +82,25 @@ describe("check a, map completeness", () => {
 		]);
 	});
 
+	test("a gap carries its class: unshown and missing by reason, wording when a person says so", () => {
+		const maps = new Map<Inventory, MapFile>([
+			[
+				"label",
+				{
+					"label:R1": { status: "gap", reason: "unshown", screen: "S" },
+					"label:R2": { status: "gap", reason: "missing", screen: "S", backlog: "SET-01" },
+					"label:R3": { status: "gap", reason: "missing", screen: "S", class: "wording" },
+					"label:R4": { status: "matched", state: "sidebar", by: "seed" },
+				},
+			],
+		]);
+		const found = checkCompleteness(inputs({ maps }));
+		const classOf = (id: string) => found.find((finding) => finding.id === id);
+		expect(classOf("label:R1")).toMatchObject({ code: "gap-unshown", class: "unshown" });
+		expect(classOf("label:R2")).toMatchObject({ class: "feature", backlog: "SET-01" });
+		expect(classOf("label:R3")).toMatchObject({ code: "gap-missing", class: "wording" });
+	});
+
 	test("an unknown decision, an unknown state and a map id with no spec entry are broken", () => {
 		const maps = new Map<Inventory, MapFile>([
 			[
@@ -153,6 +173,22 @@ describe("check b, text and controls both ways", () => {
 			dumpOf([failed, state("composer-model-picker", [["Search models", "text"]])]),
 		);
 		expect(findings.map((f) => [f.code, f.severity])).toEqual([["state-failed", "broken"]]);
+	});
+
+	test("a line of a multi-line sample is sample data; a one-word line is not", () => {
+		const reply = "## The test fix\n\n- One test called \\`url.parse\\`\nDone\n  try {\n${value}";
+		expect(sampleLines(reply)).toEqual(["The test fix", "One test called `url.parse`", "try {"]);
+	});
+
+	test("an environment variable's name is an identifier, not wording", () => {
+		const dump = dumpOf([
+			state("sidebar", [
+				["ANTHROPIC_API_KEY", "text"],
+				["TOKEN", "text"],
+			]),
+		]);
+		const ours = checkText(inputs(), dump).filter((finding) => finding.code === "ours-only");
+		expect(ours.map((finding) => finding.text)).toEqual(["TOKEN"]);
 	});
 
 	test("a template must match the whole name, and a sample piece needs four letters or digits", () => {

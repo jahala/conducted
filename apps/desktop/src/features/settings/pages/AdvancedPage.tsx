@@ -26,6 +26,7 @@ import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
+import { programPathCheck, programPathWarning } from "../program-path.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -41,7 +42,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 	const rootDef = getSettingDef(ROOT_PATH_KEY);
 
 	const chooseRoot = async () => {
-		const picked = await actions.app.pickFolder("Choose the root folder");
+		const picked = await actions.app.pickFolder("Select Conducted root directory");
 		if (!picked.ok) {
 			toastError("Couldn't open the folder picker", picked.error);
 			return;
@@ -54,7 +55,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 		setPendingRoot(null);
 		if (next === null) return;
 		const saved = await saves.save(ROOT_PATH_KEY, next);
-		if (saved) toast("Conductor root path changed successfully");
+		if (saved) toast("Conducted root path changed successfully");
 	};
 
 	return (
@@ -66,10 +67,10 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 		>
 			<SettingRow
 				settingKey={ROOT_PATH_KEY}
-				title={rootDef?.title ?? "Root folder"}
+				title={rootDef?.title ?? "Conducted root directory"}
 				description={
 					rootDef?.description ??
-					"Where the app keeps cloned repositories and workspaces. Use an empty folder you do not edit by hand."
+					"Where Conducted stores repositories and workspaces. This should be an empty directory that you don't modify directly."
 				}
 				scope="user"
 				disabledReason={null}
@@ -78,7 +79,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 			>
 				<div className="flex items-center gap-2">
 					<Input
-						aria-label="Root folder"
+						aria-label="Conducted root directory"
 						value={rootPath}
 						readOnly
 						className="w-64 font-mono text-xs"
@@ -93,13 +94,8 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				page="advanced"
 				focusSettingKey={focusSettingKey}
 				exclude={[ROOT_PATH_KEY]}
-				beforeSave={async (def, value) => {
-					if (!def.key.endsWith("_executable_path")) return null;
-					const text = typeof value === "string" ? value.trim() : "";
-					if (text === "") return null;
-					const exists = await platform.fs.exists(text);
-					return exists ? null : `No program exists at ${text}.`;
-				}}
+				beforeSave={programPathCheck((path) => platform.fs.exists(path))}
+				extraFor={programPathWarning}
 			/>
 
 			<AgentBinaries />

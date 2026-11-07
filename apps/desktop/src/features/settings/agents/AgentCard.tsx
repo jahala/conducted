@@ -31,7 +31,7 @@ import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { cn } from "../../../ui/cn.ts";
-import { CheckIcon, KeyIcon, TerminalIcon } from "../../../ui/icons.tsx";
+import { CheckIcon, KeyIcon, PlayIcon, TerminalIcon } from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
 
 /** Characters of a program path shown before the middle is cut. */
@@ -138,6 +138,15 @@ function FactRow({ label, children }: { label: string; children: ReactNode }) {
 	);
 }
 
+/**
+ * The command Conductor's CLI sign-in button names, "Run claude /login" (renderApp @10941717). It
+ * shows while the CLI is the sign-in in use, signed in or not, as in the owner's capture.
+ */
+const LOGIN_COMMANDS: Readonly<Partial<Record<string, string>>> = {
+	claude: "claude /login",
+	codex: "codex login",
+};
+
 export function AgentCard({
 	install,
 	signInBusy,
@@ -154,6 +163,7 @@ export function AgentCard({
 	const notInstalled = !install.installed;
 	const status = statusLine(install);
 	const usesKey = install.authMethod === "api_key";
+	const loginCommand = LOGIN_COMMANDS[install.agent];
 
 	return (
 		<section aria-label={name} className="flex flex-col gap-6">
@@ -235,7 +245,12 @@ export function AgentCard({
 
 				{notInstalled ? null : (
 					<div className="flex flex-wrap items-center gap-2">
-						{install.authenticated !== true ? (
+						{loginCommand !== undefined && !usesKey ? (
+							<Button size="sm" variant="outline" loading={signInBusy} onClick={onSignIn}>
+								<PlayIcon className="size-3" />
+								Run {loginCommand}
+							</Button>
+						) : install.authenticated !== true ? (
 							<Button size="sm" variant="outline" loading={signInBusy} onClick={onSignIn}>
 								Sign in
 							</Button>

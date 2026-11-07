@@ -86,12 +86,14 @@ describe("SET-07 RepoMiscPage", () => {
 
 		expect(screen.getByText(repo.rootPath)).toBeTruthy();
 		expect(
-			screen.getByText("Do not move or delete this folder. Remove the repository here instead."),
+			screen.getByText(
+				"Do not move or delete this directory. Instead, remove the repository in Conducted.",
+			),
 		).toBeTruthy();
 		expect(screen.getByText(new RegExp(`workspaces/${repo.name}$`))).toBeTruthy();
 		expect(
 			screen.getByText(
-				"Do not move or delete the workspace folders. Archive workspaces here instead.",
+				"Do not move or delete the workspace subdirectories. Instead, archive workspaces in Conducted.",
 			),
 		).toBeTruthy();
 		expect((screen.getByLabelText("Branch new workspaces from") as HTMLInputElement).readOnly).toBe(

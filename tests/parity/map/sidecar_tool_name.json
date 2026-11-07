@@ -35,33 +35,39 @@
 		"by": "seed"
 	},
 	"sidecar_tool_name:S1930565": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_tool_name:S1932580": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_tool_name:S1933040": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_tool_name:S1933611": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_tool_name:S1934250": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_tool_name:S1934826": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "A backend name of Conductor's hosted computers or its cloud sign-in. Our cloud is D018's.",
+		"by": "rule:hosted-computer-backend"
 	}
 }
