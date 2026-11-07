@@ -119,6 +119,9 @@ describe("NAV-05 HomeScreen", () => {
 		const region = await screen.findByRole("region", { name: "Pinned" });
 		expect(within(region).getByText("Pinned work")).toBeTruthy();
 		expect(within(region).queryByText("Plain work")).toBeNull();
+		// Conductor's Home has no title in its strip and no heading over the pinned group (D098).
+		expect(screen.queryByRole("heading", { name: "Pinned" })).toBeNull();
+		expect(screen.queryByRole("heading", { name: "Home" })).toBeNull();
 	});
 
 	it("reaches an archived workspace with the archived filter", async () => {

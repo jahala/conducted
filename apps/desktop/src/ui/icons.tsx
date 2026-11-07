@@ -60,6 +60,7 @@ export const TargetIcon = (p: P) => (
 );
 export const PauseIcon = (p: P) => <Icon d="M5.5 3.5v9M10.5 3.5v9" {...p} />;
 export const PlayIcon = (p: P) => <Icon d="M5 3.5l7 4.5-7 4.5z" {...p} />;
+export const FastForwardIcon = (p: P) => <Icon d="M2 4l6 4-6 4zM8 4l6 4-6 4z" {...p} />;
 export const SearchIcon = (p: P) => (
 	<Icon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM14 14l-3.5-3.5" {...p} />
 );
@@ -110,6 +111,22 @@ export const EyeIcon = (p: P) => (
 );
 export const CheckCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
+);
+/** A drag handle: two columns of three dots. */
+export const GripVerticalIcon = (p: P) => (
+	<Icon d="M6 4h.01M6 8h.01M6 12h.01M10 4h.01M10 8h.01M10 12h.01" strokeWidth="2" {...p} />
+);
+/** The git panel's file status marks: a rounded square with a plus, dot, minus or arrow. */
+const SQUARE =
+	"M4 2.5h8A1.5 1.5 0 0 1 13.5 4v8a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V4A1.5 1.5 0 0 1 4 2.5z";
+export const SquarePlusIcon = (p: P) => <Icon d={`${SQUARE}M8 5.5v5M5.5 8h5`} {...p} />;
+export const SquareDotIcon = (p: P) => (
+	<Icon d={`${SQUARE}M8 8.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z`} {...p} />
+);
+export const SquareMinusIcon = (p: P) => <Icon d={`${SQUARE}M5.5 8h5`} {...p} />;
+export const SquareArrowRightIcon = (p: P) => <Icon d={`${SQUARE}M5.5 8h5M8.5 6l2 2-2 2`} {...p} />;
+export const AlertCircleIcon = (p: P) => (
+	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5.5V8M8 10.5h.01" {...p} />
 );
 export const XCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM6 6l4 4M10 6l-4 4" {...p} />

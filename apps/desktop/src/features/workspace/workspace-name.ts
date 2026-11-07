@@ -1,24 +1,54 @@
 /**
  * @feature NAV-10 Workspace name
- * Owns: the one rule for the name a workspace is shown by, in the sidebar row, the header and the
- * rename dialog.
+ * Owns: the one rule for the name a workspace is shown by (the sidebar row, Home, the palette, the
+ * dashboard, the rename dialog), and the branch as the header shows it.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
- * directory), 3.1 (the header shows the same name).
- * Our design choice: a blank value counts as missing, so a workspace with an empty branch falls
- * through to its folder name everywhere instead of showing an empty title in one place.
- * Must handle: a name of only spaces (skipped); every field missing but the folder name.
- * Test first: a user-set name wins over the PR title, the branch and the folder; a blank branch
- * falls back to the folder name.
+ * directory). Conductor's rule (main bundle, the workspace display name): the user's name, then the
+ * PR title, then the branch unless it is a placeholder or the target branch, else the folder name.
+ * A branch or folder name loses the user's branch prefix, its dashes and underscores become spaces
+ * and its first letter is capitalised ("sam/fix-login-redirect" is "Fix login redirect"). The header
+ * shows the branch without the prefix and otherwise as it is ("fix-login-redirect").
+ * Our design choice: a blank value counts as missing. The target branch may carry its remote
+ * ("origin/main"), so a branch equal to its last part counts as the target branch.
+ * Must handle: a name of only spaces (skipped); a branch with another user's prefix (kept, as
+ * Conductor strips only the current prefix); no prefix ("").
+ * Test first: a user-set name wins over the PR title, the branch and the folder; a branch is shown
+ * without the user's prefix, in words.
  */
 import type { Workspace } from "../../core/model.ts";
 
+/** The branch without the user's branch prefix, as the workspace header shows it. */
+export function branchWithoutPrefix(branch: string, branchPrefix: string): string {
+	return branchPrefix !== "" && branch.startsWith(branchPrefix)
+		? branch.slice(branchPrefix.length)
+		: branch;
+}
+
+function inWords(name: string, branchPrefix: string): string {
+	const words = branchWithoutPrefix(name, branchPrefix).replace(/[-_]/g, " ");
+	return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function isTargetBranch(branch: string, targetBranch: string): boolean {
+	return branch === targetBranch || targetBranch.endsWith(`/${branch}`);
+}
+
 export function workspaceName(
-	workspace: Pick<Workspace, "displayName" | "prTitle" | "branch" | "directoryName">,
+	workspace: Pick<
+		Workspace,
+		"displayName" | "prTitle" | "branch" | "branchIsPlaceholder" | "targetBranch" | "directoryName"
+	>,
+	branchPrefix: string,
 ): string {
-	return (
-		workspace.displayName?.trim() ||
-		workspace.prTitle?.trim() ||
-		workspace.branch?.trim() ||
-		workspace.directoryName
-	);
+	const own = workspace.displayName?.trim() || workspace.prTitle?.trim();
+	if (own) return own;
+	const branch = workspace.branch.trim();
+	if (
+		branch !== "" &&
+		!workspace.branchIsPlaceholder &&
+		!isTargetBranch(branch, workspace.targetBranch)
+	) {
+		return inWords(branch, branchPrefix);
+	}
+	return inWords(workspace.directoryName, branchPrefix);
 }

@@ -6,7 +6,7 @@
  * "Add a project to get started.").
  * Our design choice: poster logic. One large line, one sentence, one primary button. "Open project" is the
  * screen's single primary action; "Open GitHub project" and "Quick start" sit beside it as secondary
- * actions, so the sidebar's own "Add a project" button is secondary too.
+ * actions. The sidebar's empty list shows only Conductor's sentence.
  * Must handle: the action's data call fails or is not built (the button area alone shows <NotBuiltYet>, the
  * rest of the screen stays); the window is narrow (text wraps, stays centred); the frame keeps a drag strip so
  * the empty window can still be moved.

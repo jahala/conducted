@@ -26,6 +26,8 @@ vi.mock("../composer/draft-sources.ts", () => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
+	useSetting: () => "",
+	useGitHubAccess: () => ({ state: "loading" }),
 	useSessions: () => hooks.sessions,
 	useGitState: () => hooks.git,
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
@@ -37,9 +39,6 @@ vi.mock("../../core/hooks.ts", () => ({
 const { WorkspaceRow, relativeTime, compactCount } = await import("./WorkspaceRow.tsx");
 
 afterEach(cleanup);
-
-// The workspace helper below was last active at 1_000.
-const NOW = 1_000;
 
 function repo(): Repo {
 	return {
@@ -71,7 +70,6 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 		kanbanStatus: "in_progress",
 		port: 0,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,
@@ -116,25 +114,21 @@ describe("NAV-03 WorkspaceRow", () => {
 				repo={repo()}
 				selected={false}
 				shortcutIndex={null}
-				now={NOW}
 			/>,
 		);
 		expect(await screen.findByText("Fix the login flow")).toBeTruthy();
 	});
 
-	it("shows the unread dot when a chat has something unread", async () => {
+	// Conductor marks an unread workspace by its name's weight and draws no dot (renderApp's row).
+	it("marks an unread workspace by its name's weight, with no dot", async () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [{ unreadCount: 2 } as Session] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
-		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
+		const name = await screen.findByText("Fix login");
+		expect(name.className).toContain("font-semibold");
+		expect(screen.queryByRole("img", { name: "Unread" })).toBeNull();
 	});
 
 	// Conductor's row is one line: the status words sit on the status icon, not on a second line
@@ -142,16 +136,14 @@ describe("NAV-03 WorkspaceRow", () => {
 	it("names the status on its icon, with no second line, and marks the selected row", async () => {
 		hooks.status = { kind: "agent", label: "needs_permission" };
 		hooks.sessions = { state: "ready", data: [] };
-		renderRow(
-			<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} now={NOW} />,
-		);
+		renderRow(<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} />);
 		const icon = await screen.findByRole("img", { name: "Need permission" });
 		expect(icon.getAttribute("title")).toBe("Need permission");
 		expect(screen.queryByText("Need permission")).toBeNull();
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
 		// Conductor marks the selected row by its fill only; the name keeps weight 450 (@10427352).
-		const name = within(link).getByText("fix-login");
+		const name = within(link).getByText("Fix login");
 		expect(name.className).toContain("font-book");
 		expect(name.className).not.toContain("font-medium");
 	});
@@ -160,13 +152,7 @@ describe("NAV-03 WorkspaceRow", () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={2}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={2} />,
 		);
 		expect(await screen.findByText("⌃2")).toBeTruthy();
 		expect(screen.queryByText("⌘2")).toBeNull();
@@ -185,7 +171,6 @@ describe("NAV-03 row padding", () => {
 					repo={repo()}
 					selected={false}
 					shortcutIndex={null}
-					now={NOW}
 					indent={indent}
 				/>,
 			);
@@ -202,13 +187,7 @@ describe("NAV-03 row status", () => {
 		hooks.status = { kind: "agent", label: "working" };
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
 		expect(await screen.findByRole("img", { name: "Working…" })).toBeTruthy();
 		expect(screen.queryByText("Working…")).toBeNull();
@@ -217,19 +196,14 @@ describe("NAV-03 row status", () => {
 });
 
 describe("NAV-03 row time", () => {
-	it("shows how long ago from the time the list gives it", async () => {
+	// This test asserted "5m" on a row with no line counts. Conductor's row shows no time (D098).
+	it("shows no time on a row without line counts", async () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={1_000 + 5 * 60_000}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
-		expect((await screen.findByRole("link")).querySelector("time")?.textContent).toBe("5m");
+		expect((await screen.findByRole("link")).querySelector("time")).toBeNull();
 	});
 });
 
@@ -260,13 +234,7 @@ describe("NAV-03 row line counts", () => {
 		hooks.sessions = { state: "ready", data: [] };
 		hooks.git = { state: "ready", data: { linesAdded: 4_100, linesRemoved: 3 } };
 		renderRow(
-			<WorkspaceRow
-				workspace={workspace()}
-				repo={repo()}
-				selected={false}
-				shortcutIndex={null}
-				now={NOW}
-			/>,
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
 		expect(await screen.findByText("+4.1k")).toBeTruthy();
 		expect(screen.getByText("-3")).toBeTruthy();

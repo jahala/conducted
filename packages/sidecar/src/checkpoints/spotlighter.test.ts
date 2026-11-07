@@ -109,7 +109,8 @@ function writeWatcher(): string {
 		path,
 		`#!/usr/bin/env bash
 set -u
-printf '%s\\n' "$@" > "$CONDUCTED_TEST_WATCHEXEC_ARGS"
+printf '%s\\n' "$@" > "$CONDUCTED_TEST_WATCHEXEC_ARGS.tmp"
+mv "$CONDUCTED_TEST_WATCHEXEC_ARGS.tmp" "$CONDUCTED_TEST_WATCHEXEC_ARGS"
 command=()
 seen_separator=0
 for arg in "$@"; do

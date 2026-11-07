@@ -13,6 +13,7 @@ import { openTestDatabase } from "../../test/sqlite.ts";
 import { REPOS_SQL, repoToParams } from "./repos.ts";
 import { createRepositories, type Repositories } from "./repositories.ts";
 import { SESSIONS_SQL, sessionToParams } from "./sessions.ts";
+import { SETTINGS_SQL } from "./settings.ts";
 import {
 	agentEvent,
 	sampleAttachment,
@@ -107,9 +108,6 @@ describe("DATA-01 workspaces repository", () => {
 		expect(await repositories.workspaces.listByRepo(sampleRepo.id)).toMatchObject({ ok: true });
 		expect(must(await repositories.workspaces.listByRepo(sampleRepo.id)).length).toBe(2);
 		expect(must(await repositories.workspaces.listByState("ready"))).toHaveLength(1);
-		expect(must(await repositories.workspaces.getByPath(sampleWorkspace.path))).toEqual(
-			must(await repositories.workspaces.get(sampleWorkspace.id)),
-		);
 		expect(must(await repositories.workspaces.get("missing" as WorkspaceId))).toBeNull();
 	});
 
@@ -229,7 +227,6 @@ describe("DATA-01 workspaces repository", () => {
 		must(await repositories.workspaces.setBranch(workspaceId, "jahala/renamed", false));
 		must(await repositories.workspaces.setTargetBranch(workspaceId, "upstream/dev"));
 		must(await repositories.workspaces.setPinned(workspaceId, null));
-		must(await repositories.workspaces.setNotes(workspaceId, "note"));
 		must(await repositories.workspaces.setLinkedPaths(workspaceId, ["/a", "/b"]));
 		must(
 			await repositories.workspaces.setPullRequest(workspaceId, {
@@ -246,14 +243,11 @@ describe("DATA-01 workspaces repository", () => {
 			branchIsPlaceholder: false,
 			targetBranch: "upstream/dev",
 			pinnedAt: null,
-			notes: "note",
 			linkedPaths: ["/a", "/b"],
 			prNumber: 9,
 			prTitle: "Title",
 			prDescription: "Body",
 		});
-		must(await repositories.workspaces.clearPullRequest(workspaceId));
-		expect(must(await repositories.workspaces.get(workspaceId))?.prNumber).toBeNull();
 	});
 
 	it("reports a missing workspace from every setter", async () => {
@@ -265,7 +259,6 @@ describe("DATA-01 workspaces repository", () => {
 			() => repositories.workspaces.setBranch(missing, "b", false),
 			() => repositories.workspaces.setTargetBranch(missing, "origin/main"),
 			() => repositories.workspaces.setPinned(missing, null),
-			() => repositories.workspaces.setNotes(missing, "note"),
 			() => repositories.workspaces.setLinkedPaths(missing, []),
 			() =>
 				repositories.workspaces.setPullRequest(missing, {
@@ -273,7 +266,6 @@ describe("DATA-01 workspaces repository", () => {
 					title: null,
 					description: null,
 				}),
-			() => repositories.workspaces.clearPullRequest(missing),
 			() => repositories.workspaces.setSetupLogPath(missing, null),
 		];
 		for (const write of writes) {
@@ -343,13 +335,11 @@ describe("DATA-01 repos repository", () => {
 				icon: null,
 			}),
 		);
-		must(await repositories.repos.setName(second.id, "Renamed"));
 		must(await repositories.repos.setDefaultBranch(second.id, "develop"));
 		must(await repositories.repos.setRemoteUrl(second.id, "git@example.com:x/y.git"));
 		must(await repositories.repos.setIcon(second.id, "star"));
 		must(await repositories.repos.setHidden(second.id, true));
 		expect(must(await repositories.repos.get(second.id))).toMatchObject({
-			name: "Renamed",
 			defaultBranch: "develop",
 			remoteUrl: "git@example.com:x/y.git",
 			icon: "star",
@@ -370,7 +360,6 @@ describe("DATA-01 repos repository: missing rows and settings", () => {
 		seedRepo();
 		const missing = "missing" as RepoId;
 		const writes = [
-			() => repositories.repos.setName(missing, "Name"),
 			() => repositories.repos.setDefaultBranch(missing, "main"),
 			() => repositories.repos.setRemoteUrl(missing, null),
 			() => repositories.repos.setIcon(missing, null),
@@ -442,18 +431,13 @@ describe("DATA-01 sessions repository", () => {
 		must(await repositories.sessions.incrementUnread(sessionId));
 		must(await repositories.sessions.incrementUnread(sessionId));
 		expect(must(await repositories.sessions.get(sessionId))?.unreadCount).toBe(5);
-		expect(must(await repositories.sessions.unreadByWorkspace())).toEqual([
-			{ workspaceId, unread: 5 },
-		]);
 
 		now = 3000;
 		must(await repositories.sessions.recordUserMessage(sessionId, 3000));
 		must(await repositories.sessions.recordUserMessage(sessionId, 2000));
 		expect(must(await repositories.sessions.get(sessionId))?.lastUserMessageAt).toBe(4000);
 
-		expect(must(await repositories.sessions.clearWorkspaceUnread(workspaceId))).toEqual([
-			sessionId,
-		]);
+		must(await repositories.sessions.clearUnread(sessionId));
 		expect(must(await repositories.sessions.get(sessionId))?.unreadCount).toBe(0);
 	});
 
@@ -488,10 +472,11 @@ describe("DATA-01 live state and events repositories", () => {
 			ok: true,
 			value: false,
 		});
-		expect(must(await repositories.liveStates.get(sessionId))?.liveState.status).toBe("working");
+		const live = must(await repositories.liveStates.listAll()).find(
+			(row) => row.sessionId === sessionId,
+		);
+		expect(live?.liveState.status).toBe("working");
 		expect(must(await repositories.liveStates.listAll())).toHaveLength(1);
-		must(await repositories.liveStates.delete(sessionId));
-		expect(must(await repositories.liveStates.get(sessionId))).toBeNull();
 	});
 
 	it("appends each event once and reads it in position order", async () => {
@@ -517,13 +502,11 @@ describe("DATA-01 live state and events repositories", () => {
 		expect(must(await repositories.sessionEvents.listByTurn(sessionId, first.turnId))).toHaveLength(
 			2,
 		);
-		expect(must(await repositories.sessionEvents.listUserMessages(sessionId))).toHaveLength(1);
 		expect(
-			must(await repositories.sessionEvents.getByEventId(sessionId, second.eventId))?.event,
-		).toEqual(second);
-		expect(
-			must(await repositories.sessionEvents.getByEventId(sessionId, "nope" as never)),
-		).toBeNull();
+			must(await repositories.sessionEvents.listFrom(sessionId, 0, 10)).filter(
+				(event) => event.event.type === "user_message",
+			),
+		).toHaveLength(1);
 	});
 
 	it("marks a turn reverted without deleting it and finds only live interrupted turns", async () => {
@@ -553,7 +536,7 @@ describe("DATA-01 live state and events repositories", () => {
 });
 
 describe("DATA-01 queued messages repository", () => {
-	it("queues in order, claims each row once and then returns nothing", async () => {
+	it("queues in order", async () => {
 		seedAll();
 		const first = must(
 			await repositories.queuedMessages.enqueue({
@@ -568,11 +551,9 @@ describe("DATA-01 queued messages repository", () => {
 			}),
 		);
 		expect([first.position, second.position]).toEqual([1, 2]);
-		expect(must(await repositories.queuedMessages.count(sessionId))).toBe(2);
-		now = 2000;
-		expect(must(await repositories.queuedMessages.claimNext(sessionId))?.id).toBe("q1");
-		expect(must(await repositories.queuedMessages.claimNext(sessionId))?.id).toBe("q2");
-		expect(must(await repositories.queuedMessages.claimNext(sessionId))).toBeNull();
+		expect(
+			must(await repositories.queuedMessages.listBySession(sessionId)).map((row) => row.id),
+		).toEqual(["q1", "q2"]);
 	});
 
 	it("does not edit or cancel a sending message, and reorders the rest", async () => {
@@ -589,7 +570,7 @@ describe("DATA-01 queued messages repository", () => {
 				id: "q2" as MessageId,
 			}),
 		);
-		must(await repositories.queuedMessages.claimNext(sessionId));
+		must(await repositories.queuedMessages.setState("q1" as MessageId, "waiting", "sending", null));
 		expect(
 			await repositories.queuedMessages.setContent("q1" as MessageId, {
 				text: "new",
@@ -659,14 +640,15 @@ describe("DATA-01 attachments repository", () => {
 		expect(
 			await repositories.attachments.attachDrafts(sessionId, "msg-1", [own.id, other.id]),
 		).toEqual({ ok: true, value: 1 });
-		expect(must(await repositories.attachments.listByMessage("msg-1"))).toHaveLength(1);
+		expect(
+			raw.prepare("SELECT id FROM attachments WHERE message_id = ?").all("msg-1"),
+		).toHaveLength(1);
 		expect(must(await repositories.attachments.listDraftsBySession(sessionId))).toHaveLength(0);
 
 		expect(await repositories.attachments.restoreToDraft("msg-1")).toEqual({ ok: true, value: 1 });
 		expect(must(await repositories.attachments.removeDraft(sessionId, own.id))).toBe(
 			sampleAttachment.path,
 		);
-		expect(must(await repositories.attachments.remove(own.id))).toBeNull();
 	});
 });
 
@@ -695,7 +677,7 @@ describe("DATA-01 diff comments repository", () => {
 			outdated: false,
 			createdAt: 2000,
 		});
-		expect(must(await repositories.diffComments.countOpen(workspaceId))).toBe(1);
+		expect(must(await repositories.diffComments.listByWorkspace(workspaceId))).toHaveLength(1);
 
 		must(
 			await repositories.diffComments.setBody(added.id, "Renamed", {
@@ -710,7 +692,6 @@ describe("DATA-01 diff comments repository", () => {
 			suggestionBaseCode: "let x = 1;",
 			resolved: true,
 		});
-		expect(must(await repositories.diffComments.countOpen(workspaceId))).toBe(0);
 		must(await repositories.diffComments.delete(added.id));
 		expect(must(await repositories.diffComments.get(added.id))).toBeNull();
 	});
@@ -746,11 +727,8 @@ describe("DATA-01 missing rows and ordering in smaller repositories", () => {
 					suggestionBaseCode: null,
 				}),
 			() => repositories.diffComments.setResolved("missing" as never, true),
-			() => repositories.diffComments.setOutdated("missing" as never, true),
-			() => repositories.diffComments.setRemoteUrl("missing" as never, null),
 			() => repositories.sections.rename("missing" as never, "n", null),
 			() => repositories.sections.setCollapsed("missing" as never, true),
-			() => repositories.terminals.setTitle("missing" as never, "t"),
 			() => repositories.attachments.setPath("missing" as never, "/p"),
 		];
 		for (const write of writes) {
@@ -773,7 +751,7 @@ describe("DATA-01 missing rows and ordering in smaller repositories", () => {
 	it("keeps an error only on a failed queued message", async () => {
 		seedAll();
 		must(await repositories.queuedMessages.enqueue({ ...sampleQueued, id: "q1" as MessageId }));
-		must(await repositories.queuedMessages.claimNext(sessionId));
+		must(await repositories.queuedMessages.setState("q1" as MessageId, "waiting", "sending", null));
 		must(
 			await repositories.queuedMessages.setState("q1" as MessageId, "sending", "failed", "offline"),
 		);
@@ -864,13 +842,19 @@ describe("DATA-01 settings, environment and favorite models repositories", () =>
 		now = 3000;
 		const saved = must(await repositories.settings.set("theme", { dark: true }));
 		expect(saved).toEqual({ key: "theme", value: { dark: true }, updatedAt: 3000 });
-		expect(must(await repositories.settings.get("theme"))).toEqual(saved);
+		expect(must(await repositories.settings.list()).find((row) => row.key === "theme")).toEqual(
+			saved,
+		);
 		now = 4000;
 		must(await repositories.settings.set("theme", "light"));
-		expect(must(await repositories.settings.get("theme"))?.value).toBe("light");
+		expect(must(await repositories.settings.list()).find((row) => row.key === "theme")?.value).toBe(
+			"light",
+		);
 		must(await repositories.settings.set("repo:r1:branch", "main"));
-		expect(must(await repositories.settings.listByPrefix("repo:r1:"))).toHaveLength(1);
-		expect(await repositories.settings.deleteByPrefix("repo:r1:")).toEqual({ ok: true, value: 1 });
+		expect(
+			must(await repositories.settings.list()).filter((row) => row.key.startsWith("repo:r1:")),
+		).toHaveLength(1);
+		expect(raw.prepare(SETTINGS_SQL.deleteByPrefix).run(bind(["repo:r1:"])).changes).toBe(1);
 		expect(await repositories.settings.set("bad", undefined)).toMatchObject({ ok: false });
 	});
 
@@ -905,7 +889,11 @@ describe("DATA-01 settings, environment and favorite models repositories", () =>
 		]);
 		expect(must(await repositories.envVars.listByRepo(sampleRepo.id))).toHaveLength(1);
 		expect(must(await repositories.envVars.listForRepo(sampleRepo.id))).toHaveLength(2);
-		expect(must(await repositories.envVars.get("TOKEN", "global", null))?.keychainRef).toBe("kc-2");
+		expect(
+			must(await repositories.envVars.listForRepo(sampleRepo.id)).find(
+				(row) => row.name === "TOKEN" && row.scope === "global",
+			)?.keychainRef,
+		).toBe("kc-2");
 		must(await repositories.envVars.delete("TOKEN", "global", null));
 		expect(must(await repositories.envVars.listGlobal())).toHaveLength(0);
 		expect(
@@ -941,14 +929,6 @@ describe("DATA-01 settings, environment and favorite models repositories", () =>
 			second.id,
 			first.id,
 		]);
-		expect(
-			await repositories.favoriteModels.setConfig(first.id, {
-				agent: "claude",
-				model: "opus",
-				effort: "low",
-				fastMode: false,
-			}),
-		).toEqual({ ok: true, value: true });
 		must(await repositories.favoriteModels.delete(second.id));
 		expect(must(await repositories.favoriteModels.list())).toHaveLength(1);
 	});
@@ -966,12 +946,9 @@ describe("DATA-01 terminals repository", () => {
 				title: "dev server",
 				cwd: "/code/workspaces/oslo",
 				startCommand: "bun dev",
-				cols: 100,
-				rows: 30,
 			}),
 		);
 		expect(started).toMatchObject({ id: "generated-1", startedAt: 2000, endedAt: null });
-		expect(must(await repositories.terminals.listActive())).toHaveLength(1);
 		expect(await repositories.terminals.markEnded(started.id, 3000, 0)).toEqual({
 			ok: true,
 			value: true,
@@ -984,9 +961,6 @@ describe("DATA-01 terminals repository", () => {
 			endedAt: 3000,
 			exitCode: 0,
 		});
-		expect(must(await repositories.terminals.listActive())).toHaveLength(0);
-		must(await repositories.terminals.setTitle(started.id, "server"));
-		expect(must(await repositories.terminals.get(started.id))?.title).toBe("server");
 	});
 
 	it("saves a terminal's screen state and reads it back, and clears it", async () => {
@@ -999,8 +973,6 @@ describe("DATA-01 terminals repository", () => {
 				title: "zsh",
 				cwd: "/code/workspaces/oslo",
 				startCommand: null,
-				cols: 80,
-				rows: 24,
 			}),
 		);
 		expect(await repositories.terminals.getScreenState(started.id)).toEqual(ok(null));

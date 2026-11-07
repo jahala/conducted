@@ -2,8 +2,8 @@
  * @feature PR-04 Checks list
  * Owns: the Checks section. One row per check run with its state, name, duration and a button to
  * show its log, plus "Re-run" (tooltip "Re-run failed checks") and "Fix errors", small and quiet
- * beside the section's name, as in Conductor (renderApp @2272067). The failed, pending and total
- * counts beside "Checks" are ours.
+ * beside the section's name, as in Conductor (renderApp @2272067). There are no counts beside
+ * "Checks", as in Conductor (D098).
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (states Running, Failed, Cancelled, Pending,
  * Waiting; "Re-run failed checks"); services-map.md 3.7.2 (duplicate runs are collapsed to the
  * newest) and 3.7.5 (re-run per distinct workflow run).
@@ -51,14 +51,7 @@ export function ChecksList({
 	return (
 		<section aria-label="Checks" className="border-b border-separator">
 			<div className="flex items-center justify-between gap-2 px-[18px] py-2">
-				<h3 className="text-xs font-medium text-fg-muted">
-					Checks
-					{summary.total === 0 ? null : (
-						<span className="ml-1.5 font-normal text-fg-subtle">
-							{summary.failed} failed · {summary.pending} pending · {summary.total} total
-						</span>
-					)}
-				</h3>
+				<h3 className="text-xs font-medium text-fg-muted">Checks</h3>
 				{hasFailures ? (
 					<div className="flex items-center gap-1">
 						<Tooltip content="Re-run failed checks">

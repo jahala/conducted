@@ -5,8 +5,8 @@
  * 7.2 (designed empty states).
  * Structure: Conductor's one compact block for both cases, "No matching workspaces" and the action.
  * Our design choice: when filters are active the one action is "Clear filters"; with no workspaces at all it is
- * "Create a workspace", the page's single primary action. The hint line under the title in each case is
- * ours (listed for the owner in the gap report).
+ * "Create a workspace", the page's single primary action. There is no hint line under the title, as in
+ * Conductor (D098).
  * Must handle: filters active and no results; no workspaces and no filters; the archived filter on with no
  * archived workspaces ("Nothing is archived").
  * Test first: with filtersActive the button reads "Clear filters" and calls onClearFilters.
@@ -33,21 +33,13 @@ export function HomeEmptyState({
 				{filtersActive && archivedOnly ? "Nothing is archived" : "No matching workspaces"}
 			</h2>
 			{filtersActive ? (
-				<>
-					<p className="text-xs">Try a different search, or clear the filters to see everything.</p>
-					<Button variant="outline" size="sm" onClick={onClearFilters}>
-						Clear filters
-					</Button>
-				</>
+				<Button variant="outline" size="sm" onClick={onClearFilters}>
+					Clear filters
+				</Button>
 			) : (
-				<>
-					<p className="text-xs">
-						Create one to give a task its own copy of the code and its own chats.
-					</p>
-					<Link to="/create" className={buttonClassName({ variant: "default", size: "sm" })}>
-						Create a workspace
-					</Link>
-				</>
+				<Link to="/create" className={buttonClassName({ variant: "default", size: "sm" })}>
+					Create a workspace
+				</Link>
 			)}
 		</div>
 	);

@@ -2,7 +2,8 @@
  * @feature NAV-03 Sidebar
  * Owns: tests that the live sidebar, over the real container and the app's providers, shows the
  * navigation rows, the no-projects empty state, and Help and Settings in its footer.
- * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
+ * Test first: renders the navigation rows and, with no projects, the "Add a project to get started."
+ * empty state.
  */
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -43,7 +44,7 @@ describe("NAV-03 Sidebar", () => {
 		expect(await screen.findByRole("link", { name: /Home/ })).toBeTruthy();
 		expect(screen.getByRole("link", { name: /Create/ })).toBeTruthy();
 		expect(screen.getByRole("button", { name: /Search/ })).toBeTruthy();
-		expect(await screen.findByText("No projects yet")).toBeTruthy();
+		expect(await screen.findByText("Add a project to get started.")).toBeTruthy();
 	});
 
 	it("makes Settings reachable from the footer", async () => {

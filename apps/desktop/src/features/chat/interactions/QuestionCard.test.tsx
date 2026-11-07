@@ -44,7 +44,8 @@ const renderCard = (questions: Question[]) =>
 		<QuestionCard sessionId={sessionId} interactionId={interactionId} questions={questions} />,
 	);
 
-const card = () => screen.getByRole("group", { name: "Agent question" });
+// The card is named by its question, as Conductor's has no group name of its own (D098).
+const card = () => screen.getByRole("group");
 
 beforeEach(() => {
 	state.overrides = {};
@@ -224,7 +225,8 @@ describe("CHAT-10 question card", () => {
 		expect(document.activeElement).toBe(cancel);
 	});
 
-	it("shows an option preview when the option is picked", () => {
+	// This test asserted our option preview. Conductor's card shows none (D098).
+	it("shows no option preview when the option is picked, and names the card by its question", () => {
 		renderCard([
 			question({
 				question: "Which layout?",
@@ -233,7 +235,8 @@ describe("CHAT-10 question card", () => {
 		]);
 
 		fireEvent.click(screen.getByRole("radio", { name: "Split" }));
-		expect(screen.getByText("left | right")).toBeTruthy();
+		expect(screen.queryByText("left | right")).toBeNull();
+		expect(screen.getByRole("group", { name: "Which layout?" })).toBeTruthy();
 	});
 
 	it("draws Conductor's rows: a number, the label and the choice state", () => {

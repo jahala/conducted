@@ -1,11 +1,13 @@
 /**
  * @feature COMP-07 Composer plus menu
- * Owns: the '+' menu: add attachment, link issue, link workspaces, plan mode and add snippet.
+ * Owns: the '+' menu: add attachment, link issue, link workspaces, plan mode, Remote Control and add
+ * snippet.
  * Behaviour: ui-map.md 3.5 ('+' menu: 'Link issue' (Cmd+I), 'Link workspaces', 'Plan mode' or 'Exit
  * plan mode' (Shift+Tab), 'Add attachment' (Cmd+U), 'Add snippet' (Cmd+;)), 5.2 (the composer's '+'
  * popover), 5.4 (the shortcuts come from the command registry).
  * Our design choice: Add attachment opens the file picker through the attachments controller.
- * Plan mode runs the same command as the toolbar chip. Link workspaces (WS-07) opens the linked
+ * Plan mode runs the chat.togglePlanMode command, as Shift+Tab does. Remote Control (RC-02, ours) is a
+ * per-chat mode like plan mode, so its switch sits after it, on Claude chats only (D098). Link workspaces (WS-07) opens the linked
  * directories dialog, and Link issue (PR-09) the Link issue dialog. Add snippet opens the create
  * form, and Insert snippet opens the picker with the same Cmd+; binding as the shortcut (COMP-09).
  * Must handle: a cancelled picker; a chat whose agent has no plan mode (the command explains); the
@@ -26,8 +28,9 @@ import {
 	PlusIcon,
 	SearchIcon,
 } from "../../ui/icons.tsx";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
+import { Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { toast } from "../../ui/Toast.tsx";
+import { useRemoteControlSwitch } from "../chat/RemoteControlButton.tsx";
 import { PLAN_MODE_UNAVAILABLE } from "./mentions/SlashCommandExtension.ts";
 
 export interface PlusMenuProps {
@@ -60,6 +63,7 @@ export function PlusMenu({
 	const issueShortcut = useLiveShortcut("chat.linkIssue");
 	const planShortcut = useLiveShortcut("chat.togglePlanMode");
 	const snippetShortcut = useLiveShortcut("chat.insertSnippet");
+	const remoteControl = useRemoteControlSwitch(sessionId);
 
 	return (
 		<Menu>
@@ -94,6 +98,14 @@ export function PlusMenu({
 				>
 					{planMode ? "Exit plan mode" : "Plan mode"}
 				</MenuItem>
+				{remoteControl.offered ? (
+					<MenuCheckboxItem
+						checked={remoteControl.on}
+						onCheckedChange={(checked) => remoteControl.setOn(checked)}
+					>
+						Remote Control
+					</MenuCheckboxItem>
+				) : null}
 				<MenuItem icon={<FileTextIcon />} onSelect={onAddSnippet}>
 					Add snippet
 				</MenuItem>

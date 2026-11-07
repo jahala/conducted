@@ -4,8 +4,10 @@
  * @feature SET-12 Claude settings and Codex config editors
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature SET-08 Sync agent configs between Claude Code and Codex
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
- * agent, the slash commands of a workspace and of a repository before a workspace exists, starting
+ * host and agent (a cloud workspace keeps its own, CLOUD-04), the slash commands of a workspace
+ * and of a repository before a workspace exists, starting
  * a sign-in flow, an agent's provider keys and the providers an agent can use, the preview and
  * copy of MCP servers, slash commands and skills from one agent's config to the other's, and the
  * text of an agent's own settings file for its editor on the Agents page.
@@ -56,6 +58,7 @@
  * one agent, answered out of order, leave the newer answer; two config-sync previews for one
  * source, answered out of order, leave the newer answer; two config reads for one agent, answered
  * out of order, leave the newer answer.
+ * CLOUD-04 test first: keeps a cloud workspace's model list apart from the local one.
  */
 import {
 	AGENT_PROVIDER_TABLE,
@@ -63,6 +66,7 @@ import {
 	type AgentLaunch,
 	type AgentLogin,
 	type AgentProvider,
+	type Host,
 	type ModelInfo,
 	type SlashCommand,
 	signInEnvVars,
@@ -73,6 +77,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
+import { withoutProviderKeys } from "../cloud/router.ts";
 import type { ProviderKey, ProviderKeyRepository } from "../db/provider-keys.ts";
 import type {
 	AgentConfigFile,
@@ -104,6 +109,17 @@ export interface AgentCatalogState {
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
 	acpAgent === undefined ? agent : `${agent}:${acpAgent}`;
 
+/**
+ * The store key of one agent's model list on one host. A cloud workspace keeps its own list,
+ * because the sandbox's agent programs are its own (services-map 5B.5.1, CLOUD-04).
+ */
+export function modelsKey(host: Host | undefined, agent: AgentKind, acpAgent?: AcpAgent): string {
+	const key = agentKey(agent, acpAgent);
+	return host === undefined || host.kind === "local"
+		? key
+		: `cloud:${host.url}:${host.vmId}#${key}`;
+}
+
 /** The store key of a repository's saved list, before any workspace exists (SIDE-22). */
 export const preWorkspaceSlashKey = (
 	repoRootPath: string,
@@ -123,6 +139,8 @@ export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent
 
 export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
+	/** The sidecar of one cloud workspace, through the Worker's relay (CLOUD-03). */
+	cloudClientFor?: (host: Extract<Host, { kind: "cloud" }>) => Pick<SidecarClient, "request">;
 	/** Workspace folder of a chat, for slash commands. */
 	workspacePathOf: (sessionId: SessionId) => Promise<Result<string>>;
 	/**
@@ -518,22 +536,39 @@ export class AgentCatalogService {
 		return ok(undefined);
 	}
 
-	async loadModels(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<ModelInfo[]>> {
-		const key = agentKey(agent, acpAgent);
+	async loadModels(
+		agent: AgentKind,
+		acpAgent?: AcpAgent,
+		host?: Host,
+	): Promise<Result<ModelInfo[]>> {
+		const key = modelsKey(host, agent, acpAgent);
 		const request = (this.#modelRequests.get(key) ?? 0) + 1;
 		this.#modelRequests.set(key, request);
 		this.store.setState((state) => ({
 			models: { ...state.models, [key]: { state: "loading" } },
 		}));
 		const launch = await this.#deps.launchFor(agent, acpAgent, null);
-		const result = launch.ok
-			? await this.#deps.sidecar.request(
-					"listModels",
-					acpAgent === undefined
-						? { agent, launch: launch.value }
-						: { agent, acpAgent, launch: launch.value },
-				)
-			: launch;
+		// A cloud workspace's list comes from its own sidecar, through the Worker (CLOUD-03).
+		const client = host?.kind === "cloud" ? this.#deps.cloudClientFor?.(host) : this.#deps.sidecar;
+		const result = !launch.ok
+			? launch
+			: client === undefined
+				? err(
+						appError(
+							"model_list_failed",
+							"This cloud workspace's model list is not available yet.",
+						),
+					)
+				: await (() => {
+						const params =
+							acpAgent === undefined
+								? { agent, launch: launch.value }
+								: { agent, acpAgent, launch: launch.value };
+						// A cloud list must carry no real provider key into the sandbox (CLOUD-05).
+						const sent =
+							host?.kind === "cloud" ? withoutProviderKeys("listModels", params) : params;
+						return client.request("listModels", sent as typeof params);
+					})();
 		if (this.#modelRequests.get(key) !== request) {
 			return result.ok ? ok(result.value.models) : err(result.error);
 		}

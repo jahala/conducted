@@ -11,7 +11,12 @@ import { checkDataModel, renderTables } from "./data-model.ts";
 import { checkDocs } from "./docs.ts";
 import { compareHeaderClaims, countHeaderClaims, findHeaderClaims } from "./header-claims.ts";
 import { placeholdersIn } from "./lib.ts";
+import { checkLifetimeLimits } from "./lifetime-limits.ts";
+import { checkLocalStorageKeys } from "./local-storage-keys.ts";
 import { checkMigrations } from "./migrations.ts";
+import { checkModuleState } from "./module-state.ts";
+import { checkSettingsKeys } from "./settings-keys.ts";
+import { checkSidecarEdges } from "./sidecar-edges.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
 import { checkTestScripts } from "./test-scripts.ts";
 import { checkVersions } from "./versions.ts";
@@ -256,5 +261,226 @@ describe("versions", () => {
 		expect(messages).toEqual([
 			"apps/desktop/src-tauri/Cargo.toml has version 0.1.0, expected 0.2.0",
 		]);
+	});
+});
+
+describe("module-state", () => {
+	const doc = (rows: string[]) =>
+		[
+			"# Architecture",
+			"",
+			"### Module-level state",
+			"",
+			"| Kind | Where | Name | Why |",
+			"| --- | --- | --- | --- |",
+			...rows,
+			"",
+			"## Shared helpers",
+			"",
+		].join("\n");
+	const zustand = (file: string, name: string) =>
+		`| zustand store | \`${file}\` | \`${name}\` | the web view's own UI state |`;
+	const rustStatic = (file: string, name: string) =>
+		`| Rust static | \`${file}\` | \`${name}\` | a lock that serialises two threads |`;
+
+	test("flags a new zustand store and a new Rust cache or lock", () => {
+		put(
+			"docs/architecture.md",
+			doc([
+				zustand("apps/desktop/src/ui/Toast.tsx", "useWorkspaceToastStore"),
+				rustStatic("apps/desktop/src-tauri/src/terminal_history.rs", "CACHED_KEY"),
+			]),
+		);
+		put(
+			"apps/desktop/src/ui/Toast.tsx",
+			"export const useWorkspaceToastStore = create<State>()(() => ({}));\n",
+		);
+		put(
+			"apps/desktop/src/features/new/store.ts",
+			"export const useNewStore = create<State>()(() => ({}));\n",
+		);
+		put(
+			"apps/desktop/src-tauri/src/terminal_history.rs",
+			"static CACHED_KEY: OnceLock<u8> = OnceLock::new();\n",
+		);
+		put(
+			"apps/desktop/src-tauri/src/new_cache.rs",
+			"static CACHE: OnceLock<u8> = OnceLock::new();\n",
+		);
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/new/store.ts"))).toBe(true);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src-tauri/src/new_cache.rs"))).toBe(
+			true,
+		);
+		expect(
+			messages.some(
+				(m) =>
+					m.startsWith("apps/desktop/src/ui/Toast.tsx") ||
+					m.startsWith("apps/desktop/src-tauri/src/terminal_history.rs"),
+			),
+		).toBe(false);
+	});
+
+	test("a store the doc names passes, even one an earlier copy did not", () => {
+		put(
+			"docs/architecture.md",
+			doc([zustand("apps/desktop/src/features/doc-only/store.ts", "useDocOnlyStore")]),
+		);
+		put(
+			"apps/desktop/src/features/doc-only/store.ts",
+			"export const useDocOnlyStore = create<State>()(() => ({}));\n",
+		);
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/doc-only/store.ts"))).toBe(
+			false,
+		);
+	});
+
+	test("a module the doc leaves out fails, even one an earlier copy allowed", () => {
+		put(
+			"docs/architecture.md",
+			doc([zustand("apps/desktop/src/ui/Toast.tsx", "useWorkspaceToastStore")]),
+		);
+		put(
+			"apps/desktop/src/app/overlay-store.ts",
+			"export const useOverlayStore = create<State>()(() => ({}));\n",
+		);
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src/app/overlay-store.ts"))).toBe(true);
+	});
+
+	test("reports architecture.md when it has no module-level state table", () => {
+		put("docs/architecture.md", "# Architecture\n");
+		const messages = checkModuleState(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("Module-level state"))).toBe(true);
+	});
+});
+
+describe("sidecar-edges", () => {
+	const doc = (rows: string[]) =>
+		[
+			"# Architecture",
+			"",
+			"### Sidecar I/O edges",
+			"",
+			"| Module | Why it is the edge |",
+			"| --- | --- |",
+			...rows,
+			"",
+			"## Shared helpers",
+			"",
+		].join("\n");
+
+	test("flags an unnamed module that reads a file, and lets an adapter through", () => {
+		put(
+			"docs/architecture.md",
+			doc(["| `packages/sidecar/src/util/read-text.ts` | the read-a-text-file helper |"]),
+		);
+		put(
+			"packages/sidecar/src/new-thing.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		put(
+			"packages/sidecar/src/adapters/files.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		put(
+			"packages/sidecar/src/util/read-text.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		put("packages/sidecar/src/note.ts", "/** Uses Bun.spawn. */\nexport const x = 1;\n");
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/new-thing.ts"))).toBe(true);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/note.ts"))).toBe(false);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/adapters/files.ts"))).toBe(
+			false,
+		);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/util/read-text.ts"))).toBe(
+			false,
+		);
+	});
+
+	test("a module the table names passes, even one an earlier copy did not", () => {
+		put(
+			"docs/architecture.md",
+			doc(["| `packages/sidecar/src/doc-only.ts` | the edge the doc names |"]),
+		);
+		put(
+			"packages/sidecar/src/doc-only.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/doc-only.ts"))).toBe(false);
+	});
+
+	test("a module the table leaves out fails, even one an earlier copy allowed", () => {
+		put(
+			"docs/architecture.md",
+			doc(["| `packages/sidecar/src/doc-only.ts` | the edge the doc names |"]),
+		);
+		put(
+			"packages/sidecar/src/util/read-text.ts",
+			'import { readFile } from "node:fs/promises";\nexport const x = readFile;\n',
+		);
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.startsWith("packages/sidecar/src/util/read-text.ts"))).toBe(true);
+	});
+
+	test("reports architecture.md when it has no sidecar edges table", () => {
+		put("docs/architecture.md", "# Architecture\n");
+		const messages = checkSidecarEdges(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("Sidecar I/O edges"))).toBe(true);
+	});
+});
+
+describe("lifetime-limits", () => {
+	const CONTAINER = "apps/desktop/src/core/container.ts";
+	const REGISTRY = "apps/desktop/src/core/registries/settings.ts";
+
+	test("flags a settings key for a lifetime limit and a container that stops passing the defaults", () => {
+		put(REGISTRY, 'const SETTINGS = [{ key: "tool_output_max_bytes" }];\n');
+		put(CONTAINER, "const limits = settings.value;\n");
+		const messages = checkLifetimeLimits(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("tool_output_max_bytes"))).toBe(true);
+		expect(messages.some((m) => m.includes("DEFAULT_LIFETIME_LIMITS"))).toBe(true);
+	});
+
+	test("passes when no setting names a limit and the container passes the defaults", () => {
+		put(REGISTRY, 'const SETTINGS = [{ key: "terminal_scrollback_limit_bytes" }];\n');
+		put(CONTAINER, "run({ limits: DEFAULT_LIFETIME_LIMITS });\n");
+		expect(checkLifetimeLimits(root)).toEqual([]);
+	});
+});
+
+describe("settings-keys", () => {
+	test("flags a bookkeeping key the data model does not name", () => {
+		put("docs/data-model.md", "# Data\n\nThe key `data_lifetime_last_run_at`.\n");
+		put(
+			"apps/desktop/src/core/db/lifetime.ts",
+			'export const LIFETIME_LAST_RUN_KEY = "data_lifetime_last_run_at";\n',
+		);
+		put("apps/desktop/src/core/db/extra.ts", 'export const EXTRA_KEY = "conducted_extra";\n');
+		const messages = checkSettingsKeys(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("conducted_extra"))).toBe(true);
+		expect(messages.some((m) => m.includes("data_lifetime_last_run_at"))).toBe(false);
+	});
+});
+
+describe("local-storage-keys", () => {
+	test("flags a key the data model does not name and ignores a comment", () => {
+		put("docs/data-model.md", "# Data\n\nKey `conducted.panel-layout:`.\n");
+		put(
+			"apps/desktop/src/app/layout-persistence.ts",
+			'const STORAGE_PREFIX = "conducted.panel-layout:";\n',
+		);
+		put("apps/desktop/src/app/new-key.ts", 'const KEY = "conducted.new-key";\n');
+		put(
+			"apps/desktop/src/app/note.ts",
+			"/** Uses `conducted.not-a-key`. */\nexport const x = 1;\n",
+		);
+		const messages = checkLocalStorageKeys(root).map((p) => p.message);
+		expect(messages.some((m) => m.includes("conducted.new-key"))).toBe(true);
+		expect(messages.some((m) => m.includes("conducted.panel-layout"))).toBe(false);
+		expect(messages.some((m) => m.includes("conducted.not-a-key"))).toBe(false);
 	});
 });

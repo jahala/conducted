@@ -12,18 +12,23 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
-import { GroupedWorkspaces } from "./GroupedWorkspaces.tsx";
+import { GroupedWorkspaces, REPO_DRAG_MIME } from "./GroupedWorkspaces.tsx";
 import { WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
 
 afterEach(cleanup);
 
 const dropData = (id: string) => ({
 	getData: (type: string) => (type === WORKSPACE_DRAG_MIME ? id : ""),
+	setData: vi.fn(),
+});
+
+const repoDropData = (id: string) => ({
+	getData: (type: string) => (type === REPO_DRAG_MIME ? id : ""),
 	setData: vi.fn(),
 });
 
@@ -74,6 +79,8 @@ describe("NAV-04 GroupedWorkspaces manual order", () => {
 			const workspaces = [first, second, third];
 			renderList(test.container, [repo], workspaces);
 			const region = await screen.findByRole("region", { name: repo.name });
+			// With no workspace open, Conductor's groups start closed.
+			fireEvent.click(within(region).getByRole("button", { name: new RegExp(`^${repo.name}`) }));
 			const ordered = [...region.querySelectorAll("[data-workspace-id]")]
 				.map((row) => row.getAttribute("data-workspace-id"))
 				.filter((id): id is string => id !== null);
@@ -91,6 +98,38 @@ describe("NAV-04 GroupedWorkspaces manual order", () => {
 			expect(key).toBe("sidebar_manual_order");
 			const saved = JSON.parse(String(value)) as Record<string, WorkspaceId[]>;
 			expect(saved[`project:${repo.id}`]).toEqual([target, dragged, ...ordered.slice(2)]);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("reorders project groups by dragging one onto another", async () => {
+		const test = createTestContainer();
+		try {
+			const first = await seedRepo(test.container);
+			const second = await seedRepo(test.container);
+			const firstWorkspace = await seedWorkspace(test.container, { repoId: first.id });
+			const secondWorkspace = await seedWorkspace(test.container, { repoId: second.id });
+
+			renderList(test.container, [first, second], [firstWorkspace, secondWorkspace]);
+			const dragged = await screen.findByRole("region", { name: first.name });
+			const target = await screen.findByRole("region", { name: second.name });
+			const draggedHeader = within(dragged).getByRole("button", {
+				name: new RegExp(`^${first.name}`),
+			});
+			const targetHeader = within(target).getByRole("button", {
+				name: new RegExp(`^${second.name}`),
+			});
+
+			fireEvent.dragStart(draggedHeader, { dataTransfer: { setData: vi.fn() } });
+			fireEvent.drop(targetHeader, { dataTransfer: repoDropData(first.id) });
+
+			await waitFor(async () => {
+				const rows = await test.database.select<{ id: string }>(
+					"SELECT id FROM repos ORDER BY display_order, name, id",
+				);
+				expect(rows.map((row) => row.id)).toEqual([second.id, first.id]);
+			});
 		} finally {
 			test.close();
 		}

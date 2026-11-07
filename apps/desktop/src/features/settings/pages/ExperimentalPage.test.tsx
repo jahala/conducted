@@ -13,6 +13,25 @@ afterEach(() => {
 });
 
 describe("SET-02 ExperimentalPage", () => {
+	it("uses Conductor's subtitle and order: Auto permission mode first, Graphite stack support last", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<ExperimentalPage />
+			</ServicesProvider>,
+		);
+
+		expect(screen.getByText(/Experimental features that are under development\./).textContent).toBe(
+			"Experimental features that are under development. Expect breaking changes.",
+		);
+		const keys = [...document.querySelectorAll("[data-setting-key]")].map((row) =>
+			row.getAttribute("data-setting-key"),
+		);
+		expect(keys[0]).toBe("experimental_auto_permission_mode");
+		expect(keys.at(-1)).toBe("graphite_disabled");
+	});
+
 	it("shows the restart note after sidebar transparency is turned on", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();

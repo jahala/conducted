@@ -31,7 +31,8 @@ describe("CHAT-06 assistant text", () => {
 	it("renders an unclosed code fence as a code block without throwing", () => {
 		render(<AssistantText text={"Here is the code:\n```ts\nconst answer = 42;"} />);
 		expect(screen.getByText("const answer = 42;")).toBeTruthy();
-		expect(screen.getByText("ts")).toBeTruthy();
+		// The block is a code block; it names no language, as Conductor's does not (D098).
+		expect(document.querySelector("[data-code-surface]")).not.toBeNull();
 	});
 
 	it("keeps a leading absolutely-right phrase when the setting is off", () => {

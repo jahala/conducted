@@ -6,7 +6,7 @@
  * the way into each agent's own config editor (SET-12).
  * Behaviour: ui-map.md 6, "Agents" table and "Agents page" (provider search, one card per
  * provider: Claude Code, Codex, Cursor, OpenCode and Pi; states "Loaded from env", "API key
- * configured", "Validation failed", "Recommended"; "Claude settings JSON", "Codex config" and
+ * configured", "Validation failed"; "Claude settings JSON", "Codex config" and
  * "Use Claude Code with Chrome"). Programs are downloaded, updated and removed by the program
  * manager (PLAT-28, D021), not by this page.
  * Data: useAgentInstalls() (AgentInstall: agent, acpAgent, installed, path, version,
@@ -220,12 +220,7 @@ export function AgentsPage() {
 
 	return (
 		<div className="flex flex-col gap-8">
-			<div className="flex flex-col gap-1">
-				<h1 className="text-2xl font-medium text-fg">Agents</h1>
-				<p className="text-sm text-fg-muted">
-					Install status, versions and sign-in for each agent program.
-				</p>
-			</div>
+			<h1 className="text-2xl font-medium text-fg">Agents</h1>
 
 			<LoadableView
 				value={value}

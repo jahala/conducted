@@ -1,5 +1,6 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
+ * @feature CLOUD-09 Cloud terminals, run scripts and previews
  * Owns: the request bodies the routes accept, and the checks each one gets before it reaches the
  * sandbox.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the host seam's git, shell and file calls and
@@ -50,6 +51,9 @@ export const zExecBody = z
 	.strict();
 export type ExecBody = z.infer<typeof zExecBody>;
 
+export const zPreviewBody = z.object({ port: z.number().int().min(1).max(65_535) }).strict();
+export type PreviewBody = z.infer<typeof zPreviewBody>;
+
 export const zFileBody = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("read"), path: absolutePath }).strict(),
 	z.object({ operation: z.literal("write"), path: absolutePath, text: z.string() }).strict(),
@@ -63,3 +67,6 @@ export type FileBody = z.infer<typeof zFileBody>;
 
 /** The shape every route answers with when a body is not what it accepts. */
 export const INVALID_BODY = "Invalid request body";
+
+/** A workspace's name in a route: what a Durable Object name may be. */
+export const WORKSPACE_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;

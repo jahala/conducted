@@ -3,12 +3,13 @@
  * Owns: the user's saved model choices (agent, model, effort, fast mode) and their order.
  * Behaviour: services-map.md 5B.5.3 (favourite models: ordered list written as a diff), 5B.5.2
  * (default model per agent), ui-map.md 3.5 (model picker).
- * Must handle: the same choice saved twice is one favourite; a favourite whose model the agent
+ * Must handle: the same choice saved twice is one favourite; replacing a favourite with a choice
+ * another favourite holds moves that one into the place; a favourite whose model the agent
  * no longer offers stays in the list but is marked unavailable by the picker; order is the
  * `position` column and stays dense; add, remove and reorder run one at a time, so two quick
  * calls cannot both pass the duplicate and five-limit checks and a removal cannot undo an add;
  * removing rewrites the order before it deletes, so a failed reorder leaves the row in place; at
- * most five favourites are saved.
+ * most four favourites are saved, as the loadout's first model is the default.
  * Our design choice: a single repository call that takes the target list is needed to make a
  * removal one transaction. Until DATA-01 adds it, the service reorders then deletes.
  * Our design choice: favourites are local only, with no sync.
@@ -25,8 +26,12 @@ export interface FavoriteModel {
 	position: number;
 }
 
-/** The picker shows five loadouts, selected with Cmd+Ctrl+1 to 5. */
-export const MAX_FAVORITES = 5;
+/**
+ * The loadout is five models, selected with Cmd+Ctrl+1 to 5: the default model first, then up to
+ * four favourites, as in Conductor (renderApp, the picker's favourites and the Loadout page).
+ */
+export const LOADOUT_SIZE = 5;
+export const MAX_FAVORITES = LOADOUT_SIZE - 1;
 
 export interface FavoriteModelsState {
 	loaded: boolean;
@@ -87,7 +92,10 @@ export class FavoriteModelsService {
 		if (existing !== undefined) return ok(existing);
 		if (favorites.length >= MAX_FAVORITES) {
 			return err(
-				appError("favorite_limit", "You can save up to five favourite models. Remove one first."),
+				appError(
+					"favorite_limit",
+					"The loadout holds the default model and four more. Remove one first.",
+				),
 			);
 		}
 		const added = await this.#deps.repos.favoriteModels.add(config);
@@ -112,6 +120,43 @@ export class FavoriteModelsService {
 		if (!removed.ok) return err(removed.error);
 		this.store.setState({
 			favorites: remaining.map((favorite, position) => ({ ...favorite, position })),
+		});
+		return ok(undefined);
+	}
+
+	/**
+	 * Puts `config` in the place of favourite `id`. When another favourite already holds that
+	 * choice, it moves into the place and `id` goes, so a choice is never saved twice.
+	 */
+	replace(id: string, config: FavoriteModel["config"]): Promise<Result<void>> {
+		return this.#writes.run("favorites", () => this.#replace(id, config));
+	}
+
+	async #replace(id: string, config: FavoriteModel["config"]): Promise<Result<void>> {
+		const before = this.store.getState().favorites;
+		const at = before.findIndex((favorite) => favorite.id === id);
+		if (at < 0) return err(appError("favorite_missing", "That favourite is no longer saved."));
+		if (sameFavoriteChoice(before[at]?.config ?? config, config)) return ok(undefined);
+		const existing = before.find((favorite) => sameFavoriteChoice(favorite.config, config));
+		let next: FavoriteModel;
+		if (existing !== undefined) {
+			next = existing;
+		} else {
+			const added = await this.#deps.repos.favoriteModels.add(config);
+			if (!added.ok) return err(added.error);
+			next = added.value;
+		}
+		const ordered = before
+			.filter((favorite) => favorite.id !== next.id)
+			.map((favorite) => (favorite.id === id ? next : favorite));
+		const reordered = await this.#deps.repos.favoriteModels.reorder(
+			ordered.map((favorite) => favorite.id),
+		);
+		if (!reordered.ok) return err(reordered.error);
+		const removed = await this.#deps.repos.favoriteModels.delete(id);
+		if (!removed.ok) return err(removed.error);
+		this.store.setState({
+			favorites: ordered.map((favorite, position) => ({ ...favorite, position })),
 		});
 		return ok(undefined);
 	}

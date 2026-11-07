@@ -7,6 +7,7 @@
  * archived, projects, chats, workspace actions, actions, navigation, settings and open-in; empty
  * "No results found"; loading spinner in the heading), 5.4 (Cmd+E edits and Cmd+Backspace deletes a
  * highlighted section).
+ * The palette has no footer of key hints, as Conductor's has none (D098).
  * Our design choice: the palette's own keys (Tab, Shift+Tab, Cmd+E, Cmd+Backspace, or the user's
  * rebinds) run from the palette's keydown handler through the dispatcher's useScopeKeyDown, so the
  * dialog's focus trap cannot take Shift+Tab to move focus out of the search box.
@@ -53,6 +54,7 @@ import { Kbd } from "../../ui/Kbd.tsx";
 import type { OverlayProps } from "../../ui/overlay-props.ts";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import type { PaletteItem, PaletteTab } from "./palette-model.ts";
 import {
 	buildPaletteGroups,
@@ -166,6 +168,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const sessionList = workspaceId !== null && sessions.state === "ready" ? sessions.data : [];
 	const allSessions = useStore(services.services.sessions.store, (state) => state.sessions);
 
+	const branchPrefix = useBranchPrefix();
 	// Ages of recent workspaces count from when the palette opened.
 	const [openedAt, setOpenedAt] = useState(() => Date.now());
 	useEffect(() => {
@@ -187,9 +190,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			installedApps,
 			defaultOpenInApp: defaultOpenIn === "" ? null : defaultOpenIn,
 			now: openedAt,
+			branchPrefix,
 		});
 	}, [
 		openedAt,
+		branchPrefix,
 		commands,
 		defaultOpenIn,
 		installedApps,
@@ -574,12 +579,6 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 					No results found
 				</Command.Empty>
 			</Command.List>
-			<div className="flex items-center gap-2 border-t border-border px-3 py-2 text-2xs text-fg-subtle">
-				<Kbd>Tab</Kbd>
-				<span>Switch tabs</span>
-				<Kbd>↵</Kbd>
-				<span>Choose</span>
-			</div>
 			<button type="button" className="sr-only" onClick={close}>
 				Close
 			</button>

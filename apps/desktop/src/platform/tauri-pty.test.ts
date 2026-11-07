@@ -133,11 +133,11 @@ describe("PLAT-07 Tauri terminals", () => {
 		h.emit(EVENTS.ptyExit, {
 			id: "pty-1",
 			exitCode: 0,
-			historyError: { code: "history_write_failed", message: "The disk is full." },
+			historyError: { code: "history_save_failed", message: "The disk is full." },
 		});
 		spawned.value.onExit((_code, historyError) => heard.push(historyError?.message ?? null));
 		await Promise.resolve();
-		expect(heard).toEqual(["history_write_failed", "The disk is full."]);
+		expect(heard).toEqual(["history_save_failed", "The disk is full."]);
 	});
 
 	it("PLAT-08 passes the terminal id and the scrollback limit to the Rust shell", async () => {

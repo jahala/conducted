@@ -18,6 +18,7 @@
  *                 useSetupState, useInstalledApps
  *   sections.ts   useSections
  *   chats.ts      useSessions, useChat, useClosedSessions, usePlans, useChangedSinceTurn
+ *   cloud.ts      useCloudPairing
  *   composer.ts   useDraft, useSnippets
  *   git.ts        useGitState, useChangedFiles, useFileDiff, useBranchCommits, useBranches
  *   github.ts     useCheckLog, usePullRequestActivity, useStack, useIssues, usePullRequestList,
@@ -42,6 +43,7 @@ import { useServices } from "./context.tsx";
 
 export * from "./hooks/agents.ts";
 export * from "./hooks/chats.ts";
+export * from "./hooks/cloud.ts";
 export * from "./hooks/commands.ts";
 export * from "./hooks/composer.ts";
 export * from "./hooks/files.ts";

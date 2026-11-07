@@ -128,7 +128,8 @@ describe("SET-03 agent names and paths", () => {
 	});
 
 	it("maps the install source and sign-in method to Conductor's state words", () => {
-		expect(agentState(install({ source: "managed" }))?.label).toBe("Recommended");
+		// The app's own copy gets no badge; "Recommended" was ours (D098).
+		expect(agentState(install({ source: "managed" }))).toBeNull();
 		expect(agentState(install({ source: "login_path" }))?.label).toBe("Loaded from env");
 		expect(agentState(install({ source: "user" }))?.label).toBe("Custom path");
 		expect(agentState(install({ authMethod: "api_key" }))?.label).toBe("API key configured");

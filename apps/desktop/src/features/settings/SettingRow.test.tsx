@@ -12,7 +12,6 @@ describe("SET-02 SettingRow", () => {
 				settingKey="demo"
 				title="Demo setting"
 				description="A described setting."
-				scope="repo"
 				disabledReason="Locked by the project settings file."
 				highlighted={false}
 				saveError={null}
@@ -24,7 +23,9 @@ describe("SET-02 SettingRow", () => {
 		const control = screen.getByLabelText("Demo control") as HTMLInputElement;
 		expect(control.disabled).toBe(true);
 		expect(screen.getByText("Locked by the project settings file.")).toBeTruthy();
-		expect(screen.getByText("Repository")).toBeTruthy();
+		// Conductor's rows carry no "User" or "Repository" marker (D098).
+		expect(screen.queryByText("Repository")).toBeNull();
+		expect(screen.queryByText("User")).toBeNull();
 	});
 
 	it("shows a save error and a reset action", () => {
@@ -33,7 +34,6 @@ describe("SET-02 SettingRow", () => {
 				settingKey="demo"
 				title="Demo setting"
 				description={null}
-				scope="user"
 				disabledReason={null}
 				highlighted
 				saveError="The settings file is read-only."

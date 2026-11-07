@@ -33,7 +33,7 @@ const state = vi.hoisted(() => ({
 		kind: "changes",
 		title: "Changes",
 		tone: "attention",
-		action: { id: "commit_and_push", label: "Commit and push", waitingNote: null },
+		action: { id: "commit_and_push", label: "Commit and push" },
 	} as GitHeader,
 }));
 
@@ -78,7 +78,7 @@ beforeEach(() => {
 		kind: "changes",
 		title: "Changes",
 		tone: "attention",
-		action: { id: "commit_and_push", label: "Commit and push", waitingNote: null },
+		action: { id: "commit_and_push", label: "Commit and push" },
 	};
 	container = createShellContainer().container;
 	vi.spyOn(container.services.git, "commitAndPush").mockResolvedValue(ok(undefined));

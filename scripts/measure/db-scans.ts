@@ -25,6 +25,10 @@
  * The instrument is checked first: a lookup on the primary key must use an index and be fast, and
  * a filter on an unindexed column must scan. The script exits 1 when either check is wrong.
  *
+ * It also drains the daily tool-output cut in committed batches, so every cut row carries
+ * `compacted_at`, then warms the cache and times one more batch. That is the cost on the day after
+ * the cut already ran.
+ *
  * Run: bun scripts/with-run-dir.ts bun scripts/measure/db-scans.ts
  * The output is also written to docs/research/db-scans-2026-11-07.md by hand.
  */
@@ -275,8 +279,8 @@ function seed(db: Database): void {
 		VALUES (?, ?, ?, 'file', ?, ?, ?, ?)`,
 	);
 	const insertTerminal = db.prepare(
-		`INSERT INTO terminals (id, workspace_id, kind, title, cwd, cols, rows, started_at, ended_at, exit_code)
-		VALUES (?, ?, 'run', 'dev server', ?, 120, 30, ?, ?, ?)`,
+		`INSERT INTO terminals (id, workspace_id, kind, title, cwd, started_at, ended_at, exit_code)
+		VALUES (?, ?, 'run', 'dev server', ?, ?, ?, ?)`,
 	);
 	const insertSection = db.prepare(
 		"INSERT INTO sections (id, name, position, created_at) VALUES (?, ?, ?, ?)",
@@ -419,12 +423,6 @@ const MEASUREMENTS: Measurement[] = [
 		kind: "select",
 	},
 	{
-		name: "attachments by message_id",
-		sql: ATTACHMENTS_SQL.listByMessage,
-		params: [messageOne],
-		kind: "select",
-	},
-	{
 		name: "attachments restoreToDraft by message_id",
 		sql: ATTACHMENTS_SQL.restoreToDraft,
 		params: [messageOne],
@@ -488,6 +486,34 @@ function measureEventInserts(db: Database): number {
 	}
 	db.exec("ROLLBACK");
 	return performance.now() - started;
+}
+
+/**
+ * What the daily cut costs the day after it already ran. It drains the cut in committed batches
+ * until no row is left, which marks every cut event with compacted_at, then times one more batch.
+ * Before the marker was read, that batch scanned all the old rows anyway.
+ */
+function measureCutAfterDrain(db: Database): { batches: number; plan: string; ms: number } {
+	const params = [100_000, now, cutoff30, 200];
+	let batches = 0;
+	for (;;) {
+		const result = db.query(LIFETIME_SQL.cutToolOutputs).run(...params);
+		batches += 1;
+		if (result.changes === 0) break;
+	}
+	const measurement: Measurement = {
+		name: "cut after the first run",
+		sql: LIFETIME_SQL.cutToolOutputs,
+		params,
+		kind: "write",
+	};
+	// Warm the page cache with one rolled-back run, so the timed run is not paying for a cold read.
+	time(db, measurement);
+	return {
+		batches,
+		plan: plan(db, LIFETIME_SQL.cutToolOutputs, params),
+		ms: time(db, measurement),
+	};
 }
 
 function plan(db: Database, sql: string, params: readonly (string | number | null)[]): string {
@@ -573,6 +599,11 @@ function main(): void {
 			const ms = time(db, measurement);
 			console.log(`${measurement.name}\n  ${queryPlan}\n  ${ms.toFixed(2)} ms\n`);
 		}
+
+		const drained = measureCutAfterDrain(db);
+		console.log(
+			`lifetime cutToolOutputs (a batch after the cut already ran; ${drained.batches} batches)\n  ${drained.plan}\n  ${drained.ms.toFixed(2)} ms\n`,
+		);
 
 		const insertMs = measureEventInserts(db);
 		console.log(

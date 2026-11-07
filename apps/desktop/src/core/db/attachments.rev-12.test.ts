@@ -75,7 +75,8 @@ describe("REV-12 an attachment points at the comment it carried", () => {
 			}),
 		);
 
-		expect(await repositories.attachments.listByComment(comment.id)).toEqual(ok([carried]));
-		expect(await repositories.attachments.listByComment(sampleComment.id)).toEqual(ok([]));
+		const listed = must(await repositories.attachments.listBySession(sampleSession.id));
+		expect(listed.filter((row) => row.commentId === comment.id)).toEqual([carried]);
+		expect(listed.filter((row) => row.commentId === sampleComment.id)).toEqual([]);
 	});
 });

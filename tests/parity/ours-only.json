@@ -1,292 +1,253 @@
 [
 	{
-		"text": "All workspaces",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Home: the title strip and its filters."
-	},
-	{
 		"text": "Backlog",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
 		"text": "Backlog workspaces",
 		"state": "backlog",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
 		"text": "Check again",
 		"state": "settings-account",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Account: Check again, the inline token field and the GitHub sign-in method row."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+	},
+	{
+		"text": "Checking the saved pairing…",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Choose how the app signs in to GitHub. Automatic uses a saved personal access token when there is one, and the gh command's own login otherwise.",
 		"state": "settings-account",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Account: Check again, the inline token field and the GitHub sign-in method row."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
 	},
 	{
 		"text": "Claude Code · default",
 		"state": "composer-model-picker",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Composer: the agent list and favourites in the model picker."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
+	},
+	{
+		"text": "Cloud Workspaces",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Create a local folder from a template and add it as a project.",
 		"state": "create-project",
-		"keep": "parity-round3-report.md (kept for the owner)",
-		"note": "Create project: our description and \"Creates folder\" line."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Create project's description and folder line, in Conductor's places, worded for our flow (docs/design.md)."
 	},
 	{
 		"text": "Creates folder atlas-playground",
 		"state": "create-project",
-		"keep": "parity-round3-report.md (kept for the owner)",
-		"note": "Create project: our description and \"Creates folder\" line."
-	},
-	{
-		"text": "Custom instructions for the buttons that send work to the agent, and for every new chat.",
-		"state": "settings-repo-prompts",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
-		"text": "Defaults for branches, pull requests and archiving. Each project can override them.",
-		"state": "settings-git",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Create project's description and folder line, in Conductor's places, worded for our flow (docs/design.md)."
 	},
 	{
 		"text": "Draft a workspace now and start it when you are ready.",
 		"state": "backlog-empty",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
-	},
-	{
-		"text": "Everyday behaviour for messages, notifications and the app window.",
-		"state": "settings-general",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
 		"text": "Favourite models",
 		"state": "composer-model-picker",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Composer: the agent list and favourites in the model picker."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
 	},
 	{
 		"text": "First port",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
-	},
-	{
-		"text": "Follow and steer Claude chats from claude.ai/code or the Claude app while they run on this Mac.",
-		"state": "settings-remote-control",
-		"decision": "D019",
-		"note": "Claude Remote Control for chats, which Conductor does not offer."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the Connections page, in More (docs/design.md)."
 	},
 	{
 		"text": "GitHub sign-in method",
 		"state": "settings-account",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Account: Check again, the inline token field and the GitHub sign-in method row."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
 	},
 	{
 		"text": "In all projects",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Home: the title strip and its filters."
-	},
-	{
-		"text": "Install status, versions and sign-in for each agent program.",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
+		"decision": "D020",
+		"note": "Conductor's own project filter label, composed as \"In <projects>\" (renderApp @10213824); the spec holds no template for it."
 	},
 	{
 		"text": "Last port",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
-	},
-	{
-		"text": "Local sign-ins and connections. There is no Conducted account or billing.",
-		"state": "settings-account",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the Connections page, in More (docs/design.md)."
 	},
 	{
 		"text": "MCP status comes from a running chat.",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Agents: Search providers, Providers, the source badge and MCP servers."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the MCP servers block on Agents (docs/design.md)."
 	},
 	{
 		"text": "New workspaces receive a block of ports inside this range. Existing workspaces keep the ports they were given.",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the Connections page, in More (docs/design.md)."
 	},
 	{
 		"text": "No workspaces in the backlog",
 		"state": "backlog-empty",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
-		"text": "Onboarding steps",
-		"state": "onboarding",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Onboarding: the agent and project steps."
+		"text": "Not paired",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Open a chat to see its MCP servers.",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Agents: Search providers, Providers, the source badge and MCP servers."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the MCP servers block on Agents (docs/design.md)."
 	},
 	{
 		"text": "Optional. Stored in the Keychain and given to gh as GH_TOKEN. It is never shown again.",
 		"state": "settings-account",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Account: Check again, the inline token field and the GitHub sign-in method row."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+	},
+	{
+		"text": "Pair",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
+		"text": "Pair this Mac with the Worker you deployed to your Cloudflare account. Its URL and pairing token come from the deployment. The token is kept in the Keychain and is never shown again.",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
+	},
+	{
+		"text": "Pairing token",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Prevent sleep while a Remote Control session is connected and this Mac is plugged in.",
 		"state": "settings-remote-control",
-		"decision": "D019",
-		"note": "Claude Remote Control for chats, which Conductor does not offer."
+		"decision": "D098",
+		"note": "Ours (D019), placed in Conductor's layout: a \"+\" item, a chip while on, and its page under Agents & environment (docs/design.md)."
 	},
 	{
 		"text": "Ranges cannot include port 22, which SSH uses.",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the Connections page, in More (docs/design.md)."
 	},
 	{
 		"text": "Remote Control",
-		"decision": "D019",
-		"note": "Claude Remote Control for chats, which Conductor does not offer."
+		"decision": "D098",
+		"note": "Ours (D019), placed in Conductor's layout: a \"+\" item, a chip while on, and its page under Agents & environment (docs/design.md)."
 	},
 	{
 		"text": "Remote Control for new chats",
 		"state": "settings-remote-control",
-		"decision": "D019",
-		"note": "Claude Remote Control for chats, which Conductor does not offer."
+		"decision": "D098",
+		"note": "Ours (D019), placed in Conductor's layout: a \"+\" item, a chip while on, and its page under Agents & environment (docs/design.md)."
 	},
 	{
 		"text": "Save a new workspace to the backlog and start it later.",
 		"state": "settings-experimental",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
 		"text": "Save port range",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the Connections page, in More (docs/design.md)."
 	},
 	{
 		"text": "Save token",
 		"state": "settings-account",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Account: Check again, the inline token field and the GitHub sign-in method row."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
 	},
 	{
 		"text": "Select Claude Code · default",
 		"state": "composer-model-picker",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Composer: the agent list and favourites in the model picker."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
 	},
 	{
 		"text": "Select Claude Code · haiku",
 		"state": "composer-model-picker",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Composer: the agent list and favourites in the model picker."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
 	},
 	{
 		"text": "Select Claude Code · sonnet",
 		"state": "composer-model-picker",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Composer: the agent list and favourites in the model picker."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
 	},
 	{
 		"text": "Select Codex · gpt-5.5",
 		"state": "composer-model-picker",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Composer: the agent list and favourites in the model picker."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the agent switch in the model picker (docs/design.md)."
 	},
 	{
 		"text": "Servers the open chat's agent sees in this workspace.",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Agents: Search providers, Providers, the source badge and MCP servers."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the MCP servers block on Agents (docs/design.md)."
 	},
 	{
 		"text": "Start every new Claude chat with Remote Control on, so you can open it in claude.ai/code or the Claude app.",
 		"state": "settings-remote-control",
-		"decision": "D019",
-		"note": "Claude Remote Control for chats, which Conductor does not offer."
+		"decision": "D098",
+		"note": "Ours (D019), placed in Conductor's layout: a \"+\" item, a chip while on, and its page under Agents & environment (docs/design.md)."
 	},
 	{
-		"text": "Step 1 of 3",
-		"state": "onboarding",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Onboarding: the agent and project steps."
-	},
-	{
-		"text": "Target branch: origin/main",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "The workspace header's target-branch control."
-	},
-	{
-		"text": "The local ports workspaces draw from. Cloud port forwarding is not part of this app.",
+		"text": "Unpair",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
-		"text": "The model and options a new chat starts with.",
-		"state": "settings-default-models",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
-		"text": "Theme, colours, zoom, fonts, and live previews.",
-		"state": "settings-appearance",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
-	},
-	{
-		"text": "Welcome to Conducted",
-		"state": "onboarding",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Onboarding: the agent and project steps."
-	},
-	{
-		"text": "Where the app keeps its data, which programs it runs, and how much terminal history it keeps.",
-		"state": "settings-advanced",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: page subtitles."
+		"text": "Worker URL",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	},
 	{
 		"text": "Workspace port range",
 		"state": "settings-connections",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Settings: the Connections page."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the Connections page, in More (docs/design.md)."
 	},
 	{
 		"text": "Workspaces saved to start later.",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "New workspace: Add to backlog for local projects (Conductor offers it to cloud organisations only)."
-	},
-	{
-		"text": "You can change these later in Settings.",
-		"state": "onboarding",
-		"keep": "ui-parity-report.md (kept for the owner)",
-		"note": "Onboarding: the agent and project steps."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
 		"text": "ghp_...",
 		"state": "settings-account",
-		"keep": "parity-round2-report.md (kept for the owner)",
-		"note": "Account: Check again, the inline token field and the GitHub sign-in method row."
+		"decision": "D098",
+		"note": "Ours, placed in Conductor's layout: the GitHub token row, sign-in method and Check again on Account (docs/design.md)."
+	},
+	{
+		"text": "https://conducted.example.workers.dev",
+		"state": "settings-connections",
+		"decision": "D106",
+		"note": "Ours (CLOUD-07), placed in Conductor's layout: the Cloud Workspaces block on Connections (docs/design.md)."
 	}
 ]

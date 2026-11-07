@@ -1,7 +1,7 @@
 /**
  * @feature COMP-02 Favourite models
- * Owns: The favourites list inside the model picker: up to five saved agent and model pairs, with
- * reorder and edit.
+ * Owns: The loadout list inside the model picker: the default model first, then up to four saved
+ * agent and model pairs, with reorder and edit for the saved ones (use-loadout.ts).
  * Behaviour: ui-map.md 3.5 (favourites called 'loadouts': up to 5, Cmd+Ctrl+1..5, reorder, 'Add
  * models', 'Edit'), services-map.md (favourite_models table).
  * Measured from Conductor 0.92.1 (renderApp, the model menu's favourites list and its rows): each row is
@@ -11,12 +11,14 @@
  * Our design choice: reorder and remove sit in the 24px column and at the row end while "Edit" (in the
  * picker footer) is on; Conductor drags rows by a grip there. "Add models" also shows while editing, so a
  * favourite can be added at any count.
- * Must handle: An 'Add models' row, which explains that five are the limit when full; a
+ * Must handle: An 'Add models' row, which explains the limit when full; the default model's row,
+ * which Edit cannot move or remove (it is Default models' first slot in Settings); a
  * favourite whose model is gone (shown muted and marked unavailable, picking it explains); reorder by
- * keyboard; removing the last favourite; a sixth favourite is refused with a message.
+ * keyboard; removing the last favourite; a fifth favourite is refused with a message.
  * Keyboard: the loadout shortcuts are command handlers in the picker, which stays mounted while this
  * list is closed. The key caps here read the live binding so a rebind is shown.
- * Test first: Adding a sixth favourite is refused with a message; an unavailable favourite is muted.
+ * Test first: Adding a fifth favourite is refused with a message; an unavailable favourite is muted;
+ * the default model is the first row.
  */
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
@@ -27,6 +29,7 @@ import type { FavoriteModel } from "../../core/services/favorite-models.ts";
 import { cn } from "../../ui/cn.ts";
 import { ArrowUpRightIcon, CheckIcon, CloseIcon, PlusIcon } from "../../ui/icons.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
+import { useLoadout } from "./use-loadout.ts";
 
 export interface FavoriteModelsProps {
 	onPick: (config: FavoriteModel["config"]) => void;
@@ -73,6 +76,7 @@ export function FavoriteModels({
 	const service = useServices().services.favoriteModels;
 	const loaded = useStore(service.store, (state) => state.loaded);
 	const favorites = useStore(service.store, (state) => state.favorites);
+	const { entries } = useLoadout();
 	const shortcuts = [
 		useLiveShortcut("chat.selectLoadout1"),
 		useLiveShortcut("chat.selectLoadout2"),
@@ -113,8 +117,8 @@ export function FavoriteModels({
 		if (!result.ok) toastError("Couldn't reorder the favourites", result.error);
 	};
 
-	const remove = async (favorite: FavoriteModel) => {
-		const result = await service.remove(favorite.id);
+	const remove = async (id: string) => {
+		const result = await service.remove(id);
 		if (!result.ok) toastError("Couldn't remove the favourite", result.error);
 	};
 
@@ -122,7 +126,8 @@ export function FavoriteModels({
 
 	return (
 		<section aria-label="Favourite models" className="flex flex-col gap-1">
-			{favorites.map((favorite, index) => {
+			{entries.map((favorite, entryIndex) => {
+				const index = favorites.findIndex((saved) => saved.id === favorite.id);
 				const label = `${agentDisplayName(favorite.config)} · ${favorite.config.model}`;
 				const available = isAvailable?.(favorite.config) ?? true;
 				const selected = isFavoriteSelected(favorite.config, config);
@@ -130,7 +135,8 @@ export function FavoriteModels({
 				const effort = effortLabelFor?.(favorite.config) ?? null;
 				return (
 					<div key={favorite.id} className="flex min-w-0 items-center">
-						{editing ? (
+						{editing && favorite.isDefault ? <span className="w-6 shrink-0" /> : null}
+						{editing && !favorite.isDefault ? (
 							<span className="flex w-6 shrink-0 flex-col items-center">
 								<button
 									type="button"
@@ -190,15 +196,15 @@ export function FavoriteModels({
 								</span>
 							) : (
 								<span className="ml-auto shrink-0 text-xs tracking-widest text-fg-muted">
-									{shortcuts[index] ?? ""}
+									{shortcuts[entryIndex] ?? ""}
 								</span>
 							)}
 						</button>
-						{editing ? (
+						{editing && !favorite.isDefault ? (
 							<button
 								type="button"
 								aria-label={`Remove ${label}`}
-								onClick={() => void remove(favorite)}
+								onClick={() => void remove(favorite.id)}
 								className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted outline-none hover:bg-hover hover:text-fg focus-visible:bg-hover"
 							>
 								<CloseIcon className="size-3" />

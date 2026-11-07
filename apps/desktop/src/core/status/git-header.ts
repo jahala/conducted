@@ -8,13 +8,16 @@
  * (structure-map.md section 6, point 5). Only pull, push, ready, merge, approve, auto-merge and the
  * stack sync behind Resolve on a stacked branch (PR-08) run commands directly.
  *
- * The cases, first match wins. The research lists the states but not their order, so the order
- * below is Our design choice: local problems first (they can be seen offline), then PR state.
+ * The cases, first match wins. The order is Conductor's where its bundle shows it (renderApp, the
+ * git panel header): merged, the merge queue, then Create PR with no title for a GitHub branch with
+ * changes and no pull request, ahead of every local state. The rest is our order: local problems
+ * first (they can be seen offline), then PR state.
  * Titles are the research wording; "N" is a count, "M" a total.
  *
  *   kind                  when                                         title                       main action
  *   merged                PR state merged                              Merged                      Continue (GIT-17)
  *   in_merge_queue        PR is in the merge queue                     In merge queue              none
+ *   changes               GitHub forge, no PR, changedFiles > 0        (no title)                  Create PR (agent)
  *   working               agent working and no PR                      Working...                  none
  *   conflicts             conflicted files, or merge/rebase underway,  Merge conflicts             Resolve (agent)
  *                         or PR mergeable is "conflicting"
@@ -34,7 +37,7 @@
  *   offline               pullRequestUnavailable "offline"             No internet connection      Retry
  *   github_access         pullRequestUnavailable "no_github_access"    GitHub access required      Retry (opens sign-in help)
  *   pr_unavailable        any other missing PR info that is not "no PR yet" PR info unavailable      Retry
- *   changes               no PR, changedFiles > 0                      Changes                     Create PR (agent)
+ *   changes               no GitHub remote, no PR, changedFiles > 0    Changes                     Create PR (agent)
  *   changes_requested     reviewDecision changes_requested             PR changes requested        Add all comments to chat
  *   draft_pr              PR state draft                               Draft PR open               Ready for review, if the
  *                                                                                                  forge can mark ready
@@ -46,7 +49,7 @@
  *                                                                                                  may merge
  *   review_required       reviewDecision review_required               PR review required          Approve if the forge can make
  *                                                                                                  remote requests and the viewer
- *                                                                                                  may, otherwise a waiting note
+ *                                                                                                  may, otherwise none
  *   blocked               mergeable unknown after checks reported,     Blocked from merging        none
  *                         or a required check was skipped
  *   checking_mergeability mergeable "unknown", no checks reported yet  Checking mergeability...    none
@@ -81,7 +84,8 @@
  * the button's own state, not part of this value.
  * Test first: a table test with one GitHeaderInputs per kind above, asserting kind, title and
  * action id, plus the order cases (conflicts beats uncommitted, uncommitted beats behind), and
- * "uncommitted files and no PR" gives the action "commit_and_push".
+ * "uncommitted files, no changes against the target and no PR" gives "commit_and_push"; changes and
+ * no PR on GitHub give "create_pr" first.
  */
 import type { AppError } from "@conducted/shared";
 import type { CheckRun, GitState, PullRequest } from "../model.ts";
@@ -137,8 +141,6 @@ export type GitHeaderTone = "neutral" | "busy" | "attention" | "danger" | "succe
 export interface GitHeaderAction {
 	id: GitHeaderActionId;
 	label: string;
-	/** Shown instead of a button when the viewer cannot act, e.g. "Waiting for a reviewer". */
-	waitingNote: string | null;
 	/** The button's tooltip, when it says more than the label ("Merge 3 PRs from bottom to top"). */
 	tooltip?: string;
 	/** A number the button shows next to its label: the pull requests a stack merge takes. */
@@ -176,12 +178,8 @@ export interface GitHeaderInputs {
 	stack: { mergeCount: number; blockedReason: string | null } | null;
 }
 
-function action(
-	id: GitHeaderActionId,
-	label: string,
-	waitingNote: string | null = null,
-): GitHeaderAction {
-	return { id, label, waitingNote };
+function action(id: GitHeaderActionId, label: string): GitHeaderAction {
+	return { id, label };
 }
 
 function commitCount(count: number): string {
@@ -267,6 +265,21 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 	}
 	if (active?.inMergeQueue === true) {
 		return { kind: "in_merge_queue", title: "In merge queue", tone: "busy", action: null };
+	}
+	// Conductor offers Create PR, with no title, as soon as a GitHub branch with no pull request
+	// has changes, before any local state (renderApp, the git panel header's rule).
+	if (
+		pullRequest === null &&
+		forge === "github" &&
+		git.pullRequestUnavailable !== "not_github" &&
+		git.changedFiles > 0
+	) {
+		return {
+			kind: "changes",
+			title: "",
+			tone: "neutral",
+			action: action("create_pr", "Create PR"),
+		};
 	}
 	if (agentWorking && pullRequest === null) {
 		return { kind: "working", title: "Working...", tone: "busy", action: null };
@@ -450,7 +463,8 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			kind: "review_required",
 			title: "PR review required",
 			tone: "attention",
-			action: action("approve", "Approve", canApprove ? null : "Waiting for a reviewer"),
+			// A viewer who cannot approve gets no action and no note, as in Conductor (D098).
+			action: canApprove ? action("approve", "Approve") : null,
 		};
 	}
 

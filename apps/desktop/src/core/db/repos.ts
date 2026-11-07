@@ -74,7 +74,6 @@ export const REPOS_SQL = {
 	getByRootPath: `SELECT ${COLUMNS} FROM repos WHERE root_path = $1`,
 	nextDisplayOrder: "SELECT COALESCE(MAX(display_order), -1) + 1 AS next FROM repos",
 	insert: `INSERT INTO repos (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-	setName: "UPDATE repos SET name = $1, updated_at = $2 WHERE id = $3",
 	setDefaultBranch: "UPDATE repos SET default_branch = $1, updated_at = $2 WHERE id = $3",
 	setRemoteUrl: "UPDATE repos SET remote_url = $1, updated_at = $2 WHERE id = $3",
 	setIcon: "UPDATE repos SET icon = $1, updated_at = $2 WHERE id = $3",
@@ -100,8 +99,6 @@ export interface RepoRepository {
 	 * root_path returns the error code `db.conflict`.
 	 */
 	create(input: NewRepo): Promise<Result<Repo>>;
-	/** REPOS_SQL.setName. Bumps updated_at. A missing repo is `db.not_found`, as for every setter. */
-	setName(id: RepoId, name: string): Promise<Result<void>>;
 	/** REPOS_SQL.setDefaultBranch. */
 	setDefaultBranch(id: RepoId, branch: string): Promise<Result<void>>;
 	/** REPOS_SQL.setRemoteUrl. `null` clears it. */
@@ -178,8 +175,6 @@ export function createRepoRepository(db: Database, deps: RepositoryDeps): RepoRe
 				);
 				return written.ok ? ok(repo) : err(written.error);
 			}),
-		setName: async (id, name) =>
-			executeExisting(db, REPOS_SQL.setName, [name, now(), id], "Renaming a repository"),
 		setDefaultBranch: async (id, branch) =>
 			executeExisting(
 				db,

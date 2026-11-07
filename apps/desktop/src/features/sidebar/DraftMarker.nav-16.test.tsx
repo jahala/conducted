@@ -222,7 +222,6 @@ describe("NAV-16 workspace row marker", () => {
 							repo={repo}
 							selected={false}
 							shortcutIndex={null}
-							now={1_000}
 						/>
 					))}
 					<Toaster />

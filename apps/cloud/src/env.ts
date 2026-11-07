@@ -1,6 +1,8 @@
 /**
  * @feature CLOUD-03 The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay
- * Owns: the bindings and secrets the Worker and its Durable Object read.
+ * @feature CLOUD-06 Keep work across sandbox restarts
+ * Owns: the bindings and secrets the Worker and its Durable Object read, including the R2 bucket
+ * the workspace backups go in.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the Worker authenticates the desktop with a
  * pairing token and routes each workspace to its Durable Object) and its spike result (the token
  * is a Worker secret, the model key stays in the Worker).
@@ -26,10 +28,14 @@ export interface Env {
 	WORKSPACE: DurableObjectNamespace<Workspace>;
 	/** Shared secret made when the Worker is deployed; every route checks it. */
 	PAIRING_TOKEN: string;
-	/** The model key the outbound handler swaps into the sandbox's placeholder. */
+	/** Claude Code's model key, which the outbound handler swaps into the sandbox's placeholder. */
 	ANTHROPIC_API_KEY: string;
-	/** The GitHub token the outbound handler holds for `git` and `gh` (CLOUD-05 extends this). */
+	/** Codex's model key, which the outbound handler swaps into the sandbox's placeholder. */
+	OPENAI_API_KEY?: string;
+	/** The GitHub token the outbound handler holds for `git` and `gh` (CLOUD-05). */
 	GITHUB_TOKEN?: string;
 	/** The container size the sandbox starts in. */
 	INSTANCE_TYPE: InstanceType;
+	/** The R2 bucket that holds each workspace's latest backup (CLOUD-06). */
+	BACKUPS: R2Bucket;
 }

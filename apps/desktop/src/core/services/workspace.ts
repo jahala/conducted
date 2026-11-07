@@ -153,6 +153,7 @@ import type {
 	Session,
 	Workspace,
 } from "../model.ts";
+import { isArchivedWorkspace } from "../status/archived.ts";
 import type { GitCache } from "./git-cache.ts";
 import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "./place-gazetteer.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
@@ -1160,7 +1161,7 @@ export class WorkspaceService {
 				return err(appError("workspace_unknown", "That workspace no longer exists."));
 			}
 			checkHost(workspace.host, "shell");
-			if (workspace.state === "archived" || workspace.state === "archiving") {
+			if (isArchivedWorkspace(workspace) || workspace.state === "archiving") {
 				return err(appError("workspace_not_ready", "That workspace is archived."));
 			}
 
@@ -1388,7 +1389,7 @@ export class WorkspaceService {
 		if (workspace === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		checkHost(workspace.host, "lifecycle");
-		if (workspace.state === "archived") return ok(undefined);
+		if (isArchivedWorkspace(workspace)) return ok(undefined);
 		if (workspace.state === "archiving") {
 			return err(appError("workspace_archiving", "This workspace is already being archived."));
 		}
@@ -1571,7 +1572,7 @@ export class WorkspaceService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		checkHost(workspace.host, "lifecycle");
-		if (workspace.state !== "archived") {
+		if (!isArchivedWorkspace(workspace)) {
 			return err(appError("workspace_not_archived", "This workspace is not archived."));
 		}
 
@@ -1943,7 +1944,7 @@ export class WorkspaceService {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
 		if (
-			workspace.state === "archived" ||
+			isArchivedWorkspace(workspace) ||
 			workspace.state === "archiving" ||
 			workspace.archiveCommit !== null
 		) {

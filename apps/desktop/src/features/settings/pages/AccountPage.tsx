@@ -117,7 +117,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	return (
 		<SettingsPageFrame
 			title="Account"
-			description="Local sign-ins and connections. There is no Conducted account or billing."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>

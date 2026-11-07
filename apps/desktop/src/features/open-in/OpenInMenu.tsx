@@ -1,7 +1,9 @@
 /**
  * @feature WS-08 OpenInMenu
  * Owns: the "Open in" control in the workspace header: a button that opens the workspace folder in
- * the last used app, and a menu of the installed Finder, editors, terminals, IDEs and git tools.
+ * the last used app, and a menu of the installed Finder, editors, terminals, IDEs and git tools,
+ * ending with "Copy path". Conductor keeps copying the folder path in this menu, after the apps
+ * (wWn, renderApp @2508600); there is no separate folder chip (D098).
  * Behaviour: ui-map.md 3.10 ("Open in" app menu; Cmd+O opens in the default app, Cmd+Shift+O opens
  * the menu); the order of recently used apps and the default app are settings (open_in_mru_order,
  * default_open_in in services-map.md 4.2.3).
@@ -11,7 +13,8 @@
  * Must handle: the installed-apps list loading or failing (Finder alone still works), no editor
  * installed (only Finder), the default app having been uninstalled (falls back to the first
  * available, visibly), an open that fails (the Conductor toast title), an archived workspace
- * (menu disabled with the reason), and Cmd+O when no default is set (opens the menu).
+ * (menu disabled with the reason), Cmd+O when no default is set (opens the menu), and a copy that
+ * fails (a toast).
  * Test first: with Cursor and Finder installed and Cursor last used, the button label is Cursor
  * and the menu lists Cursor first.
  */
@@ -20,7 +23,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
-import { Menu, MenuContent, MenuLabel } from "../../ui/Menu.tsx";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
+import { CopyIcon } from "../../ui/icons.tsx";
+import { Menu, MenuContent, MenuItem, MenuLabel } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { OpenInButton } from "./OpenInButton.tsx";
 import { OpenInItem } from "./OpenInItem.tsx";
@@ -37,7 +42,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const { apps, defaultApp, storedDefault, recentNames, listFailed } = useOpenInApps();
 
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	const disabledReason =
 		workspace.state === "loading"
 			? "Loading the workspace."
@@ -49,7 +54,7 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const open = useCallback(
 		(app: OpenInApp): Promise<void> => {
-			if (workspace.state !== "ready" || workspace.data.state === "archived") {
+			if (workspace.state !== "ready" || isArchivedWorkspace(workspace.data)) {
 				return Promise.resolve();
 			}
 			return flight.run("open", async () => {
@@ -80,6 +85,13 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 		},
 		[actions],
 	);
+
+	const copyPath = () => {
+		if (workspace.state !== "ready") return;
+		void actions.app.copyText(workspace.data.path).then((result) => {
+			if (!result.ok) toastError("Couldn't copy the folder path", result.error);
+		});
+	};
 
 	const openDefault = useCallback(() => {
 		if (defaultApp === null) {
@@ -125,6 +137,9 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 					/>
 				))}
 				{listFailed ? <MenuLabel>Could not list the apps on this Mac.</MenuLabel> : null}
+				<MenuItem icon={<CopyIcon />} onSelect={copyPath}>
+					Copy path
+				</MenuItem>
 			</MenuContent>
 		</Menu>
 	);

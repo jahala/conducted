@@ -18,6 +18,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { TerminalTabSlot } from "../../app/surface-registry.tsx";
 import { useWorkspace } from "../../core/hooks.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { BrowserTab } from "../browser-preview/BrowserTab.tsx";
@@ -71,7 +72,7 @@ function TabBody({
 }) {
 	const key = activeTabKey(tab);
 	const workspace = useWorkspace(workspaceId);
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
 	if (archived && (tab.kind === "terminal" || tab.kind === "file" || tab.kind === "browser")) {
 		return <ArchivedTabNotice workspaceId={workspaceId} />;
 	}

@@ -44,6 +44,7 @@ import {
 	TableRow,
 } from "../../ui/Table.tsx";
 import { formatFileSize } from "../file-viewer/preview/PreviewUnavailable.tsx";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 
 /** How often the process table is read while the sidebar is mounted. */
@@ -95,11 +96,12 @@ function groupRows(
 	processes: readonly ProcessUsage[],
 	workspaces: readonly Workspace[],
 	sort: SortState,
+	branchPrefix: string,
 ): UsageGroup[] {
 	const labels = new Map<string, string>();
 	const order: string[] = [];
 	for (const workspace of workspaces) {
-		labels.set(workspace.path, workspaceName(workspace));
+		labels.set(workspace.path, workspaceName(workspace, branchPrefix));
 		order.push(workspace.path);
 	}
 
@@ -258,9 +260,10 @@ export function ResourceUsageTable({ pollIntervalMs = POLL_INTERVAL_MS }: Resour
 		};
 	}, [platform, pathKey, pollIntervalMs]);
 
+	const branchPrefix = useBranchPrefix();
 	const groups = useMemo(
-		() => (usage.state === "ready" ? groupRows(usage.data, workspaceRows, sort) : []),
-		[usage, workspaceRows, sort],
+		() => (usage.state === "ready" ? groupRows(usage.data, workspaceRows, sort, branchPrefix) : []),
+		[usage, workspaceRows, sort, branchPrefix],
 	);
 
 	const chooseSort = useCallback((key: SortKey) => {

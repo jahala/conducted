@@ -179,7 +179,8 @@ describe("SET-02 AdvancedPage", () => {
 		const mounted = await mountPage();
 		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/tmp/new-root"));
 
-		fireEvent.click(screen.getByRole("button", { name: "Choose folder" }));
+		// Conductor's button is "Browse", under the description with the path field beside it.
+		fireEvent.click(screen.getByRole("button", { name: "Browse" }));
 		expect(await screen.findByRole("alertdialog")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Change root path" }));
 

@@ -9,8 +9,8 @@
  * the cloud sidecar).
  * Must handle: a call with a session id, a workspace context, a workspace path or a cwd resolves
  * its host; a call that names none of them goes to the local sidecar; a cloud `sendMessage`,
- * `warmAgent` or `runUtilityPrompt` carries the placeholder key instead of the user's; a local
- * call is passed through untouched.
+ * `warmAgent`, `runUtilityPrompt` or `listModels` carries the placeholder key instead of the
+ * user's; a local call is passed through untouched.
  * Our design choice: the placeholder is the string the CLOUD-02 spike used,
  * `provided-by-worker`. The Worker's outbound handler replaces it for the model API only.
  * Test first: a cloud chat's sendMessage goes to the cloud tunnel with the placeholder, and a
@@ -23,16 +23,11 @@ type CloudHost = Extract<Host, { kind: "cloud" }>;
 
 /** The key the sandbox's agent gets in place of the real provider key. */
 export const CLOUD_PROVIDER_KEY_PLACEHOLDER = "provided-by-worker";
-/**
- * Where the interim (CLOUD-02) sandbox image installs Claude Code. CLOUD-04 replaces this with the
- * sidecar's managed install; D101 records the interim choice.
- */
-export const CLOUD_CLAUDE_PATH = "/usr/local/bin/claude";
 
 type Params = Record<string, unknown>;
 
 /** Methods whose launch carries provider keys. */
-const LAUNCH_METHODS = new Set(["sendMessage", "warmAgent", "runUtilityPrompt"]);
+const LAUNCH_METHODS = new Set(["sendMessage", "warmAgent", "runUtilityPrompt", "listModels"]);
 
 /** The host a call belongs to, or null for the local sidecar. */
 export type HostResolver = (method: string, params: unknown) => CloudHost | null;
@@ -55,15 +50,6 @@ export function withoutProviderKeys(method: string, params: unknown): unknown {
 	const launch = record.launch;
 	if (typeof launch !== "object" || launch === null) return params;
 	const { executablePath: _macProgram, ...rest } = launch as Record<string, unknown>;
-	const config = record.config;
-	const agent =
-		typeof config === "object" && config !== null
-			? (config as { agent?: unknown }).agent
-			: record.agent;
-	if (agent === "claude") {
-		// Until CLOUD-04 builds the product's image, the spike image has Claude at this path.
-		rest.executablePath = CLOUD_CLAUDE_PATH;
-	}
 	const providerKeys = rest.providerKeys;
 	if (typeof providerKeys !== "object" || providerKeys === null) {
 		return { ...record, launch: rest };

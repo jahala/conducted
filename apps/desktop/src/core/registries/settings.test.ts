@@ -8,6 +8,7 @@ import {
 	defaultValueOf,
 	getSettingDef,
 	isFileBacked,
+	pageDescriptionOf,
 	SETTING_KEYS,
 	SETTING_PAGES,
 	SETTINGS,
@@ -348,6 +349,14 @@ describe("SET-01 checklist", () => {
 		expect(repoShared.scopes).toContain("repo");
 
 		expect(isFileBacked(must("message_send_key"))).toBe(false);
+	});
+
+	it("leaves our description off a page row where Conductor's row has none, and keeps it for search", () => {
+		const def = must("manual_workspace_order");
+		expect(def.pageDescription).toBe(false);
+		expect(pageDescriptionOf(def)).toBeNull();
+		expect(def.description.length).toBeGreaterThan(0);
+		expect(pageDescriptionOf(must("message_send_key"))).toBe(must("message_send_key").description);
 	});
 
 	it("declares every field the settings pages and search need", () => {

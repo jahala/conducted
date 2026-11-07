@@ -58,6 +58,49 @@ describe("CLOUD-03 the Worker's front door", () => {
 		expect((await get("/w/ws1/rpc")).status).toBe(426);
 	});
 
+	it("refuses a terminal request that is not a WebSocket", async () => {
+		expect((await get("/w/ws1/terminal")).status).toBe(426);
+	});
+
+	it("makes a preview URL that carries an unguessable token", async () => {
+		const response = await post("/w/preview-ws/preview-url", { port: 3000 });
+		expect(response.status).toBe(200);
+		const { url } = (await response.json()) as { url: string };
+		expect(url).toMatch(
+			/^https:\/\/cloud\.test\/w\/preview-ws\/preview\/[A-Za-z0-9_-]{43}\/3000\/$/,
+		);
+	});
+
+	it("refuses a reserved or malformed preview port", async () => {
+		expect((await post("/w/preview-ws/preview-url", { port: 22 })).status).toBe(400);
+		expect((await post("/w/preview-ws/preview-url", { port: "not-a-port" })).status).toBe(400);
+		expect((await post("/w/preview-ws/preview-url", { port: 70_000 })).status).toBe(400);
+	});
+
+	it("checks a preview token without the pairing token, because a browser holds no key", async () => {
+		const { url } = (await (await post("/w/preview-ws/preview-url", { port: 3000 })).json()) as {
+			url: string;
+		};
+		const path = new URL(url).pathname;
+		// A browser's request carries no pairing token; the URL's own token is the capability.
+		const withGoodToken = await SELF.fetch(`${BASE}${path}`, { headers: {} });
+		expect(withGoodToken.status).toBe(503);
+		const bad = path.replace(/preview\/[A-Za-z0-9_-]{43}\//, `preview/${"A".repeat(43)}/`);
+		expect((await SELF.fetch(`${BASE}${bad}`, { headers: {} })).status).toBe(403);
+		expect(
+			(await SELF.fetch(`${BASE}${path.replace("/3000/", "/3001/")}`, { headers: {} })).status,
+		).toBe(403);
+	});
+
+	it("refuses a preview token for another worker's secret or port", async () => {
+		const { url } = (await (await post("/w/preview-ws/preview-url", { port: 3000 })).json()) as {
+			url: string;
+		};
+		const path = new URL(url).pathname;
+		const other = path.replace("preview-ws", "preview-other");
+		expect((await SELF.fetch(`${BASE}${other}`, { headers: {} })).status).toBe(403);
+	});
+
 	it("answers state from the workspace's Durable Object", async () => {
 		const response = await get("/w/state-test/state");
 		expect(response.status).toBe(200);
@@ -67,6 +110,7 @@ describe("CLOUD-03 the Worker's front door", () => {
 			turnActive: false,
 			alarmAt: null,
 			instance: "basic",
+			backups: [],
 		});
 	});
 });

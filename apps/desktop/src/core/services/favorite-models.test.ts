@@ -103,29 +103,64 @@ describe("COMP-02 favourite models service", () => {
 			favorite("a", "m1", 0),
 			favorite("b", "m2", 1),
 			favorite("c", "m3", 2),
-			favorite("d", "m4", 3),
 		]);
 		await service.start();
 		const results = await Promise.all([service.add(choice("m6")), service.add(choice("m7"))]);
 		expect(results.filter((result) => result.ok)).toHaveLength(1);
 		expect(repo.state.addCalls).toBe(1);
-		expect(service.store.getState().favorites).toHaveLength(5);
+		expect(service.store.getState().favorites).toHaveLength(4);
 	});
 
-	it("refuses a sixth favourite instead of saving it", async () => {
+	// Conductor's loadout is five models: the default model, then four more (renderApp, the picker's
+	// favourites and the Loadout page).
+	it("refuses a fifth favourite instead of saving it: the default is the loadout's first", async () => {
 		const { repo, service } = serviceWith([
 			favorite("a", "m1", 0),
 			favorite("b", "m2", 1),
 			favorite("c", "m3", 2),
 			favorite("d", "m4", 3),
-			favorite("e", "m5", 4),
 		]);
 		await service.start();
 		const result = await service.add(choice("m6"));
 		expect(result.ok).toBe(false);
 		expect(result.ok ? "" : result.error.code).toBe("favorite_limit");
 		expect(repo.state.addCalls).toBe(0);
-		expect(service.store.getState().favorites).toHaveLength(5);
+		expect(service.store.getState().favorites).toHaveLength(4);
+	});
+
+	it("replaces a favourite in its own place", async () => {
+		const { repo, service } = serviceWith([
+			favorite("a", "m1", 0),
+			favorite("b", "m2", 1),
+			favorite("c", "m3", 2),
+		]);
+		await service.start();
+		const replaced = await service.replace("b", choice("m9"));
+		expect(replaced.ok).toBe(true);
+		expect(service.store.getState().favorites.map((entry) => entry.config.model)).toEqual([
+			"m1",
+			"m9",
+			"m3",
+		]);
+		expect(repo.state.deleteCalls).toEqual(["b"]);
+		expect((await repo.list()).ok).toBe(true);
+	});
+
+	it("moves a favourite that already holds the new choice into the replaced place", async () => {
+		const { repo, service } = serviceWith([
+			favorite("a", "m1", 0),
+			favorite("b", "m2", 1),
+			favorite("c", "m3", 2),
+		]);
+		await service.start();
+		const replaced = await service.replace("a", choice("m3"));
+		expect(replaced.ok).toBe(true);
+		expect(service.store.getState().favorites.map((entry) => entry.config.model)).toEqual([
+			"m3",
+			"m2",
+		]);
+		expect(repo.state.addCalls).toBe(0);
+		expect(repo.state.deleteCalls).toEqual(["a"]);
 	});
 
 	it("removing a favourite leaves dense positions", async () => {

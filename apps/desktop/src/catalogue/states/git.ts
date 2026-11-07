@@ -100,9 +100,10 @@ export const GIT_STATES: CatalogueState[] = [
 	{
 		id: "workspace-actions-menu",
 		group: "Workspace chat",
-		title: "The workspace header's actions menu",
+		title: "The workspace actions menu, on the sidebar row's right click",
 		seed: arborScene({
-			after: ({ document }) => click(document, "button", "Workspace actions"),
+			after: ({ document }) =>
+				rightClick(document, "a[aria-current=page]", "Fix login redirect", { prefix: true }),
 			ready: (document) => shows(document, "Move to section"),
 		}),
 	},

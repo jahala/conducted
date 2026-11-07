@@ -107,7 +107,7 @@ describe("NAV-03 WorkspaceList", () => {
 		hooks.repos = { state: "ready", data: [] };
 		hooks.workspaces = { state: "ready", data: [] };
 		renderWithRouter(<WorkspaceList />);
-		expect(await screen.findByText("No projects yet")).toBeTruthy();
+		expect(await screen.findByText("Add a project to get started.")).toBeTruthy();
 	});
 
 	it("invites the user to create a workspace when a project has none", async () => {
@@ -129,10 +129,13 @@ describe("NAV-03 WorkspaceList", () => {
 });
 
 describe("SidebarEmptyState", () => {
-	it("offers adding a project when none exists", async () => {
+	// This test asserted our heading and "Add a project" button. Conductor's empty list shows one
+	// sentence; the centre carries the add-project actions (D098).
+	it("shows Conductor's one sentence when no project exists, with no heading or button", async () => {
 		renderWithRouter(<SidebarEmptyState kind="no-projects" />);
-		expect(await screen.findByRole("heading", { name: "No projects yet" })).toBeTruthy();
-		expect(screen.getByRole("button", { name: "Add a project" })).toBeTruthy();
+		expect(await screen.findByText("Add a project to get started.")).toBeTruthy();
+		expect(screen.queryByRole("heading", { name: "No projects yet" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Add a project" })).toBeNull();
 	});
 });
 

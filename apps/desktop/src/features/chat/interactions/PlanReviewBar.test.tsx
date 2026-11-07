@@ -1,6 +1,6 @@
 /**
- * Tests for CHAT-12: the plan review bar approves, rejects with feedback, copies, hands off and
- * answers its shortcut.
+ * Tests for CHAT-12: the plan review bar approves, copies, hands off and answers its shortcut; the
+ * composer beside it takes the feedback that rejects the plan, as Conductor's does (D098).
  */
 import type { Interaction, SessionConfig } from "@conducted/protocol";
 import { appError, err, type InteractionId, ok, type SessionId } from "@conducted/shared";
@@ -11,12 +11,14 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { Session } from "../../../core/model.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../../test/container.ts";
+import { Composer } from "../../composer/Composer.tsx";
 import { InteractionDock } from "./InteractionDock.tsx";
 import { PlanReviewBar } from "./PlanReviewBar.tsx";
 
@@ -109,6 +111,32 @@ async function renderBarInRouter(
 
 const group = () => screen.getByRole("group", { name: "Plan review" });
 
+/** The bar and the chat's composer, as the chat shows them while the plan waits. */
+async function renderBarAndComposer(test: TestContainer, session: Session): Promise<Editor> {
+	void test.container.services.sessions.requestInteraction({
+		sessionId: session.id,
+		interactionId,
+		interaction: request(),
+	});
+	let editor: Editor | null = null;
+	render(
+		<ServicesProvider container={test.container}>
+			<CommandDispatcher>
+				<PlanReviewBar sessionId={session.id} interactionId={interactionId} request={request()} />
+				<Composer
+					workspaceId={session.workspaceId}
+					sessionId={session.id}
+					onEditorReady={(ready: Editor | null) => {
+						editor = ready;
+					}}
+				/>
+			</CommandDispatcher>
+		</ServicesProvider>,
+	);
+	await waitFor(() => expect(editor).not.toBeNull());
+	return editor as unknown as Editor;
+}
+
 afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
@@ -119,12 +147,12 @@ afterEach(() => {
 });
 
 describe("CHAT-12 plan review bar", () => {
-	it("uses Conductor's words: the adjustments placeholder and Approve with its live key", async () => {
+	it("uses Conductor's words: Approve with its live key, and the adjustments placeholder in the composer", async () => {
 		const { test, session } = await setup();
 
-		renderBar(test, session.id);
+		await renderBarAndComposer(test, session);
 
-		expect(screen.getByPlaceholderText("Enter your plan adjustments here...")).toBeTruthy();
+		expect(await screen.findByText("Enter your plan adjustments here...")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Approve" }).textContent).toBe("Approve⌘⇧↵");
 		expect(screen.queryByText(/Hand off sends it to the chat above/)).toBeNull();
 	});
@@ -179,18 +207,22 @@ describe("CHAT-12 plan review bar", () => {
 		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
 	});
 
-	it("rejects the plan with the typed feedback", async () => {
+	// This test typed in the bar's feedback box and clicked "Reject plan". Conductor takes the
+	// feedback in the composer, so it is typed there and sent with Enter.
+	it("rejects the plan with the feedback sent from the composer", async () => {
 		const { test, session } = await setup();
 		const answer = vi
 			.spyOn(test.container.services.sessions, "answer")
 			.mockResolvedValue(ok(undefined));
+		const send = vi.spyOn(test.container.services.sessions, "send");
 
-		renderBar(test, session.id);
-		fireEvent.change(screen.getByLabelText("Plan feedback"), {
-			target: { value: "Use the existing tokenizer instead." },
+		const editor = await renderBarAndComposer(test, session);
+		act(() => {
+			editor.commands.insertContent("Use the existing tokenizer instead.");
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Reject plan" }));
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
 
+		expect(send).not.toHaveBeenCalled();
 		await waitFor(() =>
 			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
 				kind: "plan_approval",
@@ -200,16 +232,15 @@ describe("CHAT-12 plan review bar", () => {
 		);
 	});
 
-	it("keeps Reject disabled until the feedback box has text", async () => {
+	// This test checked the bar's Reject button. The bar now has no feedback box or reject button.
+	it("has no feedback box or Reject button in the bar", async () => {
 		const { test, session } = await setup();
 
 		renderBar(test, session.id);
 
-		expect(screen.getByRole("button", { name: "Reject plan" }).hasAttribute("disabled")).toBe(true);
-		fireEvent.change(screen.getByLabelText("Plan feedback"), { target: { value: "Change it." } });
-		expect(screen.getByRole("button", { name: "Reject plan" }).hasAttribute("disabled")).toBe(
-			false,
-		);
+		expect(screen.queryByRole("button", { name: "Reject plan" })).toBeNull();
+		expect(screen.queryByLabelText("Plan feedback")).toBeNull();
+		expect(screen.queryByPlaceholderText("Enter your plan adjustments here...")).toBeNull();
 	});
 
 	it("copies the plan text", async () => {
@@ -303,36 +334,38 @@ describe("CHAT-12 plan review bar", () => {
 		);
 	});
 
-	it("submits typed feedback when Cmd+Shift+Enter is pressed into the root dispatcher", async () => {
+	// This test sent the bar's feedback with Cmd+Shift+Enter. With the feedback in the composer,
+	// the shortcut only approves, and an empty composer sends no feedback.
+	it("sends no feedback from an empty composer while the plan waits", async () => {
 		const { test, session } = await setup();
 		const answer = vi
 			.spyOn(test.container.services.sessions, "answer")
 			.mockResolvedValue(ok(undefined));
 
-		renderBar(test, session.id);
-		const feedback = screen.getByLabelText("Plan feedback");
-		fireEvent.change(feedback, { target: { value: "Keep the old schema." } });
-		fireEvent.keyDown(feedback, { key: "Enter", metaKey: true, shiftKey: true });
+		await renderBarAndComposer(test, session);
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
 
-		await waitFor(() =>
-			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
-				kind: "plan_approval",
-				approved: false,
-				feedback: "Keep the old schema.",
-			}),
+		await waitFor(() => expect(screen.getByRole("textbox", { name: "composer" })).toBeTruthy());
+		expect(answer).not.toHaveBeenCalledWith(
+			session.id,
+			interactionId,
+			expect.objectContaining({ approved: false }),
 		);
 	});
 
-	it("shows the first lines of a long plan with a Show all control", async () => {
+	// Conductor's bar holds only its controls; the plan's text is the chat's plan card (renderApp's
+	// composer strip, dca). This test showed the bar's own copy of the plan.
+	it("leaves the plan's text to the chat's plan card: the bar has no title or plan", async () => {
 		const { test, session } = await setup();
 		const longPlan = Array.from({ length: 30 }, (_, index) => `Step ${index + 1}`).join("\n");
 
 		renderBar(test, session.id, { plan: longPlan });
 
-		expect(screen.getByText(/Step 1/)).toBeTruthy();
-		expect(screen.queryByText(/Step 30/)).toBeNull();
-		fireEvent.click(screen.getByRole("button", { name: /Show all 30 lines/ }));
-		expect(screen.getByText(/Step 30/)).toBeTruthy();
+		const bar = screen.getByRole("group", { name: "Plan review" });
+		expect(bar.textContent).not.toContain("Step 1");
+		expect(bar.textContent).not.toContain("Review plan");
+		expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+		expect(screen.getByRole("button", { name: /Approve/ })).toBeTruthy();
 	});
 
 	it("links the plan file", async () => {
@@ -359,7 +392,7 @@ describe("CHAT-12 plan review bar", () => {
 			</ServicesProvider>,
 		);
 
-		expect(screen.getByText("Review plan")).toBeTruthy();
+		expect(screen.getByRole("group", { name: "Plan review" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
 	});
 });

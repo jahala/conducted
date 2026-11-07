@@ -66,10 +66,12 @@ describe("APP-07 resource usage table", () => {
 		open = test;
 		const alpha = await seedWorkspace(test.container, {
 			branch: "alpha",
+			branchIsPlaceholder: false,
 			path: "/code/workspaces/alpha",
 		});
 		const beta = await seedWorkspace(test.container, {
 			branch: "beta",
+			branchIsPlaceholder: false,
 			path: "/code/workspaces/beta",
 		});
 		test.memory.controls.setProcesses([
@@ -81,8 +83,8 @@ describe("APP-07 resource usage table", () => {
 		const table = await openTable(test);
 		// Conductor's chip names the total memory of every process listed.
 		expect(screen.getByRole("button", { name: /^Resource usage: 350/ })).toBeTruthy();
-		const alphaGroup = within(table).getByRole("rowgroup", { name: "alpha" });
-		const betaGroup = within(table).getByRole("rowgroup", { name: "beta" });
+		const alphaGroup = within(table).getByRole("rowgroup", { name: "Alpha" });
+		const betaGroup = within(table).getByRole("rowgroup", { name: "Beta" });
 		expect(within(alphaGroup).getByText("node")).toBeTruthy();
 		expect(within(alphaGroup).getByText("zsh")).toBeTruthy();
 		expect(within(alphaGroup).queryByText("bun")).toBeNull();
@@ -92,7 +94,7 @@ describe("APP-07 resource usage table", () => {
 		expect(alphaText.indexOf("node")).toBeLessThan(alphaText.indexOf("zsh"));
 
 		fireEvent.click(within(table).getByRole("button", { name: "Sort by memory" }));
-		const sorted = within(table).getByRole("rowgroup", { name: "alpha" }).textContent ?? "";
+		const sorted = within(table).getByRole("rowgroup", { name: "Alpha" }).textContent ?? "";
 		expect(sorted.indexOf("zsh")).toBeLessThan(sorted.indexOf("node"));
 	});
 
@@ -101,6 +103,7 @@ describe("APP-07 resource usage table", () => {
 		open = test;
 		const alpha = await seedWorkspace(test.container, {
 			branch: "alpha",
+			branchIsPlaceholder: false,
 			path: "/code/workspaces/alpha",
 		});
 		test.memory.controls.setProcesses([
@@ -111,7 +114,7 @@ describe("APP-07 resource usage table", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Copy resource usage" }));
 		await waitFor(() => expect(test.memory.controls.clipboardText).toContain("node"));
 		const copied = test.memory.controls.clipboardText ?? "";
-		expect(copied).toContain("alpha");
+		expect(copied).toContain("Alpha");
 		expect(copied).toContain("Name");
 		expect(copied).toContain("CPU");
 		expect(copied).toContain("Mem");
@@ -135,6 +138,7 @@ describe("APP-07 resource usage table", () => {
 		open = test;
 		const alpha = await seedWorkspace(test.container, {
 			branch: "alpha",
+			branchIsPlaceholder: false,
 			path: "/code/workspaces/alpha",
 		});
 		test.memory.controls.setProcesses([

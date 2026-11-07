@@ -37,6 +37,14 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | `model_context_windows` | The context window an agent last reported for one model. agent is the agent kind, or 'acp:<agent>' for an ACP agent; model is the model id the chat was started with. | one row per agent and model, replaced by the next report for that model; the table grows only with the number of models used. | 0006_model_context_windows.sql |
 <!-- /generated:tables -->
 
+The generated rows quote each migration's comment. Some comments in earlier migrations are out of date, and an applied migration is never edited, so the corrections live here:
+
+- `session_events`: its row above quotes "Both limits are settings". That is wrong. The 30-day tool-output cut and the 90-day archived-chat compaction have fixed limits, `DEFAULT_LIFETIME_LIMITS` in `apps/desktop/src/core/db/lifetime.ts`, which `core/container.ts` passes unchanged; no setting changes them (DATA-02). `scripts/guards/lifetime-limits.ts` fails when a settings key takes one over.
+- `settings`: its row above quotes "fixed set of keys". That is wrong. The table holds the settings registry's keys and two internal bookkeeping keys: `data_lifetime_last_run_at`, when the data-lifetime job last ran, and `data_lifetime_tool_outputs_watermark`, the newest event time the daily tool-output cut has already looked at, so it never scans the whole history again (DATA-02). `scripts/guards/settings-keys.ts` fails on a `_KEY` constant in `core/db` that this file does not name.
+- `workspaces` no longer has a `notes` column, and `terminals` no longer has `cols` or `rows`. Nothing read them, so migration 0011 dropped them.
+- `workspaces.archived_at` is only the time an archive finished, read by the data-lifetime and checkpoint jobs (DATA-02, DATA-06). Whether a workspace is archived comes from `state` alone, through `isArchivedWorkspace` in `apps/desktop/src/core/status/archived.ts`. A workspace being restored is `initializing` while its archived time is still set, so every screen reads it as live.
+- `session_events.compacted_at` is the one marker for "this event was compacted": the daily tool-output cut sets it on an agent event, and the archived-chat compaction sets it on a turn's `turn_ended` event. Migration 0011 moved the older JSON `$.compacted` flags into it and removed the flag.
+
 ## Stores outside the database
 
 | Store | Where | Lifetime | Enforced by |
@@ -54,6 +62,10 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |
 | Uploaded repository icons | app data `icons/<repo>-<id>.<ext>` | One image per project with an uploaded icon, at most 10 MB. The earlier image moves to the Trash once the project points to a new one; clearing the icon, choosing an emoji or removing the project moves it to the Trash too. | PRJ-05 |
 | Workspace panel layouts | the web view's `localStorage`, key `conducted.panel-layout:<group id>` | Removed with its workspace when WS-05 deletes or archives it; a saved layout for a panel that no longer exists is ignored. The app shell's sidebar lives in the settings table, not here. | WS-05 |
+| Run history | the web view's `localStorage`, key `conducted.run-history:<workspace id>` | The last 20 run actions of one workspace; removed when the workspace is deleted or archived. | RUN-01 |
+| Hidden run actions | the web view's `localStorage`, key `conducted.hidden-run-actions:<repo id>` | The shared run actions this user hid for one project; removed when the project is removed. | SET-07, removed by PRJ-01 |
+| Last workspace location | the web view's `localStorage`, key `conducted.workspace-location-v1` | Replaced on every route change; removed when the route has no workspace to reopen. | NAV-02 |
+| Dismissed macOS warning | the web view's `localStorage`, key `conducted.macos-version-warning-dismissed` | The app version whose "macOS is too old" warning the user dismissed; the warning returns after an update, which replaces the value. | APP-08 |
 | Cached changes and PR info | app data `git-cache/changes/<workspace>.json` and `git-cache/pr-info/<workspace>.json` | 25 MB for changes and 5 MB for PR info in total; the oldest files go first. Removed with the workspace. | DATA-07 |
 | Terminal shell integration | app data `terminal-shell-integration/zsh/` | Four small files, rewritten at every app start. | RUN-09 |
 | Setup script logs | app data `setup-logs/<workspace>.log` | Removed with the workspace. | WS-10 |
@@ -65,4 +77,7 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Repo settings | `<repo>/.conducted/settings.toml` | Owned by the repo; fixed size. | DATA-05 |
 | Repo local settings | `<repo>/.conducted/settings.local.toml` | Owned by the user; git-excluded; fixed size. | DATA-05 |
 | Environment variable secrets (env vars, tokens) | macOS Keychain, key `env:global:<NAME>` for a global value or `env:repo:<repoId>:<NAME>` for a repository value | Until the user removes the variable or its project, or signs out. | SET-04 |
+| Cloud pairing token | macOS Keychain under `build.conducted.app`, key `cloud-pairing-token` | Until the user unpairs on the Connections page, pairs another Worker, or deletes the item in Keychain Access. | CLOUD-07 |
+| Cloud pairing Worker | macOS Keychain under `build.conducted.app`, key `cloud-pairing-url` | With the pairing token; a URL the app can show but the token is never returned. | CLOUD-07 |
 | Agent transcripts | the agent's own folder (for example `~/.claude/projects/`) | Owned by the agent program, not by this app. | none |
+| Cloud workspace backups | the user's R2 bucket `conducted-cloud-backups`, keys `workspace-backups/<uuid>.tar.zst`, with one record per directory in the Workspace Durable Object's storage | The newest backup of `/workspace` and each agent transcript folder (`/root/.claude`, `/root/.codex`), replaced at each turn end: three objects per workspace once a save finishes. A new backup is stored before the object it replaces is deleted. Deleted with the workspace (CLOUD-08) and when the Worker is uninstalled (CLOUD-07); neither flow is built yet. | CLOUD-06 |

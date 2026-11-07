@@ -98,15 +98,17 @@ Search params of the workspace route (validated by zod `Kae`): `activeTabType` (
 
 ### 3.1 Workspace header (top of center panel)
 
-Left to right, for a local workspace (`nPi`, VERIFIED @5518193):
-- Breadcrumb: repo icon and name, branch, target branch picker ("Target branch").
-- Workspace name with "Rename workspace" and "Workspace actions" menu.
+Left to right, for a local workspace (`ePi` and `nPi`, VERIFIED @5513500-5521500, read again 2026-11-07):
+- Breadcrumb: the repo's icon and name (a menu: "Repository settings", "Open on GitHub"), a chevron, then the branch (`u0o`): a click renames it in place; right click offers "Copy" (`C`) and "Rename" (`R`).
+- An ellipsis button (`Kpo`) whose popover holds "Target branch" and the branch picker.
 - Follow button ("Follow workspace" or "Unfollow workspace", cloud orgs only).
 - Avatars of creator and watchers.
 - Cloud badge and status for cloud workspaces: "Conductor Cloud", Status, CPU, Memory, Disk, "Low disk", "Agent cost", Restart. VERIFIED @5611925-5623840.
-- Directory name chip and "Open in..." app button (`yC`).
+- The directory name as small muted text, only when it differs from the branch, then the "Open in..." button (`yC` with no label: the default app's icon and a menu arrow). Its menu lists the apps and ends with "Copy path".
 - When the right panel is closed, PR and git action buttons move into the header.
 - Right edge: "Toggle right sidebar".
+
+The local header has no workspace name, "Rename workspace" button or "Workspace actions" button. Those sit in the cloud workspace's hover card (`NPi`, @5625630) and, for every workspace, in the sidebar row's right-click menu below.
 
 "Workspace actions" menu (also the sidebar row menu, VERIFIED @5558200-5563900):
 - Mark as read or Mark as unread (`R`).
@@ -367,12 +369,12 @@ Top to bottom:
 4. Section "Pinned": collapsible, count when collapsed, drop target ("Drag a workspace here"). aria "Pinned workspaces". `data-workspace-pinned-drop`. VERIFIED @10461981.
 5. User sections (table `navigation_sections`): name, optional emoji, collapse, count, "Create in section", row actions menu, "New section...", rename, "Delete section". Drag workspaces between sections. Errors: "Couldn't move workspace", "Couldn't reorder section", "Couldn't delete section". VERIFIED @10458500, @10477589, @10521742.
 6. "Shared" (workspaces shared with me) and "Following" (watched). VERIFIED @10465481, @10481109.
-7. Main list, grouped by Status (done, in review, in progress, backlog, canceled) or by Project (one group per repo), each collapsible. Each project group header has a "+" "Create workspace" button, always shown, and a hover "⋯" actions menu; its avatar turns into the collapse chevron on hover. VERIFIED @10511900 (`ZTa`). "My workspaces" label for the user's own list in team orgs. VERIFIED @10225603, @10493981.
+7. Main list, grouped by Status (done, in review, in progress, backlog, canceled) or by Project (one group per repo), each collapsible. Each project group header has a "+" "Create workspace" button, always shown, and a hover "⋯" actions menu; its avatar turns into the collapse chevron on hover. VERIFIED @10511900 (`ZTa`). "My workspaces" heads the list in local and team orgs (`Rtr`, 12px semibold muted), with its actions behind a hover ellipsis. VERIFIED @10225603, @10493981, @10494900. With no project, the list shows only "Add a project to get started." VERIFIED @10534600.
 8. Footer: notices above (incidents, the macOS version warning, announcements), then one row with the plan badge at the left and Help ("?" menu: Keyboard shortcuts, Docs, Best practices, Changelog, Send feedback, Discord, Submit a prompt, Diagnostics, Open debug tools, version line) and Settings at the right. No add-project control. VERIFIED @10375068, @10177048. Adding a project: the "My workspaces" header's actions menu ("Group by", "Filter by project", "Sort by", "New section…", "Add project…"), the palette's "Add project" and `Cmd+Alt+A` ("Add repository", `nav.addRepository`) all open one 320px menu under the header's right end: "Open project", "Open GitHub project", "Quick start", and "Recents" (folders opened before that are not projects yet). VERIFIED @10495160, @10174083, @11385888, M@3784822. The "Resources" table (Name, CPU, Mem; rows grouped by workspace, sortable, "Copy resource usage") is not in the footer: see 1.3.
 
-"View options" menu (sort icon "Sort workspaces"): Group by (Status or Project), Filter by project (searchable when 5 or more repos), Sort by (Updated or Created; hidden when manual order is on). VERIFIED @10489205.
+"View options" menu (the "My workspaces actions" ellipsis that shows on hovering the "My workspaces" header, `u5e` @10458105): Group by (Status or Project), Filter by project (searchable when 5 or more repos), Sort by (Updated or Created; hidden when manual order is on). VERIFIED @10489205.
 
-Workspace row (`jU`): status icon, name (from user-set name, PR title, branch or directory name), repo avatar (emoji, uploaded icon, favicon, owner avatar or letter), line change counts (+/-, always coloured with "Colored sidebar diffs"), unread dot, relative time, a hover card with the status words (3.8; the row has no second line), badges: Draft, Archive workspace, Admin workspace (can edit settings), Forwarding ports, Private workspace. Keyboard: `Cmd+1..9` switch, `Cmd+Alt+ArrowUp/Down` previous/next, hover keys `R` read, `P` pin. Context menu = Workspace actions (3.1). VERIFIED @10425000-10435354, M@3782527.
+Workspace row (`jU`): status icon, name (from user-set name, PR title, branch or directory name), repo avatar (emoji, uploaded icon, favicon, owner avatar or letter), line change counts (+/-, always coloured with "Colored sidebar diffs"), unread dot, a relative time only in team organisations (`showLastMessageTime`, @10416500), a hover card with the status words (3.8; the row has no second line), badges: Draft, Archive workspace, Admin workspace (can edit settings), Forwarding ports, Private workspace. Keyboard: `Cmd+1..9` switch, `Cmd+Alt+ArrowUp/Down` previous/next, hover keys `R` read, `P` pin. Context menu = Workspace actions (3.1). VERIFIED @10425000-10435354, M@3782527.
 
 Drag and drop: workspaces drag into sections, Pinned, or reorder when "Arrange workspaces manually" is on (order stored per org in route state `manualWorkspaceOrders`). While dragging, a global style sets `cursor: grabbing` and disables link pointer events. VERIFIED @10524580, @10470539 area (`Ctr`, `lTa`).
 

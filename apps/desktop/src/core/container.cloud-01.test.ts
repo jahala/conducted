@@ -3,8 +3,8 @@
  * @feature CLOUD-01 Host interface: each workspace reaches git, shell, files, terminals and its sidecar through a local or cloud host
  * Owns: the composition-root proof that a workspace's git, shell, file, terminal and chat calls
  * check its host first: a local workspace's calls run on the Mac as before, and a cloud
- * workspace's git, file and chat calls reach the Worker and its relay while its terminals still
- * stop at CLOUD-09, with nothing run on the Mac in its place.
+ * workspace's git, file, chat and terminal calls reach the Worker and its relay, with nothing run
+ * on the Mac in its place.
  * Behaviour: services-map.md 1.2 (shell, file and git calls take a host and check it before use),
  * frontend.md 3c (the query options carry the host).
  * Test first: a cloud workspace's git, file and chat calls reach the Worker, and nothing runs on
@@ -52,11 +52,12 @@ async function readyWorkspace(test: TestContainer, host: Host): Promise<Workspac
 		workspace.id,
 	]);
 	await test.container.services.workspace.start();
-	must(await test.container.services.repo.loadConfig(workspace.repoId));
-	// Git answers with nothing to report, so a call that reaches the Mac succeeds.
+	// Git answers with nothing to report, so a call that reaches the Mac succeeds. A cloud repo's
+	// config read fetches its shared clone's branch (CLOUD-04), and that is a Mac git call.
 	test.memory.controls.scriptShell((command) =>
 		command.program === "git" ? ok({ stdout: "", stderr: "", exitCode: 0 }) : null,
 	);
+	must(await test.container.services.repo.loadConfig(workspace.repoId));
 	return workspace;
 }
 
@@ -170,8 +171,7 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				return null;
 			});
 
-			// Git, files and a chat go through the user's Worker and its relay (CLOUD-03);
-			// terminals still stop at the cloud runtime's row (CLOUD-09).
+			// Git, files, a chat and terminals go through the user's Worker (CLOUD-03, CLOUD-09).
 			expect((await services.git.refresh(workspace.id, "full")).ok).toBe(true);
 			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/git")).toBe(true);
 
@@ -185,10 +185,12 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				),
 			).toBe(true);
 
-			expect(await stoppedAt(() => services.terminals.create(workspace.id))).toBe("CLOUD-09");
-			expect(await stoppedAt(() => services.terminals.runCommand(workspace.id, "echo hi"))).toBe(
-				"CLOUD-09",
-			);
+			must(await services.terminals.create(workspace.id));
+			must(await services.terminals.runCommand(workspace.id, "echo hi"));
+			expect(
+				Object.values(cloud.cloudRelayChannels).filter((channel) => channel === "terminal"),
+			).toHaveLength(2);
+			expect(cloud.ptySpawns).toHaveLength(0);
 
 			// The doors CLOUD-03 does not own stop at their own row, before anything reaches the
 			// Mac: file search at CLOUD-11, Open in at CLOUD-12, lifecycle at CLOUD-08.

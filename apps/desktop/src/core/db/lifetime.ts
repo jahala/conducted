@@ -16,7 +16,9 @@
  * file, and fails its step with the path named; the new-workspace draft has no chat row and stays
  * until its own age limit; every step is safe to run twice (a second run finds nothing);
  * `lifetimeJobResult` turns the steps that failed into one error, so the startup step reports them
- * as a start warning instead of hiding them inside the report.
+ * as a start warning instead of hiding them inside the report; the tool-output cut keeps a
+ * watermark in settings of the newest event it has looked at, so after one full pass the daily run
+ * scans only events that crossed the age line since, never the whole history again.
  * Test first: ageCutoff turns a day count into a time, and the cut statement is idempotent.
  */
 import { appError, type Clock, err, ok, type Result } from "@conducted/shared";
@@ -77,6 +79,13 @@ export const LIFETIME_BATCH_SIZE = 200;
 /** Settings key that holds the time of the last finished run, as JSON. */
 export const LIFETIME_LAST_RUN_KEY = "data_lifetime_last_run_at";
 
+/**
+ * Settings key that holds the newest `received_at` the tool-output cut has already looked at, as
+ * JSON. The next run only looks at events at or after it, so the daily scan stops walking the whole
+ * history once the first full pass has marked the rows it found.
+ */
+export const LIFETIME_TOOL_OUTPUT_WATERMARK_KEY = "data_lifetime_tool_outputs_watermark";
+
 /** The time before which something counts as old. */
 export const ageCutoff = (now: number, days: number): number => now - days * MS_PER_DAY;
 
@@ -96,9 +105,11 @@ const KEEP_FINAL_TEXT_EVENT = `(
 export const LIFETIME_SQL = {
 	/**
 	 * Cuts tool results longer than `$1` characters, sets `compacted_at` to `$2` and sets
-	 * `truncated` so the card says so. Only agent events received before `$3` are cut, at most `$4`
-	 * per call. A cut result is exactly `$1` long, so it is not picked again and repeated calls end
-	 * with zero rows changed.
+	 * `truncated` so the card says so. Only agent events received before `$3`, at or after the
+	 * watermark `$4`, and not already cut (`compacted_at IS NULL`, the one home of that fact) are
+	 * cut, at most `$5` per call. The watermark is where the last run stopped looking, so history
+	 * before it is not scanned again. A cut result is exactly `$1` long, so repeated calls end with
+	 * zero rows changed, and a marker from an earlier run is never rewritten.
 	 */
 	cutToolOutputs: `UPDATE session_events
 		SET content = json_set(content, '$.message.items', (
@@ -112,22 +123,25 @@ export const LIFETIME_SQL = {
 			compacted_at = $2
 		WHERE rowid IN (
 			SELECT e.rowid FROM session_events e
-			WHERE e.type = 'agent' AND e.received_at < $3 AND length(e.content) > $1
+			WHERE e.type = 'agent' AND e.received_at < $3 AND e.received_at >= $4
+				AND e.compacted_at IS NULL
+				AND length(e.content) > $1
 				AND EXISTS (SELECT 1 FROM json_each(e.content, '$.message.items') AS i
 					WHERE json_extract(i.value, '$.kind') = 'tool_result'
 						AND length(json_extract(i.value, '$.output')) > $1)
-			ORDER BY e.rowid LIMIT $4)`,
+			ORDER BY e.rowid LIMIT $5)`,
 
 	/**
 	 * Turns not yet compacted whose workspace was archived before `$1` (the archive time is the
 	 * workspace's archived_at, set by migration 0002; updated_at moves with every later edit), at
-	 * most `$2`. A workspace with no archived_at is left alone. Each row feeds the three compact
-	 * statements below.
+	 * most `$2`. A workspace with no archived_at is left alone. `compacted_at` on the turn_ended
+	 * event is the one home of "this turn is compacted", as it is for a cut tool output. Each row
+	 * feeds the three compact statements below.
 	 */
 	findCompactableTurns: `SELECT t.session_id, t.turn_id FROM session_events t
 		JOIN sessions s ON s.id = t.session_id
 		JOIN workspaces w ON w.id = s.workspace_id
-		WHERE t.type = 'turn_ended' AND json_extract(t.content, '$.compacted') IS NULL
+		WHERE t.type = 'turn_ended' AND t.compacted_at IS NULL
 			AND w.state = 'archived' AND w.archived_at < $1
 		ORDER BY t.session_id, t.idx LIMIT $2`,
 	/** Compact step 1 (`$1` session, `$2` turn): the last event with text keeps only text and usage. */
@@ -143,10 +157,14 @@ export const LIFETIME_SQL = {
 	compactDropOtherAgentEvents: `DELETE FROM session_events
 		WHERE session_id = $1 AND turn_id = $2 AND type = 'agent'
 			AND idx IS NOT ${KEEP_FINAL_TEXT_EVENT}`,
-	/** Compact step 3 (`$1` session, `$2` turn): marks the turn so screens show "details removed". */
+	/**
+	 * Compact step 3 (`$1` time, `$2` session, `$3` turn): marks the turn so it is not found again
+	 * and screens show "details removed". The marker is `compacted_at`, the same column a cut tool
+	 * output uses.
+	 */
 	compactMarkTurnEnded: `UPDATE session_events
-		SET content = json_set(content, '$.compacted', json('true'))
-		WHERE session_id = $1 AND turn_id = $2 AND type = 'turn_ended'`,
+		SET compacted_at = $1
+		WHERE session_id = $2 AND turn_id = $3 AND type = 'turn_ended'`,
 
 	/** Draft attachments created before `$1`, oldest first, at most `$2`. */
 	listExpiredDraftAttachments: `SELECT id, path FROM attachments
@@ -404,16 +422,19 @@ const removeEndedTerminals: LifetimeStep = {
 const cutToolOutputs: LifetimeStep = {
 	id: "cut-tool-outputs",
 	description:
-		"Cut tool results longer than the size limit in events older than the age limit, repeating cutToolOutputs until a batch changes no rows.",
+		"Cut tool results longer than the size limit in events older than the age limit, repeating cutToolOutputs until a batch changes no rows. The run then records the age cutoff as a watermark, so the next run looks only at events that crossed the line since, never the whole history again.",
 	run: async ({ db, clock, limits }) => {
 		const now = clock.now();
 		const cutoff = ageCutoff(now, limits.toolOutputMaxAgeDays);
+		const watermark = await readToolOutputWatermark(db);
+		if (!watermark.ok) return watermark;
+		const lowerBound = watermark.value ?? 0;
 		let rowsChanged = 0;
 		for (;;) {
 			const updated = await executeStatement(
 				db,
 				LIFETIME_SQL.cutToolOutputs,
-				[limits.toolOutputMaxBytes, now, cutoff, LIFETIME_BATCH_SIZE],
+				[limits.toolOutputMaxBytes, now, cutoff, lowerBound, LIFETIME_BATCH_SIZE],
 				"Cutting old tool outputs",
 			);
 			if (!updated.ok) return updated;
@@ -421,6 +442,10 @@ const cutToolOutputs: LifetimeStep = {
 			if (updated.value === 0) break;
 			await yieldToUi();
 		}
+		// Only a pass that reached the end of the range may move the watermark, so a failure above
+		// leaves the same history to retry.
+		const written = await writeToolOutputWatermark(db, cutoff, now);
+		if (!written.ok) return written;
 		return ok({ rowsChanged, filesTrashed: 0 });
 	},
 };
@@ -428,7 +453,7 @@ const cutToolOutputs: LifetimeStep = {
 const compactArchivedChats: LifetimeStep = {
 	id: "compact-archived-chats",
 	description:
-		"Our design choice: for chats of workspaces archived longer than the compact limit, keep user_message events, turn_ended events, checkpoint events and the last text agent event of each turn (text and usage items only). Drop every other agent event and mark the turn with compacted=true on its turn_ended event, so screens can show 'details removed'.",
+		"Our design choice: for chats of workspaces archived longer than the compact limit, keep user_message events, turn_ended events, checkpoint events and the last text agent event of each turn (text and usage items only). Drop every other agent event and mark the turn's turn_ended event with compacted_at, so it is not compacted again and screens can show 'details removed'.",
 	run: async ({ db, clock, limits }) => {
 		const cutoff = ageCutoff(clock.now(), limits.archivedChatCompactAfterDays);
 		let rowsChanged = 0;
@@ -442,7 +467,7 @@ const compactArchivedChats: LifetimeStep = {
 			if (!turns.ok) return turns;
 			if (turns.value.length === 0) break;
 			for (const turn of turns.value) {
-				const compacted = await compactTurn(db, turn.session_id, turn.turn_id);
+				const compacted = await compactTurn(db, turn.session_id, turn.turn_id, clock.now());
 				if (!compacted.ok) return compacted;
 				rowsChanged += compacted.value;
 			}
@@ -457,6 +482,7 @@ async function compactTurn(
 	db: Database,
 	sessionId: string,
 	turnId: string,
+	at: number,
 ): Promise<Result<number>> {
 	return inTransaction(db, "Compacting an archived chat", async (tx) => {
 		const stripped = await executeStatement(
@@ -476,7 +502,7 @@ async function compactTurn(
 		const marked = await executeStatement(
 			tx,
 			LIFETIME_SQL.compactMarkTurnEnded,
-			[sessionId, turnId],
+			[at, sessionId, turnId],
 			"Marking a turn compacted",
 		);
 		if (!marked.ok) return marked;
@@ -508,39 +534,69 @@ export type LifetimeReport =
 			steps: { id: LifetimeStepId; outcome: Result<LifetimeStepReport> }[];
 	  };
 
-/** Reads when the job last ran. A missing row means it has never run. */
-async function readLastRunAt(db: Database): Promise<Result<number | null>> {
-	const rows = await selectRows<{ value: string }>(
-		db,
-		SETTINGS_SQL.get,
-		[LIFETIME_LAST_RUN_KEY],
-		"Reading the data-lifetime last run",
-	);
+/** Reads a bookkeeping time. A missing row means there is no value yet. */
+async function readNumberSetting(
+	db: Database,
+	key: string,
+	errorCode: string,
+	what: string,
+): Promise<Result<number | null>> {
+	const rows = await selectRows<{ value: string }>(db, SETTINGS_SQL.get, [key], `Reading ${what}`);
 	if (!rows.ok) return rows;
 	const row = rows.value[0];
 	if (row === undefined) return ok(null);
-	const parsed = parseJsonText(row.value, `settings.value for ${LIFETIME_LAST_RUN_KEY}`);
+	const parsed = parseJsonText(row.value, `settings.value for ${key}`);
 	if (!parsed.ok) return parsed;
 	if (typeof parsed.value !== "number") {
-		return err(
-			appError("data_lifetime_bad_last_run", "The data-lifetime last-run time is not a number."),
-		);
+		return err(appError(errorCode, `The ${what} is not a number.`));
 	}
 	return ok(parsed.value);
 }
 
-/** Stores when the job last ran. */
-async function writeLastRunAt(db: Database, at: number): Promise<Result<void>> {
-	const json = stringifyJson(at, `settings.value for ${LIFETIME_LAST_RUN_KEY}`);
+/** Stores a bookkeeping time, with the row's updated_at set to when it was written. */
+async function writeNumberSetting(
+	db: Database,
+	key: string,
+	value: number,
+	updatedAt: number,
+	what: string,
+): Promise<Result<void>> {
+	const json = stringifyJson(value, `settings.value for ${key}`);
 	if (!json.ok) return json;
 	const written = await executeStatement(
 		db,
 		SETTINGS_SQL.upsert,
-		[LIFETIME_LAST_RUN_KEY, json.value, at],
-		"Saving the data-lifetime last run",
+		[key, json.value, updatedAt],
+		`Saving ${what}`,
 	);
 	return written.ok ? ok(undefined) : written;
 }
+
+/** Reads when the job last ran. A missing row means it has never run. */
+const readLastRunAt = (db: Database): Promise<Result<number | null>> =>
+	readNumberSetting(
+		db,
+		LIFETIME_LAST_RUN_KEY,
+		"data_lifetime_bad_last_run",
+		"data-lifetime last-run time",
+	);
+
+/** Stores when the job last ran. */
+const writeLastRunAt = (db: Database, at: number): Promise<Result<void>> =>
+	writeNumberSetting(db, LIFETIME_LAST_RUN_KEY, at, at, "the data-lifetime last run");
+
+/** Reads where the tool-output cut last stopped looking. Null means no full pass yet. */
+const readToolOutputWatermark = (db: Database): Promise<Result<number | null>> =>
+	readNumberSetting(
+		db,
+		LIFETIME_TOOL_OUTPUT_WATERMARK_KEY,
+		"data_lifetime_bad_watermark",
+		"tool-output watermark",
+	);
+
+/** Stores where the tool-output cut last stopped looking, at the moment it ran. */
+const writeToolOutputWatermark = (db: Database, at: number, now: number): Promise<Result<void>> =>
+	writeNumberSetting(db, LIFETIME_TOOL_OUTPUT_WATERMARK_KEY, at, now, "the tool-output watermark");
 
 const errorFor = (step: LifetimeStepId, cause: unknown) =>
 	appError("data_lifetime_step_failed", `The data-lifetime step ${step} failed.`, cause);

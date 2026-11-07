@@ -43,7 +43,6 @@ const workspace = (id: string, repoId: string, overrides: Partial<Workspace> = {
 	kanbanStatus: "in_progress",
 	port: 55_000,
 	pinnedAt: null,
-	notes: null,
 	linkedPaths: [],
 	prNumber: null,
 	prTitle: null,
@@ -81,6 +80,7 @@ describe("NAV-08 palette model", () => {
 			repos: [repo("r1", "conducted")],
 			commands: [],
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(groups).toHaveLength(1);
 		expect(groups[0]?.heading).toBe("Workspaces");
@@ -98,10 +98,25 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: [],
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(labels(groups, "Recent workspaces")).toEqual(["active"]);
 		expect(labels(groups, "Workspaces")).toEqual(["active"]);
 		expect(labels(groups, "Archived")).toEqual(["old"]);
+	});
+
+	it("lists a workspace being restored among the live workspaces, not Archived", () => {
+		const groups = buildPaletteGroups({
+			tab: "workspaces",
+			query: "",
+			workspaces: [workspace("restoring", "r1", { state: "initializing", archivedAt: 10 })],
+			repos: [],
+			commands: [],
+			currentWorkspaceId: null,
+			branchPrefix: "",
+		});
+		expect(labels(groups, "Workspaces")).toEqual(["restoring"]);
+		expect(labels(groups, "Archived")).toEqual([]);
 	});
 
 	it("shows workspace actions only when a workspace is open", () => {
@@ -112,6 +127,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: commands(),
 			currentWorkspaceId: "w1",
+			branchPrefix: "",
 		});
 		expect(labels(groups, "Workspace actions")).toEqual([
 			"File picker",
@@ -139,6 +155,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: commands(),
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(labels(withoutWorkspace, "Workspace actions")).toEqual([]);
 	});
@@ -151,6 +168,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: commands(),
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(labels(groups, "Actions")).toEqual([
 			"Create workspace",
@@ -183,6 +201,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: commands(),
 			currentWorkspaceId: "w1",
+			branchPrefix: "",
 		};
 		const updates = buildPaletteGroups({ ...input, query: "check for updates" });
 		expect(labels(updates, "Actions")).toEqual(["Check for updates"]);
@@ -200,6 +219,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: [],
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(labels(groups, "Settings")).toEqual([
 			"General",
@@ -234,6 +254,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: entries,
 			currentWorkspaceId: "w1",
+			branchPrefix: "",
 		});
 		const archive = groups
 			.flatMap((group) => group.items)
@@ -252,6 +273,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: [],
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(groups[0]?.heading).toBe("Recent workspaces");
 		expect(labels(groups, "Recent workspaces")).toEqual(["newer", "older"]);
@@ -266,6 +288,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: [],
 			currentWorkspaceId: null,
+			branchPrefix: "",
 		});
 		expect(labels(groups, "Workspaces")).toEqual(["same"]);
 	});
@@ -278,6 +301,7 @@ describe("NAV-08 palette model", () => {
 			repos: [],
 			commands: commands(),
 			currentWorkspaceId: "w1",
+			branchPrefix: "",
 			sessions: [
 				{
 					id: "s1" as never,
@@ -344,6 +368,7 @@ describe("NAV-08 palette workspace rows", () => {
 			repos: [repo("r1", "conducted")],
 			commands: [],
 			currentWorkspaceId: null,
+			branchPrefix: "",
 			now: 86_400_000,
 		});
 		const [row] = groups.find((group) => group.heading === "Recent workspaces")?.items ?? [];

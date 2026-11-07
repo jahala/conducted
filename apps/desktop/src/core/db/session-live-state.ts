@@ -55,7 +55,6 @@ export function liveStateToParams(
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSION_LIVE_STATE_SQL = {
-	get: "SELECT session_id, live_state, updated_at FROM session_live_state WHERE session_id = $1",
 	listAll: "SELECT session_id, live_state, updated_at FROM session_live_state ORDER BY session_id",
 	/** The WHERE clause on the conflict branch drops a write that is older than the stored one. */
 	upsert: `INSERT INTO session_live_state (session_id, live_state, updated_at)
@@ -63,12 +62,9 @@ export const SESSION_LIVE_STATE_SQL = {
 		ON CONFLICT (session_id) DO UPDATE
 		SET live_state = excluded.live_state, updated_at = excluded.updated_at
 		WHERE excluded.updated_at >= session_live_state.updated_at`,
-	delete: "DELETE FROM session_live_state WHERE session_id = $1",
 } as const;
 
 export interface SessionLiveStateRepository {
-	/** SESSION_LIVE_STATE_SQL.get. A chat with no stored state is `ok(null)`. */
-	get(sessionId: SessionId): Promise<Result<StoredLiveState | null>>;
 	/** SESSION_LIVE_STATE_SQL.listAll, for the first paint after a restart. */
 	listAll(): Promise<Result<StoredLiveState[]>>;
 	/**
@@ -76,8 +72,6 @@ export interface SessionLiveStateRepository {
 	 * when a newer row already existed (rowsAffected is 0).
 	 */
 	upsert(sessionId: SessionId, liveState: LiveState, updatedAt: number): Promise<Result<boolean>>;
-	/** SESSION_LIVE_STATE_SQL.delete. */
-	delete(sessionId: SessionId): Promise<Result<void>>;
 }
 
 export function createSessionLiveStateRepository(
@@ -85,17 +79,6 @@ export function createSessionLiveStateRepository(
 	_deps: RepositoryDeps,
 ): SessionLiveStateRepository {
 	return {
-		get: async (sessionId) => {
-			const rows = await selectRows<SessionLiveStateRow>(
-				db,
-				SESSION_LIVE_STATE_SQL.get,
-				[sessionId],
-				"Reading a chat's live state",
-			);
-			if (!rows.ok) return err(rows.error);
-			const row = rows.value[0];
-			return row === undefined ? ok(null) : liveStateFromRow(row);
-		},
 		listAll: async () => {
 			const rows = await selectRows<SessionLiveStateRow>(
 				db,
@@ -116,7 +99,5 @@ export function createSessionLiveStateRepository(
 			);
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},
-		delete: (sessionId) =>
-			executeVoid(db, SESSION_LIVE_STATE_SQL.delete, [sessionId], "Removing a chat's live state"),
 	};
 }

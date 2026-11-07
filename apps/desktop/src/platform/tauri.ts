@@ -67,6 +67,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudPairing,
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
@@ -101,6 +102,7 @@ import type {
 	Unsubscribe,
 	Updater,
 } from "./platform.ts";
+import { platformError } from "./platform.ts";
 import {
 	createQueuedDatabase,
 	DATABASE_PRAGMAS,
@@ -386,7 +388,9 @@ export const COMMANDS = {
 	httpFetch: "http_fetch", // PLAT-30
 	httpDownload: "http_download", // PLAT-30
 	httpCancel: "http_cancel", // PLAT-30
-	cloudPaired: "cloud_paired", // CLOUD-03
+	cloudPairing: "cloud_pairing", // CLOUD-07
+	cloudPair: "cloud_pair", // CLOUD-07
+	cloudUnpair: "cloud_unpair", // CLOUD-07
 	cloudRequest: "cloud_request", // CLOUD-03
 	cloudRelayOpen: "cloud_relay_open", // CLOUD-03
 	cloudRelaySend: "cloud_relay_send", // CLOUD-03
@@ -428,9 +432,13 @@ export function toAppError(error: unknown): AppError {
 		const { code, message } = error as { code: unknown; message: unknown };
 		if (typeof code === "string" && typeof message === "string") return appError(code, message);
 	}
-	if (typeof error === "string") return appError("tauri_error", error);
-	if (error instanceof Error) return appError("tauri_error", error.message, error);
-	return appError("tauri_error", "The Rust shell returned an error that could not be read.", error);
+	if (typeof error === "string") return platformError("tauri_error", error);
+	if (error instanceof Error) return platformError("tauri_error", error.message, error);
+	return platformError(
+		"tauri_error",
+		"The Rust shell returned an error that could not be read.",
+		error,
+	);
 }
 
 /** Calls a command and turns a rejection into an `Err`. The one place that catches. */
@@ -453,7 +461,7 @@ export async function checkHealth(bindings: Pick<TauriBindings, "invoke">): Prom
 	return result.value === "ok"
 		? ok(undefined)
 		: err(
-				appError(
+				platformError(
 					"health_unexpected",
 					`The Rust shell answered "${result.value}" to the health check.`,
 				),
@@ -486,7 +494,7 @@ export function createTauriAppInfo(
 			if (state === "database_newer") {
 				if (dbVersion === null) {
 					return err(
-						appError(
+						platformError(
 							"db_version_unreadable",
 							message ?? "The database version could not be read, so startup cannot continue.",
 						),
@@ -496,7 +504,7 @@ export function createTauriAppInfo(
 			}
 			if (state === "failed_migration") {
 				return err(
-					appError(
+					platformError(
 						"db_migration_failed",
 						message ?? "A database upgrade did not finish, so startup cannot continue.",
 					),
@@ -609,7 +617,7 @@ export async function createTauriDatabase(
 	const plugin = bindings.sql;
 	if (plugin === undefined) {
 		return err(
-			appError(
+			platformError(
 				"tauri_binding_missing",
 				"The Tauri SQL plugin binding is required to open the database.",
 			),
@@ -691,7 +699,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				if (!payload.output) {
 					resolve(
 						err(
-							appError(
+							platformError(
 								"shell_done_incomplete",
 								"The shell command ended without an output or an error.",
 							),
@@ -783,7 +791,7 @@ export function createTauriFileSystem(
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
 			if (!result.ok) return result;
 			if (result.value === null) {
-				return err(appError("fs_not_found", `${path} does not exist.`));
+				return err(platformError("fs_not_found", `${path} does not exist.`));
 			}
 			return ok(result.value);
 		},
@@ -1322,19 +1330,23 @@ interface CloudClosedPayload {
 }
 
 /**
- * `cloud_paired`, `cloud_request`, `cloud_relay_open`, `cloud_relay_send`, `cloud_relay_close`,
- * and the `cloud://line` and `cloud://closed` events (CLOUD-03). The pairing token is read in Rust
- * and never crosses into the web view. One relay's listeners filter the shared events by its id.
+ * `cloud_pairing`, `cloud_pair`, `cloud_unpair`, `cloud_request`, `cloud_relay_open`,
+ * `cloud_relay_send`, `cloud_relay_close`, and the `cloud://line` and `cloud://closed` events
+ * (CLOUD-03, CLOUD-07). The pairing token is written and read in Rust and never crosses back into
+ * the web view. One relay's listeners filter the shared events by its id.
  */
 export function createTauriCloud(bindings: TauriBindings): Cloud {
 	return {
-		paired: () => invokeResult<boolean>(bindings, COMMANDS.cloudPaired),
+		status: () => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPairing),
+		pair: (input) => invokeResult<CloudPairing>(bindings, COMMANDS.cloudPair, { input }),
+		unpair: () => invokeResult<void>(bindings, COMMANDS.cloudUnpair),
 		request: (request: CloudRequest) =>
 			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
 		openRelay: async (input) => {
 			const opened = await invokeResult<string>(bindings, COMMANDS.cloudRelayOpen, {
 				url: input.url,
 				vmId: input.vmId,
+				channel: input.channel ?? "rpc",
 			});
 			if (!opened.ok) return opened;
 			const id = opened.value;

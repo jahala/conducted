@@ -27,7 +27,6 @@ function workspace(
 		kanbanStatus: status,
 		port: 55_100,
 		pinnedAt: null,
-		notes: "",
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,
@@ -83,6 +82,13 @@ describe("NAV-06 grouping workspaces", () => {
 			workspace("gone", "backlog", { state: "archived", archivedAt: 5 }),
 		]);
 		expect(groups.backlog.map((row) => row.id)).toEqual(["live"]);
+	});
+
+	it("keeps a workspace being restored on the board", () => {
+		const groups = groupByKanbanStatus([
+			workspace("restoring", "backlog", { state: "initializing", archivedAt: 5 }),
+		]);
+		expect(groups.backlog.map((row) => row.id)).toEqual(["restoring"]);
 	});
 
 	it("orders a column by last activity, newest first, with a stable tie-break", () => {

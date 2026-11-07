@@ -22,6 +22,8 @@
 //! - `fs_read_dir` does not follow symlinks and reports a link whose target cannot be read (a
 //!   missing target or a loop) as `is_symlink` with size 0, so one bad entry cannot fail the
 //!   listing.
+//! - `fs_read_text`, `fs_read_dir` and `fs_trash` answer a missing path with `fs_not_found`, the
+//!   same code the in-memory Platform returns, so the UI has one "nothing there yet" branch.
 //! - `fs_trash` moves to the macOS Trash and never deletes for good. A missing path is an error.
 //! - Paths must be absolute. Relative paths fail with `fs_relative_path`.
 //! - `fs_read_text` refuses a file larger than `MAX_READ_BYTES`, so a huge file cannot exhaust the
@@ -364,8 +366,23 @@ fn stat_at(path: &Path) -> io::Result<Option<FileStat>> {
     }))
 }
 
+/// A path that is not there is `fs_not_found`, the one code the UI reads as "nothing there yet",
+/// and the code the in-memory Platform answers for the same case. Any other failure stays as it is.
+fn missing_as_not_found(error: io::Error, path: &Path) -> CommandError {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+    ) {
+        return CommandError::Failed {
+            code: "fs_not_found",
+            message: format!("{} does not exist.", path.display()),
+        };
+    }
+    error.into()
+}
+
 fn read_text_at(path: &Path) -> CommandResult<String> {
-    let bytes = fs::read(path)?;
+    let bytes = fs::read(path).map_err(|error| missing_as_not_found(error, path))?;
     String::from_utf8(bytes).map_err(|_| CommandError::Failed {
         code: "fs_not_utf8",
         message: format!("File is not UTF-8 text: {}", path.display()),
@@ -374,7 +391,7 @@ fn read_text_at(path: &Path) -> CommandResult<String> {
 
 /// Reads a file as text, refusing one over `MAX_READ_BYTES` before it is loaded.
 fn read_text_limited(path: &Path) -> CommandResult<String> {
-    let metadata = fs::metadata(path)?;
+    let metadata = fs::metadata(path).map_err(|error| missing_as_not_found(error, path))?;
     if metadata.len() > MAX_READ_BYTES {
         return Err(CommandError::Failed {
             code: "fs_file_too_large",
@@ -488,7 +505,7 @@ where
 
 fn read_dir_at(path: &Path) -> CommandResult<Vec<FileStat>> {
     let mut entries = Vec::new();
-    for entry in fs::read_dir(path)? {
+    for entry in fs::read_dir(path).map_err(|error| missing_as_not_found(error, path))? {
         let child = entry?.path();
         // A child removed between the listing and the stat is simply not listed.
         if let Some(stat) = stat_at(&child)? {
@@ -526,7 +543,9 @@ fn trash_dir_for(path: &Path) -> CommandResult<PathBuf> {
     use std::os::unix::fs::MetadataExt;
 
     // A missing path is an error, as is a path whose volume cannot be read.
-    let device = fs::symlink_metadata(path)?.dev();
+    let device = fs::symlink_metadata(path)
+        .map_err(|error| missing_as_not_found(error, path))?
+        .dev();
     let mut mount = path.to_path_buf();
     let mut probe = path.parent();
     while let Some(parent) = probe {
@@ -590,7 +609,7 @@ fn trash_into(path: &Path, trash: &Path) -> CommandResult<()> {
     use std::os::unix::fs::PermissionsExt;
 
     // A missing source is an error and must not create anything.
-    fs::symlink_metadata(path)?;
+    fs::symlink_metadata(path).map_err(|error| missing_as_not_found(error, path))?;
     let existed = trash.is_dir();
     fs::create_dir_all(trash)?;
     if !existed {
@@ -969,6 +988,55 @@ mod tests {
     }
 
     #[test]
+    fn plat_05_read_text_missing_path_is_fs_not_found() {
+        let folder = TempDir::new();
+        let missing = folder.path().join("missing.txt");
+
+        let error = read_text_limited(&missing).expect_err("a missing file is an error");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_not_found",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_05_read_dir_missing_path_is_fs_not_found() {
+        let folder = TempDir::new();
+        let missing = folder.path().join("missing-folder");
+
+        let error = read_dir_at(&missing).expect_err("a missing folder is an error");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_not_found",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_05_read_dir_of_a_file_is_fs_not_found() {
+        let folder = TempDir::new();
+        let file = folder.path().join("note.txt");
+        fs::write(&file, "x").expect("seed file");
+
+        let error = read_dir_at(&file).expect_err("a file is not a folder");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_not_found",
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn plat_05_stat_returns_none_for_missing() {
         let folder = TempDir::new();
         let stat = stat_at(&folder.path().join("missing.txt")).expect("stat");
@@ -1159,7 +1227,13 @@ mod tests {
         let error = tauri::async_runtime::block_on(trash_checked(missing, roots))
             .expect_err("missing path fails");
 
-        assert!(matches!(error, CommandError::Io(_)));
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_not_found",
+                ..
+            }
+        ));
     }
 
     #[test]

@@ -77,19 +77,24 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CHAT-01 chat history button", () => {
-	it("shows the loading state", async () => {
+	it("is not drawn while the chats load", () => {
 		renderButton();
-		await openHistory();
-		expect(await screen.findByText("Loading chats")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "View chat history" })).toBeNull();
 	});
 
-	it("shows 'No open chats' with New chat when everything is closed", async () => {
-		state.open = { state: "ready", data: [] };
-		state.closed = { state: "ready", data: [session("old", { closedAt: 2000 })] };
+	it("lists only the closed chats, newest first, each with its time", async () => {
+		state.open = { state: "ready", data: [session("open")] };
+		state.closed = {
+			state: "ready",
+			data: [
+				session("older", { closedAt: 2000, updatedAt: Date.now() - 3 * 3_600_000 }),
+				session("newer", { closedAt: 3000, updatedAt: Date.now() - 5 * 60_000 }),
+			],
+		};
 		renderButton();
 		await openHistory();
-		expect(await screen.findByText("No open chats")).toBeTruthy();
-		expect(screen.getByRole("button", { name: "New chat" })).toBeTruthy();
+		const rows = await screen.findAllByRole("menuitem");
+		expect(rows.map((row) => row.textContent)).toEqual(["newer5m ago", "older3h ago"]);
 	});
 
 	it("reopens a closed chat and opens its tab", async () => {
@@ -98,58 +103,51 @@ describe("CHAT-01 chat history button", () => {
 		state.reopen.mockResolvedValue({ ok: true, value: undefined });
 		const onSearchChange = renderButton();
 		await openHistory();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "old" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /^old/ }));
 		await waitFor(() => expect(state.reopen).toHaveBeenCalledWith("old"));
 		expect(onSearchChange).toHaveBeenCalledWith({ tab: "session", sessionId: "old" });
 	});
 
-	it("opens an open chat without reopening it", async () => {
+	it("leaves the open chats to the tab strip", async () => {
 		state.open = { state: "ready", data: [session("open")] };
-		state.closed = { state: "ready", data: [] };
-		const onSearchChange = renderButton();
+		state.closed = { state: "ready", data: [session("old", { closedAt: 2000 })] };
+		renderButton();
 		await openHistory();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "open" }));
+		await screen.findByRole("menuitem", { name: /^old/ });
+		expect(screen.queryByRole("menuitem", { name: /^open/ })).toBeNull();
 		expect(state.reopen).not.toHaveBeenCalled();
-		expect(onSearchChange).toHaveBeenCalledWith({ tab: "session", sessionId: "open" });
 	});
 
 	it("searches the list by title", async () => {
-		state.open = {
+		state.open = { state: "ready", data: [] };
+		state.closed = {
 			state: "ready",
-			data: [session("Fix login"), session("Update docs")],
+			data: [session("Fix login", { closedAt: 2000 }), session("Update docs", { closedAt: 2000 })],
 		};
-		state.closed = { state: "ready", data: [] };
 		renderButton();
 		await openHistory();
 		fireEvent.change(await screen.findByRole("textbox", { name: "Search chats" }), {
 			target: { value: "login" },
 		});
-		expect(screen.queryByRole("menuitem", { name: "Update docs" })).toBeNull();
-		expect(screen.getByRole("menuitem", { name: "Fix login" })).toBeTruthy();
+		expect(screen.queryByRole("menuitem", { name: /^Update docs/ })).toBeNull();
+		expect(screen.getByRole("menuitem", { name: /^Fix login/ })).toBeTruthy();
 	});
 
-	it("starts a new chat from the default config when the workspace has no chat", async () => {
-		const created = session("new", { createdAt: 3000 });
-		state.open = { state: "ready", data: [] };
+	it("is not drawn when no chat of the workspace is closed, as in Conductor", () => {
+		state.open = { state: "ready", data: [session("open")] };
 		state.closed = { state: "ready", data: [] };
-		state.createFromDefaults.mockResolvedValue({ ok: true, value: created });
-		const onSearchChange = renderButton();
-		await openHistory();
-		const newChat = await screen.findByRole("button", { name: "New chat" });
-		expect(newChat.hasAttribute("disabled")).toBe(false);
-		fireEvent.click(newChat);
-		await waitFor(() => expect(state.createFromDefaults).toHaveBeenCalledWith(workspaceId));
-		expect(onSearchChange).toHaveBeenCalledWith({ tab: "session", sessionId: "new" });
+		renderButton();
+		expect(screen.queryByRole("button", { name: "View chat history" })).toBeNull();
+		expect(state.createFromDefaults).not.toHaveBeenCalled();
 	});
 
-	it("starts a new chat from the default config even when older chats exist", async () => {
-		const created = session("new", { createdAt: 3000 });
+	it("offers no New chat of its own: the tab strip's + starts chats", async () => {
 		state.open = { state: "ready", data: [] };
 		state.closed = { state: "ready", data: [session("old", { closedAt: 2000 })] };
-		state.createFromDefaults.mockResolvedValue({ ok: true, value: created });
 		renderButton();
 		await openHistory();
-		fireEvent.click(await screen.findByRole("button", { name: "New chat" }));
-		await waitFor(() => expect(state.createFromDefaults).toHaveBeenCalledWith(workspaceId));
+		await screen.findByRole("menuitem", { name: /^old/ });
+		expect(screen.queryByRole("button", { name: "New chat" })).toBeNull();
+		expect(screen.queryByText("No open chats")).toBeNull();
 	});
 });

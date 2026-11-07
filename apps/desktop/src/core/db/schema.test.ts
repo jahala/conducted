@@ -212,12 +212,10 @@ describe("round trips through real tables", () => {
 		expect(createdAt).toBe(1000);
 
 		run(TERMINALS_SQL.insert, terminalToParams(sampleTerminal));
-		const { cols, rows: height, screenState: _screen, ...terminal } = sampleTerminal;
+		const { screenState: _screen, ...terminal } = sampleTerminal;
 		expect(terminalFromRow(one<TerminalRow>(TERMINALS_SQL.get, [sampleTerminal.id]))).toEqual(
 			terminal,
 		);
-		expect(cols).toBe(120);
-		expect(height).toBe(30);
 
 		run(QUEUED_MESSAGES_SQL.insert, must(queuedMessageToParams(sampleQueued, 50)));
 		expect(
@@ -231,7 +229,10 @@ describe("round trips through real tables", () => {
 		const firstMessage = userMessageEvent("e-new", "t-new", 10);
 		expect(append(firstMessage)).toEqual([{ idx: 0 }]);
 		expect(
-			rows<{ type: string }>(SESSION_EVENTS_SQL.getByEventId, [sessionId, firstMessage.eventId]),
+			rows<{ type: string }>(
+				"SELECT type FROM session_events WHERE session_id = $1 AND event_id = $2",
+				[sessionId, firstMessage.eventId],
+			),
 		).toHaveLength(1);
 	});
 
@@ -239,7 +240,13 @@ describe("round trips through real tables", () => {
 		seedWorkspace();
 		run(SESSION_LIVE_STATE_SQL.upsert, must(liveStateToParams(sessionId, idleLiveState, 10)));
 		expect(
-			must(liveStateFromRow(one<SessionLiveStateRow>(SESSION_LIVE_STATE_SQL.get, [sessionId]))),
+			must(
+				liveStateFromRow(
+					rows<SessionLiveStateRow>(SESSION_LIVE_STATE_SQL.listAll).find(
+						(row) => row.session_id === sessionId,
+					) as SessionLiveStateRow,
+				),
+			),
 		).toEqual({ sessionId, liveState: idleLiveState, updatedAt: 10 });
 
 		const favorite = {
@@ -342,8 +349,13 @@ describe("live state writes", () => {
 			run(SESSION_LIVE_STATE_SQL.upsert, must(liveStateToParams(sessionId, idleLiveState, 10))),
 		).toBe(0);
 		expect(
-			must(liveStateFromRow(one<SessionLiveStateRow>(SESSION_LIVE_STATE_SQL.get, [sessionId])))
-				.liveState.status,
+			must(
+				liveStateFromRow(
+					rows<SessionLiveStateRow>(SESSION_LIVE_STATE_SQL.listAll).find(
+						(row) => row.session_id === sessionId,
+					) as SessionLiveStateRow,
+				),
+			).liveState.status,
 		).toBe("working");
 	});
 });
@@ -362,20 +374,19 @@ describe("queued messages", () => {
 			),
 		);
 
-	it("gives the next position, claims in position order and never twice", () => {
+	it("gives the next position in order", () => {
 		expect(one<{ next: number }>(QUEUED_MESSAGES_SQL.nextPosition, [sessionId]).next).toBe(1);
 		queue("b", 2);
 		queue("a", 1);
 		expect(one<{ next: number }>(QUEUED_MESSAGES_SQL.nextPosition, [sessionId]).next).toBe(3);
-		const claim = () => rows<QueuedMessageRow>(QUEUED_MESSAGES_SQL.claimNext, [9, sessionId]);
-		expect(claim().map((row) => row.id)).toEqual(["a"]);
-		expect(claim().map((row) => row.id)).toEqual(["b"]);
-		expect(claim()).toEqual([]);
+		expect(
+			rows<QueuedMessageRow>(QUEUED_MESSAGES_SQL.listBySession, [sessionId]).map((row) => row.id),
+		).toEqual(["a", "b"]);
 	});
 
 	it("does not edit or cancel a message that is sending", () => {
 		queue("a", 1);
-		rows(QUEUED_MESSAGES_SQL.claimNext, [9, sessionId]);
+		expect(run(QUEUED_MESSAGES_SQL.setState, ["sending", null, 9, "a", "waiting"])).toBe(1);
 		expect(run(QUEUED_MESSAGES_SQL.setContent, ["new", "[]", 10, "a"])).toBe(0);
 		expect(run(QUEUED_MESSAGES_SQL.deleteUnlessSending, ["a"])).toBe(0);
 		expect(run(QUEUED_MESSAGES_SQL.setState, ["failed", "offline", 11, "a", "sending"])).toBe(1);
@@ -503,7 +514,9 @@ describe("diff comments and attachments", () => {
 		);
 		const ids = JSON.stringify(["att-1", "att-2"]);
 		expect(run(ATTACHMENTS_SQL.attachDrafts, ["msg-1", sessionId, ids])).toBe(1);
-		expect(rows(ATTACHMENTS_SQL.listByMessage, ["msg-1"])).toHaveLength(1);
+		expect(
+			rows<{ id: string }>("SELECT id FROM attachments WHERE message_id = $1", ["msg-1"]),
+		).toHaveLength(1);
 		expect(run(ATTACHMENTS_SQL.restoreToDraft, ["msg-1"])).toBe(1);
 		expect(
 			rows<{ path: string }>(ATTACHMENTS_SQL.deleteDraftReturningPath, ["att-1", sessionId]),
@@ -670,8 +683,9 @@ describe("lifetime statements", () => {
 		append(toolEvent("e2", "t1", 11), 1000);
 		append(toolEvent("e3", "t1", 12), 9_000_000);
 
-		// $1 the cut length, $2 the compacted_at time, $3 the age cutoff, $4 the batch size.
-		const cut = () => run(LIFETIME_SQL.cutToolOutputs, [20, 9_500_000, 5_000_000, 200]);
+		// $1 the cut length, $2 compacted_at, $3 the age cutoff, $4 the watermark lower bound,
+		// $5 the batch size.
+		const cut = () => run(LIFETIME_SQL.cutToolOutputs, [20, 9_500_000, 5_000_000, 0, 200]);
 		expect(cut()).toBe(1);
 		expect(cut()).toBe(0);
 
@@ -745,7 +759,7 @@ describe("lifetime statements", () => {
 			const params = [turn.session_id, turn.turn_id];
 			run(LIFETIME_SQL.compactStripKeptEvent, params);
 			run(LIFETIME_SQL.compactDropOtherAgentEvents, params);
-			run(LIFETIME_SQL.compactMarkTurnEnded, params);
+			run(LIFETIME_SQL.compactMarkTurnEnded, [9000, ...params]);
 		}
 
 		const events = rows<SessionEventRow>(SESSION_EVENTS_SQL.listFrom, [sessionId, 0, 20]);
@@ -756,7 +770,11 @@ describe("lifetime statements", () => {
 			"usage",
 		]);
 		expect(kept.type === "agent" && kept.message.raw).toBeUndefined();
-		expect(JSON.parse((events[2] as SessionEventRow).content)).toMatchObject({ compacted: true });
+		const marked = rows<{ compacted_at: number | null }>(
+			"SELECT compacted_at FROM session_events WHERE session_id = $1 AND event_id = 'e5'",
+			[sessionId],
+		);
+		expect(marked[0]?.compacted_at).not.toBeNull();
 		expect(find()).toHaveLength(0);
 	});
 
@@ -815,10 +833,14 @@ describe("the tables of migration 0004", () => {
 				),
 			),
 		).toEqual(entry);
-		expect(rows(BACKLOG_WORKSPACES_SQL.listByRepo, [repoId])).toHaveLength(1);
+		expect(
+			rows<{ id: string }>("SELECT id FROM backlog_workspaces WHERE repo_id = $1", [repoId]),
+		).toHaveLength(1);
 		run(REPOS_SQL.delete, [repoId]);
 		expect(rows(BACKLOG_WORKSPACES_SQL.list)).toHaveLength(1);
-		expect(rows(BACKLOG_WORKSPACES_SQL.listByRepo, [repoId])).toHaveLength(0);
+		expect(
+			rows<{ id: string }>("SELECT id FROM backlog_workspaces WHERE repo_id = $1", [repoId]),
+		).toHaveLength(0);
 		expect(
 			must(
 				backlogWorkspaceFromRow(
@@ -845,7 +867,7 @@ describe("the tables of migration 0004", () => {
 			updatedAt: 2,
 		};
 		run(SNIPPETS_SQL.insert, snippetToParams(snippet));
-		expect(snippetFromRow(one<SnippetRow>(SNIPPETS_SQL.getByKeyword, ["rev"]))).toEqual(snippet);
+		expect(snippetFromRow(rows<SnippetRow>(SNIPPETS_SQL.list)[0] as SnippetRow)).toEqual(snippet);
 		expect(() =>
 			run(SNIPPETS_SQL.insert, snippetToParams({ ...snippet, id: "sn-2" as never })),
 		).toThrow();
@@ -868,7 +890,7 @@ describe("the tables of migration 0004", () => {
 		} as const;
 		run(PROVIDER_KEYS_SQL.upsert, must(providerKeyToParams(key)));
 		run(PROVIDER_KEYS_SQL.upsert, must(providerKeyToParams({ ...key, keychainRef: "keychain-2" })));
-		const stored = rows<ProviderKeyRow>(PROVIDER_KEYS_SQL.list);
+		const stored = rows<ProviderKeyRow>(PROVIDER_KEYS_SQL.listForAgent, ["claude", ""]);
 		expect(stored).toHaveLength(1);
 		expect(stored[0]?.acp_agent).toBe("");
 		expect(providerKeyFromRow(stored[0] as ProviderKeyRow)).toEqual({

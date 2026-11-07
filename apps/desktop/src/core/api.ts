@@ -12,6 +12,7 @@ import type {
 	AgentLogin,
 	AgentProvider,
 	FileChange,
+	Host,
 	InteractionAnswer,
 	ModelInfo,
 	SessionConfig,
@@ -34,6 +35,7 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
+import type { CloudPairInput, CloudPairing } from "../platform/platform.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -274,7 +276,7 @@ export interface Queries {
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
 	useSetting<T>(key: string): T;
 	useAgentInstalls(): Loadable<AgentInstall[]>;
-	useModels(agent: AgentKind, acpAgent?: AcpAgent): Loadable<ModelInfo[]>;
+	useModels(agent: AgentKind, acpAgent?: AcpAgent, host?: Host): Loadable<ModelInfo[]>;
 	useSlashCommands(sessionId: SessionId): Loadable<SlashCommand[]>;
 	useCommands(): CommandEntry[];
 	useUpdateStatus(): UpdateStatus;
@@ -358,6 +360,8 @@ export interface Queries {
 	useRepoNameCheck(owner: string, name: string): Loadable<RepoNameCheck>;
 	/** Whether a Linear key is set and accepted. */
 	useLinearAccess(): Loadable<LinearAccess>;
+	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
+	useCloudPairing(): Loadable<CloudPairing>;
 	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
 	useRepoTerminals(repoId: RepoId): Loadable<Terminal[]>;
 	/** The macOS version and CPU, for the old-system and wrong-build warnings. */
@@ -381,6 +385,10 @@ export interface Actions {
 			string
 		>;
 		remove: Act<[repoId: RepoId]>;
+		/** The branch new workspaces of this project start from (SET-07). */
+		setDefaultBranch: Act<[repoId: RepoId, branch: string]>;
+		/** Saves the sidebar's project order by drag (NAV-04). */
+		reorder: Act<[orderedIds: RepoId[]]>;
 		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
@@ -687,6 +695,12 @@ export interface Actions {
 		setGitHubToken: Act<[token: string | null]>;
 		/** Stores the personal Linear API key (D035), or removes it with null. */
 		setLinearKey: Act<[key: string | null]>;
+	};
+	cloud: {
+		/** Checks the URL and token with the Worker, then keeps them in the Keychain (CLOUD-07). */
+		pair: Act<[input: CloudPairInput], CloudPairing>;
+		/** Removes this Mac's pairing with its Worker. */
+		unpair: Act<[], void>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;

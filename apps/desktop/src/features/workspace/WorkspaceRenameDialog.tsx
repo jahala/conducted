@@ -10,6 +10,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { RenameDialog } from "./RenameDialog.tsx";
+import { useBranchPrefix } from "./use-branch-prefix.ts";
 import { workspaceName } from "./workspace-name.ts";
 
 export interface WorkspaceRenameDialogProps {
@@ -25,8 +26,9 @@ export function WorkspaceRenameDialog({
 }: WorkspaceRenameDialogProps) {
 	const workspace = useWorkspace(workspaceId);
 	const actions = useActions();
+	const branchPrefix = useBranchPrefix();
 	const data = workspace.state === "ready" ? workspace.data : null;
-	const initialName = data === null ? "" : workspaceName(data);
+	const initialName = data === null ? "" : workspaceName(data, branchPrefix);
 
 	return (
 		<RenameDialog

@@ -4,6 +4,7 @@
  * Test first: the setup script runs in a terminal of kind "setup" with CONDUCTED_* variables and
  * its transcript is written when it ends.
  */
+import type { Host } from "@conducted/protocol";
 import {
 	appError,
 	err,
@@ -45,7 +46,6 @@ const workspace: Workspace = {
 	kanbanStatus: "in_progress",
 	port: 55_000,
 	pinnedAt: null,
-	notes: null,
 	linkedPaths: [],
 	prNumber: null,
 	prTitle: null,
@@ -84,6 +84,7 @@ function harness(
 	options: {
 		setupScript?: string | null;
 		exitCode?: number | null;
+		host?: Host;
 		environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
 	} = {},
 ) {
@@ -126,7 +127,7 @@ function harness(
 	const service = new RunScriptsService({
 		terminals: { runScript, outputFor, end, stop: vi.fn(async () => ok(undefined)) },
 		configFor: async () => ok(config({ setupScript: options.setupScript ?? "npm install" })),
-		workspaceFor: async () => ok(workspace),
+		workspaceFor: async () => ok({ ...workspace, host: options.host ?? workspace.host }),
 		repoFor: async () => ok(repo),
 		fs,
 		...(options.environmentFor === undefined ? {} : { environmentFor: options.environmentFor }),
@@ -149,6 +150,24 @@ describe("SET-04 environment variables reach scripts", () => {
 
 		expect(runScript).toHaveBeenCalledTimes(1);
 		expect(seen[0]?.TOKEN).toBe("secret");
+	});
+});
+
+describe("CLOUD-09 a cloud setup script", () => {
+	it("runs with strict shell options, as the research has it for a remote host", async () => {
+		const { service, runScript } = harness({
+			host: { kind: "cloud", url: "https://conducted.example.workers.dev", vmId: "vm-1" },
+		});
+		await service.runSetup(workspace.id);
+		const input = runScript.mock.calls[0]?.[0] as { command: string };
+		expect(input.command.startsWith("set -euo pipefail\n")).toBe(true);
+	});
+
+	it("leaves a local setup script as written", async () => {
+		const { service, runScript } = harness();
+		await service.runSetup(workspace.id);
+		const input = runScript.mock.calls[0]?.[0] as { command: string };
+		expect(input.command).toBe("npm install");
 	});
 });
 

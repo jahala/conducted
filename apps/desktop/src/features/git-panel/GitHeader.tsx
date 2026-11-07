@@ -5,8 +5,8 @@
  * Behaviour: ui-map.md 3.6 ("Header status chip and action"); the cases are in core/status/git-header.ts.
  * Data: the parent computes the model with computeGitHeader and passes it in.
  * Must handle: no action (chip only), an action in flight (spinner, clicks ignored), a failed
- * action (button usable again; the parent shows the error toast from the Result), a waiting note
- * instead of a button (reviewer cannot approve own PR), the user's current key binding shown on
+ * action (button usable again; the parent shows the error toast from the Result), the user's
+ * current key binding shown on
  * the button, the Retry action for missing PR info, narrow panel widths (title truncates,
  * button keeps its label), and an action's tooltip and count ("Merge stack" shows how many pull
  * requests it merges, and says so in its tooltip).
@@ -134,9 +134,7 @@ export function GitHeader({
 				</Popover>
 			</div>
 
-			{model.action !== null && model.action.waitingNote !== null ? (
-				<span className="shrink-0 text-xs text-fg-muted">{model.action.waitingNote}</span>
-			) : model.action !== null ? (
+			{model.action !== null ? (
 				<ActionTooltip content={model.action.tooltip}>
 					<Button
 						size="sm"

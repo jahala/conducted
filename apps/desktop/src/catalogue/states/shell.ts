@@ -14,7 +14,10 @@ export const SHELL_STATES: CatalogueState[] = [
 		id: "first-run",
 		group: "App shell",
 		title: "No projects yet (first run)",
-		seed: async () => ({ route: "/", ready: (document) => shows(document, "No projects yet") }),
+		seed: async () => ({
+			route: "/",
+			ready: (document) => shows(document, "Add a project to get started."),
+		}),
 	},
 	{
 		id: "first-run-home",
@@ -43,7 +46,8 @@ export const SHELL_STATES: CatalogueState[] = [
 			return {
 				route: "/",
 				after: ({ app }) => animateCast(world, cast, app),
-				ready: (document) => shows(document, "sam/rate-limit-api"),
+				// With no workspace open, Conductor's project groups start closed and show their counts.
+				ready: (document) => shows(document, "relay"),
 			};
 		},
 	},

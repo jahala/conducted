@@ -11,8 +11,9 @@
  * under the steps. The titles and texts are Conductor's.
  * Our design choice: Conductor plays three videos, which are its assets (D002); we draw a static
  * illustration per step in our own SVG instead. Ours also keep the agent check (step 2) and adding a
- * project (step 3) on the screen, the "Welcome to Conducted" line, the step count and the note that
- * settings can change later.
+ * project (step 3): each shows under the step list, above Continue, while its step is current, so it
+ * reads as part of Conductor's left column (D098). There is no welcome line, step count or note under
+ * Continue, as Conductor's screen has none (D098).
  * Must handle: Exit at any step (the state is stored so the guide is not shown again); no agent found
  * (the agents step explains how to install one and the user may continue); a project already exists
  * (the screen can be left from any step); finishing fails (a toast, and the step stays); Enter
@@ -257,8 +258,7 @@ export function OnboardingScreen() {
 
 	return (
 		<div className="relative flex h-full flex-col items-center overflow-y-auto bg-canvas px-8 pt-8 pb-24">
-			<div className="flex w-full max-w-7xl items-center justify-between gap-4">
-				<p className="text-sm text-fg-muted">Welcome to Conducted</p>
+			<div className="flex w-full max-w-7xl items-center justify-end gap-4">
 				<Button variant="ghost" size="sm" onClick={() => void finish()}>
 					Exit onboarding
 				</Button>
@@ -266,10 +266,7 @@ export function OnboardingScreen() {
 			<div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-start justify-center gap-12 pt-16 lg:grid-cols-[minmax(0,560px)_600px]">
 				<div className="flex w-full min-w-0 flex-col gap-12">
 					<div className="flex flex-col gap-6">
-						<p className="text-xs text-fg-muted">
-							Step {step + 1} of {STEPS.length}
-						</p>
-						<ol aria-label="Onboarding steps" className="flex flex-col gap-6">
+						<ol className="flex flex-col gap-6">
 							{STEPS.map((item, index) => (
 								<li key={item.title}>
 									<button
@@ -301,7 +298,6 @@ export function OnboardingScreen() {
 						<Button loading={finishing} onClick={advance} className="w-min">
 							Continue
 						</Button>
-						<p className="text-xs text-fg-muted">You can change these later in Settings.</p>
 					</div>
 				</div>
 

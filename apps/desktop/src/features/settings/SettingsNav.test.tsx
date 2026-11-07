@@ -22,6 +22,33 @@ describe("SET-02 SettingsNav", () => {
 		expect(screen.getByRole("button", { name: "Account" }).getAttribute("aria-current")).toBeNull();
 	});
 
+	it("puts the groups in Conductor's order, with Connections in More after Advanced", () => {
+		render(
+			<SettingsNav
+				active={{ kind: "user", page: "general" }}
+				repos={[{ id: "repo-1", name: "Alpha" }]}
+				onNavigate={() => undefined}
+				onBack={() => undefined}
+				searchSlot={null}
+			/>,
+		);
+
+		const headings = ["Personal", "Agents & environment", "Repositories", "More"].map((name) =>
+			screen.getByText(name),
+		);
+		expect(headings).toHaveLength(4);
+		for (let index = 1; index < headings.length; index++) {
+			const before = headings[index - 1] as HTMLElement;
+			const after = headings[index] as HTMLElement;
+			expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		}
+		const advanced = screen.getByRole("button", { name: "Advanced" });
+		const connections = screen.getByRole("button", { name: "Connections" });
+		expect(
+			advanced.compareDocumentPosition(connections) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+
 	it("lists each repository and opens its pages", () => {
 		const onNavigate = vi.fn();
 		render(

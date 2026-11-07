@@ -173,8 +173,8 @@ From `spike/cloud`:
 
 The first build of the cloud rows, run on the same account and with the same `basic` instance, to
 show that the Worker and its Durable Object carry the desktop's own git, shell, file and chat calls.
-The Worker is `apps/cloud`; the sandbox image is the spike image above, carried into
-`apps/cloud/container` until CLOUD-04 builds the product's image. The driver built the desktop's
+The Worker is `apps/cloud`; the product sandbox image is `apps/cloud/sandbox` (CLOUD-04). This run
+used the spike image that preceded it; the product image replaced that carrier. The driver built the desktop's
 real container (`createContainer`, the git service and the sessions service) over the Platform's
 `cloud` group; the Rust relay was replaced in the driver by the `ws` package, because the driver
 runs in Node.
@@ -192,15 +192,202 @@ runs in Node.
 Three findings the spike did not have, all fixed before the run passed:
 
 1. The current sidecar requires `CONDUCTED_AGENT_BINARIES_DIR`; the spike image's environment did
-   not set it, so the sidecar refused to start. The Worker's container environment now sets it and
-   the bridge creates the folder.
+   not set it, so the sidecar refused to start. The Worker's container environment sets the product
+   image's `/opt/conducted/agent-binaries`, and the entry creates the writable folders.
 2. The WebSocket relay must frame one JSON-RPC message per line before the sidecar's Unix socket.
    The spike driver added the newline itself; the desktop's tunnel leaves framing to the transport,
    so the Rust relay now appends it and the cloud transport splits incoming frames on newlines.
-3. The spike image installs Claude Code at `/usr/local/bin/claude`, not in the sidecar's managed
-   program folder. A cloud launch therefore names that path until CLOUD-04 installs the managed
-   copy.
+3. The spike image installed Claude Code at `/usr/local/bin/claude`, not in the sidecar's managed
+   program folder. CLOUD-04's product image installs the managed copies, so a cloud launch now
+   carries no Mac path at all.
 
 Everything the run created was deleted: Worker `conducted-dev-cloud03-1107`, its container
 application `conducted-cloud-sandbox`, the image `wrangler-mw68dv5s` and the Worker's secrets. The
 container was left stopped, so no sandbox billed after the run.
+
+## Follow-up: the product image (CLOUD-04, 2026-11-07)
+
+Built `apps/cloud/sandbox/Dockerfile` on this Mac with `nice -n 10 docker build --platform linux/amd64`, started it, ran the checks below inside it, then removed the container (`a2bd5306cff8`, stopped and removed by id) and the image (`sha256:18184a9b383a…`, removed by id).
+
+| Check, inside the running container         | Output                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `git --version`                             | `git version 2.47.3`                                          |
+| `gh --version`                              | `gh version 2.100.0 (2026-09-03)`                             |
+| `claude --version`                          | `2.1.308 (Claude Code)`                                       |
+| `codex --version`                           | `codex-cli 0.164.0`                                           |
+| one JSON-RPC request through the entry      | `{"jsonrpc":"2.0","id":1,"result":{"known":false}}`           |
+
+- **Image size:** 595,921,691 bytes (596 MB decimal) as `docker image inspect` reports it.
+- **Managed paths:** `claude`, `codex` and `gh` sit at `/opt/conducted/agent-binaries/<program>/<version>/<program>`, with links in `/opt/conducted/bin`, which is first on PATH.
+- **The sidecar's health:** the entry's `/health` went from 503 to 200 after 3.2 s; the sidecar itself was ready 3.1 s after the entry started, under this Mac's amd64 emulation.
+- **Emulation note, not an image defect:** `gh --version` crashed in Go's regexp setup under Docker's QEMU (`sigsegv` in `regexp.mergeRuneSets`). With `GODEBUG=asyncpreemptoff=1` it printed the version above. The variable is a QEMU workaround and is not baked into the image; Cloudflare's containers run real amd64.
+
+## Follow-up: keep work across restarts (CLOUD-06, 2026-11-07)
+
+Built the parts the spike's criterion 4 said the product needs: an R2 `DirectoryBackup` of `/workspace`, the agents' transcript folders and a restore when a stopped sandbox starts, driven by the turn-end signal the entry reads from the relay (D105). Run on the owner's account with the product image, one `basic` instance, Worker `conducted-dev-c06-131323`.
+
+- **Cold start after the deploy:** `POST /w/c06-live/start` took **10.1 s** round trip; the Worker reported `readyMs` **9,333 ms**, with the sidecar ready **818 ms** after the entry started.
+- **A successful Claude turn:** 7 session events, idle **7.3 s** after the send. The turn-end hook saved three objects straight away: `/workspace` **20,311 B**, `/root/.claude` **41,075 B**, `/root/.codex` **261 B**.
+- **The restart:** `kill -TERM 1` inside the container (the entry's own shutdown path) took the sandbox out; the Durable Object reported `running: false` **1.1 s** later. `POST /start` then took **1.4 s** (1,372 ms) and restored the three directories before it answered.
+- **What came back:** the uncommitted `wip.txt` ("uncommitted work"), both marker files in `/root/.claude` and `/root/.codex`, the real Claude transcript `projects/-workspace-repo/59fb91db-….jsonl` (184 KB of `/root/.claude` restored), and all 8 `refs/conducted/checkpoints` refs of the session.
+- **The chat rehydrated:** a follow-up sent to the restored chat id with `resume.agentSessionId` finished in **16.6 s** with 7 events and answered with the exact first prompt, "Reply with the single word pong and nothing else."
+- **One object per directory:** the cleanup Worker's list found exactly the 3 current objects; each turn's save had deleted the 3 it replaced.
+
+A bug the run found, fixed before the restart check: the Durable Object read each relayed WebSocket frame as one JSON message, but the sidecar's Unix socket coalesces several NDJSON lines into one chunk. The idle line was inside a multi-line frame, so the object missed it and kept the keep-alive alarm running. `noteTurn` now reads every line of a frame in order, and a test covers a coalesced working+idle frame.
+
+Everything was deleted: Worker `conducted-dev-c06-131323`, its container application `conducted-dev-c06-sandbox-131323` (`4340dbfde03a49c7a55a3261d076546a`), the image `conducted-dev-c06-131323-workspace-sandbox:wrangler-mw6fcmcq` (`sha256:d2dd8adf…`), the R2 bucket `conducted-dev-c06-131323` and its 3 objects, and the local Docker image by id `d2dd8adfc27e`. Final `wrangler containers list`, `containers images list` and `r2 bucket list` each have no `conducted-dev-c06` entry.
+
+Not measured or not built: a turn that ends while the desktop is disconnected (the entry sees sidecar lines only through the app's WebSocket, so that turn is saved at the next connected turn end); the sidecar's write-ahead event log is not part of the backup, as the spike's loss list has it.
+
+## CLOUD-05 follow-up run (2026-11-07)
+
+The Worker's outbound handler was run on the owner's account to show the sandbox reaching the
+model API and GitHub without holding either credential. Worker `conducted-dev-c05-1310`, the
+product image from CLOUD-04, the `basic` instance, and the same route and Durable Object as the
+CLOUD-03 run. The driver called `/w/ws1/start` and `/w/ws1/exec` with the pairing token; every
+command ran inside the container. Secrets were put with `wrangler secret put` from the Keychain
+and `gh auth token` by pipe. The Anthropic check used `/v1/models`, so no model tokens were spent.
+
+- **Deploy:** 77.8 s to upload and deploy, including the image build and "ready to run". The
+  container application was `conducted-cloud-sandbox`; the image tag was `wrangler-mw6f5zvp`.
+- **Cold start:** `POST /w/ws1/start` answered in **11,128 ms**, with the sidecar ready **867 ms**
+  after the container's main process started.
+- **Warm start:** the next `POST /w/ws1/start` answered in **9 ms** (`started: false`), 91 ms
+  including the round trip.
+- **No credential in the sandbox:** `sh -c` printing the lengths of `GH_TOKEN`,
+  `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` printed 0, 0 and 0.
+- **Anthropic swap:** `curl` to `https://api.anthropic.com/v1/models` with
+  `x-api-key: provided-by-worker` answered **200** (0.18 s at the server; 250 ms round trip).
+- **GitHub swap:** `curl` to `https://api.github.com/user` with no `Authorization` header
+  answered **200** (0.32 s at the server; 369 ms round trip).
+- **`gh` with the placeholder:** `gh api user` exited 4 with "gh auth login" when the sandbox
+  held no `GH_TOKEN`. With `GH_TOKEN=provided-by-worker` in the command's environment it exited 0
+  and printed the same login as the Mac's `gh`. This is the placeholder D104 names.
+- **Git:** `git ls-remote https://github.com/jahala/conducted.git HEAD` exited 0 and returned
+  `a21e71b1b7e53c54cf044f3f956e85b6045d66d3`.
+- **Package registries:** `https://registry.npmjs.org/left-pad` answered **200** (0.02 s);
+  `https://registry.npmjs.org.example.com/` answered **403**.
+- **Outside the allow-list:** `https://example.com/` answered **403** and the Worker logged the
+  refusal without a credential.
+- **Not measured:** the OpenAI key swap live, because this Mac has no `api.openai.com` Keychain
+  entry; it is covered by the workerd tests. The Anthropic check proves the key swap, not a model
+  turn.
+
+Everything the run created was deleted: the Worker `conducted-dev-c05-1310` (the URL then answered
+404), its container application `conducted-cloud-sandbox` (`00e188fedf75462081861c171b970576`),
+and the image `conducted-dev-c05-1310-workspace-sandbox:wrangler-mw6f5zvp`. Both
+`wrangler containers list` and `wrangler containers images list` then held no `conducted` entry.
+The local `apps/cloud/sandbox/build/` folder and the driver, its JSON record and the pairing-token
+file in `/tmp` were trashed. No local Docker image was built.
+
+### CLOUD-05 second run: the sandbox's git environment (2026-11-07)
+
+Run after the container environment gained the `GH_TOKEN` placeholder and the `GIT_*` scrub.
+Worker `conducted-dev-c05-1320`, the same product image and `basic` instance.
+
+- **Cold start:** 6,897 ms, with the sidecar ready 500 ms after the container's main process
+  started. **Warm start:** 4 ms (58 ms round trip).
+- **The environment:** `GH_TOKEN` had length 18 (the `provided-by-worker` placeholder), and
+  `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` were absent.
+- **`gh` with no per-command environment:** `gh api user` exited 0 and matched the Mac's login.
+- **Git over an SSH remote:** `git ls-remote git@github.com:jahala/conducted.git HEAD` exited 0
+  and returned `67075a2b513e6b99d66f8c007dc0932bed393f24`, so `url.https://github.com/.insteadOf`
+  rewrote the SSH URL to HTTPS and the Worker added the token.
+- **The rest of the scrub:** `git config --get core.hooksPath` printed `/dev/null`;
+  `git config --get credential.helper` was empty; `git config --get-regexp '^url\.'` printed both
+  the `git@github.com:` and `ssh://git@github.com/` rewrites.
+- **The swaps:** Anthropic `/v1/models` answered 200 (0.23 s at the server); npm answered 200;
+  `example.com` answered 403.
+
+Everything was deleted: the Worker `conducted-dev-c05-1320` (URL 404), its container application
+`conducted-cloud-sandbox` (`81addf386f7146a3a8816216b51e103f`), and the image
+`conducted-dev-c05-1320-workspace-sandbox:wrangler-mw6fjhw5`. Both container lists then held no
+`conducted` entry. The local build folder and `/tmp` files were trashed.
+
+## Follow-up: pairing with the Worker (CLOUD-07, 2026-11-07)
+
+A throwaway Worker under the owner's account, named `conducted-dev-c07-131515`, deployed from
+`apps/cloud` with the product sandbox image (`conducted-dev-c07-131515-workspace-sandbox`,
+`wrangler-mw6feown`, digest `sha256:28d8ad87fee6…`). No sandbox was started: the pairing route
+touches no Durable Object, so this run cost no sandbox time.
+
+| Check (`GET /pair` unless noted)                         | Answer                                                    | Time     |
+| -------------------------------------------------------- | --------------------------------------------------------- | -------- |
+| a bearer token that is the Worker's `PAIRING_TOKEN`       | 200, `{"service":"conducted-cloud","paired":true}`         | 0.099 s  |
+| no token                                                 | 401                                                       | 0.425 s  |
+| a wrong token                                            | 401                                                       | 0.052 s  |
+| `POST` with the right token                              | 405                                                       | 0.051 s  |
+| the shell's own `ask_worker_for_pairing` (temporary Rust integration test) | good token accepted, wrong token refused | 0.09 s   |
+
+The 0.425 s on the first request is the Worker's cold start; every later answer was about 0.05 s.
+The deploy took 17.5 s to upload and 2.1 s to publish its triggers; the image was cached from the
+CLOUD-04 local build. The Rust test used `cloud::ask_worker_for_pairing`, the function
+`cloud_pair` calls; it was removed after the run.
+
+Not exercised in this live run: the macOS Keychain writes of `cloud_pair`/`cloud_unpair` (their
+storage is the same `keychain.rs` round trip PLAT-10 tests, and the save order is the ordering
+`cloud.rs`'s unit test describes), and the Connections form in a running app window (the container
+test over the real composition root and the Connections page test cover it).
+
+Everything the run created was deleted: Worker `conducted-dev-c07-131515` (its URL now answers
+404), container application `conducted-dev-c07-sandbox-131515` (`4cea4f9a…`), registry image
+`conducted-dev-c07-131515-workspace-sandbox:wrangler-mw6feown`, and the local Docker tag. Final
+`wrangler containers list` and `wrangler containers images list` hold no `c07` entry. The local
+`apps/cloud/sandbox/build/` folder was removed, and the token file and run notes under `/tmp` were
+trashed.
+
+## Follow-up: cloud terminals, run scripts and previews (CLOUD-09, 2026-11-07)
+
+Built the terminal WebSocket and the preview proxy on the owner's account with the product image,
+one `basic` instance, Worker `conducted-dev-c09-1408`, driven from this Mac with Node's `ws` client.
+The driver opened the Worker's `/w/c09-live/terminal` WebSocket with the pairing token in the
+`Authorization` header, sent one JSON `start` message, and read base64 `data`, `exit` and `error`
+messages back.
+
+- **Cold start:** `/start` answered in **15,318 ms** round trip, with the Worker reporting
+  `readyMs` **14,386 ms** and the sidecar ready 1,175 ms after the entry started.
+- **Warm start:** **123 ms** round trip, `readyMs` **25 ms**, `started: false`.
+- **A command terminal:** the WebSocket opened in **140 ms**; `ready` arrived at **160 ms**, the
+  first output byte at **165 ms**, and `exit: 0` at **167 ms**. The output was
+  `HELLO_FROM_CLOUD`. This is the `run` shape a run script uses.
+- **An interactive terminal:** `ready` at **141 ms**, first prompt byte at **151 ms**. A resize to
+  100x30 and typing `echo INTERACTIVE_OK` both took effect, and `exit` typed in it ended the
+  process with code 0.
+- **Strict shell options for a cloud setup script:** a command beginning
+  `set -euo pipefail\nprintf 'SETUP_OK\n'\nfalse\nprintf 'UNREACHABLE\n'` printed `SETUP_OK` and
+  exited **1**; `UNREACHABLE` was absent. In the desktop this prefix is added only for a cloud
+  host (`run-scripts.setup.test.ts`).
+- **A preview:** a Node HTTP server on port 3000 was started inside the sandbox. `POST
+  /w/c09-live/preview-url` with `{"port":3000}` 200'd with a URL, and fetching that URL with no
+  pairing token answered **200** with body `preview ok`, in **139 ms** including the URL request.
+  A URL with one character changed in its token answered **403**; port 22 answered **400**.
+- **Deploy:** the first deploy uploaded the image and Worker in **40.25 s**; a redeploy of code
+  only took **7.88 s**.
+
+A bug the run found, fixed before the passing run: a Durable Object RPC method that returns a
+`Response` carrying a `webSocket` throws `DataCloneError` ("Could not serialize object of type
+\"WebSocket\"") and the Worker answers 500. The terminal and preview routes now go through the
+object's own `fetch` handler, where a 101 response and a streamed proxy body are allowed. The
+same applies to a preview that upgrades a WebSocket.
+
+Not measured or not built:
+
+- **Previews are under the Worker's hostname, not their own.** The URL is
+  `/w/<name>/preview/<token>/<port>/...`, so a dev server that builds absolute asset URLs from `/`
+  will not render through it. The spike's note that previews need their own hostname still stands;
+  a hostname per preview needs a custom domain and a wildcard route, which this run did not test.
+  D108 records the choice and the gap.
+- **Terminal text is a bounded line mirror, not a VT screen.** The renderer holds the real screen;
+  the mirror serves the agent's output tool and the saved scrollback.
+- **No reconnect.** A terminal that loses its stream ends and shows "Connection lost."; it does not
+  resume. The sidecar relay's reconnect backoff does not apply to a terminal process.
+
+Everything the run created was deleted: the Worker `conducted-dev-c09-1408` (the URL then answered
+404 with Cloudflare error 1042), the container application `conducted-cloud-sandbox`
+(`8589fc968e1c466294841c155b90dab9`), the image
+`conducted-dev-c09-1408-workspace-sandbox:wrangler-mw6hb5fq`
+(`sha256:db4d337bebafc1bf90aeb4122b7148854c29693a72f54e705af088665a42ebac`), the R2 bucket
+`conducted-cloud-backups`, and the local Docker image by id `db4d337bebaf`. Final
+`wrangler containers list` and `containers images list` held no `conducted` entry, the bucket list
+held no `conducted-cloud-backups`, and the local `apps/cloud/sandbox/build/` folder and the run's
+`/tmp` files were trashed.

@@ -57,7 +57,6 @@ function workspace({
 		kanbanStatus: "in_progress",
 		port: 50000,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,
@@ -109,8 +108,9 @@ describe("NAV-02 route tree", () => {
 	it("/all-workspaces renders the Home screen area inside the shell", async () => {
 		await openApp("/all-workspaces");
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText("Home")).toBeTruthy();
 		expect(await within(main).findByText("No matching workspaces")).toBeTruthy();
+		// Home has no title in its strip, as Conductor's Home has none (D098).
+		expect(within(main).queryByRole("heading", { name: "Home" })).toBeNull();
 		expect(within(main).getByRole("searchbox", { name: "Search" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
@@ -193,7 +193,8 @@ describe("NAV-02 route repair", () => {
 
 		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText("Home")).toBeTruthy();
+		// Home has no title (D098); its toolbar's Search shows the screen is Home.
+		expect(await within(main).findByRole("searchbox", { name: "Search" })).toBeTruthy();
 	});
 
 	it("sends a deleted workspace to Home when other workspaces are known", async () => {

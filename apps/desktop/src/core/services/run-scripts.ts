@@ -54,6 +54,7 @@ import { programsBinDir, setupLogFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
+import { isArchivedWorkspace } from "../status/archived.ts";
 import type { PortService } from "./ports.ts";
 import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./terminals.ts";
 
@@ -257,7 +258,7 @@ export class RunScriptsService {
 		const workspace = await this.#deps.workspaceFor(workspaceId);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!workspace.ok) return workspace;
-		if (workspace.value.state === "archived" || workspace.value.state === "archiving") {
+		if (isArchivedWorkspace(workspace.value) || workspace.value.state === "archiving") {
 			return err(appError("workspace_not_ready", "That workspace is archived."));
 		}
 		const repo = await this.#deps.repoFor(workspaceId);
@@ -366,11 +367,14 @@ export class RunScriptsService {
 		const prefix = await this.#pathPrefix();
 		if (!prefix.ok) return prefix;
 		env.CONDUCTED_PATH_PREFIX = prefix.value;
+		// A remote host runs the setup script with strict options, as Conductor does; a local script
+		// runs as written (services-map.md 5A.1.2).
+		const command = workspace.value.host.kind === "cloud" ? `set -euo pipefail\n${script}` : script;
 		const started = await this.#deps.terminals.runScript({
 			workspaceId,
 			kind: "setup",
 			title: "Setup",
-			command: script,
+			command,
 			cwd: workspace.value.path,
 			env,
 		});

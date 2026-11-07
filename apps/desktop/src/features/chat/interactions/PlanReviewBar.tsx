@@ -1,7 +1,7 @@
 /**
  * @feature CHAT-12 Plan review bar
- * Owns: The bar that shows the agent's plan and lets the user approve it, hand it to a chat, copy
- * it, or reject it with feedback.
+ * Owns: The bar that lets the user approve the agent's plan, hand it to a chat or copy it. The
+ * plan's text is the chat's plan card (tools/cards/ExitPlanModeCard.tsx), as in Conductor. Feedback that rejects the plan is typed in the composer (COMP-01), as in Conductor.
  * Behaviour: ui-map.md 3.3 (Plan approval: bar with 'Sending to <chat>' picker, 'Copy', 'Hand off'
  * (tooltip 'Send plan to a new chat for implementation'), 'Approve' (Cmd+Shift+Enter, tooltip
  * 'Execute plan in current chat'); a feedback box can reject the plan; sidebar text 'Review plan'),
@@ -10,24 +10,22 @@
  * 'Copy' (tooltip 'Copy plan to clipboard'), 'Hand off' (tooltip 'Send plan to a new chat for
  * implementation') and 'Approve' with its live key (tooltip 'Execute plan in current chat').
  * Conductor takes plan feedback in the composer, whose placeholder then reads 'Enter your plan
- * adjustments here...'; ours keeps its feedback box and 'Reject plan' in the bar, with that
- * placeholder. The plan text, 'Show all' and the plan file link are ours too: Conductor shows the
- * plan in the chat's tool card.
+ * adjustments here...' (renderApp @9294541); sending it answers the plan as not approved. The bar
+ * has no feedback box or reject button, and no title or plan text (D098): Conductor shows the
+ * plan in the chat's tool card. The plan file link is ours and sits at the start of the row.
  * Our design choice: 'Approve' is the one primary button. 'Hand off' calls
  * useActions().sessions.startFromPlan(sessionId, planText, target), where target is the chat picked
  * in 'Sending to <chat>', or null for a new chat. After a hand-off this chat's plan is answered as
  * not approved, with no feedback, so its agent stops waiting (claude-runner 3.5: a cancelled plan
  * review is a plain denial). Approving first turns the chat's stored plan mode off and only then
  * answers, so a turn that starts right after the approval cannot run on the old plan-mode config.
- * Cmd+Shift+Enter rejects with the typed feedback when the box has text, and approves when it is
- * empty. The shortcut is a chat-card command, so Approve takes focus when the bar opens, as the
- * question card does.
- * Must handle: Very long plan (scrolls, collapsed to a few lines with 'Show all'); feedback empty
- * (Reject disabled); plan file path present (a link to open the file); the interaction is
+ * Cmd+Shift+Enter approves. The shortcut is a chat-card command, so Approve takes focus when the
+ * bar opens, as the question card does.
+ * Must handle: plan file path present (a link to open the file); the interaction is
  * withdrawn; Approve sets plan mode off before it answers, and a failed config write keeps the bar
  * open with the error; a hand-off whose closing answer fails says so.
- * Test first: Approve calls sessions.answer with kind plan_approval and approved true; Reject sends
- * the feedback text.
+ * Test first: Approve calls sessions.answer with kind plan_approval and approved true; text sent
+ * from the composer while the plan waits is the feedback.
  */
 
 import type { Interaction, InteractionAnswer, SessionConfig } from "@conducted/protocol";
@@ -38,10 +36,9 @@ import { useActions, useChat, useLiveShortcut, useSessions } from "../../../core
 import type { Session } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { CopyButton } from "../../../ui/CopyButton.tsx";
-import { Textarea } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { Tooltip } from "../../../ui/Tooltip.tsx";
-import { FileLink, textLines } from "../tools/ToolCardFrame.tsx";
+import { FileLink } from "../tools/ToolCardFrame.tsx";
 
 export interface PlanReviewBarProps {
 	sessionId: SessionId;
@@ -50,9 +47,6 @@ export interface PlanReviewBarProps {
 }
 
 type PlanAnswer = Extract<InteractionAnswer, { kind: "plan_approval" }>;
-
-/** How many plan lines show before 'Show all'. */
-const COLLAPSED_LINES = 12;
 
 const NEW_CHAT = "new";
 
@@ -83,10 +77,8 @@ function PlanReviewForm({
 }: PlanReviewBarProps & { session: Session }) {
 	const actions = useActions();
 	const listed = useSessions(session.workspaceId);
-	const [feedback, setFeedback] = useState("");
-	const [showAll, setShowAll] = useState(false);
 	const [target, setTarget] = useState<string>(NEW_CHAT);
-	const [pending, setPending] = useState<"approve" | "reject" | "handOff" | null>(null);
+	const [pending, setPending] = useState<"approve" | "handOff" | null>(null);
 	const [failure, setFailure] = useState<string | null>(null);
 	const [chosen, setChosen] = useState<string | null>(null);
 	const busy = useRef(false);
@@ -95,9 +87,6 @@ function PlanReviewForm({
 		node?.focus();
 	}, []);
 	const approveShortcut = useLiveShortcut("chat.approvePlan");
-	const lines = textLines(request.plan);
-	const shownText = showAll ? request.plan : lines.slice(0, COLLAPSED_LINES).join("\n");
-	const hasMore = lines.length > COLLAPSED_LINES;
 
 	const chats =
 		listed.state === "ready"
@@ -108,21 +97,20 @@ function PlanReviewForm({
 		...chats.map((chat) => ({ value: chat.id, label: chatName(chat) })),
 	];
 
-	async function answer(value: PlanAnswer): Promise<void> {
+	async function approve(): Promise<void> {
 		if (busy.current || chosen !== null) return;
 		busy.current = true;
-		setPending(value.approved ? "approve" : "reject");
+		setPending("approve");
 		setFailure(null);
-		if (value.approved) {
-			const left = await leavePlanMode();
-			if (!left.ok) {
-				busy.current = false;
-				setPending(null);
-				setFailure(`Couldn't turn plan mode off: ${left.error.message}`);
-				return;
-			}
+		const left = await leavePlanMode();
+		if (!left.ok) {
+			busy.current = false;
+			setPending(null);
+			setFailure(`Couldn't turn plan mode off: ${left.error.message}`);
+			return;
 		}
-		const result = await actions.sessions.answer(sessionId, interactionId, value);
+		const approved: PlanAnswer = { kind: "plan_approval", approved: true };
+		const result = await actions.sessions.answer(sessionId, interactionId, approved);
 		if (!result.ok) {
 			busy.current = false;
 			setPending(null);
@@ -131,7 +119,7 @@ function PlanReviewForm({
 		}
 		busy.current = false;
 		setPending(null);
-		setChosen(value.approved ? "Approved" : "Sent the feedback to the agent");
+		setChosen("Approved");
 	}
 
 	/** Turns the chat's stored plan mode off, so the next turn carries out the plan. */
@@ -167,20 +155,9 @@ function PlanReviewForm({
 		}
 	}
 
-	function submitFeedback(): void {
-		const text = feedback.trim();
-		if (text.length === 0) return;
-		void answer({ kind: "plan_approval", approved: false, feedback: text });
-	}
-
 	function submitShortcut(): boolean {
 		if (busy.current || chosen !== null) return false;
-		const text = feedback.trim();
-		if (text.length > 0) {
-			void answer({ kind: "plan_approval", approved: false, feedback: text });
-			return true;
-		}
-		void answer({ kind: "plan_approval", approved: true });
+		void approve();
 		return true;
 	}
 
@@ -192,29 +169,12 @@ function PlanReviewForm({
 		<fieldset
 			aria-label="Plan review"
 			data-command-scope="chat-card"
-			className="m-0 flex flex-col gap-3 rounded-xl border border-border bg-surface p-3"
+			className="m-0 flex flex-col gap-2 rounded-xl border border-border bg-surface px-4 py-2"
 		>
-			<div className="flex items-center justify-between gap-2">
-				<p className="text-sm font-medium text-fg">Review plan</p>
+			<div className="flex flex-wrap items-center gap-3">
 				{request.planFilePath === undefined ? null : (
 					<FileLink path={request.planFilePath}>Open plan file</FileLink>
 				)}
-			</div>
-
-			<pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-canvas p-2 font-mono text-code text-fg">
-				{shownText}
-			</pre>
-			{hasMore ? (
-				<button
-					type="button"
-					onClick={() => setShowAll(!showAll)}
-					className="self-start text-xs font-medium text-link hover:underline"
-				>
-					{showAll ? "Show less" : `Show all ${lines.length} lines`}
-				</button>
-			) : null}
-
-			<div className="flex flex-wrap items-center gap-3">
 				<label className="flex items-center gap-2 text-xs text-fg-muted" htmlFor="plan-target">
 					Sending to
 				</label>
@@ -229,18 +189,6 @@ function PlanReviewForm({
 				/>
 			</div>
 
-			<div className="flex flex-col gap-1">
-				<Textarea
-					id="plan-feedback"
-					aria-label="Plan feedback"
-					placeholder="Enter your plan adjustments here..."
-					value={feedback}
-					onChange={(event) => setFeedback(event.target.value)}
-					disabled={disabled}
-					className="min-h-[60px]"
-				/>
-			</div>
-
 			{failure === null ? null : (
 				<p role="alert" className="text-xs text-danger">
 					{failure}
@@ -249,15 +197,6 @@ function PlanReviewForm({
 
 			{chosen === null ? (
 				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						variant="outline"
-						size="xs"
-						onClick={submitFeedback}
-						loading={pending === "reject"}
-						disabled={disabled || feedback.trim().length === 0}
-					>
-						Reject plan
-					</Button>
 					<div className="ml-auto flex items-center gap-2">
 						<Tooltip content="Copy plan to clipboard">
 							<CopyButton
@@ -284,7 +223,7 @@ function PlanReviewForm({
 								ref={focusOnMount}
 								size="xs"
 								className="px-3"
-								onClick={() => void answer({ kind: "plan_approval", approved: true })}
+								onClick={() => void approve()}
 								loading={pending === "approve"}
 								disabled={disabled}
 							>

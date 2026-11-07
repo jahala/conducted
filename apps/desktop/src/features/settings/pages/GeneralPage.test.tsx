@@ -32,6 +32,36 @@ describe("SET-02 GeneralPage", () => {
 		expect(set).toHaveBeenCalledWith("message_send_key", "cmd-enter");
 	});
 
+	it("shows the title with no subtitle, as Conductor's General page has none", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+
+		expect(await screen.findByRole("heading", { name: "General" })).toBeTruthy();
+		expect(screen.queryByText(/Everyday behaviour/)).toBeNull();
+		// Conductor's rows that have no line under the title get none here either.
+		expect(screen.getAllByText("Arrange workspaces manually").length).toBeGreaterThan(0);
+		expect(screen.queryByText(/Let you drag workspaces/)).toBeNull();
+	});
+
+	it("names the completion sound as Conductor does: Chime", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+
+		const sound = await screen.findByRole("combobox", { name: "Completion sound" });
+		expect(sound.textContent).toContain("Chime");
+		expect(sound.textContent).not.toContain("Default chime");
+	});
+
 	it("shows the failure under the row when a save fails", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();

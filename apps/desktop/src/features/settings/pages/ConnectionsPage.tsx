@@ -1,17 +1,24 @@
 /**
  * @feature SET-02 Connections settings page
- * Owns: the Connections page of Settings, local ports only: the port range workspaces draw from.
+ * @feature CLOUD-07 Pair the desktop app with the user's Worker
+ * Owns: the Connections page of Settings: the port range workspaces draw from, and the pairing
+ * with the Worker that runs the user's cloud workspaces.
  * Behaviour: ui-map.md 3.7 and 6 ("Connections": in Conductor this page covers cloud port
  * forwarding, which is left out) and backlog RUN-03 (one port per workspace, detection, preview
- * URLs). Our design choice: the range is validated here, and port 22 is always refused because SSH
- * uses it.
+ * URLs). CLOUD-07: the Worker URL and token are checked with the Worker and then kept in the
+ * Keychain; the page shows which Worker this Mac is paired with and can remove the pairing.
+ * Our design choice: the range is validated here, and port 22 is always refused because SSH
+ * uses it. The pairing form sits on Connections because it connects this Mac to a Worker; it is
+ * ours, since Conductor has no self-hosted Worker (D098, D106).
  * Must handle: a range whose first port is above its last, ports below 1024 or above 65535, and
  * port 22 inside the range (rejected). The range is stored under two registry keys; while the
- * settings registry has no such keys, the page says so instead of writing an unknown key.
+ * settings registry has no such keys, the page says so instead of writing an unknown key. A
+ * Worker URL or token the Worker refused shows its message and leaves any earlier pairing alone;
+ * an unpaired Mac shows the form, and a paired one shows the Worker and Unpair.
  * Test first: a range of 3000 to 2000 shows an error and does not call settings.set.
  */
 import { useState } from "react";
-import { useActions } from "../../../core/hooks.ts";
+import { useActions, useCloudPairing } from "../../../core/hooks.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
@@ -46,10 +53,41 @@ function validateRange(first: number, last: number): RangeError | null {
 export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
 	const actions = useActions();
+	const pairing = useCloudPairing();
 	const [first, setFirst] = useState("55000");
 	const [last, setLast] = useState("55010");
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [workerUrl, setWorkerUrl] = useState("");
+	const [pairingToken, setPairingToken] = useState("");
+	const [pairingError, setPairingError] = useState<string | null>(null);
+	const [pairingBusy, setPairingBusy] = useState(false);
+
+	const pairWorker = async () => {
+		setPairingError(null);
+		setPairingBusy(true);
+		const result = await actions.cloud.pair({ url: workerUrl, token: pairingToken });
+		setPairingBusy(false);
+		if (!result.ok) {
+			setPairingError(result.error.message);
+			return;
+		}
+		setWorkerUrl("");
+		setPairingToken("");
+		toast("Paired with the Worker");
+	};
+
+	const unpairWorker = async () => {
+		setPairingError(null);
+		setPairingBusy(true);
+		const result = await actions.cloud.unpair();
+		setPairingBusy(false);
+		if (!result.ok) {
+			setPairingError(result.error.message);
+			return;
+		}
+		toast("Unpaired from the Worker");
+	};
 
 	const save = async () => {
 		const problem = validateRange(Number(first), Number(last));
@@ -82,7 +120,7 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 	return (
 		<SettingsPageFrame
 			title="Connections"
-			description="The local ports workspaces draw from. Cloud port forwarding is not part of this app."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
@@ -135,6 +173,82 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 					</p>
 				) : null}
 				<p className="text-xs text-fg-subtle">Ranges cannot include port 22, which SSH uses.</p>
+			</div>
+
+			<div className="flex flex-col gap-3 border-t border-border py-4">
+				<div className="flex flex-col gap-1">
+					<p className="text-sm font-medium text-fg">Cloud Workspaces</p>
+					<p className="max-w-prose text-sm text-fg-muted">
+						Pair this Mac with the Worker you deployed to your Cloudflare account. Its URL and
+						pairing token come from the deployment. The token is kept in the Keychain and is never
+						shown again.
+					</p>
+				</div>
+				{pairing.state === "loading" ? (
+					<p role="status" className="text-xs text-fg-muted">
+						Checking the saved pairing…
+					</p>
+				) : null}
+				{pairing.state === "error" ? (
+					<p role="alert" className="text-xs text-danger">
+						{pairing.error.message}
+					</p>
+				) : null}
+				{pairing.state === "ready" && pairing.data.paired ? (
+					<div className="flex items-end gap-3">
+						<p className="text-sm text-fg">Paired with {pairing.data.url ?? "a Worker"}.</p>
+						<Button
+							variant="outlineDestructive"
+							loading={pairingBusy}
+							onClick={() => void unpairWorker()}
+						>
+							Unpair
+						</Button>
+					</div>
+				) : null}
+				{pairing.state === "ready" && !pairing.data.paired ? (
+					<div className="flex flex-col gap-2">
+						<p className="text-sm text-fg-muted">Not paired</p>
+						<div className="flex flex-col gap-1">
+							<Label htmlFor="cloud-worker-url">Worker URL</Label>
+							<Input
+								id="cloud-worker-url"
+								value={workerUrl}
+								placeholder="https://conducted.example.workers.dev"
+								autoComplete="off"
+								className="w-96"
+								onChange={(event) => {
+									setWorkerUrl(event.target.value);
+									setPairingError(null);
+								}}
+							/>
+						</div>
+						<div className="flex items-end gap-3">
+							<div className="flex flex-col gap-1">
+								<Label htmlFor="cloud-pairing-token">Pairing token</Label>
+								<Input
+									id="cloud-pairing-token"
+									type="password"
+									value={pairingToken}
+									autoComplete="off"
+									className="w-96"
+									onChange={(event) => {
+										setPairingToken(event.target.value);
+										setPairingError(null);
+									}}
+								/>
+							</div>
+							<Button loading={pairingBusy} onClick={() => void pairWorker()}>
+								Pair
+							</Button>
+						</div>
+					</div>
+				) : null}
+				{pairingError ? (
+					<p role="alert" className="text-xs text-danger">
+						{pairingError}
+					</p>
+				) : null}
 			</div>
 		</SettingsPageFrame>
 	);

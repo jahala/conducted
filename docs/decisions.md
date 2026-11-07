@@ -450,6 +450,24 @@ Context: the parity harness (#347) runs on GitHub, so its spec must be in the re
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
 
+## D098. The UI is exactly Conductor's; our own features take the most logical place in its layout (2026-11-07)
+
+Replaces the "kept for the owner" lists of the three parity rounds (`ui-parity-report.md`, `parity-round2-report.md`, `parity-round3-report.md`) and narrows D020's last sentence: a visible difference no longer stays because it adds information.
+Context: after three parity rounds, our screens still differed from Conductor's in where some controls sat and in decoration Conductor does not have. The owner ruled on 7 November 2026:
+
+- "i told you we're doing the UI exactly like conductor"
+- "the feature controls that also exist in conductor should be in the same place as they are in conductor."
+- "for decisions me made that are different then conductor, we should find the best, most logical place for these..."
+- On the header's folder chip, which in Conductor is the "Open in" button: "we do what conductor does".
+
+Chosen: every item of ours that Conductor does not show is sorted into one of three, by reading Conductor's bundle:
+
+1. A control Conductor also has, in another place in ours, moves to Conductor's place with Conductor's words.
+2. A feature of ours that Conductor does not have stays, in the most logical place within Conductor's layout and visual language. `docs/design.md`, "Ours, placed in Conductor's layout", says where each one went and why, and `tests/parity/ours-only.json` maps its words to this decision.
+3. A look that carries no feature (a subtitle, a badge, a heading, a hint line, a label) is removed.
+
+Why: the owner's ruling. A rebuild that looks exactly like Conductor is easier to compare and to switch to, and every feature of ours still has a home.
+
 ## D100. Moving from Conductor is a read-only, all-or-nothing import (2026-11-07)
 
 Context: the owner asked for a way to move users from Conductor to Conducted, "SAFELY" (#353). D038 had left out any `conductor.json` migration, and D027 sets only `CONDUCTED_*` names.
@@ -465,13 +483,24 @@ Chosen:
 - **Turn state comes from the relay.** The Durable Object sets a keep-alive alarm when a `sendMessage` request passes through and clears it on the sidecar's `liveState: idle`. While a turn runs the alarm touches the sandbox's `/health` every 60 seconds, which resets the container's inactivity timer. This is the signal the spike said was missing; it needs no second channel from the sandbox.
 - **One pairing token per Mac.** It is stored in the Keychain under `cloud-pairing-token` and read by Rust; the web view never sees it. CLOUD-07 owns the pairing flow and may make it per Worker.
 - **A cloud workspace's folder is its absolute path inside the sandbox.** The same string is the `cwd` the Worker receives and the folder the sidecar is given; a cloud workspace's repository root is that folder too. Workspace creation in the cloud (CLOUD-08) must therefore give each cloud workspace a unique sandbox path.
-- **A cloud launch carries no secret and no Mac program path.** The router replaces every provider key with `provided-by-worker` and drops `executablePath`; the Worker's outbound handler swaps the real key for the model API. Until CLOUD-04 installs the managed programs in the image, a Claude launch names `/usr/local/bin/claude`, where the spike image puts it.
+- **A cloud launch carries no secret and no Mac program path.** The router replaces every provider key with `provided-by-worker` and drops `executablePath`, so the sandbox's sidecar finds the product image's managed Claude Code, Codex and gh (CLOUD-04). The Worker's outbound handler swaps the real key for the model API.
 - **A cloud "trash" removes the file**, because a sandbox has no macOS Trash. The file commands in the Worker use the Sandbox SDK's own operations.
 - **The Worker's tests run in workerd without a container.** `@cloudflare/vitest-plugin` exercises the token, the routes, the Durable Object's state and alarm, and the relay's turn reading. Container-backed route execution needs the image and Docker, so the live run above is its verification until CLOUD-04's image has a CI job.
 - **The relay frames lines.** The Rust relay appends the newline and the cloud transport splits incoming frames on newlines, because the sidecar's Unix socket speaks NDJSON and the WebSocket does not.
 - **The doors CLOUD-03 does not own keep their own row's placeholder.** A cloud workspace's file search stops at CLOUD-11, Open in at CLOUD-12, and archive, unarchive and delete at CLOUD-08, each through the same `checkHost` check that stops terminals at CLOUD-09. The alternative was letting those calls reach the Mac with a sandbox path, which D092 forbids and which would run the wrong operation on the wrong machine.
 
 Why: each choice either uses the spike's own finding or is the smallest thing that makes the desktop's existing calls work unchanged. The live run on the owner's account passed with these choices (numbers in the research note).
+
+## D102. The sandbox's setup scripts may reach these package hosts (2026-11-07)
+
+Proposed by the CLOUD-04 PR; not yet ruled on by the owner.
+Context: `cloud-and-remote.md` Part 1 says the outbound allow-list holds "the package registries the setup script needs", and the CLOUD-02 spike found npm refused (403) inside the sandbox. Neither the plan nor the research names a registry, and Conductor's cloud is not in the research, so there is no reference list to copy (D002: report the gap).
+Chosen: `apps/cloud/sandbox/package-allow-list.ts` holds one sorted list of exact host names: npm's and Yarn's registry, PyPI and its file host, crates.io's index and download host, RubyGems, the Go module proxy and checksum database, Maven Central's two hosts, NuGet, Composer's Packagist, and Debian's apt hosts. Matching lowercases the name and removes one trailing root dot; it is exact, so a subdomain or a look-alike suffix does not pass. The Worker's outbound handler (CLOUD-05) adds GitHub and the model gateway and reads this list.
+Why: a setup script must be able to install the project's dependencies, and data keeps the answer in one place. The list is our choice; it can grow when a real setup script needs another host.
+
+### CLOUD-04's extra-software checklist item is not built
+
+The checklist item "The sandbox image can include extra installed software chosen in settings" cites `ui-map.md` section 6, where the control lives on the Organization > Cloud computer page ("Install software", "Build computer"). That is an organization (team) setting, and D004 and D018 keep organizations and team features out. The image therefore has no software-install setting; a setup script installs software in the sandbox instead, subject to the hosts above.
 
 ## D103. The host has one home on the workspace; cloud rows follow it by reference (2026-11-07)
 
@@ -486,3 +515,85 @@ Chosen:
 
 Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
 Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.
+
+## D104. The outbound handler's allow-list and credential swap, as CLOUD-05 built it (2026-11-07)
+
+Context: CLOUD-05 builds the Worker entrypoint every request from the sandbox passes through. The plan says the allow-list holds GitHub, the model gateway and the package registries; D102 fixed the package hosts. The research names the key variables and Conductor's local GitHub token settings, but not a Worker-side mapping, and Conductor's cloud backend is not in the research (D002). The live run is in `docs/research/cloud-spike-2026-11-06.md`.
+
+Chosen:
+
+- **The request's hostname picks the secret.** `api.anthropic.com` receives `ANTHROPIC_API_KEY` in `x-api-key`; `api.openai.com` receives `OPENAI_API_KEY` as a bearer token. The desktop's provider choice reaches the Worker as the host the agent calls, so the Worker needs no second setting. Any placeholder the sandbox sent in `authorization` or `x-api-key` is removed first.
+- **GitHub's hosts receive the token.** `github.com` and `codeload.github.com` take HTTP basic auth with `x-access-token` and the secret as the password; `api.github.com`, `uploads.github.com`, `raw.githubusercontent.com` and `objects.githubusercontent.com` take a bearer token. The token is added even when the sandbox sent no `authorization`, so `git` and a plain HTTP client reach GitHub without holding it.
+- **Redirects are answered, not followed.** A 3xx goes back to the sandbox, so the next hop comes through the same allow-list and swap instead of carrying a credential somewhere new.
+- **Exact hosts; credentials over HTTPS only.** A model API or GitHub host over plain HTTP is refused. A package host may use HTTP (Debian's apt sources do) or HTTPS. A look-alike name such as `registry.npmjs.org.example.com` is refused.
+- **No Cursor row.** The research names no Cursor API host and CLOUD-04's image has no Cursor SDK, so Cursor's credential swap waits for CLOUD-18, which brings both.
+- **`gh` gets a placeholder value.** `gh` makes no request at all without a `GH_TOKEN` value, so the container environment sets `GH_TOKEN=provided-by-worker` (`sandbox-git-env.ts`, spread into `CONTAINER_ENV`). The live run proved both halves: without it `gh` exits 4 asking for `gh auth login`; with it, `gh api user` answers as the Mac's login.
+- **Git gets a scrubbed environment.** `SANDBOX_GIT_ENV` also sets `GIT_TERMINAL_PROMPT=0`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, an empty `credential.helper` and `credential.https://github.com.helper`, `core.hooksPath=/dev/null`, and `url.https://github.com/.insteadOf` for `git@github.com:` and `ssh://git@github.com/`. The rewrite sends an SSH remote through the Worker, where the token is added; the rest keeps the user's config, prompts and hooks out of the sandbox.
+
+Why: the host is the only thing the sandbox's HTTP call states about which provider it is talking to, and keying the swap on it keeps every secret in the Worker without a second channel. The live run on the owner's account passed with these choices: Anthropic's `/v1/models` and GitHub's `/user` both answered 200 from a sandbox holding no credential, and a look-alike and an unlisted host both got 403.
+
+### Issue #247's checklist, item by item
+
+Twelve items. (a) is built here, (b) is Conductor's organisation or team UI, which D004 and D018 keep out, and (c) is owned by another open row.
+
+1. **Environment: variable scopes for local and cloud contexts** — (c) CLOUD-17 (#259) lists "Variable scopes include a cloud context beside the local ones" (services-map 4.2.8).
+2. **Auth reaches Claude by env or by a brokered OAuth token injected on each spawn** — (a) for the env path: the Worker swaps the Anthropic key whether the launch sent it as `x-api-key` or as the OAuth bearer header. The brokered OAuth token is CLOUD-18 (#260).
+3. **A rejected OAuth token, changed credentials or a token expiring in 5 minutes forces a respawn** — (a) for the part a Worker-swapped key has: the handler reads the secret on every request, so a changed credential takes effect on the next one. An API key has no expiry, and a rejected key is returned to the client as the provider sent it. The OAuth token's respawn is CLOUD-18.
+4. **An expired token is flagged and refreshed on the next spawn** — (a) for the part a Worker-swapped key has: an API key does not expire and is never cached, and the provider's 401 reaches the client for the app to flag. Refreshing an OAuth token is CLOUD-18.
+5. **Internal mode uses brokers for secrets** — (a) the Worker is the broker: the container environment holds no model key, and the outbound handler inserts it per request.
+6. **A cloud workspace reaches GitHub without a token inside the sandbox** — (a) `GH_TOKEN` is only the placeholder; the Worker adds the real token to GitHub's hosts.
+7. **Git in a sandbox runs with a scrubbed environment** — (a) `SANDBOX_GIT_ENV` in the container environment.
+8. **The cloud GitHub token is entered once and kept in the Worker, with a Disconnect** — (b) the entry form and Disconnect are Conductor's organisation GitHub page (ui-map 6 Organization), a team feature kept out by D004 and D018. The Worker secret itself exists and is swapped.
+9. **Personal and shared cloud variables go to the Worker as secrets** — (b) for the shared half, which is an organisation feature (D004, D018). The personal half is CLOUD-17 (#259), whose "cloud environment variables" item stores them.
+10. **The server keys for Claude, Codex and Cursor credential selection decide which model key the Worker swaps in** — (c) CLOUD-17 (#259) lists "Which model key the Worker uses for cloud runs". The Worker swaps by API host, and Cursor's host is CLOUD-18's.
+11. **The server key personalCloudEnvVars holds the user's cloud environment variables** — (c) CLOUD-17 (#259) lists the cloud environment variables.
+12. **The gh_cloud token keys are handled by the Worker's outbound token swap** — (a) the Worker's `GITHUB_TOKEN` replaces the `gh_cloud` token for GitHub's hosts, including the placeholder the sandbox's git environment sends.
+
+## D105. A cloud workspace saves its work to R2 at each turn end and restores it when it starts (2026-11-07)
+
+Context: the CLOUD-02 spike proved that the sandbox disk is wiped when it stops, and that an R2 directory backup of `/workspace` and `/root/.claude`, taken explicitly before a restart, brought back the uncommitted work and the transcript Claude resumed (`docs/research/cloud-spike-2026-11-06.md`, criterion 4). It also named two gaps: the backup must run at every turn end, and the Durable Object must learn about a turn end from the sandbox rather than only from a connected desktop. CLOUD-06 builds those parts.
+Chosen:
+
+- **What is saved.** `/workspace` (the repository and its uncommitted work), `/root/.claude` (Claude's transcripts) and `/root/.codex` (Codex's threads), one directory backup each. The two transcript folders are the persisted store an agent resumes from: sessions.md section 8 for Claude, other-runners.md for Codex. A directory the agent has not created yet is skipped, not saved as an error. `/workspace` is saved whole, with no gitignore exclude, because a cloud restart has no setup rerun yet, so an installed dependency must survive with the work that needs it.
+- **When it is saved.** The sandbox entry reads each line the sidecar sends through the relay. When a `liveState: idle` line leaves no chat working, it posts to `http://conducted.internal/turn-end/<workspace>`. The Worker's outbound handler sends that call to the workspace's Durable Object, which saves the three directories. The turn-end signal is the same relay signal D101 uses for the keep-alive alarm; no second channel from the sidecar is needed.
+- **When nobody is connected.** The entry sees the sidecar's lines only through the app's WebSocket. A turn that ends while the desktop is disconnected is therefore not saved at that moment; the next turn end with the app connected saves the whole directory, including that turn's files. If the sandbox stops before then, everything since the last backup is lost. This is the loss the spike recorded, now bounded to that window.
+- **When it is restored.** `start` restores the latest record of each directory only when that call started a stopped container; a warm sandbox is never overwritten. A restore that fails makes the start fail, so the app does not show work that did not come back, and a retry restores again.
+- **How long it is kept.** The Durable Object stores one record per directory. A new backup is stored before the object it replaces is deleted, so a crash leaves a spare object, never a record that points at nothing. Once a save finishes the bucket holds three objects per workspace, replaced at each turn end. Deleting a workspace (CLOUD-08) and uninstalling the Worker (CLOUD-07) must delete them; neither flow is built yet.
+- **What is not saved.** The sidecar's write-ahead event log (`/var/conducted/outbox`) is not part of the backup, so an event the desktop had not stored when the sandbox died can still be lost. The spike's loss list names it. Events remain the desktop's record, as D103 has it.
+
+Why not container snapshots: the spike found no API that lists or deletes them and they expire after 30 days, so they cannot meet the "delete everything" rule (`docs/research/cloud-spike-2026-11-06.md`).
+Why: this is the spike's own method, extended to the second agent's transcript store and to the signal the spike said was missing. The bucket's size is bounded by the number of workspaces, not the number of turns.
+
+## D106. Pairing a Mac with a Worker keeps one URL and one token, checked before they are saved (2026-11-07)
+
+Proposed by the CLOUD-07 PR; not yet ruled on by the owner.
+Context: D101 stores one pairing token per Mac under `cloud-pairing-token` and leaves the pairing flow to this row. The CLOUD-02 spike kept the token in a mode-600 file and named the Keychain as the product's home (question 4). Conductor has no self-hosted Worker to pair with, so its screens give no place or wording to copy; the flow and its form are ours (D098, D020: report the gap).
+Chosen:
+
+- A pairing is a Worker URL and its token. The app sends both to the Worker's `GET /pair` before it saves either. The answer must name the service `conducted-cloud` and report `paired: true`; anything else is refused, so a URL that answers any request is not taken for a Worker. A 401 is its own message.
+- The Worker URL is kept in the Keychain under `cloud-pairing-url` and the token under `cloud-pairing-token`, both in the app's service. The URL is written before the token, and only a non-empty token counts as paired. The token never returns to the web view, a log or an event; the URL does, so the app can show which Worker the Mac is paired with.
+- One pairing per Mac: pairing another Worker replaces the URL and token. A cloud workspace still names its own Worker URL on its host (D092), so a workspace whose Worker is not the paired one fails with the Worker's own refusal rather than falling back to the Mac.
+- The form lives in a "Cloud Workspaces" block on the Connections page, our own page (D098). Unpair removes both items; a Mac that was never paired succeeds.
+- The Worker's `/pair` route sits behind the same token check as every other route and touches no Durable Object, so a Mac can pair before the first workspace exists.
+
+Why: the user can check the token with the Worker at the moment they paste it, and a wrong URL or token changes nothing. Keeping the URL makes the state after a restart readable. Per-Worker tokens stay possible later; the Keychain keys can gain a Worker suffix when a second Worker needs its own token.
+
+## D107. Conductor's account controls stay out of the matched screens (2026-11-07)
+
+Context: the second round of D098 found two more Conductor controls that only work with a Conductor account: the organisation switcher at the top of the sidebar and of Settings ("Sam Rivera's Mac", whose menu holds the organisations, "Create organization", "Upgrade to Pro" and "Log out"), and the Loadout's "Share" button on Default models ("Sign in to share a loadout"; it opens a page on Conductor's service).
+Chosen: neither is built, by D025. The switcher's one local item, Settings, is the sidebar's gear. Our loadout has no way to share; nothing takes the button's place.
+Why: both reach Conductor's own service and account, which D025 leaves out; a control that cannot work would be a look without a feature, which D098 removes.
+
+## D108. Cloud terminals and previews, as CLOUD-09 built them (2026-11-07)
+
+Context: the plan's Part 1 point 7 asks for terminals through the sandbox's exec streaming and a WebSocket terminal, and previews through the Worker's port forwarding. The CLOUD-02 spike left PTY terminals and previews unexercised, and noted that previews need their own hostname so one preview cannot read another's cookies or storage. Research describes Conductor's cloud backend only as a concept, so the wire protocol is ours (D002), not copied.
+Chosen:
+
+- **One JSON message per line over the Worker's WebSocket.** A terminal opens `/w/<name>/terminal`; its first message is `start` (folder, size, command, environment), then `input`, `resize` and `kill`. Output is `data` with base64 bytes, plus `exit` and `error`. The Durable Object runs `container.exec` with a PTY and a piped stdin and stdout. A run script uses the same path with `/bin/bash -l -c <script>`; a cloud setup script gets `set -euo pipefail` in front of it.
+- **The Rust relay takes a channel.** `cloud_relay_open` accepts `rpc` (the sidecar, the default) or `terminal`, so the app needs no second WebSocket command set and the pairing token still never reaches the web view. The terminal's wire protocol is the stream's content, not a second transport.
+- **A dropped stream ends the terminal with "Connection lost."** The app does not claim a process ended when it only lost the connection, and it does not resume a terminal. A `kill` or an `exit` carries the real code.
+- **A preview is a capability URL under the Worker's hostname.** `POST /w/<name>/preview-url {port}` returns `/w/<name>/preview/<token>/<port>/...`; the token is HMAC-SHA256 of `${name}:${port}` keyed by the pairing token, so the Worker stores no preview state and the URL can be copied to anyone the user wants to show it to. The proxy forwards any method and a WebSocket upgrade to `container.getTcpPort(port)`. Port 22 is refused, as the research reserves it for SSH.
+- **The terminal's text mirror is lines, not a VT screen.** The desktop renderer holds the real screen; the sandbox keeps the last 5,000 lines so `GetTerminalOutput` and a reopened terminal have text.
+- **Previews do not have their own hostname.** The spike's isolation note is not met. A dev server that builds absolute asset URLs from `/` will not render through the path. A hostname per preview needs a custom domain with a wildcard route and is not built.
+
+Why: the relay's channel and the JSON-per-line protocol reuse the connection the Worker already authenticates and the Rust shell already owns; the capability token makes previews work from a browser that holds no key, without storing per-port state. Why not a second transport: it would duplicate the relay's close, error and restart handling for no gain.

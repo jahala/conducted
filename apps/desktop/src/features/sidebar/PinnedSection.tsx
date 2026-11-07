@@ -16,12 +16,12 @@ import { useParams } from "@tanstack/react-router";
 import { type DragEvent, useState } from "react";
 import { useActions, useRepos, useSetting } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
 import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { HeaderChevron, HeaderCount } from "./section-header.tsx";
-import { useNow } from "./use-now.ts";
 import {
 	draggedWorkspace,
 	useWorkspaceDrag,
@@ -51,7 +51,6 @@ export function PinnedSection({
 	const repos = useRepos();
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
-	const now = useNow();
 	const manualOrder = useSetting<boolean>("manual_workspace_order");
 	const [open, setOpen] = useState(true);
 	const order = workspaces.map((workspace) => workspace.id);
@@ -87,7 +86,7 @@ export function PinnedSection({
 		// the main list.
 		const workspace = allWorkspaces.find((candidate) => candidate.id === carriedId);
 		// An archived workspace is not a sidebar row, so it cannot be pinned by a drop.
-		if (workspace === undefined || workspace.state === "archived") {
+		if (workspace === undefined || isArchivedWorkspace(workspace)) {
 			drag.cancel();
 			return;
 		}
@@ -166,7 +165,6 @@ export function PinnedSection({
 												repo={repo}
 												selected={selectedId === workspace.id}
 												shortcutIndex={null}
-												now={now}
 												indent="pinned"
 											/>
 										)}

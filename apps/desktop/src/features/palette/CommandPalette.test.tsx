@@ -127,6 +127,12 @@ describe("NAV-08 CommandPalette", () => {
 		expect(await screen.findByRole("status", { name: "Loading the command palette" })).toBeTruthy();
 	});
 
+	it("has no footer of key hints, as Conductor's palette has none", async () => {
+		await openPalette(false);
+		expect(screen.queryByText("Switch tabs")).toBeNull();
+		expect(screen.queryByText("Choose")).toBeNull();
+	});
+
 	it("shows No results found for a query with no matches", async () => {
 		const { input } = await openPalette(false);
 		fireEvent.change(input, { target: { value: "zzzzzz" } });

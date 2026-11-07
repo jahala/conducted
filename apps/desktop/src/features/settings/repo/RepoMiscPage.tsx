@@ -8,21 +8,24 @@
  * workspaces from, remote origin). Files to copy is PRJ-04; the copy itself runs in the workspace
  * service.
  * Data: useRepos (path, icon, default branch), useRepoConfig (copyFiles, previewUrlTemplate,
- * remoteName), useWorkspaces (the count the removal dialog names), useSetting(conducted_root_path),
- * useActions().projects (updateConfig, remove).
+ * remoteName), useBranches (the branch list the default-branch popover shows), useWorkspaces (the
+ * count the removal dialog names), useSetting(conducted_root_path), useActions().projects
+ * (updateConfig, setDefaultBranch, remove).
  * Children: FilesToCopyField, RemoveRepoDialog.
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; a
  * preview URL template validated with the workspace port variable; a remote name saved to the
  * personal settings file, with "origin" only as a placeholder; files to copy as patterns; and
  * removal that also removes workspaces (confirm with the count). The icon row shows the current
- * avatar and opens the Change repository icon picker (PRJ-05). Choosing a base other than the
- * default branch is WS-01.
+ * avatar and opens the Change repository icon picker (PRJ-05). "Branch new workspaces from" is a
+ * read-only-until-opened branch list from the repository's local git; choosing one saves it as the
+ * project's default branch through SET-07's action.
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import {
 	useActions,
+	useBranches,
 	useRepoConfig,
 	useRepos,
 	useSetting,
@@ -33,15 +36,40 @@ import { expandPreviewUrl } from "../../../core/services/ports.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
+import { ChevronDownIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
+import { Popover } from "../../../ui/Popover.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
+import { TargetBranchPicker } from "../../git-panel/changes/TargetBranchPicker.tsx";
 import { RepoIconAvatar } from "../../sidebar/RepoIcon.tsx";
 import { RepoIconPicker } from "../../sidebar/RepoIconPicker.tsx";
 import { FilesToCopyField } from "./FilesToCopyField.tsx";
 import { RemoveRepoDialog } from "./RemoveRepoDialog.tsx";
 
 const SAMPLE_PORT = 55_000;
+
+/** The repository's local branches, read only while the branch popover is open (SET-07). */
+function RepoBranchList({
+	repoId,
+	current,
+	onSelect,
+}: {
+	repoId: RepoId;
+	current: string;
+	onSelect: (branch: string) => void;
+}) {
+	const branches = useBranches(repoId);
+	return (
+		<TargetBranchPicker
+			branches={branches.state === "ready" ? branches.data : []}
+			current={current}
+			onSelect={onSelect}
+			loading={branches.state === "loading"}
+			error={branches.state === "error" ? branches.error.message : null}
+		/>
+	);
+}
 
 function previewUrlProblem(template: string): string | null {
 	const trimmed = template.trim();
@@ -67,6 +95,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [removing, setRemoving] = useState(false);
 	const [iconOpen, setIconOpen] = useState(false);
+	const [branchOpen, setBranchOpen] = useState(false);
 	const readyConfig = config.state === "ready" ? config.data : null;
 
 	useEffect(() => {
@@ -111,6 +140,13 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		workspaces.state === "ready"
 			? workspaces.data.filter((workspace) => workspace.repoId === repoId).length
 			: 0;
+
+	const saveDefaultBranch = async (branch: string): Promise<void> => {
+		setBranchOpen(false);
+		if (repoValue === undefined || branch === repoValue.defaultBranch) return;
+		const saved = await actions.projects.setDefaultBranch(repoId, branch);
+		if (!saved.ok) toastError("Couldn't save the default branch", saved.error);
+	};
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -185,17 +221,35 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 									</div>
 
 									<div className="flex flex-col gap-1.5 border-t border-border pt-4">
-										<Label htmlFor="repo-branch-base">Branch new workspaces from</Label>
+										<p className="text-sm font-medium text-fg">Branch new workspaces from</p>
 										<p className="text-sm text-fg-muted">
-											New workspaces branch from the repository's default branch. Choosing another
-											base is not built yet (WS-01).
+											Each workspace is an isolated copy of your codebase.
 										</p>
-										<Input
-											id="repo-branch-base"
-											value={repoValue.defaultBranch}
-											readOnly
-											className="font-mono"
-										/>
+										<Popover
+											open={branchOpen}
+											onOpenChange={setBranchOpen}
+											align="start"
+											trigger={
+												<button
+													type="button"
+													aria-label="Branch new workspaces from"
+													className="flex h-8 w-64 items-center justify-between gap-2 rounded-md border border-border-strong px-2 text-left text-sm text-fg hover:bg-hover"
+												>
+													<span className="truncate font-mono text-xs">
+														{repoValue.defaultBranch}
+													</span>
+													<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
+												</button>
+											}
+										>
+											{branchOpen ? (
+												<RepoBranchList
+													repoId={repoId}
+													current={repoValue.defaultBranch}
+													onSelect={(branch) => void saveDefaultBranch(branch)}
+												/>
+											) : null}
+										</Popover>
 									</div>
 
 									<div className="flex flex-col gap-1.5 border-t border-border pt-4">

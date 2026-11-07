@@ -1,6 +1,8 @@
 /**
  * @feature CHAT-10 Interaction dock
- * Owns: reading the chat's open interaction and showing the matching card above the composer.
+ * Owns: reading the chat's open interaction and showing the matching card above the composer. A tool
+ * approval is drawn by the composer in place of its text box, as Conductor draws it (renderApp
+ * @9315874; D098), so the dock leaves it out.
  * Behaviour: claude-runner.md 3 (questions, approvals and plans), ui-map.md 3.3 (sidebar status text "Answer
  * question", "Need permission", "Review plan").
  * Must handle: no open interaction (renders nothing); the interaction is withdrawn while shown (the card
@@ -16,6 +18,7 @@ export function InteractionDock({ sessionId }: { sessionId: SessionId }) {
 	const chat = useChat(sessionId);
 	if (chat.state !== "ready" || chat.data.openInteraction === null) return null;
 	const { interactionId, interaction, expiresAt, timedOut } = chat.data.openInteraction;
+	if (interaction.kind === "tool_approval") return null;
 	return (
 		<InteractionHost
 			key={interactionId}
