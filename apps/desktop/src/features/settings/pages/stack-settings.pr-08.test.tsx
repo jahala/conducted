@@ -9,6 +9,7 @@
  * defaults to true), native-and-sidecar-map.md (a migration turns Graphite stacks off by default).
  * Test first: turning "Graphite stack support" off stores `graphite_disabled` as true.
  */
+import { ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
@@ -19,6 +20,13 @@ import { GitPage } from "./GitPage.tsx";
 
 let test: TestContainer | undefined;
 
+/** Answers `gt --version` as an installed Graphite CLI does. */
+function withGt(current: TestContainer): void {
+	current.memory.controls.scriptShell((command) =>
+		command.program === "gt" ? ok({ exitCode: 0, stdout: "1.4.6\n", stderr: "" }) : null,
+	);
+}
+
 afterEach(() => {
 	cleanup();
 	test?.close();
@@ -26,6 +34,28 @@ afterEach(() => {
 });
 
 describe("PR-08 stack settings", () => {
+	it("says Install gt to enable, and keeps the switch off and disabled, when gt is missing", async () => {
+		test = createTestContainer();
+		const harness = test;
+		await harness.container.services.settings.start();
+		const on = await harness.container.actions.settings.set("graphite_disabled", false);
+		if (!on.ok) throw new Error(on.error.message);
+		render(
+			<ServicesProvider container={harness.container}>
+				<ExperimentalPage />
+			</ServicesProvider>,
+		);
+
+		const row = await screen.findByText(
+			(_, element) => element?.textContent === "Install gt to enable.",
+		);
+		expect(row.querySelector("code")?.textContent).toBe("gt");
+		const toggle = screen.getByRole("switch", { name: "Graphite stack support" });
+		expect(toggle.getAttribute("aria-checked")).toBe("false");
+		expect(toggle.hasAttribute("disabled")).toBe(true);
+		expect(screen.getByText("Warning: appears to sometimes cause performance issues")).toBeTruthy();
+	});
+
 	it("shows Use GitHub stacked PRs on the Git page in Conductor's words", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();
@@ -45,6 +75,7 @@ describe("PR-08 stack settings", () => {
 	it("leaves Graphite stack support off until the user turns it on", async () => {
 		test = createTestContainer();
 		const harness = test;
+		withGt(harness);
 		await harness.container.services.settings.start();
 		render(
 			<ServicesProvider container={harness.container}>
@@ -66,6 +97,7 @@ describe("PR-08 stack settings", () => {
 	it("shows Graphite stack support switched on and stores the inverted key when turned off", async () => {
 		test = createTestContainer();
 		const harness = test;
+		withGt(harness);
 		await harness.container.services.settings.start();
 		const on = await harness.container.actions.settings.set("graphite_disabled", false);
 		if (!on.ok) throw new Error(on.error.message);

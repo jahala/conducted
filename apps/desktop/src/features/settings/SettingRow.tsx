@@ -61,8 +61,11 @@ export interface SettingRowProps {
 	description: string | null;
 	/** A small hint under the description. */
 	detail?: string | null;
+	/** "warning" draws the detail in the warning colour. */
+	detailTone?: "warning";
 	scope: "user" | "repo";
-	disabledReason: string | null;
+	/** Why the control cannot change now. Set, it disables the control and shows under the text. */
+	disabledReason: ReactNode | null;
 	highlighted: boolean;
 	saveError: string | null;
 	/** Shown when a repository value overrides the user value, with a way back. */
@@ -75,6 +78,7 @@ export function SettingRow({
 	title,
 	description,
 	detail = null,
+	detailTone,
 	scope,
 	disabledReason,
 	highlighted,
@@ -106,7 +110,16 @@ export function SettingRow({
 							{description}
 						</p>
 					) : null}
-					{detail ? <p className="mt-1 text-xs text-fg-muted">{detail}</p> : null}
+					{detail ? (
+						<p
+							className={cn(
+								"mt-1 text-xs",
+								detailTone === "warning" ? "text-warning-fg" : "text-fg-muted",
+							)}
+						>
+							{detail}
+						</p>
+					) : null}
 					{disabledReason ? <p className="text-xs text-fg-subtle">{disabledReason}</p> : null}
 					{saveError ? (
 						<p role="alert" className="text-xs text-danger">
@@ -338,15 +351,20 @@ function RegistrySettingRow({
 	focusSettingKey,
 	beforeSave,
 	extraFor,
+	unavailableFor,
 	saves,
 }: {
 	def: SettingDef;
 	focusSettingKey: string | null;
 	beforeSave?: (def: SettingDef, value: SettingValue) => Promise<string | null> | string | null;
 	extraFor?: (def: SettingDef, value: SettingValue) => ReactNode;
+	unavailableFor?: (def: SettingDef) => ReactNode | null;
 	saves: ReturnType<typeof useSettingSaves>;
 }) {
-	const value = useSetting<SettingValue>(def.key);
+	const stored = useSetting<SettingValue>(def.key);
+	const unavailable = unavailableFor?.(def) ?? null;
+	// A switch whose feature cannot run reads off, whatever is stored (Conductor's Graphite row).
+	const value = unavailable !== null && def.type === "bool" ? def.shownInverted === true : stored;
 	const [localError, setLocalError] = useState<string | null>(null);
 
 	const handleChange = async (next: SettingValue): Promise<boolean> => {
@@ -367,8 +385,9 @@ function RegistrySettingRow({
 			title={def.title}
 			description={def.description}
 			detail={def.detail ?? null}
+			{...(def.detailTone === undefined ? {} : { detailTone: def.detailTone })}
 			scope={def.scopes.includes("repo") ? "repo" : "user"}
-			disabledReason={null}
+			disabledReason={unavailable}
 			highlighted={focusSettingKey === def.key}
 			saveError={localError ?? saves.errorOf(def.key)}
 		>
@@ -384,6 +403,8 @@ export interface RegistrySettingRowsProps {
 	exclude?: readonly string[];
 	beforeSave?: (def: SettingDef, value: SettingValue) => Promise<string | null> | string | null;
 	extraFor?: (def: SettingDef, value: SettingValue) => ReactNode;
+	/** Why a setting cannot change now (a program it needs is missing), or null when it can. */
+	unavailableFor?: (def: SettingDef) => ReactNode | null;
 }
 
 /** Every setting of one registry page, with its control and save state. */
@@ -393,6 +414,7 @@ export function RegistrySettingRows({
 	exclude = [],
 	beforeSave,
 	extraFor,
+	unavailableFor,
 }: RegistrySettingRowsProps) {
 	const saves = useSettingSaves();
 	return (
@@ -406,6 +428,7 @@ export function RegistrySettingRows({
 						focusSettingKey={focusSettingKey}
 						beforeSave={beforeSave}
 						extraFor={extraFor}
+						unavailableFor={unavailableFor}
 						saves={saves}
 					/>
 				))}
