@@ -330,7 +330,10 @@ pub async fn cloud_relay_open(
             tokio::select! {
                 line = lines.recv() => match line {
                     Some(text) => {
-                        if writer.send(Message::Text(text.into())).await.is_err() {
+                        // The sidecar's wire format is NDJSON: the transport adds the newline, as
+                        // the local sidecar relay does.
+                        let framed = format!("{text}\n");
+                        if writer.send(Message::Text(framed.into())).await.is_err() {
                             break String::from("The relay could not send.");
                         }
                     }

@@ -28,6 +28,8 @@ export function createCloudTransport(cloud: Cloud, host: CloudHost): CloudTransp
 	let opening: Promise<Result<void>> | null = null;
 	let stopRelay: Unsubscribe | null = null;
 	let stopClosed: Unsubscribe | null = null;
+	/** Text from the Worker that has not ended in a newline yet. */
+	let buffered = "";
 	const lineListeners = new Set<(line: string) => void>();
 	const restartListeners = new Set<() => void>();
 
@@ -38,13 +40,22 @@ export function createCloudTransport(cloud: Cloud, host: CloudHost): CloudTransp
 		stopClosed = null;
 	};
 
+	const deliver = (text: string): void => {
+		buffered += text;
+		const lines = buffered.split("\n");
+		buffered = lines.pop() ?? "";
+		for (const line of lines) {
+			if (line.trim() === "") continue;
+			for (const listener of lineListeners) listener(line);
+		}
+	};
+
 	const open = async (): Promise<Result<void>> => {
 		const opened = await cloud.openRelay({ url: host.url, vmId: host.vmId });
 		if (!opened.ok) return opened;
 		relay = opened.value;
-		stopRelay = relay.onLine((line) => {
-			for (const listener of lineListeners) listener(line);
-		});
+		buffered = "";
+		stopRelay = relay.onLine((line) => deliver(line));
 		stopClosed = relay.onClosed(() => {
 			detach();
 			relay = null;

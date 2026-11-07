@@ -46,6 +46,8 @@ export const CONTAINER_ENV: Readonly<Record<string, string>> = Object.freeze({
 	SHELL: "/bin/bash",
 	PATH: "/usr/local/bin:/usr/bin:/bin",
 	CONDUCTED_BIN_DIR: "/opt/conducted/bin",
+	// The sidecar requires this folder (PLAT-28); the image's agents live on PATH, so it stays empty.
+	CONDUCTED_AGENT_BINARIES_DIR: "/var/conducted/agent-binaries",
 	CONDUCTED_OUTBOX_ROOT: "/var/conducted/outbox",
 	CONDUCTED_COMPLETIONS_DIR: "/var/conducted/completions",
 	CONDUCTED_CURSOR_STORE_DIR: "/var/conducted/cursor",

@@ -206,7 +206,7 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			expect(parsed.params.launch.providerKeys).toEqual({});
 			cloud.emitCloudLine(
 				line.relayId,
-				JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } }),
+				`${JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { deliveredAs: "new_turn" } })}\n`,
 			);
 			expect((await sending).ok).toBe(true);
 

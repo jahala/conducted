@@ -18,6 +18,7 @@ for (const key of [
 	"CONDUCTED_COMPLETIONS_DIR",
 	"CONDUCTED_CURSOR_STORE_DIR",
 	"CONDUCTED_LOG_DIR",
+	"CONDUCTED_AGENT_BINARIES_DIR",
 ]) {
 	const dir = process.env[key];
 	if (dir) mkdirSync(dir, { recursive: true });

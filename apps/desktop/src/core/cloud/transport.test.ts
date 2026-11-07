@@ -33,7 +33,8 @@ describe("CLOUD-03 the cloud relay transport", () => {
 
 		const heard: string[] = [];
 		transport.onLine((line) => heard.push(line));
-		memory.controls.emitCloudLine(relayId, "hello");
+		memory.controls.emitCloudLine(relayId, "hel");
+		memory.controls.emitCloudLine(relayId, "lo\n");
 		expect(heard).toEqual(["hello"]);
 
 		expect((await transport.send('{"jsonrpc":"2.0"}')).ok).toBe(true);

@@ -1880,11 +1880,11 @@ const STEPS: Record<string, ContractStep> = {
 			ctx,
 			(listener) => relay.onLine(listener),
 			() => {
-				emit(relay.id, "hello");
+				emit(relay.id, "hello\n");
 			},
 			"relay line",
 		);
-		ctx.assert(heard === "hello", `the relay heard ${heard}`);
+		ctx.assert(heard === "hello\n", `the relay heard ${JSON.stringify(heard)}`);
 		expectOk(ctx, await relay.send('{"jsonrpc":"2.0"}'), "relay send");
 		const ended = await waitForEvent<string>(
 			ctx,

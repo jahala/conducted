@@ -47,14 +47,16 @@ describe("CLOUD-03 the host-routed sidecar", () => {
 
 		await routed.request("sendMessage", {
 			workspace: { host: CLOUD },
+			config: { agent: "claude" },
 			launch: launch("sk-real-cloud"),
 		} as never);
 		expect(local.calls).toHaveLength(0);
 		expect(cloud.calls).toHaveLength(1);
 		const sent = cloud.calls[0]?.params as {
-			launch: { providerKeys: Record<string, { value: string }> };
+			launch: { executablePath?: string; providerKeys: Record<string, { value: string }> };
 		};
 		expect(sent.launch.providerKeys.ANTHROPIC_API_KEY?.value).toBe("provided-by-worker");
+		expect(sent.launch.executablePath).toBe("/usr/local/bin/claude");
 
 		await routed.request("sendMessage", {
 			workspace: { host: LOCAL },
