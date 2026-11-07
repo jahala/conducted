@@ -1,4 +1,4 @@
--- Conducted database, version 14.
+-- Conducted database, version 15.
 --
 -- settings.key: the General setting that expands every tool call keeps Conductor's stored name,
 -- garry_mode (D098, D020). A row written under our earlier name moves with its value, so a user's

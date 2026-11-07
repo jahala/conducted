@@ -129,8 +129,14 @@ pub fn migrations() -> Vec<Migration> {
         },
         Migration {
             version: 14,
+            description: "port_forwards",
+            sql: include_str!("../migrations/0014_port_forwards.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 15,
             description: "settings_garry_mode",
-            sql: include_str!("../migrations/0014_settings_garry_mode.sql"),
+            sql: include_str!("../migrations/0015_settings_garry_mode.sql"),
             kind: MigrationKind::Up,
         },
     ]

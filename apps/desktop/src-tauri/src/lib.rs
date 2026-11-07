@@ -58,6 +58,7 @@ pub mod notifications;
 pub mod open_with;
 pub mod pasteboard;
 pub mod permissions;
+pub mod port_forward;
 mod process_group;
 pub mod pty;
 pub mod resource_usage;
@@ -713,6 +714,7 @@ pub fn run() {
         .manage(logger::LoggerState::default())
         .manage(http::HttpState::default())
         .manage(cloud::CloudState::default())
+        .manage(port_forward::PortForwardState::default())
         .manage(files::FsScopeState::default())
         .menu(|app| {
             let state = app.state::<menu::MenuState>();
@@ -789,6 +791,10 @@ pub fn run() {
             cloud::cloud_relay_open,
             cloud::cloud_relay_send,
             cloud::cloud_relay_close,
+            port_forward::find_available_local_port,
+            port_forward::start_port_forward,
+            port_forward::stop_port_forward,
+            port_forward::list_port_forwards,
             file_search::search_list_tree,
             file_search::search_fuzzy,
             file_search::search_grep,
@@ -868,6 +874,8 @@ pub fn run() {
                 );
                 // A cloud relay's reader would otherwise outlive the window (CLOUD-03).
                 cloud::close_all(&app.state::<cloud::CloudState>());
+                // A port forward's listener would otherwise stay bound (CLOUD-10).
+                port_forward::close_all(&app.state::<port_forward::PortForwardState>());
                 let state = app.state::<sidecar::SidecarState>();
                 // The app is closing, so only stderr is left to report a failed stop.
                 if let Err(error) = tauri::async_runtime::block_on(sidecar::shutdown(&state)) {

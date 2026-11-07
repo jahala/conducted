@@ -33,6 +33,7 @@ export type SettingPage =
 	| "experimental"
 	| "advanced"
 	| "remote-control"
+	| "connections"
 	| "state";
 
 /** "state" is a hidden page for saved screen state that has no settings screen. */
@@ -50,6 +51,7 @@ export const SETTING_PAGES: readonly SettingPage[] = [
 	"experimental",
 	"advanced",
 	"remote-control",
+	"connections",
 	"state",
 ];
 
@@ -1785,6 +1787,73 @@ const SETTINGS_TABLE = [
 		description: "Whether you closed the banner that offers to import local environment variables.",
 		searchTerms: ["env", "banner", "import"],
 		feature: "SET-04",
+		type: "bool",
+		default: false,
+	},
+	// CLOUD-10: Conductor keeps these four as org-personal server settings (services-map 5A.3.3).
+	// This app has no server settings, so they live with the other local settings (D110).
+	{
+		key: "port_forwarding_strategy",
+		page: "connections",
+		scopes: ["user"],
+		title: "Forwarding strategy",
+		description:
+			"How a new forward chooses its local port. Match uses the remote port when it is free; Range picks from the local range.",
+		searchTerms: ["forward", "port", "match", "range", "cloud"],
+		feature: "CLOUD-10",
+		type: "enum",
+		default: "match",
+		options: [
+			{ value: "match", label: "Match the remote port" },
+			{ value: "range", label: "Use the local range" },
+		],
+	},
+	{
+		key: "local_port_range_start",
+		page: "connections",
+		scopes: ["user"],
+		title: "Local port range",
+		description:
+			"The first local port a cloud forward may use when it does not match the remote port.",
+		searchTerms: ["forward", "port", "range", "cloud", "first"],
+		feature: "CLOUD-10",
+		type: "number",
+		default: 20_000,
+		min: 1_024,
+		max: 65_535,
+	},
+	{
+		key: "local_port_range_end",
+		page: "connections",
+		scopes: ["user"],
+		title: "Local port range end",
+		description: "The last local port a cloud forward may use.",
+		searchTerms: ["forward", "port", "range", "cloud", "last"],
+		feature: "CLOUD-10",
+		type: "number",
+		default: 29_999,
+		min: 1_024,
+		max: 65_535,
+	},
+	{
+		key: "port_mappings",
+		page: "connections",
+		scopes: ["user"],
+		title: "Manual overrides",
+		description: "Map a remote port to a local port, one per line as remote:local.",
+		searchTerms: ["forward", "port", "mapping", "override", "cloud"],
+		feature: "CLOUD-10",
+		type: "string-list",
+		default: [],
+	},
+	{
+		key: "exclusive_port_forwarding_enabled",
+		page: "connections",
+		scopes: ["user"],
+		title: "Exclusive port forwarding",
+		description: "Turning on port forwarding in one workspace turns it off everywhere else.",
+		searchTerms: ["forward", "port", "exclusive", "cloud", "one"],
+		feature: "CLOUD-10",
 		type: "bool",
 		default: false,
 	},
