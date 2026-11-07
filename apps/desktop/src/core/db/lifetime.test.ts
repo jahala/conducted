@@ -254,6 +254,37 @@ describe("DATA-02 data lifetime", () => {
 		expect((await readEvent(h.deps.db, "s1", "e1")).content).toBe(cut.content);
 	});
 
+	it("skips an event the job already cut, marked by compacted_at", async () => {
+		const h = harness({ toolOutputMaxAgeDays: 30, toolOutputMaxBytes: 10 });
+		await insertRepo(h.deps.db, "r1", NOW);
+		await insertWorkspace(h.deps.db, { id: "w1", repoId: "r1" });
+		await insertSession(h.deps.db, "s1", "w1", NOW);
+		const content = agentContent("e1", "t1", NOW - 40 * DAY, [
+			toolResult("x".repeat(50)),
+			textItem("done"),
+		]);
+		await insertEvent(h.deps.db, {
+			sessionId: "s1",
+			idx: 0,
+			eventId: "e1",
+			type: "agent",
+			turnId: "t1",
+			content,
+			receivedAt: NOW - 40 * DAY,
+		});
+		// An older run cut this event at an earlier time; the marker is the one home of that fact.
+		await h.deps.db.execute(
+			"UPDATE session_events SET compacted_at = $1 WHERE session_id = 's1' AND event_id = 'e1'",
+			[NOW - 10 * DAY],
+		);
+
+		const report = must(await runStep(h, "cut-tool-outputs"));
+		expect(report.rowsChanged).toBe(0);
+		const kept = await readEvent(h.deps.db, "s1", "e1");
+		expect(kept.content).toBe(content);
+		expect(kept.compacted_at).toBe(NOW - 10 * DAY);
+	});
+
 	it("leaves a tool output that is younger than the age limit alone", async () => {
 		const h = harness({ toolOutputMaxAgeDays: 30, toolOutputMaxBytes: 10 });
 		await insertRepo(h.deps.db, "r1", NOW);
@@ -415,8 +446,8 @@ describe("DATA-02 data lifetime", () => {
 			["live", null],
 		] as const) {
 			await h.deps.db.execute(
-				`INSERT INTO terminals (id, workspace_id, kind, title, cwd, cols, rows, started_at, ended_at)
-				VALUES ($1, 'w1', 'terminal', $2, '/code', 80, 24, $3, $4)`,
+				`INSERT INTO terminals (id, workspace_id, kind, title, cwd, started_at, ended_at)
+				VALUES ($1, 'w1', 'terminal', $2, '/code', $3, $4)`,
 				[id, `terminal-${id}`, NOW - 20 * DAY, endedAt],
 			);
 			await fs.writeTextAtomic(terminalHistoryFile(fs.paths, id), "scrollback");
@@ -459,8 +490,8 @@ describe("DATA-02 data lifetime", () => {
 			["term-w2", "w2"],
 		] as const) {
 			await h.deps.db.execute(
-				`INSERT INTO terminals (id, workspace_id, kind, title, cwd, cols, rows, started_at)
-				VALUES ($1, $2, 'terminal', $1, '/code', 80, 24, $3)`,
+				`INSERT INTO terminals (id, workspace_id, kind, title, cwd, started_at)
+				VALUES ($1, $2, 'terminal', $1, '/code', $3)`,
 				[id, workspaceId, NOW],
 			);
 		}
@@ -539,10 +570,12 @@ describe("DATA-02 data lifetime", () => {
 		};
 		expect(kept.message.items.map((item) => item.kind)).toEqual(["text", "usage"]);
 		expect(kept.message.raw).toBeUndefined();
-		const ended = JSON.parse((await readEvent(h.deps.db, "s1", "end")).content) as {
-			compacted?: boolean;
-		};
-		expect(ended.compacted).toBe(true);
+		const ended = (
+			await h.deps.db.select<{ compacted_at: number | null }>(
+				"SELECT compacted_at FROM session_events WHERE session_id = 's1' AND event_id = 'end'",
+			)
+		)[0];
+		expect(ended?.compacted_at).toBe(NOW);
 
 		const again = must(await runStep(h, "compact-archived-chats"));
 		expect(again.rowsChanged).toBe(0);
@@ -639,7 +672,7 @@ describe("DATA-02 data lifetime", () => {
 	});
 
 	it("runs every step even when one fails and still records the run", async () => {
-		const h = harness();
+		const h = harness({ toolOutputMaxBytes: 10 });
 		await insertRepo(h.deps.db, "r1", NOW);
 		await insertWorkspace(h.deps.db, {
 			id: "w1",
@@ -652,9 +685,9 @@ describe("DATA-02 data lifetime", () => {
 			sessionId: "s1",
 			idx: 0,
 			eventId: "broken",
-			type: "turn_ended",
+			type: "agent",
 			turnId: "t1",
-			content: "not json",
+			content: "not json but long enough to be a tool output candidate",
 			receivedAt: NOW - 100 * DAY,
 		});
 		h.setNow(NOW - 31 * DAY);
@@ -666,8 +699,10 @@ describe("DATA-02 data lifetime", () => {
 		expect(report.kind).toBe("ran");
 		if (report.kind !== "ran") throw new Error("unreachable");
 		expect(report.steps).toHaveLength(LIFETIME_STEPS.length);
-		expect(report.steps.at(-1)?.outcome.ok).toBe(false);
+		const cut = report.steps.find((step) => step.id === "cut-tool-outputs");
+		expect(cut?.outcome.ok).toBe(false);
 		expect(report.steps[0]?.outcome.ok).toBe(true);
+		expect(report.steps.at(-1)?.outcome.ok).toBe(true);
 		expect(await h.deps.fs.exists(draftPath)).toBe(false);
 
 		const second = must(await runDataLifetimeJob(h.deps));

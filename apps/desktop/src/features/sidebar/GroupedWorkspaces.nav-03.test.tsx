@@ -118,7 +118,6 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 		kanbanStatus: "in_progress",
 		port: 0,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,

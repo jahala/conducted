@@ -1,10 +1,12 @@
 /**
  * @feature PRJ-01 Projects (repositories): add and list from a local folder, remove
  * @feature PRJ-03 Quick start a new project from a template
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * Owns: the list of repositories, adding one from a local folder, cloning one from GitHub or any
  * git URL (PRJ-02), removing one, and hiding one from the sidebar. Also owns PRJ-04's config
  * reads: scripts, files to copy and prompts come from `.conducted/settings.toml`, with
- * `.conducted/settings.local.toml` overriding it. Also owns Quick start: creating a project from
+ * `.conducted/settings.local.toml` overriding it. For a repository with a cloud workspace, the
+ * shared file is read from the shared clone's committed branch (CLOUD-04). Also owns Quick start: creating a project from
  * one of the three templates and creating its private GitHub repository (PRJ-03). Also owns the
  * repository icon (PRJ-05): validating and copying an uploaded image, saving an emoji, and clearing
  * the icon back to its fallback. An upload is copied to a new file in the icons folder
@@ -33,19 +35,22 @@
  * read that ends after its project was removed changes nothing; the file commands reach a folder
  * outside `~/conducted` only once it is registered (PLAT-02), so a start registers every saved
  * project's folder, an add registers the picked folder and its work tree root before reading
- * them, and a clone or Quick start registers the folder chosen to hold the new project.
+ * them, and a clone or Quick start registers the folder chosen to hold the new project; a cloud
+ * repo's shared settings come from the clone's committed branch, and a failed fetch is the config's
+ * error, never a quiet fall back to the checkout.
  * Our design choice: `RepoConfig` is the shared file overlaid by the local file. The shared file
  * stays committed and read-only in the UI; `updateConfig` writes the local file only, through the
  * settings service's `updateSettingsFile` (which keeps the file's comments, SET-14), and writes a
  * key only when it differs from the shared value. A key that matches is removed, so a later edit
  * to the shared file reaches the user again.
- * Gaps against services-map.md 4.2: the remote default-branch copy of `settings.toml` and the
- * workspace-level shared file are not read. Keeping `settings.local.toml` out of git is DATA-05's;
- * linking it into every worktree is WS-01's.
+ * Gaps against services-map.md 4.2: the workspace-level shared file is not read. Keeping
+ * `settings.local.toml` out of git is DATA-05's; linking it into every worktree is WS-01's.
  * Also owns the per-user hidden run action ids (SET-07, services-map.md 5A.1.6): they live in
  * local storage, never in a settings file.
  * Test first: the repo's scripts, prompts, globs and run mode are read from
  * `.conducted/settings.toml`.
+ * CLOUD-04 test first: a cloud repo reads the shared settings from the clone's branch, not the
+ * working tree.
  * PRJ-03 test first: an empty template creates its folder, first commit and project row.
  * PRJ-05 test first: an uploaded PNG is copied into app storage and saved as a file icon.
  */
@@ -70,14 +75,18 @@ import {
 	checkout,
 	cloneWithProgress,
 	commitAll,
+	fetchBranchIntoRemoteRef,
 	initRepository,
+	lsTreeFileAt,
 	pushSetUpstreamHeadWithGh,
 	remoteGetUrl,
 	remoteRemove,
 	remoteRename,
+	remoteSetHead,
 	remoteSetUrl,
 	revParse,
 	revParseVerify,
+	showSettingsFileAt,
 	statusPorcelainAll,
 	symbolicRefRemoteHead,
 } from "../git/commands.ts";
@@ -309,14 +318,80 @@ export interface RepoServiceDeps {
 		window?: Pick<Platform["window"], "onFocusChanged">;
 	};
 	git: GitRunner;
-	repos: Pick<Repositories, "repos" | "settings">;
+	repos: Pick<Repositories, "repos" | "settings" | "workspaces">;
 	settings: Pick<
 		SettingsService,
-		"readSettingsFile" | "updateSettingsFile" | "removeEnvVarsForRepo"
+		"readSettingsFile" | "updateSettingsFile" | "readSettingsText" | "removeEnvVarsForRepo"
 	>;
 	removal: RepoRemovalPort;
 	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
 	ids: Pick<IdSource, "uuid">;
+}
+
+/**
+ * The remote a cloud repo's shared clone fetches. services-map 3.14 fetches `origin`, independent
+ * of the repo config's `remote_name`, because the shared clone is cloned from the GitHub remote.
+ */
+const SHARED_CLONE_REMOTE = "origin";
+
+export interface SharedSettingsRead {
+	contents: SettingsFileContents;
+	/** The ref and path the values came from, for the settings page's "where" line. */
+	sourcePath: string;
+}
+
+/**
+ * Reads `.conducted/settings.toml` from the committed branch of a cloud repo's shared clone, the
+ * way Conductor does (services-map 3.14): set the remote head, fetch the branch into its
+ * remote-tracking ref, `ls-tree` the file, then `show` it. A repo with no cloud workspace has no
+ * shared clone and keeps reading its checkout.
+ */
+export async function readSharedSettingsFromClone(input: {
+	git: Pick<GitRunner, "run" | "stdout">;
+	clonePath: string;
+	branch: string;
+	settings: Pick<SettingsService, "readSettingsText">;
+}): Promise<Result<SharedSettingsRead>> {
+	const remote = SHARED_CLONE_REMOTE;
+	const ref = `${remote}/${input.branch}`;
+	const sourcePath = `${ref}:.conducted/settings.toml`;
+	// `--auto` only refreshes metadata; the branch we read comes from the repo row.
+	await input.git.run(remoteSetHead(remote), { cwd: input.clonePath });
+
+	const fetched = await input.git.run(fetchBranchIntoRemoteRef(remote, input.branch), {
+		cwd: input.clonePath,
+	});
+	if (!fetched.ok) return fetched;
+	if (fetched.value.exitCode !== 0) {
+		return err(
+			appError(
+				"shared_clone_fetch_failed",
+				`Failed to fetch ${ref} in the shared cloud clone: ${fetched.value.stderr.trim() || fetched.value.stdout.trim()}`,
+			),
+		);
+	}
+
+	const listed = await input.git.run(lsTreeFileAt(ref, ".conducted/settings.toml"), {
+		cwd: input.clonePath,
+	});
+	if (!listed.ok) return listed;
+	if (listed.value.exitCode !== 0) {
+		return err(
+			appError(
+				"shared_clone_list_failed",
+				`Failed to list .conducted/settings.toml on ${ref}: ${listed.value.stderr.trim() || listed.value.stdout.trim()}`,
+			),
+		);
+	}
+	const empty = input.settings.readSettingsText("", sourcePath);
+	if (listed.value.stdout.trim() === "") {
+		return empty.ok ? ok({ contents: empty.value, sourcePath }) : empty;
+	}
+
+	const shown = await input.git.stdout(showSettingsFileAt(ref), { cwd: input.clonePath });
+	if (!shown.ok) return shown;
+	const contents = input.settings.readSettingsText(shown.value, sourcePath);
+	return contents.ok ? ok({ contents: contents.value, sourcePath }) : contents;
 }
 
 /** The value and the file that supplied it: the local file wins over the shared file. */
@@ -948,6 +1023,32 @@ export class RepoService {
 		return trashed.ok ? ok(undefined) : trashed;
 	}
 
+	/** True when the repository has a cloud workspace and therefore a shared clone. */
+	async #hasCloudWorkspace(repoId: RepoId): Promise<Result<boolean>> {
+		const listed = await this.#deps.repos.workspaces.listByRepo(repoId);
+		if (!listed.ok) return listed;
+		return ok(listed.value.some((workspace) => workspace.host.kind === "cloud"));
+	}
+
+	/**
+	 * The repository's shared settings. A cloud repo reads the committed branch of its shared clone
+	 * (services-map 3.14); any other repo reads the checkout's `.conducted/settings.toml`.
+	 */
+	async #readShared(repo: Repo): Promise<Result<SettingsFileContents>> {
+		const cloud = await this.#hasCloudWorkspace(repo.id);
+		if (!cloud.ok) return cloud;
+		if (!cloud.value) {
+			return this.#deps.settings.readSettingsFile(sharedSettingsFile(repo.rootPath));
+		}
+		const read = await readSharedSettingsFromClone({
+			git: this.#deps.git,
+			clonePath: repo.rootPath,
+			branch: repo.defaultBranch,
+			settings: this.#deps.settings,
+		});
+		return read.ok ? ok(read.value.contents) : read;
+	}
+
 	/**
 	 * Reads the shared and local settings files of a repository, overlays them and fills the store.
 	 * Backs `useRepoConfig`. A later call wins over an earlier one that finishes late.
@@ -967,7 +1068,7 @@ export class RepoService {
 		}
 
 		const rootPath = found.value.rootPath;
-		const shared = await this.#deps.settings.readSettingsFile(sharedSettingsFile(rootPath));
+		const shared = await this.#readShared(found.value);
 		if (!shared.ok) {
 			if (this.#isLatestConfigLoad(repoId, attempt)) this.#setConfigError(repoId, shared.error);
 			return shared;
@@ -1009,9 +1110,7 @@ export class RepoService {
 		}
 
 		const file = localSettingsFile(found.value.rootPath);
-		const shared = await this.#deps.settings.readSettingsFile(
-			sharedSettingsFile(found.value.rootPath),
-		);
+		const shared = await this.#readShared(found.value);
 		if (!shared.ok) return shared;
 		const sharedConfig = repoConfigFrom(shared.value, emptyFileContents(shared.value.file)).config;
 

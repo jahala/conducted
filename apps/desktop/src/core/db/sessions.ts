@@ -122,10 +122,6 @@ export const SESSIONS_SQL = {
 		fork_resume_native_message_id = NULL WHERE id = $2`,
 	incrementUnread: "UPDATE sessions SET unread_count = unread_count + 1 WHERE id = $1",
 	clearUnread: "UPDATE sessions SET unread_count = 0 WHERE id = $1 AND unread_count > 0",
-	clearWorkspaceUnread: `UPDATE sessions SET unread_count = 0
-		WHERE workspace_id = $1 AND unread_count > 0 RETURNING id`,
-	unreadByWorkspace: `SELECT workspace_id, SUM(unread_count) AS unread FROM sessions
-		WHERE unread_count > 0 GROUP BY workspace_id`,
 	pauseQueue: "UPDATE sessions SET queue_paused_at = $1 WHERE id = $2 AND queue_paused_at IS NULL",
 	resumeQueue: "UPDATE sessions SET queue_paused_at = NULL WHERE id = $1",
 	close: "UPDATE sessions SET closed_at = $1, updated_at = $1 WHERE id = $2 AND closed_at IS NULL",
@@ -167,10 +163,6 @@ export interface SessionRepository {
 	incrementUnread(id: SessionId): Promise<Result<void>>;
 	/** SESSIONS_SQL.clearUnread. */
 	clearUnread(id: SessionId): Promise<Result<void>>;
-	/** SESSIONS_SQL.clearWorkspaceUnread. Returns the ids of the chats that changed. */
-	clearWorkspaceUnread(workspaceId: WorkspaceId): Promise<Result<SessionId[]>>;
-	/** SESSIONS_SQL.unreadByWorkspace, for the sidebar badges. */
-	unreadByWorkspace(): Promise<Result<{ workspaceId: WorkspaceId; unread: number }[]>>;
 	/** SESSIONS_SQL.pauseQueue. Does nothing when already paused. */
 	pauseQueue(id: SessionId, at: number): Promise<Result<void>>;
 	/** SESSIONS_SQL.resumeQueue. */
@@ -277,26 +269,6 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 		incrementUnread: (id) =>
 			executeVoid(db, SESSIONS_SQL.incrementUnread, [id], "Marking a chat unread"),
 		clearUnread: (id) => executeVoid(db, SESSIONS_SQL.clearUnread, [id], "Marking a chat read"),
-		clearWorkspaceUnread: async (workspaceId) => {
-			const rows = await selectRows<{ id: SessionId }>(
-				db,
-				SESSIONS_SQL.clearWorkspaceUnread,
-				[workspaceId],
-				"Marking a workspace read",
-			);
-			return rows.ok ? ok(rows.value.map((row) => row.id)) : err(rows.error);
-		},
-		unreadByWorkspace: async () => {
-			const rows = await selectRows<{ workspace_id: WorkspaceId; unread: number }>(
-				db,
-				SESSIONS_SQL.unreadByWorkspace,
-				[],
-				"Reading unread counts",
-			);
-			return rows.ok
-				? ok(rows.value.map((row) => ({ workspaceId: row.workspace_id, unread: row.unread })))
-				: err(rows.error);
-		},
 		pauseQueue: (id, at) =>
 			executeVoid(db, SESSIONS_SQL.pauseQueue, [at, id], "Pausing the follow-up queue"),
 		resumeQueue: (id) =>

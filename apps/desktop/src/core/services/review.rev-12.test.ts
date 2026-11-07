@@ -95,19 +95,19 @@ describe("REV-12 review comment states over the real container", () => {
 		expect(await review.sendToChat(workspace.id, [added.value.id])).toEqual(ok(undefined));
 
 		const fileName = `${encodeURIComponent(added.value.id)}.md`;
-		expect(await repositories.attachments.listByComment(added.value.id)).toEqual(
-			ok([
-				{
-					id: expect.any(String),
-					sessionId: chat.value.id,
-					kind: "review",
-					originalName: fileName,
-					path: `${workspace.path}/.context/attachments/comments/${fileName}`,
-					isDraft: false,
-					commentId: added.value.id,
-				},
-			]),
-		);
+		const listed = await repositories.attachments.listBySession(chat.value.id);
+		if (!listed.ok) throw new Error(listed.error.message);
+		expect(listed.value.filter((row) => row.commentId === added.value.id)).toEqual([
+			{
+				id: expect.any(String),
+				sessionId: chat.value.id,
+				kind: "review",
+				originalName: fileName,
+				path: `${workspace.path}/.context/attachments/comments/${fileName}`,
+				isDraft: false,
+				commentId: added.value.id,
+			},
+		]);
 		expect(await repositories.attachments.listDraftsBySession(chat.value.id)).toEqual(ok([]));
 	});
 });
@@ -123,7 +123,9 @@ describe("REV-12 hidden and superseded comments", () => {
 			clock: { now: () => 1_000 },
 			ids: { uuid: () => crypto.randomUUID() },
 		});
-		expect(await repositories.diffComments.supersedeWorkspace(workspace.id)).toEqual(ok(1));
+		await test.database.execute("UPDATE diff_comments SET state = 'superseded' WHERE id = $1", [
+			added.value.id,
+		]);
 
 		const hidden = await review.setHidden(added.value.id, true);
 		const shown = await review.setHidden(added.value.id, false);

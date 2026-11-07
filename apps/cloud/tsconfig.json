@@ -15,5 +15,5 @@
 		"allowImportingTsExtensions": true,
 		"types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
 	},
-	"include": ["src"]
+	"include": ["src", "sandbox/turn-end.ts", "sandbox/turn-end.test.ts"]
 }

@@ -1,6 +1,6 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { Dialogs, FileSystem, Opener, Shell } from "../../platform/platform.ts";
+import type { Dialogs, FileSystem, Opener, Shell, ShellOutput } from "../../platform/platform.ts";
 import { createTestIds } from "../../test/ids.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { RepoRepository } from "../db/repos.ts";
@@ -34,7 +34,14 @@ interface Harness {
 	listenerActive: () => boolean;
 }
 
-function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {}): Harness {
+function makeService(
+	options: {
+		withWindow?: boolean;
+		repo?: Repo | null;
+		git?: GitRunner;
+		cloudWorkspace?: boolean;
+	} = {},
+): Harness {
 	const files = new Map<string, string>();
 	let focusListener: ((focused: boolean) => void) | null = null;
 	let heldPath: string | null = null;
@@ -136,6 +143,7 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 
 	const settings = {
 		updateSettingsFile: writer.updateSettingsFile.bind(writer),
+		readSettingsText: writer.readSettingsText.bind(writer),
 		async removeEnvVarsForRepo(): Promise<Result<void>> {
 			return ok(undefined);
 		},
@@ -164,11 +172,27 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 			return ok(undefined);
 		},
 	} as unknown as RepoRepository;
+	const workspaces = {
+		async listByRepo() {
+			if (options.cloudWorkspace !== true || repo === null) return ok([]);
+			return ok([
+				{
+					id: "workspace-1",
+					repoId: repo.id,
+					host: { kind: "cloud", url: "https://worker.example", vmId: "sandbox-1" },
+				},
+			]);
+		},
+	} as unknown as RepoServiceDeps["repos"]["workspaces"];
 
 	const service = new RepoService({
 		platform,
-		git: {} as GitRunner,
-		repos: { repos, settings: {} as RepoServiceDeps["repos"]["settings"] },
+		git: options.git ?? ({} as GitRunner),
+		repos: {
+			repos,
+			settings: {} as RepoServiceDeps["repos"]["settings"],
+			workspaces,
+		},
 		settings,
 		removal: { removeWorkspacesOf: async () => ok(undefined), releaseBacklogOf: () => {} },
 		ids: createTestIds(),
@@ -207,6 +231,32 @@ const must = <T>(result: Result<T>): T => {
 	if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
 	return result.value;
 };
+
+/** A git that answers the shared-clone commands and records every command line. */
+function gitAnswers(
+	answers: { fetch?: Result<ShellOutput>; lsTree?: string; show?: string } = {},
+): { git: GitRunner; calls: string[][] } {
+	const calls: string[][] = [];
+	const run = async (command: { args: readonly string[] }) => {
+		calls.push([...command.args]);
+		if (command.args[0] === "fetch" && answers.fetch !== undefined) return answers.fetch;
+		if (command.args[0] === "ls-tree") {
+			return ok({ exitCode: 0, stdout: answers.lsTree ?? "", stderr: "" });
+		}
+		if (command.args[0] === "show") {
+			return ok({ exitCode: 0, stdout: answers.show ?? "", stderr: "" });
+		}
+		return ok({ exitCode: 0, stdout: "", stderr: "" });
+	};
+	const git = {
+		run,
+		async stdout(command: { args: readonly string[] }) {
+			const result = await run(command);
+			return result.ok ? ok(result.value.stdout.trim()) : result;
+		},
+	} as unknown as GitRunner;
+	return { git, calls };
+}
 
 describe("PRJ-04 repo config reads", () => {
 	it("reads scripts, prompts, file globs and run mode from .conducted/settings.toml", async () => {
@@ -539,5 +589,70 @@ describe("PRJ-04 repo config reads", () => {
 			command: "pnpm test",
 			origin: "shared",
 		});
+	});
+});
+
+describe("CLOUD-04 a cloud repo's shared clone", () => {
+	it("reads the shared settings from the clone's branch, not the working tree", async () => {
+		const { git, calls } = gitAnswers({
+			lsTree: ".conducted/settings.toml\n",
+			show: tomlCodec.stringify({
+				scripts: { setup: "npm ci" },
+				prompts: { general: "shared prompt" },
+			}),
+		});
+		const ctx = makeService({ git, cloudWorkspace: true });
+		write(ctx.files, sharedPath, { scripts: { setup: "working tree setup" } });
+
+		const config = must(await ctx.service.loadConfig(repoId));
+
+		expect(config.setupScript).toBe("npm ci");
+		expect(config.prompts.general).toBe("shared prompt");
+		expect(calls).toEqual([
+			["remote", "set-head", "origin", "--auto"],
+			[
+				"fetch",
+				"--no-write-fetch-head",
+				"--",
+				"origin",
+				"refs/heads/main:refs/remotes/origin/main",
+			],
+			["ls-tree", "origin/main", "--", ".conducted/settings.toml"],
+			["show", "--no-ext-diff", "--no-textconv", "origin/main:.conducted/settings.toml"],
+		]);
+	});
+
+	it("a cloud repo with no settings file at the ref has no shared settings", async () => {
+		const { git, calls } = gitAnswers({ lsTree: "" });
+		const ctx = makeService({ git, cloudWorkspace: true });
+		write(ctx.files, sharedPath, { scripts: { setup: "working tree setup" } });
+
+		const config = must(await ctx.service.loadConfig(repoId));
+
+		expect(config.setupScript).toBeNull();
+		expect(calls.some((args) => args[0] === "show")).toBe(false);
+	});
+
+	it("a failed fetch is the config's error, never a quiet fallback", async () => {
+		const { git } = gitAnswers({
+			fetch: err(appError("git_failed", "Failed to fetch origin/main in the shared cloud clone.")),
+		});
+		const ctx = makeService({ git, cloudWorkspace: true });
+
+		const result = await ctx.service.loadConfig(repoId);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("Failed to fetch");
+	});
+
+	it("a local repo still reads the working-tree file and runs no shared-clone git", async () => {
+		const { git, calls } = gitAnswers();
+		const ctx = makeService({ git });
+		write(ctx.files, sharedPath, { scripts: { setup: "local checkout setup" } });
+
+		const config = must(await ctx.service.loadConfig(repoId));
+
+		expect(config.setupScript).toBe("local checkout setup");
+		expect(calls).toEqual([]);
 	});
 });

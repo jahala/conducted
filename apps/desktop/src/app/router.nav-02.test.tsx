@@ -57,7 +57,6 @@ function workspace({
 		kanbanStatus: "in_progress",
 		port: 50000,
 		pinnedAt: null,
-		notes: null,
 		linkedPaths: [],
 		prNumber: null,
 		prTitle: null,

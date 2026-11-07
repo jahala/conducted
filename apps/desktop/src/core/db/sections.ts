@@ -73,13 +73,6 @@ export const sectionToParams = (section: Section, createdAt: number): readonly u
 	createdAt,
 ];
 
-/** Parameters for SECTIONS_SQL.addMember, in column order. */
-export const sectionMemberToParams = (
-	sectionId: SectionId,
-	workspaceId: WorkspaceId,
-	position: number,
-): readonly unknown[] => [sectionId, workspaceId, position];
-
 const SECTION_COLUMNS = "id, name, emoji, position, collapsed, created_at";
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
