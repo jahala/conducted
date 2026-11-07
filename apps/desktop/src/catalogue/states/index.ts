@@ -10,6 +10,7 @@ import { APPROVAL_STATES } from "./approvals.ts";
 import { BANNER_STATES } from "./banners.ts";
 import { CHAT_STATES } from "./chat.ts";
 import { CHECKS_STATES } from "./checks.ts";
+import { COMMENT_STATES } from "./comments.ts";
 import { COMPOSER_STATES } from "./composer.ts";
 import { DEEP_LINK_STATES } from "./deep-links.ts";
 import { GIT_STATES } from "./git.ts";
@@ -50,6 +51,7 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...QUEUE_STATES,
 	...PR_TAB_STATES,
 	...DEEP_LINK_STATES,
+	...COMMENT_STATES,
 ];
 
 const seen = new Set<string>();
