@@ -150,8 +150,6 @@ const harness = () => {
 	return { composer, files: fake.files, wrapper, flush };
 };
 
-const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
-
 describe("COMP-01 useDraftSync", () => {
 	it("saves the first chat when switching, then restores the second chat's draft", async () => {
 		const first = "chat-a" as SessionId;
@@ -159,7 +157,7 @@ describe("COMP-01 useDraftSync", () => {
 		const { composer, files, wrapper, flush } = harness();
 		composer.saveDraft(second, { text: "second draft", attachmentPaths: ["/b.txt"] });
 		flush();
-		await settle();
+		await composer.flush();
 		const editor = fakeEditor();
 		const restored: Draft[] = [];
 		const { rerender } = renderHook(
@@ -184,7 +182,7 @@ describe("COMP-01 useDraftSync", () => {
 		rerender({ sessionId: second });
 		await waitFor(() => expect(editor.getText()).toBe("second draft"));
 		flush();
-		await settle();
+		await composer.flush();
 		expect(JSON.parse(files.get(draftFile(paths, first)) ?? "")).toEqual({
 			text: "first chat text",
 			attachmentPaths: [],
@@ -200,7 +198,7 @@ describe("COMP-01 useDraftSync", () => {
 			attachmentPaths: [],
 		});
 		flush();
-		await settle();
+		await composer.flush();
 		const editor = fakeEditor();
 		renderHook(() => useDraftSync({ sessionId: session, editor: editor as unknown as Editor }), {
 			wrapper,
@@ -214,7 +212,7 @@ describe("COMP-01 useDraftSync", () => {
 		const { composer, files, wrapper, flush } = harness();
 		composer.saveDraft(second, { text: "second draft", attachmentPaths: ["/b.png"] });
 		flush();
-		await settle();
+		await composer.flush();
 
 		const originalLoad = composer.loadDraft.bind(composer);
 		let release: () => void = () => {};
@@ -253,7 +251,7 @@ describe("COMP-01 useDraftSync", () => {
 		expect(editor.getText()).toBe("typed before restore");
 		act(() => editor.emit());
 		flush();
-		await settle();
+		await composer.flush();
 		expect(JSON.parse(files.get(draftFile(paths, second)) ?? "")).toEqual({
 			text: "typed before restore",
 			attachmentPaths: ["/b.png"],
@@ -296,7 +294,7 @@ describe("COMP-01 useDraftSync", () => {
 		);
 		rerender({ attachmentPaths: ["/shot.png"] });
 		flush();
-		await settle();
+		await composer.flush();
 		expect(JSON.parse(files.get(draftFile(paths, session)) ?? "")).toEqual({
 			text: "",
 			attachmentPaths: ["/shot.png"],

@@ -183,6 +183,10 @@ const seedDraft = (composer: ComposerService, text: string, attachmentPaths: str
 
 const sendButton = () => screen.getByTestId("composer-send-button") as HTMLButtonElement;
 const editor = () => screen.getByLabelText("composer");
+/**
+ * One macrotask, for a check that something did not happen after a cancelled send: there is no
+ * event to wait for when nothing changes. Draft writes wait for the composer's own flush instead.
+ */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** Forces the measured width the composer sees, so both toolbar layouts can be tested. */
@@ -306,7 +310,7 @@ describe("COMP-01 Composer", () => {
 		const firstRun = harness();
 		firstRun.composer.saveDraft(sessionId, { text: "after restart", attachmentPaths: [] });
 		firstRun.flush();
-		await settle();
+		await firstRun.composer.flush();
 
 		const secondRun = harness({ fake: firstRun.fake });
 		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, {
@@ -336,7 +340,7 @@ describe("COMP-01 Composer", () => {
 		const { composer, send, wrapper, flush, fake } = harness();
 		seedDraft(composer, "hello");
 		flush();
-		await settle();
+		await composer.flush();
 		fake.fail.trash = true;
 		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
 		await waitFor(() => expect(sendButton().disabled).toBe(false));
@@ -368,7 +372,7 @@ describe("COMP-01 Composer", () => {
 		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
 		await waitFor(() => expect(editor().textContent).toBe("hello"));
 		flush();
-		await settle();
+		await composer.flush();
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't save the draft", expect.anything()),
 		);
