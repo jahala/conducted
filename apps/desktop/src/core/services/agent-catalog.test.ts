@@ -2,7 +2,7 @@ import type { AgentInstall, ModelInfo } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
-import { AgentCatalogService } from "./agent-catalog.ts";
+import { AgentCatalogService, modelsKey } from "./agent-catalog.ts";
 
 const claude = (changes: Partial<AgentInstall> = {}): AgentInstall => ({
 	agent: "claude",
@@ -10,9 +10,13 @@ const claude = (changes: Partial<AgentInstall> = {}): AgentInstall => ({
 	...changes,
 });
 
-function serviceWith(request: SidecarClient["request"]): AgentCatalogService {
+function serviceWith(
+	request: SidecarClient["request"],
+	options: { cloudSidecar?: Pick<SidecarClient, "request"> } = {},
+): AgentCatalogService {
 	return new AgentCatalogService({
 		sidecar: { request },
+		...(options.cloudSidecar === undefined ? {} : { cloudSidecar: options.cloudSidecar }),
 		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspacePathOf: async () => ok("/workspace"),
 		repoRootPathOf: async () => ok("/repo"),
@@ -113,6 +117,50 @@ describe("SET-03 agent catalogue model lists", () => {
 			state: "ready",
 			data: newer,
 		});
+	});
+
+	it("CLOUD-04 keeps a cloud workspace's model list apart from the local one", async () => {
+		const local = vi.fn().mockResolvedValue(ok({ models: [model("local")] }));
+		const cloud = vi.fn().mockResolvedValue(ok({ models: [model("cloud")] }));
+		const service = serviceWith(local as unknown as SidecarClient["request"], {
+			cloudSidecar: { request: cloud as unknown as SidecarClient["request"] },
+		});
+		const host = {
+			kind: "cloud" as const,
+			url: "https://worker.example",
+			vmId: "sandbox-1",
+		};
+
+		expect(await service.loadModels("claude")).toEqual(ok([model("local")]));
+		expect(await service.loadModels("claude", undefined, host)).toEqual(ok([model("cloud")]));
+
+		expect(local).toHaveBeenCalledTimes(1);
+		expect(cloud).toHaveBeenCalledTimes(1);
+		expect(service.store.getState().models["claude"]).toEqual({
+			state: "ready",
+			data: [model("local")],
+		});
+		expect(service.store.getState().models[modelsKey(host, "claude")]).toEqual({
+			state: "ready",
+			data: [model("cloud")],
+		});
+	});
+
+	it("CLOUD-04 a cloud list without a cloud client fails, never the local sidecar's list", async () => {
+		const local = vi.fn().mockResolvedValue(ok({ models: [model("local")] }));
+		const service = serviceWith(local as unknown as SidecarClient["request"]);
+		const host = {
+			kind: "cloud" as const,
+			url: "https://worker.example",
+			vmId: "sandbox-1",
+		};
+
+		const result = await service.loadModels("claude", undefined, host);
+
+		expect(result.ok).toBe(false);
+		expect(local).not.toHaveBeenCalled();
+		expect(service.store.getState().models[modelsKey(host, "claude")]?.state).toBe("error");
+		expect(service.store.getState().models["claude"]).toBeUndefined();
 	});
 });
 

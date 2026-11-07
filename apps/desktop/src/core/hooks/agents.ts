@@ -24,6 +24,7 @@ import {
 	agentKey,
 	categoriesOfConfigSyncKey,
 	configSyncKey,
+	modelsKey,
 	preWorkspaceSlashKey,
 } from "../services/agent-catalog.ts";
 
@@ -31,13 +32,13 @@ export const useAgentInstalls: Queries["useAgentInstalls"] = () => {
 	const store = useServices().services.agentCatalog.store;
 	return useStore(store, (state) => state.installs);
 };
-export const useModels: Queries["useModels"] = (agent, acpAgent) => {
+export const useModels: Queries["useModels"] = (agent, acpAgent, host) => {
 	const service = useServices().services.agentCatalog;
-	const key = agentKey(agent, acpAgent);
+	const key = modelsKey(host, agent, acpAgent);
 	const models = useStore(service.store, (state) => state.models[key]);
 	useEffect(() => {
-		if (models === undefined) void service.loadModels(agent, acpAgent);
-	}, [service, agent, acpAgent, models]);
+		if (models === undefined) void service.loadModels(agent, acpAgent, host);
+	}, [service, agent, acpAgent, host, models]);
 	return models ?? { state: "loading" };
 };
 export const useSlashCommands: Queries["useSlashCommands"] = (sessionId) => {
