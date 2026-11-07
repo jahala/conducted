@@ -23,7 +23,8 @@
 //!   covered by a test yet.
 //!
 //! Our design choice: the decision is a pure function of the URL and the allowed origins, so it is
-//! tested without a window. `install_guard` is the only part that touches Tauri. It registers a
+//! tested without a window. The `window.open` script is tested in JavaScript
+//! (`src/platform/navigation-shim.plat-22.test.ts` reads it from this file and runs it in jsdom). `install_guard` is the only part that touches Tauri. It registers a
 //! plugin for navigation, because a handler cannot be attached to a window after it was built, and
 //! injects a small script for `window.open`, which WebKit otherwise sends to a new-window request
 //! that nothing handles.
