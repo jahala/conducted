@@ -1,24 +1,31 @@
 /**
  * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
+ * @feature CLOUD-06 Keep work across sandbox restarts
  * Owns: the container's main process. It sets the sidecar's folders and the sandbox flag, starts
  * the compiled sidecar, reads its `SOCKET_PATH=` handshake, and relays each WebSocket on the
- * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens.
+ * sandbox port to that Unix socket. `GET /health` answers once the sidecar listens. It also reads
+ * each relayed sidecar line for the turn end and asks the Worker to save the workspace (D105).
  * Behaviour: cloud-and-remote.md Part 1 ("The sidecar runs inside the sandbox unchanged") and the
  * CLOUD-02 spike's bridge, which showed the same relay working in a Cloudflare sandbox
  * (cloud-spike-2026-11-06.md); claude-runner.md 1.3 says a cloud sandbox adds
- * `CLAUDE_CODE_SANDBOXED=1`.
+ * `CLAUDE_CODE_SANDBOXED=1`. The backup is taken at each turn end, as the spike's "Keeping work"
+ * says it must be.
  * Must handle: the sidecar exiting (the container exits 1, never runs without an agent host); a
  * WebSocket that arrives before the handshake (503, not a made-up socket); a socket that closes
  * (the WebSocket closes with it); a port that is not a number (exit 64 with a message); a
- * termination signal (forward SIGTERM to the sidecar and wait for it, so its socket is removed).
+ * termination signal (forward SIGTERM to the sidecar and wait for it, so its socket is removed); a
+ * turn-end backup that fails (logged, and the next turn end tries again).
  * Our design choice: the same three handshake lines the Rust shell uses locally, with the port
  * fixed by the image (`IMAGE.port`, overridable for a test or a local run). The relay carries bytes
- * unchanged; it never reads the JSON-RPC lines.
+ * unchanged and reads them only to find the `liveState: idle` line. A container started without
+ * `CONDUCTED_TURN_END_URL`, as in a local run, relays but saves no backup.
  * Test first: `sandboxEnvironment` puts `CONDUCTED_BIN_DIR` first on PATH and sets
  * `CLAUDE_CODE_SANDBOXED=1`.
  */
 import { mkdirSync } from "node:fs";
+import { turnChangeOf } from "../src/relay.ts";
 import { IMAGE } from "./image.ts";
+import { TurnEndTracker } from "./turn-end.ts";
 
 export interface SandboxDirs {
 	binDir: string;
@@ -100,6 +107,42 @@ function run(): void {
 	const bootedAt = Date.now();
 	const program = process.env.CONDUCTED_SIDECAR_BIN ?? IMAGE.sidecarProgram;
 	const workspace = process.env.CONDUCTED_WORKSPACE ?? IMAGE.workspace;
+	const turnEndUrl = process.env.CONDUCTED_TURN_END_URL ?? "";
+	if (turnEndUrl === "") {
+		console.log("entry: CONDUCTED_TURN_END_URL is not set; turn-end backups are off");
+	}
+	const turnEnds = new TurnEndTracker();
+	let saving = false;
+	let again = false;
+
+	/**
+	 * Asks the Worker to save the workspace, once the last running chat has gone idle. A turn end
+	 * that arrives while a save runs asks for one more save afterwards, so it is never dropped.
+	 */
+	async function requestTurnEnd(): Promise<void> {
+		if (turnEndUrl === "") return;
+		if (saving) {
+			again = true;
+			return;
+		}
+		saving = true;
+		try {
+			const response = await fetch(turnEndUrl, { method: "POST" });
+			await response.body?.cancel();
+			if (!response.ok) {
+				console.error(`entry: the turn-end backup answered ${response.status}`);
+			}
+		} catch (cause) {
+			console.error(`entry: the turn-end backup failed: ${String(cause)}`);
+		} finally {
+			saving = false;
+		}
+		if (again) {
+			again = false;
+			void requestTurnEnd();
+		}
+	}
+
 	const sidecar = Bun.spawn([program, "sidecar"], {
 		cwd: workspace,
 		env: sandboxEnvironment(process.env, dirs),
@@ -146,6 +189,21 @@ function run(): void {
 		socket: import("bun").Socket<undefined> | null;
 		/** Bytes not yet accepted by the socket, written on "drain". */
 		pending: Uint8Array[];
+		/** The sidecar's text not yet split into lines, for the turn-end hook. */
+		line: string;
+		decoder: TextDecoder;
+	}
+
+	/** Reads the sidecar's lines for a turn end; the bytes go on to the app unchanged. */
+	function noteSidecarOutput(link: Link, chunk: Uint8Array): void {
+		link.line += link.decoder.decode(chunk, { stream: true });
+		let newline = link.line.indexOf("\n");
+		while (newline !== -1) {
+			const line = link.line.slice(0, newline);
+			link.line = link.line.slice(newline + 1);
+			if (turnEnds.note(turnChangeOf(line))) void requestTurnEnd();
+			newline = link.line.indexOf("\n");
+		}
 	}
 
 	function flush(link: Link): void {
@@ -178,7 +236,11 @@ function run(): void {
 			}
 			if (url.pathname === "/rpc") {
 				if (socketPath === null) return new Response("sidecar not ready", { status: 503 });
-				if (upgradeServer.upgrade(request, { data: { socket: null, pending: [] } })) {
+				if (
+					upgradeServer.upgrade(request, {
+						data: { socket: null, pending: [], line: "", decoder: new TextDecoder() },
+					})
+				) {
 					return undefined;
 				}
 				return new Response("expected a WebSocket", { status: 426 });
@@ -198,9 +260,11 @@ function run(): void {
 						unix: path,
 						socket: {
 							data(_socket, data) {
+								noteSidecarOutput(link, data);
 								ws.sendBinary(data);
 							},
 							close() {
+								turnEnds.reset();
 								ws.close(1011, "sidecar socket closed");
 							},
 							error(_socket, error) {
