@@ -2,7 +2,10 @@
  * @feature catalogue States of the settings pages
  * Owns: every settings page, the personal ones and atlas's repository pages, with the cast's two
  * projects in the navigation; the selects whose options are wording (themes, sounds, effort levels,
- * output styles), each open; and the Agents page's provider dialog with the Bedrock access-key form.
+ * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
+ * Git page with a custom branch prefix; the Advanced page asking before it changes the root
+ * folder; atlas's Add action dialog; and the Agents page's provider dialog with the Bedrock
+ * access-key form.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -174,6 +177,65 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					await choose(document, "Bedrock credentials", "AWS access keys");
 				},
 				ready: (document) => shows(document, "Secret access key"),
+			};
+		},
+	},
+	selectOpen(
+		"settings-general-send-key-menu",
+		"General, the send key menu open",
+		"general",
+		"Send messages with",
+	),
+	selectOpen(
+		"settings-general-follow-up-menu",
+		"General, the follow-up behaviour menu open",
+		"general",
+		"Follow-up behavior",
+	),
+	selectOpen(
+		"settings-git-pr-target-menu",
+		"Git, the menu of where pull requests open",
+		"git",
+		"Open pull requests in",
+	),
+	{
+		id: "settings-git-custom-prefix",
+		group: "Settings",
+		title: "Git, with a custom branch prefix not typed yet",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/git",
+				after: ({ document }) => click(document, "label", "Custom"),
+				ready: (document) =>
+					document.querySelector('input[placeholder="e.g. feature/ or myname-"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-advanced-root-path",
+		group: "Settings",
+		title: "Advanced, asking before the root folder changes",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.queueDialogAnswers({ folder: "/Users/sam/Projects/conducted" });
+			return {
+				route: "/settings/advanced",
+				after: ({ document }) => click(document, "button", "Browse"),
+				ready: (document) => shows(document, "Change root path?"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-add-action",
+		group: "Settings",
+		title: "atlas: Actions, the Add action dialog",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: ({ document }) => click(document, "button", "Add"),
+				ready: (document) => document.querySelector('input[placeholder="My action"]') !== null,
 			};
 		},
 	},

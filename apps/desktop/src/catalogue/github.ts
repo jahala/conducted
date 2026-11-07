@@ -3,10 +3,12 @@
  * Owns: answering `gh` the way GitHub would for a signed-in user: the sign-in check, the user's login,
  * the batched pull request query (one pull request per head branch, or none, in any of the states
  * the header tells apart), the review threads a pull request's reviewers left, and empty general
- * comments; or failing every API request as
- * `gh` does when this Mac is offline or GitHub refuses the sign-in.
+ * comments, the GitHub stacks pull requests belong to (the stack entry, its members and each
+ * member's merge state); or failing every API request as `gh` does when this Mac is offline or
+ * GitHub refuses the sign-in.
  * Behaviour: core/git/gh-commands.ts builds the commands; core/services/github.ts reads the answers
- * (parsePrBatchAnswers and the GraphQL node fields in PR_FIELDS_FRAGMENT).
+ * (parsePrBatchAnswers and the GraphQL node fields in PR_FIELDS_FRAGMENT; parsePrStackEntry,
+ * parseStackMembers and parseStackReadiness for a stack, services-map.md 3.8.2).
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
 import { ok, type Result } from "@conducted/shared";
@@ -49,6 +51,8 @@ export interface ScriptedPr {
 	checks?: ScriptedCheck[];
 	/** The head commit's deployments, newest first. */
 	deployments?: ScriptedDeployment[];
+	/** The description, when not the login fix's own. */
+	body?: string;
 }
 
 /** A check on the head commit: a workflow job, or an outside service's status. */
@@ -202,7 +206,9 @@ function pullRequestNode(pr: ScriptedPr): Record<string, unknown> {
 		number: pr.number,
 		url: `https://github.com/acme/atlas/pull/${pr.number}`,
 		title: pr.title,
-		body: "Keeps the page a user asked for when they sign in.\n\n- Reads `next` from the sign-in URL\n- Accepts paths on this site only",
+		body:
+			pr.body ??
+			"Keeps the page a user asked for when they sign in.\n\n- Reads `next` from the sign-in URL\n- Accepts paths on this site only",
 		state: merged ? "MERGED" : closed ? "CLOSED" : "OPEN",
 		isDraft: pr.kind === "draft",
 		mergedAt: merged ? iso(at + 3 * 3_600_000) : null,
@@ -267,6 +273,41 @@ function pullRequestNode(pr: ScriptedPr): Record<string, unknown> {
 	};
 }
 
+/** One pull request of a GitHub stack, as the stack's members endpoint lists it. */
+export interface ScriptedStackMember {
+	number: number;
+	title: string;
+	branch: string;
+	state: "open" | "draft" | "merged" | "closed";
+	/** The member's head commit, and the commit its base branch pointed at. */
+	headSha: string;
+	baseSha: string;
+	/** The branch the member merges into. */
+	base: string;
+	/** GitHub's `mergeStateStatus` for the member: CLEAN, BLOCKED, DIRTY, BEHIND or UNKNOWN. */
+	mergeState: string;
+}
+
+/** A GitHub stack: its number, the trunk it sits on and its members from trunk up. */
+export interface ScriptedStack {
+	number: number;
+	baseRefName: string;
+	members: ScriptedStackMember[];
+}
+
+/** The members endpoint's entry for one member. */
+function stackMemberNode(member: ScriptedStackMember): Record<string, unknown> {
+	return {
+		number: member.number,
+		title: member.title,
+		state: member.state === "merged" || member.state === "closed" ? "closed" : "open",
+		draft: member.state === "draft",
+		merged_at: member.state === "merged" ? "2026-11-05T10:00:00Z" : null,
+		head: { ref: member.branch, sha: member.headSha },
+		base: { ref: member.base, sha: member.baseSha },
+	};
+}
+
 /**
  * Why GitHub cannot be read: this Mac is offline, or GitHub refuses the stored sign-in. Each is
  * the output the real `gh` prints for that failure.
@@ -278,11 +319,34 @@ const FAILURE_OUTPUT: Record<GitHubFailure, string> = {
 	unauthorized: "HTTP 401: Bad credentials (https://api.github.com/graphql)\n",
 };
 
+/** An open issue of the repository, as GitHub's REST answer lists it. */
+export interface ScriptedIssue {
+	number: number;
+	title: string;
+	/** Milliseconds since the epoch. */
+	updatedAt: number;
+}
+
+export interface ScriptedGitHub {
+	/** Pull requests, keyed by head branch. */
+	prs?: readonly ScriptedPr[];
+	/** Every request to GitHub's API fails this way. */
+	failure?: GitHubFailure;
+	stacks?: readonly ScriptedStack[];
+	/** The repository's open issues, newest first. */
+	issues?: readonly ScriptedIssue[];
+}
+
 /**
- * Answers `gh` for a signed-in user whose pull requests are `prs`, keyed by head branch. With a
- * `failure`, every request to GitHub's API fails the way `gh` reports it.
+ * Answers `gh` for a signed-in user whose pull requests, stacks and issues are the given ones.
+ * With a `failure`, every request to GitHub's API fails the way `gh` reports it.
  */
-export function scriptGitHub(prs: readonly ScriptedPr[], failure?: GitHubFailure): ShellScript {
+export function scriptGitHub({
+	prs = [],
+	failure,
+	stacks = [],
+	issues = [],
+}: ScriptedGitHub = {}): ShellScript {
 	return (command) => {
 		if (command.program !== "gh") return null;
 		const args = command.args;
@@ -300,6 +364,53 @@ export function scriptGitHub(prs: readonly ScriptedPr[], failure?: GitHubFailure
 		}
 		if (args[0] === "api" && args[1] === "graphql") {
 			const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+			// The stack a pull request belongs to: null outside every stack.
+			if (query.includes("stackEntry")) {
+				const number = Number(args.find((arg) => arg.startsWith("prNumber="))?.slice(9));
+				const stack = stacks.find((candidate) =>
+					candidate.members.some((member) => member.number === number),
+				);
+				const position = stack?.members.findIndex((member) => member.number === number) ?? -1;
+				return out(
+					JSON.stringify({
+						data: {
+							repository: {
+								pullRequest: {
+									number,
+									stackEntry:
+										stack === undefined
+											? null
+											: {
+													position: position + 1,
+													stack: {
+														number: stack.number,
+														size: stack.members.length,
+														baseRefName: stack.baseRefName,
+													},
+												},
+								},
+							},
+						},
+					}),
+				);
+			}
+			// Each stack member's merge state, one alias per pull request number.
+			if (args.some((arg) => /^pr\d+=\d+$/.test(arg))) {
+				const repository: Record<string, unknown> = {};
+				for (const arg of args) {
+					const match = /^pr(\d+)=(\d+)$/.exec(arg);
+					if (match === null) continue;
+					const [, index, value] = match;
+					const member = stacks
+						.flatMap((stack) => stack.members)
+						.find((candidate) => candidate.number === Number(value));
+					repository[`pr${index}`] =
+						member === undefined
+							? null
+							: { number: member.number, mergeStateStatus: member.mergeState };
+				}
+				return out(JSON.stringify({ data: { repository } }));
+			}
 			if (query.includes("reviewThreads")) {
 				const number = Number(args.find((arg) => arg.startsWith("prNumber="))?.slice(9));
 				const pr = prs.find((candidate) => candidate.number === number);
@@ -353,6 +464,28 @@ export function scriptGitHub(prs: readonly ScriptedPr[], failure?: GitHubFailure
 					data: { viewer: { login: "sam" }, rateLimit: { cost: 1, remaining: 4_990 }, repository },
 				}),
 			);
+		}
+		if (args[0] === "api" && /^repos\/[^/]+\/[^/]+\/issues\?/.test(args[1] ?? "")) {
+			return out(
+				JSON.stringify(
+					issues.map((issue) => ({
+						number: issue.number,
+						title: issue.title,
+						html_url: `https://github.com/acme/atlas/issues/${issue.number}`,
+						state: "open",
+						updated_at: iso(issue.updatedAt),
+						body: null,
+					})),
+				),
+			);
+		}
+		const stackPath = /^repos\/\{owner\}\/\{repo\}\/stacks\/(\d+)$/.exec(
+			args[0] === "api" ? (args[1] ?? "") : "",
+		);
+		if (stackPath !== null) {
+			const stack = stacks.find((candidate) => candidate.number === Number(stackPath[1]));
+			if (stack === undefined) return out("", 1);
+			return out(JSON.stringify({ pull_requests: stack.members.map(stackMemberNode) }));
 		}
 		// Whether a branch ever had a pull request, which a rename checks before it renames (GIT-13).
 		if (args[0] === "pr" && args[1] === "list" && args.includes("--head")) {

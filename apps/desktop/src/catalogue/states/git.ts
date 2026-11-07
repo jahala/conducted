@@ -11,6 +11,7 @@
 import type { Workspace } from "../../core/model.ts";
 import {
 	ARBOR_FILES,
+	type Cast,
 	chatRoute,
 	type GitWorld,
 	refreshGit,
@@ -18,7 +19,7 @@ import {
 	workspaceRoute,
 } from "../cast.ts";
 import { click, has, rightClick, shows } from "../dom.ts";
-import type { PrKind } from "../github.ts";
+import type { PrKind, ScriptedPr } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
 import type { World } from "../world.ts";
@@ -27,7 +28,8 @@ export interface GitScene {
 	git?: GitWorld;
 	/** The route's search, besides arbor's chat tab. */
 	search?: Record<string, string>;
-	after?: (context: AfterContext) => Promise<void>;
+	/** Runs after git and the pull request were read; it gets the cast the scene seeded. */
+	after?: (context: AfterContext, cast: Cast) => Promise<void>;
 	ready?: Scene["ready"];
 	/** Leave the pull request unpolled, so the header still loads. */
 	skipPullRequest?: boolean;
@@ -47,7 +49,7 @@ export const arborScene =
 			route,
 			after: async (context) => {
 				await refreshGit(context.app, workspace, { pullRequest: scene.skipPullRequest !== true });
-				await scene.after?.(context);
+				await scene.after?.(context, cast);
 			},
 			ready: scene.ready,
 		};
@@ -56,10 +58,11 @@ export const arborScene =
 export const COMMITTED_ONLY = ARBOR_FILES.filter((file) => file.committed);
 
 /** arbor's login fix as a pull request in the given state. */
-export const prOf = (kind: PrKind): GitWorld => ({
+export const prOf = (kind: PrKind, fields: Partial<ScriptedPr> = {}): GitWorld => ({
 	arborFiles: COMMITTED_ONLY,
 	prs: [
 		{
+			...fields,
 			kind,
 			number: 231,
 			title: "Keep the requested page after sign-in",

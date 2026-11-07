@@ -141,6 +141,8 @@ export interface MemoryPlatformControls {
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
 	queuePtyExit(code: number | null): void;
+	/** Keeps the next PTY spawned with a `command` running until it is killed. */
+	holdNextPty(): void;
 	/** Makes every terminal's `ack` fail with this message; null makes them succeed again. */
 	failPtyAcks(message: string | null): void;
 	/** Makes saving a terminal's history fail with this message when it ends; null undoes it. */
@@ -430,6 +432,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const ptySpawns: PtySpawn[] = [];
 	let processes: MemoryProcess[] = [];
 	let holdNextStart = false;
+	let holdNextPty = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
 	let fullDiskAccess = true;
@@ -840,7 +843,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 					bracketedPaste: false,
 				}),
 		};
-		if (spawnOptions.command !== undefined) {
+		if (spawnOptions.command !== undefined && holdNextPty) {
+			holdNextPty = false;
+		} else if (spawnOptions.command !== undefined) {
 			const queued = ptyExitCodes.shift();
 			queueMicrotask(() => finishPty(state, queued === undefined ? 0 : queued));
 		}
@@ -1395,6 +1400,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		queuePtyExit: (code) => {
 			ptyExitCodes.push(code);
+		},
+		holdNextPty: () => {
+			holdNextPty = true;
 		},
 		failPtyAcks: (message) => {
 			ptyAckFailure = message;
