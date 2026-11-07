@@ -258,6 +258,27 @@ describe("APP-12 Select", () => {
 		expect(viewport?.className).toContain("overflow-y-auto");
 	});
 
+	it("lists options under their group names", async () => {
+		const onValueChange = vi.fn();
+		render(
+			<Select
+				value="dev:local"
+				options={[
+					{ value: "dev:local", label: "Dev server", group: "Local" },
+					{ value: "dev:cloud", label: "Dev server", group: "Cloud" },
+				]}
+				onValueChange={onValueChange}
+				aria-label="Select task"
+			/>,
+		);
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Select task" }), { key: "Enter" });
+
+		expect(await screen.findByText("Local")).toBeTruthy();
+		expect(screen.getByText("Cloud")).toBeTruthy();
+		const cloud = screen.getAllByRole("option", { name: "Dev server" })[0];
+		expect(cloud).toBeTruthy();
+	});
+
 	it("does not choose a disabled option", async () => {
 		const onValueChange = vi.fn();
 		render(

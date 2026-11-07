@@ -70,7 +70,7 @@ export const useRunState: Queries["useRunState"] = (workspaceId) => {
 			state: "ready",
 			data: {
 				...current,
-				actions: runListFor(config),
+				actions: runListFor(config, workspace.host.kind),
 				spotlight: spotlight ?? { active: false, terminalId: null },
 			},
 		};

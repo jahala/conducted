@@ -473,6 +473,7 @@ function runActionsFrom(shared: SettingsFileContents, local: SettingsFileContent
 			hidden: action.hidden,
 			icon: action.icon,
 			origin: inLocal ? (inShared ? "changed_locally" : "local") : "shared",
+			availableIn: [...action.availableIn],
 		};
 	});
 }
@@ -603,6 +604,10 @@ function writeList(
 	else contents.values[key] = [...value];
 }
 
+/** The default availability: both this Mac and a cloud workspace. */
+const availableEverywhere = (targets: readonly string[]): boolean =>
+	targets.includes("local") && targets.includes("cloud") && targets.length === 2;
+
 function actionsMatch(left: RunAction, right: RunAction): boolean {
 	return (
 		left.command === right.command &&
@@ -610,7 +615,8 @@ function actionsMatch(left: RunAction, right: RunAction): boolean {
 		left.cwd === right.cwd &&
 		left.isDefault === right.isDefault &&
 		left.hidden === right.hidden &&
-		left.icon === right.icon
+		left.icon === right.icon &&
+		sameStrings(left.availableIn, right.availableIn)
 	);
 }
 
@@ -636,6 +642,8 @@ function localActionsFrom(
 			isDefault: action.isDefault,
 			hidden: action.hidden,
 			icon: action.icon,
+			// The file leaves the field out when the action runs everywhere, which is its default.
+			...(availableEverywhere(action.availableIn) ? {} : { availableIn: [...action.availableIn] }),
 		};
 	}
 	return result;

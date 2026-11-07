@@ -1358,7 +1358,9 @@ export class SessionsService implements AgentMessenger {
 
 	/**
 	 * The workspace's linked folders, read from its row. The workspace row is their one home
-	 * (WS-07): every sidecar config is composed from it when it is sent.
+	 * (WS-07): every sidecar config is composed from it when it is sent. A cloud workspace sends
+	 * none, because Conductor sends no additional directory to a cloud host (CLOUD-09, #251): its
+	 * folders are paths on this Mac and mean nothing in the sandbox.
 	 */
 	async #linkedPaths(workspaceId: WorkspaceId): Promise<Result<string[]>> {
 		const found = await this.#deps.repositories().workspaces.get(workspaceId);
@@ -1366,6 +1368,7 @@ export class SessionsService implements AgentMessenger {
 		if (found.value === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		if (found.value.host.kind === "cloud") return ok([]);
 		return ok([...found.value.linkedPaths]);
 	}
 

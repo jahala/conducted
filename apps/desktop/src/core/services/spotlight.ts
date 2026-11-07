@@ -17,7 +17,8 @@
  * does; a failed restore stays in `problems` for the Run tab; quitting the app does not restore
  * (the next start does); the root's branch pointer moves while Spotlight runs, because the sync
  * loop resets the root to the workspace's commit, and the Run tab says so.
- * The run list gets a synthetic Spotlight entry while the setting is on (`runListFor`).
+ * The run list gets a synthetic Spotlight entry for a local workspace while the setting is on
+ * (`runListFor`), after the actions expand into that workspace's host variants (CLOUD-09).
  * Built now: preflight, start, stop and `healAfterCrash`. App start runs `healAfterCrash` for every
  * project (services-map 5A.2.2 step 1 and 5A.2.5): with no `pre-spotlight` ref it changes nothing;
  * otherwise it restores the root from the ref under the root's worktree lock and then deletes the
@@ -56,7 +57,7 @@ import { CHECKPOINT_REF_PREFIX, checkpointRef, PRE_SPOTLIGHT_CHECKPOINT_ID } fro
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RunAction, Terminal, Workspace } from "../model.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
-import { quoteShellArg } from "./run-scripts.ts";
+import { actionsForWorkspace, quoteShellArg } from "./run-scripts.ts";
 import type { TerminalsService } from "./terminals.ts";
 
 export interface SpotlightState {
@@ -73,16 +74,19 @@ export interface SpotlightState {
 export const SPOTLIGHT_ACTION_ID = "spotlight";
 
 /**
- * A repository's run list: its own actions, then the synthetic Spotlight entry when "Use
- * spotlight testing" is on (services-map.md 5A.2.1: id "spotlight", label "Spotlight", icon
- * "lamp-desk"). The entry is in no settings file; its `origin` is never read.
+ * A repository's run list for one workspace: its actions, expanded into the host variants that
+ * workspace offers (services-map 5A.1.6), then the synthetic Spotlight entry when "Use spotlight
+ * testing" is on (5A.2.1: id "spotlight", label "Spotlight", icon "lamp-desk"). Spotlight is a
+ * local-workspace action. The entry is in no settings file; its `origin` is never read.
  */
 export function runListFor(
 	config: Pick<RepoConfig, "runScripts" | "spotlightTesting">,
+	workspaceKind: "local" | "cloud" = "local",
 ): RunAction[] {
-	if (!config.spotlightTesting) return config.runScripts;
+	const actions = actionsForWorkspace(config.runScripts, workspaceKind);
+	if (!config.spotlightTesting || workspaceKind !== "local") return actions;
 	return [
-		...config.runScripts,
+		...actions,
 		{
 			id: SPOTLIGHT_ACTION_ID,
 			label: "Spotlight",
@@ -93,6 +97,7 @@ export function runListFor(
 			hidden: false,
 			icon: "lamp-desk",
 			origin: "local",
+			availableIn: ["local"],
 		},
 	];
 }

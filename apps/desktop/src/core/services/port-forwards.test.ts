@@ -170,6 +170,21 @@ describe("CLOUD-10 forwarding service", () => {
 		expect(after.ok && after.value.map((row) => row.remotePort)).toEqual([3000]);
 	});
 
+	it("a preview URL comes from the Worker, and its refusal says why", async () => {
+		const ws = await cloudWorkspace();
+		platform.controls.scriptCloud((request) =>
+			request.path.endsWith("/preview-url")
+				? (request.body as { port: number }).port === 3000
+					? ok({ status: 200, body: JSON.stringify({ url: "https://w.example.dev/p/abc/" }) })
+					: ok({ status: 400, body: JSON.stringify({ error: "Nothing listens on that port." }) })
+				: null,
+		);
+		expect(await service.previewUrl(ws.id, 3000)).toEqual(ok("https://w.example.dev/p/abc/"));
+		const refused = await service.previewUrl(ws.id, 4000);
+		expect(refused.ok).toBe(false);
+		if (!refused.ok) expect(refused.error.message).toBe("Nothing listens on that port.");
+	});
+
 	it("refuses forward on a local workspace", async () => {
 		const created = await repositories.workspaces.create({
 			repoId: sampleRepo.id,
