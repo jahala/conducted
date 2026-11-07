@@ -384,3 +384,15 @@ Why: the owner's rulings. The visible difference from Conductor, which bundles t
 Context: D066 held AGENT-09 back for two reasons: the SDK could not ship, and the sidecar could not learn whether Cursor is signed in, because the app keeps the key in the Keychain. D083 settles the first. A chat already gets the key: the provider key the user saves in Settings reaches the runner as `CURSOR_API_KEY` in the chat's start environment, and a refused key points the user to Settings.
 Chosen: AGENT-09 is done. Showing Cursor as signed in follows the fixer's proposal in D066: the desktop sets Cursor's signed-in state from whether its own provider key for Cursor is saved, a desktop-only change. That change, and removing a deleted workspace's `cursor-sdk-store/<hash>` folder, are follow-ups under APP-16 with the hardening.
 Why: a user can install the SDK, pick Cursor and chat with it, which is what the row's title says; the two follow-ups change what the Agents page shows and what is removed, not whether Cursor runs.
+
+## D088. The app runs only its own copy of Claude Code, Codex, gh and watchexec (2026-11-07)
+
+Replaces the fallback part of D021 and D024.
+Context: D021 and D024 allowed a copy on the user's PATH "when a download is not possible". That is a silent fallback: a failed download hid behind an older PATH copy, and the user could not tell which binary ran (issue #349). Conductor runs its own copy of each, and uses another path only where the user sets one in settings.
+Chosen:
+
+- The app runs the program manager's copy (PLAT-28) of Claude Code, Codex, gh and watchexec. The only other program it runs is the one the user chose for Claude Code or Codex in Settings (SET-13). It never chooses one of these programs from the user's PATH.
+- A missing copy, or a download that failed, is an error that names the program and says to Retry its download in Settings > Advanced. The agent programs and the helper programs each show their state and Retry there. No feature falls back to a PATH copy by itself.
+- The sidecar's agent detection reports a managed agent with no managed copy as not installed, never as a program found on PATH, because a chat would not run it.
+- ACP agents (OpenCode and Pi) are not downloaded by the app, so they keep their login-shell PATH lookup. The app's bin folder also stays first on PATH for terminals, scripts and the agents' own commands, where it is the record of the managed copies.
+  Why: a program that runs is one the user can see and act on. A silent switch to a PATH copy hides a broken download and makes the failure impossible to explain. OpenCode and Pi have no managed download yet, and removing their PATH lookup would take those agents away.

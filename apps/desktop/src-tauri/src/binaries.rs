@@ -13,15 +13,16 @@
 //! Must handle:
 //! - A download that fails, is cut off or has a wrong checksum: nothing is installed and nothing
 //!   lands in the bin folder (the PLAT-28 rules below).
-//! - The bin folder comes first on PATH for terminals and scripts (`core/services/system.ts`),
-//!   git and gh commands (`core/git/runner.ts`) and agents (the sidecar's
+//! - The bin folder comes first on PATH for terminals, scripts and agents (the sidecar's
 //!   `runners/managed-programs.ts`), so `gh` and `watchexec` resolve without any install by the
-//!   user. Without a managed copy, the copy on the user's PATH runs.
+//!   user. The app's own commands check that this copy is ready before they run one, and a
+//!   missing or failed copy is an error that names the program: the app never falls back to a copy
+//!   on the user's PATH (D088). `spotlighter.sh` gets the app's watchexec by absolute path.
 //!
 //! The `gh stack` extension is not installed by the app: Conductor ships no copy of it (its bin
 //! folder holds gh and watchexec) and tells the user to run `gh extension install github/gh-stack`
-//! when a stack command needs it (renderApp's stack error); PR-08 shows that message. No setting chooses a gh or watchexec of the user's own: Conductor has none, so a copy on
-//! PATH is used only when there is no managed copy. ripgrep: Conductor ships one, but the research
+//! when a stack command needs it (renderApp's stack error); PR-08 shows that message. No setting chooses a gh or watchexec of the user's own: Conductor has none, so the app runs only its
+//! own copy and never one on PATH (D088). ripgrep: Conductor ships one, but the research
 //! does not show what runs it, so it is not managed.
 //!
 //! Test first: with a download source that serves a file with a wrong checksum, installing gh
@@ -4061,6 +4062,26 @@ mod tests {
             recorder.states(ManagedProgram::Claude),
             vec![ProgramState::Ready]
         );
+    }
+
+    #[test]
+    fn plat_28_a_copy_in_the_bin_folder_is_not_a_managed_install() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        fs::create_dir_all(&ctx.dirs.bin).expect("make the bin folder");
+        let stray = ctx.dirs.bin.join("gh");
+        fs::write(&stray, b"#!/bin/sh\nexit 0\n").expect("write a stray program");
+        fs::set_permissions(&stray, fs::Permissions::from_mode(0o755))
+            .expect("make the stray program runnable");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        hydrate_from_disk(&ctx.dirs, &state, recorder.as_ref()).expect("hydrate");
+
+        // Only an install the manager recorded is ready. A same-named file in the bin folder, and
+        // any copy on the user's PATH, is not one (D088).
+        assert_eq!(state.status(ManagedProgram::Gh).state, ProgramState::Missing);
+        assert_eq!(recorder.states(ManagedProgram::Gh), Vec::<ProgramState>::new());
     }
 
     #[test]

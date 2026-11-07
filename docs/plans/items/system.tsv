@@ -2590,7 +2590,7 @@ PLAT-31	rpc	tauri://focus and tauri://blur reach the UI through Platform.app, fo
 PLAT-35	integration	The app downloads, verifies, updates and prunes gh like the agent programs, so a first run has GitHub access without installing anything (D024).	overview 5; native-and-sidecar-map A9	covered
 PLAT-35	integration	The app downloads, verifies and updates watchexec, which Spotlight runs (D024).	services-map 3.12	covered
 PLAT-35	integration	The gh stack extension that Sync stack runs is installed with gh (D024).	services-map 3.8	missing
-PLAT-35	rule	gh and watchexec in the app's bin folder are on PATH for terminals, scripts and agents; a copy on the user's PATH is used when chosen in Settings or when a download fails.	native-and-sidecar-map A6 11	partly
+PLAT-35	rule	gh and watchexec in the app's bin folder are on PATH for terminals, scripts and agents; the app runs only the program manager's copy, and a failed or missing download is an error with Retry, never a copy on the user's PATH.	native-and-sidecar-map A6 11	covered
 PLAT-35	rule	Conductor also ships ripgrep 15.1.0 in its bin folder; what runs it is not traced. Find the caller in the research before adding it.	native-and-sidecar-map A9	missing
 PLAT-30	rule	HTTP from Rust has a URL allow-list and proxy support; Linear moves from curl to it, GitHub stays on gh.	native-and-sidecar-map A2; services-map 1.1	missing
 PLAT-25	integration	Releases are signed with a team identity, use the hardened runtime and are notarised; the sidecar is signed on its own with the JIT entitlements.	native-and-sidecar-map A1	missing
