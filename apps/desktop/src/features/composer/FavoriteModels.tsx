@@ -8,8 +8,11 @@
  * 32px with 4px between rows: the model name, its effort in small muted text, then a check when it is the
  * chat's choice, an up-right arrow when it opens a new chat, or its loadout shortcut. "Add models" shows
  * under the list while there are fewer than three favourites, with a plus in a 24px column.
- * Our design choice: reorder and remove sit in the 24px column and at the row end while "Edit" (in the
- * picker footer) is on; Conductor drags rows by a grip there. "Add models" also shows while editing, so a
+ * While "Edit" (in the picker footer) is on, each saved favourite has Conductor's grip in the 24px
+ * column ("Reorder", renderApp fsi @9227313): drag it onto another row to move it there. Remove sits
+ * at the row end.
+ * Our design choice: from the keyboard, ArrowUp and ArrowDown on a focused grip move its row one place;
+ * Conductor's drag library lifts a row with Space first. "Add models" also shows while editing, so a
  * favourite can be added at any count.
  * Must handle: An 'Add models' row, which explains the limit when full; the default model's row,
  * which Edit cannot move or remove (it is Default models' first slot in Settings); a
@@ -27,7 +30,13 @@ import { useLiveShortcut } from "../../core/hooks.ts";
 import { agentDisplayName } from "../../core/services/agent-catalog.ts";
 import type { FavoriteModel } from "../../core/services/favorite-models.ts";
 import { cn } from "../../ui/cn.ts";
-import { ArrowUpRightIcon, CheckIcon, CloseIcon, PlusIcon } from "../../ui/icons.tsx";
+import {
+	ArrowUpRightIcon,
+	CheckIcon,
+	CloseIcon,
+	GripVerticalIcon,
+	PlusIcon,
+} from "../../ui/icons.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { useLoadout } from "./use-loadout.ts";
 
@@ -60,6 +69,9 @@ export function isFavoriteSelected(
 		favorite.effort === config.effort
 	);
 }
+
+/** The drag type of a favourite moved by its grip; its data is the favourite's id. */
+const FAVORITE_MIME = "application/x-conducted-favorite";
 
 const rowClass =
 	"flex w-full items-center gap-2 rounded-md py-1.5 pr-3 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover";
@@ -104,15 +116,15 @@ export function FavoriteModels({
 		});
 	};
 
-	const move = async (index: number, delta: number) => {
-		const target = index + delta;
-		if (target < 0 || target >= favorites.length) return;
+	/** Moves the favourite with `id` to position `target` among the saved favourites. */
+	const moveTo = async (id: string, target: number) => {
+		const from = favorites.findIndex((favorite) => favorite.id === id);
+		const to = Math.max(0, Math.min(target, favorites.length - 1));
+		if (from === -1 || from === to) return;
 		const next = [...favorites];
-		const current = next[index];
-		const other = next[target];
-		if (current === undefined || other === undefined) return;
-		next[index] = other;
-		next[target] = current;
+		const [moved] = next.splice(from, 1);
+		if (moved === undefined) return;
+		next.splice(to, 0, moved);
 		const result = await service.reorder(next.map((favorite) => favorite.id));
 		if (!result.ok) toastError("Couldn't reorder the favourites", result.error);
 	};
@@ -134,29 +146,44 @@ export function FavoriteModels({
 				const newChat = !selected && (opensNewChat?.(favorite.config) ?? false);
 				const effort = effortLabelFor?.(favorite.config) ?? null;
 				return (
-					<div key={favorite.id} className="flex min-w-0 items-center">
+					// biome-ignore lint/a11y/noStaticElementInteractions: the row is where a dragged grip drops; its buttons are the interactive parts.
+					<div
+						key={favorite.id}
+						className="flex min-w-0 items-center"
+						onDragOver={(event) => {
+							if (editing && event.dataTransfer.types.includes(FAVORITE_MIME)) {
+								event.preventDefault();
+								event.dataTransfer.dropEffect = "move";
+							}
+						}}
+						onDrop={(event) => {
+							const id = event.dataTransfer.getData(FAVORITE_MIME);
+							if (!editing || id === "") return;
+							event.preventDefault();
+							// The default model stays first, so a drop on it moves the favourite to the top.
+							void moveTo(id, favorite.isDefault ? 0 : index);
+						}}
+					>
 						{editing && favorite.isDefault ? <span className="w-6 shrink-0" /> : null}
 						{editing && !favorite.isDefault ? (
-							<span className="flex w-6 shrink-0 flex-col items-center">
-								<button
-									type="button"
-									aria-label={`Move ${label} up`}
-									disabled={index === 0}
-									onClick={() => void move(index, -1)}
-									className="flex h-3.5 w-5 items-center justify-center rounded-sm text-3xs text-fg-muted outline-none hover:bg-hover hover:text-fg focus-visible:bg-hover disabled:opacity-40"
-								>
-									↑
-								</button>
-								<button
-									type="button"
-									aria-label={`Move ${label} down`}
-									disabled={index === favorites.length - 1}
-									onClick={() => void move(index, 1)}
-									className="flex h-3.5 w-5 items-center justify-center rounded-sm text-3xs text-fg-muted outline-none hover:bg-hover hover:text-fg focus-visible:bg-hover disabled:opacity-40"
-								>
-									↓
-								</button>
-							</span>
+							<button
+								type="button"
+								draggable
+								aria-label={`Reorder ${label}`}
+								onDragStart={(event) => {
+									event.dataTransfer.setData(FAVORITE_MIME, favorite.id);
+									event.dataTransfer.effectAllowed = "move";
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+									event.preventDefault();
+									event.stopPropagation();
+									void moveTo(favorite.id, index + (event.key === "ArrowUp" ? -1 : 1));
+								}}
+								className="flex w-6 shrink-0 cursor-grab items-center justify-center self-stretch rounded-sm text-fg-muted outline-none focus-visible:bg-hover focus-visible:text-fg focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset active:cursor-grabbing"
+							>
+								<GripVerticalIcon className="size-3.5" />
+							</button>
 						) : null}
 						<button
 							type="button"

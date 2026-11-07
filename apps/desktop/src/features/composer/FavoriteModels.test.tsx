@@ -107,12 +107,52 @@ describe("COMP-02 favourite models list", () => {
 		]);
 		// "Edit" moved to the model picker's footer, as in Conductor; the list takes edit mode as a prop.
 		render(<FavoriteModels onPick={() => {}} editing />, { wrapper });
-		fireEvent.click(screen.getByRole("button", { name: "Move Claude Code · m2 up" }));
+		// Conductor's rows reorder by a grip; from the keyboard the grip moves its row up and down.
+		fireEvent.keyDown(screen.getByRole("button", { name: "Reorder Claude Code · m2" }), {
+			key: "ArrowUp",
+		});
 		await waitFor(() =>
 			expect(service.store.getState().favorites.map((model) => model.config.model)).toEqual([
 				"m2",
 				"m1",
 				"m3",
+			]),
+		);
+	});
+
+	it("drags a favourite by its grip onto another row, with no arrow buttons", async () => {
+		const { service, wrapper } = await harness([
+			favorite("a", "m1", 0),
+			favorite("b", "m2", 1),
+			favorite("c", "m3", 2),
+		]);
+		render(<FavoriteModels onPick={() => {}} editing />, { wrapper });
+		expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();
+		const grip = screen.getByRole("button", { name: "Reorder Claude Code · m3" });
+		expect(grip.getAttribute("draggable")).toBe("true");
+		// The default model's row has no grip: it stays first.
+		expect(screen.queryByRole("button", { name: "Reorder Claude Code · default" })).toBeNull();
+
+		const data = new Map<string, string>();
+		const dataTransfer = {
+			setData: (type: string, value: string) => data.set(type, value),
+			getData: (type: string) => data.get(type) ?? "",
+			get types() {
+				return [...data.keys()];
+			},
+			effectAllowed: "move",
+			dropEffect: "move",
+		};
+		fireEvent.dragStart(grip, { dataTransfer });
+		const target = screen.getByRole("button", { name: "Select Claude Code · m1" });
+		fireEvent.dragOver(target, { dataTransfer });
+		fireEvent.drop(target, { dataTransfer });
+
+		await waitFor(() =>
+			expect(service.store.getState().favorites.map((model) => model.config.model)).toEqual([
+				"m3",
+				"m1",
+				"m2",
 			]),
 		);
 	});
