@@ -16,7 +16,7 @@ import type { Repo, Session, Workspace } from "../core/model.ts";
 import type { StartedApp } from "../main.tsx";
 import type { ShellScript } from "../platform/memory.ts";
 import { type Conversation, conversation } from "./conversation.ts";
-import { type ScriptedFile, type ScriptedRepo, scriptRepo } from "./git-repo.ts";
+import type { ScriptedFile, ScriptedRepo } from "./git-repo.ts";
 import { type ScriptedPr, scriptGitHub } from "./github.ts";
 import { deliverEvents, openInteraction, setLiveState } from "./live.ts";
 import { addChat, addEvents, addRepo, addWorkspace } from "./seeds.ts";
@@ -548,7 +548,7 @@ function scriptWorkspaceCreation(world: World, rootPath: string): ShellScript {
 		if (verb === "worktree" && args[1] === "add" && args[3] === "-b") {
 			const path = args[2] ?? "";
 			world.memory.controls.addFolder(path);
-			world.scriptShell(scriptRepo(cleanRepo(path, args[4] ?? "")));
+			world.plantRepo(cleanRepo(path, args[4] ?? ""));
 			return done();
 		}
 		return null;
@@ -592,7 +592,7 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 		return null;
 	});
 	for (const repo of [cast.atlas, cast.relay]) {
-		world.scriptShell(scriptRepo(cleanRepo(repo.rootPath, repo.defaultBranch)));
+		world.plantRepo(cleanRepo(repo.rootPath, repo.defaultBranch));
 		world.scriptShell(scriptWorkspaceCreation(world, repo.rootPath));
 	}
 	for (const place of [cast.atlas.rootPath, cast.relay.rootPath])
@@ -615,30 +615,28 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 		cast.fjord,
 		cast.grove,
 	]) {
-		world.scriptShell(scriptRepo(cleanRepo(workspace.path, workspace.branch)));
+		world.plantRepo(cleanRepo(workspace.path, workspace.branch));
 	}
-	world.scriptShell(
-		scriptRepo({
-			path: cast.arbor.path,
-			branch: cast.arbor.branch,
-			target: "origin/main",
-			files: arborFiles,
-			commits: [
-				{
-					sha: "5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
-					subject: "Keep the requested page after sign-in",
-					at: (CATALOGUE_NOW - 10 * MINUTE) / 1000,
-				},
-				{
-					sha: "9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d",
-					subject: "Add safeNext with tests",
-					at: (CATALOGUE_NOW - 11 * MINUTE) / 1000,
-				},
-			],
-			upstream: { ahead: arborFiles.every((file) => file.committed) ? 0 : 1, behind: 0 },
-			behindTarget: 2,
-		}),
-	);
+	world.plantRepo({
+		path: cast.arbor.path,
+		branch: cast.arbor.branch,
+		target: "origin/main",
+		files: arborFiles,
+		commits: [
+			{
+				sha: "5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+				subject: "Keep the requested page after sign-in",
+				at: (CATALOGUE_NOW - 10 * MINUTE) / 1000,
+			},
+			{
+				sha: "9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d",
+				subject: "Add safeNext with tests",
+				at: (CATALOGUE_NOW - 11 * MINUTE) / 1000,
+			},
+		],
+		upstream: { ahead: arborFiles.every((file) => file.committed) ? 0 : 1, behind: 0 },
+		behindTarget: 2,
+	});
 	if (options.arborBroken === true) {
 		world.scriptShell((command) =>
 			command.program === "git" && command.cwd === cast.arbor.path

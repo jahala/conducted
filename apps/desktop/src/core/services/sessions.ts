@@ -18,7 +18,8 @@
  * plan to a chosen chat or a new one, copying a chat's concise or full transcript, searching
  * stored message text for the command palette, listing the plans an agent proposed in a workspace,
  * and reading a chat's transcript or one plan for an attachment. A stored user message moves the
- * chat's `lastUserMessageAt` forward in memory too, as the ingest does on the row.
+ * chat's `lastUserMessageAt` forward in memory too, as the ingest does on the row, and moves its
+ * workspace's recent activity forward through the workspace service.
  * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
  * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
  * 3.2, sessions-and-chats.md "What happens when
@@ -372,6 +373,12 @@ export interface SessionsServiceDeps {
 	) => Promise<Result<number>>;
 	/** Runs after a chat's first message is accepted. WS-04 uses it to rename the branch. */
 	onFirstMessage?: (session: Session, text: string) => Promise<void>;
+	/**
+	 * Moves the chat's workspace's recent activity forward when a user message is stored
+	 * (services-map.md 2.3.1). The composition root passes the workspace service, so the database
+	 * row and its loaded copy move together.
+	 */
+	touchWorkspaceActivity?: (workspaceId: WorkspaceId, at: number) => Promise<Result<void>>;
 	/** Reports work that runs beside the send, such as the first-message branch rename. */
 	log?: (level: "warn" | "info", message: string) => void;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
@@ -1813,6 +1820,36 @@ export class SessionsService implements AgentMessenger {
 		if (closedInteractionId !== null) {
 			this.#settleInteraction(closedInteractionId, { kind: "withdrawn" });
 		}
+		if (event.type === "user_message") this.#touchWorkspaceActivity(sessionId, event.at);
+	}
+
+	/**
+	 * Moves the chat's workspace's recent activity, as Conductor's sessions-store watch does
+	 * (main bundle @1054147). The workspace service owns the database row and the loaded copy; a
+	 * failure or rejection is logged, so a missing activity update never breaks the chat.
+	 */
+	#touchWorkspaceActivity(sessionId: SessionId, at: number): void {
+		const touch = this.#deps.touchWorkspaceActivity;
+		if (touch === undefined) return;
+		const session = this.store.getState().sessions[sessionId];
+		if (session === undefined) return;
+		fireAndForget(
+			async () => {
+				const touched = await touch(session.workspaceId, at);
+				if (!touched.ok) {
+					this.#deps.log?.(
+						"warn",
+						`Could not move the workspace's recent activity: ${touched.error.message}`,
+					);
+				}
+			},
+			(error) => {
+				this.#deps.log?.(
+					"warn",
+					`Could not move the workspace's recent activity: ${String(error)}`,
+				);
+			},
+		);
 	}
 
 	/**

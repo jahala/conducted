@@ -8,10 +8,15 @@
  * - Everything else comes from the mapping (`ReferenceMapping`): a table of command handlers and a table
  *   of sidecar-method handlers. The mapping is drawn from the reference app's code, so it lives in the
  *   git-ignored `.context/` folder and is loaded by path.
+ * - Handlers get general tools through their context (`tools`): a shell reader for the shell strings a
+ *   frontend hands its native side (shell-reader.ts), and GitHub's answer rules for `gh` calls
+ *   (github-answers.ts). The mapping is loaded by path, so it takes them from the context, not by import.
  * - A call no handler answers is logged with its name, how often it came and its first arguments, and
  *   is answered with an error. A handler that throws is answered with its message. Nothing is answered
  *   with a value no handler gave.
  */
+import { ghVariables, jq, jqOutput, parseDocument, prune } from "./github-answers.ts";
+import { runShellString, tokenize } from "./shell-reader.ts";
 import { type Answer, openSqlPlugin } from "./sql-plugin.ts";
 import type { SqlJsStatic } from "./sqljs-types.ts";
 
@@ -20,8 +25,17 @@ export type Push =
 	| { kind: "event"; event: string; payload: unknown }
 	| { kind: "channel"; channel: number; message: unknown };
 
+/** The general tools every handler gets in its context. */
+export const REFERENCE_TOOLS = {
+	runShellString,
+	tokenize,
+	github: { parseDocument, prune, ghVariables, jq, jqOutput },
+};
+export type ReferenceTools = typeof REFERENCE_TOOLS;
+
 export interface SessionContext<State = unknown> {
 	state: State;
+	tools: ReferenceTools;
 	/** Sends an event to the page, as Rust's `emit` does. */
 	emit(event: string, payload: unknown): void;
 	/**
@@ -78,7 +92,11 @@ export interface ReferenceMapping<State = unknown> {
  * an error, the same as a call with no handler.
  */
 export class Declined extends Error {
-	constructor(readonly detail: string) {
+	/** `error`: what the page gets instead of the message, such as the live host's refusal. */
+	constructor(
+		readonly detail: string,
+		readonly error?: unknown,
+	) {
 		super(`The reference has no answer for ${detail}.`);
 	}
 }
@@ -147,6 +165,7 @@ export function openSession<State>(options: {
 	};
 	const context: SessionContext<State> = {
 		state,
+		tools: REFERENCE_TOOLS,
 		emit: (event, payload) => push({ kind: "event", event, payload }),
 		send: (channel, message) => {
 			const index = channelIndex.get(channel) ?? 0;

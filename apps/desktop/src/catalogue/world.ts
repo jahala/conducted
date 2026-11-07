@@ -1,8 +1,9 @@
 /**
  * @feature catalogue The outside world one catalogue state runs in
  * Owns: building the in-memory Platform over a real SQLite with a fixed clock and counting ids, the
- * repositories the seeds write through, the scripted shell answers, and the scripted sidecar that
- * answers the app's requests and delivers the lines a state needs.
+ * repositories the seeds write through, the scripted shell answers (with the git repositories they
+ * describe), and the scripted sidecar that answers the app's requests and delivers the lines a state
+ * needs.
  * Behaviour: not applicable, a development tool. The memory Platform's controls (platform/memory.ts) are
  * the same ones the tests script; nothing here changes what the app does with an answer.
  * Our design choice: a request nobody scripted gets a JSON-RPC error that names the method, and a shell
@@ -26,6 +27,7 @@ import { createRepositories, type Repositories } from "../core/db/repositories.t
 import { createMemoryPlatform, type MemoryPlatform, type ShellScript } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
 import { createTestIds } from "../test/ids.ts";
+import { type ScriptedRepo, scriptRepo } from "./git-repo.ts";
 import { CATALOGUE_NOW } from "./time.ts";
 
 /** The home folder of the catalogue's made-up Mac user. */
@@ -54,6 +56,13 @@ export interface World {
 	repositories: Repositories;
 	/** Adds shell answers. A later script is tried first. */
 	scriptShell(script: ShellScript): void;
+	/**
+	 * Scripts git for one folder from its description (git-repo.ts) and keeps the description, so a
+	 * tool can build the same repository on a real disk (scripts/conductor-reference/world-disk.ts).
+	 */
+	plantRepo(repo: ScriptedRepo): void;
+	/** Every repository planted so far, in order. */
+	readonly repos: readonly ScriptedRepo[];
 	/** Adds sidecar answers. A later answer is tried first. */
 	answerSidecar(answers: SidecarAnswers): void;
 	/** Leaves every request for `method` unanswered, as a sidecar still working on it would. */
@@ -243,12 +252,18 @@ export function createWorld(database: Database): World {
 		return sent;
 	};
 
+	const repos: ScriptedRepo[] = [];
 	return {
 		clock,
 		ids,
 		memory,
 		repositories,
 		scriptShell: (script) => memory.controls.scriptShell(script),
+		plantRepo: (repo) => {
+			repos.push(repo);
+			memory.controls.scriptShell(scriptRepo(repo));
+		},
+		repos,
 		answerSidecar: (answer) => answers.push(answer),
 		holdSidecar: (method) => held.set(method, "hold"),
 		failSidecar: (method) => held.set(method, "fail"),

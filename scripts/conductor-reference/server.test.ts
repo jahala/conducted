@@ -26,7 +26,11 @@ const mapping: ReferenceMapping<SeededState> = {
 		webviewLabel: "main",
 		globals: { __TEST_OS__: { platform: "macos" } },
 	}),
-	commands: { get_home: () => "/Users/sam" },
+	commands: {
+		get_home: () => "/Users/sam",
+		// Tauri sends a byte body with its options in headers, as the fs plugin's writes do.
+		write: (args) => args,
+	},
 	tunnel: { command: "rpc_send", lineArg: "line", replyEvent: "rpc_reply" },
 	sidecar: { ping: () => "pong" },
 };
@@ -121,6 +125,16 @@ describe("the reference server", () => {
 		});
 		expect(rows).toEqual([{ name: "atlas" }, { name: "relay" }]);
 		expect(await internals.invoke("get_home")).toBe("/Users/sam");
+		const invokeWith = internals.invoke as (
+			command: string,
+			args: unknown,
+			options: { headers: Record<string, string> },
+		) => Promise<unknown>;
+		expect(
+			await invokeWith("write", new TextEncoder().encode("hi"), {
+				headers: { path: "%2Ftmp%2Fa" },
+			}),
+		).toEqual({ payload: [104, 105], headers: { path: "%2Ftmp%2Fa" } });
 		await expect(internals.invoke("open_window", { label: "x" })).rejects.toBe(
 			"The reference backend does not answer open_window.",
 		);
@@ -137,8 +151,8 @@ describe("the reference server", () => {
 			payload: { line: JSON.stringify({ jsonrpc: "2.0", id: 9, result: "pong" }) },
 		});
 
-		// Four calls went to the backend (listen stays in the page), and none is still waiting.
-		expect(host.__REFERENCE_ACTIVITY__).toEqual({ calls: 4, pending: 0 });
+		// Five calls went to the backend (listen stays in the page), and none is still waiting.
+		expect(host.__REFERENCE_ACTIVITY__).toEqual({ calls: 5, pending: 0 });
 
 		const log = (await (await get("/__reference/log")).json()) as Record<
 			string,

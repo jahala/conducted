@@ -70,6 +70,16 @@ Rules every test follows:
 - **A guard proves it can fail.** A check that reads source text includes a sample it must flag.
 - **Five guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, real time or leaked state, and tests that cannot pass. A test cannot pass when a Testing Library query looks for text with whitespace at an end or doubled (the library trims and collapses the page's text first), or when a `vi.mock` factory leaves out a name that a module the test reaches imports (Vitest throws when that code runs; start the factory from `importOriginal()` or use `createTestContainer`). Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
 
+## CI
+
+Every workflow runs on GitHub-hosted runners. A push costs this Mac nothing, and no job runs on the owner's Mac. Every job has `timeout-minutes`, so a hung runner stops at a known time rather than GitHub's six-hour default (`pnpm guards` checks this). A newer push cancels the older run of the same pull request; a push to main never cancels the run of the commit before it.
+
+- `ci.yml` runs the fast checks on every ready pull request and on each push to main.
+- `codeql.yml` scans the TypeScript and the Rust with CodeQL on ready pull requests to main, on pushes to main, and weekly. Rust is scanned in build mode `none`, so the scan needs no build and no macOS runner. Results appear under Security > Code scanning; the workflow asks only for `security-events: write`.
+- `coverage.yml`, `parity.yml`, `catalogue-shots.yml` and `dependency-review.yml` run the measurements, the parity harness, the screenshots and the dependency review described in [States catalogue](#states-catalogue).
+
+`main` takes changes only through pull requests whose `typescript` and `rust` checks pass (the path-filtered `harness` job is not required, since a required check that never runs would hold a pull request forever). `pnpm repo-rules` reads `main`'s branch protection with `gh api` and fails, naming each missing part: the pull request requirement, or one of the required checks. The rule is data in `scripts/repo-rules.ts`; the comparison is a pure function tested in `scripts/repo-rules.test.ts`. `pnpm repo-rules --apply` prints the settings it will write, then sets exactly those rules with `gh api -X PUT`; it needs a `gh` login with repository admin.
+
 ## States catalogue
 
 The catalogue draws the real app in a browser, one screen state at a time, with no Tauri, no real repository, no agent and no network. It runs the real entry (`startApp`) on the in-memory Platform over a real SQLite (sql.js), with a fixed clock and counting ids, so a state looks the same on every run.
@@ -83,13 +93,14 @@ The catalogue draws the real app in a browser, one screen state at a time, with 
 
 ### Conductor's frontend on the same states (the reference run)
 
-The owner's ruling: Conductor's own frontend runs on this Mac only, from the git-ignored `.context/` folder, with the network cut off, and is never committed, pushed or shipped. It shows each catalogue state as Conductor draws it, for a side-by-side parity check. Stage 1 answers its native calls from our catalogue's sample data; stage 2 will answer them from our real sidecar and Tauri commands.
+The owner's ruling: Conductor's own frontend runs on this Mac only, from the git-ignored `.context/` folder, with the network cut off, and is never committed, pushed or shipped. It shows each catalogue state as Conductor draws it, for a side-by-side parity check. Stage 1 answers its native calls from our catalogue's sample data; stage 2 answers them from our real Rust shell and sidecar (D099).
 
 - Our tools live in `scripts/conductor-reference/`. The bundle, the call inventory and the sample-data mapping are drawn from Conductor's code, so they stay in the main checkout's `.context/day/` (`scripts/conductor-reference/paths.ts` finds it from any worktree).
 - `inventory.ts <bundle> <out.json>` lists every native call the frontend makes: Tauri commands, plugin commands, sidecar methods, events and SQL, with argument keys, the fields read from the answer and the bundle offset of each site.
-- `server.ts` serves the bundle on 127.0.0.1 with `standin.ts` injected before its first module. The stand-in is `window.__TAURI_INTERNALS__`; `backend.ts` answers through the SQL plugin over sql.js, the event plugin, the sidecar tunnel and the mapping's handlers. A call nobody answers is logged and answered with an error, never a made-up value.
+- `server.ts` serves the bundle on 127.0.0.1 with `standin.ts` injected before its first module. The stand-in is `window.__TAURI_INTERNALS__`; `backend.ts` answers through the SQL plugin over sql.js, the event plugin, the sidecar tunnel and the mapping's handlers. A call nobody answers is logged and answered with an error, never a made-up value. Handlers get two general tools through their context: `shell-reader.ts` reads the shell strings a frontend hands its native side (quotes, variables, `&&`, `||`, `if`, groups, redirections and the common built-ins) and runs each program against the sample world, with no answer for anything it cannot read exactly; `github-answers.ts` cuts a scripted GitHub GraphQL answer to the fields a query selects and applies `gh --jq` paths. A byte body (the fs plugin's writes) reaches a handler as `{ payload, headers }`.
 - `check.ts` needs no browser: it seeds every state (through `apps/desktop/src/catalogue/seeded.ts`), builds the mapped databases, prepares the frontend's own SQL on them and counts the calls the stand-in answers.
-- `run.ts [state-id ...]` is the browser run: one picture per state at 1440 by 900 in dark mode, into `.context/shots/conductor-run/`, with `index.json` and `unanswered.json`. Every request to another origin is refused and listed. It is a browser run, so on the owner's Mac it waits for 08:00.
+- `run.ts [state-id ...]` is the browser run: one picture per state at 1440 by 900 in dark mode, taken once the page has been quiet for about a second, into `.context/shots/conductor-run/`, with `index.json` and `unanswered.json`. Every request to another origin is refused and listed. It is a browser run, so on the owner's Mac it waits for 08:00.
+- `live.ts [state-id ...] [--fronts conductor,ours]` is stage 2, a browser run (D099). Per state and front it seeds the state, moves its sample Mac under a fresh sealed scratch folder (`sidecar-diff/seal.ts`), builds its repositories with real git (`world-disk.ts`), and starts our app's debug build with the config override in `live-config.ts`: its hidden window opens the bridge page (`bridge.ts`) of the live server (`live-server.ts`) on `http://localhost:1420`, which must be free. The seeded rows go into the app's own database through its SQL plugin. Conductor's frontend, or our own built UI, then runs in Chromium; `translator.ts` sends each call to our real commands, plugins, events and sidecar through the bridge, by the name-by-name mapping in `.context/day/conductor-ref/live-mapping.ts` (or unchanged, for our UI). It writes `.context/shots/conductor-live/` (`<state>-dark.png`, `ours/<state>-dark.png`, `index.json`, `live.json` with every call and its outcome) and stops the app and its sidecar by their process ids.
 - `sidecar-diff/diff.ts [scenario-id ...]` runs Conductor's sidecar (from the installed app, in place) and ours side by side on the same scenario calls and the same fake `claude` and `codex` programs, one at a time, each under `sandbox-exec` with a throwaway home, no network beyond loopback and no writes under the owner's home. Raw output and the in-order comparison go to `.context/day/conductor-ref/sidecar-diff/`; the findings of the first run are in `docs/reports/sidecar-diff-2026-11-07.md`.
 - `pnpm guards` fails when the repository holds a file named like a bundle chunk, a copy of a bundle code file, or any of the stretches of Conductor's code listed by hash in `scripts/guards/conductor-fingerprints.json` (`scripts/guards/conductor-code.ts`). `fingerprints.ts` rewrites that list from the bundle.
 
@@ -98,6 +109,18 @@ The owner's ruling: Conductor's own frontend runs on this Mac only, from the git
 `pnpm test` runs through `scripts/with-run-dir.ts`. It gives the run its own folder (`$TMPDIR/conducted-runs/<run id>`, recorded with the run's process id), points `TMPDIR` at it, and removes it when the run ends. When the run ends it fails if anything is left. The next run removes folders whose recorded process is gone.
 
 Tests that create git repos, sidecar sockets or temporary files create them under `TMPDIR`, and stop every process they start by the process id they recorded.
+
+## Releases
+
+A release has two homes. On the Mac, `pnpm release X.Y.Z --go` checks that main's CI passed for the commit, bumps every version file, writes the notes into `CHANGELOG.md`, commits and tags `vX.Y.Z`, and prints the push command. It does not build.
+
+Pushing the tag runs `.github/workflows/release.yml` on a GitHub-hosted macOS runner. The workflow checks the tag against every version file, imports the Developer ID certificate into a temporary keychain it always deletes, builds, signs, notarises and staples the app, makes the update archive, its `.sig` and `latest.json`, attests every file with `actions/attest-build-provenance`, and creates the GitHub release with the body cut from that version's `CHANGELOG.md` section. A tag with a suffix after the patch number, such as `v0.2.2-rc.1`, makes a pre-release: the dry run.
+
+The steps live in `scripts/release-ci.ts`, `scripts/release/` and `apps/desktop/src-tauri/release/bundle.ts`. Credentials reach them from one edge: the keychain on the Mac, environment variables from repository secrets in CI. A missing credential names itself and stops the run, so CI never publishes a signed build that was not notarised. The secrets are named in `.github/workflows/release.yml`; set their values by piping, never on a command line.
+
+Anyone can check that a published file came from this repository's code:
+
+    gh attestation verify <file> --repo jahala/conducted
 
 ## Commits and pull requests
 

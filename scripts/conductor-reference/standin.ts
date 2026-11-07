@@ -4,8 +4,10 @@
  * module, so it is in place before any of the frontend's code runs.
  *
  * - `invoke` posts every call to the reference backend on the same origin and resolves or rejects with
- *   its answer. The event plugin's `listen` and `unlisten` are kept here, since the callbacks live in
- *   the page.
+ *   its answer. A byte body goes as `{ payload, headers }` marked `bytes`, since JSON has no bytes.
+ *   The event plugin's `listen` and `unlisten` are kept here, since the callbacks live in the page;
+ *   each `listen` is also reported to the backend (`/listen`), so the live run can say which events
+ *   the page waits for.
  * - `transformCallback` and `unregisterCallback` keep callbacks by number, as Tauri does; events and
  *   channel messages from the backend arrive on one streamed response and are handed to them.
  * - `metadata` names the current window and webview, and the boot data can add the other globals a
@@ -61,14 +63,14 @@ export function installStandin(host: Host, boot: StandinBoot): void {
 
 	const headers = { "content-type": "application/json", "x-reference-session": boot.session };
 	const activity = { calls: 0, pending: 0 };
-	const post = async (command: string, args: unknown): Promise<unknown> => {
+	const post = async (command: string, args: unknown, bytes: boolean): Promise<unknown> => {
 		activity.calls += 1;
 		activity.pending += 1;
 		try {
 			const response = await host.fetch(`${boot.base}/invoke`, {
 				method: "POST",
 				headers,
-				body: JSON.stringify({ command, args: args ?? {} }),
+				body: JSON.stringify({ command, args: args ?? {}, ...(bytes ? { bytes } : {}) }),
 			});
 			const answer = (await response.json()) as { ok: boolean; value?: unknown; error?: unknown };
 			if (answer.ok) return answer.value;
@@ -78,17 +80,48 @@ export function installStandin(host: Host, boot: StandinBoot): void {
 		}
 	};
 
-	const invoke = async (command: string, args?: Record<string, unknown>): Promise<unknown> => {
+	/**
+	 * A byte body (a typed array or an ArrayBuffer), as Tauri's fs plugin sends file contents, goes as
+	 * `{ payload: number[], headers }`: the call's options travel in its headers.
+	 */
+	const asArgs = (args: unknown, options?: { headers?: unknown }): unknown => {
+		const bytes =
+			args instanceof ArrayBuffer
+				? new Uint8Array(args)
+				: ArrayBuffer.isView(args)
+					? new Uint8Array(args.buffer, args.byteOffset, args.byteLength)
+					: null;
+		if (bytes === null) return args;
+		const headers =
+			options?.headers instanceof Headers
+				? Object.fromEntries(options.headers.entries())
+				: ((options?.headers as Record<string, string> | undefined) ?? {});
+		return { payload: Array.from(bytes), headers };
+	};
+
+	const invoke = async (
+		command: string,
+		args?: Record<string, unknown>,
+		options?: { headers?: unknown },
+	): Promise<unknown> => {
 		if (command === "plugin:event|listen") {
 			const eventId = nextId++;
 			listeners.set(eventId, { event: String(args?.event), handler: Number(args?.handler) });
+			host
+				.fetch(`${boot.base}/listen`, {
+					method: "POST",
+					headers,
+					body: JSON.stringify({ event: String(args?.event) }),
+				})
+				.catch((cause: unknown) => host.console.error("[reference] listen not reported:", cause));
 			return eventId;
 		}
 		if (command === "plugin:event|unlisten") {
 			listeners.delete(Number(args?.eventId));
 			return null;
 		}
-		return await post(command, args);
+		const sent = asArgs(args, options);
+		return await post(command, sent, sent !== args);
 	};
 
 	const deliver = (push: Push): void => {

@@ -26,7 +26,8 @@
  * created removes the origin gh added before the old origin is put back; the default branch comes
  * from the remote's
  * HEAD, else the checked-out branch, and the add fails visibly when neither exists; removing a
- * project asks its removal port to stop work and delete its workspaces before deleting the row;
+ * project removes its own environment variables and their Keychain entries (SET-04), then asks
+ * its removal port to stop work and delete its workspaces before deleting the row;
  * an invalid settings file is reported instead of replaced; a config edit made outside the app is
  * read again when the window regains focus; only the newest load may change the store, and a
  * read that ends after its project was removed changes nothing; the file commands reach a folder
@@ -292,7 +293,10 @@ export interface RepoServiceDeps {
 	};
 	git: GitRunner;
 	repos: Pick<Repositories, "repos" | "settings">;
-	settings: Pick<SettingsService, "readSettingsFile" | "updateSettingsFile">;
+	settings: Pick<
+		SettingsService,
+		"readSettingsFile" | "updateSettingsFile" | "removeEnvVarsForRepo"
+	>;
 	removal: RepoRemovalPort;
 	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
 	ids: Pick<IdSource, "uuid">;
@@ -888,6 +892,9 @@ export class RepoService {
 			return err(appError("repo_unknown", "That project no longer exists."));
 		}
 
+		// Its variables' secrets go with them before the row that cascades their names (SET-04).
+		const secrets = await this.#deps.settings.removeEnvVarsForRepo(repoId);
+		if (!secrets.ok) return secrets;
 		const workspaces = await this.#deps.removal.removeWorkspacesOf(repoId);
 		if (!workspaces.ok) return workspaces;
 		const deleted = await this.#deps.repos.repos.delete(repoId);

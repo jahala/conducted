@@ -63,7 +63,7 @@ The first item in file order wins (`ui.tsv`, then `system.tsv`). An owner a pers
 
 ## 3. The checks
 
-Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.json>]` runs a, b, c and e (`--no-dump` runs a and e only) and writes `report.json` and `report.md`; the flows are their own command.
+Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.json>] [--live <live.json>]` runs a, b, c and e (`--no-dump` runs a and e only) and writes `report.json` and `report.md`; the flows are their own command.
 
 | Check                | Compares                                                                                                                                                                                                                                                                                                                                                                                                         | Fails on                                                                                                                            |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -88,7 +88,11 @@ Our design choice: check b matches by name per state, not by selector. The selec
 
 ### Stage 2
 
-Stage 2 runs Conductor's own frontend on our backend. When it exists, its log of calls answered and refused plugs into check e as one more input (`--live <log>`): a name Conductor's frontend called that our backend refused is a gap even when the lists match. Until then check e compares the lists only.
+Stage 2 runs Conductor's own frontend on our real backend (D099, `scripts/conductor-reference/live.ts`). Its log, `.context/shots/conductor-live/live.json`, lists every name Conductor's frontend called and what answered: our backend (`answered`), our backend with an error (`failed`), nobody (`refused`), a decision that leaves the feature out (`decided`), or the translator alone (`translator`). `--live <live.json>` adds it to check e:
+
+- A name our backend refused is a gap (`backend-live-refused`) even when the lists match, and so is a name the translator answered without our backend (`backend-live-translator`).
+- A decision the decision logs lack is broken (`live-unknown-decision`), and so is a name the spec does not list (`live-unlisted`): the spec is behind the frontend.
+- A missing log is broken (`live-missing`). The log stays on this Mac, so CI runs check e on the lists only.
 
 ## 4. The instrument check
 
@@ -123,9 +127,11 @@ First runs on #347, 7 November 2026. The full gap list is `docs/reports/parity-g
 - Step 5's second pass (#366), from run 42333992371's dump of 3871650d, with the spec rebuilt (3,821 entries): 1,018 matched, 847 decided, 770 unshown, 6 wording, 1,180 feature gaps; 68 catalogue states; 507 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
 - Step 5's third pass (#372), from run 42347440362's dump of 6816ddba: 1,073 matched, 865 decided, 718 unshown, 0 wording, 1,165 feature gaps. Of the 1,883 gaps, 709 are owned by a backlog row and its item, 298 by a row only, and 876 have no owner (section 2, "Owning a gap"). 81 catalogue states; 536 distinct strings of ours unaccounted for; all 7 drivable flows pass; the instrument check passed.
 
+- Stage 2's first live run (D099), 7 November 2026, at 376cd755: Conductor's frontend drew 78 of the 81 catalogue states on our real backend (the other three have no Conductor screen), and our own UI drew all 81 on the same backend and data. Conductor called 93 names; one name can have calls with several outcomes. Our backend answered calls of 60 names, a decision answered 12 (D025: its account, its logging, crash reporting and analytics, and two Help menu items), the translator alone answered 8 (its app identity, its database's name, three native settings with no counterpart of ours, `is_cef_runtime`), and 11 had calls refused, most often our keychain (1,351 calls, which the run never lets through), HTTP to Conductor's own servers (618), the phone relay (312), file watching (175), remote-workspace sync and port-forward events (78 each), its model catalog (78) and `fs|rename` (45). Check e with `--live` adds 19 gaps (11 refused, 8 translator) and nothing broken. The pairs and every difference found are in `.context/shots/conductor-live/` (`differences.md`); the run also found that our Rust `fs_read_text` answers a missing file with code `io` where our UI expects `fs_not_found`.
+
 Not checked yet:
 
-- Stage 2's live log (section 3).
+- Stage 2's after-steps: states that differ only by an after-step (a menu, a typed draft, a running turn) show their base screen in the live run, as in stage 1.
 - The three add-project paths: the catalogue's scripted git does not answer `rev-parse --show-toplevel` for a new folder, and no state queues a folder-dialog answer or scripts `gh` and clone.
 - Layout beyond the 13 elements in `layout.json`; colours and motion.
 - Backend renames: a Conductor name whose counterpart of ours has another name is a gap until someone maps the two.
