@@ -80,7 +80,8 @@ export interface RepoConfig {
 	archiveScript: string | null;
 	/** Files copied from the main clone into each new worktree, e.g. ".env". */
 	copyFiles: string[];
-	previewUrlTemplate: string | null;
+	/** The ordered preview URL templates (RUN-03). The first is the terminal panel's Open URL. */
+	previewUrls: string[];
 	spotlightTesting: boolean;
 	/** Start the repository's default run action once the setup script has finished. */
 	autoRunAfterSetup: boolean;
