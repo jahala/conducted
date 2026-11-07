@@ -1,6 +1,7 @@
 name: Release
 
-# Builds, signs, notarises and publishes the app when a version tag is pushed (PLAT-37).
+# Builds, signs, notarises and publishes the app when a version tag is pushed (PLAT-37), then
+# updates the Homebrew cask from the published disk image (PLAT-42).
 # A tag whose version has a suffix, such as v0.2.2-rc.1, makes a pre-release: the dry run.
 # The steps live in scripts/release-ci.ts and scripts/release/, which tests cover; this file
 # only supplies the runner, the credentials and the order.
@@ -113,15 +114,50 @@ jobs:
           "${{ steps.build.outputs.signature }}"
           "${{ steps.build.outputs.feed }}"
           --notes-file "$RUNNER_TEMP/release-notes.md"
-      # Always: the certificate and the App Store Connect key must not survive the run.
-      - name: Delete the temporary keychain and the App Store Connect key
+      # `brew install --cask jahala/tap/conducted` follows the newest stable release (PLAT-42).
+      # A pre-release is the dry run, so it does not move the cask. The deploy key may write to
+      # jahala/homebrew-tap only; the always-running cleanup step removes it from the runner.
+      - name: Update the Homebrew cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          case "$GITHUB_REF_NAME" in
+            *-*)
+              echo "$GITHUB_REF_NAME is a pre-release; the cask follows only stable releases."
+              exit 0
+              ;;
+          esac
+          KEY="$RUNNER_TEMP/homebrew-tap-deploy-key"
+          TAP="$RUNNER_TEMP/homebrew-tap"
+          HOSTS="$RUNNER_TEMP/github-known-hosts"
+          printf '%s' "$HOMEBREW_TAP_DEPLOY_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          # GitHub's host keys come from its API over HTTPS, so ssh checks it is talking to GitHub.
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$HOSTS"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOSTS"
+          git clone --depth 1 git@github.com:jahala/homebrew-tap.git "$TAP"
+          mkdir -p "$TAP/Casks"
+          bun scripts/release/cask.ts "${GITHUB_REF_NAME#v}" "${{ steps.build.outputs.dmg }}" > "$TAP/Casks/conducted.rb"
+          git -C "$TAP" config user.name "github-actions[bot]"
+          git -C "$TAP" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$TAP" add Casks/conducted.rb
+          if git -C "$TAP" diff --cached --quiet; then
+            echo "The cask already matches $GITHUB_REF_NAME."
+            exit 0
+          fi
+          git -C "$TAP" commit -m "conducted $GITHUB_REF_NAME"
+          git -C "$TAP" push origin HEAD:main
+      # Always: the certificate, the App Store Connect key and the tap deploy key must not survive
+      # the run.
+      - name: Delete the temporary keychain, the App Store Connect key and the deploy key
         if: always()
         run: |
           KEYCHAIN_PATH="$RUNNER_TEMP/conducted-release.keychain-db"
           if [ -f "$KEYCHAIN_PATH" ]; then
             security delete-keychain "$KEYCHAIN_PATH"
           fi
-          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/apple-api-key.p8"
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/apple-api-key.p8" "$RUNNER_TEMP/homebrew-tap-deploy-key"
 
   # The product page's Download button and Changelog follow the new release (issue #356). Its own
   # job, so only this step's token may start a workflow, and the build's steps never can.
