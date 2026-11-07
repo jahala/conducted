@@ -14,7 +14,9 @@
  * manual order. A row dragged within a main group saves its new order in the `sidebar_manual_order`
  * setting. The row's right-click actions menu comes from NAV-10.
  * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; a group
- * with no workspaces is hidden; a collapsed group shows its count; a project filter that matches
+ * with no workspaces is hidden; a main group starts closed unless it holds the open workspace, and
+ * the user's toggle then wins, as in Conductor (renderApp's sidebar groups); a collapsed group shows
+ * its count; a project filter that matches
  * nothing shows a short empty note with a way to clear it; archived workspaces are never listed;
  * the selected workspace stays visible after a re-sort; Cmd+1..9 and Cmd+Alt+ArrowUp/Down move
  * through the visible order, wrapping at the ends; a right click on the list offers "New section...".
@@ -27,7 +29,7 @@
 
 import type { Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
@@ -309,18 +311,17 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 		(group) => group.key.kind === "status" || group.key.kind === "project",
 	);
 
-	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+	// The user's own open or closed choice per main group. A group the user has not toggled starts
+	// closed unless it holds the open workspace, as in Conductor (renderApp's sidebar groups).
+	const [chosen, setChosen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+	const isCollapsed = useCallback(
+		(group: SidebarGroup): boolean =>
+			chosen.get(groupKey(group)) ??
+			!(selectedId !== null && group.workspaceIds.includes(selectedId)),
+		[chosen, selectedId],
+	);
 	const setGroupOpen = (key: string, open: boolean) => {
-		setCollapsed((previous) => {
-			if (open) {
-				if (!previous.has(key)) return previous;
-				const next = new Set(previous);
-				next.delete(key);
-				return next;
-			}
-			if (previous.has(key)) return previous;
-			return new Set(previous).add(key);
-		});
+		setChosen((previous) => new Map(previous).set(key, !open));
 	};
 
 	const ordered = useMemo(() => {
@@ -331,13 +332,11 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 				const section = sections.find((candidate) => candidate.id === sectionId);
 				return section !== undefined && !section.collapsed;
 			}
-			if (key.kind === "status" || key.kind === "project") {
-				return !collapsed.has(groupKey(group));
-			}
+			if (key.kind === "status" || key.kind === "project") return !isCollapsed(group);
 			return true;
 		});
 		return orderedWorkspaceIds(visible);
-	}, [groups, sections, collapsed]);
+	}, [groups, sections, isCollapsed]);
 
 	const shortcutIndexes = useMemo(() => {
 		const result = new Map<WorkspaceId, number>();
@@ -465,7 +464,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 								selectedId={selectedId}
 								shortcutIndexes={shortcutIndexes}
 								manualOrder={view.manualOrder}
-								open={!collapsed.has(key)}
+								open={!isCollapsed(group)}
 								onOpenChange={(open) => setGroupOpen(key, open)}
 								onReorder={saveOrder(key)}
 							/>

@@ -1,6 +1,14 @@
 import type { ModelInfo } from "@conducted/protocol";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	Outlet,
+	RouterProvider,
+} from "@tanstack/react-router";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { DefaultModelsPage } from "./DefaultModelsPage.tsx";
@@ -9,6 +17,7 @@ let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
 });
@@ -32,43 +41,151 @@ const model = (
 	contextWindowTokens: 200_000,
 });
 
-describe("SET-02 DefaultModelsPage", () => {
-	it("disables fast mode when the chosen model does not support it", async () => {
-		test = createTestContainer();
-		await test.container.services.settings.start();
-		test.container.services.agentCatalog.store.setState((state) => ({
-			...state,
-			installs: {
+/** The page over the real container, inside a router for the Configure links. */
+async function renderPage() {
+	test = createTestContainer();
+	const container = test.container;
+	await container.services.settings.start();
+	await container.services.favoriteModels.start();
+	container.services.agentCatalog.store.setState((state) => ({
+		...state,
+		installs: {
+			state: "ready",
+			data: [
+				{ agent: "claude", installed: true, authenticated: true },
+				{ agent: "codex", installed: true, authenticated: true },
+				{ agent: "cursor", installed: false },
+				{ agent: "acp", acpAgent: "opencode", installed: false },
+				{ agent: "acp", acpAgent: "pi", installed: false },
+			],
+		},
+		models: {
+			claude: {
 				state: "ready",
-				data: [{ agent: "claude", installed: true, authenticated: true }],
+				data: [
+					model("fast-model", "Fast model", true, true),
+					model("slow-model", "Slow model", false),
+				],
 			},
-			models: {
-				claude: {
-					state: "ready",
-					data: [
-						model("fast-model", "Fast model", true, true),
-						model("slow-model", "Slow model", false),
-					],
-				},
-			},
-		}));
-		render(
-			<ServicesProvider container={test.container}>
-				<DefaultModelsPage />
-			</ServicesProvider>,
+			codex: { state: "ready", data: [model("gpt", "GPT", false, true)] },
+		},
+	}));
+	await container.actions.settings.set("default_model", "fast-model");
+	const rootRoute = createRootRoute({ component: () => <Outlet /> });
+	const page = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/settings/$page",
+		component: () => <DefaultModelsPage />,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([page]),
+		history: createMemoryHistory({ initialEntries: ["/settings/models"] }),
+	});
+	render(
+		<ServicesProvider container={container}>
+			<RouterProvider router={router} />
+		</ServicesProvider>,
+	);
+	await act(() => router.load());
+	return { container, router };
+}
+
+const slot = (number: number) => screen.getByRole("listitem", { name: `Slot ${number}` });
+
+describe("SET-02 DefaultModelsPage", () => {
+	it("draws Conductor's Loadout: five slots, the first the DEFAULT model, then the next and empty ones", async () => {
+		await renderPage();
+		expect(screen.getByRole("heading", { name: "Loadout" })).toBeTruthy();
+		expect(screen.getByText("Choose which models you want to use")).toBeTruthy();
+		expect(within(slot(1)).getByText("DEFAULT")).toBeTruthy();
+		expect(within(slot(1)).getByText("Fast model")).toBeTruthy();
+		expect(within(slot(2)).getByText("DROP MODEL HERE")).toBeTruthy();
+		expect(within(slot(2)).getByText("2")).toBeTruthy();
+		for (const number of [3, 4, 5]) expect(within(slot(number)).getByText("EMPTY")).toBeTruthy();
+	});
+
+	it("lists each agent's models in its own column, and Configure for an agent not set up", async () => {
+		const { router } = await renderPage();
+		const claude = screen.getByRole("region", { name: "Claude Code" });
+		expect(within(claude).getByRole("button", { name: "Add Slow model to loadout" })).toBeTruthy();
+		// The default model is in the loadout, so its row is checked.
+		expect(within(claude).getByText("In the loadout")).toBeTruthy();
+		const cursor = screen.getByRole("region", { name: "Cursor" });
+		fireEvent.click(within(cursor).getByRole("button", { name: "Configure Cursor" }));
+		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/agents"));
+	});
+
+	it("puts a model into the next empty slot with Enter, and replaces it by a drop", async () => {
+		const { container } = await renderPage();
+		const codex = screen.getByRole("region", { name: "Codex" });
+		fireEvent.click(within(codex).getByRole("button", { name: "Add GPT to loadout" }));
+		await waitFor(() =>
+			expect(container.services.favoriteModels.store.getState().favorites).toEqual([
+				expect.objectContaining({
+					config: { agent: "codex", model: "gpt", effort: "high", fastMode: false },
+				}),
+			]),
 		);
+		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
 
-		const trigger = screen.getByRole("combobox", { name: "Default model" });
-		fireEvent.keyDown(trigger, { key: "Enter" });
-		const slow = await screen.findByRole("option", { name: "Slow model" });
-		fireEvent.keyDown(slow, { key: "Enter" });
-
+		const dropped = JSON.stringify({
+			agent: "claude",
+			model: "slow-model",
+			effort: "low",
+			fastMode: false,
+		});
+		fireEvent.drop(slot(2), {
+			dataTransfer: { getData: (type: string) => (type.endsWith("model") ? dropped : "") },
+		});
 		await waitFor(() =>
 			expect(
-				(screen.getByRole("switch", { name: "Fast mode in new chats" }) as HTMLButtonElement)
-					.disabled,
-			).toBe(true),
+				container.services.favoriteModels.store
+					.getState()
+					.favorites.map((entry) => entry.config.model),
+			).toEqual(["slow-model"]),
 		);
+	});
+
+	it("changes the default model from its slot, and disables fast mode the model lacks", async () => {
+		const { container } = await renderPage();
+		const trigger = within(slot(1)).getByRole("button");
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Slow model" }));
+		await waitFor(() =>
+			expect(container.services.settings.store.getState().values.default_model).toBe("slow-model"),
+		);
+
+		fireEvent.keyDown(within(slot(1)).getByRole("button"), { key: "Enter" });
+		const fast = await screen.findByRole("menuitemcheckbox", { name: "Fast mode" });
+		expect(fast.getAttribute("aria-disabled")).toBe("true");
 		expect(screen.getByText("The chosen model does not support fast mode.")).toBeTruthy();
+	});
+
+	it("asks for the agent list when nothing has read it yet, as the Agents page does", async () => {
+		const { container } = await renderPage();
+		const refresh = vi.spyOn(container.actions.agents, "refresh");
+		container.services.agentCatalog.store.setState({ installs: { state: "loading" } });
+		await waitFor(() => expect(refresh).toHaveBeenCalled());
+	});
+
+	it("follows the Loadout with Conductor's rows in its order", async () => {
+		await renderPage();
+		const keys = [...document.querySelectorAll("[data-setting-key]")].map((row) =>
+			row.getAttribute("data-setting-key"),
+		);
+		const order = [
+			"default_model",
+			"default_codex_personality",
+			"default_claude_personality",
+			"review_model",
+			"default_plan_mode",
+		];
+		const positions = order.map((key) => keys.indexOf(key));
+		expect(positions).toHaveLength(5);
+		expect(positions.every((position) => position >= 0)).toBe(true);
+		expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+		// The default's model, effort and fast mode are the first slot's, so they have no rows.
+		expect(keys).not.toContain("default_fast_mode");
+		expect(keys).not.toContain("default_claude_effort_level");
 	});
 });

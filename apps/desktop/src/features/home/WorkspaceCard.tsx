@@ -40,6 +40,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { RepoIconMark } from "../sidebar/RepoIcon.tsx";
 import { compactCount, relativeTime } from "../sidebar/WorkspaceRow.tsx";
 import { RenameDialog } from "../workspace/RenameDialog.tsx";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { runUnarchive } from "../workspace/workspace-actions.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
@@ -165,6 +166,7 @@ const TONE_BAR: Record<RowTone, string> = {
 
 export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
+	const branchPrefix = useBranchPrefix();
 	const archived = isArchived(workspace);
 	// Read only: the row shows what the git state already knows and never starts a git read.
 	const git = useGitState(workspace.id);
@@ -203,7 +205,7 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 								: cn("font-book", tone === null && "text-fg-muted"),
 					)}
 				>
-					{workspaceName(workspace)}
+					{workspaceName(workspace, branchPrefix)}
 				</span>
 				{archived ? <Badge>Archived</Badge> : null}
 			</span>

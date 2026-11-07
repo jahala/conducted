@@ -46,7 +46,8 @@ export const SHELL_STATES: CatalogueState[] = [
 			return {
 				route: "/",
 				after: ({ app }) => animateCast(world, cast, app),
-				ready: (document) => shows(document, "sam/rate-limit-api"),
+				// With no workspace open, Conductor's project groups start closed and show their counts.
+				ready: (document) => shows(document, "relay"),
 			};
 		},
 	},

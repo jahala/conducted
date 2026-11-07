@@ -563,3 +563,9 @@ Chosen:
 
 Why not container snapshots: the spike found no API that lists or deletes them and they expire after 30 days, so they cannot meet the "delete everything" rule (`docs/research/cloud-spike-2026-11-06.md`).
 Why: this is the spike's own method, extended to the second agent's transcript store and to the signal the spike said was missing. The bucket's size is bounded by the number of workspaces, not the number of turns.
+
+## D107. Conductor's account controls stay out of the matched screens (2026-11-07)
+
+Context: the second round of D098 found two more Conductor controls that only work with a Conductor account: the organisation switcher at the top of the sidebar and of Settings ("Sam Rivera's Mac", whose menu holds the organisations, "Create organization", "Upgrade to Pro" and "Log out"), and the Loadout's "Share" button on Default models ("Sign in to share a loadout"; it opens a page on Conductor's service).
+Chosen: neither is built, by D025. The switcher's one local item, Settings, is the sidebar's gear. Our loadout has no way to share; nothing takes the button's place.
+Why: both reach Conductor's own service and account, which D025 leaves out; a control that cannot work would be a look without a feature, which D098 removes.

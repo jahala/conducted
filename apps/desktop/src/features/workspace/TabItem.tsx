@@ -1,7 +1,8 @@
 /**
  * @feature NAV-10 Tab item
- * Owns: One tab in the strip: icon by type, label, close button, and for chats the status icon and
- * unread dot.
+ * Owns: One tab in the strip: icon by type, label, close button, and for chats the status icon while
+ * the agent works or waits for the user, else the unread dot, before the title. An idle chat tab has
+ * no icon (Conductor's renderApp chat tab).
  * Behaviour: ui-map.md 3.2 (chat tab: status icon, title, unread dot, fixed width; terminal tab
  * 'Terminal N'; comment tab 'Comment by <author>'; PR tab 'PR #N'; browser tab shows the URL host),
  * ui-dimensions.md (tab 40px tall, chat 176px wide, other tabs 128px, 2px accent underline when
@@ -24,6 +25,7 @@ import {
 	TerminalIcon,
 } from "../../ui/icons.tsx";
 import { UnreadDot } from "../sidebar/UnreadDot.tsx";
+import { statusText } from "./status-text.ts";
 import type { TabDescriptor } from "./tab-layout.ts";
 import { WorkspaceStatusIcon } from "./WorkspaceStatusIcon.tsx";
 
@@ -36,10 +38,23 @@ export interface TabItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSe
 	ref?: Ref<HTMLDivElement>;
 }
 
+/**
+ * A chat tab shows a mark only while there is something to say: its status while the agent works or
+ * waits for the user, else the unread dot. An idle chat shows none, as in Conductor (renderApp's chat
+ * tab icon).
+ */
+function sessionMark(tab: TabDescriptor) {
+	const tone = statusText(tab.status ?? null).tone;
+	if (tone === "active" || tone === "attention") {
+		return <WorkspaceStatusIcon status={tab.status ?? null} />;
+	}
+	return tab.unread === true ? <UnreadDot unread /> : null;
+}
+
 function TabIcon({ tab }: { tab: TabDescriptor }) {
 	switch (tab.kind) {
 		case "session":
-			return <WorkspaceStatusIcon status={tab.status ?? null} />;
+			return sessionMark(tab);
 		case "terminal":
 			return <TerminalIcon />;
 		case "file":
@@ -97,14 +112,15 @@ export function TabItem({
 					: "border-transparent text-fg-muted hover:bg-hover hover:text-fg",
 			)}
 		>
-			<span className="flex size-4 shrink-0 items-center justify-center text-fg-muted">
-				<TabIcon tab={tab} />
-			</span>
+			{tab.kind === "session" && sessionMark(tab) === null ? null : (
+				<span className="flex size-4 shrink-0 items-center justify-center text-fg-muted">
+					<TabIcon tab={tab} />
+				</span>
+			)}
 			<span className="min-w-0 flex-1 truncate">
 				{/* A file tab shows the file's own name, as Conductor's tabs do; the full path is its tooltip. */}
 				{tab.kind === "file" ? (tab.title.split("/").at(-1) ?? tab.title) : tab.title}
 			</span>
-			<UnreadDot unread={tab.unread === true} />
 			<button
 				type="button"
 				aria-label={`Close ${tab.title}`}

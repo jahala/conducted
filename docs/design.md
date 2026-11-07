@@ -81,6 +81,7 @@ Each row changes one measured value so the pair meets 4.5:1 for text or 3:1 for 
 | `link`                                                  | #a4847f                  | #8d6964               | Link text, 3.40 on canvas                                                                          |
 | `info`                                                  | #0da2e7                  | #0c9adc               | A mark at 2.86 on canvas                                                                           |
 | `status-progress`                                       | #e0bb00                  | #a28700               | Status icon, 1.78 on the sidebar                                                                   |
+| `git-modified`                                          | #ffdc2e / #ffea80        | #a28700 / #ffea80     | A modified file's mark in the changes list, 1.35 on canvas in light                                |
 | `status-review`                                         | #16a249                  | #169e47               | 2.87 on the sidebar hover tint                                                                     |
 | `status-done`                                           | #cca694                  | #a2827d               | Status icon, 2.13 on the sidebar                                                                   |
 | `status-canceled`                                       | #a5a09c                  | #8f8884               | Status icon, 2.48 on the sidebar. It is now close to backlog grey; its icon shape tells them apart |
@@ -113,6 +114,10 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - The MCP servers block and "Search providers" on Agents: the search at the right of the agent tabs, the servers under the tabs, as Conductor's providers page lists its parts.
 - The onboarding agent check and first project: under the step list, above Continue, while their step is current, in Conductor's left column.
 - Create project's description and "Creates folder" line: in Conductor's places, worded for our flow, which creates the folder first and offers the GitHub repository after.
+- The plan file link: at the start of the plan bar's one row, before "Sending to"; Conductor's bar has only its controls and shows the plan in the chat's plan card.
+- The chat history's search field: at the top of Conductor's closed-chats popover, for a workspace with many closed chats.
+- The Loadout slot's choices (model, effort, fast mode, Remove): a menu on the slot, where Conductor opens its chat-bound model picker; the first slot takes Claude Code models only, since new chats start with Claude Code. Pi's models: a column after OpenCode.
+- The Default models rows Conductor keeps inside its pickers: the review effort, thinking and fast mode right after Review model, the default Codex thinking level after Codex personality, and "Models shown in the picker" last.
 
 ## The owner's rules
 

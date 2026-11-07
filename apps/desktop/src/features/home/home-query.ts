@@ -95,10 +95,17 @@ function compareWorkspaces(
 	right: Workspace,
 	sortBy: HomeSort,
 	repoName: (workspace: Workspace) => string,
+	branchPrefix: string,
 ): number {
 	const text =
 		sortBy === "name"
-			? workspaceName(left).localeCompare(workspaceName(right), undefined, { sensitivity: "base" })
+			? workspaceName(left, branchPrefix).localeCompare(
+					workspaceName(right, branchPrefix),
+					undefined,
+					{
+						sensitivity: "base",
+					},
+				)
 			: sortBy === "repository"
 				? repoName(left).localeCompare(repoName(right), undefined, { sensitivity: "base" })
 				: 0;
@@ -116,11 +123,14 @@ export function queryHome({
 	repos,
 	filters,
 	pageCount,
+	branchPrefix,
 }: {
 	workspaces: Workspace[];
 	repos: Repo[];
 	filters: HomeFilterState;
 	pageCount: number;
+	/** The user's branch prefix, which workspace names drop (sorting by name). */
+	branchPrefix: string;
 }): HomePage {
 	const reposById = new Map(repos.map((repo) => [repo.id, repo]));
 	const projects = new Set(filters.projects);
@@ -139,6 +149,7 @@ export function queryHome({
 				right,
 				filters.sortBy,
 				(workspace) => reposById.get(workspace.repoId)?.name ?? "",
+				branchPrefix,
 			),
 		);
 

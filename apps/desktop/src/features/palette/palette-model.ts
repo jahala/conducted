@@ -58,6 +58,8 @@ export interface PaletteInput {
 	defaultOpenInApp?: string | null;
 	/** The current time, for the age of a recent workspace ("1d"). */
 	now?: number;
+	/** The user's branch prefix, which workspace names drop. */
+	branchPrefix: string;
 }
 
 interface CommandSpec {
@@ -178,13 +180,14 @@ function uniqueWorkspaces(workspaces: readonly Workspace[]): Workspace[] {
 function workspaceItem(
 	workspace: Workspace,
 	reposById: ReadonlyMap<string, Repo>,
+	branchPrefix: string,
 	now?: number,
 ): PaletteItem {
 	const repo = reposById.get(workspace.repoId);
 	const icon = repo?.icon?.trim();
 	return {
 		id: `workspace:${workspace.id}`,
-		label: workspaceName(workspace),
+		label: workspaceName(workspace, branchPrefix),
 		avatar:
 			icon !== undefined && icon !== "" ? icon : (repo?.name.slice(0, 1).toUpperCase() ?? "?"),
 		hint:
@@ -260,7 +263,7 @@ export function buildPaletteGroups(props: PaletteInput): PaletteGroup[] {
 	const recent = [...active]
 		.sort((left, right) => right.lastActivityAt - left.lastActivityAt)
 		.slice(0, 5)
-		.map((workspace) => workspaceItem(workspace, reposById, props.now));
+		.map((workspace) => workspaceItem(workspace, reposById, props.branchPrefix, props.now));
 	const browsing = query.trim() === "";
 	if (browsing) addGroup("Recent workspaces", recent);
 	// Conductor's All tab opens on the recent workspaces only; the full lists come with a query or on
@@ -268,11 +271,11 @@ export function buildPaletteGroups(props: PaletteInput): PaletteGroup[] {
 	if (!(browsing && props.tab === "all")) {
 		addGroup(
 			"Workspaces",
-			active.map((workspace) => workspaceItem(workspace, reposById)),
+			active.map((workspace) => workspaceItem(workspace, reposById, props.branchPrefix)),
 		);
 		addGroup(
 			"Archived",
-			archived.map((workspace) => workspaceItem(workspace, reposById)),
+			archived.map((workspace) => workspaceItem(workspace, reposById, props.branchPrefix)),
 		);
 	}
 

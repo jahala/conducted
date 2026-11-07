@@ -54,6 +54,7 @@ import { Kbd } from "../../ui/Kbd.tsx";
 import type { OverlayProps } from "../../ui/overlay-props.ts";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import type { PaletteItem, PaletteTab } from "./palette-model.ts";
 import {
 	buildPaletteGroups,
@@ -167,6 +168,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const sessionList = workspaceId !== null && sessions.state === "ready" ? sessions.data : [];
 	const allSessions = useStore(services.services.sessions.store, (state) => state.sessions);
 
+	const branchPrefix = useBranchPrefix();
 	// Ages of recent workspaces count from when the palette opened.
 	const [openedAt, setOpenedAt] = useState(() => Date.now());
 	useEffect(() => {
@@ -188,9 +190,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			installedApps,
 			defaultOpenInApp: defaultOpenIn === "" ? null : defaultOpenIn,
 			now: openedAt,
+			branchPrefix,
 		});
 	}, [
 		openedAt,
+		branchPrefix,
 		commands,
 		defaultOpenIn,
 		installedApps,

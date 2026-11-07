@@ -54,7 +54,8 @@ const DROPPED_REASON: Readonly<Record<DroppedReason, string>> = {
 
 export interface SettingsPageFrameProps extends SettingsLoad {
 	title: string;
-	description: string | null;
+	/** The page's subtitle under the title; most pages have none, as in Conductor. */
+	description: ReactNode | null;
 	/** The setting to scroll to and highlight, when the page opened from search. */
 	focusSettingKey: string | null;
 	children: ReactNode;

@@ -134,12 +134,20 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		"default-models",
 		"Claude output style",
 	),
-	selectOpen(
-		"settings-models-effort-menu",
-		"Default models, the Claude effort level menu open",
-		"default-models",
-		"Claude effort level",
-	),
+	{
+		// The default's effort is the Loadout's first slot's, as in Conductor: its menu holds it.
+		id: "settings-models-effort-menu",
+		group: "Settings",
+		title: "Default models, the default slot's menu open with its effort",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/default-models",
+				after: ({ document }) => click(document, "button", "Claude Code", { prefix: true }),
+				ready: (document) => document.querySelector("[role=menu]") !== null,
+			};
+		},
+	},
 	selectOpen(
 		"settings-models-codex-thinking-menu",
 		"Default models, the Codex thinking level menu open",

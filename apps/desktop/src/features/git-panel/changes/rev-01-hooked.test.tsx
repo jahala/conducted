@@ -9,6 +9,7 @@ const workspaceId = "w1" as WorkspaceId;
 
 const state = vi.hoisted(() => ({
 	files: { state: "ready", data: [] } as Loadable<ChangedFile[]>,
+	uncommitted: { state: "ready", data: [] } as Loadable<ChangedFile[]>,
 	git: { state: "loading" } as Loadable<GitState>,
 	commits: { state: "ready", data: [] } as Loadable<BranchCommit[]>,
 	workspace: { state: "loading" } as Loadable<Workspace>,
@@ -25,7 +26,8 @@ vi.mock("../../../ui/Toast.tsx", () => ({
 }));
 
 vi.mock("../../../core/hooks.ts", () => ({
-	useChangedFiles: () => state.files,
+	useChangedFiles: (_workspaceId: WorkspaceId, scope: DiffScope) =>
+		scope.kind === "uncommitted" ? state.uncommitted : state.files,
 	useGitState: () => state.git,
 	useBranchCommits: () => state.commits,
 	useWorkspace: () => state.workspace,
@@ -83,6 +85,7 @@ const gitState = (over: Partial<GitState> = {}): GitState => ({
 
 beforeEach(() => {
 	state.files = { state: "ready", data: [] };
+	state.uncommitted = { state: "ready", data: [] };
 	state.git = { state: "ready", data: gitState() };
 	state.commits = { state: "ready", data: [] };
 	state.workspace = { state: "loading" };
@@ -132,6 +135,16 @@ describe("REV-01 changes tab", () => {
 		expect(screen.getByLabelText("Open src/a/x.ts")).toBeTruthy();
 		expect(screen.queryByLabelText("Open src/b/y.ts")).toBeNull();
 		expect(screen.queryByLabelText("Open README.md")).toBeNull();
+	});
+
+	it("marks the branch's files that also have uncommitted changes with U, as Conductor does", () => {
+		state.files = { state: "ready", data: [file("src/a.ts"), file("src/b.ts")] };
+		state.uncommitted = { state: "ready", data: [file("src/b.ts")] };
+		renderChanges();
+		const rowOf = (path: string) =>
+			screen.getByRole("button", { name: `Open ${path}` }).closest("[role=row]");
+		expect(rowOf("src/b.ts")?.textContent).toContain("U");
+		expect(rowOf("src/a.ts")?.querySelector('[title="Uncommitted"]')).toBeNull();
 	});
 
 	it("opens a file in diff mode when its row is clicked", () => {
@@ -227,6 +240,18 @@ describe("REV-01 changes tab", () => {
 });
 
 describe("REV-01 diff scope menu", () => {
+	// Conductor's options trigger on all changes is an icon with the tooltip "Options" (renderApp, the
+	// changes toolbar); it names no scope.
+	it("is an icon button with no scope name while all changes are shown", () => {
+		render(
+			<DiffScopeMenu workspaceId={workspaceId} scope={{ kind: "branch" }} onChange={vi.fn()} />,
+		);
+		const trigger = screen.getByRole("button", { name: "Diff scope" });
+		expect(trigger.textContent).toBe("");
+		expect(trigger.getAttribute("title")).toBe("Options");
+		expect(trigger.querySelector("svg")).not.toBeNull();
+	});
+
 	it("keeps the menu working when the branch list fails to load", async () => {
 		state.workspace = { state: "ready", data: { repoId: "r1" } as Workspace };
 		state.branchesThrow = new Error("The branch list could not be read.");

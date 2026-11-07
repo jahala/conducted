@@ -110,9 +110,13 @@ describe("NAV-10 tab strip over the real container", () => {
 		const test = createTestContainer();
 		try {
 			await mountStrip(test);
+			expect(await screen.findByRole("button", { name: "New tab" })).toBeTruthy();
+			// Conductor draws the history button only once a chat of the workspace is closed.
+			expect(screen.queryByRole("button", { name: "View chat history" })).toBeNull();
+
+			fireEvent.click(screen.getByRole("button", { name: "Close Alpha chat" }));
 
 			expect(await screen.findByRole("button", { name: "View chat history" })).toBeTruthy();
-			expect(screen.getByRole("button", { name: "New tab" })).toBeTruthy();
 		} finally {
 			cleanup();
 			await test.container.stop();

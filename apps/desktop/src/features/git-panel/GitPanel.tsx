@@ -85,6 +85,7 @@ import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { openTargetOf, pullRequestOpenUrl } from "../pr/pr-open-target.ts";
+import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { ArtifactsTab } from "./artifacts/ArtifactsTab.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
@@ -174,6 +175,7 @@ export function GitPanel({
 	const localGitForge = services.localGitForge;
 	const localForgeEnabled = useSetting<boolean>("local_git_forge_enabled") === true;
 	const workspace = useWorkspace(workspaceId);
+	const branchPrefix = useBranchPrefix();
 	const repoRemoteUrl = useStore(services.repo.store, (state) =>
 		workspace.state === "ready"
 			? (state.reposById[workspace.data.repoId]?.remoteUrl ?? null)
@@ -575,7 +577,11 @@ export function GitPanel({
 						<ChecksTab
 							workspaceId={workspaceId}
 							onGitAction={(action) => void runGuarded(action)}
-							title={workspace.state === "ready" ? workspaceName(workspace.data) : undefined}
+							title={
+								workspace.state === "ready"
+									? workspaceName(workspace.data, branchPrefix)
+									: undefined
+							}
 							description={workspace.state === "ready" ? workspace.data.prDescription : null}
 						/>
 					</NotBuiltYet>

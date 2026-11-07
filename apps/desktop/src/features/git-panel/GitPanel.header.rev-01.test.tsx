@@ -21,6 +21,7 @@ import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { ChangesSnapshot } from "../../core/git/status.ts";
+import type { PullRequest } from "../../core/model.ts";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
 import { GitPanel } from "./GitPanel.tsx";
 
@@ -43,14 +44,39 @@ const snapshot = (overrides: Partial<ChangesSnapshot> = {}): ChangesSnapshot => 
 	...overrides,
 });
 
+const OPEN_PULL_REQUEST: PullRequest = {
+	number: 1,
+	url: "https://example.test/pull/1",
+	title: "A change",
+	body: "",
+	state: "open",
+	mergeable: "mergeable",
+	reviewDecision: null,
+	checks: [],
+	inMergeQueue: false,
+	autoMergeEnabled: false,
+	baseBranch: "main",
+	authorLogin: "octocat",
+	viewerDidAuthor: false,
+	viewerCanMerge: true,
+	mergeMethod: "squash",
+	reviewers: [],
+	deployments: [],
+	updatedAt: 0,
+};
+
 /** Mounts the panel for a seeded workspace whose polled git state is `value`. */
 async function mountPanel(test: ReturnType<typeof createTestContainer>, value: ChangesSnapshot) {
 	const workspace = await seedWorkspace(test.container);
 	test.container.services.git.store.setState({
 		byWorkspace: { [workspace.id]: { snapshot: value, error: null, refreshedAt: 1 } },
 	});
+	// Conductor offers Commit and push once a pull request is open; before that the header
+	// offers Create PR. These tests are about Commit and push, so the branch has an open one.
 	test.container.services.github.store.setState({
-		byWorkspace: { [workspace.id]: { pullRequest: null, unavailable: "none", fetchedAt: 1 } },
+		byWorkspace: {
+			[workspace.id]: { pullRequest: OPEN_PULL_REQUEST, unavailable: "none", fetchedAt: 1 },
+		},
 	});
 	const rootRoute = createRootRoute();
 	const route = createRoute({

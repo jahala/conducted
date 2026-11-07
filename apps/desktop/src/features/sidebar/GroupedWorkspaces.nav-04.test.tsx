@@ -12,7 +12,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Repo, Workspace } from "../../core/model.ts";
@@ -74,6 +74,8 @@ describe("NAV-04 GroupedWorkspaces manual order", () => {
 			const workspaces = [first, second, third];
 			renderList(test.container, [repo], workspaces);
 			const region = await screen.findByRole("region", { name: repo.name });
+			// With no workspace open, Conductor's groups start closed.
+			fireEvent.click(within(region).getByRole("button", { name: new RegExp(`^${repo.name}`) }));
 			const ordered = [...region.querySelectorAll("[data-workspace-id]")]
 				.map((row) => row.getAttribute("data-workspace-id"))
 				.filter((id): id is string => id !== null);

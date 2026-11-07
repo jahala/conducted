@@ -957,6 +957,7 @@ describe("s1-ui-1 join batch features", () => {
 		const test = batchContainer();
 		const workspace = await seedWorkspace(test.container, {
 			branch: "alpha",
+			branchIsPlaceholder: false,
 			path: "/code/workspaces/alpha",
 		});
 		test.memory.controls.setProcesses([
@@ -985,7 +986,8 @@ describe("s1-ui-1 join batch features", () => {
 		fireEvent.click(await screen.findByRole("button", { name: /^Resource usage/ }));
 		const table = await screen.findByRole("table", { name: "Resources" });
 		expect(within(table).getByText("node")).toBeTruthy();
-		expect(within(table).getByText("alpha")).toBeTruthy();
+		// A workspace is named in words, as Conductor names it.
+		expect(within(table).getByText("Alpha")).toBeTruthy();
 	});
 
 	it("APP-10 dismisses a hint on the General page and brings it back with Reset callout dismissals", async () => {
