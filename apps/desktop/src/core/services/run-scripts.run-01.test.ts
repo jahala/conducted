@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileSystem } from "../../platform/platform.ts";
 import type { Repo, RepoConfig, RunAction, Workspace } from "../model.ts";
 import {
+	actionsForWorkspace,
 	RUN_HISTORY_LIMIT,
 	RunScriptsService,
 	runHistoryStorageKey,
@@ -75,6 +76,7 @@ const action = (patch: Partial<RunAction> = {}): RunAction => ({
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 	...patch,
 });
 
@@ -649,5 +651,35 @@ describe("RUN-01 setup auto-run integration", () => {
 
 		expect(setup.ok).toBe(true);
 		expect(runScript).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("RUN-01 run targets expand by workspace kind", () => {
+	it("offers both host variants in a cloud workspace and only the Mac in a local one", () => {
+		const both = action({ id: "dev" });
+		const cloudOnly = action({ id: "deploy", availableIn: ["cloud"] });
+
+		expect(actionsForWorkspace([both, cloudOnly], "local")).toEqual([
+			expect.objectContaining({ id: "dev", runAvailability: "local" }),
+		]);
+		expect(actionsForWorkspace([both, cloudOnly], "cloud")).toEqual([
+			expect.objectContaining({ id: "dev:cloud", runAvailability: "cloud" }),
+			expect.objectContaining({ id: "dev:local", runAvailability: "local" }),
+			expect.objectContaining({ id: "deploy", runAvailability: "cloud" }),
+		]);
+	});
+
+	it("refuses a local-mirror action in a cloud workspace with a clear reason", async () => {
+		const { service, runScript } = harness({
+			workspaces: [
+				workspaceFor(ws, { host: { kind: "cloud", url: "https://w.example", vmId: "vm" } }),
+			],
+		});
+
+		const started = await service.start(ws, "dev:local");
+
+		expect(started.ok).toBe(false);
+		if (!started.ok) expect(started.error.message).toContain("local mirror");
+		expect(runScript).not.toHaveBeenCalled();
 	});
 });

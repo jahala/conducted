@@ -49,6 +49,7 @@ const EMPTY_DRAFT: ActionDraft = {
 	cwd: "",
 	icon: null,
 	isDefault: false,
+	availableIn: ["local", "cloud"],
 };
 
 export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
@@ -144,6 +145,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			hidden: existing?.hidden ?? false,
 			icon: nextDraft.icon,
 			origin,
+			availableIn: nextDraft.availableIn,
 		};
 		let runScripts =
 			existing === undefined
