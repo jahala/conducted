@@ -2,11 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { until } from "./until.ts";
 
 describe("until", () => {
-	test("waits for a condition that becomes true on a later task", async () => {
+	test("waits for a condition that a promise chain makes true later", async () => {
 		let ready = false;
-		setTimeout(() => {
-			ready = true;
-		}, 0);
+		void Promise.resolve()
+			.then(() => undefined)
+			.then(() => {
+				ready = true;
+			});
+		expect(ready).toBe(false);
 		await until(() => ready, "the flag");
 		expect(ready).toBe(true);
 	});
