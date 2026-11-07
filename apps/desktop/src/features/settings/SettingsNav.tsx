@@ -84,6 +84,7 @@ const PAGE_ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElemen
 	connections: PlugIcon,
 	agents: BotIcon,
 	environment: KeyIcon,
+	cloud: GlobeIcon,
 	"remote-control": GlobeIcon,
 	experimental: FlaskIcon,
 	advanced: WrenchIcon,

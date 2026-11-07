@@ -156,4 +156,37 @@ describe("CLOUD-03 the Worker's front door", () => {
 		expect(response.status).toBe(405);
 		expect(response.headers.get("allow")).toBe("POST");
 	});
+
+	it("keeps the personal cloud settings behind the pairing token", async () => {
+		expect((await get("/settings", {})).status).toBe(401);
+
+		const empty = await get("/settings");
+		expect(empty.status).toBe(200);
+		expect(await empty.json()).toEqual({ gitIdentity: null, envVars: {} });
+
+		const saved = {
+			gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
+			envVars: { NODE_ENV: "development" },
+		};
+		const written = await post("/settings", saved);
+		expect(written.status).toBe(200);
+		expect(await written.json()).toEqual(saved);
+		expect(await (await get("/settings")).json()).toEqual(saved);
+	});
+
+	it("refuses a cloud variable the sandbox sets itself, and an unknown method", async () => {
+		expect((await post("/settings", { gitIdentity: null, envVars: { PATH: "/tmp" } })).status).toBe(
+			400,
+		);
+		expect(
+			(await post("/settings", { gitIdentity: null, envVars: { ANTHROPIC_API_KEY: "sk-x" } }))
+				.status,
+		).toBe(400);
+		const put = await SELF.fetch(`${BASE}/settings`, {
+			method: "PUT",
+			headers: AUTH,
+		});
+		expect(put.status).toBe(405);
+		expect(put.headers.get("allow")).toBe("GET, POST");
+	});
 });

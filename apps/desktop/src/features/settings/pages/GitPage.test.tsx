@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { Toaster } from "../../../ui/Toast.tsx";
 import { GitPage } from "./GitPage.tsx";
 
 let test: TestContainer | undefined;
@@ -100,5 +101,72 @@ describe("SET-02 GitPage", () => {
 		expect(titles).not.toContain("branch_prefix_custom");
 		expect(screen.getByRole("radio", { name: "GitHub username" })).toBeTruthy();
 		expect(screen.getByRole("radio", { name: "None" })).toBeTruthy();
+	});
+
+	it("saves the cloud commit identity when the Mac is paired with a Worker", async () => {
+		test = createTestContainer();
+		const settings = { current: { gitIdentity: null, envVars: {} } };
+		test.memory.controls.setCloudPairing({ paired: true, url: "https://w.example.dev" });
+		test.memory.controls.scriptCloud((request) => {
+			if (request.path !== "/settings") return null;
+			if (request.method === "GET") {
+				return ok({ status: 200, body: JSON.stringify(settings.current) });
+			}
+			settings.current = request.body as typeof settings.current;
+			return ok({ status: 200, body: JSON.stringify(settings.current) });
+		});
+		await test.container.services.settings.start();
+		await test.container.services.cloudPairing.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<GitPage />
+			</ServicesProvider>,
+		);
+
+		const name = await screen.findByLabelText("Git identity name");
+		fireEvent.change(name, { target: { value: "Sam Rivera" } });
+		fireEvent.change(screen.getByLabelText("Git identity email"), {
+			target: { value: "sam@example.com" },
+		});
+		fireEvent.blur(screen.getByLabelText("Git identity email"));
+
+		await waitFor(() =>
+			expect(settings.current).toEqual({
+				gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
+				envVars: {},
+			}),
+		);
+	});
+
+	it("says the cloud identity did not change when the Worker refuses the save", async () => {
+		test = createTestContainer();
+		test.memory.controls.setCloudPairing({ paired: true, url: "https://w.example.dev" });
+		test.memory.controls.scriptCloud((request) => {
+			if (request.path !== "/settings") return null;
+			if (request.method === "GET") {
+				return ok({
+					status: 200,
+					body: JSON.stringify({ gitIdentity: null, envVars: {} }),
+				});
+			}
+			return ok({ status: 500, body: JSON.stringify({ error: "down" }) });
+		});
+		await test.container.services.settings.start();
+		await test.container.services.cloudPairing.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<GitPage />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		const name = await screen.findByLabelText("Git identity name");
+		fireEvent.change(name, { target: { value: "Sam Rivera" } });
+		fireEvent.change(screen.getByLabelText("Git identity email"), {
+			target: { value: "sam@example.com" },
+		});
+		fireEvent.blur(screen.getByLabelText("Git identity email"));
+
+		expect(await screen.findByText("Couldn't update Git identity")).toBeTruthy();
 	});
 });

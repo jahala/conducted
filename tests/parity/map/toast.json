@@ -738,12 +738,10 @@
 		"owner": "rule:cite"
 	},
 	"toast:R9100673": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CLOUD-18",
-		"item": "Updating the credentials of a cloud agent can fail with \"Couldn't update agent credentials\".",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D118",
+		"note": "The error of Conductor's hosted provider-credential mutation, which needs its account and server; the subscription export it belongs to is left out (D004, D018, D025).",
+		"by": "rule:hosted-computer-backend"
 	},
 	"toast:R9284738": {
 		"status": "gap",

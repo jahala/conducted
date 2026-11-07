@@ -5,9 +5,11 @@
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
+ * @feature CLOUD-17 Cloud settings page
  * Owns: the checks every request passes after the unauthenticated preview path and before a
- * Durable Object is touched: the pairing token, the pairing check, the route, the workspace name,
- * the method, and the WebSocket upgrade for the relay and terminal streams.
+ * Durable Object is touched: the pairing token, the pairing check, the cloud settings read and
+ * write, the route, the workspace name, the method, and the WebSocket upgrade for the relay and
+ * terminal streams.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the Worker authenticates and routes) and
  * docs/research/cloud-spike-2026-11-06.md, question 4 (the token is checked on every route in
  * constant time before any Durable Object starts). CLOUD-07: `/pair` answers with the Worker's own
@@ -43,8 +45,15 @@ export interface CloudRoute {
 	action: CloudAction;
 }
 
-/** What an authenticated request is: a route, the pairing check, or the answer that refuses it. */
-export type FrontDoor = { route: CloudRoute } | { pair: true } | { refusal: Response };
+/** What an authenticated request is: a route, the pairing check, cloud settings, or a refusal. */
+export type FrontDoor =
+	| { route: CloudRoute }
+	| { pair: true }
+	| { settings: "read" | "write" }
+	| { refusal: Response };
+
+/** The one path that holds the Mac's personal cloud settings (CLOUD-17). */
+export const SETTINGS_PATH = "/settings";
 
 const ROUTE =
 	/^\/w\/([^/]+)\/(start|stop|restart|remove|git|exec|files|state|ports|rpc|terminal|tunnel|preview-url)$/;
@@ -87,6 +96,17 @@ export function routeRequest(request: Request, pairingToken: string | undefined)
 			};
 		}
 		return { pair: true };
+	}
+	if (url.pathname === SETTINGS_PATH) {
+		if (request.method !== "GET" && request.method !== "POST") {
+			return {
+				refusal: new Response("Method not allowed", {
+					status: 405,
+					headers: { allow: "GET, POST" },
+				}),
+			};
+		}
+		return { settings: request.method === "GET" ? "read" : "write" };
 	}
 	const match = ROUTE.exec(url.pathname);
 	if (match === null) return { refusal: new Response("Not found", { status: 404 }) };
