@@ -64,9 +64,14 @@ describe("PR-04 checks list", () => {
 
 	it("offers Re-run failed checks and Fix errors when a check failed", () => {
 		const rerun = renderList([check("failure", "failure")]);
-		fireEvent.click(screen.getByRole("button", { name: "Re-run failed checks" }));
+		fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
 		expect(rerun).toHaveBeenCalledTimes(1);
 		expect(screen.getByRole("button", { name: "Fix errors" })).toBeTruthy();
+	});
+
+	it("names each check's link Open externally, as Conductor does", () => {
+		renderList([{ ...check("failure", "failure"), url: "https://example.test/run/1" }]);
+		expect(screen.getByRole("button", { name: "Open externally" })).toBeTruthy();
 	});
 
 	it("says when GitHub reports no checks", () => {

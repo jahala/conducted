@@ -51,7 +51,7 @@ describe("PR-04 deployments list", () => {
 				onOpenUrl={onOpenUrl}
 			/>,
 		);
-		fireEvent.click(screen.getByRole("button", { name: "Open" }));
+		fireEvent.click(screen.getByRole("button", { name: "Open externally" }));
 		expect(onOpenUrl).toHaveBeenCalledWith("https://example.test");
 	});
 

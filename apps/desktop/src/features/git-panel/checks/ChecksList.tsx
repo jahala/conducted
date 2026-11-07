@@ -1,7 +1,9 @@
 /**
  * @feature PR-04 Checks list
  * Owns: the Checks section. One row per check run with its state, name, duration and a button to
- * show its log, plus "Re-run failed checks" and "Fix errors".
+ * show its log, plus "Re-run" (tooltip "Re-run failed checks") and "Fix errors", small and quiet
+ * beside the section's name, as in Conductor (renderApp @2272067). The failed, pending and total
+ * counts beside "Checks" are ours.
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (states Running, Failed, Cancelled, Pending,
  * Waiting; "Re-run failed checks"); services-map.md 3.7.2 (duplicate runs are collapsed to the
  * newest) and 3.7.5 (re-run per distinct workflow run).
@@ -16,6 +18,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
 import type { CheckRun } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
+import { Tooltip } from "../../../ui/Tooltip.tsx";
 import { CheckRow } from "./CheckRow.tsx";
 import { sortChecksForDisplay, summarizeChecks } from "./checks-summary.ts";
 
@@ -47,21 +50,35 @@ export function ChecksList({
 
 	return (
 		<section aria-label="Checks" className="border-b border-separator">
-			<div className="flex items-center justify-between gap-2 px-2 pb-1 pt-2">
-				<h3 className="text-sm font-medium text-fg">
+			<div className="flex items-center justify-between gap-2 px-[18px] py-2">
+				<h3 className="text-xs font-medium text-fg-muted">
 					Checks
 					{summary.total === 0 ? null : (
-						<span className="ml-1.5 text-xs font-normal text-fg-subtle">
+						<span className="ml-1.5 font-normal text-fg-subtle">
 							{summary.failed} failed · {summary.pending} pending · {summary.total} total
 						</span>
 					)}
 				</h3>
 				{hasFailures ? (
 					<div className="flex items-center gap-1">
-						<Button variant="outline" size="xs" loading={rerunBusy} onClick={onRerunFailed}>
-							Re-run failed checks
-						</Button>
-						<Button variant="outline" size="xs" loading={fixBusy} onClick={onFixErrors}>
+						<Tooltip content="Re-run failed checks">
+							<Button
+								variant="ghost"
+								size="xs"
+								className="text-xs text-fg-muted"
+								loading={rerunBusy}
+								onClick={onRerunFailed}
+							>
+								Re-run
+							</Button>
+						</Tooltip>
+						<Button
+							variant="ghost"
+							size="xs"
+							className="text-xs text-fg-muted"
+							loading={fixBusy}
+							onClick={onFixErrors}
+						>
 							Fix errors
 						</Button>
 					</div>

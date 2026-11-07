@@ -1,7 +1,8 @@
 /**
  * @feature PR-04 Deployments list
  * Owns: the Deployments section of the Checks tab. One row per deployment with environment,
- * state, provider mark and a link to the deployed URL.
+ * state, provider mark and an "Open externally" button for the deployed URL (Conductor's name,
+ * renderApp @2269203).
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (states Deployed, Failed, Deploying, Pending,
  * Inactive; providers Vercel, Cloudflare, Netlify, Render, Railway, Fly.io, AWS Amplify, Heroku,
  * GitHub Pages); services-map.md 3.7.2 (deployments(first:20), newest first).
@@ -11,7 +12,8 @@
  */
 import type { DeploymentProvider, DeploymentState, DeploymentView } from "../../../core/model.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
-import { GlobeIcon } from "../../../ui/icons.tsx";
+import { IconButton } from "../../../ui/IconButton.tsx";
+import { ArrowUpRightIcon, GlobeIcon } from "../../../ui/icons.tsx";
 
 export interface DeploymentsListProps {
 	deployments: DeploymentView[];
@@ -82,7 +84,7 @@ export function DeploymentsList({ deployments, onOpenUrl }: DeploymentsListProps
 
 	return (
 		<section aria-label="Deployments" className="border-b border-separator">
-			<h3 className="px-2 pb-1 pt-2 text-sm font-medium text-fg">Deployments</h3>
+			<h3 className="px-[18px] py-2 text-xs font-medium text-fg-muted">Deployments</h3>
 			<ul className="m-0 list-none p-0">
 				{newestFirst.map((deployment) => {
 					const inactive = deployment.state === "inactive";
@@ -105,13 +107,13 @@ export function DeploymentsList({ deployments, onOpenUrl }: DeploymentsListProps
 							</span>
 							<Badge tone={STATE_TONE[deployment.state]}>{STATE_LABEL[deployment.state]}</Badge>
 							{url === null ? null : (
-								<button
-									type="button"
+								<IconButton
+									label="Open externally"
+									icon={<ArrowUpRightIcon className="size-3.5" />}
+									size="xs"
+									className="text-fg-muted hover:text-fg"
 									onClick={() => onOpenUrl(url)}
-									className="text-xs font-medium text-link underline-offset-4 hover:underline"
-								>
-									Open
-								</button>
+								/>
 							)}
 						</li>
 					);

@@ -722,7 +722,7 @@ describe("s1-ui-1 join", () => {
 			);
 
 			expect(await screen.findByText("Build")).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Re-run failed checks" }));
+			fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
 
 			await waitFor(() =>
 				expect(reruns.map((command) => [...command.args])).toEqual([
