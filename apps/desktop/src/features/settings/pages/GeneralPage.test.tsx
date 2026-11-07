@@ -32,6 +32,33 @@ describe("SET-02 GeneralPage", () => {
 		expect(set).toHaveBeenCalledWith("message_send_key", "cmd-enter");
 	});
 
+	it("plays the chosen completion sound from Test, and offers no Test while no sound is chosen", async () => {
+		const played: string[] = [];
+		test = createTestContainer({
+			sound: {
+				play: async (soundId) => {
+					played.push(soundId);
+				},
+			},
+		});
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Test" }));
+		await waitFor(() => expect(played).toEqual(["default"]));
+
+		await test.container.actions.settings.set("sound_type", "none");
+		await waitFor(() =>
+			expect((screen.getByRole("button", { name: "Test" }) as HTMLButtonElement).disabled).toBe(
+				true,
+			),
+		);
+	});
+
 	it("shows the title with no subtitle, as Conductor's General page has none", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();

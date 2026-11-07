@@ -94,6 +94,13 @@ export const PullRequestDraftIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** A speaker with two sound waves. */
+export const VolumeIcon = (p: P) => (
+	<Icon
+		d="M2.5 6h2.5L8.5 3v10L5 10H2.5zM11 6a2.75 2.75 0 0 1 0 4M12.75 4.25a5.25 5.25 0 0 1 0 7.5"
+		{...p}
+	/>
+);
 export const CheckIcon = (p: P) => <Icon d="M3 8.5l3 3 7-7" {...p} />;
 export const DotIcon = (p: P) => (
 	<Icon d="M8 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5z" {...p} />
