@@ -18,7 +18,8 @@
  * it takes Claude Code models only and stays first; the others reorder among themselves. Pi, our
  * own agent, has its column after OpenCode (D098). Conductor's "Share" needs a Conductor account
  * and is left out (D025, D104). Agent logos are not shipped, so headers and slots name the agent.
- * Must handle: models loading or failing per agent; an agent not installed; a full loadout (Enter
+ * Must handle: the agent list not read yet (the editor asks for it, as the Agents page does);
+ * models loading or failing per agent; an agent not installed; a full loadout (Enter
  * replaces the last slot, as Conductor's does); a choice already in another slot (it moves there);
  * a save that fails (a toast with the reason).
  * Test first: Enter on a model row puts it in the next empty slot.
@@ -26,9 +27,9 @@
 import type { ModelInfo } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { type DragEvent, useState } from "react";
+import { type DragEvent, useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
-import { useAgentInstalls, useModels } from "../../../core/hooks.ts";
+import { useActions, useAgentInstalls, useModels } from "../../../core/hooks.ts";
 import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import type { FavoriteModel } from "../../../core/services/favorite-models.ts";
 import { LOADOUT_SIZE } from "../../../core/services/favorite-models.ts";
@@ -89,6 +90,13 @@ function choiceFor(spec: AgentColumnSpec, model: ModelInfo): Choice {
 
 export function LoadoutEditor() {
 	const { entries } = useLoadout();
+	const actions = useActions();
+	const installs = useAgentInstalls();
+	const installsAsked = installs.state !== "loading";
+	// The agent list is read when a page needs it, as the Agents page does.
+	useEffect(() => {
+		if (!installsAsked) void actions.agents.refresh();
+	}, [actions, installsAsked]);
 	const favorites = useServices().services.favoriteModels;
 	const saves = useSettingSaves();
 	const [dropTarget, setDropTarget] = useState<number | null>(null);
@@ -269,14 +277,14 @@ function SlotCard({
 					}}
 					className="group absolute inset-0 flex flex-col justify-end gap-1 bg-canvas px-3 pb-1.5 text-left font-mono text-xs outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset"
 				>
-					<span className="absolute top-3 left-3 font-sans text-2xs text-fg-muted">
-						{agentDisplayName(entry.config)}
-					</span>
 					{entry.isDefault ? (
 						<span className="pointer-events-none absolute top-2.5 right-2.5 rounded-xs border border-accent px-1 font-mono text-[8px] leading-3 text-accent">
 							DEFAULT
 						</span>
 					) : null}
+					<span className="truncate font-sans text-2xs text-fg-muted">
+						{agentDisplayName(entry.config)}
+					</span>
 					<span className="truncate font-medium text-fg">{label}</span>
 					<span className="flex h-4 items-center truncate text-[11px] text-fg-muted">
 						{effort}

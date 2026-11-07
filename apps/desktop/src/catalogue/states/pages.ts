@@ -20,7 +20,7 @@ export const PAGE_STATES: CatalogueState[] = [
 			return {
 				route: "/all-workspaces",
 				after: ({ app }) => animateCast(world, cast, app),
-				ready: (document) => shows(document, "sam/rate-limit-api"),
+				ready: (document) => shows(document, "Rate limit api"),
 			};
 		},
 	},
@@ -54,7 +54,7 @@ export const PAGE_STATES: CatalogueState[] = [
 						new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
 					);
 				},
-				ready: (document) => shows(document, "sam/old-search-experiment"),
+				ready: (document) => shows(document, "Old search experiment"),
 			};
 		},
 	},

@@ -291,20 +291,19 @@ const QUESTION: Interaction = {
 	],
 };
 
-const PLAN: Interaction = {
-	kind: "plan_approval",
-	plan: [
-		"# Invalidate cached prices on write",
-		"",
-		"Prices are cached for five minutes in `PriceCache` and nothing clears an entry when a price changes.",
-		"",
-		"1. Give `PriceCache` a `forget(productId)` method.",
-		"2. Call it from `updatePrice` and `bulkImport` after the database write commits.",
-		"3. Add a test that edits a price and reads the new value at once.",
-		"",
-		"No schema change. The five-minute expiry stays as a safety net.",
-	].join("\n"),
-};
+const PLAN_TEXT = [
+	"# Invalidate cached prices on write",
+	"",
+	"Prices are cached for five minutes in `PriceCache` and nothing clears an entry when a price changes.",
+	"",
+	"1. Give `PriceCache` a `forget(productId)` method.",
+	"2. Call it from `updatePrice` and `bulkImport` after the database write commits.",
+	"3. Add a test that edits a price and reads the new value at once.",
+	"",
+	"No schema change. The five-minute expiry stays as a safety net.",
+].join("\n");
+
+const PLAN: Interaction = { kind: "plan_approval", plan: PLAN_TEXT };
 
 /**
  * Makes the cast's chats work and wait: beacon is working on a turn with a queued follow-up; canyon,
@@ -344,6 +343,18 @@ export async function animateCast(world: World, cast: Cast, app: StartedApp): Pr
 
 	openInteraction(world, cast.chats.canyon.id, "canyon-approval", APPROVAL);
 	openInteraction(world, cast.chats.ember.id, "ember-question", QUESTION);
+	// The agent proposes its plan with a tool call, which the chat shows as the plan card; the
+	// plan bar under it holds only the controls, as in Conductor.
+	const planning = conversation("fjord-live", CATALOGUE_NOW - 2 * MINUTE, 10_000);
+	const planTurn = planning.user("Go ahead and write the plan.");
+	planning.tool(planTurn, {
+		tool: "exit_plan_mode",
+		rawName: "ExitPlanMode",
+		input: { plan: PLAN_TEXT },
+		output: null,
+	});
+	setLiveState(world, cast.chats.fjord.id, {});
+	deliverEvents(world, cast.chats.fjord.id, planning.events, 10);
 	openInteraction(world, cast.chats.fjord.id, "fjord-plan", PLAN);
 }
 
