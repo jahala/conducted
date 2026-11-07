@@ -226,7 +226,6 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				"CLOUD-12",
 			);
 
-
 			const session = must(await services.sessions.create(workspace.id, CONFIG));
 			const sending = services.sessions.send(session.id, "hello", [], "auto");
 			const line = await waitForSent(cloud, "sendMessage");
@@ -264,9 +263,7 @@ describe("CLOUD-01 the host seam in the real container", () => {
 					clearChats: false,
 				}),
 			);
-			expect(services.workspace.store.getState().workspacesById[workspace.id]?.state).toBe(
-				"ready",
-			);
+			expect(services.workspace.store.getState().workspacesById[workspace.id]?.state).toBe("ready");
 			must(await services.workspace.remove(workspace.id));
 			expect(cloud.cloudRequests.some((request) => request.path === "/w/vm-1/remove")).toBe(true);
 			expect(services.workspace.store.getState().workspacesById[workspace.id]).toBeUndefined();

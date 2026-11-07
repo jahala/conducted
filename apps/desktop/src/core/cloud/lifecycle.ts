@@ -38,9 +38,7 @@ export async function removeCloudWorkspace(cloud: Cloud, host: CloudHost): Promi
 	if (!answer.ok) return answer;
 	const value = answer.value as { deletedBackups?: unknown };
 	if (typeof value.deletedBackups !== "number") {
-		return err(
-			appError("cloud_bad_response", "The Workspace did not say what it deleted."),
-		);
+		return err(appError("cloud_bad_response", "The Workspace did not say what it deleted."));
 	}
 	return ok(undefined);
 }

@@ -111,6 +111,7 @@ import type { Cloud, Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import { removeCloudWorkspace, stopCloudWorkspace } from "../cloud/lifecycle.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-helpers.ts";
@@ -144,7 +145,6 @@ import {
 	restoreArchiveCheckpoint,
 	saveArchiveSnapshot,
 } from "../git/worktree.ts";
-import { removeCloudWorkspace, stopCloudWorkspace } from "../cloud/lifecycle.ts";
 import { checkHost } from "../host.ts";
 import type {
 	BacklogWorkspace,
@@ -1388,7 +1388,7 @@ export class WorkspaceService {
 		if (workspace === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		if (workspace.host.kind === "cloud") {
-			return this.#archiveCloud(workspace, options);
+			return this.#archiveCloud(workspace);
 		}
 		if (isArchivedWorkspace(workspace)) return ok(undefined);
 		if (workspace.state === "archiving") {
@@ -1539,10 +1539,7 @@ export class WorkspaceService {
 	 * the chats stop, the Worker saves the work to R2 and stops the sandbox, and the row is marked
 	 * archived with that head. Unarchive is the row's own change; the next start restores the work.
 	 */
-	async #archiveCloud(
-		workspace: Workspace,
-		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
-	): Promise<Result<void>> {
+	async #archiveCloud(workspace: Workspace): Promise<Result<void>> {
 		const id = workspace.id;
 		const cloud = this.#deps.cloud;
 		if (cloud === undefined) {
@@ -1640,11 +1637,7 @@ export class WorkspaceService {
 			return err(appError("workspace_not_archived", "This workspace is not archived."));
 		}
 		const id = workspace.id;
-		const moved = await this.#deps.repos.workspaces.transitionState(
-			id,
-			"archived",
-			"initializing",
-		);
+		const moved = await this.#deps.repos.workspaces.transitionState(id, "archived", "initializing");
 		if (!moved.ok) return moved;
 		if (!moved.value) {
 			return err(appError("workspace_not_archived", "This workspace is not archived."));

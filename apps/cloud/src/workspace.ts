@@ -351,8 +351,7 @@ export class Workspace extends DurableObject<Env> {
 	 */
 	async remove(): Promise<{ deletedBackups: number }> {
 		return this.exclusive(async () => {
-			const records =
-				(await this.ctx.storage.get<DirectoryBackupRecord[]>(STORAGE_BACKUPS)) ?? [];
+			const records = (await this.ctx.storage.get<DirectoryBackupRecord[]>(STORAGE_BACKUPS)) ?? [];
 			if (this.container !== undefined) {
 				const store = this.backupStore();
 				for (const record of records) await store.delete(record);
