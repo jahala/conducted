@@ -16,7 +16,7 @@ import { checkModuleState } from "./module-state.ts";
 import { checkSettingsKeys } from "./settings-keys.ts";
 import { checkSidecarEdges } from "./sidecar-edges.ts";
 import { checkSite } from "./site.ts";
-import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import { checkHeaders, checkMarkers, checkOurName } from "./source-rules.ts";
 import {
 	checkBrowserImports,
 	checkMigrationList,
@@ -51,6 +51,7 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["headers", checkHeaders],
 	["header-claims", checkHeaderClaims],
 	["markers", checkMarkers],
+	["our-name", checkOurName],
 	["versions", checkVersions],
 	["test-scripts", checkTestScripts],
 	["workflows", checkWorkflows],

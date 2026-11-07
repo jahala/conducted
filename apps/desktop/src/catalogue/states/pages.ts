@@ -1,8 +1,9 @@
 /**
- * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog
- * Owns: the seeds for Home with the cast, the new workspace page with a project chosen, and the backlog
- * with saved workspaces and empty.
- * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog), WS-11 (backlog).
+ * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
+ * Owns: the seeds for Home with the cast, the new workspace page with a project chosen, the backlog
+ * with saved workspaces and empty, and the Diagnostics page.
+ * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
+ * APP-03 (diagnostics).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { animateCast, seedCast } from "../cast.ts";
@@ -179,6 +180,36 @@ export const PAGE_STATES: CatalogueState[] = [
 		seed: async (world) => {
 			await seedCast(world);
 			return { route: "/backlog" };
+		},
+	},
+	{
+		id: "diagnostics",
+		group: "Pages",
+		title: "Diagnostics",
+		seed: async (world) => {
+			await seedCast(world);
+			// The page reads the login shell's environment.
+			world.scriptShell((command) =>
+				command.program === "/bin/zsh" && command.args.join(" ") === "-lc env"
+					? {
+							ok: true,
+							value: {
+								stdout: [
+									"HOME=/Users/sam",
+									"SHELL=/bin/zsh",
+									"PATH=/opt/homebrew/bin:/usr/bin:/bin",
+									"LANG=en_US.UTF-8",
+								].join("\n"),
+								stderr: "",
+								exitCode: 0,
+							},
+						}
+					: null,
+			);
+			return {
+				route: "/diagnostics",
+				ready: (document) => shows(document, "Copy redacted report"),
+			};
 		},
 	},
 ];

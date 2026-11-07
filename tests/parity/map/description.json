@@ -160,7 +160,7 @@
 	},
 	"description:R2129942": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"class": "wording",
 		"backlog": "SET-02",
@@ -727,104 +727,160 @@
 	"description:R10708838": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10708911": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10708982": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709071": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709163": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709245": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709343": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709429": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709509": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709605": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
-	},
-	"description:R10709703": {
-		"status": "gap",
-		"reason": "unshown",
 		"screen": "inventory-controls Settings",
 		"backlog": "SET-11",
 		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
-		"owner": "rule:cite"
+		"owner": "hand",
+		"by": "hand"
+	},
+	"description:R10709703": {
+		"status": "matched",
+		"state": "settings-environment-documented",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr:nth-of-type(11) > td:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10709805": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10709909": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10710015": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10710098": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-11",
+		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R10710192": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-11",
-		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-environment-documented",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr:nth-of-type(16) > td:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710274": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-11",
-		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-environment-documented",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr:nth-of-type(17) > td:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10710371": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-11",
-		"item": "Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-environment-documented",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr:nth-of-type(18) > td:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10719274": {
 		"status": "matched",
@@ -897,7 +953,11 @@
 	"description:R11028884": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "SET-07",
+		"item": "Git: the Scripts page description reads 'Commands that run when workspaces are set up or archived.'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11092256": {
 		"status": "decided",
@@ -968,27 +1028,27 @@
 		"owner": "hand"
 	},
 	"description:R11099855": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-14",
-		"item": "Always allow local commands skips the per-command approval for Run on your Mac.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11100138": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-14",
-		"item": "Always allow local commands skips the per-command approval for Run on your Mac.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11101588": {
 		"status": "matched",
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "div",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"description:R11103142": {
@@ -1216,12 +1276,12 @@
 		"by": "seed"
 	},
 	"description:R11134746": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "CLOUD-17",
-		"item": "Conductor shows \"Name and email used for commits in cloud workspaces.\" (description, inventory-controls Settings: General); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11135262": {
 		"status": "matched",
@@ -1244,7 +1304,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > p:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > p:nth-of-type(2)",
 		"by": "seed"
 	},
 	"description:R11140194": {
@@ -1260,7 +1320,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "div",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"description:R11142411": {
@@ -1268,7 +1328,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "div",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"description:R11143310": {
@@ -1276,7 +1336,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "div",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(11) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"description:R11160020": {
@@ -1438,7 +1498,11 @@
 	"description:R11262744": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-02",
+		"item": "Default models: 'Default model'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11263033": {
 		"status": "matched",
@@ -1465,7 +1529,7 @@
 	},
 	"description:R11265371": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > p:nth-of-type(2)",
@@ -1473,7 +1537,7 @@
 	},
 	"description:R11266434": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(1) > button > span > span:nth-of-type(2)",
@@ -1481,7 +1545,7 @@
 	},
 	"description:R11266620": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(2) > button > span > span:nth-of-type(2)",
@@ -1489,7 +1553,7 @@
 	},
 	"description:R11266812": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(3) > button > span > span:nth-of-type(2)",
@@ -1497,7 +1561,7 @@
 	},
 	"description:R11267037": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(4) > button > span > span:nth-of-type(2)",
@@ -1505,7 +1569,7 @@
 	},
 	"description:R11267246": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(5) > button > span > span:nth-of-type(2)",
@@ -1513,7 +1577,7 @@
 	},
 	"description:R11267436": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(6) > button > span > span:nth-of-type(2)",
@@ -1521,7 +1585,7 @@
 	},
 	"description:R11295038": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(2)",
@@ -1529,7 +1593,7 @@
 	},
 	"description:R11295423": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(2)",
@@ -1537,7 +1601,7 @@
 	},
 	"description:R11296071": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(2)",
@@ -1545,7 +1609,7 @@
 	},
 	"description:R11297407": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(4) > p:nth-of-type(2)",
@@ -1553,7 +1617,7 @@
 	},
 	"description:R11297883": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(5) > div > p:nth-of-type(2)",
@@ -1578,17 +1642,29 @@
 	"description:R11299318": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-06",
+		"item": "Appearance: Theme (Light, Dark, System)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11299568": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "SET-06",
+		"item": "Appearance: low-contrast dark mode",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11299822": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "PLAT-23",
+		"item": "Appearance: app zoom slider (one range, a way to zoom the webview)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"description:R11300055": {
 		"status": "matched",
@@ -1913,7 +1989,7 @@
 	},
 	"description:R11709706": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > p",
@@ -1921,7 +1997,7 @@
 	},
 	"description:R11709825": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > p",

@@ -29,6 +29,23 @@ import type {
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
 
+/** Base64 of raw bytes, built in slices so a large file does not overflow the argument list. */
+function encodeBase64(bytes: Uint8Array): string {
+	const SLICE = 0x8000;
+	let binary = "";
+	for (let start = 0; start < bytes.length; start += SLICE) {
+		binary += String.fromCharCode(...bytes.subarray(start, start + SLICE));
+	}
+	return btoa(binary);
+}
+
+function decodeBase64(value: string): Uint8Array {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return bytes;
+}
+
 /** How long a git, shell or file call may take; a build can be slow, so this catches only a hang. */
 export const CLOUD_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -215,11 +232,31 @@ export function createHostedPlatform(
 						return typeof text === "string" ? text : null;
 					});
 		},
+		readBytes: (path) => {
+			const host = hostAt(path);
+			return host === null
+				? platform.fs.readBytes(path)
+				: fileOperation(cloud, host, { operation: "readBytes", path }, (value) => {
+						const base64 = (value as { base64?: unknown }).base64;
+						return typeof base64 === "string" ? decodeBase64(base64) : null;
+					});
+		},
 		writeTextAtomic: (path, text) => {
 			const host = hostAt(path);
 			return host === null
 				? platform.fs.writeTextAtomic(path, text)
 				: fileOperation(cloud, host, { operation: "write", path, text }, () => undefined);
+		},
+		writeBytes: (path, bytes) => {
+			const host = hostAt(path);
+			return host === null
+				? platform.fs.writeBytes(path, bytes)
+				: fileOperation(
+						cloud,
+						host,
+						{ operation: "writeBytes", path, base64: encodeBase64(bytes) },
+						() => undefined,
+					);
 		},
 		exists: (path) => {
 			const host = hostAt(path);

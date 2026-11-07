@@ -229,6 +229,9 @@ describe("REV-10 workspace artifacts service", () => {
 					calls += 1;
 					return calls === 1 ? oldRoot : ok([`${root}-new`]);
 				},
+				searchRootOf: async () => ok(root),
+				hostKindOf: () => "local",
+				cloudOpen: async () => ok({ path: root, downloaded: false }),
 			});
 
 			const older = service.loadArtifacts(workspaceId);

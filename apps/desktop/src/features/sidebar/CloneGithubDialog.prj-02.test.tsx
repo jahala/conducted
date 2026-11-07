@@ -92,6 +92,17 @@ function makeTest() {
 }
 
 describe("PRJ-02 Clone GitHub repo dialog", () => {
+	it("suggests a folder when it opens, as Conductor does, so Clone needs only a repository", async () => {
+		const { renderDialog } = makeTest();
+		renderDialog();
+
+		await waitFor(() =>
+			expect((screen.getByLabelText("Location") as HTMLInputElement).value).toBe(
+				"/Users/conducted/conducted/repos",
+			),
+		);
+	});
+
 	it("lists the owner's repositories and fills the URL when one is chosen", async () => {
 		const { renderDialog } = makeTest();
 		renderDialog();

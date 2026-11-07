@@ -114,7 +114,7 @@ function originText(comment: DiffComment): string {
 	if (comment.author.kind === "agent") {
 		return name === null ? "left locally by an agent" : `left locally by ${name}`;
 	}
-	return "created locally in Conductor by the user";
+	return "created locally in Conducted by the user";
 }
 
 function commentFileText(comment: DiffComment): string {
@@ -127,7 +127,7 @@ function commentFileText(comment: DiffComment): string {
 	const identifier =
 		comment.author.kind === "github"
 			? `GitHub review comment ID: ${comment.id}`
-			: `Conductor local comment ID: ${comment.id}`;
+			: `Conducted local comment ID: ${comment.id}`;
 	const parts = [
 		identifier,
 		`File: ${comment.filePath ?? ""}`,

@@ -18,9 +18,9 @@ import { checkModuleState } from "./module-state.ts";
 import { checkSettingsKeys } from "./settings-keys.ts";
 import { checkSidecarEdges } from "./sidecar-edges.ts";
 import { checkSite } from "./site.ts";
-import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import { checkHeaders, checkMarkers, checkOurName } from "./source-rules.ts";
 import { checkTestScripts } from "./test-scripts.ts";
-import { checkVersions } from "./versions.ts";
+import { checkVersions, setVersion } from "./versions.ts";
 import { checkWorkflows } from "./workflows.ts";
 
 let root = "";
@@ -327,6 +327,31 @@ describe("markers", () => {
 	});
 });
 
+describe("our name", () => {
+	test("flags Conductor's name in a product string, never in a comment or a test", () => {
+		put(
+			"apps/desktop/src/core/a.ts",
+			'/** Reads the settings, as Conductor does. */\nexport const m = "Conductor could not connect.";\n',
+		);
+		put(
+			"apps/desktop/src/features/b.tsx",
+			"/** b */\n// Conductor's layout.\nexport const B = () => (\n\t<p>\n\t\t{/* Conductor's order:\n\t\tthe sound first. */}\n\t\tSaved in Conductor\n\t</p>\n);\n",
+		);
+		put(
+			"packages/c/src/c.ts",
+			'/** c */\nexport const url = "https://conductor.build"; // Conductor\'s site\n',
+		);
+		put("apps/desktop/src/core/a.test.ts", 'const text = "Conductor";\n');
+		put("apps/desktop/src-tauri/src/d.rs", '//! d\nconst M: &str = "Open in Conductor";\n');
+		const messages = checkOurName(root).map((p) => p.message);
+		expect(messages).toEqual([
+			"apps/desktop/src-tauri/src/d.rs:2 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src/core/a.ts:2 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src/features/b.tsx:7 names Conductor in a product string; our app is Conducted",
+		]);
+	});
+});
+
 describe("versions", () => {
 	test("flags a version file that disagrees", () => {
 		put("package.json", '{"version":"0.2.0"}');
@@ -337,10 +362,39 @@ describe("versions", () => {
 			"apps/desktop/src-tauri/Cargo.lock",
 			'[[package]]\nname = "conducted"\nversion = "0.2.0"\n',
 		);
+		put("apps/cloud/sandbox/image.ts", 'export const IMAGE = {\n\tappVersion: "0.2.0",\n};\n');
+		put("apps/cloud/sandbox/Dockerfile", "FROM node\nENV CONDUCTED_APP_VERSION=0.2.0\n");
 		const messages = checkVersions(root).map((p) => p.message);
 		expect(messages).toEqual([
 			"apps/desktop/src-tauri/Cargo.toml has version 0.1.0, expected 0.2.0",
 		]);
+	});
+
+	test("flags the sandbox image when it still names the last release's version", () => {
+		put("package.json", '{"version":"0.3.0"}');
+		put("apps/desktop/package.json", '{"version":"0.3.0"}');
+		put("apps/desktop/src-tauri/tauri.conf.json", '{"version":"0.3.0"}');
+		put("apps/desktop/src-tauri/Cargo.toml", '[package]\nname = "conducted"\nversion = "0.3.0"\n');
+		put(
+			"apps/desktop/src-tauri/Cargo.lock",
+			'[[package]]\nname = "conducted"\nversion = "0.3.0"\n',
+		);
+		put("apps/cloud/sandbox/image.ts", 'export const IMAGE = {\n\tappVersion: "0.2.1",\n};\n');
+		put("apps/cloud/sandbox/Dockerfile", "FROM node\nENV CONDUCTED_APP_VERSION=0.2.1\n");
+		const messages = checkVersions(root).map((p) => p.message);
+		expect(messages).toEqual([
+			"apps/cloud/sandbox/image.ts has version 0.2.1, expected 0.3.0",
+			"apps/cloud/sandbox/Dockerfile has version 0.2.1, expected 0.3.0",
+		]);
+	});
+
+	test("setVersion writes the version into the sandbox image's two copies", () => {
+		expect(setVersion("apps/cloud/sandbox/image.ts", '\tappVersion: "0.2.1",\n', "0.3.1")).toBe(
+			'\tappVersion: "0.3.1",\n',
+		);
+		expect(
+			setVersion("apps/cloud/sandbox/Dockerfile", "ENV CONDUCTED_APP_VERSION=0.2.1\n", "0.3.1"),
+		).toBe("ENV CONDUCTED_APP_VERSION=0.3.1\n");
 	});
 });
 

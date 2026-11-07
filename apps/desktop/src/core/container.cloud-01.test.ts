@@ -11,7 +11,7 @@
  * the Mac in their place.
  */
 import type { Host, SessionConfig } from "@conducted/protocol";
-import { NotImplemented, ok } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
 import type { Workspace } from "./model.ts";
@@ -33,15 +33,6 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
 	return result.value;
 };
-
-/** The backlog id of the placeholder a call stopped at, or what it did instead. */
-async function stoppedAt(call: () => Promise<unknown>): Promise<string> {
-	try {
-		return `went on: ${JSON.stringify(await call())}`;
-	} catch (cause) {
-		return cause instanceof NotImplemented ? cause.featureId : `threw: ${String(cause)}`;
-	}
-}
 
 /** A ready workspace on `host` whose folder exists, with one file in it. */
 async function readyWorkspace(
@@ -165,6 +156,13 @@ describe("CLOUD-01 the host seam in the real container", () => {
 					switch (body.operation) {
 						case "read":
 							return ok({ status: 200, body: JSON.stringify({ text: "hello\n" }) });
+						case "readBytes":
+							return ok({
+								status: 200,
+								body: JSON.stringify({
+									base64: Buffer.from("hello\n").toString("base64"),
+								}),
+							});
 						case "exists":
 							return ok({ status: 200, body: JSON.stringify({ exists: true }) });
 						case "stat":
@@ -227,7 +225,8 @@ describe("CLOUD-01 the host seam in the real container", () => {
 			expect(cloud.ptySpawns).toHaveLength(0);
 
 			// File search reads the cloud workspace's local mirror (CLOUD-11), and nothing of it
-			// runs on the Mac. Open in still stops at its own row (CLOUD-12).
+			// runs on the Mac. Open in is a remote-editor call (CLOUD-12), so an unsupported app
+			// gets Conductor's refusal instead of falling back to a folder on this Mac.
 			const shells = cloud.shellCalls.length;
 			const ptys = cloud.ptySpawns.length;
 			const filesOnDisk = new Map(cloud.files);
@@ -243,9 +242,13 @@ describe("CLOUD-01 the host seam in the real container", () => {
 				}),
 			);
 			expect(matches.map((match) => match.path)).toEqual(["README.md"]);
-			expect(await stoppedAt(() => services.workspace.openIn(workspace.id, "Finder"))).toBe(
-				"CLOUD-12",
-			);
+			expect(await services.workspace.openIn(workspace.id, "Finder")).toMatchObject({
+				ok: false,
+				error: {
+					code: "remote_open_unsupported",
+					message: "Remote open is only supported for VS Code, Cursor, and Zed",
+				},
+			});
 
 			const session = must(await services.sessions.create(workspace.id, CONFIG));
 			const sending = services.sessions.send(session.id, "hello", [], "auto");

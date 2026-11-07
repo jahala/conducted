@@ -289,3 +289,35 @@ describe("NAV-04 Create in section", () => {
 		expect(create.mock.calls[0]?.[0].sectionId).toBe("s1");
 	});
 });
+
+describe("APP-04 Create with no projects yet", () => {
+	it("offers the same three ways to add a project as the first screen", async () => {
+		test.container.services.repo.store.setState({
+			loaded: true,
+			reposById: {},
+			order: [],
+			configs: {},
+		});
+		const rootRoute = createRootRoute({ component: () => <Outlet /> });
+		const createPageRoute = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/create",
+			component: () => <CreateWorkspacePage />,
+		});
+		const router = createRouter({
+			routeTree: rootRoute.addChildren([createPageRoute]),
+			history: createMemoryHistory({ initialEntries: ["/create"] }),
+		});
+		render(
+			<ServicesProvider container={test.container}>
+				<RouterProvider router={router} />
+			</ServicesProvider>,
+		);
+		await router.load();
+
+		expect(await screen.findByText("Add a project to get started")).toBeTruthy();
+		expect(screen.getByRole("button", { name: /Open project/ })).toBeTruthy();
+		expect(screen.getByRole("button", { name: /Open GitHub project/ })).toBeTruthy();
+		expect(screen.getByRole("button", { name: /Quick start/ })).toBeTruthy();
+	});
+});

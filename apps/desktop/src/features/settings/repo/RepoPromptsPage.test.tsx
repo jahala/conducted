@@ -20,7 +20,7 @@ const config = (changes: Partial<RepoConfig> = {}): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [".env*"],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: null,

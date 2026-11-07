@@ -60,29 +60,33 @@ export function DialogContent({
 	return (
 		<Radix.Portal>
 			<Radix.Overlay className="fixed inset-0 z-40 bg-overlay backdrop-blur-xs" />
-			<Radix.Content
-				className={cn(
-					"fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex max-h-[calc(100%-4rem)] w-[calc(100%-2rem)]",
-					"-translate-x-1/2 flex-col gap-4 rounded-md border border-border bg-raised p-6 text-fg shadow-dialog",
-					sizeClass[size],
-					className,
-				)}
-				onKeyDown={(event) => {
-					if (event.metaKey && event.key === "Enter" && onConfirm) {
-						event.preventDefault();
-						onConfirm();
-					}
-				}}
-				{...(description ? {} : { "aria-describedby": undefined })}
-			>
-				{hideTitle ? <VisuallyHidden.Root>{heading}</VisuallyHidden.Root> : heading}
-				{description ? (
-					<Radix.Description className="-mt-2 text-sm text-fg-muted">
-						{description}
-					</Radix.Description>
-				) : null}
-				{children}
-			</Radix.Content>
+			{/* Conductor's positioner (renderApp @1846028): the dialog starts at the same height as
+			    before and ends 2rem above the window's bottom; a taller dialog scrolls inside it. */}
+			<div className="pointer-events-none fixed inset-x-0 top-[max(2rem,calc(50%-250px))] bottom-0 z-50 flex items-start justify-center px-4 pb-8">
+				<Radix.Content
+					className={cn(
+						"pointer-events-auto relative flex max-h-full w-full flex-col gap-4 overflow-y-auto",
+						"rounded-md border border-border bg-raised p-6 text-fg shadow-dialog",
+						sizeClass[size],
+						className,
+					)}
+					onKeyDown={(event) => {
+						if (event.metaKey && event.key === "Enter" && onConfirm) {
+							event.preventDefault();
+							onConfirm();
+						}
+					}}
+					{...(description ? {} : { "aria-describedby": undefined })}
+				>
+					{hideTitle ? <VisuallyHidden.Root>{heading}</VisuallyHidden.Root> : heading}
+					{description ? (
+						<Radix.Description className="-mt-2 text-sm text-fg-muted">
+							{description}
+						</Radix.Description>
+					) : null}
+					{children}
+				</Radix.Content>
+			</div>
 		</Radix.Portal>
 	);
 }

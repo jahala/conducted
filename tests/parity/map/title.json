@@ -213,7 +213,7 @@
 	},
 	"title:M3782313": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "aria-label",
 		"role": "button",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > button",
@@ -301,7 +301,7 @@
 	},
 	"title:M3784334": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "aria-label",
 		"role": "button",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(1) > button",
@@ -467,7 +467,7 @@
 	},
 	"title:M3788318": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "aria-label",
 		"role": "button",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > div > button:nth-of-type(2)",
@@ -847,18 +847,18 @@
 	},
 	"title:M3795935": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "composer-plus-menu",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(13) > article > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"title:M3796083": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "composer-plus-menu",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(18) > article > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:M3796220": {
@@ -975,10 +975,10 @@
 	},
 	"title:M3798446": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "composer-plus-menu",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(14) > article > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"title:M3798590": {
@@ -991,7 +991,7 @@
 	},
 	"title:M3798747": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
@@ -1531,7 +1531,7 @@
 	},
 	"title:R2148550": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "text",
 		"role": "tab",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(3)",
@@ -1697,12 +1697,12 @@
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R8048580": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-24",
-		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-mermaid",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"title:R8050074": {
 		"status": "matched",
@@ -1817,12 +1817,12 @@
 		"owner": "rule:cite"
 	},
 	"title:R9976123": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Empty: 'No files match this filter'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-changes-filter-empty",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section > h2",
+		"by": "seed"
 	},
 	"title:R9999611": {
 		"status": "gap",
@@ -1897,12 +1897,12 @@
 		"owner": "rule:quote"
 	},
 	"title:R10145685": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Workspaces",
-		"backlog": "NAV-04",
-		"item": "Section header action 'Create in section'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "new-workspace-in-section",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(4) > div > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"title:R10146833": {
 		"status": "matched",
@@ -1937,12 +1937,12 @@
 		"by": "seed"
 	},
 	"title:R10303877": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-07",
-		"item": "PR tab: 'Activity'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-tab",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > section:nth-of-type(3) > h3",
+		"by": "seed"
 	},
 	"title:R10308714": {
 		"status": "decided",
@@ -2091,9 +2091,10 @@
 		"by": "hand"
 	},
 	"title:R10912930": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The Prompts page title of Conductor's organisation settings; organisations stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"title:R10967435": {
 		"status": "gap",
@@ -2187,7 +2188,7 @@
 	},
 	"title:R11028868": {
 		"status": "matched",
-		"state": "settings-repo-git",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(3) > span",
@@ -2204,7 +2205,11 @@
 	"title:R11058782": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents"
+		"screen": "inventory-ui-text Settings and agents",
+		"backlog": "PR-01",
+		"item": "Account: GitHub personal access token field (Keychain)",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"title:R11092223": {
 		"status": "decided",
@@ -2283,20 +2288,20 @@
 		"owner": "hand"
 	},
 	"title:R11099826": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-14",
-		"item": "Advanced: 'Remote execution MCP' and 'Always allow local commands'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"title:R11100102": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-14",
-		"item": "'Always allow local commands' choice",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"title:R11100407": {
 		"status": "matched",
@@ -2311,7 +2316,7 @@
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11101563": {
@@ -2319,7 +2324,7 @@
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11103087": {
@@ -2426,10 +2431,10 @@
 	},
 	"title:R11108935": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "dashboard",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(15) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > a:nth-of-type(1) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"title:R11109216": {
@@ -2595,12 +2600,12 @@
 		"by": "seed"
 	},
 	"title:R11134725": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "CLOUD-17",
-		"item": "Git settings: 'Git identity' name and email for cloud commits",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"title:R11135227": {
 		"status": "matched",
@@ -2623,7 +2628,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > div > div > div > p",
 		"by": "seed"
 	},
 	"title:R11137132": {
@@ -2631,7 +2636,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > div > div > p",
 		"by": "seed"
 	},
 	"title:R11137875": {
@@ -2639,7 +2644,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11139381": {
@@ -2647,7 +2652,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div > div > div > p",
 		"by": "seed"
 	},
 	"title:R11139747": {
@@ -2655,7 +2660,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div > div > div > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(6) > div > div > div > p",
 		"by": "seed"
 	},
 	"title:R11140161": {
@@ -2663,7 +2668,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11141583": {
@@ -2671,7 +2676,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11141930": {
@@ -2679,7 +2684,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11142369": {
@@ -2687,7 +2692,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(9) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11143279": {
@@ -2695,7 +2700,7 @@
 		"state": "settings-git",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(11) > div > div > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"title:R11159986": {
@@ -2747,7 +2752,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(2) > button:nth-of-type(3) > span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(2) > button:nth-of-type(4) > span",
 		"by": "seed"
 	},
 	"title:R11194105": {
@@ -2975,7 +2980,7 @@
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(8) > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(10) > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11225710": {
@@ -2987,7 +2992,11 @@
 	"title:R11262722": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "COMP-02",
+		"item": "Default models: 'Default model'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"title:R11263302": {
 		"status": "matched",
@@ -3023,7 +3032,7 @@
 	},
 	"title:R11264843": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div > p:nth-of-type(1)",
@@ -3040,7 +3049,7 @@
 	},
 	"title:R11266402": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(1) > button > span > span:nth-of-type(1) > span",
@@ -3048,7 +3057,7 @@
 	},
 	"title:R11266590": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(2) > button > span > span:nth-of-type(1) > span",
@@ -3056,7 +3065,7 @@
 	},
 	"title:R11266781": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(3) > button > span > span:nth-of-type(1) > span",
@@ -3064,7 +3073,7 @@
 	},
 	"title:R11266999": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(4) > button > span > span:nth-of-type(1) > span",
@@ -3072,7 +3081,7 @@
 	},
 	"title:R11267212": {
 		"status": "matched",
-		"state": "settings-repo-actions",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(5) > button > span > span:nth-of-type(1) > span",
@@ -3080,15 +3089,15 @@
 	},
 	"title:R11295025": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-add-action",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(1)",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(4) > span",
 		"by": "seed"
 	},
 	"title:R11295405": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(1)",
@@ -3096,7 +3105,7 @@
 	},
 	"title:R11296047": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(1)",
@@ -3104,15 +3113,15 @@
 	},
 	"title:R11296771": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
-		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(3) > label",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11297385": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(4) > p:nth-of-type(1)",
@@ -3120,7 +3129,7 @@
 	},
 	"title:R11297857": {
 		"status": "matched",
-		"state": "settings-repo-misc",
+		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(5) > div > p:nth-of-type(1)",
@@ -3462,7 +3471,7 @@
 	},
 	"title:R11709690": {
 		"status": "matched",
-		"state": "settings-repo-git",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(4) > span",
@@ -3470,7 +3479,7 @@
 	},
 	"title:R11709812": {
 		"status": "matched",
-		"state": "settings-repo-git",
+		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(5) > span",

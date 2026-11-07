@@ -135,6 +135,18 @@ describe("PRJ-03 Quick start", () => {
 });
 
 describe("PRJ-03 Create project dialog layout", () => {
+	it("suggests the parent folder when it opens, as Conductor does", async () => {
+		render(<CreateProjectDialog open onOpenChange={() => {}} onCreated={() => {}} />, {
+			wrapper,
+		});
+
+		await waitFor(() =>
+			expect((screen.getByLabelText("Parent folder") as HTMLInputElement).value).toBe(
+				"/Users/conducted/conducted/repos",
+			),
+		);
+	});
+
 	it("follows Conductor's wording: folder line, parent placeholder, New on gstack, Create with its keys", () => {
 		render(<CreateProjectDialog open onOpenChange={() => {}} onCreated={() => {}} />, {
 			wrapper,

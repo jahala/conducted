@@ -269,11 +269,9 @@
 		"owner": "rule:cite"
 	},
 	"route:R10181173": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "APP-03",
-		"owner": "hand"
+		"status": "matched",
+		"ours": "/diagnostics",
+		"by": "seed"
 	},
 	"route:R10198052": {
 		"status": "decided",
@@ -282,11 +280,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R10407696": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-06",
-		"owner": "hand"
+		"status": "matched",
+		"ours": "/dashboard",
+		"by": "seed"
 	},
 	"route:R10410820": {
 		"status": "decided",

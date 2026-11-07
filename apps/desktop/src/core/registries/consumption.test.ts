@@ -53,7 +53,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"experimental_auto_permission_mode",
 	"experimental_new_workspace_page",
 	"internal_workspace_status_matrix",
-	"last_clone_directory",
 ];
 
 /** Commands of a done feature that no handler or caller names yet. */

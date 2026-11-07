@@ -473,3 +473,88 @@ registry image `conducted-dev-c10-1536-workspace-sandbox:wrangler-mw6kgk19`
 `wrangler containers list`, `containers images list` and `r2 bucket list` hold no
 `conducted-dev-c10` entry, and `docker images` holds none. The token and run files under `/tmp`
 and the `apps/cloud/sandbox/build/` folder were trashed.
+
+## Follow-up: SSH into a cloud workspace (CLOUD-12, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, Worker
+`conducted-dev-c12s-1794076306` and R2 bucket of the same name. The driver installed the Mac's
+public key through the Worker's new `/ssh-key` route, then a small Bun listener (standing in for
+`port_forward.rs`'s `start_ssh_forward`, which the same run's Rust tests cover) bound a loopback
+port and opened one WebSocket per connection to `/w/<name>/ssh`. `ssh -i <temp key> -p <local>`
+ran one command in the sandbox.
+
+- **Deploy:** **85.44 s** to build and push the image and upload the Worker, **2.36 s** to publish
+  the triggers. The later Worker-only deploys took **6.23 s** upload and **1.98 s** triggers.
+- **Cold start:** `POST /w/<name>/ssh-key` answered **200** in **7,626 ms**: the container started,
+  the key was written and the response returned.
+- **Warm start:** the same call answered **200** in **92.6 ms**; `GET /state` reported
+  `running: true`, `turnActive: false`.
+- **SSH:** one `ssh` connection over the local listener ran `echo c12-ssh-ok`, `hostname`, `pwd`
+  and `ls /workspace` in **517 ms** end to end. The output was `c12-ssh-ok`, the container
+  hostname, `/root`, and an empty `/workspace`.
+- **Editor open:** not run. This Mac has no VS Code, Cursor or Zed in `/Applications`, so there
+  was no editor to open. The three commands (`code`/`cursor --remote ssh-remote+<host>`,
+  `zed ssh://<host><path>`) and Conductor's refusal for any other app are covered by
+  `open_with.rs` tests.
+- **A running Durable Object keeps its code across a Worker deploy.** The first SSH test after a
+  Worker-only fix still ran the old object and timed out during banner exchange; a new workspace
+  name (a new Durable Object and sandbox) worked at once. This is Cloudflare's documented
+  behaviour, not an app bug, but a live tester should use a new workspace name after a Worker
+  change.
+
+Everything the run created was deleted: Worker `conducted-dev-c12s-1794076306` (its URL now
+answers 404), container application `conducted-dev-c12s-1794076306-sandbox`
+(`1729825855554f7a9abd4c1148ddf65b`), registry image
+`conducted-dev-c12s-1794076306-workspace-sandbox:wrangler-mw6qpwtc`
+(`sha256:7081512c5c66c4fc05844d848b489ac736c09918cb7d1e4d3c71e5c00468352d`), R2 bucket
+`conducted-dev-c12s-1794076306-backups`, and the local Docker image by id `7081512c5c66`. Final
+`wrangler containers list`, `containers images list` and `r2 bucket list` hold no
+`conducted-dev-c12s` entry, and `docker images` holds none. The temp keys, listener, configs and
+the `apps/cloud/sandbox/build/` output were trashed.
+
+## Follow-up: the mirror's file route and terminal (CLOUD-11, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, through a temporary
+ignored Rust test (`apps/desktop/src-tauri/tests/cloud_c11_live.rs`). It exercises the Worker paths
+CLOUD-11's mirror, Local terminal and Local run variant read from, not the Mac's own PTY: a text
+file, a binary file and a file over 2 MiB through `/files`, and a command through the `/terminal`
+stream a run script uses in the sandbox.
+
+- **Deploy:** **32,552 ms** to build and upload the image and Worker (wrangler 4.158).
+- **Cold start:** `POST /w/c11live183155/start` answered after **176,532 ms** across three tries,
+  not one. The first request after a deploy pulls the new image and is cut off by Cloudflare's
+  100-second request window. The second and third found the container running. The test now
+  retries up to three times.
+- **Files:** **1,017 ms** for the whole block: a text write, a binary `writeBytes`, a 3 MiB text
+  write, a `readBytes` whose bytes matched byte for byte, and a `list` that carried
+  `/workspace/big.txt`.
+- **Terminal:** **259 ms** for `/bin/bash -l -c 'echo TERMOK && pwd'` over the terminal WebSocket,
+  with `TERMOK` and `/workspace` in the output and exit 0.
+- **Uninstall:** **13,599 ms**. Final `wrangler containers list`, `containers images list` and
+  `r2 bucket list` held no `conducted-dev-c11t` entry, the Worker URL answers 404, and the local
+  Docker image was removed by its id `8bfd6ad75467`. Both run names, `conducted-dev-c11t-182835`
+  (the first try, cut at the 100-second start) and `conducted-dev-c11t-183155` (the pass), were
+  deleted.
+
+## Review round 2: the read limit (CLOUD-11, 2026-11-07)
+
+The first cut removed the 2 MiB limit without a replacement, so one large file could make the
+Worker build a base64 answer it can never send, and the five-second poll retried it forever. This
+run measured the real ceiling.
+
+Method: Worker `conducted-dev-c11t-190020` (8, 16, 24, 32, 40, 48, 56, 64 MiB) then
+`conducted-dev-c11t-190232` (16, 20, 22, 23 MiB). For each size, `exec dd` created a zero file in
+`/workspace`, one `/files readBytes` read it, and the answer's base64 was decoded to check its
+length. The probe file was removed after each read; the Worker, container application, images and
+bucket were deleted by the test.
+
+- **8, 16, 20, 22 and 23 MiB succeeded.** The decoded lengths matched exactly.
+- **24 MiB failed:** `Serialized RPC arguments or return values are limited to 32MiB, but the size
+  of this value was: 33554450 bytes.` The ceiling is the Durable Object RPC value, not the
+  Worker's 128 MB memory.
+- **Chosen limit: 16 MiB**, a dial with 7 MiB of margin below the 23 MiB success and 8 MiB below
+  the 24 MiB failure. Both the mirror and the Worker use `CLOUD_MIRROR_FILE_LIMIT_BYTES` from
+  `packages/shared`, and the Worker checks the size before it reads.
+- Cleanup: `containers list`, `containers images list` and `r2 bucket list` held no
+  `conducted-dev-c11t` entry; the local Docker image was removed by id. The first measurement's
+  image and the second's image were both removed.

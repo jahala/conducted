@@ -141,6 +141,23 @@ describe("REV-01 changed folder row", () => {
 		expect(screen.getByText("+5")).toBeTruthy();
 		expect(screen.getByText("-3")).toBeTruthy();
 	});
+
+	it("draws a plain folder, not the folder-with-a-plus the add controls use (APP-05)", () => {
+		const { container } = render(
+			<ChangedFolderRow
+				name="src/a"
+				depth={0}
+				collapsed={false}
+				linesAdded={5}
+				linesRemoved={3}
+				onToggle={vi.fn()}
+			/>,
+		);
+		expect(container.querySelector('svg path[d="M2 4.5h4l1.5 1.5H14v6.5H2z"]')).not.toBeNull();
+		expect(
+			container.querySelector('svg path[d="M2 4.5h4l1.5 1.5H14v6.5H2zM8 8v3M6.5 9.5h3"]'),
+		).toBeNull();
+	});
 });
 
 describe("REV-01 changed file list", () => {
