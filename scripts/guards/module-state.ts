@@ -2,28 +2,44 @@
  * Guard: module-level mutable state only where docs/architecture.md allows it.
  * Product state lives in a service's store built by `core/container.ts`. A module-level zustand
  * store is allowed only for the one web view's own UI state, and a Rust `static` only for a
- * process-lifetime cache, a lock or a temp-name counter. This guard fails on a new one, so the
- * list in the doc and the code cannot drift apart.
+ * process-lifetime cache, a lock or a temp-name counter. This guard reads the allowed entries from
+ * the architecture table, so the doc is the only home of the list, and fails on a new one.
  */
 import { join } from "node:path";
 import { type Problem, read, rel, walk } from "./lib.ts";
 
-/** The zustand stores a module may create. Each holds only the web view's own UI state. */
-export const ALLOWED_ZUSTAND_STORES = new Set([
-	"apps/desktop/src/ui/Toast.tsx",
-	"apps/desktop/src/app/overlay-store.ts",
-	"apps/desktop/src/features/composer/snippet-dialogs-store.ts",
-]);
+export const ARCHITECTURE = "docs/architecture.md";
+const STATE_HEADING = "### Module-level state";
 
-/** The one module that may keep a command registry fallback until APP-16 moves it. */
-export const ALLOWED_REGISTRIES = new Set(["apps/desktop/src/app/command-dispatcher.ts"]);
+/** One allowed module-level singleton: its kind, the file, and the name it declares. */
+export interface ModuleStateEntry {
+	kind: "zustand" | "command-registry" | "rust-static";
+	file: string;
+	name: string;
+}
 
-/** The Rust statics that are a cache or a lock, named with their file. */
-export const ALLOWED_RUST_STATICS = new Set([
-	"apps/desktop/src-tauri/src/terminal_history.rs:CACHED_KEY",
-	"apps/desktop/src-tauri/src/terminal_history.rs:KEY_LOCK",
-	"apps/desktop/src-tauri/src/binaries.rs:PATH_OVERRIDES_SYNC",
-]);
+const KIND_BY_CELL: Record<string, ModuleStateEntry["kind"]> = {
+	"zustand store": "zustand",
+	"command registry": "command-registry",
+	"Rust static": "rust-static",
+};
+
+/** The entries of the Module-level state table, or null when the doc has no such table. */
+export function moduleStateFromDoc(doc: string): ModuleStateEntry[] | null {
+	const start = doc.indexOf(STATE_HEADING);
+	if (start === -1) return null;
+	const rest = doc.slice(start + STATE_HEADING.length);
+	const end = rest.search(/\n#{2,3} /);
+	const section = end === -1 ? rest : rest.slice(0, end);
+	const entries: ModuleStateEntry[] = [];
+	for (const line of section.split("\n")) {
+		const match = /^\|\s*([^|]+?)\s*\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|/.exec(line);
+		const kind = KIND_BY_CELL[match?.[1]?.trim() ?? ""];
+		if (!match?.[2] || !match[3] || kind === undefined) continue;
+		entries.push({ kind, file: match[2], name: match[3] });
+	}
+	return entries.length === 0 ? null : entries;
+}
 
 const ZUSTAND_STORE = /^(?:export\s+)?const\s+\w+\s*=\s*create[<(]/;
 const COMMAND_REGISTRY = /^(?:export\s+)?const\s+\w+\s*=\s*createCommandRegistry\(\)/;
@@ -32,18 +48,34 @@ const RUST_CACHE_OR_LOCK =
 
 export function checkModuleState(root: string): Problem[] {
 	const problems: Problem[] = [];
+	const entries = moduleStateFromDoc(read(join(root, ARCHITECTURE)));
+	if (entries === null) {
+		return [
+			{
+				guard: "module-state",
+				message: `${ARCHITECTURE} has no "Module-level state" table to read the allowed singletons from`,
+			},
+		];
+	}
+	const zustandFiles = new Set(entries.filter((e) => e.kind === "zustand").map((e) => e.file));
+	const registryFiles = new Set(
+		entries.filter((e) => e.kind === "command-registry").map((e) => e.file),
+	);
+	const rustStatics = new Set(
+		entries.filter((e) => e.kind === "rust-static").map((e) => `${e.file}:${e.name}`),
+	);
 	for (const path of walk(root, join(root, "apps/desktop/src"), /\.(ts|tsx)$/)) {
 		const file = rel(root, path);
 		if (/\.test\.tsx?$/.test(file) || file.endsWith(".d.ts")) continue;
 		for (const line of read(path).split("\n")) {
-			if (ZUSTAND_STORE.test(line) && !ALLOWED_ZUSTAND_STORES.has(file)) {
+			if (ZUSTAND_STORE.test(line) && !zustandFiles.has(file)) {
 				problems.push({
 					guard: "module-state",
-					message: `${file} creates a module-level zustand store; put product state in a service store or name this store in docs/architecture.md`,
+					message: `${file} creates a module-level zustand store; put product state in a service store or name this store in ${ARCHITECTURE}`,
 				});
 				break;
 			}
-			if (COMMAND_REGISTRY.test(line) && !ALLOWED_REGISTRIES.has(file)) {
+			if (COMMAND_REGISTRY.test(line) && !registryFiles.has(file)) {
 				problems.push({
 					guard: "module-state",
 					message: `${file} creates a module-level command registry; create it in the container`,
@@ -60,10 +92,10 @@ export function checkModuleState(root: string): Problem[] {
 		for (const line of production.split("\n")) {
 			const match = RUST_CACHE_OR_LOCK.exec(line);
 			if (match === null) continue;
-			if (!ALLOWED_RUST_STATICS.has(`${file}:${match[1]}`)) {
+			if (!rustStatics.has(`${file}:${match[1]}`)) {
 				problems.push({
 					guard: "module-state",
-					message: `${file} has a module-level static ${match[1]}; put it in Tauri-managed state or name it in docs/architecture.md`,
+					message: `${file} has a module-level static ${match[1]}; put it in Tauri-managed state or name it in ${ARCHITECTURE}`,
 				});
 			}
 		}
