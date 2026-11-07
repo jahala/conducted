@@ -1,6 +1,6 @@
 # Overnight report, 6 to 7 November 2026
 
-The night ran from 22:00 to 08:00. 19 pull requests merged (#345 to #370), and 23 issues closed. The backlog is at 247 of 264 features done, and the only two placeholders in the code are CLOUD-01's named stops for the next cloud rows. Every step ran as far as the goal's rules allowed. What waits for the morning is the first run of Conductor's own frontend on our data, which is a browser run.
+The night ran from 22:00 to 08:00. 20 pull requests merged (#345 to #372), and 23 issues closed. The backlog is at 247 of 264 features done, and the only two placeholders in the code are CLOUD-01's named stops for the next cloud rows. Every step ran as far as the goal's rules allowed. What waits for the morning is the first run of Conductor's own frontend on our data, which is a browser run.
 
 ## What needs Jan
 
@@ -37,15 +37,17 @@ The night ran from 22:00 to 08:00. 19 pull requests merged (#345 to #370), and 2
 
 ## The parity harness's counts
 
+After round 3 (#372, merged 06:59):
+
 |                                                     |         First run |   Now |
 | --------------------------------------------------- | ----------------: | ----: |
-| Matched                                             |               703 | 1,018 |
-| Decided                                             |                57 |   847 |
-| Shown nowhere yet (in our code, no screen draws it) |               891 |   770 |
-| Wording that differs                                |        not sorted |     6 |
-| A feature or behaviour we lack                      | 2,163, not sorted | 1,180 |
+| Matched                                             |               703 | 1,073 |
+| Decided                                             |                57 |   865 |
+| Shown nowhere yet (in our code, no screen draws it) |               891 |   718 |
+| Wording that differs                                |        not sorted |     0 |
+| A feature or behaviour we lack                      | 2,163, not sorted | 1,165 |
 
-All seven flows the catalogue can drive pass. Our strings with no Conductor counterpart fell from 1,209 to 507 (264 of them are the shortcut page's accessible names).
+Of the 1,883 remaining gaps, 709 name their backlog row and checklist item, 298 name a row only, and 876 have no owner yet. Each of those 876 needs someone to read its region of Conductor's code. The 298 row-only gaps can get generated checklist items; that is the next run's first bookkeeping task. All seven flows the catalogue can drive pass. Our strings with no Conductor counterpart fell from 1,209 to 507 (264 of them are the shortcut page's accessible names).
 
 ## Bugs the night found, each fixed with a failing test first
 
