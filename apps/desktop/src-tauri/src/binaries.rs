@@ -4080,8 +4080,14 @@ mod tests {
 
         // Only an install the manager recorded is ready. A same-named file in the bin folder, and
         // any copy on the user's PATH, is not one (D088).
-        assert_eq!(state.status(ManagedProgram::Gh).state, ProgramState::Missing);
-        assert_eq!(recorder.states(ManagedProgram::Gh), Vec::<ProgramState>::new());
+        assert_eq!(
+            state.status(ManagedProgram::Gh).state,
+            ProgramState::Missing
+        );
+        assert_eq!(
+            recorder.states(ManagedProgram::Gh),
+            Vec::<ProgramState>::new()
+        );
     }
 
     #[test]
