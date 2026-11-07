@@ -1,9 +1,11 @@
 /**
  * @feature SET-02 General settings page
  * @feature PLAT-24 Full Disk Access row
+ * @feature APP-17 Import from Conductor row
  * Owns: the General page of Settings: how messages are sent, follow-up behaviour, notifications,
  * sound with Conductor's "Test" beside it (renderApp @11119167), the other everyday app settings the registry places on this page, and the Full Disk
- * Access row with its status and the button that opens the macOS Privacy & Security pane.
+ * Access row with its status and the button that opens the macOS Privacy & Security pane, and the
+ * Import from Conductor row after Sync agent configs (D098).
  * Behaviour: ui-map.md 6, "General" table and "Control values" (send key, follow-up behaviour,
  * completion sound, "Full disk access permissions"). Registry rows come from SET-01, so the page
  * and search read one table.
@@ -20,6 +22,7 @@ import { Button } from "../../../ui/Button.tsx";
 import { Callout } from "../../../ui/Callout.tsx";
 import { VolumeIcon } from "../../../ui/icons.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
+import { ConductorImportRow } from "../../conductor-import/ConductorImportDialog.tsx";
 import { ResetCalloutDismissals } from "../ResetCalloutDismissals.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
@@ -156,6 +159,8 @@ export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			/>
 			{/* Conductor lists Sync agent configs last on General, after the registry rows. */}
 			<SyncAgentConfigsRow />
+			{/* Ours (D098, APP-17): beside Sync agent configs, which also brings things over. */}
+			<ConductorImportRow />
 			<Callout
 				id={CALLOUT_DISMISSALS_HINT_ID}
 				dismissed={dismissedIds.includes(CALLOUT_DISMISSALS_HINT_ID)}

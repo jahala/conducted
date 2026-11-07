@@ -286,6 +286,12 @@ export function createActions(
 			previewUrl: (workspaceId, remotePort) =>
 				services.portForwards.previewUrl(workspaceId, remotePort),
 		},
+		conductorImport: {
+			find: () => services.conductorImport.find(),
+			preview: () => services.conductorImport.preview(),
+			run: () => services.conductorImport.run(),
+			cancel: () => services.conductorImport.cancel(),
+		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
 			quit: () => {
