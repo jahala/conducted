@@ -258,7 +258,7 @@ Chosen:
 - Draft staging is swept after 7 days, not 30. The update check runs hourly and on window focus, not every 60 and 300 seconds.
 - The workspace port is stored in `workspaces.port` and stays the same across restarts.
 - No `cache.db`, no shared local-storage layer: small UI stores are listed with their lifetimes in `docs/data-model.md`. The Rust shell never reads the database; the UI passes settings in.
-- No `conductor.json` migration, no `deprecated_at` on settings (unknown keys are dropped), no worktree layout version (`storage_version`). Repo scripts, prompts and file globs live in `.conducted/settings.toml` and repo-scoped settings, and shared repo settings are read from the checkout.
+- No `deprecated_at` on settings (unknown keys are dropped), no worktree layout version (`storage_version`). Repo scripts, prompts and file globs live in `.conducted/settings.toml` and repo-scoped settings, and shared repo settings are read from the checkout. Moving from Conductor, `conductor.json` included, is D100.
 - "Setting up" is an in-memory state of an `initializing` workspace. The board status is one stored value; an empty value means automatic.
 - Each statement sets `updated_at` itself, in milliseconds, in place of triggers.
 - Worktree removal moves the folder to the Trash.
@@ -450,6 +450,12 @@ Context: the parity harness (#347) runs on GitHub, so its spec must be in the re
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
 
+## D100. Moving from Conductor is a read-only, all-or-nothing import (2026-11-07)
+
+Context: the owner asked for a way to move users from Conductor to Conducted, "SAFELY" (#353). D038 had left out any `conductor.json` migration, and D027 sets only `CONDUCTED_*` names.
+Chosen: an import that only reads a backup copy of Conductor's database, shows a dry run first, writes Conducted's data in one transaction, checks counts after, and leaves worktrees where they are. Projects, workspaces, chats, settings with a matching key, environment variables (into the Keychain), sidebar sections, favourite models and review comments come over. Repo scripts are written once into a new `.conducted/settings.toml` with `CONDUCTOR_` names renamed to `CONDUCTED_`; script files in the repo are listed with the line to change, never edited. Chat history comes over only if the spike on real data passes its mark. The plan is docs/plans/migrate-from-conductor.md.
+Why: the user can always go back to Conductor, because nothing of Conductor's is written; D027 holds without an alias, because the rename happens once on import.
+
 ## D101. The cloud Worker and its Durable Object, as CLOUD-03 built them (2026-11-07)
 
 Context: the CLOUD-02 spike settled the sandbox SDK, the model-key swap and R2 backups, and left a short list of gaps (`docs/research/cloud-spike-2026-11-06.md`, "The plan's questions 3, 4 and 7"). CLOUD-03 builds the Worker, the Durable Object, the routes and the relay; several choices the spike left open had to be made to finish it.
@@ -466,3 +472,17 @@ Chosen:
 - **The doors CLOUD-03 does not own keep their own row's placeholder.** A cloud workspace's file search stops at CLOUD-11, Open in at CLOUD-12, and archive, unarchive and delete at CLOUD-08, each through the same `checkHost` check that stops terminals at CLOUD-09. The alternative was letting those calls reach the Mac with a sandbox path, which D092 forbids and which would run the wrong operation on the wrong machine.
 
 Why: each choice either uses the spike's own finding or is the smallest thing that makes the desktop's existing calls work unchanged. The live run on the owner's account passed with these choices (numbers in the research note).
+
+## D103. The host has one home on the workspace; cloud rows follow it by reference (2026-11-07)
+
+Proposed by the CLOUD-13 PR; not yet ruled on by the owner.
+Context: Conductor keeps every row that belongs to a remote host in a second database, `cache.db`, and one rule, `Dn({db, cacheDb}, host)`, picks it (services-map 1.2 and 2.6.2). D038 chose one database for us and no `cache.db`; D092 put the host on the workspace as three columns. The issue's text still describes Conductor's second file, placeholder repositories, identity associations, session feed segments and the startup mover.
+Chosen:
+
+- The host is a fact of the workspace and has one home: `workspaces.host_kind`, `host_url` and `host_vm_id` (migration 0009). A cloud workspace's sessions, events, live state, comments and terminals are its local copy. They follow it by reference: `sessions`, `diff_comments` and `terminals` reference `workspaces(id)` and `session_events` and `session_live_state` reference `sessions(id)`, all `ON DELETE CASCADE` (0001_init.sql, with terminals rebuilt in 0004).
+- Queries that local work runs over keep local rows by joining to `workspaces` and filtering `host_kind = 'local'`: the port allocator, the workspace folder-name generator, the archive scan and startup repair. The merged workspace list and the sidebar's unread counts still hold both hosts, as Conductor merges its two database lists.
+- Removing a cloud host deletes that host's workspaces in one transaction (`host-copy.ts`); the cascades remove the sessions, events, live state, comments and terminals. The local host is refused.
+- Because every host has always used one database, no startup mover is needed: no older version stored a cloud row anywhere else.
+
+Not built here, and why: hidden placeholder repositories, `identity_associations`, `client_cache_session_state` and `client_cache_session_segments`, and the cloud workspace revision columns belong to the sync that creates and refreshes cloud workspaces (CLOUD-03) or whose shape the research marks INFERRED. They are left out rather than invented, and named in the CLOUD-13 report.
+Why this differs from Conductor: Conductor's repository code runs against either physical file, so the file is its boundary. We keep one file and one statement queue, and the workspace row is already the boundary every child row reaches through its key. Copying the host onto each child would be six homes for one fact and would add three columns and an index to every event row, our largest table. Cascades also make the host sweep atomic without marking the children.

@@ -3,20 +3,13 @@
  * `scripts/release.ts` runs each one by its id. A step that changes nothing also runs in the dry
  * run, so the dry run says whether --go would stop.
  *
- * The updater steps (PLAT-13, D079): `tauri build` makes an update archive from the app it built,
- * before the release signs and notarises it, so that archive is replaced by one made from the
- * signed, notarised app and signed again with the updater key. Then `latest.json` is written
- * beside the disk image.
+ * The local steps stop at the tag. Pushing it starts the release workflow, which builds, signs,
+ * notarises, attests and publishes the app (PLAT-37, PLAT-38). The changelog step writes the
+ * notes from the commits since the last tag (PLAT-39).
  */
 import { VERSION_FILES } from "../guards/versions.ts";
 
-export type ReleaseStepId =
-	| "check"
-	| "bump"
-	| "build"
-	| "updaterArchive"
-	| "updaterFeed"
-	| "commit";
+export type ReleaseStepId = "check" | "bump" | "changelog" | "commit";
 
 export interface PlannedStep {
 	id: ReleaseStepId;
@@ -39,19 +32,9 @@ export function releasePlan(version: string): readonly PlannedStep[] {
 			undo: "git checkout -- <those files>",
 		},
 		{
-			id: "build",
-			say: "Read the updater key from the keychain into the build's environment, install the locked packages, build the arm64 app alone, sign and notarise it, then make and verify the disk image",
-			undo: "git checkout -- . (drops the version bump); build output stays under apps/desktop/src-tauri/target",
-		},
-		{
-			id: "updaterArchive",
-			say: "Make the update archive (Conducted.app.tar.gz) again from the signed, notarised app, and sign it with the updater key",
-			undo: "trash the archive and its .sig under apps/desktop/src-tauri/target; nothing else changes",
-		},
-		{
-			id: "updaterFeed",
-			say: `Write latest.json for v${version} beside the disk image, pointing at the release's archive`,
-			undo: "trash latest.json under apps/desktop/src-tauri/target; nothing else changes",
+			id: "changelog",
+			say: `Write CHANGELOG.md's ${version} section from the commit subjects since the last tag, newest release first`,
+			undo: "git checkout -- CHANGELOG.md",
 		},
 		{
 			id: "commit",

@@ -16,12 +16,15 @@
 //!   optional data. A level other than `error`, `warn`, `info` or `debug` fails with
 //!   `log_bad_level`.
 //! - `log_set_level` changes the level at run time. A record below the level is not written.
-//! - Secrets must not reach disk. Any data key that contains token, secret, password, key,
-//!   authorization or credential (case-insensitive) is replaced by `"[redacted]"`. The keyboard
-//!   and shortcut names `keyboard`, `keybinding`, `keycode`, `keypress` and `keymap` are kept
-//!   unless another secret word is present. Known token shapes in strings, such as a bearer value
-//!   or an `sk-` key, are replaced too when they start at a word boundary, so `task-queue` and
-//!   `disk-usage` survive.
+//! - Secrets must not reach disk. The `key_is_secret` rule is the union of the Rust, sidecar and
+//!   diagnostics rules, and the shared fixture packages/shared/fixtures/secret-names.json is the
+//!   contract with the TypeScript copy. A key with a secret word anywhere (token, secret, password,
+//!   passwd, credential, authorization, auth, cookie, apikey), or with key unless a keyboard or
+//!   shortcut word is present, or with pat as a whole word after another word, or the
+//!   CONDUCTED_INTERNAL_ prefix, is replaced by `"[redacted]"`. The keyboard and shortcut names
+//!   `keyboard`, `keybinding`, `keycode`, `keypress` and `keymap` stay visible. Known token shapes
+//!   in strings, such as a bearer value or an `sk-` key, are replaced too when they start at a word
+//!   boundary, so `task-queue` and `disk-usage` survive.
 //! - A message is cut at `MAX_MESSAGE_BYTES` and data at `MAX_DATA_BYTES`, with a marker.
 //! - Files: `<app data>/logs/app-YYYY-MM-DD.ndjson` in UTC, mode 0600. A day's file rolls over to
 //!   `app-YYYY-MM-DD-1.ndjson` at `MAX_FILE_BYTES`. Files older than `KEEP_DAYS` days are removed
@@ -654,34 +657,82 @@ pub fn encode_record(record: &LogRecord, at_ms: i64) -> io::Result<String> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
-/// True when a data key names a secret. Matching ignores case and `-`/`_`. A key that contains
-/// `key` is a secret unless the word is a keyboard or shortcut name.
+/// A name with this prefix holds an app-internal secret.
+pub const SECRET_NAME_PREFIX: &str = "CONDUCTED_INTERNAL_";
+
+/// Words that mark a name as a secret wherever they appear.
+pub const SECRET_NAME_WORDS: &[&str] = &[
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "credential",
+    "authorization",
+    "auth",
+    "cookie",
+    "apikey",
+];
+
+/// A word that marks a name as a secret on its own, unless a keyboard word is present.
+pub const SECRET_NAME_KEY_WORD: &str = "key";
+
+/// Words that mark a name as a secret only after another word.
+pub const SECRET_NAME_QUALIFIED_WORDS: &[&str] = &["pat"];
+
+/// Keyboard and shortcut words: a name that holds one keeps the key rule from applying.
+pub const KEYBOARD_NAME_WORDS: &[&str] =
+    &["keyboard", "keybinding", "keycode", "keypress", "keymap"];
+
+/// Splits a name at separators and camelCase boundaries, in lower case.
+fn name_words(name: &str) -> Vec<String> {
+    let mut spaced = String::with_capacity(name.len() + 4);
+    let mut previous: Option<char> = None;
+    for character in name.chars() {
+        if let Some(last) = previous
+            && (last.is_ascii_lowercase() || last.is_ascii_digit())
+            && character.is_ascii_uppercase()
+        {
+            spaced.push(' ');
+        }
+        spaced.push(character);
+        previous = Some(character);
+    }
+    spaced
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(|word| word.to_ascii_lowercase())
+        .collect()
+}
+
+/// True when a data key names a secret (see the header). The shared TypeScript rule answers the
+/// same fixture, and the `SECRET_NAME_*` and `KEYBOARD_NAME_WORDS` tables are that rule's words.
 pub fn key_is_secret(key: &str) -> bool {
-    let lower = key.to_ascii_lowercase();
-    let compact: String = lower
+    if key.to_ascii_uppercase().starts_with(SECRET_NAME_PREFIX) {
+        return true;
+    }
+    let compact: String = key
+        .to_ascii_lowercase()
         .chars()
         .filter(|character| *character != '-' && *character != '_')
         .collect();
-    if [
-        "token",
-        "secret",
-        "password",
-        "authorization",
-        "credential",
-        "apikey",
-    ]
-    .iter()
-    .any(|part| compact.contains(part))
+    if SECRET_NAME_WORDS.iter().any(|word| compact.contains(word)) {
+        return true;
+    }
+    let words = name_words(key);
+    if words.len() > 1
+        && words
+            .iter()
+            .any(|word| SECRET_NAME_QUALIFIED_WORDS.contains(&word.as_str()))
     {
         return true;
     }
-    if ["keyboard", "keybinding", "keycode", "keypress", "keymap"]
+    if KEYBOARD_NAME_WORDS
         .iter()
-        .any(|allowed| compact.contains(allowed))
+        .any(|word| compact.contains(word))
     {
         return false;
     }
-    compact.contains("key")
+    compact.contains(SECRET_NAME_KEY_WORD)
 }
 
 fn redact_value(value: &Value, depth: u32) -> Value {
@@ -966,6 +1017,35 @@ mod tests {
         }
         assert!(line.contains("\"keyboardLayout\":\"us\""), "{line}");
         assert!(line.contains("keep me"), "{line}");
+    }
+
+    #[derive(serde::Deserialize)]
+    struct SecretNameCase {
+        name: String,
+        secret: bool,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct SecretNameFixture {
+        cases: Vec<SecretNameCase>,
+    }
+
+    const SECRET_NAME_FIXTURE: &str =
+        include_str!("../../../../packages/shared/fixtures/secret-names.json");
+
+    #[test]
+    fn plat_18_the_rust_secret_name_rule_matches_the_shared_fixture() {
+        let fixture: SecretNameFixture =
+            serde_json::from_str(SECRET_NAME_FIXTURE).expect("parse the secret-name fixture");
+        assert!(!fixture.cases.is_empty(), "the fixture holds cases");
+        for case in fixture.cases {
+            assert_eq!(
+                key_is_secret(&case.name),
+                case.secret,
+                "key_is_secret({:?})",
+                case.name
+            );
+        }
     }
 
     #[test]

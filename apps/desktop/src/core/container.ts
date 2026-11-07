@@ -811,6 +811,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				log("warn", `Couldn't rename the branch after the first message: ${renamed.error.message}`);
 			}
 		},
+		touchWorkspaceActivity: (workspaceId, at) => workspace.touchActivity(workspaceId, at),
 		log,
 		setting,
 		copyText: (text) => system.copyText(text),

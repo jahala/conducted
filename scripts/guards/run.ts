@@ -23,7 +23,7 @@ import {
 import { checkTestScripts } from "./test-scripts.ts";
 import { checkAllTestShapes, type GuardName } from "./test-shapes.ts";
 import { checkVersions } from "./versions.ts";
-import { checkWorkflows } from "./workflows.ts";
+import { checkWorkflows, checkWorkflowTools } from "./workflows.ts";
 
 const root = join(import.meta.dir, "../..");
 // The five test-shape guards share one scan of every test file and the code it reaches.
@@ -42,6 +42,7 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["versions", checkVersions],
 	["test-scripts", checkTestScripts],
 	["workflows", checkWorkflows],
+	["workflow-tools", checkWorkflowTools],
 	["commands", checkTauriCommands],
 	["programs", checkShellPrograms],
 	["browser-imports", checkBrowserImports],

@@ -9,10 +9,12 @@
  * a cut-off turn gets a `turn_ended` event with outcome `interrupted`, a fresh event id and the
  * current time; queued messages that were being sent go back to waiting unless their user
  * message is already stored, and every chat that still has queued rows is paused so nothing is
- * sent without the user; workspaces stuck in `initializing` become `failed`; workspaces in
- * `archiving` are left as they are and reported with whether their worktree folder still exists,
- * so the archive flow (WS-05) can finish or roll back; open terminals get an end time; unread
- * counts are not touched; running repair twice changes nothing the second time.
+ * sent without the user; local workspaces stuck in `initializing` become `failed`; local
+ * workspaces in `archiving` are left as they are and reported with whether their worktree folder
+ * still exists, so the archive flow (WS-05) can finish or roll back; open local terminals get an
+ * end time; unread counts are not touched; running repair twice changes nothing the second time.
+ * CLOUD-13: every step reads local rows only, so a cloud workspace's live state, open turn,
+ * queue and terminal are left for its own host to settle.
  * Replay rule: the sidecar starts after repair and replays events the app never acknowledged.
  * For a turn repair closed, ingest keeps late agent output in the log for its audit trail, but
  * drops a second `turn_ended` and applies no further effects, so the turn keeps the single
@@ -48,7 +50,9 @@ export const REPAIR_SQL = {
 	 * is missing is reset too.
 	 */
 	resetLiveStates: `UPDATE session_live_state SET live_state = $1, updated_at = $2
-		WHERE CASE WHEN json_valid(live_state) THEN (
+		WHERE session_id IN (SELECT s.id FROM sessions s
+			JOIN workspaces w ON w.id = s.workspace_id WHERE w.host_kind = 'local')
+		AND CASE WHEN json_valid(live_state) THEN (
 				json_extract(live_state, '$.status') IS NOT 'idle'
 				OR json_extract(live_state, '$.openInteraction') IS NOT NULL
 				OR COALESCE(json_array_length(live_state, '$.backgroundTasks'), 0) > 0
@@ -68,22 +72,29 @@ export const REPAIR_SQL = {
 		WHERE state = 'sending' AND EXISTS (
 			SELECT 1 FROM session_events e
 			WHERE e.session_id = queued_messages.session_id AND e.type = 'user_message'
-				AND json_extract(e.content, '$.messageId') = queued_messages.id)`,
+				AND json_extract(e.content, '$.messageId') = queued_messages.id)
+			AND session_id IN (SELECT s.id FROM sessions s
+				JOIN workspaces w ON w.id = s.workspace_id WHERE w.host_kind = 'local')`,
 	/** Step 3b (`$1` now): the rest of the `sending` rows wait again. */
-	requeueSending:
-		"UPDATE queued_messages SET state = 'waiting', updated_at = $1 WHERE state = 'sending'",
+	requeueSending: `UPDATE queued_messages SET state = 'waiting', updated_at = $1
+		WHERE state = 'sending' AND session_id IN (SELECT s.id FROM sessions s
+			JOIN workspaces w ON w.id = s.workspace_id WHERE w.host_kind = 'local')`,
 	/** Step 3c (`$1` now): every chat that still has queued rows is paused. */
 	pauseChatsWithQueue: `UPDATE sessions SET queue_paused_at = $1
-		WHERE queue_paused_at IS NULL
+		WHERE workspace_id IN (SELECT id FROM workspaces WHERE host_kind = 'local')
+			AND queue_paused_at IS NULL
 			AND EXISTS (SELECT 1 FROM queued_messages q WHERE q.session_id = sessions.id)`,
-	/** Step 4a (`$1` now): workspaces whose setup never finished. */
+	/** Step 4a (`$1` now): local workspaces whose setup never finished. */
 	failInitializingWorkspaces: `UPDATE workspaces SET state = 'failed', updated_at = $1
-		WHERE state = 'initializing'`,
-	/** Step 4b: workspaces left in `archiving`, for the caller to decide about. Not changed. */
+		WHERE host_kind = 'local' AND state = 'initializing'`,
+	/** Step 4b: local workspaces left in `archiving`, for the caller to decide about. Not changed. */
 	listArchivingWorkspaces: `SELECT id, path, archive_commit FROM workspaces
-		WHERE state = 'archiving' ORDER BY created_at, id`,
-	/** Step 5 (`$1` now): terminals that were open when the app stopped. */
-	endOpenTerminals: "UPDATE terminals SET ended_at = $1 WHERE ended_at IS NULL",
+		WHERE host_kind = 'local' AND state = 'archiving' ORDER BY created_at, id`,
+	/** Step 5 (`$1` now): local terminals that were open when the app stopped. */
+	endOpenTerminals: `UPDATE terminals SET ended_at = $1
+		WHERE (workspace_id IS NULL OR workspace_id IN (
+			SELECT id FROM workspaces WHERE host_kind = 'local'))
+			AND ended_at IS NULL`,
 } as const;
 
 export interface InterruptedTurnRow {

@@ -8,9 +8,17 @@
  * cannot both win; a bad linked_paths column returns an error Result; a setter on a missing
  * workspace returns `db.not_found`; last_activity_at only moves forward; deleting cascades to
  * sessions, comments, terminals and section members.
+ * Activity: `touchActivity` is the forward-only write a user message makes (services-map.md 2.3.1,
+ * Conductor's own case statement @1054957), and `finishUnarchive` stamps the restored workspace
+ * with the restore time in its own statement, as Conductor's unarchive step 2 does. Those are the
+ * only two events in Conductor: its bundle reaches the touch only from the sessions-store watch on
+ * `lastUserMessageAt` (@1054147). An agent turn ending does not touch it.
  * CLOUD-01: the host columns (migration 0009) read back as the workspace's `host`. A local row has
  * no URL or sandbox id and a cloud row has both; any other mix is an error Result, so a half-written
  * cloud row is never read as local.
+ * CLOUD-13: the lists local work runs over (ports, folder names and the states startup repair
+ * scans) hold local rows only. `listAll` stays the merged list the sidebar draws, so a cloud
+ * workspace still appears with its host.
  * Test first: workspaceFromRow returns an error Result when linked_paths is not a JSON list.
  */
 import type { Host } from "@conducted/protocol";
@@ -187,12 +195,14 @@ const COLUMNS = `id, repo_id, directory_name, path, branch, branch_is_placeholde
 export const WORKSPACES_SQL = {
 	listAll: `SELECT ${COLUMNS} FROM workspaces ORDER BY created_at, id`,
 	listByRepo: `SELECT ${COLUMNS} FROM workspaces WHERE repo_id = $1 ORDER BY created_at, id`,
-	listByState: `SELECT ${COLUMNS} FROM workspaces WHERE state = $1 ORDER BY created_at, id`,
+	listByState: `SELECT ${COLUMNS} FROM workspaces WHERE host_kind = 'local' AND state = $1
+		ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM workspaces WHERE id = $1`,
 	getByPath: `SELECT ${COLUMNS} FROM workspaces WHERE path = $1`,
 	getSetupLogPath: "SELECT setup_log_path FROM workspaces WHERE id = $1",
-	listDirectoryNames: "SELECT directory_name FROM workspaces WHERE repo_id = $1",
-	listPorts: "SELECT port FROM workspaces",
+	listDirectoryNames: `SELECT directory_name FROM workspaces
+		WHERE repo_id = $1 AND host_kind = 'local'`,
+	listPorts: "SELECT port FROM workspaces WHERE host_kind = 'local'",
 	insert: `INSERT INTO workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
 		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)`,
 	transitionState: "UPDATE workspaces SET state = $1, updated_at = $2 WHERE id = $3 AND state = $4",
@@ -214,7 +224,8 @@ export const WORKSPACES_SQL = {
 	setActiveSession: "UPDATE workspaces SET active_session_id = $1 WHERE id = $2",
 	setFilesCopied: "UPDATE workspaces SET files_copied = $1, updated_at = $2 WHERE id = $3",
 	finishUnarchive: `UPDATE workspaces SET state = 'ready', branch = $1, directory_name = $2,
-		path = $3, archived_at = NULL, updated_at = $4 WHERE id = $5 AND state = 'initializing'`,
+		path = $3, last_activity_at = MAX(last_activity_at, $4), archived_at = NULL, updated_at = $4
+		WHERE id = $5 AND state = 'initializing'`,
 	touchActivity: "UPDATE workspaces SET last_activity_at = MAX(last_activity_at, $1) WHERE id = $2",
 	delete: "DELETE FROM workspaces WHERE id = $1",
 } as const;
@@ -235,11 +246,14 @@ export interface NewWorkspace {
 }
 
 export interface WorkspaceRepository {
-	/** WORKSPACES_SQL.listAll. A row with a bad linked_paths column makes the whole call an error. */
+	/** WORKSPACES_SQL.listAll, the merged list of both hosts. */
 	listAll(): Promise<Result<Workspace[]>>;
 	/** WORKSPACES_SQL.listByRepo. */
 	listByRepo(repoId: RepoId): Promise<Result<Workspace[]>>;
-	/** WORKSPACES_SQL.listByState. Startup repair and the archive flow use it. */
+	/**
+	 * WORKSPACES_SQL.listByState, local rows only. Startup repair and the local archive flow use
+	 * it; a cloud workspace's state comes from its host (CLOUD-13).
+	 */
 	listByState(state: WorkspaceState): Promise<Result<Workspace[]>>;
 	/** WORKSPACES_SQL.get. A missing workspace is `ok(null)`. */
 	get(id: WorkspaceId): Promise<Result<Workspace | null>>;
@@ -247,9 +261,9 @@ export interface WorkspaceRepository {
 	getByPath(path: string): Promise<Result<Workspace | null>>;
 	/** WORKSPACES_SQL.getSetupLogPath. `ok(null)` when the workspace is missing or has no log. */
 	getSetupLogPath(id: WorkspaceId): Promise<Result<string | null>>;
-	/** WORKSPACES_SQL.listDirectoryNames, so the name generator avoids taken names. */
+	/** WORKSPACES_SQL.listDirectoryNames, local rows only, so the name generator avoids them. */
 	listDirectoryNames(repoId: RepoId): Promise<Result<string[]>>;
-	/** WORKSPACES_SQL.listPorts, so the port allocator avoids taken ports. */
+	/** WORKSPACES_SQL.listPorts, local rows only, so the port allocator avoids them. */
 	listPorts(): Promise<Result<number[]>>;
 	/**
 	 * WORKSPACES_SQL.insert with state `initializing` and kanban status `in_progress`. A duplicate
@@ -308,8 +322,8 @@ export interface WorkspaceRepository {
 	setFilesCopied(id: WorkspaceId, count: number): Promise<Result<void>>;
 	/**
 	 * WORKSPACES_SQL.finishUnarchive: makes the restored worktree the workspace's branch, folder and
-	 * path, sets it ready and clears archived_at. Only applies while the row is `initializing`;
-	 * `ok(false)` otherwise.
+	 * path, sets it ready, clears archived_at and moves last_activity_at to the restore time (never
+	 * back). Only applies while the row is `initializing`; `ok(false)` otherwise.
 	 */
 	finishUnarchive(
 		id: WorkspaceId,
