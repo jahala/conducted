@@ -1,0 +1,576 @@
+/**
+ * The live reference run (stage 2): Conductor's own frontend on our real backend, and our own UI on
+ * the same backend and data, one picture each per catalogue state.
+ *
+ * For each state and front it
+ * 1. seeds the state with our catalogue's own seeds (catalogue.ts), and moves its made-up Mac's
+ *    folders under a fresh sealed scratch folder (sidecar-diff/seal.ts: its own home and temp, no IP
+ *    traffic beyond loopback, no writes in the owner's home, fake agent programs only);
+ * 2. builds the state's repositories and files on that disk with real git (world-disk.ts);
+ * 3. starts our app's debug build, sealed, with that home: its data folder is the scratch folder's.
+ *    The build carries the config override (live-config.ts), so its hidden window opens the bridge
+ *    page of the live server (live-server.ts) on our dev origin;
+ * 4. writes the seeded rows into the app's own database through its SQL plugin, after the plugin's
+ *    migrations ran;
+ * 5. opens the front in Playwright's Chromium (nothing downloaded; every other origin refused):
+ *    Conductor's bundle through the live mapping (`.context/day/conductor-ref/live-mapping.ts`), or our
+ *    built UI through the identity mapping, and takes the picture once the page settles (run.ts);
+ * 6. stops the app and every process under it by the pids it recorded, and removes the scratch folder.
+ *
+ * Output, in `<out>` (default `.context/shots/conductor-live/` of the main checkout):
+ * `<state>-dark.png` (Conductor's frontend), `ours/<state>-dark.png` (our UI), `index.json` and
+ * `live.json` (every call, by state, front, name and outcome, and the totals check e reads).
+ *
+ * Usage: bun scripts/conductor-reference/live.ts [state-id ...] [--out <dir>] [--fronts conductor,ours]
+ *        [--target <cargo target dir>]
+ * The app build goes into `--target` when given (kept), else into a run-owned folder that is removed.
+ * It needs our dev origin's port (1420) free. It is a browser run; our app's window stays hidden. It
+ * exits 1 when a page fails to load. A picture taken while our app left calls unanswered is taken
+ * again once, and the first attempt's report is kept with it.
+ */
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { type Browser, chromium } from "playwright-core";
+import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
+import { loadCatalogue, ROOT, type SeededState } from "./catalogue.ts";
+import { checkOverride, DEV_ORIGIN, referenceOverride } from "./live-config.ts";
+import { type CallTally, type Front, type LiveServer, startLiveServer } from "./live-server.ts";
+import { defaultPaths } from "./paths.ts";
+import { type Capture, capture, VIEWPORT } from "./run.ts";
+import { flag } from "./server.ts";
+import {
+	assertNoRealAgents,
+	makeSeal,
+	proveSealed,
+	removeSeal,
+	type Seal,
+} from "./sidecar-diff/seal.ts";
+import { identityMapping, type LiveMapping } from "./translator.ts";
+import { type Move, plantOnDisk, relocate } from "./world-disk.ts";
+
+const DESKTOP = join(ROOT, "apps/desktop");
+const SRC_TAURI = join(DESKTOP, "src-tauri");
+const SIDECAR_BIN = join(SRC_TAURI, "binaries/conducted-sidecar-aarch64-apple-darwin");
+/** The catalogue's made-up Mac (catalogue/world.ts) and the folders our app uses for the same jobs. */
+const CATALOGUE_HOME = "/Users/sam";
+const CATALOGUE_APP_DATA = `${CATALOGUE_HOME}/Library/Application Support/Conducted`;
+const CATALOGUE_TEMP = "/tmp/conducted";
+const APP_IDENTIFIER = "build.conducted.app";
+const AUTHOR = { name: "Sam Rivera", email: "sam@example.com" };
+/** Catches an app that never connects or never stops. It is not a way to wait. */
+const HANG_MS = 60_000;
+
+type Row = Record<string, unknown>;
+
+interface LiveMappingModule {
+	liveMapping(): LiveMapping<unknown>;
+	liveRoute(state: { scene: { route: string } }): string | null;
+	liveGlobals(
+		invoke: (command: string, args?: unknown) => Promise<unknown>,
+	): Promise<Record<string, unknown>>;
+	GAPS: string[];
+}
+
+interface World {
+	repos: readonly ScriptedRepo[];
+	memory: { controls: { files: Map<string, string> } };
+}
+
+interface Shot extends Capture {
+	front: Front;
+	problems: string[];
+	/**
+	 * Processes the app started that were still running when it had stopped, stopped by the run by
+	 * their recorded ids: the sidecar outlives a signalled app until its parent watchdog notices.
+	 */
+	stopped: string[];
+	/** The app left calls unanswered when the page was pictured; the run takes the picture again once. */
+	stalled?: boolean;
+	/** What the first attempt reported, when this picture is the second. */
+	firstAttempt?: string[];
+}
+
+function run(
+	command: string,
+	args: string[],
+	options: { cwd: string; env?: NodeJS.ProcessEnv },
+): void {
+	const done = spawnSync("nice", ["-n", "10", command, ...args], { ...options, stdio: "inherit" });
+	if (done.status !== 0)
+		throw new Error(`${command} ${args.join(" ")} failed with ${done.status}.`);
+}
+
+/** Builds the sidecar, our UI and the app with the override, in that order. */
+function build(target: string, fronts: readonly Front[]): string {
+	const windows = (
+		JSON.parse(readFileSync(join(SRC_TAURI, "tauri.conf.json"), "utf8")) as {
+			app: { windows: Record<string, unknown>[] };
+		}
+	).app.windows;
+	const override = referenceOverride(windows);
+	const problems = checkOverride(override, windows);
+	if (problems.length > 0) throw new Error(`The config override is unsafe: ${problems.join("; ")}`);
+	run("pnpm", ["--filter", "@conducted/sidecar", "build"], { cwd: ROOT });
+	if (fronts.includes("ours"))
+		run("pnpm", ["--filter", "@conducted/desktop", "build"], { cwd: ROOT });
+	run("cargo", ["build"], {
+		cwd: SRC_TAURI,
+		env: { ...process.env, CARGO_TARGET_DIR: target, TAURI_CONFIG: JSON.stringify(override) },
+	});
+	// Tauri finds the resources beside a debug binary only by its real path (no symlink in it).
+	return realpathSync(join(target, "debug/conducted"));
+}
+
+/** Every process under `pid`, each before its own children, found by parent id (`pgrep -P` prints ids only). */
+function descendants(pid: number): number[] {
+	const found = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" });
+	const children = found.stdout
+		.split("\n")
+		.filter((line) => line.trim() !== "")
+		.map(Number);
+	return children.flatMap((child) => [child, ...descendants(child)]);
+}
+
+const alive = (pid: number): boolean => {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+async function exited(child: ChildProcess): Promise<void> {
+	if (child.exitCode !== null || child.signalCode !== null) return;
+	await new Promise<void>((resolve) => child.once("exit", () => resolve()));
+}
+
+/** Stops the app and everything it started, by the pids recorded before the signal. */
+async function stopApp(child: ChildProcess): Promise<string[]> {
+	const pid = child.pid;
+	if (pid === undefined) return [];
+	const under = descendants(pid);
+	child.kill("SIGTERM");
+	const hang = setTimeout(() => child.kill("SIGKILL"), HANG_MS / 4);
+	await exited(child);
+	clearTimeout(hang);
+	const left = under.filter(alive);
+	for (const id of left) process.kill(id, "SIGTERM");
+	// Bounded: fifty checks a tenth of a second apart, then SIGKILL for any that ignored the signal.
+	for (let check = 0; check < 50 && left.some(alive); check++) await Bun.sleep(100);
+	for (const id of left.filter(alive)) process.kill(id, "SIGKILL");
+	return left.map(String);
+}
+
+function launch(exe: string, seal: Seal, log: string): ChildProcess {
+	const env = { ...seal.env, CONDUCTED_SIDECAR_BIN: SIDECAR_BIN };
+	// A window that is never shown lets macOS put the app to sleep (App Nap), which stalls its calls.
+	// The setting given on the command line holds for this process only; nothing is stored.
+	const args = [
+		"-n",
+		"10",
+		"/usr/bin/sandbox-exec",
+		"-f",
+		seal.profile,
+		exe,
+		"-NSAppSleepDisabled",
+		"YES",
+	];
+	const child = spawn("nice", args, {
+		cwd: seal.root,
+		env,
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	const lines: string[] = [];
+	child.stdout?.on("data", (chunk: Buffer) => lines.push(chunk.toString()));
+	child.stderr?.on("data", (chunk: Buffer) => lines.push(chunk.toString()));
+	child.once("exit", () => writeFileSync(log, lines.join("")));
+	return child;
+}
+
+async function bounded<T>(promise: Promise<T>, what: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const hang = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(
+			() => reject(new Error(`${what} did not happen within ${HANG_MS / 1000} s`)),
+			HANG_MS,
+		);
+	});
+	try {
+		return await Promise.race([promise, hang]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+/** A value as an SQLite literal: text quoted, numbers as they are, bytes as a blob. */
+export function sqlLiteral(value: unknown): string {
+	if (value === null || value === undefined) return "NULL";
+	if (typeof value === "number" || typeof value === "bigint") return String(value);
+	if (typeof value === "boolean") return value ? "1" : "0";
+	if (value instanceof Uint8Array) return `X'${Buffer.from(value).toString("hex")}'`;
+	return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+/** Our app's database, as its SQL plugin opens it, with the seeded rows written in. */
+async function seedDatabase(server: LiveServer, tables: Record<string, Row[]>): Promise<string[]> {
+	const db = "sqlite:conducted.db";
+	const call = async (command: string, args: unknown): Promise<unknown> => {
+		const answer = await server.ours.invoke(command, args);
+		if (!answer.ok) throw new Error(`${command}: ${JSON.stringify(answer.error)}`);
+		return answer.value;
+	};
+	await call("plugin:sql|load", { db });
+	const master = (await call("plugin:sql|select", {
+		db,
+		query: "SELECT type, name, sql FROM sqlite_master WHERE type = 'table'",
+		values: [],
+	})) as { name: string; sql: string | null }[];
+	const virtual = master
+		.filter((table) => /^CREATE VIRTUAL TABLE/i.test(table.sql ?? ""))
+		.map((table) => table.name);
+	const writable = new Set(
+		master
+			.map((table) => table.name)
+			.filter(
+				(name) =>
+					!name.startsWith("sqlite_") &&
+					!name.startsWith("_sqlx") &&
+					!virtual.some((table) => name === table || name.startsWith(`${table}_`)),
+			),
+	);
+	// Parents before children, so every foreign key finds its row.
+	const parents = new Map<string, string[]>();
+	for (const name of writable) {
+		const keys = (await call("plugin:sql|select", {
+			db,
+			query: `SELECT "table" FROM pragma_foreign_key_list('${name}')`,
+			values: [],
+		})) as { table: string }[];
+		parents.set(
+			name,
+			keys.map((key) => key.table).filter((table) => table !== name),
+		);
+	}
+	const order: string[] = [];
+	const visit = (name: string, path: string[]): void => {
+		if (order.includes(name) || path.includes(name)) return;
+		for (const parent of parents.get(name) ?? []) visit(parent, [...path, name]);
+		order.push(name);
+	};
+	for (const name of writable) visit(name, []);
+	// One script on one connection: the foreign keys are checked at the commit, so rows that point at
+	// each other (a workspace's active chat, a chat's workspace) go in together.
+	const statements = ["BEGIN", "PRAGMA defer_foreign_keys = ON"];
+	for (const name of order) {
+		for (const row of tables[name] ?? []) {
+			const columns = Object.keys(row);
+			statements.push(
+				`INSERT OR REPLACE INTO "${name}" (${columns.map((column) => `"${column}"`).join(", ")}) VALUES (${columns.map((column) => sqlLiteral(row[column])).join(", ")})`,
+			);
+		}
+	}
+	statements.push("COMMIT");
+	await call("plugin:sql|execute", { db, query: `${statements.join(";\n")};`, values: [] });
+	// The page opens the database itself, on a fresh pool: no connection of the seeding is left
+	// holding the file's lock.
+	await call("plugin:sql|close", { db });
+	return Object.keys(tables).filter(
+		(name) => !writable.has(name) && (tables[name]?.length ?? 0) > 0,
+	);
+}
+
+/** The seeded state moved onto the scratch disk: rows, route, repositories and files. */
+function moveOnto(seeded: SeededState, seal: Seal) {
+	const moves: Move[] = [
+		{
+			from: CATALOGUE_APP_DATA,
+			to: join(seal.home, "Library/Application Support", APP_IDENTIFIER),
+		},
+		{ from: CATALOGUE_HOME, to: seal.home },
+		{ from: CATALOGUE_TEMP, to: seal.tmp },
+	];
+	const world = seeded.world as World;
+	const tables = relocate(seeded.tables, moves);
+	const repoRows = tables.repos ?? [];
+	const live = (tables.workspaces ?? []).filter((workspace) => workspace.state !== "archived");
+	// An archived workspace has no folder, so the repository the world scripts for it is not built.
+	const archived = new Set(
+		(tables.workspaces ?? [])
+			.filter((workspace) => workspace.state === "archived")
+			.map((workspace) => String(workspace.path)),
+	);
+	const repos = relocate([...world.repos], moves).filter((repo) => !archived.has(repo.path));
+	const files = new Map(relocate([...world.memory.controls.files.entries()], moves));
+	plantOnDisk({
+		root: seal.root,
+		home: seal.home,
+		repos,
+		files,
+		projects: repoRows.map((repo) => ({
+			path: String(repo.root_path),
+			defaultBranch: String(repo.default_branch),
+		})),
+		workspaces: live.map((workspace) => ({
+			path: String(workspace.path),
+			projectPath: String(repoRows.find((repo) => repo.id === workspace.repo_id)?.root_path ?? ""),
+		})),
+		author: AUTHOR,
+	});
+	return { tables, route: relocate(seeded.scene.route, moves) };
+}
+
+async function shootOne(options: {
+	browser: Browser;
+	server: LiveServer;
+	exe: string;
+	out: string;
+	front: Front;
+	state: { id: string; title: string };
+	seeded: SeededState;
+	live: LiveMappingModule;
+}): Promise<Shot> {
+	const { server, front, state, seeded, live } = options;
+	const seal = makeSeal(`live-${front}`, { execOutside: ["/bin/ps"] });
+	const problems: string[] = [];
+	const stopped: string[] = [];
+	let child: ChildProcess | null = null;
+	const base: Shot = {
+		...state,
+		front,
+		route: null,
+		file: null,
+		settled: null,
+		errors: [],
+		refused: [],
+		problems,
+		stopped,
+	};
+	try {
+		const moved = moveOnto(seeded, seal);
+		const route =
+			front === "conductor" ? live.liveRoute({ scene: { route: moved.route } }) : moved.route;
+		if (route === null) return { ...base, problems: ["Conductor has no screen for this state"] };
+		base.route = route;
+		child = launch(options.exe, seal, join(seal.root, "app.log"));
+		await bounded(server.bridged(), "our app's bridge page connecting");
+		const skipped = await seedDatabase(server, moved.tables);
+		if (skipped.length > 0)
+			problems.push(`rows not written (virtual tables): ${skipped.join(", ")}`);
+		const invoke = async (command: string, args?: unknown): Promise<unknown> => {
+			const answer = await server.ours.invoke(command, args ?? {});
+			if (!answer.ok) throw new Error(`${command}: ${JSON.stringify(answer.error)}`);
+			return answer.value;
+		};
+		server.prepare({
+			state: state.id,
+			front,
+			route,
+			mapping: front === "conductor" ? live.liveMapping() : identityMapping(),
+			context:
+				front === "conductor"
+					? {
+							id: state.id,
+							scene: { route: moved.route },
+							tables: moved.tables,
+							views: new Map(),
+							roots: new Set(),
+						}
+					: {},
+			globals: front === "conductor" ? await live.liveGlobals(invoke) : { isTauri: true },
+		});
+		const out = front === "conductor" ? options.out : join(options.out, "ours");
+		const shot = await capture(
+			options.browser,
+			DEV_ORIGIN,
+			out,
+			{ ...state, route },
+			{
+				path: `/__reference/open/${encodeURIComponent(state.id)}?front=${front}`,
+				file: `${state.id}-dark.png`,
+			},
+		);
+		const pending = server.pending();
+		if (pending.length > 0) {
+			// Whether the app still answers at all says if one call hung or the whole window stalled.
+			const answers = await Promise.race([
+				server.ours.invoke("health", {}).then((answer) => answer.ok),
+				Bun.sleep(3_000).then(() => false),
+			]);
+			problems.push(
+				`our app had not answered: ${[...new Set(pending)].join(", ")}; ${answers ? "it still answered a health check" : "it answered no health check within 3 s"}`,
+			);
+			return { ...shot, front, problems, stopped, stalled: true };
+		}
+		return { ...shot, front, problems, stopped };
+	} catch (cause) {
+		problems.push(cause instanceof Error ? cause.message : String(cause));
+		return base;
+	} finally {
+		if (child !== null) {
+			stopped.push(...(await stopApp(child)));
+			// The app's own output, kept beside the pictures when something went wrong.
+			const log = join(seal.root, "app.log");
+			if (problems.length > 0 && existsSync(log)) {
+				mkdirSync(join(options.out, "logs"), { recursive: true });
+				copyFileSync(log, join(options.out, "logs", `${front}-${state.id}.log`));
+			}
+		}
+		server.resetBridge();
+		removeSeal(seal);
+	}
+}
+
+const inventoryOf = (
+	tally: Pick<CallTally, "kind" | "name">,
+): { inventory: string; name: string } => {
+	const name = tally.name.split(": ")[0] as string;
+	if (tally.kind === "sidecar") return { inventory: "sidecar_call", name };
+	if (tally.kind === "event") return { inventory: "tauri_event", name };
+	if (name.startsWith("plugin:"))
+		return { inventory: "tauri_plugin_command", name: name.slice("plugin:".length) };
+	return { inventory: "tauri_command", name };
+};
+
+/** Every name Conductor's frontend called, with how often ours answered, failed, refused or decided. */
+export function liveSummary(calls: readonly CallTally[]) {
+	const byName = new Map<
+		string,
+		Record<string, unknown> & {
+			counts: Record<string, number>;
+			details: string[];
+			via: string[];
+			decisions: string[];
+		}
+	>();
+	for (const call of calls) {
+		if (call.front !== "conductor") continue;
+		const { inventory, name } = inventoryOf(call);
+		const key = `${inventory}:${name}`;
+		let entry = byName.get(key);
+		if (entry === undefined) {
+			entry = { inventory, name, counts: {}, details: [], via: [], decisions: [] };
+			byName.set(key, entry);
+		}
+		entry.counts[call.outcome] = (entry.counts[call.outcome] ?? 0) + call.count;
+		for (const detail of call.details)
+			if (!entry.details.includes(detail) && entry.details.length < 10) entry.details.push(detail);
+		for (const via of call.via) if (!entry.via.includes(via)) entry.via.push(via);
+		if (call.decision !== undefined && !entry.decisions.includes(call.decision))
+			entry.decisions.push(call.decision);
+	}
+	return [...byName.values()].sort(
+		(a, b) =>
+			String(a.inventory).localeCompare(String(b.inventory)) ||
+			String(a.name).localeCompare(String(b.name)),
+	);
+}
+
+async function main(args: string[]): Promise<number> {
+	const paths = defaultPaths();
+	const out = flag(args, "out") ?? join(paths.shots, "../conductor-live");
+	const fronts = (flag(args, "fronts") ?? "conductor,ours").split(",") as Front[];
+	const unknownFronts = fronts.filter((front) => front !== "conductor" && front !== "ours");
+	if (unknownFronts.length > 0) throw new Error(`Unknown fronts: ${unknownFronts.join(", ")}`);
+	const only = args.filter(
+		(arg, index) => !arg.startsWith("--") && !args[index - 1]?.startsWith("--"),
+	);
+	const givenTarget = flag(args, "target");
+	const target = givenTarget ?? realpathSync(mkdtempSync(join(tmpdir(), "conductor-live-target-")));
+	mkdirSync(join(out, "ours"), { recursive: true });
+
+	assertNoRealAgents();
+	const probe = makeSeal("live-probe", { execOutside: ["/bin/ps"] });
+	try {
+		proveSealed(probe);
+	} finally {
+		removeSeal(probe);
+	}
+	const live = (await import(join(paths.reference, "live-mapping.ts"))) as LiveMappingModule;
+	const catalogue = await loadCatalogue();
+	const unknown = only.filter((id) => !catalogue.states.some((state) => state.id === id));
+	if (unknown.length > 0) throw new Error(`Unknown state ids: ${unknown.join(", ")}`);
+
+	let server: LiveServer | null = null;
+	let browser: Browser | null = null;
+	try {
+		const exe = build(target, fronts);
+		server = await startLiveServer({
+			bundles: { conductor: paths.bundle, ours: join(DESKTOP, "dist") },
+		});
+		browser = await chromium.launch();
+		const opened = { browser, server };
+		const shots: Shot[] = [];
+		const states =
+			only.length === 0
+				? catalogue.states
+				: catalogue.states.filter((state) => only.includes(state.id));
+		for (const state of states) {
+			for (const front of fronts) {
+				const once = async (): Promise<Shot> =>
+					await shootOne({
+						...opened,
+						exe,
+						out,
+						front,
+						state: { id: state.id, title: state.title },
+						seeded: await catalogue.seed(state.id),
+						live,
+					});
+				const first = await once();
+				const shot =
+					first.stalled === true ? { ...(await once()), firstAttempt: first.problems } : first;
+				shots.push(shot);
+				const notes = [
+					shot.settled === false ? "never settled" : null,
+					shot.errors.length > 0 ? `${shot.errors.length} errors` : null,
+					...shot.problems,
+				].filter((note) => note !== null);
+				console.log(
+					`${shot.file === null ? "none" : "ok  "} ${front.padEnd(9)} ${state.id}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}`,
+				);
+			}
+		}
+		const calls = server.calls();
+		writeFileSync(
+			join(out, "live.json"),
+			`${JSON.stringify({ commit: gitHead(), gaps: live.GAPS, summary: liveSummary(calls), calls }, null, "\t")}\n`,
+		);
+		writeFileSync(
+			join(out, "index.json"),
+			`${JSON.stringify({ viewport: VIEWPORT, states: shots }, null, "\t")}\n`,
+		);
+		const failed = shots.filter((shot) => shot.file === null && shot.route !== null).length;
+		console.log(`${shots.length} pictures, ${failed} failed. Written to ${out}`);
+		return failed === 0 ? 0 : 1;
+	} finally {
+		if (browser !== null) await browser.close();
+		if (server !== null) await server.stop();
+		if (givenTarget === undefined && existsSync(target))
+			rmSync(target, { recursive: true, force: true });
+	}
+}
+
+function gitHead(): string {
+	return spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout.trim();
+}
+
+if (import.meta.main) {
+	main(process.argv.slice(2))
+		.then((code) => process.exit(code))
+		.catch((cause: unknown) => {
+			console.error(cause instanceof Error ? cause.message : cause);
+			process.exit(1);
+		});
+}

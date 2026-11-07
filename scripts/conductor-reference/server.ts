@@ -37,7 +37,7 @@ const STATE_COOKIE = "reference-state";
 export const CONTENT_POLICY =
 	"default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'";
 
-const TYPES: Record<string, string> = {
+export const TYPES: Record<string, string> = {
 	".html": "text/html; charset=utf-8",
 	".js": "text/javascript; charset=utf-8",
 	".mjs": "text/javascript; charset=utf-8",

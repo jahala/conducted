@@ -63,7 +63,7 @@ The first item in file order wins (`ui.tsv`, then `system.tsv`). An owner a pers
 
 ## 3. The checks
 
-Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.json>]` runs a, b, c and e (`--no-dump` runs a and e only) and writes `report.json` and `report.md`; the flows are their own command.
+Each is one command. `bun scripts/parity/check.ts <dump.json> [--flows <flows.json>] [--live <live.json>]` runs a, b, c and e (`--no-dump` runs a and e only) and writes `report.json` and `report.md`; the flows are their own command.
 
 | Check                | Compares                                                                                                                                                                                                                                                                                                                                                                                                         | Fails on                                                                                                                            |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -88,7 +88,11 @@ Our design choice: check b matches by name per state, not by selector. The selec
 
 ### Stage 2
 
-Stage 2 runs Conductor's own frontend on our backend. When it exists, its log of calls answered and refused plugs into check e as one more input (`--live <log>`): a name Conductor's frontend called that our backend refused is a gap even when the lists match. Until then check e compares the lists only.
+Stage 2 runs Conductor's own frontend on our real backend (D099, `scripts/conductor-reference/live.ts`). Its log, `.context/shots/conductor-live/live.json`, lists every name Conductor's frontend called and what answered: our backend (`answered`), our backend with an error (`failed`), nobody (`refused`), a decision that leaves the feature out (`decided`), or the translator alone (`translator`). `--live <live.json>` adds it to check e:
+
+- A name our backend refused is a gap (`backend-live-refused`) even when the lists match, and so is a name the translator answered without our backend (`backend-live-translator`).
+- A decision the decision logs lack is broken (`live-unknown-decision`), and so is a name the spec does not list (`live-unlisted`): the spec is behind the frontend.
+- A missing log is broken (`live-missing`). The log stays on this Mac, so CI runs check e on the lists only.
 
 ## 4. The instrument check
 
