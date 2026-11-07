@@ -161,6 +161,12 @@ export interface PortForwardEntry {
 	enabled: boolean;
 }
 
+/** A port the sandbox listens on, with the process behind it when /proc names one. */
+export interface DetectedRemotePort {
+	port: number;
+	processName: string | null;
+}
+
 /** What the Ports tab shows for a cloud workspace: its forwards, switches and discovery. */
 export interface PortForwardView {
 	forwardingEnabled: boolean;
@@ -168,8 +174,8 @@ export interface PortForwardView {
 	/** True after Start forwarding until the first discovery answer arrives. */
 	waiting: boolean;
 	forwards: PortForwardEntry[];
-	/** Remote ports the sandbox currently listens on. */
-	detectedPorts: number[];
+	/** Remote ports the sandbox currently listens on, with their process names. */
+	detectedPorts: DetectedRemotePort[];
 	error: string | null;
 }
 

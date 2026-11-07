@@ -24,9 +24,10 @@
  * Test first: `sandboxEnvironment` puts `CONDUCTED_BIN_DIR` first on PATH and sets
  * `CLAUDE_CODE_SANDBOXED=1`.
  */
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { turnChangeOf } from "../src/relay.ts";
 import { IMAGE } from "./image.ts";
+import { detectedPorts, type ProcessSockets, parseProcTcp, socketInode } from "./ports.ts";
 import { TurnEndTracker } from "./turn-end.ts";
 
 export interface SandboxDirs {
@@ -207,26 +208,60 @@ function run(): void {
 
 	type Connection = Link | TunnelLink;
 
-	/** The TCP ports listening inside the container, from /proc. Read-only, so it starts nothing. */
-	function listeningPorts(): number[] {
-		const ports = new Set<number>();
-		for (const file of ["/proc/net/tcp", "/proc/net/tcp6"]) {
-			let text: string;
+	/** Reads a /proc file, or an empty text when the process may not see it. */
+	function readProc(file: string): string {
+		try {
+			return readFileSync(file, "utf8");
+		} catch {
+			return "";
+		}
+	}
+
+	/** Every process whose descriptors link a socket, with its kernel name. */
+	function scanProcesses(): ProcessSockets[] {
+		const processes: ProcessSockets[] = [];
+		let entries: import("node:fs").Dirent<string>[];
+		try {
+			entries = readdirSync("/proc", { withFileTypes: true, encoding: "utf8" });
+		} catch {
+			return processes;
+		}
+		for (const entry of entries) {
+			if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+			const pid = Number(entry.name);
+			const inodes: number[] = [];
+			let descriptors: string[];
 			try {
-				text = readFileSync(file, "utf8");
+				descriptors = readdirSync(`/proc/${pid}/fd`, { encoding: "utf8" });
 			} catch {
 				continue;
 			}
-			for (const line of text.split("\n").slice(1)) {
-				const columns = line.trim().split(/\s+/);
-				if (columns.length < 4 || columns[3] !== "0A") continue;
-				const hex = columns[1]?.split(":")[1];
-				if (hex === undefined) continue;
-				const port = Number.parseInt(hex, 16);
-				if (Number.isInteger(port) && port > 0 && port <= 65_535) ports.add(port);
+			for (const descriptor of descriptors) {
+				let link: string;
+				try {
+					link = readlinkSync(`/proc/${pid}/fd/${descriptor}`);
+				} catch {
+					continue;
+				}
+				const inode = socketInode(link);
+				if (inode !== null) inodes.push(inode);
 			}
+			if (inodes.length === 0) continue;
+			processes.push({ pid, name: readProc(`/proc/${pid}/comm`).trim(), inodes });
 		}
-		return [...ports].sort((left, right) => left - right);
+		return processes;
+	}
+
+	/**
+	 * The TCP ports listening inside the container and the process behind each, from /proc.
+	 * Read-only, so it starts nothing.
+	 */
+	function listeningPorts() {
+		const listeners = [
+			...parseProcTcp(readProc("/proc/net/tcp")),
+			...parseProcTcp(readProc("/proc/net/tcp6")),
+		];
+		return detectedPorts(listeners, scanProcesses());
 	}
 
 	/** The port a tunnel asks for, or null when it is not one a forward may use. */

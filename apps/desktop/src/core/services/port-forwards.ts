@@ -16,14 +16,14 @@
  * never thrown; and a stop that leaves the database row in place for the per-forward switch.
  * Our design choice: the store holds the whole view per workspace, so the Ports tab renders
  * without a second query. Discovery polls the sandbox's `/ports` route every three seconds while a
- * workspace forwards, because our Worker has no push channel for listening ports (D002, D109).
+ * workspace forwards, because our Worker has no push channel for listening ports (D002, D110).
  * Test first: adding port 22 returns `port_forward_reserved`, and a typed 70000 is refused before
  * any Platform call.
  */
 import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
-import type { PortForwardEntry, PortForwardView } from "../api.ts";
+import type { DetectedRemotePort, PortForwardEntry, PortForwardView } from "../api.ts";
 import {
 	type ForwardingStrategy,
 	INVALID_PORT_MESSAGE,
@@ -483,21 +483,30 @@ export class PortForwardsService {
 			this.#patch(workspaceId, { error: failure.message });
 			return err(failure);
 		}
-		let ports: number[] = [];
+		let ports: DetectedRemotePort[] = [];
 		try {
 			const parsed = JSON.parse(response.value.body) as { ports?: unknown };
 			if (Array.isArray(parsed.ports)) {
-				ports = parsed.ports.filter(
-					(port): port is number =>
-						typeof port === "number" && port >= 1024 && port <= 65_535 && port !== SSH_PORT,
-				);
+				const byPort = new Map<number, DetectedRemotePort>();
+				for (const entry of parsed.ports) {
+					if (typeof entry !== "object" || entry === null) continue;
+					const port = (entry as { port?: unknown }).port;
+					const name = (entry as { processName?: unknown }).processName;
+					if (typeof port !== "number" || !Number.isInteger(port)) continue;
+					if (port < 1024 || port > 65_535 || port === SSH_PORT) continue;
+					byPort.set(port, {
+						port,
+						processName: typeof name === "string" && name !== "" ? name : null,
+					});
+				}
+				ports = [...byPort.values()];
 			}
 		} catch {
 			// A body that is not the discovery shape leaves the previous answer in place.
 			return ok(undefined);
 		}
 		this.#patch(workspaceId, {
-			detectedPorts: [...new Set(ports)].sort((left, right) => left - right),
+			detectedPorts: ports.sort((left, right) => left.port - right.port),
 			waiting: false,
 			error: null,
 		});
@@ -542,10 +551,10 @@ export class PortForwardsService {
 		);
 	}
 
-	async #reconcile(workspace: Workspace, ports: readonly number[]): Promise<void> {
+	async #reconcile(workspace: Workspace, ports: readonly DetectedRemotePort[]): Promise<void> {
 		const view = this.view(workspace.id);
 		if (!view.forwardingEnabled || !view.autoForwardEnabled) return;
-		const live = new Set(ports);
+		const live = new Set(ports.map((entry) => entry.port));
 		for (const forward of view.forwards) {
 			if (!forward.autoDetected || live.has(forward.remotePort)) continue;
 			await this.#deps.platform.portForward.stop(forward.id);
@@ -557,7 +566,8 @@ export class PortForwardsService {
 		}
 		const taken = await this.#taken();
 		if (!taken.ok) return;
-		for (const remotePort of ports) {
+		for (const detected of ports) {
+			const remotePort = detected.port;
 			const current = this.view(workspace.id);
 			if (current.forwards.some((forward) => forward.remotePort === remotePort)) continue;
 			const localPort = await this.#choosePort(workspace, remotePort, taken.value);

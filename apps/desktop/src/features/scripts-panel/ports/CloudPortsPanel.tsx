@@ -15,6 +15,7 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
+import { useServices } from "../../../core/context.tsx";
 import {
 	useActions,
 	useLiveShortcut,
@@ -31,6 +32,7 @@ import { Popover } from "../../../ui/Popover.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { useUrlOpeners } from "../open-url.ts";
+import { forwardingToast } from "./forwarding-toast.ts";
 
 export interface CloudPortsPanelProps {
 	workspaceId: WorkspaceId;
@@ -40,6 +42,7 @@ const localhostUrl = (port: number): string => `http://localhost:${port}`;
 
 export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 	const actions = useActions();
+	const services = useServices().services;
 	const workspace = useWorkspace(workspaceId);
 	const view = usePortForwards(workspaceId);
 	const open = useUrlOpeners(workspaceId);
@@ -57,9 +60,16 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 
 	const setForwarding = (enabled: boolean) => {
 		void (async () => {
-			if (enabled) toast("Forwarding ports");
 			const result = await actions.portForwards.setForwarding(workspaceId, enabled);
-			if (!result.ok) toastError("Couldn't change port forwarding", result.error);
+			if (!result.ok) {
+				toastError("Couldn't change port forwarding", result.error);
+				return;
+			}
+			if (!enabled) return;
+			const message = forwardingToast(services.portForwards.view(workspaceId));
+			if (message !== null) {
+				toast.success(message.title, { description: message.description });
+			}
 		})();
 	};
 
@@ -90,10 +100,10 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 	};
 
 	const detected = view.detectedPorts.filter(
-		(port) => !view.forwards.some((forward) => forward.remotePort === port),
+		(entry) => !view.forwards.some((forward) => forward.remotePort === entry.port),
 	);
 	const unavailable = view.forwards.filter(
-		(forward) => !view.detectedPorts.includes(forward.remotePort),
+		(forward) => !view.detectedPorts.some((entry) => entry.port === forward.remotePort),
 	);
 
 	return (
@@ -121,17 +131,22 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 								{detected.length === 0 ? (
 									<p className="text-xs text-fg-subtle">No new ports detected.</p>
 								) : (
-									detected.map((port) => (
+									detected.map((entry) => (
 										<div
-											key={port}
+											key={entry.port}
 											className="flex items-center justify-between gap-2 text-sm text-fg"
 										>
-											<span className="font-mono">localhost:{port}</span>
+											<span className="min-w-0 truncate font-mono">
+												localhost:{entry.port}
+												{entry.processName === null ? null : (
+													<span className="ml-1 font-sans text-fg-muted">{entry.processName}</span>
+												)}
+											</span>
 											<Button
 												variant="ghost"
 												size="xs"
 												onClick={() =>
-													void actions.portForwards.add(workspaceId, port).then((result) => {
+													void actions.portForwards.add(workspaceId, entry.port).then((result) => {
 														if (!result.ok) {
 															toastError("Couldn't forward the port", result.error);
 														}

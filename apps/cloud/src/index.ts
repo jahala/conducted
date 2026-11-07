@@ -10,7 +10,7 @@
  * carries the sandbox entry's turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
  * HTTPS and one WebSocket; the Worker authenticates and routes). CLOUD-10 adds the tunnel route
- * the Rust shell piped a local listener into, beside the preview route (D109). The sandbox's outbound
+ * the Rust shell piped a local listener into, beside the preview route (D110). The sandbox's outbound
  * credential swap is outbound.ts (CLOUD-05), which also carries the sandbox entry's turn-end
  * backup call (D105), and the unauthenticated preview path, whose capability token is checked
  * here (D108). Route list and measurements: docs/research/cloud-spike-2026-11-06.md.

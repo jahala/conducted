@@ -61,6 +61,12 @@ export const READY_DEADLINE_MS = 150_000;
 export const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 /** How often the alarm touches a sandbox that is running a turn. */
 export const ALARM_INTERVAL_MS = 60_000;
+/** One listening port reported by the sandbox, with its process name when it has one. */
+export interface DetectedRemotePort {
+	port: number;
+	processName: string | null;
+}
+
 /** The CA the Worker's outbound handler terminates TLS with, so clients in the sandbox trust it. */
 export const CA_PATH = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 
@@ -329,7 +335,7 @@ export class Workspace extends DurableObject<Env> {
 	 * discovery uses this; starting a stopped sandbox is the caller's choice, so a read does not
 	 * bill a container nobody asked for.
 	 */
-	async listeningPorts(): Promise<{ ports: number[] }> {
+	async listeningPorts(): Promise<{ ports: DetectedRemotePort[] }> {
 		await this.ensureSetUp();
 		const response = await this.requireContainer()
 			.getTcpPort(SIDECAR_PORT)
@@ -338,13 +344,21 @@ export class Workspace extends DurableObject<Env> {
 			throw new Error(`The sandbox could not list its ports: ${response.status}`);
 		}
 		const body = (await response.json()) as { ports?: unknown };
-		const ports = Array.isArray(body.ports)
-			? body.ports.filter(
-					(port): port is number =>
-						typeof port === "number" && port > 0 && port <= 65_535 && port !== 22,
-				)
-			: [];
-		return { ports: [...new Set(ports)].sort((left, right) => left - right) };
+		const byPort = new Map<number, DetectedRemotePort>();
+		if (Array.isArray(body.ports)) {
+			for (const entry of body.ports) {
+				if (typeof entry !== "object" || entry === null) continue;
+				const port = (entry as { port?: unknown }).port;
+				const name = (entry as { processName?: unknown }).processName;
+				if (typeof port !== "number" || !Number.isInteger(port)) continue;
+				if (port <= 0 || port > 65_535 || port === 22 || port === SIDECAR_PORT) continue;
+				byPort.set(port, {
+					port,
+					processName: typeof name === "string" && name !== "" ? name : null,
+				});
+			}
+		}
+		return { ports: [...byPort.values()].sort((left, right) => left.port - right.port) };
 	}
 
 	/** Polls the bridge's health endpoint until it answers or the deadline passes. */
@@ -648,7 +662,7 @@ export class Workspace extends DurableObject<Env> {
 	/**
 	 * The port-forward tunnel. The Rust shell keeps a local listener and opens one WebSocket per
 	 * accepted connection; this hands the upgrade to the sandbox entry, which connects it to the
-	 * requested loopback port (CLOUD-10, D109).
+	 * requested loopback port (CLOUD-10, D110).
 	 */
 	async tunnel(request: Request): Promise<Response> {
 		if (this.container === undefined) {

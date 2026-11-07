@@ -128,20 +128,34 @@ describe("CLOUD-10 forwarding service", () => {
 		const ws = await cloudWorkspace();
 		platform.controls.scriptCloud((request) =>
 			request.path.endsWith("/ports")
-				? ok({ status: 200, body: JSON.stringify({ ports: [3000, 5173] }) })
+				? ok({
+						status: 200,
+						body: JSON.stringify({
+							ports: [
+								{ port: 3000, processName: "node" },
+								{ port: 5173, processName: "vite" },
+							],
+						}),
+					})
 				: null,
 		);
 		await service.setAutoForward(ws.id, true);
 		await service.setForwarding(ws.id, true);
 		await service.refreshDiscovery(ws.id);
 		const detected = service.view(ws.id).detectedPorts;
-		expect(detected).toEqual([3000, 5173]);
+		expect(detected).toEqual([
+			{ port: 3000, processName: "node" },
+			{ port: 5173, processName: "vite" },
+		]);
 		const rows = await repositories.portForwards.list(ws.id);
 		expect(rows.ok && rows.value.filter((row) => row.autoDetected).length).toBe(2);
 
 		platform.controls.scriptCloud((request) =>
 			request.path.endsWith("/ports")
-				? ok({ status: 200, body: JSON.stringify({ ports: [3000] }) })
+				? ok({
+						status: 200,
+						body: JSON.stringify({ ports: [{ port: 3000, processName: "node" }] }),
+					})
 				: null,
 		);
 		await service.refreshDiscovery(ws.id);

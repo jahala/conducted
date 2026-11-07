@@ -33,7 +33,10 @@ async function setup() {
 				autoForwardEnabled: false,
 				waiting: false,
 				forwards: [],
-				detectedPorts: [3000, 5173],
+				detectedPorts: [
+					{ port: 3000, processName: "node" },
+					{ port: 5173, processName: "vite" },
+				],
 				error: null,
 			},
 		},
@@ -50,8 +53,10 @@ describe("CLOUD-10 cloud Ports tab", () => {
 	it("lists the detected ports in the Forward ports popover", async () => {
 		await setup();
 		fireEvent.click(await screen.findByRole("button", { name: "Forward ports" }));
-		expect(await screen.findByText("localhost:3000")).toBeTruthy();
-		expect(screen.getByText("localhost:5173")).toBeTruthy();
+		expect(await screen.findByText(/localhost:3000/)).toBeTruthy();
+		expect(screen.getByText(/localhost:5173/)).toBeTruthy();
+		expect(screen.getByText("node")).toBeTruthy();
+		expect(screen.getByText("vite")).toBeTruthy();
 	});
 
 	it("Start forwarding turns the workspace's switch on", async () => {
