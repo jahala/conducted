@@ -252,7 +252,7 @@ describe("n16-s1-ui-1 join: every feature of the batch runs from the app root", 
 			),
 		);
 
-		fireEvent.focus(await screen.findByRole("button", { name: "Context usage: 40%" }));
+		fireEvent.focus(await screen.findByRole("button", { name: "Context usage" }));
 
 		expect(await screen.findByText("Claude usage")).toBeTruthy();
 		expect(screen.getByText("70% left")).toBeTruthy();

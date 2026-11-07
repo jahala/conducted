@@ -257,7 +257,10 @@ export function OnboardingScreen() {
 	}, [advance]);
 
 	return (
-		<div className="relative flex h-full flex-col items-center overflow-y-auto bg-canvas px-8 pt-8 pb-24">
+		<div
+			data-testid="onboarding-setup-scene"
+			className="relative flex h-full flex-col items-center overflow-y-auto bg-canvas px-8 pt-8 pb-24"
+		>
 			<div className="flex w-full max-w-7xl items-center justify-end gap-4">
 				<Button variant="ghost" size="sm" onClick={() => void finish()}>
 					Exit onboarding

@@ -77,7 +77,12 @@ export function ActionList({
 								Make default
 							</Button>
 						) : null}
-						<Button size="xs" variant="ghost" onClick={() => onToggleHidden(item.id, !item.hidden)}>
+						<Button
+							size="xs"
+							variant="ghost"
+							aria-label={item.hidden ? "Show action" : "Hide action"}
+							onClick={() => onToggleHidden(item.id, !item.hidden)}
+						>
 							{item.hidden ? "Show" : "Hide"}
 						</Button>
 						<Button size="xs" variant="ghost" onClick={() => onEdit(item.id)}>
@@ -89,7 +94,12 @@ export function ActionList({
 							</Button>
 						) : null}
 						{item.source === "personal" ? (
-							<Button size="xs" variant="outlineDestructive" onClick={() => onDelete(item.id)}>
+							<Button
+								size="xs"
+								variant="outlineDestructive"
+								aria-label="Delete action"
+								onClick={() => onDelete(item.id)}
+							>
 								Delete
 							</Button>
 						) : null}

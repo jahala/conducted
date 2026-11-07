@@ -105,7 +105,12 @@ export function AgentLoginDialog({
 					{flow?.code ? (
 						<div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
 							<code className="min-w-0 flex-1 font-mono text-sm text-fg">{flow.code}</code>
-							<Button size="xs" variant="secondary" onClick={() => onCopy?.(flow.code ?? "")}>
+							<Button
+								size="xs"
+								variant="secondary"
+								aria-label="Copy Codex verification code"
+								onClick={() => onCopy?.(flow.code ?? "")}
+							>
 								Copy code
 							</Button>
 						</div>
