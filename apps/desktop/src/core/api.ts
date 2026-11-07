@@ -712,6 +712,8 @@ export interface Actions {
 		sendFeedback: Act<[input: FeedbackInput]>;
 		openSidecarLogs: Act;
 		openFullDiskAccessSettings: Act;
+		/** Plays a completion sound now, for the General page's "Test". */
+		testCompletionSound: Act<[soundId: string]>;
 		/** Opens a terminal that runs the Xcode licence command, when git is blocked by it. */
 		runXcodeLicenseFix: Act;
 	};

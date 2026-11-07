@@ -271,6 +271,7 @@ export function createActions(
 			sendFeedback: (input) => services.system.sendFeedback(input),
 			openSidecarLogs: () => services.system.openSidecarLogs(),
 			openFullDiskAccessSettings: () => services.system.openFullDiskAccessSettings(),
+			testCompletionSound: (soundId) => services.notifications.testSound(soundId),
 			runXcodeLicenseFix: () => services.system.runXcodeLicenseFix(),
 		},
 	};

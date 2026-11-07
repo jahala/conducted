@@ -223,6 +223,20 @@ export class NotificationService {
 	}
 
 	/**
+	 * Backs `Actions.app.testCompletionSound`, the General page's "Test": plays one completion
+	 * sound now, whatever the notification settings say. "No sound" plays nothing.
+	 */
+	async testSound(soundId: string): Promise<Result<void>> {
+		if (soundId === "none" || soundId === "disabled") return ok(undefined);
+		try {
+			await this.#deps.sound.play(soundId);
+			return ok(undefined);
+		} catch (cause) {
+			return err(appError("sound_failed", "The completion sound could not play.", cause));
+		}
+	}
+
+	/**
 	 * Called by the sessions service whenever a chat's live state changes. Notifies for a new
 	 * interaction at once, and starts or cancels the settle timer for a finished turn.
 	 */
