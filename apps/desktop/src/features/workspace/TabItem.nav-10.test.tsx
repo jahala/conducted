@@ -55,6 +55,27 @@ describe("NAV-10 TabItem", () => {
 		expect(screen.getByRole("img", { name: "Unread" })).toBeTruthy();
 	});
 
+	it("draws no icon on an idle chat tab, as Conductor's chat tabs do", () => {
+		render(<TabItem tab={tab} active onSelect={vi.fn()} onClose={vi.fn()} />);
+		const close = screen.getByRole("button", { name: "Close Fix login" });
+		const icons = [...screen.getByRole("tab").querySelectorAll("svg")];
+		expect(icons.filter((icon) => !close.contains(icon))).toHaveLength(0);
+	});
+
+	it("puts a chat's unread dot before its title", () => {
+		render(
+			<TabItem
+				tab={{ ...tab, unread: true }}
+				active={false}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		const dot = screen.getByRole("img", { name: "Unread" });
+		const title = screen.getByText("Fix login");
+		expect(dot.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
 	it("selects on Enter and Space when the tab itself has focus", () => {
 		const onSelect = vi.fn();
 		render(<TabItem tab={tab} active={false} onSelect={onSelect} onClose={vi.fn()} />);
