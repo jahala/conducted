@@ -5,6 +5,7 @@ import { appError, createKeyedQueue, err, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
+import { until } from "../test-support/until.ts";
 import { FileEventOutbox } from "./event-outbox.ts";
 import { OutboxReplayer, REPLAY_TIMEOUT_MS } from "./replay.ts";
 
@@ -24,10 +25,6 @@ function endedEvent(): SessionEvent {
 }
 
 type Reply = Result<{ persisted: boolean }, AppError>;
-
-async function until(check: () => boolean): Promise<void> {
-	while (!check()) await new Promise<void>((resolve) => setTimeout(resolve, 0));
-}
 
 async function harness() {
 	const storage = new MemoryStorage();
