@@ -26,10 +26,8 @@ describe("the branch rule", () => {
 
 	test("names a missing required check", () => {
 		const protection = protectedBranch();
-		protection.required_status_checks.checks = [{ context: "typescript" }, { context: "rust" }];
-		expect(protectionProblems(protection, RULE)).toEqual([
-			"main does not require the harness check",
-		]);
+		protection.required_status_checks.checks = [{ context: "typescript" }];
+		expect(protectionProblems(protection, RULE)).toEqual(["main does not require the rust check"]);
 	});
 
 	test("passes when every rule is set", () => {
@@ -48,17 +46,16 @@ describe("the branch rule", () => {
 			"main is not protected",
 			"main does not require the typescript check",
 			"main does not require the rust check",
-			"main does not require the harness check",
 		]);
 	});
 });
 
 describe("the body --apply writes", () => {
-	test("sets exactly the pull request rule and the three checks", () => {
+	test("sets exactly the pull request rule and the two checks", () => {
 		expect(applyBody(RULE)).toEqual({
 			required_status_checks: {
 				strict: false,
-				checks: [{ context: "typescript" }, { context: "rust" }, { context: "harness" }],
+				checks: [{ context: "typescript" }, { context: "rust" }],
 			},
 			enforce_admins: false,
 			required_pull_request_reviews: { required_approving_review_count: 0 },

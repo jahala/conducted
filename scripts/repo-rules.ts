@@ -19,14 +19,14 @@ export interface BranchRule {
 }
 
 /**
- * The one home of the rule the plan asks for: pull requests only on `main`, and the three CI jobs
+ * The one home of the rule the plan asks for: pull requests only on `main`, and the two CI jobs
  * that must pass (release-pipeline.md item 4).
  */
 export const RULE: BranchRule = {
 	repo: "jahala/conducted",
 	branch: "main",
 	pullRequests: true,
-	checks: ["typescript", "rust", "harness"],
+	checks: ["typescript", "rust"],
 };
 
 type Json = Record<string, unknown>;
