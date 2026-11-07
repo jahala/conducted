@@ -45,6 +45,7 @@ export function decisionForApproval(answer: InteractionAnswer): CodexCommandDeci
 		case "allow_with_suggested_rules":
 			return "accept";
 		case "allow_edits_for_session":
+		case "allow_for_session":
 		case "always_allow":
 			return "acceptForSession";
 		case "deny":
