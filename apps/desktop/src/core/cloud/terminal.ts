@@ -4,20 +4,22 @@
  * start, input and resize messages, and turns output, exit and a dropped connection back into the
  * PtyHandle the terminal service already drives.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 point 7 (a cloud terminal runs in the sandbox
- * over the Worker's WebSocket; the cloud transport reconnects with backoff in the sidecar case,
- * and a terminal keeps its place only while its stream lives).
- * Must handle: a relay that closes without an exit (the terminal shows "Connection lost." and ends
- * with no exit code); an error message from the Worker; bytes split across chunks; a write after
- * the end. The screen text and snapshot come from a bounded text mirror, not a VT emulator, so the
- * renderer's screen is the real one.
+ * over the Worker's WebSocket) and services-map.md 5A.4.5 (a dropped stream reconnects with
+ * backoff, 2 s growing 1.5 times up to 30 s, and the new shell starts after a divider).
+ * Must handle: an interactive terminal's dropped stream (retried with backoff; a new `start` runs
+ * a new shell and "--- Sandbox reconnected ---" marks the seam; a kill stops the retries); a
+ * one-shot command's dropped stream (it ends with "Connection lost." and no exit code, because
+ * re-running it would repeat its work); an error message from the Worker; bytes split across
+ * chunks; a write after the end or while reconnecting. The screen text and snapshot come from a
+ * bounded text mirror, not a VT emulator, so the renderer's screen is the real one.
  * Our design choice: the terminal carries base64 JSON lines over the same relay machinery as the
  * sidecar, so the Rust shell needs only a channel name, not a second protocol (D108).
- * Test first: opening one sends its start message on the terminal channel, and a lost stream ends
- * the terminal with "Connection lost.".
+ * Test first: opening one sends its start message on the terminal channel, and a one-shot command
+ * ends with a lost connection when the stream drops.
  */
 import type { Host } from "@conducted/protocol";
 import { appError, ok, type Result } from "@conducted/shared";
-import type { Cloud, PtyHandle, ScreenSnapshot } from "../../platform/platform.ts";
+import type { Cloud, CloudRelay, PtyHandle, ScreenSnapshot } from "../../platform/platform.ts";
 import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
@@ -103,7 +105,25 @@ export interface CloudTerminalOptions {
 	rows?: number;
 	command?: { program: string; args: readonly string[] };
 	env?: Readonly<Record<string, string>>;
+	/**
+	 * Whether a dropped stream is retried. An interactive terminal reconnects (a new shell, with a
+	 * divider), as Conductor's cloud transport does; a one-shot command ends with "Connection lost."
+	 * because re-running it would repeat its work. Default: an interactive terminal.
+	 */
+	reconnect?: boolean;
 }
+
+/** The first wait before a reconnect, and the longest one (services-map.md 5A.4.5). */
+export const RECONNECT_BASE_MS = 2_000;
+export const RECONNECT_MAX_MS = 30_000;
+
+/** The wait before attempt `attempt` (1 is the first): 2 s, 3 s, 4.5 s, up to 30 s. */
+export function reconnectDelayMs(attempt: number): number {
+	return Math.min(RECONNECT_BASE_MS * 1.5 ** (attempt - 1), RECONNECT_MAX_MS);
+}
+
+/** Shown where a reconnected terminal's new shell starts. */
+export const RECONNECTED_TEXT = "--- Sandbox reconnected ---";
 
 /**
  * Opens one terminal in a workspace's sandbox. The returned handle is the same PtyHandle the local
@@ -116,20 +136,43 @@ export async function openCloudTerminal(
 ): Promise<Result<PtyHandle>> {
 	const opened = await cloud.openRelay({ url: host.url, vmId: host.vmId, channel: "terminal" });
 	if (!opened.ok) return opened;
-	const relay = opened.value;
 	const cols = options.cols ?? DEFAULT_COLS;
 	const rows = options.rows ?? DEFAULT_ROWS;
+	const reconnect = options.reconnect ?? options.command === undefined;
+	const startLine = JSON.stringify({
+		type: "start",
+		cwd: options.cwd,
+		cols,
+		rows,
+		command:
+			options.command === undefined
+				? ["/bin/bash", "-l"]
+				: [options.command.program, ...options.command.args],
+		...(options.env === undefined ? {} : { env: options.env }),
+	});
 
+	let relay = opened.value;
 	let text = "";
 	const dataListeners = new Set<(chunk: Uint8Array) => void>();
 	const exitListeners = new Set<(exitCode: number | null, historyError: null) => void>();
 	const pending: Uint8Array[] = [];
 	let ended = false;
-	let closed = false;
+	let stopped = false;
+	let attempt = 0;
+	let generation = 0;
+	let timer: ReturnType<typeof setTimeout> | null = null;
+	let unwatch: (() => void) | null = null;
 
 	const end = (exitCode: number | null): void => {
 		if (ended) return;
 		ended = true;
+		attempt = 0;
+		if (timer !== null) {
+			clearTimeout(timer);
+			timer = null;
+		}
+		unwatch?.();
+		unwatch = null;
 		for (const listener of [...exitListeners]) listener(exitCode, null);
 		exitListeners.clear();
 	};
@@ -147,57 +190,100 @@ export async function openCloudTerminal(
 		append(new TextEncoder().encode(`\r\n${message}\r\n`));
 	};
 
-	const stopLine = relay.onLine((line) => {
-		const message = parseServerMessage(line);
-		if (message === null) return;
-		switch (message.type) {
-			case "ready":
-				return;
-			case "data":
-				append(bytesFromBase64(message.data));
-				return;
-			case "error":
-				appendText(message.message);
-				return;
-			case "exit":
-				end(message.exitCode);
-				return;
+	/**
+	 * Reopens the terminal stream after it dropped. The Worker ends the old process with its
+	 * connection, so a new attempt sends `start` again and the sandbox runs a new shell. Writes
+	 * during the wait are refused rather than queued, because the old process is gone.
+	 */
+	const reconnectNow = async (): Promise<void> => {
+		if (ended || stopped) return;
+		const next = await cloud.openRelay({ url: host.url, vmId: host.vmId, channel: "terminal" });
+		if (ended || stopped) {
+			if (next.ok) await next.value.close();
+			return;
 		}
-	});
-	const stopClosed = relay.onClosed(() => {
-		closed = true;
-		if (!ended) {
-			appendText(CONNECTION_LOST_TEXT);
-			end(null);
+		if (!next.ok) {
+			scheduleReconnect();
+			return;
 		}
-		stopLine();
-		stopClosed();
-	});
+		const sent = await next.value.send(startLine);
+		if (ended || stopped) {
+			await next.value.close();
+			return;
+		}
+		if (!sent.ok) {
+			await next.value.close();
+			scheduleReconnect();
+			return;
+		}
+		unwatch?.();
+		relay = next.value;
+		attempt = 0;
+		generation += 1;
+		watch(next.value, generation);
+		appendText(RECONNECTED_TEXT);
+	};
 
-	const startLine = JSON.stringify({
-		type: "start",
-		cwd: options.cwd,
-		cols,
-		rows,
-		command:
-			options.command === undefined
-				? ["/bin/bash", "-l"]
-				: [options.command.program, ...options.command.args],
-		...(options.env === undefined ? {} : { env: options.env }),
-	});
+	const scheduleReconnect = (): void => {
+		if (ended || stopped || timer !== null) return;
+		attempt += 1;
+		timer = setTimeout(() => {
+			timer = null;
+			void reconnectNow();
+		}, reconnectDelayMs(attempt));
+	};
+
+	const watch = (target: CloudRelay, generationOfRelay: number): void => {
+		const current = generationOfRelay === generation;
+		const stopLine = target.onLine((line) => {
+			if (ended || generationOfRelay !== generation) return;
+			const message = parseServerMessage(line);
+			if (message === null) return;
+			switch (message.type) {
+				case "ready":
+					return;
+				case "data":
+					append(bytesFromBase64(message.data));
+					return;
+				case "error":
+					appendText(message.message);
+					return;
+				case "exit":
+					end(message.exitCode);
+					return;
+			}
+		});
+		const stopClosed = target.onClosed(() => {
+			if (ended || stopped || !current || generationOfRelay !== generation) return;
+			stopLine();
+			stopClosed();
+			if (reconnect) scheduleReconnect();
+			else {
+				appendText(CONNECTION_LOST_TEXT);
+				end(null);
+			}
+		});
+		unwatch = () => {
+			stopLine();
+			stopClosed();
+		};
+	};
+
 	const started = await relay.send(startLine);
 	if (!started.ok) {
-		stopLine();
-		stopClosed();
 		await relay.close();
 		return started;
 	}
+	watch(relay, generation);
 
 	const handle: PtyHandle = {
 		id: options.terminalId,
 		write: async (data) => {
-			if (ended || closed) {
+			if (ended || stopped) {
 				throw appError("terminal_not_running", "The terminal is not running.");
+			}
+			if (timer !== null) {
+				throw appError("terminal_reconnecting", "The terminal is reconnecting.");
 			}
 			const sent = await relay.send(JSON.stringify({ type: "input", data: base64FromText(data) }));
 			if (!sent.ok) {
@@ -205,11 +291,16 @@ export async function openCloudTerminal(
 			}
 		},
 		resize: async (nextCols, nextRows) => {
-			if (ended || closed) return;
+			if (ended || stopped || timer !== null) return;
 			await relay.send(JSON.stringify({ type: "resize", cols: nextCols, rows: nextRows }));
 		},
 		kill: async () => {
-			if (ended || closed) return;
+			if (ended || stopped) return;
+			stopped = true;
+			if (timer !== null) {
+				clearTimeout(timer);
+				timer = null;
+			}
 			await relay.send(JSON.stringify({ type: "kill" }));
 			// The Worker sends the exit; a stream that never answers is not left hanging.
 			queueMicrotask(() => end(null));
