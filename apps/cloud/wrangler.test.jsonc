@@ -1,0 +1,16 @@
+// CLOUD-03 tests. No container: the sandbox image needs Docker to build, and the tests cover the
+// Worker's front door and the Durable Object's state without starting one.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "conducted-cloud-test",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-11-06",
+	"compatibility_flags": ["nodejs_compat"],
+	"vars": { "INSTANCE_TYPE": "basic" },
+	"durable_objects": {
+		"bindings": [{ "class_name": "Workspace", "name": "WORKSPACE" }]
+	},
+	"exports": {
+		"Workspace": { "type": "durable-object", "storage": "sqlite" }
+	}
+}

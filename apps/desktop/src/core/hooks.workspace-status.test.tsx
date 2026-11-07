@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
+import { sampleWorkspace } from "./db/test-fixtures.ts";
 import type { ChangesSnapshot } from "./git/status.ts";
 import { useWorkspaceStatus } from "./hooks.ts";
 import type { PullRequest, Session, Workspace, WorkspaceStatus } from "./model.ts";
@@ -31,7 +32,7 @@ function renderStatus() {
 
 function setWorkspace(state: Workspace["state"]): void {
 	test.container.services.workspace.store.setState({
-		workspacesById: { [workspaceId]: { state } as unknown as Workspace },
+		workspacesById: { [workspaceId]: { ...sampleWorkspace, id: workspaceId, state } },
 	});
 }
 

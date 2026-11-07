@@ -126,6 +126,12 @@ export function createLookups(sources: LookupSources): Lookups {
 		if (config === undefined) return repoConfigUnloaded();
 		return remoteNameFromConfig(config);
 	};
+	/**
+	 * The folder git runs in. A cloud workspace's sandbox holds the project at the workspace's own
+	 * folder, so the Mac repository root is not a path the Worker can use (CLOUD-03, D101).
+	 */
+	const repoRootFor = (ws: Workspace, repoRootPath: string): string =>
+		ws.host.kind === "cloud" ? ws.path : repoRootPath;
 	return {
 		workspace,
 		repoOf,
@@ -141,7 +147,7 @@ export function createLookups(sources: LookupSources): Lookups {
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
-				repoRootPath: repo.value.rootPath,
+				repoRootPath: repoRootFor(ws.value, repo.value.rootPath),
 				remote: remote.value,
 				targetBranch: ws.value.targetBranch,
 				branch: ws.value.branch,
@@ -159,7 +165,7 @@ export function createLookups(sources: LookupSources): Lookups {
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
-				repoRootPath: repo.value.rootPath,
+				repoRootPath: repoRootFor(ws.value, repo.value.rootPath),
 				branch: ws.value.branch,
 				remote: remote.value,
 				prNumber: ws.value.prNumber,
@@ -176,7 +182,7 @@ export function createLookups(sources: LookupSources): Lookups {
 				workspaceId: id,
 				workspaceName: ws.value.directoryName,
 				workspacePath: ws.value.path,
-				repoRootPath: repo.value.rootPath,
+				repoRootPath: repoRootFor(ws.value, repo.value.rootPath),
 				targetBranch: ws.value.targetBranch,
 				placeholderBranch: ws.value.branchIsPlaceholder,
 				port: ws.value.port,

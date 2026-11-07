@@ -42,6 +42,7 @@
 
 pub mod attachments;
 pub mod binaries;
+pub mod cloud;
 pub mod db;
 pub mod deep_link;
 pub mod error;
@@ -711,6 +712,7 @@ pub fn run() {
         .manage(network::NetworkState::default())
         .manage(logger::LoggerState::default())
         .manage(http::HttpState::default())
+        .manage(cloud::CloudState::default())
         .manage(files::FsScopeState::default())
         .menu(|app| {
             let state = app.state::<menu::MenuState>();
@@ -778,6 +780,11 @@ pub fn run() {
             http::http_fetch,
             http::http_download,
             http::http_cancel,
+            cloud::cloud_paired,
+            cloud::cloud_request,
+            cloud::cloud_relay_open,
+            cloud::cloud_relay_send,
+            cloud::cloud_relay_close,
             file_search::search_list_tree,
             file_search::search_fuzzy,
             file_search::search_grep,
@@ -854,6 +861,8 @@ pub fn run() {
                     &app.state::<shell::ShellState>().running,
                     std::time::Duration::from_millis(shell::KILL_GRACE_MS),
                 );
+                // A cloud relay's reader would otherwise outlive the window (CLOUD-03).
+                cloud::close_all(&app.state::<cloud::CloudState>());
                 let state = app.state::<sidecar::SidecarState>();
                 // The app is closing, so only stderr is left to report a failed stop.
                 if let Err(error) = tauri::async_runtime::block_on(sidecar::shutdown(&state)) {
