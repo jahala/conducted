@@ -168,3 +168,20 @@ From `spike/cloud`:
 3. Put the two secrets by piping (see `worker/index.ts`).
 4. `SPIKE_URL=<workers.dev URL> scripts/drive.sh turn <name> <chat> "<prompt>"`.
 5. Delete everything afterwards as in the table above.
+
+## Follow-up: the product image (CLOUD-04, 2026-11-07)
+
+Built `apps/cloud/sandbox/Dockerfile` on this Mac with `nice -n 10 docker build --platform linux/amd64`, started it, ran the checks below inside it, then removed the container (`a2bd5306cff8`, stopped and removed by id) and the image (`sha256:18184a9b383a…`, removed by id).
+
+| Check, inside the running container         | Output                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `git --version`                             | `git version 2.47.3`                                          |
+| `gh --version`                              | `gh version 2.100.0 (2026-09-03)`                             |
+| `claude --version`                          | `2.1.308 (Claude Code)`                                       |
+| `codex --version`                           | `codex-cli 0.164.0`                                           |
+| one JSON-RPC request through the entry      | `{"jsonrpc":"2.0","id":1,"result":{"known":false}}`           |
+
+- **Image size:** 595,921,691 bytes (596 MB decimal) as `docker image inspect` reports it.
+- **Managed paths:** `claude`, `codex` and `gh` sit at `/opt/conducted/agent-binaries/<program>/<version>/<program>`, with links in `/opt/conducted/bin`, which is first on PATH.
+- **The sidecar's health:** the entry's `/health` went from 503 to 200 after 3.2 s; the sidecar itself was ready 3.1 s after the entry started, under this Mac's amd64 emulation.
+- **Emulation note, not an image defect:** `gh --version` crashed in Go's regexp setup under Docker's QEMU (`sigsegv` in `regexp.mergeRuneSets`). With `GODEBUG=asyncpreemptoff=1` it printed the version above. The variable is a QEMU workaround and is not baked into the image; Cloudflare's containers run real amd64.

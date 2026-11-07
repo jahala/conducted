@@ -449,3 +449,10 @@ Why: the smallest seam that the cloud rows can build on, with no change to what 
 Context: the parity harness (#347) runs on GitHub, so its spec must be in the repository. D002 forbids copying Conductor's code, prompt text and assets.
 Chosen: `tests/parity/spec/` holds Conductor 0.92.1's user-facing wording (labels, aria labels, placeholders, titles, tooltips, text, toasts the user sees) and its identifiers (routes, test ids, sidecar method and tool names, native command names, settings keys, tables), each with its bundle offset. It holds no code and no prompt text. The `conductor-code` guard keeps any of Conductor's code out of the repository.
 Why: on-screen wording is what D020 asks us to match and what docs/coverage already quotes; a check that runs where CI runs needs its data beside it.
+
+## D102. The sandbox's setup scripts may reach these package hosts (2026-11-07)
+
+Proposed by the CLOUD-04 PR; not yet ruled on by the owner.
+Context: `cloud-and-remote.md` Part 1 says the outbound allow-list holds "the package registries the setup script needs", and the CLOUD-02 spike found npm refused (403) inside the sandbox. Neither the plan nor the research names a registry, and Conductor's cloud is not in the research, so there is no reference list to copy (D002: report the gap).
+Chosen: `apps/cloud/sandbox/package-allow-list.ts` holds one sorted list of exact host names: npm's and Yarn's registry, PyPI and its file host, crates.io's index and download host, RubyGems, the Go module proxy and checksum database, Maven Central's two hosts, NuGet, Composer's Packagist, and Debian's apt hosts. Matching lowercases the name and removes one trailing root dot; it is exact, so a subdomain or a look-alike suffix does not pass. The Worker's outbound handler (CLOUD-05) adds GitHub and the model gateway and reads this list.
+Why: a setup script must be able to install the project's dependencies, and data keeps the answer in one place. The list is our choice; it can grow when a real setup script needs another host.
