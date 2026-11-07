@@ -23,7 +23,7 @@ import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
 import type { World } from "../world.ts";
 
-interface GitScene {
+export interface GitScene {
 	git?: GitWorld;
 	/** The route's search, besides arbor's chat tab. */
 	search?: Record<string, string>;
@@ -34,7 +34,7 @@ interface GitScene {
 }
 
 /** The cast with arbor open, its git described by `scene.git`. */
-const arborScene =
+export const arborScene =
 	(scene: GitScene) =>
 	async (world: World): Promise<Scene> => {
 		const cast = await seedCast(world, scene.git);
@@ -53,10 +53,10 @@ const arborScene =
 		};
 	};
 
-const COMMITTED_ONLY = ARBOR_FILES.filter((file) => file.committed);
+export const COMMITTED_ONLY = ARBOR_FILES.filter((file) => file.committed);
 
 /** arbor's login fix as a pull request in the given state. */
-const prOf = (kind: PrKind): GitWorld => ({
+export const prOf = (kind: PrKind): GitWorld => ({
 	arborFiles: COMMITTED_ONLY,
 	prs: [
 		{

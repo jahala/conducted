@@ -357,19 +357,16 @@
 		"screen": "Unplaced"
 	},
 	"literal:M272041": {
-		"status": "matched",
-		"state": "settings-key-bindings",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(9) > div > div:nth-of-type(2) > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:M320106": {
 		"status": "matched",
 		"state": "settings-models-effort-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(5) > div:nth-of-type(1) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:M320119": {
@@ -377,7 +374,7 @@
 		"state": "settings-models-effort-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(5) > div:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:M320133": {
@@ -390,27 +387,24 @@
 	},
 	"literal:M320146": {
 		"status": "matched",
-		"state": "settings-models-effort-menu",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > span:nth-of-type(1)",
-		"by": "seed"
-	},
-	"literal:M320163": {
-		"status": "matched",
-		"state": "settings-models-effort-menu",
+		"state": "settings-models-codex-thinking-menu",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(6) > span:nth-of-type(1)",
 		"by": "seed"
 	},
-	"literal:M320179": {
+	"literal:M320163": {
 		"status": "matched",
-		"state": "settings-models-effort-menu",
+		"state": "settings-models-codex-thinking-menu",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(7) > span:nth-of-type(1)",
 		"by": "seed"
+	},
+	"literal:M320179": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Agents"
 	},
 	"literal:M321953": {
 		"status": "matched",
@@ -457,7 +451,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(5)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"literal:M347948": {
@@ -469,12 +463,12 @@
 		"by": "seed"
 	},
 	"literal:M433895": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-06",
-		"item": "Appearance: mono font (Default or Custom)",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(8) > div > fieldset > button > span",
+		"by": "seed"
 	},
 	"literal:M586780": {
 		"status": "gap",
@@ -482,12 +476,9 @@
 		"screen": "Unplaced"
 	},
 	"literal:M643934": {
-		"status": "matched",
-		"state": "pr-ready",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:M643972": {
 		"status": "gap",
@@ -514,12 +505,9 @@
 		"owner": "hand"
 	},
 	"literal:M919743": {
-		"status": "matched",
-		"state": "settings-general",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > div > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:M958089": {
 		"status": "gap",
@@ -545,12 +533,12 @@
 		"screen": "Unplaced"
 	},
 	"literal:M1419600": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-08",
-		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-review",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(7) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:M1520540": {
 		"status": "gap",
@@ -639,7 +627,7 @@
 		"state": "chat-markdown",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(3) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"literal:M2298484": {
@@ -659,12 +647,9 @@
 		"owner": "hand"
 	},
 	"literal:M2329048": {
-		"status": "matched",
-		"state": "command-palette",
-		"via": "text",
-		"role": "kbd",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(4) > kbd:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:M2375276": {
 		"status": "decided",
@@ -700,12 +685,9 @@
 		"owner": "hand"
 	},
 	"literal:M2685005": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(2) > ul > li:nth-of-type(1) > button > span:nth-of-type(3)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-map 6. Settings"
 	},
 	"literal:M2685029": {
 		"status": "gap",
@@ -775,7 +757,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > h2",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > h2",
 		"by": "seed"
 	},
 	"literal:M3815658": {
@@ -783,7 +765,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(6) > h2",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(6) > h2",
 		"by": "seed"
 	},
 	"literal:M3833560": {
@@ -799,224 +781,224 @@
 		"state": "command-palette",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(14) > span:nth-of-type(2)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(7) > div:nth-of-type(2) > div:nth-of-type(15) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:R495352": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "open-in-menu",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(3) > button:nth-of-type(1) > span > span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:R495687": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(3) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R496045": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R496563": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R496750": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(4) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R496935": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(5) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R497089": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(9) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R497465": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R498265": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(4) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R498455": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(13) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R498591": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(10) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R498754": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(11) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R498926": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(12) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R499098": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(8) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R499293": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(9) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R499400": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(8) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R499635": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(12) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R499764": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(11) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R499858": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(10) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500118": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(16) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500245": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(15) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500355": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(13) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500461": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(14) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500605": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(6) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500771": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(5) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R500939": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(6) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R501124": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Open in menu lists each installed app by its full name (Visual Studio Code, Zed, VSCodium, Ghostty, Alacritty, GitHub Desktop and the rest).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "open-in-menu-editors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(3) > div > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R710800": {
 		"status": "gap",
@@ -1042,20 +1024,20 @@
 		"owner": "hand"
 	},
 	"literal:R2141251": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Incompatible with remote' or 'Remote branch was rebased' with Resolve",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-remote-rebased",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R2141279": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Incompatible with remote' or 'Remote branch was rebased' with Resolve",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-diverged",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R2149903": {
 		"status": "gap",
@@ -1194,12 +1176,12 @@
 		"owner": "hand"
 	},
 	"literal:R2271909": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"item": "Conductor shows \"Skipped\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"literal:R2271954": {
 		"status": "matched",
@@ -1210,12 +1192,12 @@
 		"by": "seed"
 	},
 	"literal:R2273883": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-04",
-		"item": "Conductor shows \"Re-run\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-checks-mixed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(4) > div > div > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"literal:R2517578": {
 		"status": "gap",
@@ -1226,12 +1208,12 @@
 		"owner": "rule:quote"
 	},
 	"literal:R2517763": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-08",
-		"item": "Palette 'Open in' group listing installed apps, default marked by its shortcut",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "open-in-menu",
+		"via": "aria-label",
+		"role": "menu",
+		"selector": "div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"literal:R2518339": {
 		"status": "gap",
@@ -1332,7 +1314,7 @@
 		"state": "composer-draft",
 		"via": "aria-label",
 		"role": "ul",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > ul",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div > ul",
 		"by": "seed"
 	},
 	"literal:R3081756": {
@@ -1341,20 +1323,17 @@
 		"screen": "Unplaced"
 	},
 	"literal:R3083063": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Ahead by N commit(s)' with Push",
-		"owner": "hand"
+		"status": "matched",
+		"state": "pr-ahead",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"literal:R3119108": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(1) > p",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
 	},
 	"literal:R3122139": {
 		"status": "gap",
@@ -1384,17 +1363,14 @@
 		"status": "matched",
 		"state": "settings-agents",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(2) > dt",
+		"role": "th",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(2) > th",
 		"by": "seed"
 	},
 	"literal:R3123099": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > p:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
 	},
 	"literal:R3123193": {
 		"status": "gap",
@@ -1432,12 +1408,9 @@
 		"owner": "hand"
 	},
 	"literal:R3396439": {
-		"status": "matched",
-		"state": "settings-account",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div > div > fieldset > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:R3408782": {
 		"status": "gap",
@@ -1452,7 +1425,7 @@
 		"state": "settings-account",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"literal:R3418027": {
@@ -1534,7 +1507,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"literal:R3494596": {
@@ -1558,7 +1531,7 @@
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(4) > div > button:nth-of-type(1) > span > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > div > button:nth-of-type(1) > span > span",
 		"by": "seed"
 	},
 	"literal:R3896824": {
@@ -1574,7 +1547,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(15) > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(15) > button > span",
 		"by": "seed"
 	},
 	"literal:R3897624": {
@@ -1640,12 +1613,12 @@
 		"owner": "rule:quote"
 	},
 	"literal:R5531377": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Workspaces",
-		"backlog": "GIT-04",
-		"item": "The branch label reads 'Detached HEAD' when the worktree is on no branch.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-detached-head",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
+		"by": "seed"
 	},
 	"literal:R5534203": {
 		"status": "gap",
@@ -1656,12 +1629,9 @@
 		"owner": "rule:cite"
 	},
 	"literal:R5545346": {
-		"status": "matched",
-		"state": "sidebar",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"literal:R5545591": {
 		"status": "gap",
@@ -1780,7 +1750,7 @@
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(4) > span > span:nth-of-type(1)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(4) > span > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R7864999": {
@@ -1796,7 +1766,7 @@
 		"state": "chat-approval",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(5) > button:nth-of-type(1) > span > span:nth-of-type(1)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(1) > span > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"literal:R8034448": {
@@ -1853,20 +1823,20 @@
 		"owner": "rule:neighbour"
 	},
 	"literal:R8768165": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-design",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R8768197": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-approval-outside",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(2) > div > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R8798002": {
 		"status": "gap",
@@ -1905,7 +1875,7 @@
 		"state": "chat-approval",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R8830609": {
@@ -1917,52 +1887,49 @@
 		"owner": "rule:cite"
 	},
 	"literal:R8830720": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Conductor shows \"Do you want to make these changes?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
-	},
-	"literal:R8830802": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Conductor shows \"Do you want to run this agent?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
-	},
-	"literal:R8830857": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Conductor shows \"Do you want to do this search?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
-	},
-	"literal:R8830911": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Conductor shows \"Do you want to fetch this page?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
-	},
-	"literal:R8830959": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-08",
-		"item": "Conductor shows \"Do you want to run this tool?\" (literal, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
-	},
-	"literal:R8852793": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "chat-approval-edit",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(2) > ul > li:nth-of-type(4) > p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(1) > p",
 		"by": "seed"
+	},
+	"literal:R8830802": {
+		"status": "matched",
+		"state": "chat-approval-agent",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"literal:R8830857": {
+		"status": "matched",
+		"state": "chat-approval-search",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"literal:R8830911": {
+		"status": "matched",
+		"state": "chat-approval-fetch",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"literal:R8830959": {
+		"status": "matched",
+		"state": "chat-approval-outside",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(1) > p",
+		"by": "seed"
+	},
+	"literal:R8852793": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
 	},
 	"literal:R8877958": {
 		"status": "gap",
@@ -1985,16 +1952,13 @@
 		"state": "chat-finished",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div:nth-of-type(4) > button:nth-of-type(3)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div > div:nth-of-type(3) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:R8907820": {
-		"status": "matched",
-		"state": "chat-finished",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div:nth-of-type(3) > div > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:R8909467": {
 		"status": "gap",
@@ -2053,12 +2017,9 @@
 		"owner": "rule:quote"
 	},
 	"literal:R9245336": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(2)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:R9260202": {
 		"status": "gap",
@@ -2079,9 +2040,9 @@
 	"literal:R9294548": {
 		"status": "matched",
 		"state": "chat-plan-review",
-		"via": "placeholder",
-		"role": "textbox",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(3) > textarea",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"composer-editor\"] > span",
 		"by": "seed"
 	},
 	"literal:R9294586": {
@@ -2317,12 +2278,9 @@
 		"owner": "hand"
 	},
 	"literal:R10029987": {
-		"status": "matched",
-		"state": "settings-git",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > fieldset > button > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:R10076553": {
 		"status": "matched",
@@ -2432,35 +2390,35 @@
 		"class": "wording"
 	},
 	"literal:R10228299": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'In merge queue'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-merge-queue",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"literal:R10228381": {
 		"status": "matched",
 		"state": "pr-draft",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"literal:R10228429": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Merge conflicts' with 'Resolve'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-conflicts",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
+		"by": "seed"
 	},
 	"literal:R10228473": {
 		"status": "matched",
-		"state": "pr-failing",
+		"state": "git-checks-mixed",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"literal:R10228517": {
@@ -2468,24 +2426,21 @@
 		"state": "git-checks",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
 	},
 	"literal:R10228554": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-03",
-		"item": "Row subtitles 'Planning...', 'Working...', 'Cancelling...', 'Waiting...'",
-		"owner": "hand"
-	},
-	"literal:R10245473": {
 		"status": "matched",
-		"state": "sidebar",
+		"state": "pr-changes-requested",
 		"via": "aria-label",
 		"role": "img",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(3) > a > span:nth-of-type(2) > span > span:nth-of-type(3)",
+		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
 		"by": "seed"
+	},
+	"literal:R10245473": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
 	},
 	"literal:R10361135": {
 		"status": "gap",
@@ -2550,7 +2505,7 @@
 		"state": "settings-environment",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div:nth-of-type(2) > div > button > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > button > span",
 		"by": "seed"
 	},
 	"literal:R10902737": {
@@ -2584,8 +2539,8 @@
 		"status": "matched",
 		"state": "settings-git",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(10) > div > div > p",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:R11285199": {
@@ -2646,7 +2601,7 @@
 		"state": "home-archived",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(1) > span:nth-of-type(2) > span:nth-of-type(2)",
+		"selector": "[data-testid=\"home-workspace-card\"] > span:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:R11374229": {
@@ -2670,7 +2625,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(40) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(40) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R11375549": {
@@ -2678,7 +2633,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(41) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(41) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R11375732": {
@@ -2686,7 +2641,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(35) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(35) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R11376118": {
@@ -2718,7 +2673,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div:nth-of-type(16) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(5) > div > div:nth-of-type(16) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R11379842": {
@@ -2742,7 +2697,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(12) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(1) > div > div:nth-of-type(12) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R11381672": {
@@ -2766,7 +2721,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(5) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(5) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"literal:R11382892": {
@@ -2865,7 +2820,7 @@
 		"state": "settings-repo-actions",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > ul > li:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > ul > li:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	}
 }

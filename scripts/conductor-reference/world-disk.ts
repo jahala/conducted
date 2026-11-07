@@ -6,8 +6,10 @@
  *   under the run's scratch folder: in rows, in JSON text inside rows, and in file paths.
  * - `plantOnDisk` builds each repository the world planted (`world.repos`, catalogue/git-repo.ts):
  *   a project's clone with a bare `origin` beside it in the scratch folder, each workspace as a
- *   worktree of its project on its own branch, the branch's commits (authored by the catalogue's
- *   person, at the description's times), its upstream ahead and behind, the target branch's commits
+ *   worktree of its project on its own branch (a detached HEAD when the description names none),
+ *   the branch's commits (authored by the catalogue's person, at the description's times), its
+ *   upstream ahead and behind (force-pushed off the branch's tip when the remote was rewritten),
+ *   the target branch's commits
  *   the workspace lacks, and the changes left in the working tree. Files the world's disk holds go
  *   into the first commit when they sit in a repository and are not one of its changed files, and
  *   are written as they are everywhere else.
@@ -176,7 +178,8 @@ function plantBranch(git: Git, dir: string, repo: ScriptedRepo, start: number): 
 		}
 		git(dir, ["commit", "--quiet", "--allow-empty", "-m", commit.subject], commit.at);
 	});
-	if (repo.upstream !== null) {
+	// A detached HEAD (no branch) has no upstream to push to.
+	if (repo.upstream !== null && repo.branch !== "") {
 		const ahead = Math.min(repo.upstream.ahead, oldestFirst.length);
 		const pushed = git(dir, ["rev-parse", `HEAD~${ahead}`]).trim();
 		let tip = pushed;
@@ -187,7 +190,13 @@ function plantBranch(git: Git, dir: string, repo: ScriptedRepo, start: number): 
 				start,
 			).trim();
 		}
-		git(dir, ["push", "--quiet", "origin", `${tip}:refs/heads/${repo.branch}`]);
+		// A rewritten remote first held this branch's tip, then was force-pushed off it, so the
+		// tip stays in the remote-tracking ref's reflog.
+		if (repo.remoteRewritten === true) {
+			git(dir, ["push", "--quiet", "origin", `HEAD:refs/heads/${repo.branch}`]);
+			git(dir, ["fetch", "--quiet", "origin"]);
+		}
+		git(dir, ["push", "--quiet", "--force", "origin", `${tip}:refs/heads/${repo.branch}`]);
 		git(dir, ["fetch", "--quiet", "origin"]);
 		git(dir, ["branch", "--quiet", `--set-upstream-to=origin/${repo.branch}`]);
 	}
@@ -245,8 +254,7 @@ export function plantOnDisk(plan: DiskPlan, fallbackTime = 1_767_225_600): void 
 				"worktree",
 				"add",
 				"--quiet",
-				"-b",
-				workspace.branch,
+				...(workspace.branch === "" ? ["--detach"] : ["-b", workspace.branch]),
 				workspace.path,
 				branch,
 			]);
