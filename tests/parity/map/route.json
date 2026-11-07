@@ -178,7 +178,8 @@
 	"route:R1960039": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces"
+		"screen": "inventory-ui-text Projects and workspaces",
+		"backlog": "PRJ-03"
 	},
 	"route:R2049956": {
 		"status": "matched",
@@ -203,7 +204,8 @@
 	"route:R2983757": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "WS-03"
 	},
 	"route:R2986285": {
 		"status": "decided",

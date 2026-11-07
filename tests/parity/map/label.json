@@ -1524,42 +1524,50 @@
 	"label:R4397785": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4397900": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4398180": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4400634": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4400746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4400952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4401198": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4401280": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11"
 	},
 	"label:R4993174": {
 		"status": "matched",
@@ -1587,12 +1595,14 @@
 	"label:R5438208": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10"
 	},
 	"label:R5438774": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-10"
 	},
 	"label:R5599685": {
 		"status": "gap",
@@ -1802,7 +1812,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"note": "Checked by hand: not a match. Ours shows the sample value \"auth\" in file-viewer, which is data, not this wording.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "CHAT-14"
 	},
 	"label:R8853060": {
 		"status": "matched",
@@ -1815,7 +1826,8 @@
 	"label:R8853292": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14"
 	},
 	"label:R8853353": {
 		"status": "gap",
@@ -1832,7 +1844,8 @@
 		"reason": "missing",
 		"screen": "inventory-controls Composer",
 		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "CHAT-14"
 	},
 	"label:R8857310": {
 		"status": "gap",
@@ -1847,7 +1860,8 @@
 	"label:R8857397": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14"
 	},
 	"label:R8863451": {
 		"status": "matched",
@@ -1889,7 +1903,8 @@
 	"label:R8864825": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "CHAT-14"
 	},
 	"label:R9079981": {
 		"status": "gap",
@@ -2194,7 +2209,8 @@
 	"label:R10081916": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CLOUD-16"
 	},
 	"label:R10091068": {
 		"status": "matched",
@@ -2414,7 +2430,8 @@
 	"label:R10570025": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-03"
 	},
 	"label:R10676706": {
 		"status": "gap",
@@ -2468,24 +2485,28 @@
 	"label:R10727056": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05"
 	},
 	"label:R10727344": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05"
 	},
 	"label:R10727824": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-controls Settings",
 		"note": "Checked by hand: not a match. Ours shows the sample value \"TOKEN\" in settings-environment, which is data, not this wording.",
-		"by": "hand"
+		"by": "hand",
+		"backlog": "SET-05"
 	},
 	"label:R10728254": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings"
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-05"
 	},
 	"label:R10750930": {
 		"status": "matched",

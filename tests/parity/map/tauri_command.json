@@ -416,7 +416,8 @@
 	"tauri_command:export_app_logs": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "APP-03"
 	},
 	"tauri_command:prefetch_agent_binaries_from_updater_endpoint": {
 		"status": "gap",
