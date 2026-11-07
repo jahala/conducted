@@ -2,7 +2,10 @@
 	"aria_label:R511358": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-05",
+		"item": "The toast area carries the accessible name 'Notifications'.",
+		"owner": "hand"
 	},
 	"aria_label:R1875559": {
 		"status": "matched",
@@ -102,12 +105,19 @@
 	"aria_label:R2991910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-16",
+		"item": "The Cloud desktop tab has Reconnect, an edit-access message and a message for non-cloud workspaces.",
+		"owner": "hand"
 	},
 	"aria_label:R2996778": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"class": "wording",
+		"backlog": "CHAT-06",
+		"owner": "hand",
+		"note": "Our message menu (UserMessage.tsx) has no accessible name."
 	},
 	"aria_label:R3015261": {
 		"status": "decided",
@@ -126,7 +136,10 @@
 	"aria_label:R3983288": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files"
+		"screen": "inventory-ui-text Git, review and files",
+		"backlog": "PR-08",
+		"item": "'Switch branch?' warning with 'Switch anyway' when an agent is running in the stack view",
+		"owner": "hand"
 	},
 	"aria_label:R3991063": {
 		"status": "gap",
@@ -317,22 +330,34 @@
 	"aria_label:R8075890": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards"
+		"screen": "inventory-ui-text Chat and tool cards",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8082977": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8085928": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8087654": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "REV-08",
+		"item": "Video preview",
+		"owner": "hand"
 	},
 	"aria_label:R8147878": {
 		"status": "matched",
@@ -345,12 +370,18 @@
 	"aria_label:R8148495": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "CHAT-10",
+		"owner": "hand"
 	},
 	"aria_label:R8700214": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our setting row offers a 'Reset to shared settings' link (SettingRow.tsx)."
 	},
 	"aria_label:R8717346": {
 		"status": "gap",
@@ -368,7 +399,11 @@
 	"aria_label:R8874837": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "CHAT-14",
+		"owner": "hand",
+		"note": "Our context button is labelled 'Context usage: N%' (ContextWheel.tsx)."
 	},
 	"aria_label:R8880898": {
 		"status": "matched",
@@ -405,7 +440,11 @@
 	"aria_label:R9222951": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "COMP-02",
+		"owner": "hand",
+		"note": "Our model picker's fast-mode row reads 'Fast' (ModelPicker.tsx)."
 	},
 	"aria_label:R9226139": {
 		"status": "gap",
@@ -538,12 +577,19 @@
 	"aria_label:R9637465": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"class": "wording",
+		"backlog": "REV-08",
+		"owner": "hand",
+		"note": "Our file tab reads 'Unsaved edits' (FileTabHeader.tsx)."
 	},
 	"aria_label:R9637821": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "Banner 'File changed on disk' with 'Discard my edits' and 'Keep mine'",
+		"owner": "hand"
 	},
 	"aria_label:R9643573": {
 		"status": "matched",
@@ -588,7 +634,10 @@
 	"aria_label:R9987343": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "CHAT-29",
+		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",
+		"owner": "hand"
 	},
 	"aria_label:R10032976": {
 		"status": "gap",
@@ -649,17 +698,28 @@
 	"aria_label:R10289853": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "NAV-01",
+		"owner": "hand",
+		"note": "Our control is labelled 'Toggle left sidebar' (app/ShellControls.tsx)."
 	},
 	"aria_label:R10292173": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "NAV-01",
+		"owner": "hand",
+		"note": "Our sidebar ResizeHandle (ui/resizable.tsx) has no accessible name."
 	},
 	"aria_label:R10295355": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-01",
+		"item": "Full-page '/create' flow: repo, create from, prompt, model, plan mode, section",
+		"owner": "hand"
 	},
 	"aria_label:R10311628": {
 		"status": "decided",
@@ -668,9 +728,10 @@
 		"by": "hand"
 	},
 	"aria_label:R10329806": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "A workspace's restricted (team) access, an organisation feature.",
+		"by": "hand"
 	},
 	"aria_label:R10374081": {
 		"status": "gap",
@@ -739,7 +800,9 @@
 	"aria_label:R10464425": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-04",
+		"owner": "hand"
 	},
 	"aria_label:R10504137": {
 		"status": "gap",
@@ -759,8 +822,10 @@
 	},
 	"aria_label:R10515645": {
 		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"backlog": "NAV-03",
+		"owner": "hand"
 	},
 	"aria_label:R10537138": {
 		"status": "matched",
@@ -803,9 +868,10 @@
 		"owner": "rule:quote"
 	},
 	"aria_label:R10770111": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organisation MCP page's local import scan.",
+		"by": "hand"
 	},
 	"aria_label:R10808801": {
 		"status": "decided",
@@ -816,7 +882,9 @@
 	"aria_label:R10822492": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "APP-02",
+		"owner": "hand"
 	},
 	"aria_label:R10831131": {
 		"status": "matched",
@@ -843,12 +911,18 @@
 	"aria_label:R10876245": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-04",
+		"owner": "hand"
 	},
 	"aria_label:R10928433": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents"
+		"screen": "inventory-controls Settings: Agents",
+		"class": "wording",
+		"backlog": "SET-03",
+		"owner": "hand",
+		"note": "Our button reads 'Copy code' (AgentLoginDialog.tsx)."
 	},
 	"aria_label:R10948284": {
 		"status": "gap",
@@ -869,17 +943,29 @@
 	"aria_label:R11022769": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our action row button reads 'Show' (ActionList.tsx)."
 	},
 	"aria_label:R11023000": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our action row button reads 'Hide' (ActionList.tsx)."
 	},
 	"aria_label:R11023468": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "SET-07",
+		"owner": "hand",
+		"note": "Our action row button reads 'Delete' (ActionList.tsx)."
 	},
 	"aria_label:R11029463": {
 		"status": "matched",
@@ -898,9 +984,10 @@
 		"by": "seed"
 	},
 	"aria_label:R11083786": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account avatar upload.",
+		"by": "hand"
 	},
 	"aria_label:R11085226": {
 		"status": "matched",
@@ -911,14 +998,16 @@
 		"by": "seed"
 	},
 	"aria_label:R11088269": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account profile photo.",
+		"by": "hand"
 	},
 	"aria_label:R11090623": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's account display name.",
+		"by": "hand"
 	},
 	"aria_label:R11147513": {
 		"status": "gap",
@@ -986,17 +1075,26 @@
 	"aria_label:R11269882": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-03",
+		"item": "Misc: 'Preview URLs' template",
+		"owner": "hand"
 	},
 	"aria_label:R11270077": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-03",
+		"item": "Misc: 'Preview URLs' template",
+		"owner": "hand"
 	},
 	"aria_label:R11270292": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "RUN-03",
+		"item": "Misc: 'Preview URLs' template",
+		"owner": "hand"
 	},
 	"aria_label:R11276904": {
 		"status": "gap",
@@ -1025,12 +1123,17 @@
 	"aria_label:R11319788": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "NAV-08",
+		"item": "Palette workspace action 'Move to section' with sub-page 'Search sections...' and 'Remove from section'",
+		"owner": "hand"
 	},
 	"aria_label:R11328531": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"owner": "hand"
 	},
 	"aria_label:R11329571": {
 		"status": "matched",
@@ -1043,7 +1146,10 @@
 	"aria_label:R11462165": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "WS-02",
+		"item": "'Create from' toggle (default branch, branch, PR, issue)",
+		"owner": "hand"
 	},
 	"aria_label:R11487348": {
 		"status": "matched",
@@ -1056,12 +1162,17 @@
 	"aria_label:R11510611": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"item": "'New section...' (sidebar background menu and workspace menu)",
+		"owner": "hand"
 	},
 	"aria_label:R11513606": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "NAV-04",
+		"owner": "hand"
 	},
 	"aria_label:R11515814": {
 		"status": "gap",
@@ -1088,7 +1199,10 @@
 	"aria_label:R11613952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"backlog": "APP-02",
+		"item": "First-run onboarding with three steps",
+		"owner": "hand"
 	},
 	"aria_label:R11676490": {
 		"status": "gap",
@@ -1115,14 +1229,16 @@
 		"owner": "rule:quote"
 	},
 	"aria_label:R11703477": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's custom window button, drawn only on Linux; macOS uses the native traffic lights.",
+		"by": "hand"
 	},
 	"aria_label:R11703813": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's custom window button, drawn only on Linux; macOS uses the native traffic lights.",
+		"by": "hand"
 	},
 	"aria_label:R11725915": {
 		"status": "decided",
@@ -1139,12 +1255,18 @@
 	"aria_label:R11762034": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "Settings search box 'Search settings' (Cmd+F)",
+		"owner": "hand"
 	},
 	"aria_label:R11762597": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "SET-02",
+		"item": "Settings search box 'Search settings' (Cmd+F)",
+		"owner": "hand"
 	},
 	"aria_label:R11914392": {
 		"status": "decided",

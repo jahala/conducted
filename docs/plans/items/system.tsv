@@ -3690,6 +3690,11 @@ SET-03	message	Conductor shows "Connected with a setup token." (text, inventory-
 SET-09	message	Conductor shows "Bedrock API key" (text, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11585847	missing
 SET-02	message	Conductor shows "This action needs GitHub access. Sign in with the GitHub CLI to continue." (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11647820	missing
 SET-02	message	Conductor shows "Other sign-in options" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11648197	missing
+CLOUD-15	view	A cloud workspace's setup log block offers 'Copy logs'.	parity gaps 2026-11-07	missing
+CLOUD-15	message	Copying a cloud workspace link reports when the workspace failed to start.	parity gaps 2026-11-07	missing
+CLOUD-13	store	Identity acceptances table for cloud hosts.	services-map 2.2	missing
+CLOUD-13	store	Deletion tombstones for local workspaces synced to a cloud host.	services-map 2.2	missing
+CLOUD-13	store	A local workspace revision counter for cloud sync.	services-map 2.2	missing
 RUN-06	rule	Conductor has no Amp agent runner, ACP adapter, program download, sign-in or Agents page row; Amp appears only as a new-tab terminal preset (bundle @10676910)	other-runners 9; inventory label #402	missing
 RUN-06	rule	The Amp preset runs `amp` in a new terminal tab from PATH, with the same command whether tool approvals are required or not (main @437927)	other-runners 9	missing
 RUN-06	rule	Conductor has no Copilot agent runner, ACP adapter, program download, sign-in or Agents page row; Copilot appears only as a new-tab terminal preset (bundle @10676977)	other-runners 9; inventory label #403	missing

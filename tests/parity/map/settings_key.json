@@ -380,12 +380,16 @@
 	"settings_key:user_message_footer_enabled": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"backlog": "CHAT-06",
+		"item": "A footer on user message bubbles behind the user_message_footer_enabled flag.",
+		"owner": "hand"
 	},
 	"settings_key:read_aloud_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Read aloud needs Conductor's premium entitlement.",
+		"by": "hand"
 	},
 	"settings_key:colored_sidebar_diffs": {
 		"status": "matched",
@@ -407,14 +411,16 @@
 		"owner": "rule:name"
 	},
 	"settings_key:conductor_config_repo_root_migration_complete": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	},
 	"settings_key:conductor_json_migration_dismissed_repos": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	},
 	"settings_key:conductor_root_path": {
 		"status": "gap",
@@ -460,9 +466,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"settings_key:experimental_agent_progress": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D025",
+		"note": "An Internal-tab experimental setting; internal settings are staff tools.",
+		"by": "hand"
 	},
 	"settings_key:experimental_auto_permission_mode": {
 		"status": "matched",
@@ -533,7 +540,11 @@
 	"settings_key:garry_mode": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Backend"
+		"screen": "Backend",
+		"class": "wording",
+		"backlog": "SET-02",
+		"owner": "hand",
+		"note": "Our General setting stores the same choice under `expand_tool_calls` (core/registries/settings.ts)."
 	},
 	"settings_key:gh_auth_method": {
 		"status": "matched",
@@ -889,9 +900,10 @@
 		"by": "seed"
 	},
 	"settings_key:mention_notifications_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Teammate mention notifications (D004).",
+		"by": "hand"
 	},
 	"settings_key:onboarding_step": {
 		"status": "matched",
@@ -970,24 +982,28 @@
 		"by": "rule:telemetry-backend"
 	},
 	"settings_key:repo_conductor_config_file_migration_complete": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	},
 	"settings_key:repo_conductor_config_file_migration_v2_complete": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	},
 	"settings_key:repo_custom_prompt_file_migration_complete": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	},
 	"settings_key:repo_local_settings_file_migration_complete": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	},
 	"settings_key:sample_project_onboarding_seed_status": {
 		"status": "gap",
@@ -1083,8 +1099,9 @@
 		"by": "seed"
 	},
 	"settings_key:file_backed_settings_migration_complete": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own config-file migration marker; we have no legacy data.",
+		"by": "hand"
 	}
 }

@@ -18,12 +18,18 @@
 	"test_id:R2987806": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-16",
+		"item": "The Cloud desktop tab has Reconnect, an edit-access message and a message for non-cloud workspaces.",
+		"owner": "hand"
 	},
 	"test_id:R5587249": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "CLOUD-11",
+		"item": "Remote file sync status for cloud workspaces.",
+		"owner": "hand"
 	},
 	"test_id:R8915522": {
 		"status": "matched",
@@ -36,37 +42,58 @@
 	"test_id:R9050252": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "COMP-01",
+		"owner": "hand",
+		"note": "Our composer input carries `composer-editor` (features/composer)."
 	},
 	"test_id:R9473251": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A virtual-list library's internal test id, not our element.",
+		"by": "hand"
 	},
 	"test_id:R10139472": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Workspaces"
+		"screen": "inventory-controls Workspaces",
+		"class": "wording",
+		"backlog": "NAV-10",
+		"owner": "hand",
+		"note": "Our split-pane tab drag has no ghost test id (features/workspace/SplitPanes.tsx)."
 	},
 	"test_id:R10242215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
+		"owner": "hand"
 	},
 	"test_id:R10242406": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
+		"owner": "hand"
 	},
 	"test_id:R10242632": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
+		"owner": "hand"
 	},
 	"test_id:R10242893": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"backlog": "WS-09",
+		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
+		"owner": "hand"
 	},
 	"test_id:R10432376": {
 		"status": "matched",
@@ -87,21 +114,34 @@
 	"test_id:R10441458": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"class": "wording",
+		"backlog": "NAV-03",
+		"owner": "hand",
+		"note": "Our sidebar workspace row carries `workspace-row` (features/sidebar/WorkspaceRow.tsx)."
 	},
 	"test_id:R10441716": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Sidebar"
+		"screen": "inventory-controls Sidebar",
+		"class": "wording",
+		"backlog": "NAV-03",
+		"owner": "hand",
+		"note": "Our row's leading icons (RepoIconAvatar, WorkspaceStatusIcon) have no wrapper test id."
 	},
 	"test_id:R11550278": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "Unplaced",
+		"class": "wording",
+		"backlog": "APP-02",
+		"owner": "hand",
+		"note": "Our onboarding screen (features/onboarding) has no test id."
 	},
 	"test_id:R12001662": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The routine prompt composer, a routine (team) feature.",
+		"by": "hand"
 	}
 }
