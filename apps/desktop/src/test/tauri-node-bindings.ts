@@ -431,13 +431,18 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				if (sidecar === null) await startSidecar();
 				return undefined;
 			case COMMANDS.sidecarSend: {
+				// As sidecar_send does, first: the newline that ends the line is added below.
+				const line = String(args.line);
+				if (line.includes("\n") || line.includes("\r")) {
+					return fail("sidecar_bad_line", "A sidecar line must not contain a newline.");
+				}
 				const child = sidecar;
 				if (child === null || child.stdin === null) {
 					return fail("sidecar_not_started", "The sidecar has not been started.");
 				}
 				const stdin = child.stdin;
 				await new Promise<void>((resolve, reject) => {
-					stdin.write(`${String(args.line)}\n`, (error) => (error ? reject(error) : resolve()));
+					stdin.write(`${line}\n`, (error) => (error ? reject(error) : resolve()));
 				});
 				return undefined;
 			}

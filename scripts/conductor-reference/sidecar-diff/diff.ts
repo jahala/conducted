@@ -75,7 +75,12 @@ function bounded(promise: Promise<Answer>, ms: number): Promise<Answer | undefin
 
 async function runSide(side: Side, scenario: Scenario): Promise<SideRun> {
 	const adapter: Adapter = ADAPTERS[side];
-	const seal = makeSeal(side === "conductor" ? "c" : "o");
+	const seal = makeSeal(
+		side === "conductor" ? "c" : "o",
+		scenario.codexRequirements === undefined
+			? {}
+			: { codexRequirements: scenario.codexRequirements },
+	);
 	const run: SideRun = {
 		side,
 		scenario: scenario.id,

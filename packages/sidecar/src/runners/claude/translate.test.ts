@@ -270,6 +270,51 @@ describe("AGENT-03 Claude translation", () => {
 		expect(messages[0]?.items[0]).toMatchObject({ kind: "usage", costUsd: 0.2 });
 	});
 
+	test("an API error turn shows one error item, from the assistant message, not the result too", () => {
+		const t = translator();
+		const text = "API Error: 500 Internal server error";
+		const messages = [
+			...t.translate(assistant([{ type: "text", text }], { error: "server_error" })),
+			...t.translate(result({ is_error: true, result: text, api_error_status: 500 })),
+		];
+		const errors = messages.flatMap((message) => message.items).filter((i) => i.kind === "error");
+		expect(errors).toEqual([
+			{ kind: "error", code: "agent_server_error", message: text, retryable: true },
+		]);
+		expect(messages.at(-1)?.items).toEqual([expect.objectContaining({ kind: "usage" })]);
+	});
+
+	test("after an API error turn, the next turn's result error is shown again", () => {
+		const t = translator();
+		const text = "API Error: 500 Internal server error";
+		t.translate(assistant([{ type: "text", text }], { error: "server_error" }));
+		t.translate(result({ is_error: true, result: text }));
+
+		const next = t.translate(
+			result({ subtype: "error_max_turns", is_error: true, result: "", errors: [] }),
+		);
+		expect(next[0]?.items).toContainEqual({
+			kind: "error",
+			code: "agent_error",
+			message: "The agent reached its maximum number of turns.",
+			retryable: false,
+		});
+	});
+
+	test("a sub-agent's API error does not hide the main turn's result error", () => {
+		const t = translator();
+		t.translate(
+			assistant([{ type: "text", text: "API Error: 529 Overloaded" }], {
+				error: "overloaded",
+				parent: "toolu_task",
+			}),
+		);
+		const messages = t.translate(result({ is_error: true, result: "API Error: 500 boom" }));
+		expect(messages[0]?.items).toContainEqual(
+			expect.objectContaining({ kind: "error", message: "API Error: 500 boom" }),
+		);
+	});
+
 	test("a Claude Code session limit error is not retryable", () => {
 		const t = translator();
 		const messages = t.translate(

@@ -79,6 +79,7 @@
  */
 import type {
 	AgentLaunch,
+	ModelInfo,
 	RemoteControlStatus,
 	SessionConfig,
 	SessionEvent,
@@ -1306,6 +1307,7 @@ export class DefaultSessionManager implements SessionManager {
 				? {}
 				: { executablePath: state.launch.executablePath }),
 			...(resume === undefined ? {} : { resume }),
+			lookUpModel: (model) => this.lookUpModel(state, config, model),
 			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
 			onGoalEvent: (event) => this.goals.onServerGoalEvent(state.sessionId, event),
 			selfStartedTurns: this.selfStartedTurns(state, turns),
@@ -1648,6 +1650,28 @@ export class DefaultSessionManager implements SessionManager {
 			config: request.config,
 		};
 		this.deps.publisher.publish(request.sessionId, event);
+	}
+
+	/**
+	 * A model's entry in the agent's catalog, read with the chat's launch, so a start after a warm
+	 * reads the list the warm already cached. A list that cannot be read is logged and gives
+	 * undefined: the runner then starts as it does for a model the catalog does not describe.
+	 */
+	private async lookUpModel(
+		state: SessionState,
+		config: SessionConfig,
+		model: string,
+	): Promise<ModelInfo | undefined> {
+		const listed = await this.deps.models.list(config.agent, config.acpAgent, state.launch);
+		if (!listed.ok) {
+			this.deps.logger.warn("Could not read the model catalog for the chat's start", {
+				sessionId: state.sessionId,
+				code: listed.error.code,
+				message: listed.error.message,
+			});
+			return undefined;
+		}
+		return listed.value.find((entry) => entry.id === model);
 	}
 
 	/**

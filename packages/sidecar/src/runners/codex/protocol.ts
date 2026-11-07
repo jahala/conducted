@@ -32,6 +32,7 @@ export const CODEX_CLIENT_METHODS = {
 	accountLoginCancel: "account/login/cancel",
 	mcpServerStatusList: "mcpServerStatus/list",
 	skillsList: "skills/list",
+	configRequirementsRead: "configRequirements/read",
 } as const;
 
 /** The one notification we send after the initialize reply. */
@@ -76,6 +77,20 @@ export type CodexApprovalPolicy = "untrusted" | "on-failure" | "on-request" | "n
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 /** The tone Codex uses. "none" leaves the model's own tone alone. */
 export type CodexPersonality = "none" | "friendly" | "pragmatic";
+
+/**
+ * The managed requirements (requirements.toml or MDM entries) that `configRequirements/read`
+ * returns, the two fields we read. A null list puts no limit on its setting.
+ */
+export interface CodexConfigRequirements {
+	allowedApprovalPolicies: unknown[] | null;
+	allowedSandboxModes: unknown[] | null;
+}
+
+/** `configRequirements/read` result: null when no requirements are configured. */
+export interface CodexConfigRequirementsReadResult {
+	requirements: CodexConfigRequirements | null;
+}
 
 export interface CodexThreadStartParams {
 	model?: string | null;

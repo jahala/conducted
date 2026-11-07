@@ -97,7 +97,10 @@ export const conductorAdapter: Adapter = {
 				const options: Json = { ...conductorOptions(ctx), turnId, userMessageId: messageId };
 				if (agentType === "claude")
 					options.permissionMode = ctx.scenario.planMode ? "plan" : "default";
-				else if (ctx.scenario.requireToolApproval) {
+				else if (ctx.scenario.codexPolicy !== undefined) {
+					options.initialCodexApprovalPolicy = ctx.scenario.codexPolicy.approval;
+					options.initialCodexSandboxMode = ctx.scenario.codexPolicy.sandbox;
+				} else if (ctx.scenario.requireToolApproval) {
 					// Conductor reads the policy only when the sandbox mode comes with it; this is the
 					// sandbox our sidecar picks when none is set (session-config.ts).
 					options.initialCodexApprovalPolicy = "on-request";
@@ -197,6 +200,12 @@ function ourConfig(ctx: RunContext): Json {
 		fastMode: false,
 		planMode: scenario.planMode === true,
 		requireToolApproval: scenario.requireToolApproval === true,
+		...(scenario.codexPolicy === undefined
+			? {}
+			: {
+					codexApprovalPolicy: scenario.codexPolicy.approval,
+					codexSandboxMode: scenario.codexPolicy.sandbox,
+				}),
 		additionalDirectories: [],
 		appTools: { diffComments: false, progressUpdates: false, setTargetBranch: false },
 	};

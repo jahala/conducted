@@ -11,10 +11,13 @@
  * Must handle:
  *  - a result whose uuid we pushed: ends the turn when no steer is unread
  *  - a foreign result: forwarded as usage, does not end the turn, arms the watchdog
+ *  - a result that names no uuid (older CLIs): ends the turn, unless its origin is a task
+ *    notification, which makes it foreign
  *  - a "mini result" from a background-task notification (num_turns 0): never a boundary
  *  - a result while steers are unread: held back, watchdog armed, the next result decides
  *  - the CLI reports running again: the watchdog is disarmed
- *  - a result with is_error: the turn ends; the translator reports the error item
+ *  - a result with is_error: the turn ends with an error outcome carrying the result's text (D008);
+ *    the translator reports the error item
  *  - the stream ends or throws before a result: the turn ends with an error outcome
  *  - cancel: the turn ends as cancelled whatever arrives afterwards (late results are dropped)
  *  - watchdog timers come from an injected scheduler, so tests never wait
@@ -25,6 +28,7 @@ import type { SDKMessage, SDKResultMessage } from "@anthropic-ai/claude-agent-sd
 import type { TurnOutcome } from "../runner.ts";
 import { SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
 import type { SteerReceipts } from "./steer-receipts.ts";
+import { resultError } from "./translate.ts";
 
 export interface Scheduler {
 	/** Calls `fn` after `ms`. Returns a function that cancels the call. */
@@ -81,7 +85,7 @@ export class ClaudeTurnTracker {
 		if (!this.open) return { action: "forward" };
 		// A background-task notification ends no turn.
 		if (message.num_turns === 0) return { action: "forward" };
-		if (!uuids.some((uuid) => this.awaited.has(uuid))) {
+		if (!answersOurTurn(message, uuids, this.awaited)) {
 			// A foreign result, for example a turn the CLI ran for a background task.
 			this.armWatchdog();
 			return { action: "forward" };
@@ -91,7 +95,9 @@ export class ClaudeTurnTracker {
 			this.armWatchdog();
 			return { action: "hold_back" };
 		}
-		const outcome: TurnOutcome = { kind: "success" };
+		const outcome: TurnOutcome = message.is_error
+			? { kind: "error", ...resultError(message) }
+			: { kind: "success" };
 		this.finish(outcome);
 		return { action: "forward_and_settle", outcome };
 	}
@@ -150,6 +156,20 @@ export class ClaudeTurnTracker {
 		this.disarmWatchdog = null;
 		cancel();
 	}
+}
+
+/**
+ * Whether a result belongs to the open turn. A result that names a uuid answers our turn when it
+ * names one we pushed. Older CLIs name none; such a result ends our turn unless its origin says
+ * the CLI ran it for a task notification, as Conductor decides.
+ */
+function answersOurTurn(
+	message: SDKResultMessage,
+	uuids: readonly string[],
+	awaited: ReadonlySet<string>,
+): boolean {
+	if (uuids.length === 0) return message.origin?.kind !== "task-notification";
+	return uuids.some((uuid) => awaited.has(uuid));
 }
 
 /** Every uuid a result says it answered. Older CLIs send only the last one. */

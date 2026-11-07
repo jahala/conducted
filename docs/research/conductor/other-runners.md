@@ -155,9 +155,25 @@ Shared plumbing (VERIFIED): a per-session manager holds **one** `activeUserInter
 
 | | Mechanism |
 |---|---|
-| **Codex** | Policy is set per thread at `thread/start`: `approvalPolicy` (default `"never"`) and `sandbox` (default `"danger-full-access"`) from config (`EXr` 102258), clamped to what the org allows (`S_a` 102269ff). Server-initiated requests registered on the JSON-RPC peer (100673-100700): `item/commandExecution/requestApproval` -> tool approval as toolName `Bash` (`decline`/`acceptForSession`/`accept`, 102970-102979); `item/fileChange/requestApproval` -> toolName `Edit` (102980-102995); `item/tool/requestUserInput` -> `onAskUserQuestion`; **`mcpServer/elicitation/request`** -> `requestMcpElicitation` (forms: string/number/bool/enum/array schemas, `openai/form`, `url` mode; 37146 `WZs`); **`item/permissions/requestApproval`** -> `requestCodexPermissionApproval` with filesystem read/write/glob/network permission sets, answer `grant{grantedPermissions, scope: turn|session}`, `decline`, or `cancel` (`XZs/ZZs`). Handlers live in `setCodexMcpConsentHandlers` (102924); outcomes `user_declined`, `user_canceled`, `interaction_unavailable`, `timeout`, `agent_cancelled` are logged and emitted as `codex.mcpConsentOutcome`. If a callback is missing, command approvals decline; permission approvals throw. |
+| **Codex** | Policy is set per thread at `thread/start`: `approvalPolicy` (default `"never"`) and `sandbox` (default `"danger-full-access"`) from config (`EXr` 102258), clamped to what the org allows (`S_a` 102269ff; the rule is in 4.1). Server-initiated requests registered on the JSON-RPC peer (100673-100700): `item/commandExecution/requestApproval` -> tool approval as toolName `Bash` (`decline`/`acceptForSession`/`accept`, 102970-102979); `item/fileChange/requestApproval` -> toolName `Edit` (102980-102995); `item/tool/requestUserInput` -> `onAskUserQuestion`; **`mcpServer/elicitation/request`** -> `requestMcpElicitation` (forms: string/number/bool/enum/array schemas, `openai/form`, `url` mode; 37146 `WZs`); **`item/permissions/requestApproval`** -> `requestCodexPermissionApproval` with filesystem read/write/glob/network permission sets, answer `grant{grantedPermissions, scope: turn|session}`, `decline`, or `cancel` (`XZs/ZZs`). Handlers live in `setCodexMcpConsentHandlers` (102924); outcomes `user_declined`, `user_canceled`, `interaction_unavailable`, `timeout`, `agent_cancelled` are logged and emitted as `codex.mcpConsentOutcome`. If a callback is missing, command approvals decline; permission approvals throw. |
 | **ACP** | Policy is binary: `requiresToolApprovals ? "ask" : "auto_approve"` (`pBr` 53072). For `auto_approve` the runner answers `allow_once` itself (53356). For `ask`: `session/request_permission` is turned into a `permission_request` event; the runner first shows the tool_use, then calls `onToolApproval` and maps decision -> ACP option kinds `allow_once`/`allow_always`/`reject_*` (`Ddo` 51122). Agents also get the policy via env (opencode `OPENCODE_CONFIG_CONTENT` permission `"*":"ask"` or `"allow"`, 51806-51812). If a permission request offers >=2 allow options and no reject option, it is treated as a **question** (`Bdo` 51115). ACP `elicitation/create` (form mode only) becomes a `question`; other modes are declined (51250). MSP: approvals come through `session.onApproval` and are surfaced the same way; MSP "userInput" is not answered (50763). |
 | **Cursor** | None in the runner (VERIFIED by absence: no `onToolApproval`/question callbacks in `zae`). Cursor local agents run with the SDK's own defaults; Conductor does not intercept. Its own tools (`z1`) are built with `includeAskUserQuestion:false` (309579-309586; `M6u` metadata). |
+
+### 4.1 Codex managed requirements (VERIFIED by running, 7 November 2026)
+
+Codex can carry requirements an administrator sets (a `requirements.toml` or MDM entries). codex-cli 0.154.0's app-server protocol has `configRequirements/read` (no params, `codex app-server generate-ts`, `v2/ConfigRequirementsReadResponse.ts`). Its answer is `{requirements: ConfigRequirements | null}`, null when nothing is configured. Of its many fields, `allowedApprovalPolicies` (`AskForApproval[] | null`, where `AskForApproval` is `untrusted | on-request | never | {granular}`) and `allowedSandboxModes` (`read-only | workspace-write | danger-full-access`, or null) limit what a thread may ask for.
+
+Conductor's sidecar sends `configRequirements/read` once per app server, after `initialize` and `experimentalFeature/enablement/set` and before the first `thread/start`. A Codex that answers with an error (the fake's "method not found") gets the requested values unchanged. Conductor then narrows the thread's policy and sandbox. The sidecar differential run measured the rule on eight sets of requirements (scenarios `codex-requirements*`), each list also in reverse order, and the order never mattered:
+
+| Asked (policy, sandbox) | Allowed policies | Allowed sandboxes | Conductor sent |
+|---|---|---|---|
+| never, danger-full-access | untrusted, on-request | read-only, workspace-write | on-request, workspace-write |
+| on-request, danger-full-access | on-request, never | danger-full-access | on-request, danger-full-access |
+| on-request, workspace-write | untrusted, never | read-only, danger-full-access | untrusted, read-only |
+| untrusted, read-only | on-request, never | workspace-write, danger-full-access | on-request, read-only |
+| on-request, workspace-write | never | danger-full-access | never, workspace-write |
+
+So an allowed choice is kept. Otherwise each setting takes the widest allowed choice below the one asked for (fewer actions without asking). With nothing allowed below it, the approval policy takes the narrowest allowed choice above, and the sandbox stays as asked. Our `narrowToRequirements` (runners/codex/thread-settings.ts) follows this rule. Not measured: a granular policy object in the allowed list (ours passes over it), an empty list, and whether Conductor reads the requirements again on `thread/resume` (ours reads once per app server, before its first thread or resume).
 
 ## 5. Model discovery and auth
 
@@ -209,6 +225,13 @@ Shared plumbing (VERIFIED): a per-session manager holds **one** `activeUserInter
 12. **Discover models from the agent when it can tell you, otherwise ship a static catalog** with `picker/gated/deprecated` status and effort levels. Both exist here (Codex `model/list`, ACP config options, static tables).
 
 ## 8. Gaps and unverified points
+
+- Codex start-up calls Conductor makes that ours does not, seen in the sidecar differential run (docs/reports/sidecar-diff-2026-11-07.md) and not yet researched or built:
+  - `experimentalFeature/enablement/set` once per app server (`{enablement: {background_paginated_rollout_migration: true}}` in that run).
+  - `account/read` and `thread/goal/get` for each chat, after `thread/start`.
+  - On `thread/start`: `personality` (default `pragmatic`), `persistExtendedHistory: true`, `experimentalRawEvents: false` and six `features.*` flags in `config`.
+  - On each `turn/start`: `collaborationMode` (Codex plan mode) and `summary: "none"`.
+  What each changes for the user, and which Codex versions accept them, is research to do.
 
 - Claude runner (`Dat`) not read. Statement that it passes through natively is INFERRED from the shape the other runners imitate.
 - The frontend renderer is not in the sidecar, so "the UI has a second renderer for Codex" is INFERRED.

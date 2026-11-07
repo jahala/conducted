@@ -807,7 +807,14 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		flushed: (sessionId) => publisher.flush(sessionId),
 	});
 	reportWriteFailures({ publisher, liveState });
-	const interactions = new SessionInteractionBroker({ app, liveState, clock, ids, logger });
+	const interactions = new SessionInteractionBroker({
+		app,
+		liveState,
+		flushed: (sessionId) => publisher.flush(sessionId),
+		clock,
+		ids,
+		logger,
+	});
 	const backend = new RpcAppToolBackend({ app, interactions, logger });
 	const bridge = new AppToolsBridge({
 		backend,

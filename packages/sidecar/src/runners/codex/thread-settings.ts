@@ -14,10 +14,18 @@
  * `ultracode` effort, which a chat keeps when it changes agent (an error value that asks for another
  * level, never a guessed one). The sandbox is set on `thread/start` and `thread/resume` only, since
  * Codex fixes it per thread; `turn/start` carries the approval policy.
+ * Managed requirements: Codex reports the approval policies and sandbox modes an administrator
+ * allows (`configRequirements/read`). Conductor reads them before a thread starts and narrows the
+ * chat's choice; `narrowToRequirements` does the same, by the rule the sidecar differential run
+ * measured on Conductor's sidecar (other-runners.md 4): an allowed choice is kept; else the widest
+ * allowed choice below it; with none below, the approval policy takes the narrowest wider one and
+ * the sandbox stays as asked. List order does not matter. A granular policy object in the list is
+ * not one of our choices and is passed over.
  * Test first: with `requireToolApproval` on and no explicit policy, the policy is `on-request`.
  */
 import type { Effort, SessionConfig } from "@conducted/protocol";
 import { appError, err, ok, type Result } from "@conducted/shared";
+import type { CodexConfigRequirements } from "./protocol.ts";
 
 export interface CodexThreadSettings {
 	approvalPolicy: NonNullable<SessionConfig["codexApprovalPolicy"]>;
@@ -34,6 +42,60 @@ export function codexThreadSettings(config: SessionConfig): CodexThreadSettings 
 		sandbox: config.codexSandboxMode ?? "danger-full-access",
 		personality: config.codexPersonality,
 	};
+}
+
+type ApprovalPolicy = CodexThreadSettings["approvalPolicy"];
+type SandboxMode = CodexThreadSettings["sandbox"];
+
+/**
+ * From the fewest actions without asking to the most. `on-failure` is not in codex-cli 0.154.0's
+ * protocol; it sits where older Codex versions declared it, between `untrusted` and `on-request`.
+ */
+const APPROVAL_ORDER: readonly ApprovalPolicy[] = [
+	"untrusted",
+	"on-failure",
+	"on-request",
+	"never",
+];
+const SANDBOX_ORDER: readonly SandboxMode[] = [
+	"read-only",
+	"workspace-write",
+	"danger-full-access",
+];
+
+/** The choices of `order` that a requirements list allows. Null: the list sets no limit. */
+function allowedOf<T extends string>(list: unknown[] | null, order: readonly T[]): T[] | null {
+	if (list === null) return null;
+	return order.filter((choice) => list.includes(choice));
+}
+
+/** The widest allowed choice no wider than `asked`, by `order`. Undefined when there is none. */
+function widestBelow<T extends string>(asked: T, allowed: readonly T[], order: readonly T[]) {
+	const limit = order.indexOf(asked);
+	return allowed.filter((choice) => order.indexOf(choice) <= limit).at(-1);
+}
+
+/** The settings a thread may run with under the managed requirements (null: none configured). */
+export function narrowToRequirements(
+	settings: CodexThreadSettings,
+	requirements: CodexConfigRequirements | null,
+): CodexThreadSettings {
+	if (requirements === null) return settings;
+	let approvalPolicy = settings.approvalPolicy;
+	const approvals = allowedOf(requirements.allowedApprovalPolicies, APPROVAL_ORDER);
+	if (approvals !== null && approvals.length > 0 && !approvals.includes(approvalPolicy)) {
+		const limit = APPROVAL_ORDER.indexOf(approvalPolicy);
+		approvalPolicy =
+			widestBelow(approvalPolicy, approvals, APPROVAL_ORDER) ??
+			approvals.find((choice) => APPROVAL_ORDER.indexOf(choice) > limit) ??
+			approvalPolicy;
+	}
+	let sandbox = settings.sandbox;
+	const sandboxes = allowedOf(requirements.allowedSandboxModes, SANDBOX_ORDER);
+	if (sandboxes !== null && !sandboxes.includes(sandbox)) {
+		sandbox = widestBelow(sandbox, sandboxes, SANDBOX_ORDER) ?? sandbox;
+	}
+	return { ...settings, approvalPolicy, sandbox };
 }
 
 /** True when `next` differs from `prev` in a Codex option. */

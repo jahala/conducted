@@ -7,7 +7,8 @@
  *   else with an empty success), asks the SDK for tool permission with `can_use_tool`, and answers
  *   each user message with a scripted turn of `system`, `assistant`, `user` and `result` messages.
  * - `codex`: `codex app-server`, JSON-RPC 2.0 over stdio. It answers `initialize`, `thread/start`,
- *   `thread/resume`, `turn/start`, `turn/interrupt`, `model/list`, `account/read` and a few reads,
+ *   `thread/resume`, `turn/start`, `turn/interrupt`, `model/list`, `account/read`,
+ *   `configRequirements/read` (null, or the scenario's requirements) and a few reads,
  *   streams the turn as `turn/started`, `item/*` and `turn/completed` notifications, and asks for
  *   command approval with `item/commandExecution/requestApproval`.
  *
@@ -74,9 +75,25 @@ function claudeInit(): Json {
 		agents: [],
 		output_style: "default",
 		available_output_styles: ["default"],
+		// The SDK's ModelInfo says per model whether it thinks adaptively. The scenarios' model,
+		// `sonnet`, is the one Conductor's catalog maps to Sonnet 4.6 without adaptive thinking.
 		models: [
 			{ value: "default", displayName: "Default", description: "The recommended model" },
-			{ value: "claude-opus-5", displayName: "Opus", description: "The largest model" },
+			{
+				value: "claude-opus-5",
+				displayName: "Opus",
+				description: "The largest model",
+				supportsAdaptiveThinking: true,
+			},
+			{
+				value: "sonnet",
+				resolvedModel: "claude-sonnet-4-6",
+				displayName: "Sonnet 4.6",
+				description: "A model without adaptive thinking",
+				supportsEffort: true,
+				supportedEffortLevels: ["low", "medium", "high", "max"],
+				supportsAdaptiveThinking: false,
+			},
 		],
 		account: { email: "fake@example.invalid", subscriptionType: "max", apiProvider: "firstParty" },
 	};
@@ -586,6 +603,12 @@ function runCodex(): void {
 			case "experimentalFeature/enablement/set":
 				reply(id, {});
 				return;
+			case "configRequirements/read": {
+				// codex-cli answers null when no requirements.toml or MDM entry is configured.
+				const managed = process.env.SDIFF_CODEX_REQUIREMENTS;
+				reply(id, { requirements: managed === undefined ? null : (JSON.parse(managed) as Json) });
+				return;
+			}
 			case "skills/list":
 				reply(id, { data: [] });
 				return;
