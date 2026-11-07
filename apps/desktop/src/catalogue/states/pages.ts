@@ -32,8 +32,7 @@ export const PAGE_STATES: CatalogueState[] = [
 			await seedCast(world);
 			return {
 				route: "/all-workspaces",
-				after: ({ document }) =>
-					typeInto(document, "input", "Search workspaces", "no such workspace"),
+				after: ({ document }) => typeInto(document, "input", "Search", "no such workspace"),
 				ready: (document) => shows(document, "No matching workspaces"),
 			};
 		},
@@ -59,6 +58,34 @@ export const PAGE_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	...(
+		[
+			["home-projects-menu", "Home with the project filter open", "In all projects", "[role=menu]"],
+			[
+				"home-archive-menu",
+				"Home with the archive filter open",
+				"Archived workspaces",
+				"[role=listbox]",
+			],
+			["home-sort-menu", "Home with the sort menu open", "Sort workspaces", "[role=listbox]"],
+			["home-display-menu", "Home with the Display menu open", "Display", "[role=menu]"],
+		] as const
+	).map(
+		([id, title, control, open]): CatalogueState => ({
+			id,
+			group: "Pages",
+			title,
+			seed: async (world) => {
+				await seedCast(world);
+				return {
+					route: "/all-workspaces",
+					after: ({ document }) => click(document, "button", control),
+					// A select keeps its options in a hidden native list, so wait for the open popup itself.
+					ready: (document) => document.querySelector(open) !== null,
+				};
+			},
+		}),
+	),
 	{
 		id: "new-workspace",
 		group: "Pages",

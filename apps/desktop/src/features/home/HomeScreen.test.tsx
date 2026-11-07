@@ -159,7 +159,7 @@ describe("NAV-05 HomeScreen", () => {
 		nameWorkspace(test.container, alpha, "Alpha work");
 		renderHome(test.container);
 		await screen.findByText("Alpha work");
-		fireEvent.change(screen.getByRole("searchbox", { name: "Search workspaces" }), {
+		fireEvent.change(screen.getByRole("searchbox", { name: "Search" }), {
 			target: { value: "nothing matches this" },
 		});
 		expect(await screen.findByRole("heading", { name: "No matching workspaces" })).toBeTruthy();

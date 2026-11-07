@@ -60,7 +60,7 @@ describe("NAV-05 HomeFilters", () => {
 	it("calls onChange once with the search after the pause", () => {
 		vi.useFakeTimers();
 		const { onChange } = renderFilters();
-		const input = screen.getByRole("searchbox", { name: "Search workspaces" });
+		const input = screen.getByRole("searchbox", { name: "Search" });
 		fireEvent.change(input, { target: { value: "a" } });
 		fireEvent.change(input, { target: { value: "au" } });
 		fireEvent.change(input, { target: { value: "aut" } });
@@ -75,7 +75,7 @@ describe("NAV-05 HomeFilters", () => {
 
 	it("clears the search at once on Escape", () => {
 		const { onChange } = renderFilters();
-		const input = screen.getByRole("searchbox", { name: "Search workspaces" });
+		const input = screen.getByRole("searchbox", { name: "Search" });
 		fireEvent.change(input, { target: { value: "auth" } });
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ search: "" }));
@@ -85,7 +85,7 @@ describe("NAV-05 HomeFilters", () => {
 	it("filters to one project", async () => {
 		const { onChange } = renderFilters({ repos: [repo("app", "app"), repo("api", "api")] });
 		// Conductor's project filter is a checkbox menu ("In all projects"), not a single select.
-		const trigger = screen.getByRole("button", { name: "Filter by project" });
+		const trigger = screen.getByRole("button", { name: "In all projects" });
 		trigger.focus();
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const item = await screen.findByRole("menuitemcheckbox", { name: "api" });
@@ -107,7 +107,7 @@ describe("NAV-05 HomeFilters", () => {
 
 	it("hides the project filter when there is only one project", () => {
 		renderFilters({ repos: [repo("app", "app")] });
-		expect(screen.queryByRole("button", { name: "Filter by project" })).toBeNull();
+		expect(screen.queryByRole("button", { name: /^In / })).toBeNull();
 	});
 
 	it("changes the sort order", async () => {
