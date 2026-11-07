@@ -1751,7 +1751,7 @@ const SETTINGS_TABLE = [
 		default: false,
 	},
 	// CLOUD-10: Conductor keeps these four as org-personal server settings (services-map 5A.3.3).
-	// This app has no server settings, so they live with the other local settings (D109).
+	// This app has no server settings, so they live with the other local settings (D110).
 	{
 		key: "port_forwarding_strategy",
 		page: "connections",

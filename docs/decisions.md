@@ -598,7 +598,7 @@ Chosen:
 
 Why: the relay's channel and the JSON-per-line protocol reuse the connection the Worker already authenticates and the Rust shell already owns; the capability token makes previews work from a browser that holds no key, without storing per-port state. Why not a second transport: it would duplicate the relay's close, error and restart handling for no gain.
 
-## D109. Port forwarding from a cloud workspace to the Mac, as CLOUD-10 built it (2026-11-07)
+## D110. Port forwarding from a cloud workspace to the Mac, as CLOUD-10 built it (2026-11-07)
 
 Context: CLOUD-10 finishes the row the CLOUD-09 part started: a cloud workspace's ports reach this Mac. Conductor's own forwarding is built on SSH to its sandboxes (`services-map.md` 5A.3.3, `native-and-sidecar-map.md` A10). Our cloud workspaces are Workers and containers, which have no SSH door, and the research does not describe Conductor's cloud backend beyond the concept (D002). The plan only says previews go "through the Worker's port forwarding".
 Chosen:

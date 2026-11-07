@@ -25,7 +25,7 @@
 //!   one another process holds.
 //!
 //! Our design choice: one WebSocket per connection keeps a stuck connection from stalling the
-//! others; the tunnel route is `/w/<name>/tunnel?port=<n>` on the Worker. D109 records this,
+//! others; the tunnel route is `/w/<name>/tunnel?port=<n>` on the Worker. D110 records this,
 //! including why the token handshake has one home fewer than Conductor's.
 //!
 //! Test first: asking for a port another listener holds returns a different free port.
@@ -248,7 +248,7 @@ async fn accept_loop(listener: TcpListener, tunnel_url: String, token: String) -
             Ok((stream, _peer)) => {
                 let url = tunnel_url.clone();
                 let token = token.clone();
-                tauri::async_runtime::spawn(async move {
+                tokio::spawn(async move {
                     pipe(stream, url, token).await;
                 });
             }

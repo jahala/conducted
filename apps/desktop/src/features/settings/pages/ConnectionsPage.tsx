@@ -10,7 +10,7 @@
  * the Worker URL and token are checked with the Worker and then kept in the Keychain; the page
  * shows which Worker this Mac is paired with and can remove the pairing.
  * Our design choice: Conductor keeps the forwarding keys as org-personal server settings; this app
- * has no server, so they are ordinary local settings (D109). Port 22 is always refused. The
+ * has no server, so they are ordinary local settings (D110). Port 22 is always refused. The
  * pairing form sits on Connections because it connects this Mac to a Worker (D106).
  * Must handle: a range whose first port is above its last, ports below 1024 or above 65535, and
  * port 22 inside the range (rejected); an override line that is not remote:local or uses port 22

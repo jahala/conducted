@@ -391,3 +391,37 @@ Everything the run created was deleted: the Worker `conducted-dev-c09-1408` (the
 `wrangler containers list` and `containers images list` held no `conducted` entry, the bucket list
 held no `conducted-cloud-backups`, and the local `apps/cloud/sandbox/build/` folder and the run's
 `/tmp` files were trashed.
+
+## Follow-up: port forwarding to the Mac (CLOUD-10, 2026-11-07)
+
+Run on the owner's account with the product image, one `basic` instance, Worker
+`conducted-dev-c10-1536` (R2 bucket of the same name). The driver started a small Node HTTP
+server inside the sandbox on 127.0.0.1:3456, then a temporary ignored Rust test bound a loopback
+listener with the product's `accept_loop`/`pipe` and fetched through the Worker's tunnel route.
+
+- **Deploy:** 37.68 s to upload the image and Worker, 1.93 s to publish the triggers.
+- **Cold start:** `POST /w/c10-live/start` answered in **12,324 ms** round trip; the Worker
+  reported `readyMs` **11,588 ms**, with the sidecar ready **938 ms** after the entry started.
+- **Warm start:** **108 ms** round trip, `readyMs` **2 ms**, `started: false`.
+- **Starting the server:** the `exec` that launched Node printed its pid in **465 ms**
+  (exit 0). The server answered on 127.0.0.1 only, so the tunnel had to reach the sandbox's own
+  loopback.
+- **Discovery:** `GET /w/c10-live/ports` answered **200** in **71 ms** with
+  `{"ports":[{"port":3456,"processName":"MainThread"}]}`. The name is the kernel `comm`; Node 24
+  names its main thread `MainThread`, so this is the real value, not a friendly command summary.
+- **The forward:** the real Rust listener accepted the local connection, opened the tunnel
+  WebSocket and carried one HTTP `GET /`; the body was `LIVE_OK`, in **255 ms** from the local
+  connect.
+- **One correction found while reading the bundle:** the "Forwarding ports" toast is a success
+  toast after Cmd+Y turns forwarding on, with up to three `:<localPort> <process>` chips and
+  "+N more". The desktop now shows the same words in the description; CLOUD-10's first report had
+  said this was not built.
+
+Everything the run created was deleted: Worker `conducted-dev-c10-1536` (its URL now answers 404),
+the container application `conducted-cloud-sandbox` (`a5fd6cdd984a4d99a3bc4d49fbf47042`), the
+registry image `conducted-dev-c10-1536-workspace-sandbox:wrangler-mw6kgk19`
+(`sha256:68bd993995e24a078d4f3bcfef1510539af2ff493772d636e4dcdb789c181af3`), the R2 bucket
+`conducted-dev-c10-1536`, and the local Docker image by id `68bd993995e2`. Final
+`wrangler containers list`, `containers images list` and `r2 bucket list` hold no
+`conducted-dev-c10` entry, and `docker images` holds none. The token and run files under `/tmp`
+and the `apps/cloud/sandbox/build/` folder were trashed.
