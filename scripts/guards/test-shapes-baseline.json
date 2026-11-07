@@ -90,7 +90,6 @@
 		"apps/desktop/src/features/sidebar/GroupedWorkspaces.nav-03.test.tsx": 3,
 		"apps/desktop/src/features/sidebar/SidebarNav.nav-03.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/WorkspaceRow.nav-03.test.tsx": 1,
-		"apps/desktop/src/features/sidebar/app-04.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/sidebar.test.tsx": 4,
 		"apps/desktop/src/features/terminal/TerminalView.test.tsx": 2,
 		"apps/desktop/src/features/workspace/ChatHistoryButton.test.tsx": 2,
@@ -102,7 +101,7 @@
 		"apps/desktop/src/features/workspace/TabStrip.nav-10.test.tsx": 4,
 		"apps/desktop/src/features/workspace/WorkspaceActionsMenu.nav-10.test.tsx": 2,
 		"apps/desktop/src/features/workspace/WorkspaceGate.nav-10.test.tsx": 1,
-		"apps/desktop/src/features/workspace/WorkspaceHeader.nav-10.test.tsx": 2,
+		"apps/desktop/src/features/workspace/WorkspaceHeader.nav-10.test.tsx": 1,
 		"apps/desktop/src/features/workspace/WorkspaceScreen.nav-10.test.tsx": 3,
 		"apps/desktop/src/features/workspace/useNewTab.nav-10.test.tsx": 2,
 		"apps/desktop/src/features/workspace/workspace.test.tsx": 1

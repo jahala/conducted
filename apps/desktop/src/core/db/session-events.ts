@@ -114,10 +114,13 @@ export const SESSION_EVENTS_SQL = {
 	 * Turns that have a user message but no turn_ended event, in log order. Reverted turns are
 	 * history, not work cut off by a crash, so they are left out. An event with no turn is not a
 	 * turn either. Our design choice: a steer message carries the turn id of the turn it steers,
-	 * so it does not start a second turn.
+	 * so it does not start a second turn. This is the startup repair query, so it reads local
+	 * chats only, through their workspace's host (CLOUD-13).
 	 */
 	findInterruptedTurns: `SELECT session_id, turn_id FROM session_events
 		WHERE reverted_at IS NULL AND turn_id IS NOT NULL
+			AND session_id IN (SELECT s.id FROM sessions s
+				JOIN workspaces w ON w.id = s.workspace_id WHERE w.host_kind = 'local')
 		GROUP BY session_id, turn_id
 		HAVING SUM(type = 'user_message') > 0 AND SUM(type = 'turn_ended') = 0
 		ORDER BY session_id, MIN(idx)`,

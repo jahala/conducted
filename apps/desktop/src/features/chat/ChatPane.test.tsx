@@ -308,7 +308,11 @@ describe("REV-09 files changed under a turn", () => {
 			expect(screen.getByText("helper.ts")).toBeTruthy();
 			expect(screen.getByText("index.ts")).toBeTruthy();
 
-			fireEvent.click(screen.getByRole("button", { name: "Open diff" }));
+			// Open diff is in the turn's "···" menu (D098).
+			fireEvent.keyDown(screen.getByRole("button", { name: "More turn actions" }), {
+				key: "Enter",
+			});
+			fireEvent.click(await screen.findByRole("menuitem", { name: "Open diff" }));
 
 			await waitFor(() =>
 				expect(router.state.location.search).toMatchObject({

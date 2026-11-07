@@ -1,19 +1,19 @@
 /**
  * @feature REV-09 Turn change summary
  * Owns: the files a turn changed, as small chips at the end of the turn's footer row, each with the file's
- * name and its line counts; a "+N more" chip for the rest; and our "Open diff" action, which hands the
- * caller a `DiffScope` for this turn.
+ * name and its line counts, and a "+N more" chip for the rest; and `turnDiffScope`, the scope a turn's
+ * changes open with.
  * Behaviour: ui-map.md 3.3 (file-change summary), measured from Conductor 0.92.1 (renderApp @9586422,
  * file chips in the footer): up to three files show as chips; with more, the first two show and an outlined
  * "+N more" chip with the rest's line counts opens three more at a time. A chip is an outlined 20px badge
  * with a file icon, the name and "+a -r" in small monospace (zero counts shown). Clicking a chip opens that
  * file's diff with the turn's changes in the Git panel.
- * Our design choice: "Open diff" (the whole turn in the Changes tab) stays as a small ghost button after the
- * chips; Conductor reaches the same view through a chip. A chip's tooltip names the change: "Modified",
+ * Our "Open diff" (the whole turn in the Changes tab) is an item of the turn's "···" menu (TurnFooter), so
+ * the row ends with the chips as Conductor's does (D098). A chip's tooltip names the change: "Modified",
  * "Added", "Deleted", "Renamed from <old path>".
  * Must handle: no changes (renders nothing); many files (two, then "+N more", three more per click); a
  * deleted or renamed file (named in the tooltip); a binary file; the turn is reverted (every chip is struck
- * through); no handler for opening the diff (Open diff is shown disabled).
+ * through).
  * Test first: a turn with 12 changed files shows two chips and "+10 more"; one click shows three more.
  */
 
@@ -21,7 +21,6 @@ import type { SessionId } from "@conducted/shared";
 import { useState } from "react";
 import type { DiffScope } from "../../core/api.ts";
 import type { ChatTurn } from "../../core/model.ts";
-import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { FileTextIcon } from "../../ui/icons.tsx";
 import { fileNameOf } from "./tools/ToolCardFrame.tsx";
@@ -64,16 +63,16 @@ function Counts({ added, removed }: { added: number; removed: number }) {
 export interface TurnChangesProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
-	/**
-	 * Shows the Changes view for this turn. Without it, Open diff is shown disabled, because this
-	 * component cannot open the panel itself.
-	 */
-	onOpenDiff?: (scope: DiffScope) => void;
 	/** Opens one file's diff with the turn's changes in the Git panel. */
 	onOpenFile?: (path: string, scope: DiffScope) => void;
 }
 
-export function TurnChanges({ turn, sessionId, onOpenDiff, onOpenFile }: TurnChangesProps) {
+/** The scope that shows one turn's changes in the Git panel. */
+export function turnDiffScope(turn: ChatTurn, sessionId: SessionId): DiffScope {
+	return { kind: "turn", sessionId, turnId: turn.turnId };
+}
+
+export function TurnChanges({ turn, sessionId, onOpenFile }: TurnChangesProps) {
 	const [extra, setExtra] = useState(0);
 	const changes = turn.changes;
 	if (changes.length === 0) return null;
@@ -81,7 +80,7 @@ export function TurnChanges({ turn, sessionId, onOpenDiff, onOpenFile }: TurnCha
 	const first = changes.length <= TURN_CHANGES_ALL ? changes.length : TURN_CHANGES_PREVIEW;
 	const visible = changes.slice(0, first + extra);
 	const rest = changes.slice(first + extra);
-	const scope: DiffScope = { kind: "turn", sessionId, turnId: turn.turnId };
+	const scope = turnDiffScope(turn, sessionId);
 	const restAdded = rest.reduce((sum, file) => sum + file.linesAdded, 0);
 	const restRemoved = rest.reduce((sum, file) => sum + file.linesRemoved, 0);
 	const nextStep = Math.min(TURN_CHANGES_STEP, rest.length);
@@ -119,17 +118,6 @@ export function TurnChanges({ turn, sessionId, onOpenDiff, onOpenFile }: TurnCha
 					<Counts added={restAdded} removed={restRemoved} />
 				</button>
 			) : null}
-			<Button
-				variant="ghost"
-				size="xs"
-				disabled={onOpenDiff === undefined}
-				title={
-					onOpenDiff === undefined ? "The Changes view cannot be opened from this chat." : undefined
-				}
-				onClick={() => onOpenDiff?.(scope)}
-			>
-				Open diff
-			</Button>
 		</section>
 	);
 }

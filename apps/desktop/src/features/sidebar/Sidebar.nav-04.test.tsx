@@ -103,7 +103,9 @@ describe("NAV-04 Sidebar", () => {
 			await seedRepo(test.container);
 			await seedWorkspace(test.container);
 			renderSidebar(test.container);
-			await screen.findByRole("button", { name: "New section..." });
+			// "New section…" is in the "My workspaces" header's menu, as in Conductor (D098).
+			await screen.findByRole("button", { name: "My workspaces actions" });
+			expect(screen.queryByRole("button", { name: "New section..." })).toBeNull();
 			const list = document.querySelector("[data-sidebar-list]");
 			if (list === null) throw new Error("The sidebar list is missing.");
 			fireEvent.contextMenu(list);

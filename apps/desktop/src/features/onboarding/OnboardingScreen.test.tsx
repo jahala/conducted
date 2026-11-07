@@ -81,6 +81,19 @@ describe("APP-02 first-run onboarding", () => {
 		}
 	});
 
+	it("shows no welcome line, step count or note under Continue, as Conductor's screen has none", async () => {
+		const test = setup();
+		try {
+			await renderGuide(test);
+			await screen.findByRole("button", { name: "Continue" });
+			expect(screen.queryByText("Welcome to Conducted")).toBeNull();
+			expect(screen.queryByText(/^Step \d of \d$/)).toBeNull();
+			expect(screen.queryByText("You can change these later in Settings.")).toBeNull();
+		} finally {
+			test.close();
+		}
+	});
+
 	it("Enter continues and ArrowDown cycles to the next step", async () => {
 		const test = setup();
 		try {

@@ -28,7 +28,8 @@
  * created removes the origin gh added before the old origin is put back; the default branch comes
  * from the remote's
  * HEAD, else the checked-out branch, and the add fails visibly when neither exists; removing a
- * project asks its removal port to stop work and delete its workspaces before deleting the row;
+ * project removes its own environment variables and their Keychain entries (SET-04), then asks
+ * its removal port to stop work and delete its workspaces before deleting the row;
  * an invalid settings file is reported instead of replaced; a config edit made outside the app is
  * read again when the window regains focus; only the newest load may change the store, and a
  * read that ends after its project was removed changes nothing; the file commands reach a folder
@@ -212,6 +213,23 @@ export function writeHiddenRunActions(repoId: RepoId, actionIds: readonly string
 	return ok(undefined);
 }
 
+/**
+ * Forgets the shared run actions this user hid for a repository whose project is being removed.
+ * Where the web view has no storage, nothing was ever saved there, so there is nothing to clear.
+ */
+export function clearHiddenRunActions(repoId: RepoId): Result<void> {
+	const store = hiddenRunActionsStorage();
+	if (!store.ok) return ok(undefined);
+	try {
+		store.value.removeItem(hiddenRunActionsStorageKey(repoId));
+	} catch (cause) {
+		return err(
+			appError("local_storage_unavailable", "Hidden actions can't be cleared on this Mac.", cause),
+		);
+	}
+	return ok(undefined);
+}
+
 /** The folder's own name, used as the project name. */
 export function projectNameFromPath(path: string): string {
 	const trimmed = normaliseRootPath(path);
@@ -301,7 +319,10 @@ export interface RepoServiceDeps {
 	};
 	git: GitRunner;
 	repos: Pick<Repositories, "repos" | "settings" | "workspaces">;
-	settings: Pick<SettingsService, "readSettingsFile" | "updateSettingsFile" | "readSettingsText">;
+	settings: Pick<
+		SettingsService,
+		"readSettingsFile" | "updateSettingsFile" | "readSettingsText" | "removeEnvVarsForRepo"
+	>;
 	removal: RepoRemovalPort;
 	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
 	ids: Pick<IdSource, "uuid">;
@@ -963,6 +984,13 @@ export class RepoService {
 			return err(appError("repo_unknown", "That project no longer exists."));
 		}
 
+		// Its variables' secrets go with them before the row that cascades their names (SET-04).
+		const secrets = await this.#deps.settings.removeEnvVarsForRepo(repoId);
+		if (!secrets.ok) return secrets;
+		// The hidden actions of a project being removed have nothing left to hide them for. They go
+		// before the row, so a failure leaves the project in place rather than half removed.
+		const hiddenCleared = clearHiddenRunActions(repoId);
+		if (!hiddenCleared.ok) return hiddenCleared;
 		const workspaces = await this.#deps.removal.removeWorkspacesOf(repoId);
 		if (!workspaces.ok) return workspaces;
 		const deleted = await this.#deps.repos.repos.delete(repoId);

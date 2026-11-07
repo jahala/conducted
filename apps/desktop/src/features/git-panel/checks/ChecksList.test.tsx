@@ -68,6 +68,12 @@ describe("PR-04 checks list", () => {
 		expect(screen.getByRole("button", { name: "Fix errors" })).toBeTruthy();
 	});
 
+	it("names the section Checks with no counts beside it, as Conductor does", () => {
+		renderList([check("failure", "failure"), check("success", "success")]);
+		expect(screen.getByRole("heading", { name: "Checks" })).toBeTruthy();
+		expect(screen.queryByText(/failed ·/)).toBeNull();
+	});
+
 	it("names each check's link Open externally, as Conductor does", () => {
 		renderList([{ ...check("failure", "failure"), url: "https://example.test/run/1" }]);
 		expect(screen.getByRole("button", { name: "Open externally" })).toBeTruthy();

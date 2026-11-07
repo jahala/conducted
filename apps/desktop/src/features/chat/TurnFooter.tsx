@@ -11,7 +11,8 @@
  * then the end time: the time alone today, the weekday within a week, else the date), then a 20px copy
  * icon button, then a 20px "···" button, then the file chips.
  * Our design choice: "Copy summary" is ours (Conductor's "Copy summary" belongs to compacted history); it
- * sits in the "···" menu next to "Copy final message". Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
+ * sits in the "···" menu next to "Copy final message". "Open diff" (REV-09, ours) is in the same menu,
+ * after them, for a turn that changed files, so the row itself is Conductor's (D098). Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
  * also shows the cost the agent reported for this turn. Conductor shows cost only for cloud runs.
  * Fork to a new tab copies the chat up to this turn and opens the new chat (CHAT-16). It is always
  * in this menu: the Experimental setting 'Fork chat to new tab' gates only the chat tab menu item
@@ -45,7 +46,7 @@ import { MINUTE_MS, useNow } from "../sidebar/use-now.ts";
 import { formatCost } from "./ContextWheel.tsx";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
-import { TurnChanges } from "./TurnChanges.tsx";
+import { TurnChanges, turnDiffScope } from "./TurnChanges.tsx";
 
 export interface TurnFooterProps {
 	turn: ChatTurn;
@@ -251,15 +252,26 @@ export function TurnFooter({ turn, sessionId, onOpenDiff, onOpenFile, now }: Tur
 							Copy final message
 						</MenuItem>
 						<MenuItem onSelect={() => copyFromMenu(summary)}>Copy summary</MenuItem>
+						{turn.changes.length === 0 ? null : (
+							<>
+								<MenuSeparator />
+								<MenuItem
+									disabled={onOpenDiff === undefined}
+									title={
+										onOpenDiff === undefined
+											? "The Changes view cannot be opened from this chat."
+											: undefined
+									}
+									onSelect={() => onOpenDiff?.(turnDiffScope(turn, sessionId))}
+								>
+									Open diff
+								</MenuItem>
+							</>
+						)}
 					</MenuContent>
 				</Menu>
 			</span>
-			<TurnChanges
-				turn={turn}
-				sessionId={sessionId}
-				onOpenDiff={onOpenDiff}
-				onOpenFile={onOpenFile}
-			/>
+			<TurnChanges turn={turn} sessionId={sessionId} onOpenFile={onOpenFile} />
 			<ResetChatDialog
 				open={resetOpen}
 				onOpenChange={setResetOpen}

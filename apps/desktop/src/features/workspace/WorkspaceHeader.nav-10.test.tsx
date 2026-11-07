@@ -1,9 +1,9 @@
 /**
  * @feature NAV-10 Workspace header
- * Owns: tests for the breadcrumb, the name, the folder chip, the branch menu, the rename and target
- * branch dialogs, the actions button, loading, error and archived states.
- * Test first: Renders the workspace name and the Open in menu; the toggle button reflects
- * rightPanelOpen.
+ * Owns: tests for the breadcrumb, the branch menu and its rename dialog, the target branch
+ * popover, the folder name, loading, error and archived states. Conductor's header has no
+ * workspace name, rename button, actions button or folder chip (D098); the tests say so.
+ * Test first: Renders the branch and the Open in menu; the toggle button reflects rightPanelOpen.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -49,15 +49,12 @@ const workspace = (over: Partial<Workspace> = {}): Workspace =>
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspace: () => state.workspace,
 	useRepos: () => state.repos,
+	useBranches: () => ({ state: "ready", data: ["main", "develop"] }),
 	useActions: () => ({
 		app: { copyText: state.copyText },
 		workspaces: { rename: state.rename, setTargetBranch: state.setTargetBranch },
 		git: { renameBranch: state.renameBranch },
 	}),
-}));
-
-vi.mock("./WorkspaceActionsMenu.tsx", () => ({
-	WorkspaceActionsMenu: () => <button type="button">Workspace actions</button>,
 }));
 
 // OpenInMenu is WS-08's and still a placeholder. A stand-in keeps these tests about the header.
@@ -90,16 +87,18 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("NAV-10 WorkspaceHeader", () => {
-	it("shows the repository, branch, workspace name and Open in", () => {
+	it("shows the repository, branch and Open in, with no workspace name or actions button", () => {
 		renderHeader();
 		expect(screen.getByText("Conducted")).toBeTruthy();
 		expect(screen.getByText("fix-login")).toBeTruthy();
-		expect(screen.getByText("Fix login")).toBeTruthy();
+		// Conductor's header names the branch only; the workspace's name and its actions are the
+		// sidebar row's (D098).
+		expect(screen.queryByText("Fix login")).toBeNull();
 		expect(screen.getByRole("button", { name: "Open in" })).toBeTruthy();
-		expect(screen.getByRole("button", { name: "Workspace actions" })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Workspace actions" })).toBeNull();
 	});
 
-	it("names the workspace by its folder when it has no name, PR title or branch", () => {
+	it("shows the folder name when it differs from the branch", () => {
 		state.workspace = {
 			state: "ready",
 			data: workspace({ displayName: null, prTitle: null, branch: "" }),
@@ -133,12 +132,12 @@ describe("NAV-10 WorkspaceHeader", () => {
 		).toBe("false");
 	});
 
-	it("copies the folder path from the directory chip", async () => {
+	it("has no folder chip: copying the path is the Open in menu's last item", () => {
 		renderHeader();
-		fireEvent.click(screen.getByTitle("Copy folder path"));
-		await waitFor(() =>
-			expect(state.copyText).toHaveBeenCalledWith("/code/workspaces/quiet-meadow"),
-		);
+		// Conductor's folder name is plain text beside Open in, whose menu ends with "Copy path"
+		// (D098; OpenInMenu.ws-08.test.tsx copies it).
+		expect(screen.queryByTitle("Copy folder path")).toBeNull();
+		expect(screen.getByTitle("quiet-meadow").tagName).toBe("SPAN");
 	});
 
 	it("copies the branch from the branch menu with C", async () => {
@@ -162,23 +161,35 @@ describe("NAV-10 WorkspaceHeader", () => {
 		);
 	});
 
-	it("renames the workspace from the pencil button", async () => {
+	it("renames the branch with a click on it, as Conductor's header does", async () => {
 		renderHeader();
-		fireEvent.click(screen.getByRole("button", { name: "Rename workspace" }));
+		// Renaming the workspace moved to the sidebar row's menu (D098); the branch is renamed here.
+		expect(screen.queryByRole("button", { name: "Rename workspace" })).toBeNull();
+		fireEvent.click(screen.getByText("fix-login"));
 		const field = await screen.findByRole("textbox", { name: "Name" });
-		expect((field as HTMLInputElement).value).toBe("Fix login");
-		fireEvent.change(field, { target: { value: "Better name" } });
+		expect((field as HTMLInputElement).value).toBe("fix-login");
+		fireEvent.change(field, { target: { value: "fix-login-3" } });
 		fireEvent.click(screen.getByRole("button", { name: "Rename" }));
-		await waitFor(() => expect(state.rename).toHaveBeenCalledWith(workspaceId, "Better name"));
+		await waitFor(() =>
+			expect(state.renameBranch).toHaveBeenCalledWith(workspaceId, "fix-login-3"),
+		);
 	});
 
-	it("changes the target branch from the shared dialog", async () => {
+	it("changes the target branch from the popover behind the ellipsis", async () => {
 		renderHeader();
-		fireEvent.click(screen.getByRole("button", { name: /Target branch/ }));
-		const field = await screen.findByRole("textbox", { name: "Branch" });
-		fireEvent.change(field, { target: { value: "develop" } });
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		fireEvent.click(screen.getByRole("button", { name: "Target branch" }));
+		fireEvent.click(await screen.findByRole("option", { name: /develop/ }));
 		await waitFor(() => expect(state.setTargetBranch).toHaveBeenCalledWith(workspaceId, "develop"));
+	});
+
+	it("says an archived workspace's target branch cannot change", async () => {
+		state.workspace = { state: "ready", data: workspace({ state: "archived" }) };
+		renderHeader();
+		fireEvent.click(screen.getByRole("button", { name: "Target branch" }));
+		expect(
+			await screen.findByText("Target branch cannot be changed for archived workspaces"),
+		).toBeTruthy();
+		expect(screen.queryByRole("option")).toBeNull();
 	});
 
 	it("shows the loading state", () => {

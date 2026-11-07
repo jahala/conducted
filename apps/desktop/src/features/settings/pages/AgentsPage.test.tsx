@@ -62,6 +62,8 @@ describe("SET-03 AgentsPage", () => {
 
 		expect(screen.getByRole("heading", { name: "Codex" })).toBeTruthy();
 		expect(screen.getByText("Install Codex on this Mac, then choose Refresh.")).toBeTruthy();
+		// The page has a title and no subtitle, as Conductor's does (D098).
+		expect(screen.queryByText(/Install status, versions/)).toBeNull();
 		expect(screen.queryByRole("button", { name: /Sign in|Run codex login/ })).toBeNull();
 	});
 

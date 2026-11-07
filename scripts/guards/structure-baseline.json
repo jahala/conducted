@@ -20,7 +20,7 @@
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
 		"apps/desktop/src/features/workspace/tab-layout.ts": 1,
 		"apps/desktop/src/ui/Card.tsx": 6,
-		"apps/desktop/src/ui/ContextMenu.tsx": 5,
+		"apps/desktop/src/ui/ContextMenu.tsx": 2,
 		"apps/desktop/src/ui/contrast.ts": 2,
 		"apps/desktop/src/ui/PanelHeader.tsx": 2,
 		"apps/desktop/src/ui/Separator.tsx": 1,

@@ -15,7 +15,8 @@
  * Conductor; its footer has no add-project button.
  * Must handle: sidebar narrower than a row's content (names truncate); no projects (empty state in the list
  * region); loading and error in the list region.
- * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
+ * Test first: renders the navigation rows and, with no projects, the "Add a project to get started."
+ * empty state.
  */
 import { Link } from "@tanstack/react-router";
 import { GearIcon } from "../../ui/icons.tsx";

@@ -17,7 +17,7 @@ export function RemoteControlPage({ focusSettingKey = null }: { focusSettingKey?
 	return (
 		<SettingsPageFrame
 			title="Remote control"
-			description="Follow and steer Claude chats from claude.ai/code or the Claude app while they run on this Mac."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>

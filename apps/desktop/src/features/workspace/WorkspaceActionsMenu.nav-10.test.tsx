@@ -1,6 +1,6 @@
 /**
  * @feature NAV-10 Workspace actions menu
- * Owns: tests for the one workspace actions list.
+ * Owns: tests for the one workspace actions list, the sidebar row's right-click menu.
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
@@ -73,9 +73,8 @@ const openMenu = async () => {
 			<button type="button">Actions</button>
 		</WorkspaceActionsMenu>,
 	);
-	const trigger = screen.getByRole("button", { name: "Actions" });
-	trigger.focus();
-	fireEvent.keyDown(trigger, { key: "Enter" });
+	// The menu is the sidebar row's right-click menu, as in Conductor (D098).
+	fireEvent.contextMenu(screen.getByRole("button", { name: "Actions" }));
 	return screen.findByRole("menu");
 };
 

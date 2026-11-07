@@ -45,7 +45,12 @@ export interface SettingsNavProps {
 	searchSlot: ReactNode;
 }
 
-const GROUPS: readonly SettingsNavGroup[] = ["personal", "agents_and_environment", "more"];
+/** Conductor's order: Personal, Agents & environment, the repositories, then More. */
+const GROUPS_BEFORE_REPOSITORIES: readonly SettingsNavGroup[] = [
+	"personal",
+	"agents_and_environment",
+];
+const GROUPS_AFTER_REPOSITORIES: readonly SettingsNavGroup[] = ["more"];
 
 /** Each page's 16px icon in the nav (Conductor gives every entry one). */
 const PAGE_ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
@@ -92,7 +97,7 @@ export function SettingsNav({
 			<div className="px-1.5 pb-3">{searchSlot}</div>
 
 			<nav aria-label="Settings" className="flex flex-col gap-4 px-1.5 pb-4">
-				{GROUPS.map((group) => (
+				{GROUPS_BEFORE_REPOSITORIES.map((group) => (
 					<div key={group} className="flex flex-col gap-0.5">
 						<p className="px-2 pb-1 text-xs text-fg-muted">{SETTINGS_NAV_GROUP_TITLES[group]}</p>
 						{USER_SETTINGS_PAGES.filter((page) => page.group === group).map((page) => {
@@ -174,6 +179,27 @@ export function SettingsNav({
 						})
 					)}
 				</div>
+				{GROUPS_AFTER_REPOSITORIES.map((group) => (
+					<div key={group} className="flex flex-col gap-0.5">
+						<p className="px-2 pb-1 text-xs text-fg-muted">{SETTINGS_NAV_GROUP_TITLES[group]}</p>
+						{USER_SETTINGS_PAGES.filter((page) => page.group === group).map((page) => {
+							const isActive = activeKey === settingsTargetKey({ kind: "user", page: page.id });
+							const Icon = PAGE_ICONS[page.id] ?? SlidersIcon;
+							return (
+								<button
+									key={page.id}
+									type="button"
+									className={linkClass(isActive)}
+									aria-current={isActive ? "page" : undefined}
+									onClick={() => onNavigate({ kind: "user", page: page.id })}
+								>
+									<Icon className="size-4 shrink-0" />
+									<span className="truncate">{page.title}</span>
+								</button>
+							);
+						})}
+					</div>
+				))}
 			</nav>
 		</aside>
 	);

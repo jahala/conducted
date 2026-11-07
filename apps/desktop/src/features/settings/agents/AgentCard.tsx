@@ -12,7 +12,7 @@
  * not return. Choosing "CLI" starts the sign-in, and "API key" opens the provider forms, where keys are
  * entered.
  * Behaviour: ui-map.md 6, "Agents page" (one card per provider; states "Loaded from env", "API key
- * configured", "Validation failed", "Recommended").
+ * configured", "Validation failed"). The app's own copy gets no badge (D098).
  * Data: the parent passes one AgentInstall from useAgentInstalls().
  * The program manager downloads, updates and removes programs (PLAT-28, D021); this card shows
  * what the catalogue reports. A missing program shows how to install it and a Refresh action; a
@@ -74,7 +74,8 @@ export function agentState(install: AgentInstall): { label: string; tone: BadgeT
 	if (!install.installed) return null;
 	if (install.authMethod === "api_key") return { label: "API key configured", tone: "neutral" };
 	if (install.source === "login_path") return { label: "Loaded from env", tone: "neutral" };
-	if (install.source === "managed") return { label: "Recommended", tone: "success" };
+	// The app's own copy is the normal case; Conductor's card marks it with no badge (D098).
+	if (install.source === "managed") return null;
 	if (install.source === "user") return { label: "Custom path", tone: "neutral" };
 	return null;
 }

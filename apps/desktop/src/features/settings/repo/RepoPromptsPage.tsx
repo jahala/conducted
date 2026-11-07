@@ -141,12 +141,7 @@ export function RepoPromptsPage({ repoId }: { repoId: RepoId }) {
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex flex-col gap-1">
-				<h1 className="text-2xl font-medium text-fg">Prompts</h1>
-				<p className="text-sm text-fg-muted">
-					Custom instructions for the buttons that send work to the agent, and for every new chat.
-				</p>
-			</div>
+			<h1 className="text-2xl font-medium text-fg">Prompts</h1>
 
 			<LoadableView
 				value={value}

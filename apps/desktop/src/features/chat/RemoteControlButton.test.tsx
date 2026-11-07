@@ -3,8 +3,10 @@ import { ok, type SessionId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import { PlusMenu } from "../composer/PlusMenu.tsx";
 import { RemoteControlButton } from "./RemoteControlButton.tsx";
 
 afterEach(() => {
@@ -41,24 +43,55 @@ async function setup(over: Partial<SessionConfig> = {}) {
 	return { test, sessionId: created.value.id, wrapper, refresh };
 }
 
+const noop = () => {};
+
+// The switch is the composer's "+" item; the chip shows only while it is on (D098).
+function plusMenu(sessionId: SessionId) {
+	return (
+		<CommandDispatcher>
+			<RemoteControlButton sessionId={sessionId} />
+			<PlusMenu
+				sessionId={sessionId}
+				onAddAttachment={noop}
+				onLinkIssue={noop}
+				onLinkWorkspaces={noop}
+				onAddSnippet={noop}
+				onInsertSnippet={noop}
+			/>
+		</CommandDispatcher>
+	);
+}
+
+async function openPlusMenu(): Promise<void> {
+	fireEvent.keyDown(
+		screen.getByRole("button", { name: "Add attachments, link issues, and more" }),
+		{
+			key: "Enter",
+		},
+	);
+	await screen.findByRole("menu");
+}
+
 function show(test: TestContainer, sessionId: SessionId, status: RemoteControlStatus): void {
 	test.container.services.sessions.applyRemoteControlState(sessionId, status);
 }
 
 describe("RC-02 Remote Control switch and status", () => {
-	it("is offered on a Claude chat and not on another agent's", async () => {
+	it("is offered in a Claude chat's + menu and not in another agent's", async () => {
 		const claude = await setup();
 		try {
-			render(<RemoteControlButton sessionId={claude.sessionId} />, { wrapper: claude.wrapper });
-			expect(screen.getByRole("button", { name: "Remote Control" })).toBeTruthy();
+			render(plusMenu(claude.sessionId), { wrapper: claude.wrapper });
+			await openPlusMenu();
+			expect(screen.getByRole("menuitemcheckbox", { name: "Remote Control" })).toBeTruthy();
 		} finally {
 			claude.test.close();
 		}
 		cleanup();
 		const codex = await setup({ agent: "codex", model: "gpt-5" });
 		try {
-			render(<RemoteControlButton sessionId={codex.sessionId} />, { wrapper: codex.wrapper });
-			expect(screen.queryByRole("button", { name: "Remote Control" })).toBeNull();
+			render(plusMenu(codex.sessionId), { wrapper: codex.wrapper });
+			await openPlusMenu();
+			expect(screen.queryByRole("menuitemcheckbox", { name: "Remote Control" })).toBeNull();
 		} finally {
 			codex.test.close();
 		}
@@ -70,9 +103,11 @@ describe("RC-02 Remote Control switch and status", () => {
 			const updateConfig = vi
 				.spyOn(test.container.services.sessions, "updateConfig")
 				.mockResolvedValue(ok(undefined));
-			render(<RemoteControlButton sessionId={sessionId} />, { wrapper });
-			fireEvent.click(screen.getByRole("button", { name: "Remote Control" }));
-			fireEvent.click(await screen.findByRole("switch", { name: "Remote Control" }));
+			render(plusMenu(sessionId), { wrapper });
+			// No chip while it is off.
+			expect(screen.queryByRole("button", { name: /Remote Control/ })).toBeNull();
+			await openPlusMenu();
+			fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Remote Control" }));
 			await waitFor(() =>
 				expect(updateConfig).toHaveBeenCalledWith(sessionId, config({ remoteControl: true })),
 			);
@@ -101,7 +136,7 @@ describe("RC-02 Remote Control switch and status", () => {
 			show(test, sessionId, { state: "connected", sessionUrl: SESSION_URL });
 			render(<RemoteControlButton sessionId={sessionId} />, { wrapper });
 			const trigger = screen.getByRole("button", { name: "Remote Control" });
-			expect(trigger.getAttribute("aria-pressed")).toBe("true");
+			expect(trigger.textContent).toBe("Remote Control");
 			fireEvent.click(trigger);
 
 			expect(await screen.findByText("Connected")).toBeTruthy();

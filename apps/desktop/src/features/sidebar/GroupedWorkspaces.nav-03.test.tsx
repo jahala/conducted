@@ -45,13 +45,16 @@ vi.mock("./WorkspaceRow.tsx", () => ({
 	WorkspaceRow: ({
 		workspace,
 		shortcutIndex,
-		now,
+		...rest
 	}: {
 		workspace: Workspace;
 		shortcutIndex: number | null;
-		now: number;
 	}) => (
-		<div data-testid="workspace-row" data-shortcut={shortcutIndex ?? undefined} data-now={now}>
+		<div
+			data-testid="workspace-row"
+			data-shortcut={shortcutIndex ?? undefined}
+			data-now={"now" in rest ? String(rest.now) : undefined}
+		>
 			{workspace.displayName}
 		</div>
 	),
@@ -334,10 +337,11 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		await waitFor(() => expect(runCommandHandlers("workspace.switch9")).toBe(false));
 	});
 
-	it("gives every row the same time and moves it forward each minute", async () => {
+	// Conductor's row shows no time, so the rows get none and the list runs no minute timer (D098).
+	// This test asserted the shared minute timer that fed every row's time.
+	it("gives the rows no time and runs no minute timer", async () => {
 		vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-		let time = 5_000_000;
-		const clock = vi.spyOn(Date, "now").mockImplementation(() => time);
+		const interval = vi.spyOn(globalThis, "setInterval");
 		try {
 			renderWithRouter(
 				<GroupedWorkspaces
@@ -346,16 +350,13 @@ describe("NAV-03 GroupedWorkspaces", () => {
 				/>,
 			);
 			const rows = await screen.findAllByTestId("workspace-row");
-			expect(rows.map((row) => row.getAttribute("data-now"))).toEqual(["5000000", "5000000"]);
-			time += 60_000;
+			expect(rows.map((row) => row.getAttribute("data-now"))).toEqual([null, null]);
 			act(() => {
 				vi.advanceTimersByTime(60_000);
 			});
-			expect(
-				screen.getAllByTestId("workspace-row").map((row) => row.getAttribute("data-now")),
-			).toEqual(["5060000", "5060000"]);
+			expect(interval).not.toHaveBeenCalledWith(expect.any(Function), 60_000);
 		} finally {
-			clock.mockRestore();
+			interval.mockRestore();
 			vi.useRealTimers();
 		}
 	});

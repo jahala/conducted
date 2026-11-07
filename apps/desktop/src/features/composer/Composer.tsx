@@ -1,7 +1,7 @@
 /**
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
- * chips, ACP options, Remote Control (RC-02), context wheel, MCP status) and the send or stop
+ * chips, ACP options, the Remote Control chip (RC-02), context wheel, MCP status) and the send or stop
  * button.
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
@@ -12,8 +12,14 @@
  * from the bottom, and 12px from the right the MCP status, the context ring, "+", then stop and send,
  * 6px apart in a 28px row; a "⌘L to focus" pill at the top right while the editor is not focused.
  * Our design choice: Narrow composers (under 480px measured) move toolbar items into one 'More
- * composer actions' menu; wide ones show the MCP status button directly. Remote Control (RC-02) and
- * the ACP options are ours and sit in the same row.
+ * composer actions' menu; wide ones show the MCP status button directly. The ACP options are ours
+ * and sit after the model picker. Remote Control (RC-02, ours) is a "+" item and, while on, a chip
+ * after the mode chips, as Conductor shows "Auto-accept edits" (D098).
+ * While a tool approval waits, the approval card (CHAT-11) takes the place of the text box and its
+ * rows, which stay mounted and hidden, as Conductor draws it (renderApp @9315874; D098).
+ * While a plan waits for review, the placeholder reads Conductor's "Enter your plan adjustments
+ * here..." and sending answers the plan as not approved with the text as its feedback (CHAT-12,
+ * renderApp @9294541, @9299794; D098).
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
@@ -57,7 +63,13 @@
  */
 
 import type { SlashCommand } from "@conducted/protocol";
-import type { AppError, SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
+import type {
+	AppError,
+	InteractionId,
+	SessionId,
+	TerminalId,
+	WorkspaceId,
+} from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -76,6 +88,7 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { ContextWheel } from "../chat/ContextWheel.tsx";
+import { InteractionHost } from "../chat/interactions/InteractionHost.tsx";
 import { RemoteControlButton } from "../chat/RemoteControlButton.tsx";
 import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
@@ -245,8 +258,21 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
 	const queueByDefault = followUp === "queue";
 	const buttonState: SendButtonState = working ? (queueByDefault ? "queue" : "steer") : "send";
+	// While the agent waits on a plan, the composer takes the user's adjustments (CHAT-12).
+	const planInteractionId = useStore(services.sessions.store, (state) => {
+		const open = state.openInteractions[sessionId];
+		return open !== undefined && open.interaction.kind === "plan_approval" && !open.timedOut
+			? open.interactionId
+			: null;
+	});
+	// A tool approval takes the place of the text box, as Conductor draws it (CHAT-11, D098).
+	const approval = useStore(services.sessions.store, (state) => {
+		const open = state.openInteractions[sessionId];
+		return open !== undefined && open.interaction.kind === "tool_approval" ? open : null;
+	});
 	const empty = text.trim().length === 0;
-	const disabled = busy || (goalMode ? empty : empty && attachments.length === 0);
+	const textOnly = goalMode || planInteractionId !== null;
+	const disabled = busy || (textOnly ? empty : empty && attachments.length === 0);
 
 	const runCommand = useRunCommandHandlers();
 	const slashCommands = useRef<readonly SlashCommand[]>([]);
@@ -573,10 +599,40 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		}
 	};
 
+	/**
+	 * Conductor's plan feedback: text sent while a plan waits answers it as not approved, with the
+	 * text as the adjustments (renderApp @9299794). Attachments stay in the draft for the next message.
+	 */
+	const sendPlanFeedback = async (current: Editor, interactionId: InteractionId) => {
+		const feedback = current.getText().trim();
+		if (feedback.length === 0) return;
+		setBusy(true);
+		try {
+			const result = await actions.sessions.answer(sessionId, interactionId, {
+				kind: "plan_approval",
+				approved: false,
+				feedback,
+			});
+			if (!result.ok) {
+				toastError("Couldn't send the plan adjustments", result.error);
+				return;
+			}
+			current.commands.setContent("", { emitUpdate: true });
+			setText("");
+			current.commands.focus();
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
 		if (goalMode) {
 			await saveGoal(editor);
+			return;
+		}
+		if (planInteractionId !== null) {
+			await sendPlanFeedback(editor, planInteractionId);
 			return;
 		}
 		const body = editor.getText();
@@ -614,89 +670,110 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				className="relative min-h-[var(--composer-min-height)] cursor-text rounded-xl border border-border bg-muted pt-4 pr-4 pb-3 pl-[18px] shadow-xs"
 				data-narrow={narrow ? "true" : "false"}
 			>
-				{terminalRun === null ? null : (
-					<div className="pb-2">
-						<TerminalCommandStatus
-							workspaceId={workspaceId}
-							run={terminalRun}
-							onReopen={() => void startTerminalCommand(terminalRun.command)}
-							onDone={finishTerminalCommand}
-						/>
-					</div>
-				)}
-				<AttachmentBar
-					sessionId={sessionId}
-					attachmentPaths={attachments}
-					busy={attachmentsController.busy}
-					onRemove={(path) => void attachmentsController.remove(path)}
-				/>
-				<div className="mb-10">
-					<ComposerEditor
+				{approval === null ? null : (
+					<InteractionHost
+						key={approval.interactionId}
 						sessionId={sessionId}
-						disabled={busy}
-						onSubmit={(intent) => void send(intent)}
-						sendWith={sendWith}
-						onEditorReady={setEditor}
-						extensions={extensions}
-						onFocusChange={setFocused}
-						{...(goalMode ? { placeholder: "Set a goal" } : {})}
+						interactionId={approval.interactionId}
+						interaction={approval.interaction}
+						expiresAt={approval.expiresAt}
+						timedOut={approval.timedOut}
 					/>
-				</div>
-				{focused || focusShortcut === null ? null : (
-					<div className="pointer-events-none absolute top-2 right-1 rounded-full bg-muted px-2 py-1 text-xs text-fg-subtle">
-						{focusShortcut} to focus
-					</div>
 				)}
-				<div className="absolute bottom-3 left-[7px] flex min-w-0 items-center gap-0.5 overflow-hidden">
-					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
-						<ModelPicker sessionId={sessionId} />
-					</NotBuiltYet>
-					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
-						<ModeChips sessionId={sessionId} />
-					</NotBuiltYet>
-					<AcpOptions sessionId={sessionId} />
-				</div>
-				<div className="absolute right-3 bottom-3 flex h-7 shrink-0 items-center gap-1.5">
-					<RemoteControlButton sessionId={sessionId} />
-					{narrow ? (
-						<Menu>
-							<MenuTrigger asChild>
-								<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
-							</MenuTrigger>
-							<MenuContent align="end">
-								<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
-							</MenuContent>
-						</Menu>
-					) : (
-						<IconButton
-							size="xs"
-							label="MCP status"
-							icon={<BlocksIcon className="size-3.5" />}
-							className="text-fg-muted"
-							onClick={checkMcp}
-						/>
+				{/* The text box and its rows stay mounted under an approval, so the draft and the
+				    editor's state survive it. */}
+				<div
+					className={approval === null ? "contents" : "hidden"}
+					aria-hidden={approval === null ? undefined : true}
+				>
+					{terminalRun === null ? null : (
+						<div className="pb-2">
+							<TerminalCommandStatus
+								workspaceId={workspaceId}
+								run={terminalRun}
+								onReopen={() => void startTerminalCommand(terminalRun.command)}
+								onDone={finishTerminalCommand}
+							/>
+						</div>
 					)}
-					<ContextWheel sessionId={sessionId} />
-					<PlusMenu
+					<AttachmentBar
 						sessionId={sessionId}
-						onAddAttachment={() => void attachmentsController.pick()}
-						onLinkIssue={() => setIssueDialogOpen(true)}
-						onLinkWorkspaces={() => setLinkDialogOpen(true)}
-						onAddSnippet={() => useSnippetDialogsStore.getState().openCreate()}
-						onInsertSnippet={() => openSnippetPicker(insertText)}
+						attachmentPaths={attachments}
+						busy={attachmentsController.busy}
+						onRemove={(path) => void attachmentsController.remove(path)}
 					/>
-					{/* Conductor puts speech to text after the "+" menu, just before send. */}
-					<DictationButton onTranscript={insertText} />
-					<SendButton
-						state={buttonState}
-						disabled={disabled}
-						busy={busy}
-						working={working}
-						hasContent={text.trim().length > 0 || attachments.length > 0}
-						sendWith={sendWith}
-						onSend={() => void send("submit")}
-						onStop={() => void stop()}
-					/>
+					<div className="mb-10">
+						<ComposerEditor
+							sessionId={sessionId}
+							disabled={busy}
+							onSubmit={(intent) => void send(intent)}
+							sendWith={sendWith}
+							onEditorReady={setEditor}
+							extensions={extensions}
+							onFocusChange={setFocused}
+							{...(goalMode
+								? { placeholder: "Set a goal" }
+								: planInteractionId !== null
+									? { placeholder: "Enter your plan adjustments here..." }
+									: {})}
+						/>
+					</div>
+					{focused || focusShortcut === null ? null : (
+						<div className="pointer-events-none absolute top-2 right-1 rounded-full bg-muted px-2 py-1 text-xs text-fg-subtle">
+							{focusShortcut} to focus
+						</div>
+					)}
+					<div className="absolute bottom-3 left-[7px] flex min-w-0 items-center gap-0.5 overflow-hidden">
+						<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
+							<ModelPicker sessionId={sessionId} />
+						</NotBuiltYet>
+						<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
+							<ModeChips sessionId={sessionId} />
+						</NotBuiltYet>
+						<RemoteControlButton sessionId={sessionId} />
+						<AcpOptions sessionId={sessionId} />
+					</div>
+					<div className="absolute right-3 bottom-3 flex h-7 shrink-0 items-center gap-1.5">
+						{narrow ? (
+							<Menu>
+								<MenuTrigger asChild>
+									<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
+								</MenuTrigger>
+								<MenuContent align="end">
+									<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
+								</MenuContent>
+							</Menu>
+						) : (
+							<IconButton
+								size="xs"
+								label="MCP status"
+								icon={<BlocksIcon className="size-3.5" />}
+								className="text-fg-muted"
+								onClick={checkMcp}
+							/>
+						)}
+						<ContextWheel sessionId={sessionId} />
+						<PlusMenu
+							sessionId={sessionId}
+							onAddAttachment={() => void attachmentsController.pick()}
+							onLinkIssue={() => setIssueDialogOpen(true)}
+							onLinkWorkspaces={() => setLinkDialogOpen(true)}
+							onAddSnippet={() => useSnippetDialogsStore.getState().openCreate()}
+							onInsertSnippet={() => openSnippetPicker(insertText)}
+						/>
+						{/* Conductor puts speech to text after the "+" menu, just before send. */}
+						<DictationButton onTranscript={insertText} />
+						<SendButton
+							state={buttonState}
+							disabled={disabled}
+							busy={busy}
+							working={working}
+							hasContent={text.trim().length > 0 || attachments.length > 0}
+							sendWith={sendWith}
+							onSend={() => void send("submit")}
+							onStop={() => void stop()}
+						/>
+					</div>
 				</div>
 				<LinkDirectoriesDialog
 					open={linkDialogOpen}

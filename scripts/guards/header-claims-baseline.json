@@ -67,7 +67,6 @@
 		"apps/desktop/src/core/services/notifications.nav-11.test.ts": 1,
 		"apps/desktop/src/core/services/ports.test.ts": 1,
 		"apps/desktop/src/core/services/ports.ts": 1,
-		"apps/desktop/src/core/services/project-templates.ts": 1,
 		"apps/desktop/src/core/services/review.rev-04.test.ts": 1,
 		"apps/desktop/src/core/services/workspace-files.rev-07.test.ts": 1,
 		"apps/desktop/src/core/services/workspace.git-09.test.ts": 1,

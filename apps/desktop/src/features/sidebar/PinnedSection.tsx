@@ -21,7 +21,6 @@ import { cn } from "../../ui/cn.ts";
 import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { HeaderChevron, HeaderCount } from "./section-header.tsx";
-import { useNow } from "./use-now.ts";
 import {
 	draggedWorkspace,
 	useWorkspaceDrag,
@@ -51,7 +50,6 @@ export function PinnedSection({
 	const repos = useRepos();
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
-	const now = useNow();
 	const manualOrder = useSetting<boolean>("manual_workspace_order");
 	const [open, setOpen] = useState(true);
 	const order = workspaces.map((workspace) => workspace.id);
@@ -166,7 +164,6 @@ export function PinnedSection({
 												repo={repo}
 												selected={selectedId === workspace.id}
 												shortcutIndex={null}
-												now={now}
 												indent="pinned"
 											/>
 										)}

@@ -1,7 +1,7 @@
 /**
  * @feature NAV-05 Workspace card
- * Owns: one card in the Home grid: name, repository, branch, status and last activity, plus the
- * actions an archived card offers.
+ * Owns: one row of the Home list: status, name, line changes, project and last activity, plus the
+ * actions an archived row offers.
  * Behaviour: ui-map.md 2 (Home cards), 3.8 (status model), 4 (archived workspace actions:
  * "Unarchive workspace", "Clear & unarchive", "Open in Finder", "Copy path").
  * Measured from Conductor 0.92.1 (renderApp @10254031, @10251109, @10230874): one 44px row with 16px
@@ -10,15 +10,17 @@
  * muted) in a 160px column and the age (12px muted) in a 40px column. A merged pull request tints the
  * row and its text purple, a pull request ready to merge tints it green, one in the merge queue tints
  * it yellow, and a 1.5px bar of the same colour marks the row's left edge.
- * Our design choice: an active card is one link to the workspace. An archived card is not a link;
- * it offers Unarchive, Clear & unarchive, Open in Finder and Copy path, because the router refuses
- * to open an archived workspace. The status words and the branch stay as ours, in small muted text
- * after the name. Line changes and the pull request are read from the git state the app already has;
- * the row never starts a git read.
+ * Our design choice: an active row is one link to the workspace. An archived row is not a link, because
+ * the router refuses to open an archived workspace; it offers Unarchive, Clear & unarchive, Open in
+ * Finder and Copy path at its right end, drawn as Conductor draws the same actions on its unarchive
+ * toast (two small secondary buttons, then icon buttons named by tooltip, renderApp @12098182; D098).
+ * The row shows no status words or branch after the name, as Conductor's does not (D098). Line
+ * changes and the pull request are read from the git state the app already has; the row never starts
+ * a git read.
  * Must handle: an archived card (muted, with Unarchive instead of opening); a branch that is taken
  * or has moved (a dialog asks for a new branch name and keeps the "Clear & unarchive" choice); a
  * failure or lost uncommitted changes (the toasts from `runUnarchive`); a long name truncates;
- * status unknown (no status line); the whole active card is one link, so its buttons are never
+ * status unknown (no status icon); the whole active card is one link, so its buttons are never
  * nested links; keyboard focus ring.
  * Test first: an archived workspace's card shows an Unarchive button and does not link to the
  * workspace.
@@ -32,12 +34,12 @@ import type { PullRequest, Repo, Workspace } from "../../core/model.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
-import { GitBranchIcon } from "../../ui/icons.tsx";
+import { IconButton } from "../../ui/IconButton.tsx";
+import { CopyIcon, FolderIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { RepoIconMark } from "../sidebar/RepoIcon.tsx";
 import { compactCount, relativeTime } from "../sidebar/WorkspaceRow.tsx";
 import { RenameDialog } from "../workspace/RenameDialog.tsx";
-import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { runUnarchive } from "../workspace/workspace-actions.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
@@ -74,7 +76,7 @@ function ArchivedActions({ workspace }: { workspace: Workspace }) {
 	};
 
 	return (
-		<div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+		<div className="flex shrink-0 items-center gap-2">
 			<Button
 				variant="secondary"
 				size="xs"
@@ -85,7 +87,7 @@ function ArchivedActions({ workspace }: { workspace: Workspace }) {
 				Unarchive
 			</Button>
 			<Button
-				variant="ghost"
+				variant="secondary"
 				size="xs"
 				loading={busy === "clear"}
 				disabled={busy !== null && busy !== "clear"}
@@ -93,24 +95,24 @@ function ArchivedActions({ workspace }: { workspace: Workspace }) {
 			>
 				Clear & unarchive
 			</Button>
-			<Button
-				variant="ghost"
+			<IconButton
+				variant="secondary"
 				size="xs"
+				label="Open in Finder"
+				icon={<FolderIcon className="size-3.5" />}
 				onClick={() =>
 					run("Couldn't open the workspace in Finder", () =>
 						actions.workspaces.openIn(workspace.id, "Finder"),
 					)
 				}
-			>
-				Open in Finder
-			</Button>
-			<Button
-				variant="ghost"
+			/>
+			<IconButton
+				variant="secondary"
 				size="xs"
+				label="Copy path"
+				icon={<CopyIcon className="size-3.5" />}
 				onClick={() => run("Couldn't copy the path", () => actions.app.copyText(workspace.path))}
-			>
-				Copy path
-			</Button>
+			/>
 			<RenameDialog
 				open={branchPrompt !== null}
 				onOpenChange={(open) => {
@@ -164,7 +166,6 @@ const TONE_BAR: Record<RowTone, string> = {
 export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
 	const archived = isArchived(workspace);
-	const subtitle = statusText(status);
 	// Read only: the row shows what the git state already knows and never starts a git read.
 	const git = useGitState(workspace.id);
 	const sessions = useSessions(workspace.id);
@@ -205,15 +206,6 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 					{workspaceName(workspace)}
 				</span>
 				{archived ? <Badge>Archived</Badge> : null}
-				{subtitle.text === "" ? null : (
-					<span className={cn("shrink-0 text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
-						{subtitle.text}
-					</span>
-				)}
-				<span className="flex min-w-0 shrink items-center gap-1 text-xs text-fg-muted">
-					<GitBranchIcon className="size-3 shrink-0" />
-					<span className="truncate">{workspace.branch}</span>
-				</span>
 			</span>
 			{display.has("lineChanges") ? (
 				<span className="flex w-24 shrink-0 justify-end gap-1 font-mono text-xs font-medium">
@@ -254,9 +246,9 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 			<article
 				data-testid="home-workspace-card"
 				data-archived="true"
-				className="flex flex-col gap-2 border-b border-separator px-4 py-3 text-sm"
+				className="relative flex h-11 min-w-0 items-center gap-3 border-b border-separator px-4 text-sm"
 			>
-				<div className="relative flex min-w-0 items-center gap-3">{body}</div>
+				{body}
 				<ArchivedActions workspace={workspace} />
 			</article>
 		);

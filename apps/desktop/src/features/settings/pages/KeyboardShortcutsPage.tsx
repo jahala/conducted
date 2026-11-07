@@ -47,7 +47,7 @@ export function KeyboardShortcutsPage({
 	return (
 		<SettingsPageFrame
 			title="Keyboard shortcuts"
-			description="Every command and the keys that run it. Changes take effect at once."
+			description={null}
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>

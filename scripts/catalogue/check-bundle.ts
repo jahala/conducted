@@ -5,7 +5,7 @@
  * (only the catalogue uses sql.js), and the text the catalogue writes on every page
  * (`CATALOGUE_MARKER` in apps/desktop/src/catalogue/marker.ts) inside any built file.
  * `pnpm build` in apps/desktop runs it after `vite build`, so CI's build step and the release build
- * (scripts/release.ts, through Tauri's beforeBuildCommand) both stop on a catalogue in the bundle.
+ * (the release workflow, through Tauri's beforeBuildCommand) both stop on a catalogue in the bundle.
  *
  * Usage: bun scripts/catalogue/check-bundle.ts <build folder>
  */

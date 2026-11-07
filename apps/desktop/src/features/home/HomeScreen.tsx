@@ -7,7 +7,8 @@
  * renderApp @10272000-10278200: the toolbar sits in the title strip and the list has no heading),
  * 7.3 (loading skeleton with role="status"), 7.4 (error with retry).
  * Our design choice: owner filters, routine origin and team avatars are cloud features and are
- * left out. The "Home" title stays at the left of the strip (ours). Filters and sort are screen state, not saved settings, so leaving Home resets them.
+ * left out. The strip has no title and the pinned group no heading, as in Conductor (D098). Filters
+ * and sort are screen state, not saved settings, so leaving Home resets them.
  * Must handle: loading (skeleton cards with role="status"); error with retry; no workspaces;
  * filters that match nothing; Clear filters resets search, projects and the archived toggle while
  * leaving sort and Display alone; the archived filter (cards offer Unarchive, Open in Finder, Copy
@@ -130,7 +131,6 @@ function HomeContent({
 				<>
 					{page.pinned.length === 0 ? null : (
 						<section aria-label="Pinned" className="flex flex-col">
-							<h2 className="px-4 py-2 text-xs font-medium text-fg-muted">Pinned</h2>
 							<CardGrid
 								workspaces={page.pinned}
 								reposById={reposById}
@@ -140,9 +140,9 @@ function HomeContent({
 						</section>
 					)}
 					{page.items.length === 0 ? null : (
-						<section aria-label="All workspaces" className="flex flex-col">
+						<div className="flex flex-col">
 							<CardGrid workspaces={page.items} reposById={reposById} now={now} display={display} />
-						</section>
+						</div>
 					)}
 					{page.hasMore ? (
 						<div className="flex items-center gap-3 px-4 py-3">
@@ -193,7 +193,6 @@ export function HomeScreen() {
 				className="flex h-(--titlebar-height) shrink-0 items-center gap-2 border-b border-border pr-2 pl-4"
 			>
 				<TitleBarInset />
-				<h1 className="shrink-0 text-sm font-medium text-fg">Home</h1>
 				{repos.state === "ready" ? (
 					<HomeFilters
 						filters={filters}
