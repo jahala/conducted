@@ -56,6 +56,34 @@ const openInteraction = (service: SessionsService) =>
 	service.store.getState().openInteractions[sessionId];
 
 describe("CHAT-10 interactions", () => {
+	it("turns auto-accept edits on when the user allows all edits for the session", async () => {
+		const { service, calls } = harness((method) =>
+			method === "answerInteraction" ? ok({ accepted: true, superseded: false }) : ok({}),
+		);
+		service.requestInteraction(
+			request("i1", {
+				kind: "tool_approval",
+				toolName: "Edit",
+				toolUseId: "t1" as ToolUseId,
+				input: { file_path: "a.ts", old_string: "a", new_string: "b" },
+			} as InteractionRequest["interaction"]),
+		);
+
+		const result = await service.answer(
+			sessionId,
+			"i1" as InteractionId,
+			{
+				kind: "tool_approval",
+				decision: "allow_edits_for_session",
+			} as InteractionAnswer,
+		);
+
+		expect(result).toEqual(ok(undefined));
+		// The composer's chip reads this; the grant is also the chat's explicit choice (COMP-03).
+		expect(service.store.getState().autoAcceptEdits?.[sessionId]).toBe(true);
+		expect(calls.map((call) => call.method)).toEqual(["answerInteraction", "setAutoApproveEdits"]);
+	});
+
 	it("keeps the open question for the chat and sends the answer to the sidecar", async () => {
 		const { service, calls } = harness();
 		const pending = service.requestInteraction(request("i1"));

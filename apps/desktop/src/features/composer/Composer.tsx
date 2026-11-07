@@ -1,7 +1,7 @@
 /**
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
- * chips, ACP options, Remote Control (RC-02), context wheel, MCP status) and the send or stop
+ * chips, ACP options, the Remote Control chip (RC-02), context wheel, MCP status) and the send or stop
  * button.
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
@@ -12,8 +12,9 @@
  * from the bottom, and 12px from the right the MCP status, the context ring, "+", then stop and send,
  * 6px apart in a 28px row; a "⌘L to focus" pill at the top right while the editor is not focused.
  * Our design choice: Narrow composers (under 480px measured) move toolbar items into one 'More
- * composer actions' menu; wide ones show the MCP status button directly. Remote Control (RC-02) and
- * the ACP options are ours and sit in the same row.
+ * composer actions' menu; wide ones show the MCP status button directly. The ACP options are ours
+ * and sit after the model picker. Remote Control (RC-02, ours) is a "+" item and, while on, a chip
+ * after the mode chips, as Conductor shows "Auto-accept edits" (D098).
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
@@ -654,10 +655,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
 						<ModeChips sessionId={sessionId} />
 					</NotBuiltYet>
+					<RemoteControlButton sessionId={sessionId} />
 					<AcpOptions sessionId={sessionId} />
 				</div>
 				<div className="absolute right-3 bottom-3 flex h-7 shrink-0 items-center gap-1.5">
-					<RemoteControlButton sessionId={sessionId} />
 					{narrow ? (
 						<Menu>
 							<MenuTrigger asChild>

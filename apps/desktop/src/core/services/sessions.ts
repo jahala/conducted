@@ -221,6 +221,11 @@ export interface SessionsState {
 	acpConfigOptions?: Readonly<Record<string, Loadable<AcpConfigOption[]>>>;
 	/** A Claude chat's Remote Control link, as the sidecar last reported it (RC-02). */
 	remoteControl?: Readonly<Record<string, RemoteControlStatus>>;
+	/**
+	 * Claude chats whose edits run without asking: turned on by the approval card's "Allow all edits
+	 * during this session" or the composer's chip, off again from the chip or a reset (COMP-03).
+	 */
+	autoAcceptEdits?: Readonly<Record<string, boolean>>;
 	/** A Codex chat's goal, as the sidecar last reported it; null when it has none (COMP-10). */
 	goals?: Readonly<Record<string, CodexGoal | null>>;
 	openInteractions: Readonly<
@@ -1150,8 +1155,14 @@ export class SessionsService implements AgentMessenger {
 			answer,
 		});
 		if (!result.ok) return result;
-		if (result.value.accepted) this.#settleInteraction(interactionId, answer);
-		else if (result.value.superseded) {
+		if (result.value.accepted) {
+			this.#settleInteraction(interactionId, answer);
+			// The chip may have turned auto-accept off earlier, and that explicit choice outranks the
+			// answer's grant in the sidecar, so the grant is also sent as the chat's choice.
+			if (answer.kind === "tool_approval" && answer.decision === "allow_edits_for_session") {
+				return this.setAutoApproveEdits(sessionId, true);
+			}
+		} else if (result.value.superseded) {
 			this.#settleInteraction(interactionId, { kind: "withdrawn" });
 		} else {
 			return err(appError("interaction_not_accepted", "Could not send answers. Try again."));
@@ -2287,9 +2298,11 @@ export class SessionsService implements AgentMessenger {
 		if (!reset.ok) return reset;
 		// The sidecar forgets the chat's live state on reset and publishes no idle state, so the
 		// app clears it here instead of leaving the chat looking busy.
+		// The reset also clears the chat's "allow all edits" grant in the sidecar.
 		this.store.setState((state) => ({
 			liveStates: { ...state.liveStates, [id]: idleLiveState },
 			cancelling: { ...state.cancelling, [id]: false },
+			autoAcceptEdits: { ...(state.autoAcceptEdits ?? {}), [id]: false },
 		}));
 		const built = await launchFor(session);
 		if (!built.ok) return built;
@@ -2329,7 +2342,15 @@ export class SessionsService implements AgentMessenger {
 			sessionId: id,
 			enabled,
 		});
-		return result.ok ? ok(undefined) : result;
+		if (!result.ok) return result;
+		this.#setAutoAcceptEdits(id, enabled);
+		return ok(undefined);
+	}
+
+	#setAutoAcceptEdits(sessionId: SessionId, enabled: boolean): void {
+		this.store.setState((state) => ({
+			autoAcceptEdits: { ...(state.autoAcceptEdits ?? {}), [sessionId]: enabled },
+		}));
 	}
 
 	/**
