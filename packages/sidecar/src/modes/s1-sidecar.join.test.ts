@@ -69,7 +69,7 @@ import { createLogger, type Logger, type LogRecord } from "../logging/logger.ts"
 import type { AcpChild } from "../runners/acp/acp-client.ts";
 import type { JsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { cursorSdkFiles, FakeCursorRun, FakeCursorSdk } from "../test-support/cursor-fakes.ts";
-import { FakeApp } from "../test-support/fake-app.ts";
+import { DEFAULT_APP_REPLIES, FakeApp } from "../test-support/fake-app.ts";
 import { FakeChild, type JsonRpcMessage } from "../test-support/fake-child.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
@@ -203,6 +203,8 @@ async function harness(
 		acpOptions?: SessionConfigOption[];
 		files?: Map<string, string>;
 		skillPluginDir?: string;
+		/** The outbox's storage, when a test needs to slow its writes down. */
+		storage?: MemoryStorage;
 		/** Cursor's SDK, installed in the agent binaries folder the way the program manager leaves it. */
 		cursorSdk?: FakeCursorSdk;
 		/** The app's bin and managed programs folders, when a test lays out managed copies. */
@@ -268,7 +270,7 @@ async function harness(
 			findExecutable: async (name) => (name.includes("/") ? name : `/usr/bin/${name}`),
 			shellEnv: { get: async () => ok(captured), refresh: async () => ok(captured) },
 			runCheckpointer: async () => ({ exitCode: 1, stdout: "", stderr: "not a repository" }),
-			outboxStorage: new MemoryStorage(),
+			outboxStorage: options.storage ?? new MemoryStorage(),
 			makeTempDir: (prefix) => mkdtemp(path.join(tmpdir(), prefix)),
 			readText: async (file) => {
 				const own = options.files?.get(file);
@@ -389,6 +391,58 @@ function talkingClaude(): TalkingClaude {
 		say: (message) => {
 			if (current === null) throw new Error("No Claude session is running.");
 			current.push(message);
+		},
+	};
+}
+
+/**
+ * A Claude CLI that answers each message with a Bash call it asks permission for, as the SDK does:
+ * the tool_use message first, then canUseTool, then the result once the answer is in.
+ */
+function approvingClaude(): TalkingClaude {
+	const talking = talkingClaude();
+	return {
+		...talking,
+		query: (captured) => (params) => {
+			const options = params.options ?? {};
+			captured.push({ options });
+			const out = new AsyncQueue<SDKMessage>();
+			options.abortController?.signal.addEventListener("abort", () => out.close(), {
+				once: true,
+			});
+			void (async () => {
+				for await (const pushed of params.prompt) {
+					const input = { command: "touch approved.txt" };
+					out.push({
+						type: "assistant",
+						message: {
+							role: "assistant",
+							content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input }],
+						},
+						parent_tool_use_id: null,
+						session_id: "claude-session-1",
+						uuid: randomBytes(8).toString("hex"),
+					} as unknown as SDKMessage);
+					await options.canUseTool?.("Bash", input, {
+						signal: new AbortController().signal,
+						suggestions: [],
+						toolUseID: "toolu_1",
+					} as unknown as Parameters<NonNullable<Options["canUseTool"]>>[2]);
+					out.push(claudeResult(pushed.uuid ?? ""));
+				}
+				out.close();
+			})();
+			return {
+				[Symbol.asyncIterator]: () => out[Symbol.asyncIterator](),
+				interrupt: async () => {},
+				setModel: async () => {},
+				setPermissionMode: async () => {},
+				applyFlagSettings: async () => {},
+				supportedModels: async () => [],
+				supportedCommands: async () => [],
+				mcpServerStatus: async () => [],
+				getContextUsage: async () => ({ totalTokens: 0, maxTokens: 0 }),
+			} as unknown as Query;
 		},
 	};
 }
@@ -1049,6 +1103,47 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			expect(turnId).not.toBe("turn-1");
 			expect(events.every((event) => event.type !== "user_message")).toBe(true);
 			expect(events.every((event) => !("turnId" in event) || event.turnId === turnId)).toBe(true);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("SIDE-11 a tool approval reaches the app after the events that led to it", async () => {
+		const folder = await workspaceFolder();
+		// The tool call's write to the outbox takes many turns of the event loop, as a disk write
+		// can, so an approval sent without waiting for it would reach the app first.
+		const storage = new MemoryStorage();
+		storage.beforeWrite = async (text) => {
+			if (!text.includes("toolu_1")) return;
+			for (let turn = 0; turn < 50; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+		};
+		const h = await harness(folder, { claude: approvingClaude(), storage });
+		const sessionId = "session-1" as SessionId;
+		// What the app had received when the approval arrived.
+		let toolCallsSeenFirst: number | undefined;
+		h.app.beforeReply = async (method) => {
+			if (method !== "requestInteraction") return;
+			toolCallsSeenFirst = h.app
+				.notified("sessionEvent")
+				.filter(
+					(entry) =>
+						entry.event.type === "agent" &&
+						entry.event.message.items.some((item) => item.kind === "tool_call"),
+				).length;
+		};
+		h.app.reply = (method) =>
+			method === "requestInteraction"
+				? ok({ kind: "tool_approval", decision: "allow" })
+				: ok(DEFAULT_APP_REPLIES[method]());
+		try {
+			const sent = await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ requireToolApproval: true })),
+			);
+			expect(unwrap<{ deliveredAs: string }>(sent)).toEqual({ deliveredAs: "new_turn" });
+			await waitForIdle(h, sessionId);
+
+			expect(h.app.requested("requestInteraction")).toHaveLength(1);
+			expect(toolCallsSeenFirst).toBe(1);
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}
