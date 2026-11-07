@@ -15,6 +15,7 @@ import { hostFromRow } from "./workspaces.ts";
 
 let store: ReturnType<typeof openTestDatabase>;
 let repositories: Repositories;
+let nextId: number;
 
 /** node:sqlite binds `$1..$n` by name, so a positional list becomes `{ $1: ... }`. */
 const bind = (params: readonly unknown[]): Record<string, never> =>
@@ -23,9 +24,10 @@ const bind = (params: readonly unknown[]): Record<string, never> =>
 beforeEach(() => {
 	store = openTestDatabase();
 	store.raw.prepare(REPOS_SQL.insert).run(bind(repoToParams(sampleRepo)));
+	nextId = 0;
 	repositories = createRepositories(store.database, {
 		clock: { now: () => 1000 },
-		ids: { uuid: () => "ws-new" },
+		ids: { uuid: () => `ws-new-${++nextId}` },
 	});
 });
 
@@ -68,9 +70,9 @@ describe("CLOUD-01 migration 0009", () => {
 			setupLogPath: null,
 			host,
 		});
-		expect(created.ok).toBe(true);
+		if (!created.ok) throw new Error(created.error.message);
 
-		const read = await repositories.workspaces.get("ws-new" as typeof sampleWorkspace.id);
+		const read = await repositories.workspaces.get(created.value.id);
 
 		expect(read.ok && read.value?.host).toEqual(host);
 	});

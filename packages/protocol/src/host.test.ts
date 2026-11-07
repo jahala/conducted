@@ -29,5 +29,5 @@ test("the workspace context a chat is sent with carries its host", () => {
 		port: 55_000,
 	};
 	expect(zWorkspaceContext.safeParse(context).success).toBe(false);
-	expect(zWorkspaceContext.parse({ ...context, host: LOCAL_HOST }).host).toEqual(LOCAL_HOST);
+	expect(zWorkspaceContext.parse({ ...context, host: LOCAL_HOST }).host).toEqual({ kind: "local" });
 });

@@ -62,6 +62,7 @@ import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
+import { checkHost } from "./host.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import type { DiagnosticsCapture, Session } from "./model.ts";
 import { AgentCatalogService, agentKey, launchTakesKey } from "./services/agent-catalog.ts";
@@ -684,6 +685,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		if (!workspace.ok) return workspace;
 		if (workspace.value === null)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		checkHost(workspace.value.host, "git");
 		const repository = await repositories.repos.get(workspace.value.repoId);
 		if (!repository.ok) return repository;
 		if (repository.value === null)
@@ -753,7 +755,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.workspace(workspaceId);
 			return found.ok ? repo.loadConfig(found.value.repoId) : found;
 		},
-		workspaceFor: async (workspaceId) => lookups.workspace(workspaceId),
+		workspaceFor: async (workspaceId) => lookups.workspaceOn(workspaceId, "terminals"),
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
 		shell: platform.shell,
@@ -815,7 +817,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		keychain: platform.keychain,
 		fs: platform.fs,
 		workspacePathOf: async (id) => {
-			const found = lookups.workspace(id);
+			const found = lookups.workspaceOn(id, "files");
 			return found.ok ? ok(found.value.path) : found;
 		},
 		now: () => clock.now(),
@@ -939,7 +941,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			resolveReviewThread: (id, threadId) => github.resolveReviewThread(id, threadId),
 		},
 		workspacePathOf: async (id) => {
-			const found = lookups.workspace(id);
+			const found = lookups.workspaceOn(id, "git");
 			return found.ok ? ok(found.value.path) : found;
 		},
 		customPromptOf: async (id) => {
@@ -961,7 +963,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.workspace(workspaceId);
 			return found.ok ? repo.loadConfig(found.value.repoId) : found;
 		},
-		workspaceFor: async (workspaceId) => lookups.workspace(workspaceId),
+		workspaceFor: async (workspaceId) => lookups.workspaceOn(workspaceId, "terminals"),
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		stopRuns: (workspaceId) => runScripts.stopWorkspace(workspaceId),
 		openRepoTerminal: (repoId) => terminals.openForRepo(repoId),

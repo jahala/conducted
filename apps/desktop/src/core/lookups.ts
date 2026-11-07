@@ -5,7 +5,7 @@
  * Behaviour: services-map.md 1.4 (the workspace service's dependency object: path, branch,
  * target, repository root), frontend.md 6 (what the sidecar needs to place a chat on disk).
  * Must handle: an unknown workspace, chat or repository returns an Err with a stable code and
- * never throws; a repository whose config is not loaded yet returns `repo_config_unloaded`
+ * never throws, except at a cloud host's placeholder; a repository whose config is not loaded yet returns `repo_config_unloaded`
  * rather than a guessed remote; an empty or whitespace-only remote name means "origin"; the
  * lookups read the stores when called, never at construction, because the services are built in
  * dependency order and some stores do not exist yet.
@@ -18,6 +18,11 @@
  * Stores are passed as getters so construction order does not matter.
  * `defaultSessionConfig` builds a new chat's config from settings, including the Remote Control
  * switch for new chats (RC-04).
+ * CLOUD-01: every lookup that hands out a workspace's folder or context for a call (git, pull
+ * request, chat, file roots, a chat's folder, `workspaceOn`) checks the workspace's host first
+ * (core/host.ts), so no call for a cloud workspace runs on the Mac. The chat context carries the
+ * host to the sidecar. `workspace` itself is not checked: names, branches and states are shown for
+ * every workspace.
  * Test first: a repo whose config names "upstream" gives "upstream" to gitContext and prContext,
  * even when the workspace's target branch names "origin/dev".
  */
@@ -38,6 +43,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { StoreApi } from "zustand/vanilla";
+import { checkHost, type HostDoor } from "./host.ts";
 import type { Repo, Workspace } from "./model.ts";
 import { getSettingDef } from "./registries/settings.ts";
 import type { WorkspaceGitContext } from "./services/git.ts";
@@ -69,8 +75,10 @@ export interface Lookups {
 	prContext(id: WorkspaceId): Result<PrWorkspaceContext>;
 	/** What the sidecar needs to place a chat on disk. */
 	sidecarContext(id: WorkspaceId, userPreferences: string | undefined): Result<WorkspaceContext>;
-	/** Folder of the workspace a chat belongs to. */
+	/** Folder of the workspace a chat belongs to, for its file, git and agent calls. */
 	workspacePathOfSession(id: SessionId): Result<string>;
+	/** The workspace, once its host passes the check for `door` (CLOUD-01). */
+	workspaceOn(id: WorkspaceId, door: HostDoor): Result<Workspace>;
 	/** Workspace folder plus linked folders: where file tools may read and write. */
 	allowedRoots(id: WorkspaceId): Result<string[]>;
 }
@@ -100,6 +108,11 @@ export function createLookups(sources: LookupSources): Lookups {
 			? err(appError("repo_unknown", "That project was removed."))
 			: ok(repo);
 	};
+	/** The workspace, once its host passes the check for `door`. */
+	const hosted = (found: Result<Workspace>, door: HostDoor): Result<Workspace> => {
+		if (found.ok) checkHost(found.value.host, door);
+		return found;
+	};
 	const workspaceOfSession = (id: SessionId): Result<Workspace> => {
 		const session = sources.sessions().getState().sessions[id];
 		return session === undefined
@@ -119,7 +132,7 @@ export function createLookups(sources: LookupSources): Lookups {
 		workspaceOfSession,
 		remoteNameOf,
 		gitContext(id) {
-			const ws = workspace(id);
+			const ws = hosted(workspace(id), "git");
 			if (!ws.ok) return ws;
 			const repo = repoOf(id);
 			if (!repo.ok) return repo;
@@ -135,7 +148,7 @@ export function createLookups(sources: LookupSources): Lookups {
 			});
 		},
 		prContext(id) {
-			const ws = workspace(id);
+			const ws = hosted(workspace(id), "shell");
 			if (!ws.ok) return ws;
 			const repo = repoOf(id);
 			if (!repo.ok) return repo;
@@ -155,7 +168,7 @@ export function createLookups(sources: LookupSources): Lookups {
 			});
 		},
 		sidecarContext(id, userPreferences) {
-			const ws = workspace(id);
+			const ws = hosted(workspace(id), "sidecar");
 			if (!ws.ok) return ws;
 			const repo = repoOf(id);
 			if (!repo.ok) return repo;
@@ -172,11 +185,12 @@ export function createLookups(sources: LookupSources): Lookups {
 			});
 		},
 		workspacePathOfSession(id) {
-			const ws = workspaceOfSession(id);
+			const ws = hosted(workspaceOfSession(id), "files");
 			return ws.ok ? ok(ws.value.path) : ws;
 		},
+		workspaceOn: (id, door) => hosted(workspace(id), door),
 		allowedRoots(id) {
-			const ws = workspace(id);
+			const ws = hosted(workspace(id), "files");
 			return ws.ok ? ok([ws.value.path, ...ws.value.linkedPaths]) : ws;
 		},
 	};

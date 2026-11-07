@@ -20,6 +20,8 @@
  * ended, then to its saved screen, then to a plain sentence when neither exists; script files are
  * never written to disk (the command goes to the shell as arguments); a chat command with no text,
  * or a workspace that is archived or not ready, is refused with a reason and no spawn.
+ * CLOUD-01: a terminal, script or chat command checks the workspace's host before anything is
+ * spawned (core/host.ts); a cloud workspace's terminals belong to the cloud runtime (CLOUD-09).
  * Shell integration (RUN-09, native-and-sidecar-map.md A5 and D1, services-map.md 5A.4.6): an
  * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
  * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
@@ -75,6 +77,7 @@ import type { Loadable } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { checkHost } from "../host.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
 import { zshIntegrationDir } from "./shell-integration.ts";
 
@@ -904,6 +907,7 @@ export class TerminalsService {
 		if (workspace.value === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		checkHost(workspace.value.host, "terminals");
 		if (workspace.value.state !== "ready") {
 			return err(appError("workspace_not_ready", "Workspace is not ready for local terminals."));
 		}
@@ -1019,6 +1023,7 @@ export class TerminalsService {
 		if (workspace.value === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		checkHost(workspace.value.host, "terminals");
 		const folder = await this.#requireFolder(input.cwd);
 		if (!folder.ok) return folder;
 		const environment = await this.#withPathPrefix(input.env);
@@ -1348,6 +1353,7 @@ export class TerminalsService {
 		if (workspace.value === null) {
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		}
+		checkHost(workspace.value.host, "terminals");
 		if (workspace.value.state === "archived" || workspace.value.archivedAt !== null) {
 			return err(appError("workspace_archived", "This workspace is archived."));
 		}
