@@ -508,8 +508,8 @@ export interface Actions {
 		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
 	};
 	pullRequests: {
-		/** Asks the agent to open the PR, with written instructions. */
-		create: Act<[workspaceId: WorkspaceId]>;
+		/** Asks the agent to open the PR, with written instructions; `draft` asks for a draft PR. */
+		create: Act<[workspaceId: WorkspaceId, options: { draft: boolean }]>;
 		markReady: Act<[workspaceId: WorkspaceId]>;
 		merge: Act<[workspaceId: WorkspaceId]>;
 		setAutoMerge: Act<[workspaceId: WorkspaceId, enabled: boolean]>;

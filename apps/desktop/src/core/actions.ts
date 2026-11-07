@@ -135,7 +135,7 @@ export function createActions(
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
 		},
 		pullRequests: {
-			create: (workspaceId) => services.github.create(workspaceId),
+			create: (workspaceId, options) => services.github.create(workspaceId, options),
 			markReady: (workspaceId) => services.github.markReady(workspaceId),
 			merge: (workspaceId) => services.github.merge(workspaceId),
 			setAutoMerge: (workspaceId, enabled) => services.github.setAutoMerge(workspaceId, enabled),

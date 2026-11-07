@@ -317,7 +317,10 @@ export function GitPanel({
 		};
 		switch (action) {
 			case "create_pr":
-				return run(actions.pullRequests.create(workspaceId), "Couldn't create the pull request");
+				return run(
+					actions.pullRequests.create(workspaceId, { draft: false }),
+					"Couldn't create the pull request",
+				);
 			case "commit_and_push":
 				return run(
 					actions.git.commitAndPush(workspaceId),
