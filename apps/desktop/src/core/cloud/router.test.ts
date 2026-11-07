@@ -56,7 +56,8 @@ describe("CLOUD-03 the host-routed sidecar", () => {
 			launch: { executablePath?: string; providerKeys: Record<string, { value: string }> };
 		};
 		expect(sent.launch.providerKeys.ANTHROPIC_API_KEY?.value).toBe("provided-by-worker");
-		expect(sent.launch.executablePath).toBe("/usr/local/bin/claude");
+		// The sandbox image supplies its own managed programs (CLOUD-04), so no Mac path goes.
+		expect(sent.launch.executablePath).toBeUndefined();
 
 		await routed.request("sendMessage", {
 			workspace: { host: LOCAL },
@@ -72,5 +73,14 @@ describe("CLOUD-03 the host-routed sidecar", () => {
 	it("leaves a method without a launch alone", () => {
 		const params = { sessionId: "s1" };
 		expect(withoutProviderKeys("getSessionStatus", params)).toBe(params);
+	});
+
+	it("scrubs a cloud model list's launch, so no real key enters the sandbox", () => {
+		const sent = withoutProviderKeys("listModels", {
+			agent: "claude",
+			launch: launch("sk-real-cloud"),
+		}) as { launch: { executablePath?: string; providerKeys: Record<string, { value: string }> } };
+		expect(sent.launch.providerKeys.ANTHROPIC_API_KEY?.value).toBe("provided-by-worker");
+		expect(sent.launch.executablePath).toBeUndefined();
 	});
 });

@@ -1,11 +1,13 @@
 /**
  * @feature DATA-05 Settings store and settings files
  * @feature SET-14 Keep comments when the app rewrites a settings file
+ * @feature CLOUD-04 Sandbox image with git, gh, the agent programs and our sidecar
  * @feature SET-04 Environment variables, stored in the Keychain
  * Owns: reading and writing settings from their layers (registry default, the `settings` table,
  * `~/.conducted/settings.toml`, `.conducted/settings.toml`, `.conducted/settings.local.toml`),
- * deciding the effective value, and parsing the environment variable tables of a settings file
- * (names and markers). The Keychain values behind those names belong to SET-04.
+ * deciding the effective value, parsing the environment variable tables of a settings file
+ * (names and markers), and parsing settings text that came from a git ref in a cloud repo's shared
+ * clone (CLOUD-04). The Keychain values behind those names belong to SET-04.
  * Behaviour: services-map.md 4.2.1 (layers and precedence), 4.2.2 (scopes), 4.2.4 (settings.toml
  * schema, named actions, env var sections), ui-map.md 6, 5A.1.6 (named actions and their ids),
  * 2.5.2 (config reload on focus and every 30 s).
@@ -34,6 +36,7 @@
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
  * SET-14 test first: saving one setting into a hand-written file changes only that value's text.
+ * CLOUD-04 test first: a cloud repo reads the shared settings from the clone's branch.
  */
 import {
 	type AppError,
@@ -1153,6 +1156,18 @@ export class SettingsService {
 	async readSettingsFile(path: string): Promise<Result<SettingsFileContents>> {
 		const read = await this.#readFile(path);
 		return read.ok ? ok(read.value.contents) : read;
+	}
+
+	/**
+	 * Reads settings text that came from somewhere other than a file on disk, such as a git ref in
+	 * a cloud repo's shared clone (CLOUD-04). `file` is the source path shown with the values.
+	 */
+	readSettingsText(text: string, file: string): Result<SettingsFileContents> {
+		const parsed = this.#deps.toml.parse(text);
+		if (!parsed.ok) {
+			return err(appError("settings_file_invalid", SETTINGS_FILE_INVALID_MESSAGE, parsed.error));
+		}
+		return ok(parseSettingsDocument(parsed.value, file));
 	}
 
 	/**

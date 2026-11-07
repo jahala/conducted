@@ -134,4 +134,23 @@ describe("GIT-01 git command catalogue", () => {
 			"origin/main:.conducted/settings.toml",
 		]);
 	});
+
+	it("reads a cloud repo's shared clone: set-head, one branch fetch and ls-tree", () => {
+		expect(c.remoteSetHead("origin").args).toEqual(["remote", "set-head", "origin", "--auto"]);
+		const fetch = c.fetchBranchIntoRemoteRef("origin", "main");
+		expect(fetch.args).toEqual([
+			"fetch",
+			"--no-write-fetch-head",
+			"--",
+			"origin",
+			"refs/heads/main:refs/remotes/origin/main",
+		]);
+		expect(fetch.network).toBe(true);
+		expect(c.lsTreeFileAt("origin/main", ".conducted/settings.toml").args).toEqual([
+			"ls-tree",
+			"origin/main",
+			"--",
+			".conducted/settings.toml",
+		]);
+	});
 });

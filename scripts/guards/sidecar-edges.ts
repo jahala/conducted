@@ -41,6 +41,10 @@ export const ALLOWED_EDGE_MODULES = new Map<string, string>([
 	["packages/sidecar/src/util/read-text.ts", "the read-a-text-file helper"],
 	["packages/sidecar/src/main.ts", "the entry point reads the launcher environment once"],
 	["packages/sidecar/src/packaging.ts", "build-time packaging, not the sidecar process"],
+	[
+		"packages/sidecar/src/cloud-build.ts",
+		"build-time packaging for the cloud image, not the sidecar process",
+	],
 ]);
 
 const EDGE_IMPORT =

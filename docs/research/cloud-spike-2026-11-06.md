@@ -173,8 +173,8 @@ From `spike/cloud`:
 
 The first build of the cloud rows, run on the same account and with the same `basic` instance, to
 show that the Worker and its Durable Object carry the desktop's own git, shell, file and chat calls.
-The Worker is `apps/cloud`; the sandbox image is the spike image above, carried into
-`apps/cloud/container` until CLOUD-04 builds the product's image. The driver built the desktop's
+The Worker is `apps/cloud`; the product sandbox image is `apps/cloud/sandbox` (CLOUD-04). This run
+used the spike image that preceded it; the product image replaced that carrier. The driver built the desktop's
 real container (`createContainer`, the git service and the sessions service) over the Platform's
 `cloud` group; the Rust relay was replaced in the driver by the `ws` package, because the driver
 runs in Node.
@@ -192,15 +192,32 @@ runs in Node.
 Three findings the spike did not have, all fixed before the run passed:
 
 1. The current sidecar requires `CONDUCTED_AGENT_BINARIES_DIR`; the spike image's environment did
-   not set it, so the sidecar refused to start. The Worker's container environment now sets it and
-   the bridge creates the folder.
+   not set it, so the sidecar refused to start. The Worker's container environment sets the product
+   image's `/opt/conducted/agent-binaries`, and the entry creates the writable folders.
 2. The WebSocket relay must frame one JSON-RPC message per line before the sidecar's Unix socket.
    The spike driver added the newline itself; the desktop's tunnel leaves framing to the transport,
    so the Rust relay now appends it and the cloud transport splits incoming frames on newlines.
-3. The spike image installs Claude Code at `/usr/local/bin/claude`, not in the sidecar's managed
-   program folder. A cloud launch therefore names that path until CLOUD-04 installs the managed
-   copy.
+3. The spike image installed Claude Code at `/usr/local/bin/claude`, not in the sidecar's managed
+   program folder. CLOUD-04's product image installs the managed copies, so a cloud launch now
+   carries no Mac path at all.
 
 Everything the run created was deleted: Worker `conducted-dev-cloud03-1107`, its container
 application `conducted-cloud-sandbox`, the image `wrangler-mw68dv5s` and the Worker's secrets. The
 container was left stopped, so no sandbox billed after the run.
+
+## Follow-up: the product image (CLOUD-04, 2026-11-07)
+
+Built `apps/cloud/sandbox/Dockerfile` on this Mac with `nice -n 10 docker build --platform linux/amd64`, started it, ran the checks below inside it, then removed the container (`a2bd5306cff8`, stopped and removed by id) and the image (`sha256:18184a9b383a…`, removed by id).
+
+| Check, inside the running container         | Output                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `git --version`                             | `git version 2.47.3`                                          |
+| `gh --version`                              | `gh version 2.100.0 (2026-09-03)`                             |
+| `claude --version`                          | `2.1.308 (Claude Code)`                                       |
+| `codex --version`                           | `codex-cli 0.164.0`                                           |
+| one JSON-RPC request through the entry      | `{"jsonrpc":"2.0","id":1,"result":{"known":false}}`           |
+
+- **Image size:** 595,921,691 bytes (596 MB decimal) as `docker image inspect` reports it.
+- **Managed paths:** `claude`, `codex` and `gh` sit at `/opt/conducted/agent-binaries/<program>/<version>/<program>`, with links in `/opt/conducted/bin`, which is first on PATH.
+- **The sidecar's health:** the entry's `/health` went from 503 to 200 after 3.2 s; the sidecar itself was ready 3.1 s after the entry started, under this Mac's amd64 emulation.
+- **Emulation note, not an image defect:** `gh --version` crashed in Go's regexp setup under Docker's QEMU (`sigsegv` in `regexp.mergeRuneSets`). With `GODEBUG=asyncpreemptoff=1` it printed the version above. The variable is a QEMU workaround and is not baked into the image; Cloudflare's containers run real amd64.

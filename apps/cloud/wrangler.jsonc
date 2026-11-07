@@ -18,7 +18,7 @@
 			"class_name": "Workspace",
 			"scheduling_policy": "durable_object",
 			"images": {
-				"sandbox": { "dockerfile": "./container/Dockerfile" }
+				"sandbox": { "dockerfile": "./sandbox/Dockerfile" }
 			}
 		}
 	],

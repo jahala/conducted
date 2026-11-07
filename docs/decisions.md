@@ -483,13 +483,24 @@ Chosen:
 - **Turn state comes from the relay.** The Durable Object sets a keep-alive alarm when a `sendMessage` request passes through and clears it on the sidecar's `liveState: idle`. While a turn runs the alarm touches the sandbox's `/health` every 60 seconds, which resets the container's inactivity timer. This is the signal the spike said was missing; it needs no second channel from the sandbox.
 - **One pairing token per Mac.** It is stored in the Keychain under `cloud-pairing-token` and read by Rust; the web view never sees it. CLOUD-07 owns the pairing flow and may make it per Worker.
 - **A cloud workspace's folder is its absolute path inside the sandbox.** The same string is the `cwd` the Worker receives and the folder the sidecar is given; a cloud workspace's repository root is that folder too. Workspace creation in the cloud (CLOUD-08) must therefore give each cloud workspace a unique sandbox path.
-- **A cloud launch carries no secret and no Mac program path.** The router replaces every provider key with `provided-by-worker` and drops `executablePath`; the Worker's outbound handler swaps the real key for the model API. Until CLOUD-04 installs the managed programs in the image, a Claude launch names `/usr/local/bin/claude`, where the spike image puts it.
+- **A cloud launch carries no secret and no Mac program path.** The router replaces every provider key with `provided-by-worker` and drops `executablePath`, so the sandbox's sidecar finds the product image's managed Claude Code, Codex and gh (CLOUD-04). The Worker's outbound handler swaps the real key for the model API.
 - **A cloud "trash" removes the file**, because a sandbox has no macOS Trash. The file commands in the Worker use the Sandbox SDK's own operations.
 - **The Worker's tests run in workerd without a container.** `@cloudflare/vitest-plugin` exercises the token, the routes, the Durable Object's state and alarm, and the relay's turn reading. Container-backed route execution needs the image and Docker, so the live run above is its verification until CLOUD-04's image has a CI job.
 - **The relay frames lines.** The Rust relay appends the newline and the cloud transport splits incoming frames on newlines, because the sidecar's Unix socket speaks NDJSON and the WebSocket does not.
 - **The doors CLOUD-03 does not own keep their own row's placeholder.** A cloud workspace's file search stops at CLOUD-11, Open in at CLOUD-12, and archive, unarchive and delete at CLOUD-08, each through the same `checkHost` check that stops terminals at CLOUD-09. The alternative was letting those calls reach the Mac with a sandbox path, which D092 forbids and which would run the wrong operation on the wrong machine.
 
 Why: each choice either uses the spike's own finding or is the smallest thing that makes the desktop's existing calls work unchanged. The live run on the owner's account passed with these choices (numbers in the research note).
+
+## D102. The sandbox's setup scripts may reach these package hosts (2026-11-07)
+
+Proposed by the CLOUD-04 PR; not yet ruled on by the owner.
+Context: `cloud-and-remote.md` Part 1 says the outbound allow-list holds "the package registries the setup script needs", and the CLOUD-02 spike found npm refused (403) inside the sandbox. Neither the plan nor the research names a registry, and Conductor's cloud is not in the research, so there is no reference list to copy (D002: report the gap).
+Chosen: `apps/cloud/sandbox/package-allow-list.ts` holds one sorted list of exact host names: npm's and Yarn's registry, PyPI and its file host, crates.io's index and download host, RubyGems, the Go module proxy and checksum database, Maven Central's two hosts, NuGet, Composer's Packagist, and Debian's apt hosts. Matching lowercases the name and removes one trailing root dot; it is exact, so a subdomain or a look-alike suffix does not pass. The Worker's outbound handler (CLOUD-05) adds GitHub and the model gateway and reads this list.
+Why: a setup script must be able to install the project's dependencies, and data keeps the answer in one place. The list is our choice; it can grow when a real setup script needs another host.
+
+### CLOUD-04's extra-software checklist item is not built
+
+The checklist item "The sandbox image can include extra installed software chosen in settings" cites `ui-map.md` section 6, where the control lives on the Organization > Cloud computer page ("Install software", "Build computer"). That is an organization (team) setting, and D004 and D018 keep organizations and team features out. The image therefore has no software-install setting; a setup script installs software in the sandbox instead, subject to the hosts above.
 
 ## D103. The host has one home on the workspace; cloud rows follow it by reference (2026-11-07)
 

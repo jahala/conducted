@@ -12,6 +12,7 @@ import type {
 	AgentLogin,
 	AgentProvider,
 	FileChange,
+	Host,
 	InteractionAnswer,
 	ModelInfo,
 	SessionConfig,
@@ -274,7 +275,7 @@ export interface Queries {
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
 	useSetting<T>(key: string): T;
 	useAgentInstalls(): Loadable<AgentInstall[]>;
-	useModels(agent: AgentKind, acpAgent?: AcpAgent): Loadable<ModelInfo[]>;
+	useModels(agent: AgentKind, acpAgent?: AcpAgent, host?: Host): Loadable<ModelInfo[]>;
 	useSlashCommands(sessionId: SessionId): Loadable<SlashCommand[]>;
 	useCommands(): CommandEntry[];
 	useUpdateStatus(): UpdateStatus;
