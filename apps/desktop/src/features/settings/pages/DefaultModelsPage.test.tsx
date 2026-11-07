@@ -146,6 +146,77 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 	});
 
+	/** A drag's data, as a browser keeps it between dragstart and drop. */
+	const dragData = (dropEffect: string) => {
+		const data = new Map<string, string>();
+		return {
+			setData: (type: string, value: string) => data.set(type, value),
+			getData: (type: string) => data.get(type) ?? "",
+			get types() {
+				return [...data.keys()];
+			},
+			effectAllowed: "move",
+			dropEffect,
+		};
+	};
+
+	it("takes a model out of the loadout when its slot is dropped outside the slots", async () => {
+		const { container } = await renderPage();
+		fireEvent.click(
+			within(screen.getByRole("region", { name: "Codex" })).getByRole("button", {
+				name: "Add GPT to loadout",
+			}),
+		);
+		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
+
+		// WebKit, the engine of the app's window, reports a drop's effect unlike Chromium, so the
+		// drop on the page is what takes the model out, not the effect dragend reports.
+		const transfer = dragData("move");
+		fireEvent.dragStart(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		const heading = screen.getByRole("heading", { name: "Default models" });
+		fireEvent.dragOver(heading, { dataTransfer: transfer });
+		fireEvent.drop(heading, { dataTransfer: transfer });
+		fireEvent.dragEnd(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+
+		await waitFor(() =>
+			expect(container.services.favoriteModels.store.getState().favorites).toEqual([]),
+		);
+	});
+
+	it("keeps the model when a slot's drag is cancelled with no drop", async () => {
+		const { container } = await renderPage();
+		fireEvent.click(
+			within(screen.getByRole("region", { name: "Codex" })).getByRole("button", {
+				name: "Add GPT to loadout",
+			}),
+		);
+		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
+
+		const transfer = dragData("none");
+		fireEvent.dragStart(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		fireEvent.dragEnd(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(
+			container.services.favoriteModels.store
+				.getState()
+				.favorites.map((entry) => entry.config.model),
+		).toEqual(["gpt"]);
+	});
+
+	it("opens a slot's choices on the click, never on the press that may start a drag", async () => {
+		await renderPage();
+		const trigger = within(slot(1)).getByRole("button");
+
+		fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+		expect(screen.queryByRole("menu", { name: "Slot 1" })).toBeNull();
+
+		fireEvent.click(trigger, { detail: 1 });
+		expect(await screen.findByRole("menu", { name: "Slot 1" })).toBeTruthy();
+	});
+
 	it("changes the default model from its slot, and disables fast mode the model lacks", async () => {
 		const { container } = await renderPage();
 		const trigger = within(slot(1)).getByRole("button");
