@@ -37,7 +37,9 @@
  * helpers keep a registry of their own so screens that have not moved to the provider still work; the
  * container owning that registry is APP-01's change.
  * Our design choice: menu accelerators are the live first binding in Tauri's syntax, so a rebind changes
- * the menu bar without a second table. Every deep link goes to the caller's `onDeepLink` opener, which
+ * the menu bar without a second table. The Rust shell keeps Cmd+Q and Cmd+, fixed (menu.rs's
+ * FIXED_MENU_IDS); the dispatcher leaves those commands out, so Rust keeps their accelerators and never
+ * reports them as rejected. Every deep link goes to the caller's `onDeepLink` opener, which
  * NAV-17 owns; without one the link is reported to the log rather than parsed in a second place. A link the
  * Rust shell refused before any parser saw it (over 64 KiB, PLAT-16) shows "Invalid deep link", the
  * toast Conductor shows for a link it cannot read, and the reason goes to the app log.
@@ -423,18 +425,27 @@ export function liveBinding(
 	return shortcut === undefined ? null : swappedShortcut(command.id, shortcut, sendKeyMode);
 }
 
+/**
+ * Menu items whose key the user cannot change (ui-map 5.4). The Rust shell keeps their accelerators
+ * fixed and refuses a binding for one, so the dispatcher never sends them. Rust's `FIXED_MENU_IDS`
+ * in apps/desktop/src-tauri/src/menu.rs names the same commands.
+ */
+export const FIXED_MENU_COMMAND_IDS: readonly string[] = ["app.quit", "app.openSettings"];
+
 /** The menu accelerators in Tauri's syntax. Unbound commands send null, which clears the item. */
 export function menuShortcuts(
 	overrides: ShortcutOverrides = {},
 	sendKeyMode: SendKeyMode = "enter",
 ): MenuShortcut[] {
-	return COMMANDS.map((command) => {
-		const live = liveBinding(command.id, overrides, sendKeyMode);
-		return {
-			commandId: command.id,
-			accelerator: live === null ? null : toAccelerator(live),
-		};
-	});
+	return COMMANDS.filter((command) => !FIXED_MENU_COMMAND_IDS.includes(command.id)).map(
+		(command) => {
+			const live = liveBinding(command.id, overrides, sendKeyMode);
+			return {
+				commandId: command.id,
+				accelerator: live === null ? null : toAccelerator(live),
+			};
+		},
+	);
 }
 
 function toAccelerator(spec: string): string | null {
