@@ -78,8 +78,6 @@ export const zTurnEndedEvent = z.object({
 	turnId: zTurnId,
 	outcome: z.enum(["success", "error", "cancelled", "interrupted"]),
 	error: z.string().optional(),
-	/** Set by the data-lifetime job (DATA-02) when this turn's large tool outputs were cut. */
-	compacted: z.boolean().optional(),
 });
 
 export const zSessionEvent = z.discriminatedUnion("type", [
