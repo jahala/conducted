@@ -473,3 +473,28 @@ registry image `conducted-dev-c10-1536-workspace-sandbox:wrangler-mw6kgk19`
 `wrangler containers list`, `containers images list` and `r2 bucket list` hold no
 `conducted-dev-c10` entry, and `docker images` holds none. The token and run files under `/tmp`
 and the `apps/cloud/sandbox/build/` folder were trashed.
+
+## CLOUD-17's live attempt (2026-11-07): blocked by Cloudflare's outage
+
+Two throwaway deployments ran with `@cloudflare/sandbox` 1.0.3 and the product image from `apps/cloud/sandbox/Dockerfile`, through a temporary `wrangler.jsonc` with a unique Worker, container application and R2 bucket. No MCP credential was needed: the one server was `context7` with no auth.
+
+What the first deployment showed (Worker `conducted-dev-c17m-183243`):
+
+- A cold start after the deploy: 9,779 ms to the sidecar's health answer, with the sidecar itself ready 478 ms after the entry process started. A warm start was 3 ms.
+- The personal cloud settings route saved the server, and the sandbox's sidecar listed it from Claude's MCP status: `{ name: "context7", transport: "http", status: "pending" }` in 403 ms. The status was `pending`, not `connected`, so the conversation with the server had not completed when the query answered.
+- `claude mcp list` run inside the sandbox exited 0 but printed "No MCP servers configured": the CLI's `mcp list` subcommand does not read a dynamic `--mcp-config` entry.
+- After the first `stop` (which saved `/workspace` and `/root/.claude` to R2), every later `start` failed: one answered `sandbox-shim returned truncated control data`, and later starts hung beyond 240 s.
+
+A second, fresh deployment (Worker `conducted-dev-c17m-185427`, current code with the MCP server set and with none) hung on every start past 240 s. `cloudflarestatus.com` at the time reported "Partial System Outage", with North America, Europe and several other regions at `major_outage` and the platform at `degraded_performance`. The same hang came from the first deployment's image, which had started minutes earlier, so the failure follows the platform, not the image.
+
+Not verified: one MCP server reachable from an agent in a real sandbox. The Worker's settings-to-sandbox path and the MCP registration were observed; the connection and a tool call were not.
+
+Resources deleted after the attempt (checked empty by `wrangler containers list`, `wrangler containers images list`, `wrangler r2 bucket list` and `docker images`):
+
+- Workers `conducted-dev-c17m-183243`, `conducted-dev-c17m-185427` and the temporary `conducted-dev-c17m-cleanup`.
+- Container applications `conducted-dev-c17m-183243-sandbox` (`da2494466e334ec4b256fe8fbb388f28`) and `conducted-dev-c17m-185427-sandbox` (`06082a422efd491da4db0e50d07dcba0`).
+- Images `conducted-dev-c17m-183243-workspace-sandbox:wrangler-mw6qr53b` (`256b324532ee…`), `…:wrangler-mw6qzrsm` and `conducted-dev-c17m-185427-workspace-sandbox:wrangler-mw6rj079` (`e67aad491dbf…`).
+- R2 buckets `conducted-dev-c17m-183243-backups` (9 objects: the settings object and 8 workspace backups) and `conducted-dev-c17m-185427-backups` (1 object: the settings object).
+- Local Docker images `256b324532ee…` and `e67aad491dbf…`, and the temporary folders and image inputs on this Mac.
+
+Two local tools were created for the attempt and removed: `/tmp/c17m-live`, `/tmp/c17m-live2`, `/tmp/c17m-cleanup` and `apps/cloud/sandbox/build/`.
