@@ -88,7 +88,7 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			newChat(
 				world,
 				({ document }) => typeInComposer(document, "/"),
-				(document) => shows(document, "Compact the context window"),
+				(document) => shows(document, "Manage hooks (opens terminal)"),
 			),
 	},
 	{
