@@ -636,12 +636,10 @@ Why: the tunnel reuses the connection the Worker already authenticates and the R
 ## D114. What CLOUD-09's finish leaves out because Conductor's service or organisation owns it (2026-11-07)
 
 Proposed by the CLOUD-09 PR; not yet ruled on by the owner.
-Context: CLOUD-09's checklist was generated from `ui-map.md` sections 3.2 and 3.7 and `services-map.md` 5A.1 and 5A.4. Three remaining items describe states that only exist inside Conductor's hosted cloud or its organisation permissions, so no self-hosted Worker on the user's own account can produce them. Every other item was built or named its owning row.
+Context: CLOUD-09's checklist was generated from `ui-map.md` sections 3.2 and 3.7 and `services-map.md` 5A.1 and 5A.4. Two remaining items describe states that only exist inside Conductor's hosted cloud or its organisation permissions, so no self-hosted Worker on the user's own account can produce them. Every other item was built or named its owning row; the Rust-side PTY mirror commands are not built because D108 chose a JS text mirror instead, and that is recorded there.
 
 Chosen:
 
 - **A preview gets no hostname of its own.** Conductor's hosted service gives a cloud preview a separate hostname, which the spike named as the isolation it could not meet. Here a preview is a capability path under the user's Worker (D108). A hostname per preview needs a custom domain with a wildcard route in the user's Cloudflare account; the deploy flow asks for none, and inventing a domain would not work on an account that has not added one.
 - **The read-only workspace refusal is not built.** Conductor refuses a cloud terminal and a cloud run in a read-only workspace ("Terminal unavailable in read-only workspaces", services-map 5A.4.5), and read-only is a permission its organisation gives a member. D004 and D018 keep organisations, accounts and permission levels out, so a Conducted cloud workspace has no read-only state to refuse. A future row that adds permissions would add the refusal with them.
-- **Conductor's Rust-side PTY mirror commands are not built.** `pty_create_mirror`, `pty_write_mirror`, `pty_resize_mirror` and `pty_delete_mirror` keep a VT screen inside the Rust shell for `getScreenText` and cold restore. This app keeps a bounded text mirror in the cloud terminal's own code instead (D108), so the desktop renderer's screen remains the real one and the Rust shell needs no second terminal mirror.
-
 Why: each item is a fact of Conductor's own cloud service or its organisation model, not of a Worker a user deploys. Building a substitute would be made up; naming them keeps the gap visible.
