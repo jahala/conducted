@@ -13,6 +13,7 @@ import type {
 	AgentMessage,
 	Interaction,
 	InteractionAnswer,
+	ModelInfo,
 	RemoteControlStatus,
 	SessionConfig,
 	WorkspaceContext,
@@ -263,6 +264,23 @@ function taskStarted(taskId: string, description: string, taskType = "local_bash
 		uuid: "task-uuid",
 		session_id: "s1",
 	} as unknown as SDKMessage;
+}
+
+/** A catalog entry as the model catalog hands it to a chat's start (SIDE-14). */
+function catalogModel(id: string, adaptiveThinking: boolean): ModelInfo {
+	return {
+		id,
+		label: id,
+		status: "picker",
+		isNew: false,
+		isDefault: false,
+		efforts: ["low", "medium", "high", "xhigh", "max"],
+		defaultEffort: "high",
+		effortAxis: "effort",
+		liveEffortChange: true,
+		supportsFastMode: false,
+		adaptiveThinking,
+	};
 }
 
 function config(): SessionConfig {
@@ -1215,6 +1233,71 @@ describe("AGENT-02 Claude session", () => {
 
 			expect(result).toBe("applied");
 			expect(script.actions.flags).toEqual([{ effortLevel: "low" }]);
+			await session.dispose();
+		});
+
+		test("AGENT-16 a model without adaptive thinking starts with a thinking budget", async () => {
+			const { query, script } = scriptedQuery();
+			const looked: string[] = [];
+			const session = new ClaudeSession(
+				makeDeps({ query }),
+				{
+					...start(),
+					lookUpModel: async (model) => {
+						looked.push(model);
+						return catalogModel(model, false);
+					},
+				},
+			);
+			await session.warm();
+
+			expect(looked).toEqual(["claude-sonnet-5"]);
+			expect(script.options?.thinking).toEqual({
+				type: "enabled",
+				budgetTokens: 16_000,
+				display: "summarized",
+			});
+			await session.dispose();
+		});
+
+		test("AGENT-16 an effort change on a model without adaptive thinking restarts for its new budget", async () => {
+			const { query, script } = scriptedQuery();
+			script.models = [
+				{
+					value: "claude-sonnet-5",
+					displayName: "Sonnet",
+					description: "",
+					supportsEffort: true,
+					supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+				},
+			];
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				lookUpModel: async (model) => catalogModel(model, false),
+			});
+			await session.warm();
+
+			const result = await session.applyConfig({ ...config(), effort: "low" });
+
+			expect(result).toBe("restart");
+			expect(script.actions.flags).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("AGENT-16 a live model change to one without adaptive thinking restarts", async () => {
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				lookUpModel: async (model) => catalogModel(model, model === "claude-adaptive"),
+			});
+			await session.applyConfig({ ...config(), model: "claude-adaptive" });
+			await session.warm();
+			expect(script.options?.thinking).toEqual({ type: "adaptive", display: "summarized" });
+
+			const result = await session.applyConfig({ ...config(), model: "claude-sonnet-5" });
+
+			expect(result).toBe("restart");
+			expect(script.actions.models).toHaveLength(0);
 			await session.dispose();
 		});
 

@@ -100,6 +100,13 @@ export interface StartOptions {
 	 * not a separate onEnterPlanMode callback.
 	 */
 	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
+	/**
+	 * The model catalog's entry for a model of this agent, read with the chat's launch (SIDE-14).
+	 * Undefined when the catalog does not list the model or cannot be read. The Claude runner reads
+	 * from it whether the model thinks adaptively (AGENT-16). The session manager passes it for
+	 * every chat; it reads the catalog only when called.
+	 */
+	lookUpModel?: (model: string) => Promise<ModelInfo | undefined>;
 	/** Codex only: a goal changed by the agent or by a `/goal` message (AGENT-13). */
 	onGoalEvent?: (event: GoalEvent) => void;
 	/**

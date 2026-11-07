@@ -74,9 +74,25 @@ function claudeInit(): Json {
 		agents: [],
 		output_style: "default",
 		available_output_styles: ["default"],
+		// The SDK's ModelInfo says per model whether it thinks adaptively. The scenarios' model,
+		// `sonnet`, is the one Conductor's catalog maps to Sonnet 4.6 without adaptive thinking.
 		models: [
 			{ value: "default", displayName: "Default", description: "The recommended model" },
-			{ value: "claude-opus-5", displayName: "Opus", description: "The largest model" },
+			{
+				value: "claude-opus-5",
+				displayName: "Opus",
+				description: "The largest model",
+				supportsAdaptiveThinking: true,
+			},
+			{
+				value: "sonnet",
+				resolvedModel: "claude-sonnet-4-6",
+				displayName: "Sonnet 4.6",
+				description: "A model without adaptive thinking",
+				supportsEffort: true,
+				supportedEffortLevels: ["low", "medium", "high", "max"],
+				supportsAdaptiveThinking: false,
+			},
 		],
 		account: { email: "fake@example.invalid", subscriptionType: "max", apiProvider: "firstParty" },
 	};
