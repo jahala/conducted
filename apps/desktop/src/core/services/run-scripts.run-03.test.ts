@@ -69,6 +69,7 @@ const action: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
 const config: RepoConfig = {

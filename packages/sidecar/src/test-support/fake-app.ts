@@ -69,6 +69,7 @@ export const DEFAULT_APP_REPLIES: {
 	addDiffComments: () => ({ added: 0 }),
 	getTerminalOutput: () => ({ output: "", source: "auto", running: false }),
 	setTargetBranch: () => ({ ok: true, message: "" }),
+	runLocalCommand: () => ({ code: 0, stdout: "", stderr: "" }),
 };
 
 interface HeldRequest {

@@ -650,7 +650,12 @@ describe("RUN-02 the run list", () => {
 				hidden: false,
 				icon: "lamp-desk",
 				origin: "local",
+				availableIn: ["local"],
 			},
 		]);
+	});
+
+	it("leaves Spotlight out of a cloud workspace's run list", () => {
+		expect(runListFor(baseConfig({ spotlightTesting: true }), "cloud")).toEqual([]);
 	});
 });

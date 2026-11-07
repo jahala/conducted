@@ -13,6 +13,7 @@ const emptyDraft: ActionDraft = {
 	cwd: "",
 	icon: null,
 	isDefault: false,
+	availableIn: ["local", "cloud"],
 };
 
 function renderDialog(
@@ -67,7 +68,33 @@ describe("SET-07 AddActionDialog", () => {
 			cwd: "packages/app",
 			icon: null,
 			isDefault: false,
+			availableIn: ["local", "cloud"],
 		});
+	});
+
+	it("saves where the action can run", async () => {
+		const { onSave } = renderDialog();
+		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Test suite" } });
+		fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm test" } });
+		expect(screen.getByLabelText("Cloud workspace").getAttribute("aria-checked")).toBe("true");
+		expect(screen.getByLabelText("Local mirror").getAttribute("aria-checked")).toBe("true");
+
+		fireEvent.click(screen.getByLabelText("Local mirror"));
+		fireEvent.click(screen.getByRole("button", { name: "Save action" }));
+
+		await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+		expect(onSave.mock.calls[0]?.[0].availableIn).toEqual(["cloud"]);
+	});
+
+	it("keeps Save disabled when no place can run the action", () => {
+		renderDialog();
+		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Docs" } });
+		fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm docs" } });
+		fireEvent.click(screen.getByLabelText("Cloud workspace"));
+		fireEvent.click(screen.getByLabelText("Local mirror"));
+
+		const save = screen.getByRole("button", { name: "Save action" }) as HTMLButtonElement;
+		expect(save.disabled).toBe(true);
 	});
 
 	it("stays open and shows the failure when the save fails", async () => {

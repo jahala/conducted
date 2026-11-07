@@ -114,7 +114,11 @@ import type { Cloud, Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
-import { removeCloudWorkspace, stopCloudWorkspace } from "../cloud/lifecycle.ts";
+import {
+	removeCloudWorkspace,
+	restartCloudWorkspace,
+	stopCloudWorkspace,
+} from "../cloud/lifecycle.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-helpers.ts";
@@ -693,6 +697,11 @@ export interface WorkspaceServiceDeps {
 	 * composition root passes PortForwardsService.
 	 */
 	portForwards?: { pauseWorkspace(workspaceId: WorkspaceId): Promise<Result<void>> };
+	/**
+	 * CLOUD-15: re-reads a cloud workspace's status after a successful restart, so the header does
+	 * not wait for its next poll. The composition root passes CloudWorkspaceService.
+	 */
+	cloudState?: { refresh(workspaceId: WorkspaceId): Promise<Result<unknown>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
 	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
 	/** Reads a pull request's head from GitHub, for a workspace created from a PR (WS-02). */
@@ -1376,6 +1385,32 @@ export class WorkspaceService {
 			requestedName,
 			onRenamed: (branch) => this.applyBranchRename(current.id, branch),
 		});
+	}
+
+	/**
+	 * Backs `Actions.workspaces.restart` (CLOUD-15): a cloud workspace's Worker saves its work to
+	 * R2, stops the sandbox and starts a new one, then restores that work. A local workspace has no
+	 * restart here: Conductor restarts only a remote workspace, through its backend.
+	 */
+	async restart(id: WorkspaceId): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (workspace.host.kind !== "cloud") {
+			return err(appError("workspace_not_cloud", "Only a cloud workspace can restart here."));
+		}
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) {
+			return err(
+				appError("cloud_not_paired", "The app cannot reach the Worker for this workspace."),
+			);
+		}
+		const restarted = await restartCloudWorkspace(cloud, workspace.host);
+		if (restarted.ok) await this.#deps.cloudState?.refresh(id);
+		return restarted;
 	}
 
 	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */

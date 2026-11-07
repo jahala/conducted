@@ -71,6 +71,12 @@ export const zSessionConfig = z.object({
 		progressUpdates: z.boolean(),
 		/** The SetTargetBranch tool, which lets the agent change the branch this workspace merges into. */
 		setTargetBranch: z.boolean(),
+		/**
+		 * The RunLocalCommand tool (CLOUD-14): a cloud agent asks the Mac to run a one-shot command.
+		 * Missing means off; the app turns it on for a cloud workspace when the Advanced setting
+		 * "Remote execution MCP" is on (it is by default).
+		 */
+		localExecution: z.boolean().optional(),
 	}),
 	/** Claude only. Missing means Claude's default style. A change restarts Claude with resume. */
 	claudeOutputStyle: zClaudeOutputStyle.optional(),

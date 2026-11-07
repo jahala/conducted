@@ -140,7 +140,11 @@ export function chatTabs(
 	});
 }
 
-export function terminalTabs(terminals: readonly Terminal[]): TabDescriptor[] {
+/** A workspace's terminal tabs. A cloud workspace shows each terminal's host (CLOUD-09). */
+export function terminalTabs(
+	terminals: readonly Terminal[],
+	hostKind?: "local" | "cloud",
+): TabDescriptor[] {
 	return terminals
 		.filter((terminal) => terminal.kind === "terminal")
 		.map((terminal, index) => ({
@@ -148,6 +152,7 @@ export function terminalTabs(terminals: readonly Terminal[]): TabDescriptor[] {
 			ref: tabRef({ kind: "terminal", terminalId: terminal.id }) ?? "",
 			title: terminal.title || `Terminal ${index + 1}`,
 			terminalId: terminal.id,
+			...(hostKind === undefined ? {} : { hostKind }),
 		}));
 }
 
@@ -160,6 +165,7 @@ export function buildTabs({
 	comments = NO_COMMENTS,
 	liveStates,
 	cancelling,
+	workspaceHostKind,
 }: {
 	sessions: readonly Session[];
 	terminals: readonly Terminal[];
@@ -168,11 +174,13 @@ export function buildTabs({
 	comments?: readonly DiffComment[];
 	liveStates?: Record<string, typeof idleLiveState>;
 	cancelling?: Record<string, boolean>;
+	/** A cloud workspace marks each terminal tab with its host (CLOUD-09). */
+	workspaceHostKind?: "local" | "cloud";
 }): TabDescriptor[] {
 	const special = specialTab(search, prNumber, comments);
 	return [
 		...chatTabs(sessions, liveStates, cancelling),
-		...terminalTabs(terminals),
+		...terminalTabs(terminals, workspaceHostKind === "cloud" ? "cloud" : undefined),
 		...(special === null ? [] : [special]),
 	];
 }
@@ -218,6 +226,8 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 		comments,
 		liveStates,
 		cancelling,
+		workspaceHostKind:
+			workspace.state === "ready" && workspace.data.host.kind === "cloud" ? "cloud" : undefined,
 	}).filter((tab) => excludeRefs === undefined || !excludeRefs.has(tab.ref));
 
 	const activeRef = tabRef(resolveActiveTab(search));

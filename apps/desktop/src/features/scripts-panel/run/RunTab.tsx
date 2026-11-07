@@ -9,6 +9,8 @@
  * Children: RunToolbar with PreviewUrlMenu, RunEmptyState, and the output's RunTerminalSlot: the app
  * shell's surface layer draws the terminal over it, so it stays mounted across workspace switches and
  * the workspace's last output shows again (NAV-15, app/surface-registry.tsx).
+ * CLOUD-09: in a cloud workspace an action that can run in both places appears twice, under the
+ * "Cloud" and "Local" groups, and the cloud variant is the default (services-map 5A.1.6).
  * RUN-03: the Open menu lists the repository's Preview URLs in order (the first is Open). When
  * none are set, it lists the run-output URL instead; detected ports are on the Ports tab, not
  * here. The "Open localhost URL" shortcut (Cmd+Shift+B) opens the first URL. Open uses the in-app
@@ -293,7 +295,14 @@ export function RunTab({ workspaceId }: RunTabProps) {
 				workspaceId={workspaceId}
 				workspacePort={workspace.data.port}
 				runOutputUrl={active?.url ?? null}
-				actions={available.map((entry) => ({ id: entry.id, label: entry.label }))}
+				actions={available.map((entry) => ({
+					id: entry.id,
+					label: entry.label,
+					// A cloud workspace groups the action's cloud and local-mirror variants (CLOUD-09).
+					...(workspace.data.host.kind === "cloud" && entry.runAvailability !== undefined
+						? { group: entry.runAvailability === "cloud" ? "Cloud" : "Local" }
+						: {}),
+				}))}
 				selectedActionId={selected.id}
 				onSelectAction={setSelectedId}
 				button={button}

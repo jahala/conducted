@@ -5,7 +5,8 @@
  * Behaviour: research/conductor/claude-runner.md section 4.2 "Backend" column: GetWorkspaceDiff
  * asks the app for the diff (20 s timeout locally), GetDiffComments and DiffComment read and write
  * review comments, GetTerminalOutput asks for terminal text, AskUserQuestion waits for the user,
- * UpdateProgress only feeds the progress tracker, SetTargetBranch checks the branch on origin.
+ * UpdateProgress only feeds the progress tracker, SetTargetBranch checks the branch on origin,
+ * and RunLocalCommand asks the app to approve and run a command on the Mac (CLOUD-14).
  * Must handle:
  *  - the app is not connected: every request returns an error value that the tool shows to the
  *    agent as text ("The app is not connected; try again in a moment"), never a hang
@@ -17,7 +18,11 @@
  * Test first: with an app that is not connected, getWorkspaceDiff returns an error value at once.
  */
 
-import type { SidecarToAppRequest } from "@conducted/protocol";
+import {
+	LOCAL_COMMAND_APPROVAL_TIMEOUT_MS,
+	LOCAL_COMMAND_EXTENDED_MAX_TIMEOUT_MS,
+	type SidecarToAppRequest,
+} from "@conducted/protocol";
 import type { AppError, Result, SessionId } from "@conducted/shared";
 import { appError, asAppError, err, messageOf, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
@@ -27,7 +32,13 @@ import type {
 	SidecarToAppRequestResult,
 } from "../rpc/types.ts";
 import type { InteractionBroker } from "../session/interactions.ts";
-import type { DiffCommentInput, DiffCommentView, ProgressUpdate, Question } from "./types.ts";
+import type {
+	DiffCommentInput,
+	DiffCommentView,
+	LocalCommandAnswer,
+	ProgressUpdate,
+	Question,
+} from "./types.ts";
 
 export interface AppToolBackend {
 	getWorkspaceDiff(
@@ -50,6 +61,18 @@ export interface AppToolBackend {
 		sessionId: SessionId,
 		branch: string,
 	): Promise<Result<{ ok: boolean; message: string }, AppError>>;
+	/** Runs a one-shot command on the Mac, after the app's own approval (CLOUD-14). */
+	runLocalCommand(
+		sessionId: SessionId,
+		options: {
+			command: string;
+			description?: string;
+			reason?: string;
+			cwd?: string;
+			timeoutMs: number;
+			extendedTimeoutReason?: string;
+		},
+	): Promise<Result<LocalCommandAnswer, AppError>>;
 	updateProgress(sessionId: SessionId, update: ProgressUpdate): void;
 	askQuestions(
 		sessionId: SessionId,
@@ -59,6 +82,13 @@ export interface AppToolBackend {
 
 /** Time to wait for the app's diff. From the research (20 s locally). */
 export const DIFF_REQUEST_TIMEOUT_MS = 20_000;
+
+/**
+ * How long the sidecar waits for a local command's answer: the longest command plus the approval
+ * and a minute of slack. The app enforces the shorter limits itself (CLOUD-14).
+ */
+export const LOCAL_COMMAND_RPC_TIMEOUT_MS =
+	LOCAL_COMMAND_EXTENDED_MAX_TIMEOUT_MS + LOCAL_COMMAND_APPROVAL_TIMEOUT_MS + 60_000;
 
 /** What every call says when the app is not attached. */
 export const APP_NOT_CONNECTED_MESSAGE = "The app is not connected; try again in a moment.";
@@ -127,6 +157,26 @@ export class RpcAppToolBackend implements AppToolBackend {
 		branch: string,
 	): Promise<Result<{ ok: boolean; message: string }, AppError>> {
 		return this.call("setTargetBranch", { sessionId, branch });
+	}
+
+	async runLocalCommand(
+		sessionId: SessionId,
+		options: {
+			command: string;
+			description?: string;
+			reason?: string;
+			cwd?: string;
+			timeoutMs: number;
+			extendedTimeoutReason?: string;
+		},
+	): Promise<Result<LocalCommandAnswer, AppError>> {
+		return this.call(
+			"runLocalCommand",
+			{ sessionId, ...options },
+			{
+				timeoutMs: LOCAL_COMMAND_RPC_TIMEOUT_MS,
+			},
+		);
 	}
 
 	updateProgress(sessionId: SessionId, update: ProgressUpdate): void {

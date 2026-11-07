@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  Conducted's Changelog page (issue #356), published as changelog/index.html. scripts/site/build.ts
+  writes the releases from CHANGELOG.md in place of the "site:releases" marker, newest first, each
+  with the anchor #vX.Y.Z that the app's update notice links to.
+-->
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Changelog · Conducted</title>
+		<meta name="description" content="Every release of Conducted, newest first." />
+		<link rel="stylesheet" href="../style.css" />
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<p class="notice">
+			An independent, open-source rebuild of Conductor. Not affiliated with Conductor or its makers.
+			<a href="../#about">About this project</a>
+		</p>
+
+		<div class="band">
+			<header class="site-header">
+				<a class="wordmark" href="../">Conducted</a>
+				<nav class="site-nav" aria-label="Site">
+					<a href="./" aria-current="page">Changelog</a>
+					<a href="https://github.com/jahala/conducted/tree/main/docs">Docs</a>
+					<a href="https://github.com/jahala/conducted">GitHub</a>
+				</nav>
+			</header>
+		</div>
+
+		<main id="main" class="page">
+			<h1>Changelog</h1>
+			<p>
+				Every release of Conducted, newest first. Downloads are on
+				<a href="https://github.com/jahala/conducted/releases">GitHub releases</a>.
+			</p>
+			<!-- site:releases -->
+		</main>
+
+		<footer class="site-footer">
+			<div class="footer-inner">
+				<p class="footer-legal">
+					Conducted is open source under the
+					<a href="https://github.com/jahala/conducted/blob/main/LICENSE">MIT licence</a>. It is not affiliated
+					with Conductor or its makers.
+				</p>
+			</div>
+		</footer>
+	</body>
+</html>

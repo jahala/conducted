@@ -22,8 +22,7 @@
 		"apps/desktop/src/ui/ContextMenu.tsx": 2,
 		"apps/desktop/src/ui/contrast.ts": 2,
 		"apps/desktop/src/ui/PanelHeader.tsx": 2,
-		"apps/desktop/src/ui/Separator.tsx": 1,
-		"apps/desktop/src/ui/Toast.tsx": 2,
+		"apps/desktop/src/ui/Toast.tsx": 1,
 		"packages/sidecar/src/models/catalog.ts": 1,
 		"packages/sidecar/src/packaging.ts": 1
 	},

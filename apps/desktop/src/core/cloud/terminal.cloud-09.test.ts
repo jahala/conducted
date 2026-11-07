@@ -7,9 +7,9 @@
  */
 
 import type { Host } from "@conducted/protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cloudMemoryPlatform } from "../../test/memory-platform.ts";
-import { openCloudTerminal } from "./terminal.ts";
+import { openCloudTerminal, reconnectDelayMs } from "./terminal.ts";
 
 const HOST: Extract<Host, { kind: "cloud" }> = {
 	kind: "cloud",
@@ -114,7 +114,7 @@ describe("CLOUD-09 a cloud terminal", () => {
 		}
 	});
 
-	it("ends with a lost connection when the stream drops without an exit", async () => {
+	it("a one-shot command ends with a lost connection when the stream drops", async () => {
 		const memory = cloudMemoryPlatform();
 		try {
 			const opened = await openCloudTerminal(memory.platform.cloud, HOST, {
@@ -122,6 +122,7 @@ describe("CLOUD-09 a cloud terminal", () => {
 				cwd: "/workspace",
 				cols: 80,
 				rows: 24,
+				command: { program: "/bin/bash", args: ["-l", "-c", "pnpm test"] },
 			});
 			if (!opened.ok) throw new Error(opened.error.message);
 			const handle = opened.value;
@@ -158,6 +159,83 @@ describe("CLOUD-09 a cloud terminal", () => {
 			expect(await handle.screenText(2)).toBe("one\ntwo");
 			const snapshot = await handle.screenSnapshot();
 			expect(snapshot.ok && snapshot.value.data).toContain("red");
+		} finally {
+			memory.controls.dispose();
+		}
+	});
+});
+
+describe("CLOUD-09 a cloud terminal's reconnect", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("waits 1.5 times longer before each attempt, up to 30 seconds", () => {
+		expect(reconnectDelayMs(1)).toBe(2_000);
+		expect(reconnectDelayMs(2)).toBe(3_000);
+		expect(reconnectDelayMs(3)).toBe(4_500);
+		expect(reconnectDelayMs(99)).toBe(30_000);
+	});
+
+	it("reconnects after 2 seconds and keeps the terminal", async () => {
+		vi.useFakeTimers();
+		const memory = cloudMemoryPlatform();
+		try {
+			const opened = await openCloudTerminal(memory.platform.cloud, HOST, {
+				terminalId: "t1",
+				cwd: "/workspace",
+				cols: 80,
+				rows: 24,
+			});
+			if (!opened.ok) throw new Error(opened.error.message);
+			const handle = opened.value;
+			const exits: (number | null)[] = [];
+			const chunks: string[] = [];
+			handle.onExit((code) => exits.push(code));
+			handle.onData((chunk) => chunks.push(new TextDecoder().decode(chunk)));
+			const first = memory.controls.cloudRelayIds[0] as string;
+
+			memory.controls.emitCloudClosed(first, "The network failed.");
+			expect(exits).toEqual([]);
+			expect(memory.controls.cloudRelayIds).toHaveLength(0);
+
+			await vi.advanceTimersByTimeAsync(1_999);
+			expect(memory.controls.cloudRelayIds).toHaveLength(0);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(memory.controls.cloudRelayIds).toHaveLength(1);
+
+			const second = memory.controls.cloudRelayIds[0] as string;
+			expect(sent(memory, "start")).toMatchObject({ type: "start", cwd: "/workspace" });
+			memory.controls.emitCloudLine(
+				second,
+				JSON.stringify({ type: "data", data: base64("still here\r\n") }),
+			);
+			expect(chunks.join("")).toContain("still here");
+			expect(await handle.screenText(20)).toContain("--- Sandbox reconnected ---");
+			expect(exits).toEqual([]);
+
+			await handle.kill();
+		} finally {
+			memory.controls.dispose();
+		}
+	});
+
+	it("stops reconnecting when the terminal is killed", async () => {
+		vi.useFakeTimers();
+		const memory = cloudMemoryPlatform();
+		try {
+			const opened = await openCloudTerminal(memory.platform.cloud, HOST, {
+				terminalId: "t1",
+				cwd: "/workspace",
+				cols: 80,
+				rows: 24,
+			});
+			if (!opened.ok) throw new Error(opened.error.message);
+			const handle = opened.value;
+			memory.controls.emitCloudClosed(memory.controls.cloudRelayIds[0] as string, "down");
+			await handle.kill();
+			await vi.advanceTimersByTimeAsync(60_000);
+			expect(memory.controls.cloudRelayIds).toHaveLength(0);
 		} finally {
 			memory.controls.dispose();
 		}

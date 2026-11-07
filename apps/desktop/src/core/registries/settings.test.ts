@@ -125,6 +125,17 @@ describe("SET-01 setting table", () => {
 		expect(def.type === "enum" && def.options.map((o) => o.value)).toEqual(["steer", "queue"]);
 	});
 
+	it("CLOUD-14 offers remote execution and always allowing local commands on Advanced", () => {
+		const remote = must("internal_remote_local_execution_mcp");
+		expect(remote.page).toBe("advanced");
+		expect(remote.title).toBe("Remote execution MCP");
+		expect(remote.type === "bool" && remote.default).toBe(true);
+		const always = must("always_allow_local_execution");
+		expect(always.page).toBe("advanced");
+		expect(always.title).toBe("Always allow local commands");
+		expect(always.type === "bool" && always.default).toBe(false);
+	});
+
 	it("keeps toml keys unique", () => {
 		const keys = SETTINGS.flatMap((s) => (s.tomlKey === undefined ? [] : [s.tomlKey]));
 		expect(new Set(keys).size).toBe(keys.length);

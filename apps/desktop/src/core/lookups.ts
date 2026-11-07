@@ -18,7 +18,7 @@
  * means "origin", and a name git could read as an option is refused.
  * Stores are passed as getters so construction order does not matter.
  * `defaultSessionConfig` builds a new chat's config from settings, including the Remote Control
- * switch for new chats (RC-04).
+ * switch for new chats (RC-04) and the RunLocalCommand switch for a cloud workspace (CLOUD-14).
  * CLOUD-01: every lookup that hands out a workspace's folder or context for a call (git, pull
  * request, chat, file roots, a chat's folder, `workspaceOn`) checks the workspace's host first
  * (core/host.ts), so no call for a cloud workspace runs on the Mac. The chat context carries the
@@ -49,6 +49,7 @@ import type { Repo, Workspace } from "./model.ts";
 import { getSettingDef } from "./registries/settings.ts";
 import type { WorkspaceGitContext } from "./services/git.ts";
 import type { PrWorkspaceContext } from "./services/github.ts";
+import { offersLocalExecution } from "./services/local-command.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import {
@@ -270,7 +271,10 @@ export function defaultSessionConfig(
 		planMode: setting<boolean>("default_plan_mode"),
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
 		additionalDirectories: [],
-		appTools: FIRST_CHAT_APP_TOOLS,
+		appTools: {
+			...FIRST_CHAT_APP_TOOLS,
+			localExecution: offersLocalExecution(workspace.value, setting),
+		},
 		...options.value,
 		// RC-04: a new Claude chat starts with Remote Control on when the user chose so.
 		...(setting<boolean>("remote_control_new_chats") ? { remoteControl: true } : {}),

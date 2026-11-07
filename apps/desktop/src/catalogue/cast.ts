@@ -17,7 +17,7 @@ import type { StartedApp } from "../main.tsx";
 import type { ShellScript } from "../platform/memory.ts";
 import { type Conversation, conversation } from "./conversation.ts";
 import type { ScriptedFile, ScriptedRepo } from "./git-repo.ts";
-import { type ScriptedPr, scriptGitHub } from "./github.ts";
+import { type GitHubFailure, type ScriptedPr, scriptGitHub } from "./github.ts";
 import { deliverEvents, openInteraction, setLiveState } from "./live.ts";
 import { addChat, addEvents, addRepo, addWorkspace } from "./seeds.ts";
 import { CATALOGUE_NOW, DAY, HOUR, MINUTE } from "./time.ts";
@@ -585,6 +585,14 @@ export interface GitWorld {
 	prs?: ScriptedPr[];
 	/** arbor's folder is no longer a git repository, so every git command fails. */
 	arborBroken?: boolean;
+	/** arbor has no branch checked out (a detached HEAD). */
+	arborDetached?: boolean;
+	/** arbor against its upstream, when not the default of in step with it. */
+	arborUpstream?: { ahead: number; behind: number };
+	/** arbor's remote branch was force-pushed after its tip was pushed. */
+	arborRemoteRewritten?: boolean;
+	/** Every request to GitHub's API fails this way. */
+	github?: GitHubFailure;
 }
 
 /**
@@ -630,7 +638,7 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 	}
 	world.plantRepo({
 		path: cast.arbor.path,
-		branch: cast.arbor.branch,
+		branch: options.arborDetached === true ? "" : cast.arbor.branch,
 		target: "origin/main",
 		files: arborFiles,
 		commits: [
@@ -645,8 +653,12 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 				at: (CATALOGUE_NOW - 11 * MINUTE) / 1000,
 			},
 		],
-		upstream: { ahead: arborFiles.every((file) => file.committed) ? 0 : 1, behind: 0 },
+		upstream: options.arborUpstream ?? {
+			ahead: arborFiles.every((file) => file.committed) ? 0 : 1,
+			behind: 0,
+		},
 		behindTarget: 2,
+		remoteRewritten: options.arborRemoteRewritten,
 	});
 	if (options.arborBroken === true) {
 		world.scriptShell((command) =>
@@ -662,7 +674,7 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 				: null,
 		);
 	}
-	world.scriptShell(scriptGitHub(options.prs ?? []));
+	world.scriptShell(scriptGitHub(options.prs ?? [], options.github));
 	for (const repo of [cast.atlas, cast.relay]) {
 		world.memory.controls.files.set(`${repo.rootPath}/.conducted/settings.toml`, PROJECT_SETTINGS);
 	}

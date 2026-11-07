@@ -12,9 +12,11 @@
  * Approval choices: Conductor's second choice (renderApp @104412): an edit offers 'Allow all edits
  * during this session'; a request with a suggested rule offers "Yes, and don't ask again for:
  * <rule>", the rule cut at 40 characters with '...'; an MCP tool, WebSearch or WebFetch offers
- * 'Always allow <tool name>'. Our design choice: where Conductor offers no second choice (a command
- * with no suggested rule) ours keeps 'Yes always', and a choice the second one did not take stays
- * as an extra button, so no choice we had goes away; both are listed for the owner in the gap report.
+ * 'Always allow <tool name>'. A command on the Mac (CLOUD-14) offers 'Yes for this session' and
+ * 'Yes always', as Conductor's local-command card does. Our design choice: where Conductor offers
+ * no second choice (a command with no suggested rule) ours keeps 'Yes always', and a choice the
+ * second one did not take stays as an extra button, so no choice we had goes away; both are listed
+ * for the owner in the gap report.
  * Test first: approvalTitle("mcp__git__git_fetch_x") is 'Do you want to run this tool?' and
  * approvalTitle("MultiEdit") is 'Do you want to make these changes?'.
  */
@@ -72,9 +74,17 @@ export function editsFilesInApproval(toolName: string): boolean {
 	return tool === "write" || tool === "edit" || tool === "multi_edit" || tool === "notebook_edit";
 }
 
+/** True for the app tool that runs a command on the Mac (CLOUD-14), namespaced or bare. */
+export function isRunLocalCommand(toolName: string): boolean {
+	return (
+		toolName === `mcp__${APP_TOOL_SERVER}__RunLocalCommand` ||
+		snakeCase(toolName) === "run_local_command"
+	);
+}
+
 /** The approval title Conductor shows for each kind of tool (ui-map.md 3.3). */
 export function approvalTitle(toolName: string): string {
-	if (snakeCase(toolName) === "run_local_command") {
+	if (isRunLocalCommand(toolName)) {
 		return "Do you want to run this command on your Mac?";
 	}
 	switch (canonicalToolForApproval(toolName)) {
@@ -127,6 +137,12 @@ export function approvalChoices(
 	toolName: string,
 	suggestedRules: readonly string[],
 ): ApprovalChoice[] {
+	if (isRunLocalCommand(toolName)) {
+		return [
+			{ decision: "allow_for_session", label: "Yes for this session" },
+			{ decision: "always_allow", label: "Yes always" },
+		];
+	}
 	const rule = suggestedRules.find((entry) => entry.trim().length > 0);
 	const withRule: ApprovalChoice | null =
 		rule === undefined ? null : { decision: "allow_with_suggested_rules", label: ruleLabel(rule) };
