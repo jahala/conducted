@@ -2,8 +2,9 @@
  * Guards over the workflows and shell scripts that run in CI:
  *  - every job in .github/workflows has a `timeout-minutes`, so a hung runner stops at a known
  *    time instead of GitHub's default of six hours;
- *  - actionlint accepts every workflow, including the shell inside its `run:` steps;
- *  - shellcheck accepts every shell script under bin/ and scripts/.
+ *  - (`workflow-tools`, a separate guard, since it runs programs) actionlint accepts every workflow,
+ *    including the shell inside its `run:` steps, and shellcheck accepts every shell script under
+ *    bin/ and scripts/.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
@@ -49,7 +50,7 @@ function toolOutput(
 	if (result.error !== undefined) {
 		return {
 			error: {
-				guard: "workflows",
+				guard: "workflow-tools",
 				message: `${program} is not installed; pnpm guards needs it`,
 			},
 			lines: [],
@@ -72,7 +73,7 @@ export function actionlintProblems(root: string): Problem[] {
 	if (files.length === 0) return [];
 	const { error, lines } = toolOutput("actionlint", ["-no-color", ...files], root);
 	if (error !== null) return [error];
-	return lines.map((message) => ({ guard: "workflows", message }));
+	return lines.map((message) => ({ guard: "workflow-tools", message }));
 }
 
 /** Problems shellcheck reports across bin/ and scripts/. */
@@ -86,7 +87,7 @@ export function shellcheckProblems(root: string): Problem[] {
 	if (files.length === 0) return [];
 	const { error, lines } = toolOutput("shellcheck", ["--format=gcc", ...files], root);
 	if (error !== null) return [error];
-	return lines.map((message) => ({ guard: "workflows", message }));
+	return lines.map((message) => ({ guard: "workflow-tools", message }));
 }
 
 export function checkWorkflows(root: string): Problem[] {
@@ -97,7 +98,10 @@ export function checkWorkflows(root: string): Problem[] {
 				message: `${file}: job ${job} has no timeout-minutes`,
 			})),
 		),
-		...actionlintProblems(root),
-		...shellcheckProblems(root),
 	];
+}
+
+/** The tool checks, kept apart from `checkWorkflows` so that one stays a read of the files. */
+export function checkWorkflowTools(root: string): Problem[] {
+	return [...actionlintProblems(root), ...shellcheckProblems(root)];
 }
