@@ -3,6 +3,12 @@
 Release notes, newest first. `pnpm release` writes each version's section from the commit subjects
 since the last tag, and the GitHub release body is cut from that section (PLAT-39).
 
+## 0.3.1 (2026-11-07)
+
+### Fixes
+
+- the release's disk image is sized from the app, and the sandbox image's version is bumped with it (#470)
+
 ## 0.3.0 (2026-11-07)
 
 ### Chores
