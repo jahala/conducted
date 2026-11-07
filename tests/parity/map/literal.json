@@ -2071,9 +2071,12 @@
 		"owner": "rule:quote"
 	},
 	"literal:R10228381": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "pr-draft",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R10228429": {
 		"status": "gap",
@@ -2084,9 +2087,12 @@
 		"owner": "rule:quote"
 	},
 	"literal:R10228473": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "pr-failing",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(2) > div > div:nth-of-type(1) > a > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R10228517": {
 		"status": "matched",

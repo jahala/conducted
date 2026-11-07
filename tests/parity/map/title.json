@@ -1420,12 +1420,12 @@
 		"owner": "rule:quote"
 	},
 	"title:R2145600": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Header 'Draft PR open' with 'Ready for review'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-draft",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"title:R2147980": {
 		"status": "matched",

@@ -1,25 +1,25 @@
 # Parity gaps, 7 November 2026
 
-The gap report of the parity harness (`docs/plans/parity-harness.md`) after step 5's third pass (#372). The counts below come from the Parity workflow's dump of commit ad27eee3 (run 42346834589), seeded and checked with this branch's harness and map; the spec did not change in round 3. Mode `report`: the gaps do not fail a pull request yet. The reports of c8860c66, e996940e and 3871650d are in this file's history.
+The gap report of the parity harness (`docs/plans/parity-harness.md`) after step 5's third pass (#372). The counts below come from the Parity workflow's dump of commit 6816ddba (run 42347440362), seeded and checked with this branch's harness and map; the spec did not change in round 3. Mode `report`: the gaps do not fail a pull request yet. The reports of c8860c66, e996940e and 3871650d are in this file's history.
 
 ## Before and after
 
-|                                                          |               At c8860c66 | After round 1 (e996940e) | After round 2 (3871650d) | Now (ad27eee3) |
+|                                                          |               At c8860c66 | After round 1 (e996940e) | After round 2 (3871650d) | Now (6816ddba) |
 | -------------------------------------------------------- | ------------------------: | -----------------------: | -----------------------: | -------------: |
 | Conductor entries                                        |                     3,814 |                    3,814 |                    3,821 |          3,821 |
-| Matched to a catalogue state or a name of ours           |                       703 |                    1,007 |                    1,018 |          1,070 |
+| Matched to a catalogue state or a name of ours           |                       703 |                    1,007 |                    1,018 |          1,073 |
 | a. Decided                                               |                        57 |                      847 |                      847 |            865 |
-| b. Unshown: our source has it, no state draws it         |                       891 |                      771 |                      770 |            721 |
+| b. Unshown: our source has it, no state draws it         |                       891 |                      771 |                      770 |            718 |
 | c. Wording or placement differs on a screen we draw      |                not sorted |                        6 |                        6 |              0 |
 | d. A feature or behaviour we lack                        | 2,163 missing, not sorted |                    1,183 |                    1,180 |          1,165 |
-| Gaps owned by a backlog row and its item                 |                         - |                        - |                        - |            710 |
+| Gaps owned by a backlog row and its item                 |                         - |                        - |                        - |            709 |
 | Gaps owned by a backlog row only                         |                         - |                        - |                        - |            298 |
-| Gaps with no owner                                       |                         - |                        - |                        - |            878 |
-| Catalogue states                                         |                        50 |                       64 |                       68 |             79 |
-| Strings of ours with no Conductor counterpart (distinct) |          256 in 50 states |         514 in 64 states |         507 in 68 states | 536 in 79 states |
+| Gaps with no owner                                       |                         - |                        - |                        - |            876 |
+| Catalogue states                                         |                        50 |                       64 |                       68 |             81 |
+| Strings of ours with no Conductor counterpart (distinct) |          256 in 50 states |         514 in 64 states |         507 in 68 states | 536 in 81 states |
 | Flows that pass, of 7 drivable                           |                         5 |                        7 |                        7 |              7 |
 
-Decided now: D002 31, D004 233, D025 310, D029 21, D086 270. Owned is still a gap: the owner is the backlog row and the checklist item in `docs/plans/items/` that build or draw the entry, so the plan holds the work and nothing pretends to be built. The 29 new strings of ours come from the 11 new states (the providers dialog's "Credentials", the slash menu's commands, the sound menu's "Default chime" and others), listed by state below.
+Decided now: D002 31, D004 233, D025 310, D029 21, D086 270. Owned is still a gap: the owner is the backlog row and the checklist item in `docs/plans/items/` that build or draw the entry, so the plan holds the work and nothing pretends to be built. The 29 new strings of ours come from the 13 new states (the providers dialog's "Credentials", the slash menu's commands, the sound menu's "Default chime" and others), listed by state below.
 
 ## Round 3 (#372)
 
@@ -29,7 +29,7 @@ Decided now: D002 31, D004 233, D025 310, D029 21, D086 270. Owned is still a ga
 
 | Class | Entries | Cited by an item | Quoted by an item | Named by an item | Neighbour (row only) | By hand (row only) | No owner |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| b. Unshown | 721 | 94 | 292 | 0 | 68 | 0 | 267 |
+| b. Unshown | 718 | 94 | 291 | 0 | 68 | 0 | 265 |
 | d. Feature, UI | 862 | 60 | 73 | 0 | 139 | 0 | 590 |
 | d. Feature, backend names | 303 | 111 | 0 | 80 | 0 | 91 | 21 |
 
@@ -37,7 +37,7 @@ Backend names the items do not name were read one by one: 91 have the row that r
 
 ### Catalogue states added (class b)
 
-Eleven states, each verified by the dump: the completion sound, code theme, accessible colours and Markdown style selects open; the Claude output style, Claude effort level, Codex thinking level and Codex personality selects open; Claude Code's providers dialog on Amazon Bedrock with AWS access keys; the Feedback dialog; and the composer's slash command menu. They match 49 entries that were unshown. One more entry, "Warning: appears to sometimes cause performance issues", matched on the Experimental page from a change already on main.
+Thirteen states, each verified by the dump: the completion sound, code theme, accessible colours and Markdown style selects open; the Claude output style, Claude effort level, Codex thinking level and Codex personality selects open; Claude Code's providers dialog on Amazon Bedrock with AWS access keys; the Feedback dialog; the composer's slash command menu; and the pull request header for a draft and for a failed check. They match 52 entries that were unshown. One more entry, "Warning: appears to sometimes cause performance issues", matched on the Experimental page from a change already on main.
 
 ### The six settings-search copies (class c)
 
@@ -47,7 +47,7 @@ The stopped "Runs when a new workspace is created." that round 2 matched to our 
 
 ### Left for a later round
 
-- 590 UI feature gaps and 267 unshown gaps have no owner. Most sit where no research cites an offset within 20,000 characters ("Unplaced"), or in a coverage audit section whose table predates the final backlog ids. Owning them needs a person to read each bundle region, as rounds 1 and 2 did for the decided regions.
+- 590 UI feature gaps and 265 unshown gaps have no owner. Most sit where no research cites an offset within 20,000 characters ("Unplaced"), or in a coverage audit section whose table predates the final backlog ids. Owning them needs a person to read each bundle region, as rounds 1 and 2 did for the decided regions.
 - 298 gaps have a row but no item. A new checklist item per row would make them owned; that adds items to the plan the issue sync turns into checklists, so it waits for a ruling on whether machine-written items belong there.
 - Unshown entries whose state the catalogue cannot draw yet: the queue box and its failures, the chat banners (session limit, compacted history), the Open in menu's app list, the Git header's PR states (draft, conflicts, changes requested, no internet), the Linear and GitHub issue dialogs. Each needs a seed the catalogue lacks (a queued message, a failed turn, detected apps, PR states).
 
@@ -144,11 +144,11 @@ Invented wording of ours, by state, is in the "Gaps by screen" tables below (cod
 | label | 498 | 102 | 0 | 222 | 174 |
 | aria_label | 189 | 52 | 0 | 36 | 101 |
 | placeholder | 70 | 14 | 0 | 13 | 43 |
-| title | 462 | 243 | 0 | 64 | 155 |
+| title | 462 | 244 | 0 | 64 | 154 |
 | tooltip | 25 | 3 | 0 | 2 | 20 |
 | description | 281 | 90 | 0 | 97 | 94 |
 | toast | 253 | 1 | 0 | 27 | 225 |
-| literal | 381 | 85 | 0 | 76 | 220 |
+| literal | 381 | 87 | 0 | 76 | 218 |
 | route | 95 | 4 | 0 | 50 | 41 |
 | test_id | 18 | 4 | 0 | 0 | 14 |
 | sidecar_rpc_method | 87 | 7 | 0 | 21 | 59 |
@@ -159,7 +159,7 @@ Invented wording of ours, by state, is in the "Gaps by screen" tables below (cod
 | tauri_event | 40 | 0 | 0 | 0 | 40 |
 | settings_key | 193 | 108 | 0 | 48 | 37 |
 | table | 29 | 9 | 0 | 0 | 20 |
-| Total | 3821 | 1070 | 0 | 865 | 1886 |
+| Total | 3821 | 1073 | 0 | 865 | 1883 |
 
 ## Gaps by class
 
@@ -168,7 +168,7 @@ Owned means the map names the backlog row and the checklist item in `docs/plans/
 | Class | Entries | Owned by a row and item | Row only | No owner |
 | --- | ---: | ---: | ---: | ---: |
 | a. Decided (D002 31, D004 233, D025 310, D029 21, D086 270) | 865 | | | |
-| b. Unshown: our source has it, no catalogue state draws it | 721 | 386 | 68 | 267 |
+| b. Unshown: our source has it, no catalogue state draws it | 718 | 385 | 68 | 265 |
 | c. Wording or placement differs on a screen we draw | 0 | 0 | 0 | 0 |
 | d. A feature or behaviour we lack | 1165 | 324 | 230 | 611 |
 
@@ -177,8 +177,8 @@ Owned means the map names the backlog row and the checklist item in `docs/plans/
 | Check | Code | Gaps | Broken |
 | --- | --- | ---: | ---: |
 | a. Map completeness | gap-missing | 1165 | 0 |
-| a. Map completeness | gap-unshown | 721 | 0 |
-| b. Text and controls | ours-only | 1708 | 0 |
+| a. Map completeness | gap-unshown | 718 | 0 |
+| b. Text and controls | ours-only | 1771 | 0 |
 | d. Flows | flow-step | 3 | 0 |
 | e. Backend lists | backend-ours-only | 141 | 0 |
 
@@ -1728,38 +1728,38 @@ Owned means the map names the backlog row and the checklist item in `docs/plans/
 | b | ours-only | create-project | gstack | span text: div:nth-of-type(5) > div:nth-of-type(1) > fieldset > div > button:nth-of-type(3) > span:nth-of-type(3) > span:nth-of-type(1) |
 | b | ours-only | backlog | atlas · Unstarted | span text: [data-testid="main-content"] > div > main > div > ul > li:nth-of-type(1) > div > button:nth-of-type(1) > span:nth-of-type(2) |
 
-### Pull request header (156)
+### Pull request header (219)
 
 | Check | Code | Where | Text | Detail |
 | --- | --- | --- | --- | --- |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | 3 tool calls, 2 messages | span text: [data-testid="virtuoso-item-list"] > div > div > button > span > span:nth-of-type(1) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | ⌘L to focus | div text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | 3files changed | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1) |
-| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-ready, pr-ready, pr-merged, pr-merged | added | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > s |
-| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-ready, pr-ready, pr-merged, pr-merged | modified | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(3) > div > s |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Dev | span text: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(1) > span |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Sidebar | aside aria-label: [data-testid="sidebar"] > div > aside |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Main | nav aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > nav |
-| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-ready, pr-ready, pr-merged, pr-merged | Create workspace in atlas | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(1) |
-| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-ready, pr-ready, pr-merged, pr-merged | Create workspace in relay | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(1) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | atlas icon | img aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > span:nth-of-type(1) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Expand 3 tool calls, 2 messages | button aria-label: [data-testid="virtuoso-item-list"] > div > div > button |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Turn details | button aria-label: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > button |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Files changed in this turn | section aria-label: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Modified: src/auth/sign-in.ts | button title: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(1) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Added: src/auth/safe-next.ts | button title: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(2) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Added: src/auth/safe-next.test.ts | button title: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(3) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | composer | textbox aria-label: [data-testid="composer-editor"] > div > div |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Model picker | button aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6 |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Claude Code: change agent | button title: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > d |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Changes and scripts | aside aria-label: [data-testid="right-panel"] > div > aside |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Review options | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(2) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Search changed files | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(1) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Diff scope | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(3) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Changed files | grid aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | Collapse panel | button aria-label: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(1) > button:nth-of-type(1) |
-| b | ours-only | pr-none, pr-loading, pr-open, pr-ready, pr-merged | No preview URL yet | button title: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(1) |
-| b | ours-only | pr-open | Waiting for a reviewer | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(1) > span |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | 3 tool calls, 2 messages | span text: [data-testid="virtuoso-item-list"] > div > div > button > span > span:nth-of-type(1) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | ⌘L to focus | div text: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | 3files changed | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1) |
+| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-draft, pr-draft, pr-failing, pr-failing, pr-ready, pr-ready, pr-merged, pr-merged | added | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > s |
+| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-draft, pr-draft, pr-failing, pr-failing, pr-ready, pr-ready, pr-merged, pr-merged | modified | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(3) > div > s |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Dev | span text: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(1) > span |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Sidebar | aside aria-label: [data-testid="sidebar"] > div > aside |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Main | nav aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > nav |
+| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-draft, pr-draft, pr-failing, pr-failing, pr-ready, pr-ready, pr-merged, pr-merged | Create workspace in atlas | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(1) |
+| b | ours-only | pr-none, pr-none, pr-loading, pr-loading, pr-open, pr-open, pr-draft, pr-draft, pr-failing, pr-failing, pr-ready, pr-ready, pr-merged, pr-merged | Create workspace in relay | link aria-label: [data-testid="sidebar"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > div > div:nth-of-type(1) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | atlas icon | img aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > span:nth-of-type(1) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Expand 3 tool calls, 2 messages | button aria-label: [data-testid="virtuoso-item-list"] > div > div > button |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Turn details | button aria-label: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > button |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Files changed in this turn | section aria-label: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Modified: src/auth/sign-in.ts | button title: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(1) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Added: src/auth/safe-next.ts | button title: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(2) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Added: src/auth/safe-next.test.ts | button title: [data-testid="virtuoso-item-list"] > div > div > div:nth-of-type(3) > section > button:nth-of-type(3) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | composer | textbox aria-label: [data-testid="composer-editor"] > div > div |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Model picker | button aria-label: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6 |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Claude Code: change agent | button title: [data-testid="main-content"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > d |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Changes and scripts | aside aria-label: [data-testid="right-panel"] > div > aside |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Review options | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(2) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Search changed files | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(1) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Diff scope | button aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(3) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Changed files | grid aria-label: [data-testid="git-panel"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | Collapse panel | button aria-label: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(1) > button:nth-of-type(1) |
+| b | ours-only | pr-none, pr-loading, pr-open, pr-draft, pr-failing, pr-ready, pr-merged | No preview URL yet | button title: [data-testid="scripts-panel"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(1) |
+| b | ours-only | pr-open, pr-failing | Waiting for a reviewer | span text: [data-testid="git-panel"] > div > div > div > div:nth-of-type(1) > span |
 
 ### Settings (643)
 
@@ -2202,7 +2202,7 @@ Owned means the map names the backlog row and the checklist item in `docs/plans/
 | a | gap-unshown (unshown) | tooltip:M2690256 | Approved | no catalogue state shows it |
 | a | gap-unshown (unshown) | literal:M2685029 | Private | no catalogue state shows it |
 
-### Unplaced (782)
+### Unplaced (779)
 
 | Check | Code | Where | Text | Detail |
 | --- | --- | --- | --- | --- |
@@ -2642,7 +2642,6 @@ Owned means the map names the backlog row and the checklist item in `docs/plans/
 | a | gap-unshown (unshown) | title:R2142068 | Blocked from merging | GIT-04: no catalogue state shows it |
 | a | gap-unshown (unshown) | title:R2145200 | Merge conflicts | GIT-04: no catalogue state shows it |
 | a | gap-unshown (unshown) | title:R2145377 | PR changes requested | GIT-04: no catalogue state shows it |
-| a | gap-unshown (unshown) | title:R2145600 | Draft PR open | GIT-04: no catalogue state shows it |
 | a | gap-unshown (unshown) | title:R2148149 | Unable to merge | GIT-04: no catalogue state shows it |
 | a | gap-missing (feature) | title:R2623659 | Close filter | REV-01: not in our UI |
 | a | gap-unshown (unshown) | title:R2649785 | Conflicts | no catalogue state shows it |
@@ -2928,9 +2927,7 @@ Owned means the map names the backlog row and the checklist item in `docs/plans/
 | a | gap-unshown (unshown) | literal:R10227903 | Unstarted | WS-11: no catalogue state shows it |
 | a | gap-missing (feature) | literal:R10228149 | Working | Checked by hand: the wording differs. Ours reads "Working..." (aria-label) in sidebar. |
 | a | gap-unshown (unshown) | literal:R10228299 | In merge queue | GIT-04: no catalogue state shows it |
-| a | gap-unshown (unshown) | literal:R10228381 | Draft pull request | no catalogue state shows it |
 | a | gap-unshown (unshown) | literal:R10228429 | Merge conflict | GIT-04: no catalogue state shows it |
-| a | gap-unshown (unshown) | literal:R10228473 | Checks failing | no catalogue state shows it |
 | a | gap-unshown (unshown) | literal:R10228554 | Pull request open | no catalogue state shows it |
 | a | gap-unshown (unshown) | literal:R10470389 | Sections | no catalogue state shows it |
 | a | gap-unshown (unshown) | literal:R10476438 | Edit section | NAV-04: no catalogue state shows it |

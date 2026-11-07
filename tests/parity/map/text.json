@@ -570,10 +570,10 @@
 	},
 	"text:R2630914": {
 		"status": "matched",
-		"state": "command-palette",
+		"state": "pr-draft",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(14) > span:nth-of-type(1)",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"text:R2631426": {
