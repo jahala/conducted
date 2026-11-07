@@ -111,6 +111,8 @@ export interface MemoryPlatformControls {
 	readonly cloudSent: readonly { relayId: string; line: string }[];
 	/** The ids of the relays the app opened and has not closed. */
 	readonly cloudRelayIds: readonly string[];
+	/** The channel each open relay asked for, by relay id. */
+	readonly cloudRelayChannels: Readonly<Record<string, string>>;
 	/** Changes what `cloud.paired` reports. */
 	setCloudPaired(paired: boolean): void;
 	/** Delivers a line to every listener of one relay. False when the relay is not open. */
@@ -1140,6 +1142,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	interface MemoryRelay {
 		url: string;
 		vmId: string;
+		channel: string;
 		lineListeners: Set<(line: string) => void>;
 		closedListeners: Set<(reason: string) => void>;
 		closed: string | null;
@@ -1162,6 +1165,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			const state: MemoryRelay = {
 				url: input.url,
 				vmId: input.vmId,
+				channel: input.channel ?? "rpc",
 				lineListeners: new Set(),
 				closedListeners: new Set(),
 				closed: null,
@@ -1242,6 +1246,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get cloudRelayIds() {
 			return [...cloudRelays.keys()];
+		},
+		get cloudRelayChannels() {
+			return Object.fromEntries([...cloudRelays].map(([id, relay]) => [id, relay.channel]));
 		},
 		setCloudPaired: (paired) => {
 			cloudPaired = paired;

@@ -1340,6 +1340,7 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 			const opened = await invokeResult<string>(bindings, COMMANDS.cloudRelayOpen, {
 				url: input.url,
 				vmId: input.vmId,
+				channel: input.channel ?? "rpc",
 			});
 			if (!opened.ok) return opened;
 			const id = opened.value;
