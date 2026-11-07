@@ -703,6 +703,8 @@ export interface Actions {
 		openUrl: Act<[url: string]>;
 		/** Shows the system folder dialog. The result is null when the user cancels. */
 		pickFolder: Act<[title: string], string | null>;
+		/** Shows the system dialog for one file. The result is null when the user cancels. */
+		pickFile: Act<[title: string], string | null>;
 		recheckGitHubAccess: Act;
 		/** Writes the redacted diagnostics report to a file and starts a chat with it attached. */
 		createDiagnosticsChat: Act<[workspaceId: WorkspaceId]>;

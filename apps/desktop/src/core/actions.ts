@@ -260,6 +260,11 @@ export function createActions(
 				settle("pick_folder_failed", "The folder picker could not be opened.", () =>
 					platform.dialogs.pickFolder({ title }),
 				),
+			pickFile: (title) =>
+				settle("pick_file_failed", "The file picker could not be opened.", async () => {
+					const [picked] = await platform.dialogs.pickFiles({ title, multiple: false });
+					return picked ?? null;
+				}),
 			recheckGitHubAccess: () => services.github.recheckAccess(),
 			createDiagnosticsChat: (workspaceId) => services.sessions.createDiagnosticsChat(workspaceId),
 			copyText: (text) => services.system.copyText(text),
