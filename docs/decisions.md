@@ -615,3 +615,32 @@ Chosen:
 Why: the user's own account stays the only home for the Worker and its data, the app carries the code it deploys, no secret enters the web view, and the two outside tools a deploy needs are named when they are missing.
 
 Live verification: one deploy and uninstall through `deploy_worker` and `uninstall_worker` under `conducted-dev-c08-<time>`, with the Worker, container application, images and bucket checked gone afterwards. The numbers and the exact checks are in `docs/research/cloud-spike-2026-11-06.md`.
+
+## D111. The local mirror syncs over the Worker's file routes and is text-first (2026-11-07)
+
+Context: CLOUD-11 builds the local mirror of a cloud workspace and its file sync. Conductor's sync is a Rust crate pair (`file_sync_client`, `file_sync_core`) with its own `/files/sync/` endpoints (native-and-sidecar-map A10, services-map 5B.10.1). D018 replaced Conductor's native sync commands with the Host interface, and D101 already gives a cloud workspace's file calls to its Worker's `/files` route. The brief's checklists are Conductor's inventory; this decision records what CLOUD-11 built, what it deliberately did not build, and why.
+
+Chosen:
+
+- **One-way, remote-to-local.** A ready cloud workspace's files are listed through the Worker's new `/files list` operation and each text file is read through `/files read`. The mirror is `<conducted root>/remote-workspace-sync/<repository>/<workspace id>`. The direction is remote to local, the default the research gives (`remoteToLocal` with `files:read`). A local change is not pushed back.
+- **The baseline sits beside the mirror.** The list of what was mirrored is `baseline.json` in `<mirror>.sync/`, a sibling folder, so it never appears in the file tree a search reads. The next sync removes a mirrored file the sandbox no longer lists, with `trash`.
+- **The path guard is one function.** `guardedRelativePath` refuses an absolute path, NUL, `..` and any `.git` segment. The Worker's walker never follows a symlink. Both the mirror and an upload use it, so a path cannot leave the workspace.
+- **Search reads the mirror.** `WorkspaceFilesService.tree`, `quickOpen` and `grep` take a search root: the workspace folder on the Mac, or the mirror of a cloud workspace. The sync runs when the file tree or a search needs it and the last sync is more than five seconds old, which is the research's poll interval. Every other file call (read, save, stat) still goes to the Worker as CLOUD-03 built it.
+- **A cloud file opens from the mirror, or from Downloads.** The file tab's Reveal in Finder and Open in another app use the mirror's copy. When the mirror has none, the file's text is written to `~/Downloads` and the toast says "Saved to" with a "Downloads" button. A path outside the mirror answers "File is outside the synced workspace"; a failed reveal answers "Could not open Downloads. Try again.".
+- **An upload is a guarded Worker write.** `uploadFile` reads the Mac file and writes it through `/files write`, then updates the mirror. It carries text only, because `/files write` carries text (D101's file route). No Rust command and no crate is added: D018's Host interface plus the Worker route is the door, so `start_remote_file_sync` and its siblings are not rebuilt as Tauri commands.
+- **The setting starts the sync for new cloud workspaces.** `auto_sync_files_in_new_cloud_workspaces` (Advanced, default true) is the CLOUD-11 switch. `file_include_globs` keeps its existing one home as the repository's list of files copied into a new workspace (SET-07, WS-03); the cloud upload of that list is not built because no cloud workspace creation flow exists yet to call it.
+- **The scripts panel shows the states.** The panel shows Conductor's words: "Sync files is off", "Sync folder unavailable", "Sync files failed", and "Local terminal unavailable" as the title when the mirror folder is unavailable.
+
+Left out, and why:
+
+- **Binary files and files over 2 MiB are left out of the mirror.** The Worker's file route speaks text, and a second binary route would need its own transfer and a new local write door. `baseline.json` names each skipped entry and why; the file tree does not list it.
+- **No push signal.** The Worker has no `file-sync:changed` topic and no delta revisions, so every poll lists the whole tree. The mirror is correct but re-reads each file; the research's revision and generation cursors are not built.
+- **No snapshot materialisation for a stopped sandbox.** Conductor applies a 64 MiB snapshot patch to a stopped VM with `git worktree add` and a detached ref. Our Worker's list needs a running sandbox, so a stopped workspace keeps the last mirror and reports the failed sync.
+- **No local terminal on the mirror.** The scripts panel shows "Local terminal unavailable"; a local PTY in the mirror needs a per-terminal host column and is not built. The existing panel offers only the Cloud terminal (CLOUD-09).
+- **Conductor's `start_remote_file_sync` family and its `remote-file-sync-status` events are not rebuilt.** D018 replaced them with the Host interface; the service's store and the hook are the app's status surface.
+
+Contract changes made for this row: `WorkspaceFilesService` gains an optional `searchRootOf`, `cloudOpen` and `hostKindOf`; the `files.reveal` action answers `{ path, downloaded }` and a `files.revealPath` action shows an already-downloaded path; `Queries` gains `useFileSyncStatus`; the settings registry gains `auto_sync_files_in_new_cloud_workspaces`; the Worker's file body gains `list` and a `file-list.ts` walker. The Worker's `/files list` returns at most 20,000 entries and says `truncated`; a bigger tree is not mirrored whole.
+
+Why: the mirror uses the connection the app already owns, the pairing token stays in Rust, and text files are what file search, quick open and the local editor can use. The limits above are reported rather than hidden.
+
+No live Cloudflare run was made for this row, so no number is added to the spike note. The Worker's new walker is proved by a unit test with a fake sandbox; the Worker's routes run in workerd without a container, as D101 has it.
