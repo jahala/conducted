@@ -943,7 +943,7 @@ export class TerminalsService {
 		checkHost(workspace.value.host, "terminals");
 		const cloud = workspace.value.host.kind === "cloud" ? workspace.value.host : null;
 		if (workspace.value.state !== "ready") {
-			return err(appError("workspace_not_ready", "Workspace is not ready for terminals."));
+			return err(appError("workspace_not_ready", "Workspace is not ready for local terminals."));
 		}
 
 		const listed = await this.#deps.repos.terminals.listByWorkspace(workspaceId);
