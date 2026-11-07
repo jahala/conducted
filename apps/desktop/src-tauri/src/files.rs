@@ -828,7 +828,7 @@ pub async fn fs_paths<R: Runtime>(app: AppHandle<R>) -> CommandResult<FsPaths> {
     let text = |p: std::path::PathBuf| p.to_string_lossy().into_owned();
     Ok(FsPaths {
         home: text(resolver.home_dir().map_err(to_error)?),
-        app_data: String::new(),
+        app_data: text(resolver.app_data_dir().map_err(to_error)?),
         temp: text(resolver.temp_dir().map_err(to_error)?),
         resources: text(resolver.resource_dir().map_err(to_error)?),
     })
