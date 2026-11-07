@@ -2,7 +2,8 @@
  * @feature NAV-03 Workspace row
  * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: One row of the sidebar list: project avatar (outside project groups), status icon, name,
- * unread dot, the "Open draft" marker, line change counts, and badges.
+ * the "Open draft" marker, line change counts, and badges. Unread shows only in the name's weight, as
+ * Conductor's row has no unread dot.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
  * directory; the repo avatar's emoji, uploaded icon, favicon, owner avatar or letter; badges Draft
  * and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8 (status text), 5.3
@@ -26,12 +27,12 @@
  * waits for the state that WS-09 gives it; archived workspaces are never listed here. Hovering a
  * row and pressing the live `sidebar.toggleRead` binding toggles its read state, even when nothing
  * is focused; P waits for NAV-04.
- * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
- * only when there are unread chats; no status yet (hook returns null); hover shows the live
+ * Must handle: A long name truncates; selected row is marked by background, not accent; the name in
+ * weight 600 only when there are unread chats; no status yet (hook returns null); hover shows the live
  * Cmd+number hint for this row; keyboard focus ring; a chat whose draft is still loading (the
  * marker appears when it arrives); the marker opening the draft chat without leaving the row.
  * Test first: A workspace with a PR title and no display name shows the PR title; an unread count
- * above zero shows the unread dot.
+ * above zero sets the name in weight 600, with no dot.
  */
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -56,7 +57,6 @@ import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
 import { RepoIconAvatar } from "./RepoIcon.tsx";
-import { UnreadDot } from "./UnreadDot.tsx";
 
 export interface WorkspaceRowProps {
 	workspace: Workspace;
@@ -223,7 +223,6 @@ export function WorkspaceRow({
 							{workspaceName(workspace, branchPrefix)}
 						</span>
 						<span className="flex-1" />
-						<UnreadDot unread={unread} />
 						<DraftMarker
 							place="workspace-row"
 							draft={draft?.draft ?? null}

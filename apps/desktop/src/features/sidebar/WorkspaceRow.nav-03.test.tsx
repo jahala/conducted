@@ -120,13 +120,16 @@ describe("NAV-03 WorkspaceRow", () => {
 		expect(await screen.findByText("Fix the login flow")).toBeTruthy();
 	});
 
-	it("shows the unread dot when a chat has something unread", async () => {
+	// Conductor marks an unread workspace by its name's weight and draws no dot (renderApp's row).
+	it("marks an unread workspace by its name's weight, with no dot", async () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [{ unreadCount: 2 } as Session] };
 		renderRow(
 			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
 		);
-		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
+		const name = await screen.findByText("Fix login");
+		expect(name.className).toContain("font-semibold");
+		expect(screen.queryByRole("img", { name: "Unread" })).toBeNull();
 	});
 
 	// Conductor's row is one line: the status words sit on the status icon, not on a second line

@@ -112,6 +112,9 @@ export const EyeIcon = (p: P) => (
 export const CheckCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
 );
+export const AlertCircleIcon = (p: P) => (
+	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5.5V8M8 10.5h.01" {...p} />
+);
 export const XCircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM6 6l4 4M10 6l-4 4" {...p} />
 );
