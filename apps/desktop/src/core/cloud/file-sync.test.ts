@@ -173,6 +173,17 @@ describe("CLOUD-11 the local mirror", () => {
 		expect(revealed).toHaveBeenCalledWith("/Users/conducted/Downloads/notes.txt");
 	});
 
+	it("answers Could not open Downloads when Finder refuses", async () => {
+		const h = harness();
+		h.remote["/workspace/oslo/notes.txt"] = "hello";
+		vi.spyOn(h.memory.platform.opener, "revealInFinder").mockRejectedValue(new Error("no Finder"));
+		const downloaded = await h.service.downloadFile(WORKSPACE_ID, "notes.txt");
+		expect(downloaded.ok).toBe(false);
+		if (!downloaded.ok) {
+			expect(downloaded.error.message).toBe("Could not open Downloads. Try again.");
+		}
+	});
+
 	it("reports a failed sync with Sync files failed", async () => {
 		const h = harness();
 		h.memory.controls.scriptCloud((request) =>
