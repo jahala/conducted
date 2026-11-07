@@ -18,12 +18,12 @@
  * log text is kept and returned); stapling the ticket so the app opens offline; a disk image or
  * archive built before signing (the release builds the app alone, then signs it, and only then
  * makes the disk image from the verified app; the update archive `tauri build` makes from the
- * unsigned app is made again from the notarised one by `scripts/release.ts`).
+ * unsigned app is made again from the notarised one by `scripts/release-ci.ts`).
  * Our design choice: every tool call goes through `RunTool`, so tests give it a scripted runner
  * and never sign anything. The privacy strings and entitlements live in files next to
  * `tauri.conf.json`, and `bundle.macOS` points at them. `bundle.externalBin` lives in
  * `tauri.release.conf.json`, because Tauri refuses to build when a listed sidecar file is missing;
- * `scripts/release.ts` builds the sidecars, then builds the app alone with that release config.
+ * `scripts/release-ci.ts` builds the sidecars, then builds the app alone with that release config.
  * Test first: `verifyBundle` on a bundle whose `Info.plist` lacks the microphone string returns a
  * report that names `NSMicrophoneUsageDescription`.
  */
@@ -147,7 +147,7 @@ export function sidecarBinaryPath(appPath: string): Result<string> {
 /**
  * The `tauri build` arguments for a release. Only the app is bundled, so Tauri never makes a disk
  * image from an unsigned app. `createUpdaterArtifacts` still makes it write an update archive from
- * the unsigned app; `scripts/release.ts` makes the disk image and that archive again after signing.
+ * the unsigned app; `scripts/release-ci.ts` makes the disk image and that archive again after signing.
  */
 export function appBuildArguments(target: string, configPath: string): readonly string[] {
 	return [
