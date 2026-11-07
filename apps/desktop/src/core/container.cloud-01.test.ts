@@ -165,6 +165,13 @@ describe("CLOUD-01 the host seam in the real container", () => {
 					switch (body.operation) {
 						case "read":
 							return ok({ status: 200, body: JSON.stringify({ text: "hello\n" }) });
+						case "readBytes":
+							return ok({
+								status: 200,
+								body: JSON.stringify({
+									base64: Buffer.from("hello\n").toString("base64"),
+								}),
+							});
 						case "exists":
 							return ok({ status: 200, body: JSON.stringify({ exists: true }) });
 						case "stat":

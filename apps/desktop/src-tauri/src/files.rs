@@ -1,8 +1,8 @@
 //! @feature PLAT-05 Files: atomic write, trash, stat, read dir
 //! @feature PLAT-29 Limit the paths, programs and links the webview can reach
 //!
-//! Owns: the file operations the webview cannot do safely on its own: atomic writes, moving to
-//! the Trash, stat with symlink information, directory listing and the well-known paths.
+//! Owns: the file operations the webview cannot do safely on its own: atomic text and byte writes,
+//! moving to the Trash, stat with symlink information, directory listing and the well-known paths.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 (`write_file_async`,
 //! `get_file_metadata`) and services-map.md 1.1 (`fs`: atomic write is a temp file plus rename,
@@ -390,6 +390,20 @@ fn read_text_at(path: &Path) -> CommandResult<String> {
 }
 
 /// Reads a file as text, refusing one over `MAX_READ_BYTES` before it is loaded.
+fn read_bytes_limited(path: &Path) -> CommandResult<Vec<u8>> {
+    let metadata = fs::metadata(path).map_err(|error| missing_as_not_found(error, path))?;
+    if metadata.len() > MAX_READ_BYTES {
+        return Err(CommandError::Failed {
+            code: "fs_file_too_large",
+            message: format!(
+                "File is larger than {MAX_READ_BYTES} bytes: {}",
+                path.display()
+            ),
+        });
+    }
+    Ok(fs::read(path)?)
+}
+
 fn read_text_limited(path: &Path) -> CommandResult<String> {
     let metadata = fs::metadata(path).map_err(|error| missing_as_not_found(error, path))?;
     if metadata.len() > MAX_READ_BYTES {
@@ -477,6 +491,13 @@ fn write_text_atomic_with<F>(path: &Path, text: &str, rename: F) -> CommandResul
 where
     F: FnOnce(&Path, &Path) -> io::Result<()>,
 {
+    write_bytes_atomic_with(path, text.as_bytes(), rename)
+}
+
+fn write_bytes_atomic_with<F>(path: &Path, bytes: &[u8], rename: F) -> CommandResult<()>
+where
+    F: FnOnce(&Path, &Path) -> io::Result<()>,
+{
     let target = write_target(path);
     let permissions = fs::metadata(&target)
         .ok()
@@ -487,7 +508,7 @@ where
             .write(true)
             .create_new(true)
             .open(&temp)?;
-        file.write_all(text.as_bytes())?;
+        file.write_all(bytes)?;
         file.sync_all()?;
         drop(file);
         if let Some(permissions) = permissions {
@@ -679,6 +700,37 @@ async fn read_text_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<S
     .await
 }
 
+/// Read a file's bytes after the scope check, as base64.
+async fn read_bytes_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<String> {
+    use base64::Engine as _;
+    blocking("fs_task_failed", move || {
+        let path = checked_target(&path, &roots)?;
+        let bytes = read_bytes_limited(&path)?;
+        Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+    })
+    .await
+}
+
+/// Write bytes atomically after the scope check. `data` is base64.
+async fn write_bytes_atomic_checked(
+    path: String,
+    data: String,
+    roots: Vec<PathBuf>,
+) -> CommandResult<()> {
+    use base64::Engine as _;
+    blocking("fs_task_failed", move || {
+        let path = checked_target(&path, &roots)?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(data.as_bytes())
+            .map_err(|_| CommandError::Failed {
+                code: "fs_bad_data",
+                message: "The bytes to write are not base64.".into(),
+            })?;
+        write_bytes_atomic_with(&path, &bytes, rename_file)
+    })
+    .await
+}
+
 /// Write text atomically after the scope check.
 async fn write_text_atomic_checked(
     path: String,
@@ -738,6 +790,27 @@ pub async fn fs_read_text(
     path: String,
 ) -> CommandResult<String> {
     read_text_checked(path, allowed_roots(&app, &scope)?).await
+}
+
+/// Reads a whole file as base64 bytes, for a binary file the mirror keeps (CLOUD-11).
+#[tauri::command]
+pub async fn fs_read_bytes(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<String> {
+    read_bytes_checked(path, allowed_roots(&app, &scope)?).await
+}
+
+/// Writes base64 bytes through a temp file and a rename (CLOUD-11).
+#[tauri::command]
+pub async fn fs_write_bytes_atomic(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+    data: String,
+) -> CommandResult<()> {
+    write_bytes_atomic_checked(path, data, allowed_roots(&app, &scope)?).await
 }
 
 /// Writes text through a temp file and a rename.
@@ -915,6 +988,36 @@ mod tests {
             })
             .collect();
         assert_eq!(names, vec!["file.txt".to_string()], "no temp file is left");
+    }
+
+    #[test]
+    fn cloud_11_write_bytes_atomic_writes_and_reads_back() {
+        use base64::Engine as _;
+        let folder = TempDir::new();
+        let path = as_string(&folder.path().join("logo.bin"));
+        let roots = vec![folder.path().to_path_buf()];
+        let bytes = vec![0u8, 0xff, 0x10];
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+        tauri::async_runtime::block_on(write_bytes_atomic_checked(
+            path.clone(),
+            encoded,
+            roots.clone(),
+        ))
+        .expect("write bytes");
+        assert_eq!(
+            fs::read(folder.path().join("logo.bin")).expect("read"),
+            bytes
+        );
+
+        let read =
+            tauri::async_runtime::block_on(read_bytes_checked(path, roots)).expect("read bytes");
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(read)
+                .expect("decode"),
+            bytes
+        );
     }
 
     #[test]

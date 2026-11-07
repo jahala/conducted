@@ -167,6 +167,8 @@ export interface MemoryPlatformControls {
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
 	readonly files: Map<string, string>;
+	/** Binary files by absolute path, written and read through `fs` (CLOUD-11). */
+	readonly blobs: Map<string, Uint8Array>;
 	/** Folders registered with `fs.registerRoot`, in order, as stored. */
 	readonly registeredRoots: readonly string[];
 	/** Makes a folder and its parents exist on the user's disk, outside the app's file scope. */
@@ -408,6 +410,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	type ValueListener<T> = (value: T) => void;
 
 	const files = new Map<string, string>();
+	/** Binary files the mirror keeps (CLOUD-11); text files stay in `files`. */
+	const blobs = new Map<string, Uint8Array>();
 	const directories = new Set<string>(["/"]);
 	const registeredRoots: string[] = [];
 	const modified = new Map<string, number>();
@@ -473,11 +477,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const statForFile = (path: string): FileStat => {
 		const text = files.get(path);
+		const bytes = blobs.get(path);
 		return {
 			path,
 			isDirectory: false,
 			isSymlink: false,
-			size: text === undefined ? 0 : byteLength(text),
+			size: bytes?.length ?? (text === undefined ? 0 : byteLength(text)),
 			modifiedAt: modified.get(path) ?? 0,
 		};
 	};
@@ -530,7 +535,27 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
 		}
 		addParentFolders(target);
+		blobs.delete(target);
 		files.set(target, text);
+		modified.set(target, clock.now());
+		return ok(undefined);
+	};
+
+	const writeBytes = async (path: string, bytes: Uint8Array): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
+		const target = normalizePath(path);
+		for (const ancestor of ancestors(target)) {
+			if (files.has(ancestor) || blobs.has(ancestor)) {
+				return err(platformError("fs_not_a_directory", `${ancestor} is a file, not a folder.`));
+			}
+		}
+		if (directories.has(target)) {
+			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
+		}
+		addParentFolders(target);
+		files.delete(target);
+		blobs.set(target, bytes);
 		modified.set(target, clock.now());
 		return ok(undefined);
 	};
@@ -539,23 +564,38 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const refused = outOfScope(path);
 		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
+		if (blobs.has(target)) {
+			return err(platformError("fs_not_utf8", `${target} is not a text file.`));
+		}
 		const text = files.get(target);
 		return text === undefined
 			? err(platformError("fs_not_found", `${target} does not exist.`))
 			: ok(text);
 	};
 
+	const readBytes = async (path: string): Promise<Result<Uint8Array>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
+		const target = normalizePath(path);
+		const bytes = blobs.get(target);
+		if (bytes !== undefined) return ok(bytes);
+		const text = files.get(target);
+		return text === undefined
+			? err(platformError("fs_not_found", `${target} does not exist.`))
+			: ok(new TextEncoder().encode(text));
+	};
+
 	const exists = async (path: string): Promise<boolean> => {
 		if (outOfScope(path) !== null) return false;
 		const target = normalizePath(path);
-		return files.has(target) || directories.has(target);
+		return files.has(target) || blobs.has(target) || directories.has(target);
 	};
 
 	const stat = async (path: string): Promise<Result<FileStat>> => {
 		const refused = outOfScope(path);
 		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
-		if (files.has(target)) return ok(statForFile(target));
+		if (files.has(target) || blobs.has(target)) return ok(statForFile(target));
 		if (directories.has(target)) return ok(statForFolder(target));
 		return err(platformError("fs_not_found", `${target} does not exist.`));
 	};
@@ -586,7 +626,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			return err(platformError("fs_not_found", `${folder} is not a folder.`));
 		}
 		const entries: FileStat[] = [];
-		for (const file of files.keys()) {
+		for (const file of new Set([...files.keys(), ...blobs.keys()])) {
 			if (parentPath(file) === folder) entries.push(statForFile(file));
 		}
 		for (const dir of directories) {
@@ -607,6 +647,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			modified.delete(target);
 			return ok(undefined);
 		}
+		if (blobs.has(target)) {
+			blobs.delete(target);
+			modified.delete(target);
+			return ok(undefined);
+		}
 		if (directories.has(target)) {
 			const prefix = `${target}/`;
 			for (const file of [...files.keys()]) {
@@ -614,6 +659,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				const content = files.get(file);
 				if (content !== undefined) trashed.set(file, content);
 				files.delete(file);
+				modified.delete(file);
+			}
+			for (const file of [...blobs.keys()]) {
+				if (!file.startsWith(prefix)) continue;
+				blobs.delete(file);
 				modified.delete(file);
 			}
 			for (const dir of [...directories]) {
@@ -628,7 +678,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const base = normalizePath(root);
 		const rules = ignoreRulesFor(base, files);
 		const entries = new Map<string, TreeEntry>();
-		for (const file of files.keys()) {
+		for (const file of new Set([...files.keys(), ...blobs.keys()])) {
 			if (!file.startsWith(`${base}/`)) continue;
 			const relative = file.slice(base.length + 1);
 			if (isIgnoredPath(relative, rules)) continue;
@@ -742,7 +792,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const fileSystem: FileSystem = {
 		readText,
+		readBytes,
 		writeTextAtomic,
+		writeBytes,
 		exists,
 		stat,
 		mkdirp,
@@ -1431,6 +1483,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			return shellCalls;
 		},
 		files,
+		blobs,
 		get registeredRoots() {
 			return registeredRoots;
 		},

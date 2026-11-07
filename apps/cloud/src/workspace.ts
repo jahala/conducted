@@ -7,6 +7,7 @@
  * @feature CLOUD-17 Cloud settings page
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: one workspace's Durable Object: the sandbox's lifecycle, the commands and file operations
+ * (text and base64 bytes for the local mirror, CLOUD-11)
  * the host seam runs, the WebSocket relay to the sidecar, the alarm that keeps a running turn alive
  * while it lets an idle sandbox sleep, and the R2 backups of the work and the agents' transcripts.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (one Durable Object per workspace holds state,
@@ -159,6 +160,23 @@ export interface CloudFileStat {
 const STORAGE_TURN_ACTIVE = "turnActive";
 const STORAGE_STARTED_AT = "startedAt";
 const STORAGE_BACKUPS = "backups";
+
+/** Base64 of raw bytes, built in slices so a large file does not overflow the argument list. */
+function encodeBase64(bytes: Uint8Array): string {
+	const SLICE = 0x8000;
+	let binary = "";
+	for (let start = 0; start < bytes.length; start += SLICE) {
+		binary += String.fromCharCode(...bytes.subarray(start, start + SLICE));
+	}
+	return btoa(binary);
+}
+
+function decodeBase64(value: string): Uint8Array {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return bytes;
+}
 
 export class Workspace extends DurableObject<Env> {
 	private readonly container: Container | undefined;
@@ -493,12 +511,25 @@ export class Workspace extends DurableObject<Env> {
 					const response = await files.readFile(body.path);
 					return { text: await response.text() };
 				}
+				case "readBytes": {
+					const response = await files.readFile(body.path);
+					return { base64: encodeBase64(new Uint8Array(await response.arrayBuffer())) };
+				}
 				case "write": {
 					const slash = body.path.lastIndexOf("/");
 					const directory = slash <= 0 ? "/" : body.path.slice(0, slash);
 					const temporary = `${body.path}.conducted-${crypto.randomUUID()}`;
 					await files.mkdir(directory, { recursive: true });
 					await files.writeFile(temporary, body.text);
+					await files.rename(temporary, body.path);
+					return {};
+				}
+				case "writeBytes": {
+					const slash = body.path.lastIndexOf("/");
+					const directory = slash <= 0 ? "/" : body.path.slice(0, slash);
+					const temporary = `${body.path}.conducted-${crypto.randomUUID()}`;
+					await files.mkdir(directory, { recursive: true });
+					await files.writeFile(temporary, decodeBase64(body.base64));
 					await files.rename(temporary, body.path);
 					return {};
 				}

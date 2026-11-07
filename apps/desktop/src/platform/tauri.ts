@@ -337,7 +337,9 @@ export const COMMANDS = {
 	shellCancel: "shell_cancel",
 	shellLoginEnv: "shell_login_env",
 	fsReadText: "fs_read_text",
+	fsReadBytes: "fs_read_bytes", // CLOUD-11
 	fsWriteTextAtomic: "fs_write_text_atomic",
+	fsWriteBytesAtomic: "fs_write_bytes_atomic", // CLOUD-11
 	fsStat: "fs_stat",
 	fsMkdirp: "fs_mkdirp",
 	fsReadDir: "fs_read_dir",
@@ -786,15 +788,24 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 	};
 }
 
-/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`; `assetUrl` is Tauri's `convertFileSrc`. */
+/** `fs_read_text { path }`, `fs_read_bytes { path }`, `fs_write_text_atomic { path, text }`, `fs_write_bytes_atomic { path, data }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`; `assetUrl` is Tauri's `convertFileSrc`. */
 export function createTauriFileSystem(
 	bindings: TauriBindings,
 	paths: FileSystem["paths"],
 ): FileSystem {
 	return {
 		readText: (path) => invokeResult<string>(bindings, COMMANDS.fsReadText, { path }),
+		readBytes: async (path) => {
+			const read = await invokeResult<string>(bindings, COMMANDS.fsReadBytes, { path });
+			return read.ok ? ok(decodeBase64(read.value)) : read;
+		},
 		writeTextAtomic: (path, text) =>
 			invokeResult<void>(bindings, COMMANDS.fsWriteTextAtomic, { path, text }),
+		writeBytes: (path, bytes) =>
+			invokeResult<void>(bindings, COMMANDS.fsWriteBytesAtomic, {
+				path,
+				data: encodeBase64(bytes),
+			}),
 		exists: async (path) => {
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
 			return result.ok && result.value !== null;

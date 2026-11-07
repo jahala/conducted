@@ -10,17 +10,19 @@
  * and the "Enable file sync in new cloud workspaces" setting).
  * Must handle: a stopped or unreachable Worker leaves the last mirror and a failed status; a path
  * outside the mirror is refused with "File is outside the synced workspace"; a file the sandbox
- * no longer has is removed from the mirror at the next sync; a binary file and a file over 2 MiB
- * are left out because the Worker's file route speaks text, and the baseline names them; a mirror
- * larger than the Worker's list cap is reported as truncated rather than exhausting the app; a
- * reveal that fails says "Could not open Downloads. Try again.".
- * Our design choice: the mirror is built from the Worker's `/files list` and `/files read` routes,
- * so it needs no second transport and the pairing token stays in Rust. The sync runs when the
+ * no longer has is removed from the mirror at the next sync; a file the Worker cannot carry is
+ * named in the baseline and skipped; a mirror larger than the Worker's list cap is reported as
+ * truncated rather than exhausting the app; a reveal that fails says "Could not open Downloads.
+ * Try again."; a preview of a Local variant with no mirror says "Couldn't open preview: local
+ * workspace mirror is unavailable.".
+ * Our design choice: the mirror is built from the Worker's `/files list` and `/files readBytes`
+ * routes, so it needs no second transport and the pairing token stays in Rust. The sync runs when the
  * file tree or a search asks for it and last ran more than five seconds ago, which is Conductor's
  * poll interval; the Worker has no `file-sync:changed` push topic yet, so polling is the only
  * trigger. The mirror path is `<conducted root>/remote-workspace-sync/<repository>/<workspace id>`.
- * Text files up to 2 MiB are mirrored; larger and binary files are left out and named in the
- * baseline. Conductor also uploads local-only files into a new cloud workspace from
+ * Text and binary files are mirrored at any size the Worker and the local read door can carry
+ * (D120); a file over either bound is named in the baseline. The bytes go as base64 because the
+ * route's body is JSON. Conductor also uploads local-only files into a new cloud workspace from
  * `file_include_globs`; that push waits for a cloud workspace creation flow to call it.
  * Test first: a remote file lands in the mirror, and `../outside` is refused.
  */
@@ -44,15 +46,15 @@ export const BASELINE_FILE = "baseline.json";
 export const metadataPathFor = (mirrorPath: string): string => `${mirrorPath}.sync`;
 /** How often a shown cloud workspace's files are polled (services-map.md 5B.10.1). */
 export const SYNC_POLL_MS = 5_000;
-/** The largest file the text-only Worker route mirrors. */
-export const MIRROR_FILE_LIMIT_BYTES = 2 * 1024 * 1024;
-
 export const SYNC_OFF_LABEL = "Sync files is off";
 export const SYNC_FOLDER_UNAVAILABLE_LABEL = "Sync folder unavailable";
 export const SYNC_FAILED_LABEL = "Sync files failed";
 export const LOCAL_TERMINAL_UNAVAILABLE_LABEL = "Local terminal unavailable";
 export const OUTSIDE_MIRROR_MESSAGE = "File is outside the synced workspace";
 export const OPEN_DOWNLOADS_FAILED_MESSAGE = "Could not open Downloads. Try again.";
+/** Conductor's error when a local-mirror preview is opened before the mirror exists (CLOUD-11). */
+export const PREVIEW_MIRROR_UNAVAILABLE_MESSAGE =
+	"Couldn't open preview: local workspace mirror is unavailable.";
 
 /** One workspace's sync status, as the service keeps it. */
 export interface FileSyncStatus {
@@ -141,9 +143,37 @@ export function guardedRelativePath(path: string): Result<string> {
 	return ok(parts.join("/"));
 }
 
-/** True for text the Worker can carry without losing bytes we would misrepresent as source. */
+/** True for text the mirror can hold as source: valid UTF-8 with no NUL byte. */
 export function isMirroredText(text: string): boolean {
 	return !text.includes("\u0000") && !text.includes("\uFFFD");
+}
+
+/** The text of some bytes, or null when they are binary. A NUL byte makes a file binary. */
+function textFromBytes(bytes: Uint8Array): string | null {
+	let text: string;
+	try {
+		text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+	} catch {
+		return null;
+	}
+	return isMirroredText(text) ? text : null;
+}
+
+/** Base64 of raw bytes, built in slices so a large file does not overflow the argument list. */
+function encodeBase64(bytes: Uint8Array): string {
+	const SLICE = 0x8000;
+	let binary = "";
+	for (let start = 0; start < bytes.length; start += SLICE) {
+		binary += String.fromCharCode(...bytes.subarray(start, start + SLICE));
+	}
+	return btoa(binary);
+}
+
+function decodeBase64(value: string): Uint8Array {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return bytes;
 }
 
 /** The relative path of an absolute sandbox entry under `root`, or null when outside it. */
@@ -164,7 +194,9 @@ export interface FileSyncDeps {
 	fs: Pick<
 		FileSystem,
 		| "readText"
+		| "readBytes"
 		| "writeTextAtomic"
+		| "writeBytes"
 		| "exists"
 		| "stat"
 		| "mkdirp"
@@ -197,6 +229,13 @@ export class FileSyncService {
 	/** True when the Advanced setting starts sync in a new cloud workspace. */
 	autoSyncEnabled(): boolean {
 		return this.#deps.setting<boolean>(AUTO_SYNC_SETTING) === true;
+	}
+
+	/** True when the workspace's mirror folder is on disk, so a Mac preview can read it. */
+	async mirrorReady(workspaceId: WorkspaceId): Promise<boolean> {
+		const mirror = this.mirrorPathOf(workspaceId);
+		if (!mirror.ok) return false;
+		return this.#deps.fs.exists(mirror.value);
 	}
 
 	/** The mirror folder of a cloud workspace, without touching the network. */
@@ -267,29 +306,26 @@ export class FileSyncService {
 		}
 		const guarded = guardedRelativePath(relativePath);
 		if (!guarded.ok) return guarded;
-		const text = await this.#deps.fs.readText(sourcePath);
-		if (!text.ok) return text;
-		if (!isMirroredText(text.value)) {
-			return err(
-				appError(
-					"cloud_file_not_text",
-					"The Worker's file route carries text only, so that file cannot be uploaded yet.",
-				),
-			);
-		}
+		const read = await this.#deps.fs.readBytes(sourcePath);
+		if (!read.ok) return read;
+		const text = textFromBytes(read.value);
 		const destination = `${workspace.value.path.replace(/\/+$/, "")}/${guarded.value}`;
-		const answer = await cloudJson(this.#deps.cloud, workspace.value.host, "/files", {
-			operation: "write",
-			path: destination,
-			text: text.value,
-		});
+		const answer = await cloudJson(
+			this.#deps.cloud,
+			workspace.value.host,
+			"/files",
+			text === null
+				? { operation: "writeBytes", path: destination, base64: encodeBase64(read.value) }
+				: { operation: "write", path: destination, text },
+		);
 		if (!answer.ok) return answer;
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (mirror.ok) {
 			const local = `${mirror.value}/${guarded.value}`;
 			const parent = local.slice(0, local.lastIndexOf("/"));
 			if (parent.length > 0) await this.#deps.fs.mkdirp(parent);
-			await this.#deps.fs.writeTextAtomic(local, text.value);
+			if (text === null) await this.#deps.fs.writeBytes(local, read.value);
+			else await this.#deps.fs.writeTextAtomic(local, text);
 		}
 		return ok(destination);
 	}
@@ -321,28 +357,25 @@ export class FileSyncService {
 			return ok({ path: mirrored, downloaded: false });
 		}
 		const answer = await cloudJson(this.#deps.cloud, workspace.value.host, "/files", {
-			operation: "read",
+			operation: "readBytes",
 			path: `${workspace.value.path.replace(/\/+$/, "")}/${guarded.value}`,
 		});
 		if (!answer.ok) return answer;
-		const value = answer.value as { text?: unknown };
-		if (typeof value.text !== "string") {
-			return err(appError("cloud_bad_response", "The Workspace did not send that file's text."));
+		const value = answer.value as { base64?: unknown };
+		if (typeof value.base64 !== "string") {
+			return err(appError("cloud_bad_response", "The Workspace did not send that file's bytes."));
 		}
-		if (!isMirroredText(value.text)) {
-			return err(
-				appError(
-					"cloud_file_not_text",
-					"The Worker's file route carries text only, so that file cannot be downloaded yet.",
-				),
-			);
-		}
+		const bytes = decodeBase64(value.base64);
+		const text = textFromBytes(bytes);
 		const downloads = `${this.#deps.fs.paths.home}/Downloads`;
 		const made = await this.#deps.fs.mkdirp(downloads);
 		if (!made.ok) return made;
 		const name = guarded.value.split("/").at(-1) ?? "download";
 		const target = `${downloads}/${name}`;
-		const written = await this.#deps.fs.writeTextAtomic(target, value.text);
+		const written =
+			text === null
+				? await this.#deps.fs.writeBytes(target, bytes)
+				: await this.#deps.fs.writeTextAtomic(target, text);
 		if (!written.ok) return written;
 		if (options.reveal !== false) {
 			const revealed = await this.#reveal(target);
@@ -475,12 +508,8 @@ export class FileSyncService {
 				continue;
 			}
 			seen.add(path);
-			if (typeof entry.size === "number" && entry.size > MIRROR_FILE_LIMIT_BYTES) {
-				skipped.push({ path, reason: "Larger than the mirror's 2 MiB text limit." });
-				continue;
-			}
 			const read = await cloudJson(this.#deps.cloud, host, "/files", {
-				operation: "read",
+				operation: "readBytes",
 				path: entry.path,
 			});
 			if (!read.ok) {
@@ -488,20 +517,21 @@ export class FileSyncService {
 				continue;
 			}
 			const value = objectOf(read.value);
-			if (value === null || typeof value.text !== "string") {
-				skipped.push({ path, reason: "The Workspace sent no text for it." });
+			if (value === null || typeof value.base64 !== "string") {
+				skipped.push({ path, reason: "The Workspace sent no bytes for it." });
 				continue;
 			}
+			const bytes = decodeBase64(value.base64);
+			const text = textFromBytes(bytes);
 			const parent = local.slice(0, local.lastIndexOf("/"));
 			if (parent.length > 0) {
 				const made = await this.#deps.fs.mkdirp(parent);
 				if (!made.ok) return made;
 			}
-			if (!isMirroredText(value.text)) {
-				skipped.push({ path, reason: "Not text, so it is not mirrored." });
-				continue;
-			}
-			const written = await this.#deps.fs.writeTextAtomic(local, value.text);
+			const written =
+				text === null
+					? await this.#deps.fs.writeBytes(local, bytes)
+					: await this.#deps.fs.writeTextAtomic(local, text);
 			if (!written.ok) return written;
 			files += 1;
 		}
