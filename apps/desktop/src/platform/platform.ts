@@ -247,6 +247,8 @@ export const PLATFORM_ERROR_CODES = [
 	"updater_state_read",
 	"updater_state_unreadable",
 	"updater_state_write",
+	"visualization_id_failed",
+	"visualization_too_large",
 	"window_focus_failed",
 	"window_main_thread_failed",
 	"window_missing",
@@ -1011,6 +1013,38 @@ export interface ConductorImport {
 	discardCopies(): Promise<Result<number>>;
 }
 
+// ---------------------------------------------------------------- Codex visualizations (CHAT-22)
+
+/**
+ * The most pages and bytes the Rust shell keeps for visualization frames (`visualization.rs`
+ * `MAX_PAGES` and `MAX_STORE_BYTES`; the Tauri contract test compares them). A newer page pushes
+ * the oldest out.
+ */
+export const VISUALIZATION_MAX_PAGES = 64;
+export const VISUALIZATION_MAX_STORE_BYTES = 128 * 1024 * 1024;
+
+/** One page the Rust shell serves, and the address its frame loads. */
+export interface VisualizationPage {
+	id: string;
+	/** `visualization://localhost/<id>`. */
+	url: string;
+}
+
+/**
+ * visualization.rs: each Codex visualization is served from its own origin, with a policy that
+ * lets its inline scripts run. The app's own policy stays strict, which a `srcdoc` frame would
+ * inherit (issue #466).
+ */
+export interface Visualizations {
+	/**
+	 * Keeps `document` in the Rust shell under a new random id and answers its address. A
+	 * document over `VISUALIZATION_MAX_STORE_BYTES` UTF-8 bytes is `visualization_too_large`.
+	 */
+	serve(document: string): Promise<Result<VisualizationPage>>;
+	/** Drops the page once its frame is gone. An id that is already gone is Ok. */
+	release(id: string): Promise<Result<void>>;
+}
+
 // ---------------------------------------------------------------- the whole
 
 export interface Platform {
@@ -1037,4 +1071,5 @@ export interface Platform {
 	cloud: Cloud;
 	portForward: PortForwarding;
 	conductorImport: ConductorImport;
+	visualizations: Visualizations;
 }

@@ -14,11 +14,17 @@
 //! - Other schemes (`file:`, `javascript:`, `data:`, an unknown app scheme) are blocked, not opened.
 //! - A URL that does not parse is blocked.
 //! - `about:blank` is allowed.
+//! - A Codex visualization's page (`visualization://localhost/<id>`, CHAT-22) is allowed. Tauri
+//!   asks this guard about every frame's navigation, not only the window's, so the visualization
+//!   frame could not load without it. The frame is sandboxed without `allow-top-navigation`, so
+//!   it cannot move the window there.
 //! - The content security policy replaces `"csp": null`. It allows the app's own origin, the IPC
 //!   channel and, in development only, the dev server and its web socket. It lists no remote
 //!   script source. Images from `https` hosts (avatars, GitHub attachments) and `data:` URLs stay
 //!   allowed for pictures only. Local files reach `<object>` (PDF previews) and `<video>` (video
-//!   previews, chat videos) through the asset protocol only (`asset:` and `http://asset.localhost`). The directives the policy must contain are checked against
+//!   previews, chat videos) through the asset protocol only (`asset:` and `http://asset.localhost`).
+//!   Frames may load the visualization scheme (`visualization:`), whose pages carry their own
+//!   policy; the app's `script-src` stays `'self'`. The directives the policy must contain are checked against
 //!   `tauri.conf.json` in this module's test. Loading every screen with the policy on is not
 //!   covered by a test yet.
 //!
@@ -38,6 +44,7 @@ use tauri::{AppHandle, Manager, Url, Webview, Wry};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::error::{CommandError, CommandResult};
+use crate::visualization;
 
 /// Origin of the bundled web UI in a release build.
 pub const RELEASE_ORIGIN: &str = "tauri://localhost";
@@ -96,6 +103,10 @@ pub fn decide_navigation(url: &str, app_origins: &[&str]) -> NavigationDecision 
     }
 
     if is_app_origin(&parsed, app_origins) {
+        return NavigationDecision::Allow;
+    }
+
+    if parsed.scheme() == visualization::SCHEME && parsed.host_str() == Some("localhost") {
         return NavigationDecision::Allow;
     }
 
@@ -240,6 +251,21 @@ mod tests {
                 "{url}"
             );
         }
+    }
+
+    #[test]
+    fn chat_22_a_visualization_page_is_allowed() {
+        assert_eq!(
+            decide(
+                "visualization://localhost/0123456789abcdef0123456789abcdef",
+                RELEASE_ORIGINS
+            ),
+            NavigationDecision::Allow
+        );
+        assert_eq!(
+            decide("visualization://elsewhere/0123", RELEASE_ORIGINS),
+            NavigationDecision::Block
+        );
     }
 
     #[test]

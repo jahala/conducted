@@ -68,6 +68,7 @@ pub mod sidecar;
 pub mod speech;
 pub mod terminal_history;
 pub mod updater;
+pub mod visualization;
 pub mod window;
 
 use std::fs::{self, File, OpenOptions};
@@ -717,6 +718,14 @@ pub fn run() {
         .manage(cloud::CloudState::default())
         .manage(port_forward::PortForwardState::default())
         .manage(files::FsScopeState::default())
+        .manage(visualization::VisualizationState::default())
+        // Each Codex visualization is served from this scheme with its own policy (CHAT-22).
+        .register_uri_scheme_protocol(visualization::SCHEME, |context, request| {
+            context
+                .app_handle()
+                .state::<visualization::VisualizationState>()
+                .respond(&request)
+        })
         .menu(|app| {
             let state = app.state::<menu::MenuState>();
             menu::build_menu(app, state.inner())
@@ -822,6 +831,8 @@ pub fn run() {
             conductor_import::conductor_import_read,
             conductor_import::conductor_import_move_secrets,
             conductor_import::conductor_import_discard,
+            visualization::visualization_serve,
+            visualization::visualization_release,
             notifications::notify,
             notifications::set_dock_badge,
             notifications::notification_take_pending,

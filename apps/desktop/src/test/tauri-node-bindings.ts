@@ -4,7 +4,8 @@
  * files on node:fs, the database on node:sqlite, shell commands as real child processes in their
  * own process group, a loopback echo child as the sidecar, an in-process event emitter in
  * place of Tauri's event bus, and the import's copies of a Conductor database made from its bytes
- * and read back with node:sqlite (APP-17). `createTauriPlatform` runs over it unchanged.
+ * and read back with node:sqlite (APP-17), and the visualization pages kept in a map with
+ * visualization.rs's limits (CHAT-22). `createTauriPlatform` runs over it unchanged.
  * Behaviour: docs/plans/tauri-commands.md for the command names and payloads; files.rs and
  * shell.rs for what each command promises.
  * Must handle: a command answers as Rust does where the contract looks (an absent path stats as
@@ -17,7 +18,7 @@
  * Test first: a shell command that outlives its timeout ends with `shell_timeout`.
  */
 import { type ChildProcess, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
 	copyFile,
 	lstat,
@@ -42,6 +43,8 @@ import {
 	type ProgramStatus,
 	type ShellCommand,
 	type ShellOutput,
+	VISUALIZATION_MAX_PAGES,
+	VISUALIZATION_MAX_STORE_BYTES,
 } from "../platform/platform.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";
@@ -321,6 +324,8 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 	const windowEvents = createEmitter();
 	const databases: DatabaseSync[] = [];
 	const running = new Map<string, RunningProcess>();
+	/** CHAT-22: the pages visualization.rs keeps, by id, oldest first, with their byte sizes. */
+	const visualizationPages = new Map<string, number>();
 	let sidecar: ChildProcess | null = null;
 	let disposed = false;
 	let focused = true;
@@ -622,6 +627,30 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				for (const name of names) await rm(join(conductorFolder, name), { force: true });
 				return names.length;
 			}
+			// CHAT-22, as visualization.rs answers: a random id, the oldest pages dropped past the
+			// limits, and a document over the byte limit refused.
+			case COMMANDS.visualizationServe: {
+				const bytes = Buffer.byteLength(String(args.document), "utf8");
+				if (bytes > VISUALIZATION_MAX_STORE_BYTES) {
+					return fail("visualization_too_large", `The visualization is ${bytes} bytes.`);
+				}
+				const stored = () => [...visualizationPages.values()].reduce((sum, size) => sum + size, 0);
+				for (const id of visualizationPages.keys()) {
+					if (
+						visualizationPages.size < VISUALIZATION_MAX_PAGES &&
+						stored() + bytes <= VISUALIZATION_MAX_STORE_BYTES
+					) {
+						break;
+					}
+					visualizationPages.delete(id);
+				}
+				const id = randomBytes(16).toString("hex");
+				visualizationPages.set(id, bytes);
+				return { id, url: `visualization://localhost/${id}` };
+			}
+			case COMMANDS.visualizationRelease:
+				visualizationPages.delete(String(args.id));
+				return undefined;
 			case COMMANDS.notificationTakePending: {
 				// Rust keeps the newest queued click and drops older ones.
 				const newest = pendingClicks.at(-1);
