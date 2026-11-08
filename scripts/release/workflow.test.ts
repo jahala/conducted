@@ -120,6 +120,9 @@ test("publishes the cask from the released disk image with the tap deploy key", 
 	// The key lives in RUNNER_TEMP, readable only by this runner user.
 	expect(step?.run).toContain("homebrew-tap-deploy-key");
 	expect(step?.run).toContain("chmod 600");
+	// An OpenSSH private key must end with a newline, and the secret may arrive without one: ssh
+	// then refuses the key with "invalid format" (the v0.3.3 release).
+	expect(step?.run).toContain(`printf '%s\\n' "$HOMEBREW_TAP_DEPLOY_KEY"`);
 	// ssh checks GitHub's host key, fetched from GitHub's API over HTTPS.
 	expect(step?.run).toContain("gh api meta");
 	expect(step?.run).toContain("StrictHostKeyChecking=yes");
