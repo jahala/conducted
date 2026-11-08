@@ -195,7 +195,7 @@ function makeService(
 	} = {},
 ) {
 	const prefs = new Map<string, unknown>([
-		["conducted_root_path", "~/conducted"],
+		["conductor_root_path", "~/conducted"],
 		["last_clone_directory", ""],
 		...Object.entries(options.settings ?? {}),
 	]);

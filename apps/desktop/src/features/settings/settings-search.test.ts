@@ -62,3 +62,24 @@ describe("SET-02 settings search", () => {
 		expect(searchSettings(index, "app theme", 30)).toEqual([]);
 	});
 });
+
+describe("SET-02 settings search copy and pages", () => {
+	it("shows Conductor's search copy where it differs from the page's", async () => {
+		const { buildSettingsIndex } = await import("./settings-search.ts");
+		const index = buildSettingsIndex();
+		const mono = index.find((entry) => entry.key === "mono_font");
+		expect(mono?.description).toBe("Font used for code and diffs.");
+		expect(index.find((entry) => entry.key === "terminal_font_family")?.title).toBe(
+			"Terminal font",
+		);
+		expect(index.some((entry) => entry.key === "terminal_font_size")).toBe(false);
+	});
+
+	it("finds Conductor's settings pages and agent harnesses", async () => {
+		const { buildSettingsIndex, searchSettings } = await import("./settings-search.ts");
+		const index = buildSettingsIndex();
+		expect(searchSettings(index, "agent settings", 30)[0]?.title).toBe("Agent settings");
+		expect(searchSettings(index, "claude code harness", 30)[0]?.title).toBe("Claude Code harness");
+		expect(searchSettings(index, "repository scripts", 30)[0]?.title).toBe("Repository scripts");
+	});
+});

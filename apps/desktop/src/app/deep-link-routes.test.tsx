@@ -417,7 +417,9 @@ describe("NAV-17 the app reaches deep links through its Platform event", () => {
 				test.memory.controls.emitDeepLink("conducted://settings/experimental");
 			});
 
-			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/experimental"));
+			await waitFor(() =>
+				expect(router.state.location.pathname).toBe("/settings/user/experimental"),
+			);
 		} finally {
 			test.close();
 		}

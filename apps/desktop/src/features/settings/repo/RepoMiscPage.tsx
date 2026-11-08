@@ -9,7 +9,7 @@
  * repository's Git page (repo/RepoGitPage.tsx), as Conductor has them. Files to copy is PRJ-04; the
  * copy itself runs in the workspace service.
  * Data: useRepos (path, icon), useRepoConfig (copyFiles, previewUrls), useWorkspaces (the
- * count the removal dialog names), useSetting(conducted_root_path), useActions().projects
+ * count the removal dialog names), useSetting(conductor_root_path), useActions().projects
  * (updateConfig, remove).
  * Children: FilesToCopyField, RemoveRepoDialog.
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; an
@@ -76,7 +76,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const repos = useRepos();
 	const config = useRepoConfig(repoId);
 	const workspaces = useWorkspaces();
-	const rootPath = useSetting<string>("conducted_root_path");
+	const rootPath = useSetting<string>("conductor_root_path");
 	const actions = useActions();
 	const nextRowId = useRef(0);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

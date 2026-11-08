@@ -210,7 +210,7 @@ function makeHarness(options: HarnessOptions = {}) {
 		},
 	};
 	const settings: Record<string, unknown> = {
-		conducted_root_path: "~/conducted",
+		conductor_root_path: "~/conducted",
 		branch_prefix_type: "none",
 		branch_prefix_custom: "",
 		worktree_push_auto_setup_remote: true,

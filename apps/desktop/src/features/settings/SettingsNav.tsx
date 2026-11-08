@@ -79,7 +79,7 @@ const PAGE_ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElemen
 	account: UserCircleIcon,
 	appearance: PaletteIcon,
 	"key-bindings": KeyboardIcon,
-	"default-models": CpuIcon,
+	models: CpuIcon,
 	git: GitBranchIcon,
 	connections: PlugIcon,
 	agents: BotIcon,

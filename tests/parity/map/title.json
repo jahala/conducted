@@ -3346,12 +3346,10 @@
 		"owner": "hand"
 	},
 	"title:R11557358": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-02",
-		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D109",
+		"note": "A step of Conductor's cloud-computer onboarding. The deploy flow is ours, and its onboarding is left out.",
+		"by": "hand"
 	},
 	"title:R11559291": {
 		"status": "decided",

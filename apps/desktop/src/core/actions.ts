@@ -56,6 +56,7 @@ export function createActions(
 		},
 		workspaces: {
 			create: (input) => services.workspace.create(input),
+			createFirst: (repoId) => services.workspace.createFirst(repoId),
 			archive: (id, options) => services.workspace.archive(id, options),
 			unarchive: (id, options) => services.workspace.unarchive(id, options),
 			remove: (id) => services.workspace.remove(id),
@@ -238,6 +239,7 @@ export function createActions(
 		},
 		settings: {
 			set: (key, value) => services.settings.set(key, value),
+			reset: (key) => services.settings.delete(key),
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
 			resetForRepo: (repoId, key) => services.settings.resetForRepo(repoId, key),

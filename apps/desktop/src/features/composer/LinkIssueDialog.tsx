@@ -248,7 +248,7 @@ function LinkIssueBody({
 							<Command.Item
 								value="link-linear"
 								onSelect={() => {
-									void navigate({ to: "/settings/$page", params: { page: "account" } });
+									void navigate({ to: "/settings/user/$page", params: { page: "account" } });
 									close();
 								}}
 								className={itemClass}

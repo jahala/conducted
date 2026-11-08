@@ -7,6 +7,11 @@
  *
  * The script lives in bin/, which `pnpm test` does not scan. This test sits with the checkpoint
  * code that calls the script, so CI runs it.
+ *
+ * Every repository here turns automatic maintenance and gc off (initRepo). A `git commit` otherwise
+ * starts `git maintenance run --auto --detach` in its own session, outside the process group the
+ * kill tests watch and outside the test's own control, and that process writes a lock file into the
+ * repository. With those settings no git process outlives the commit that started it.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
@@ -78,6 +83,19 @@ function gitOk(cwd: string, ...args: string[]): string {
 	const result = git(cwd, ...args);
 	if (result.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.err}`);
 	return result.out;
+}
+
+/**
+ * Make a repository the tests own, with automatic maintenance and gc off. Left to itself, `git
+ * commit` starts a detached `git maintenance run --auto --detach` in a new session; it is outside
+ * the process group the kill tests watch, it runs after the test can see it, and it writes into the
+ * repository. Turning it off means no git process outlives the commit that started it.
+ */
+function initRepo(dir: string): void {
+	gitOk(dir, "init", "-q", "-b", "main");
+	gitOk(dir, "config", "gc.auto", "0");
+	gitOk(dir, "config", "gc.autoDetach", "false");
+	gitOk(dir, "config", "maintenance.auto", "false");
 }
 
 function save(cwd: string, ...args: string[]): Run {
@@ -216,7 +234,7 @@ beforeEach(() => {
 	base = mkdtempSync(join(tmpdir(), "git-10-"));
 	repo = join(base, "repo with spaces");
 	mkdirSync(repo);
-	gitOk(repo, "init", "-q", "-b", "main");
+	initRepo(repo);
 	write("base.txt", "base\n");
 	commitAll("base");
 });
@@ -226,6 +244,19 @@ afterEach(() => {
 });
 
 describe("GIT-10 checkpointer.sh", () => {
+	test("a commit in the test repository starts no detached git maintenance", () => {
+		const trace = join(base, "trace.json");
+		const committed = run(["git", "commit", "--allow-empty", "-m", "trace"], repo, {
+			GIT_TRACE2_EVENT: trace,
+		});
+
+		expect(committed.code).toBe(0);
+		// Without initRepo's settings, git starts `maintenance run --auto --detach` after every
+		// commit. It detaches into its own session, writes the repository's lock file and is
+		// invisible to the tests' process-group checks.
+		expect(readFileSync(trace, "utf8")).not.toContain('"maintenance"');
+	});
+
 	test("saves two states, diffs them, and restores the first without touching other files", () => {
 		write("one.txt", "one\n");
 		write("two.txt", "two\n");
@@ -443,7 +474,7 @@ describe("GIT-10 checkpointer.sh", () => {
 	test("saves an unborn HEAD and refuses to restore that snapshot", () => {
 		const empty = join(base, "empty");
 		mkdirSync(empty);
-		gitOk(empty, "init", "-q", "-b", "main");
+		initRepo(empty);
 		writeFileSync(join(empty, "first.txt"), "first\n");
 
 		const saved = save(empty, "--id", "unborn");
@@ -565,7 +596,7 @@ describe("GIT-10 checkpointer.sh", () => {
 	test("diff compares against the current state on an unborn HEAD", () => {
 		const empty = join(base, "unborn-diff");
 		mkdirSync(empty);
-		gitOk(empty, "init", "-q", "-b", "main");
+		initRepo(empty);
 		expect(save(empty, "--id", "empty").code).toBe(0);
 
 		writeFileSync(join(empty, "first.txt"), "first\n");

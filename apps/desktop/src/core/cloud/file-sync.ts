@@ -224,7 +224,7 @@ export interface FileSyncDeps {
 	opener: Pick<Opener, "revealInFinder">;
 	workspaceOf: (id: WorkspaceId) => Result<Workspace>;
 	repoNameOf: (id: WorkspaceId) => Result<string>;
-	/** The Conducted root, with `~` expanded (the `conducted_root_path` setting). */
+	/** The Conducted root, with `~` expanded (the `conductor_root_path` setting). */
 	rootPath: () => string;
 	setting: <T>(key: string) => T;
 	now: () => number;

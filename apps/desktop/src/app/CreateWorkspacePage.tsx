@@ -1053,7 +1053,9 @@ function ProjectMenu({
 	disabled: boolean;
 	onPick: (id: RepoId) => void;
 }) {
-	const add = useAddProject();
+	// Added from here, a project becomes this page's choice rather than opening a workspace, as
+	// Conductor's new-workspace dialog keeps it (renderApp @1713146, the consume() branch).
+	const add = useAddProject({ onAdded: (repo) => onPick(repo.id) });
 	return (
 		<>
 			<Menu>

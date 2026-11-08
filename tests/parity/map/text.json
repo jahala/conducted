@@ -4384,12 +4384,10 @@
 		"by": "hand"
 	},
 	"text:R10832356": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-02",
-		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The Organization GitHub page's account heading. Organisations are a team feature, kept out by D004 and D018.",
+		"by": "hand"
 	},
 	"text:R10833056": {
 		"status": "decided",
@@ -4706,12 +4704,9 @@
 		"by": "hand"
 	},
 	"text:R10967695": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"Changing this removes all existing repos and workspaces from Conductor, but leaves their files on disk.\" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D037",
+		"note": "Conductor's warning that changing the root path wipes its data. D037 keeps existing workspaces and chats.",
 		"by": "hand"
 	},
 	"text:R10971526": {

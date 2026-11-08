@@ -312,7 +312,7 @@ describe("s1-ui join", () => {
 			await test.container.services.settings.start();
 			await test.container.services.repo.start();
 
-			await openApp(test.container, "/settings/environment");
+			await openApp(test.container, "/settings/user/environment");
 			expect(await screen.findByRole("heading", { name: "Environment" })).toBeTruthy();
 
 			fireEvent.click(screen.getByRole("button", { name: "Add environment variable" }));
@@ -344,7 +344,7 @@ describe("s1-ui join", () => {
 			test.container.services.agentCatalog.setInstalls([install]);
 			vi.spyOn(test.container.actions.agents, "refresh").mockResolvedValue(ok(undefined));
 
-			await openApp(test.container, "/settings/agents");
+			await openApp(test.container, "/settings/user/agents");
 
 			fireEvent.click(await screen.findByRole("button", { name: "Providers" }));
 			expect(await screen.findByRole("heading", { name: "Providers" })).toBeTruthy();
@@ -513,7 +513,7 @@ describe("s1-ui join REV-10 and SET-10", () => {
 			test.container.services.agentCatalog.setInstalls([install]);
 			vi.spyOn(test.container.actions.agents, "refresh").mockResolvedValue(ok(undefined));
 
-			await openApp(test.container, "/settings/agents");
+			await openApp(test.container, "/settings/user/agents");
 			fireEvent.click(await screen.findByRole("button", { name: "Providers" }));
 
 			await waitFor(() =>

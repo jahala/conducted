@@ -2993,12 +2993,10 @@
 		"by": "rule:team-wording"
 	},
 	"label:R10818359": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-02",
-		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The Organization GitHub page's Connect GitHub button. Organisations are a team feature, kept out by D004 and D018.",
+		"by": "hand"
 	},
 	"label:R10819213": {
 		"status": "decided",

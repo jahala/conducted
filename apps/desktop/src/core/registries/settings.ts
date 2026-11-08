@@ -74,6 +74,12 @@ export type SettingDef = {
 	title: string;
 	/** The line under the title on the page and in search results. */
 	description: string;
+	/** The title settings search shows, where Conductor keeps it apart from the page's (ui-map 6). */
+	searchTitle?: string;
+	/** The description settings search shows, where Conductor keeps it apart from the page's. */
+	searchDescription?: string;
+	/** False for a row that shares one search result with another (Conductor's Terminal font). */
+	searchable?: false;
 	/**
 	 * False where Conductor's row on the page shows no line under its title (D098): the page leaves
 	 * the description out, and search still shows it.
@@ -355,6 +361,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Code theme",
 		description: "Syntax highlighting colors for code blocks and editors.",
+		searchDescription: "Syntax highlighting theme for code and diffs.",
 		searchTerms: [
 			"syntax",
 			"highlight",
@@ -410,6 +417,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Mono Font",
 		description: "Font used for code and diffs",
+		searchDescription: "Font used for code and diffs.",
 		searchTerms: ["monospace", "typeface", "font family", "geist"],
 		feature: "SET-06",
 		type: "string",
@@ -421,6 +429,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Markdown Style",
 		description: "Rendering style for markdown files",
+		searchDescription: "Rendering style for markdown files.",
 		searchTerms: ["tufte", "prose", "typography", "markdown"],
 		feature: "SET-06",
 		type: "enum",
@@ -437,6 +446,8 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Terminal Font",
 		description: "Enter font name exactly as installed, e.g. Arial, Papyrus, FiraCode Nerd Font",
+		searchTitle: "Terminal font",
+		searchDescription: "Font family and size for the terminal.",
 		searchTerms: ["monospace", "typeface", "terminal", "font"],
 		feature: "SET-06",
 		type: "string",
@@ -450,6 +461,7 @@ const SETTINGS_TABLE = [
 		title: "Terminal Font Size",
 		description: "Text size in points for terminals.",
 		pageDescription: false,
+		searchable: false,
 		searchTerms: ["size", "points", "terminal", "text"],
 		feature: "SET-06",
 		type: "number",
@@ -1490,9 +1502,10 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: true,
 	},
-	// Our design choice: the key and the default folder are named after the app, as the research gives no default.
+	// The key keeps Conductor's name (D020); the default folder is named after the app, as the
+	// research gives no default (D012). A stored row under our earlier name moves in migration 0017.
 	{
-		key: "conducted_root_path",
+		key: "conductor_root_path",
 		page: "advanced",
 		scopes: ["user"],
 		title: "Conducted root directory",

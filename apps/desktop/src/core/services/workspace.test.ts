@@ -228,7 +228,7 @@ function makeHarness(
 	const backlogRows: BacklogWorkspace[] = [];
 	const backlog = makeBacklogRepository(backlogRows);
 	const settings: Record<string, unknown> = {
-		conducted_root_path: "~/conducted",
+		conductor_root_path: "~/conducted",
 		branch_prefix_type: "none",
 		branch_prefix_custom: "",
 		worktree_push_auto_setup_remote: true,
@@ -560,6 +560,23 @@ describe("WS-01 WorkspaceService.start", () => {
 	});
 });
 
+describe("PRJ-01 WorkspaceService.createFirst", () => {
+	it("makes a just-added project's first workspace from the default branch with the default chat settings", async () => {
+		const { service, rows, createFirstChat } = makeHarness({
+			settings: { default_model: "sonnet", default_claude_effort_level: "low" },
+		});
+
+		const result = await service.createFirst(baseRepo.id);
+
+		expect(result.ok).toBe(true);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({ repoId: baseRepo.id, targetBranch: "main", state: "ready" });
+		// With no first message, no chat is started: the workspace opens on an empty chat, as
+		// Conductor's first workspace does.
+		expect(createFirstChat).not.toHaveBeenCalled();
+	});
+});
+
 describe("WS-01 WorkspaceService.create", () => {
 	it("picks a place name and port, creates the worktree, and starts the first chat", async () => {
 		const { service, rows, createFirstChat } = makeHarness();
@@ -595,7 +612,7 @@ describe("WS-01 WorkspaceService.create", () => {
 
 	it("PLAT-02 registers the workspaces folder a new worktree goes to", async () => {
 		const { service, rows, registered } = makeHarness({
-			settings: { conducted_root_path: "/Volumes/fast" },
+			settings: { conductor_root_path: "/Volumes/fast" },
 		});
 
 		const result = await service.create(newInput);

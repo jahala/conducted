@@ -157,7 +157,7 @@ async function setup(options: { linearKey?: boolean; remoteUrl?: string | null }
 	});
 	const settings = createRoute({
 		getParentRoute: () => rootRoute,
-		path: "/settings/$page",
+		path: "/settings/user/$page",
 		component: function SettingsPage() {
 			return <p>{`settings page ${settings.useParams().page}`}</p>;
 		},

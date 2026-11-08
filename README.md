@@ -41,6 +41,14 @@ What it does not do:
 
 ## Install
 
+### Homebrew
+
+```bash
+brew install --cask jahala/tap/conducted
+```
+
+Each release updates the cask with the published `.dmg` and its checksum. The app updates itself when a new release is out.
+
 ### Download
 
 Signed and notarised builds are published on the [releases page](https://github.com/jahala/conducted/releases/latest). Download the `.dmg`, open it and drag Conducted to Applications. The app updates itself when a new release is out. If the latest release has no `.dmg` yet, build from source.

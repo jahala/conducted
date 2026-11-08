@@ -76,12 +76,12 @@ async function renderPage() {
 	const rootRoute = createRootRoute({ component: () => <Outlet /> });
 	const page = createRoute({
 		getParentRoute: () => rootRoute,
-		path: "/settings/$page",
+		path: "/settings/user/$page",
 		component: () => <DefaultModelsPage />,
 	});
 	const router = createRouter({
 		routeTree: rootRoute.addChildren([page]),
-		history: createMemoryHistory({ initialEntries: ["/settings/models"] }),
+		history: createMemoryHistory({ initialEntries: ["/settings/user/models"] }),
 	});
 	render(
 		<ServicesProvider container={container}>
@@ -114,7 +114,7 @@ describe("SET-02 DefaultModelsPage", () => {
 		expect(within(claude).getByText("In the loadout")).toBeTruthy();
 		const cursor = screen.getByRole("region", { name: "Cursor" });
 		fireEvent.click(within(cursor).getByRole("button", { name: "Configure Cursor" }));
-		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/agents"));
+		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/agents"));
 	});
 
 	it("puts a model into the next empty slot with Enter, and replaces it by a drop", async () => {
