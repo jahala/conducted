@@ -12,8 +12,10 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { chatRoute, seedCast } from "../cast.ts";
+import { seedConductorDatabase } from "../conductor-database.ts";
 import { click, find, shows, typeInto } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
+import type { World } from "../world.ts";
 
 const page = (id: string, title: string, page: string, text: string): CatalogueState => ({
 	id,
@@ -124,6 +126,61 @@ const selectOpen = (id: string, title: string, page: string, control: string): C
 		};
 	},
 });
+
+/**
+ * A Conductor database with one project this Mac already has (atlas), one it does not (tern), their
+ * workspaces and chats, a section, a favourite model and two settings, for the import's dialog.
+ */
+async function seedConductorImport(world: World): Promise<void> {
+	const cast = await seedCast(world);
+	const tern = "/Users/sam/conductor/repos/tern";
+	world.memory.controls.addFolder(tern);
+	world.memory.controls.addFolder("/Users/sam/conductor/workspaces/tern/lisbon");
+	await seedConductorDatabase(world, {
+		repos: [
+			{ id: "c-atlas", name: "atlas", root_path: cast.atlas.rootPath, default_branch: "main" },
+			{ id: "c-tern", name: "tern", root_path: tern, default_branch: "main", display_order: 1 },
+		],
+		workspaces: [
+			{
+				local_id: "c-lisbon",
+				repository_id: "c-tern",
+				directory_name: "lisbon",
+				branch: "sam/lisbon",
+				state: "ready",
+				workspace_name: "Task runner flags",
+			},
+			{
+				local_id: "c-porto",
+				repository_id: "c-tern",
+				directory_name: "porto",
+				branch: "sam/porto",
+				state: "archived",
+				archive_commit: "4f1c2ab",
+			},
+		],
+		sessions: [
+			{
+				id: "c-s1",
+				workspace_id: "c-lisbon",
+				agent_type: "claude",
+				model: "opus",
+				title: "Add --dry-run",
+			},
+			{
+				id: "c-s2",
+				workspace_id: "c-lisbon",
+				agent_type: "codex",
+				model: "gpt-5",
+				title: "Review flags",
+			},
+		],
+		settings: [
+			{ key: "default_model", value: "opus" },
+			{ key: "onboarding_step", value: "done" },
+		],
+	});
+}
 
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
@@ -434,4 +491,35 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	repoPage("settings-repo-scripts", "atlas: Scripts", "scripts", "Setup script"),
 	repoPage("settings-repo-actions", "atlas: Actions", "actions", "Code review preferences"),
 	repoPage("settings-repo-misc", "atlas: Misc", "misc", "Misc"),
+	{
+		id: "settings-conductor-import-dry-run",
+		group: "Settings",
+		title: "General: Import from Conductor, the dry run",
+		seed: async (world) => {
+			await seedConductorImport(world);
+			return {
+				route: "/settings/user/general",
+				after: ({ document }) => click(document, "button", "Review import"),
+				ready: (document) => shows(document, "Comes over"),
+			};
+		},
+	},
+	{
+		id: "settings-conductor-import-done",
+		group: "Settings",
+		title: "General: Import from Conductor, finished",
+		seed: async (world) => {
+			await seedConductorImport(world);
+			return {
+				route: "/settings/user/general",
+				after: async ({ document }) => {
+					await click(document, "button", "Review import");
+					// Import stays disabled until the dry run is on screen.
+					await find(document, "th", "Comes over");
+					await click(document, "button", "Import");
+				},
+				ready: (document) => shows(document, "Done"),
+			};
+		},
+	},
 ];

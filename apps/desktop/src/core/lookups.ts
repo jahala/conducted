@@ -49,7 +49,7 @@ import type { Repo, Workspace } from "./model.ts";
 import { getSettingDef } from "./registries/settings.ts";
 import type { WorkspaceGitContext } from "./services/git.ts";
 import type { PrWorkspaceContext } from "./services/github.ts";
-import { offersLocalExecution } from "./services/local-command.ts";
+import { localExecutionForHost } from "./services/local-command.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import {
@@ -262,6 +262,17 @@ export function defaultSessionConfig(
 ): Result<SessionConfig> {
 	const workspace = lookups.workspace(workspaceId);
 	if (!workspace.ok) return workspace;
+	return newChatConfig(workspace.value.host, setting);
+}
+
+/**
+ * The config a new chat on `host` starts with, from settings (see `defaultSessionConfig`). The
+ * import from Conductor starts from it too, then takes the chat's own agent and model (APP-17).
+ */
+export function newChatConfig(
+	host: Workspace["host"],
+	setting: <T>(key: string) => T,
+): Result<SessionConfig> {
 	const chosen = defaultModelChoice(setting);
 	if (!chosen.ok) return chosen;
 	const options = chatOptionSettings(setting);
@@ -273,7 +284,7 @@ export function defaultSessionConfig(
 		additionalDirectories: [],
 		appTools: {
 			...FIRST_CHAT_APP_TOOLS,
-			localExecution: offersLocalExecution(workspace.value, setting),
+			localExecution: localExecutionForHost(host, setting),
 		},
 		...options.value,
 		// RC-04: a new Claude chat starts with Remote Control on when the user chose so.

@@ -6,7 +6,9 @@
  *    scripts (scripts move files to the Trash).
  *  - our-name: no product string names Conductor. Our screens and messages use Conductor's words
  *    where we do its job (D020), with our own name, Conducted, in place of theirs (D002). Comments
- *    and tests may name Conductor, because they describe what we match.
+ *    and tests may name Conductor, because they describe what we match. The import from Conductor
+ *    (APP-17) must name it to the user, so its own files are exempt: a `conductor-import` folder
+ *    and the Rust shell's `conductor_import.rs` (D124).
  */
 import { type Problem, placeholdersIn, read, rel, walk } from "./lib.ts";
 
@@ -80,6 +82,8 @@ export function checkMarkers(root: string): Problem[] {
 const PRODUCT =
 	/^(apps\/desktop\/src|apps\/desktop\/src-tauri\/src|packages\/[^/]+\/src|apps\/cloud\/(src|sandbox))\/.+\.(ts|tsx|rs)$/;
 const PRODUCT_EXEMPT = /\.test\.tsx?$|\.d\.ts$|\/test\/|\/test-support\/|\/catalogue\//;
+/** The import from Conductor's own files, which name Conductor to the user (APP-17, D124). */
+const CONDUCTOR_IMPORT = /\/conductor-import\/|\/conductor_import\.rs$/;
 
 /** `text` with every comment blanked, keeping its line breaks so line numbers stay true. */
 function withoutComments(text: string): string {
@@ -96,7 +100,7 @@ export function checkOurName(root: string): Problem[] {
 	const problems: Problem[] = [];
 	for (const path of walk(root, root, PRODUCT)) {
 		const file = rel(root, path);
-		if (PRODUCT_EXEMPT.test(file)) continue;
+		if (PRODUCT_EXEMPT.test(file) || CONDUCTOR_IMPORT.test(file)) continue;
 		const lines = withoutComments(read(path)).split("\n");
 		lines.forEach((line, index) => {
 			if (/\bConductor\b/.test(line)) {

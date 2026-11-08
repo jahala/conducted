@@ -43,6 +43,7 @@
 pub mod attachments;
 pub mod binaries;
 pub mod cloud;
+pub mod conductor_import;
 pub mod db;
 pub mod deep_link;
 pub mod error;
@@ -816,6 +817,11 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_set,
             keychain::keychain_delete,
+            conductor_import::conductor_import_find,
+            conductor_import::conductor_import_copy,
+            conductor_import::conductor_import_read,
+            conductor_import::conductor_import_move_secrets,
+            conductor_import::conductor_import_discard,
             notifications::notify,
             notifications::set_dock_badge,
             notifications::notification_take_pending,

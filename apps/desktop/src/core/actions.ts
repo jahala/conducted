@@ -219,6 +219,7 @@ export function createActions(
 		},
 		mcp: {
 			refresh: (sessionId) => services.mcp.refreshSession(sessionId),
+			forget: (sessionId) => services.mcp.forgetSession(sessionId),
 		},
 		attachments: {
 			add: (sessionId, paths) => services.composer.addAttachments(sessionId, paths),
@@ -287,6 +288,12 @@ export function createActions(
 			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
 			previewUrl: (workspaceId, remotePort) =>
 				services.portForwards.previewUrl(workspaceId, remotePort),
+		},
+		conductorImport: {
+			find: () => services.conductorImport.find(),
+			preview: () => services.conductorImport.preview(),
+			run: () => services.conductorImport.run(),
+			cancel: () => services.conductorImport.cancel(),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

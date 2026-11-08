@@ -35,6 +35,7 @@
  *   commands.ts   useShortcutOverrides, useCommands, useLiveShortcut
  *   system.ts     useUpdateStatus, useDiagnostics, useAgentPrograms, useHelperPrograms, useSystemInfo,
  *                 useFullDiskAccess
+ *   conductor-import.ts useConductorImport
  * Test first: useActions returns the action table of the container it is given. The test for a
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
@@ -46,6 +47,7 @@ export * from "./hooks/chats.ts";
 export * from "./hooks/cloud.ts";
 export * from "./hooks/commands.ts";
 export * from "./hooks/composer.ts";
+export * from "./hooks/conductor-import.ts";
 export * from "./hooks/files.ts";
 export * from "./hooks/git.ts";
 export * from "./hooks/github.ts";

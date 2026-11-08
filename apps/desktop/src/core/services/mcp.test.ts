@@ -213,6 +213,33 @@ describe("SET-05 MCP server status", () => {
 		});
 	});
 
+	it("SET-05 forgets a chat's cached list so the next look asks again", async () => {
+		const request = vi
+			.fn()
+			.mockResolvedValue(ok({ servers: [{ name: "github", status: "connected" }] }));
+		const service = serviceWith(request as unknown as SidecarClient["request"]);
+		const key = mcpKey("/code/app", "claude");
+		await service.refresh({ agent: "claude", workspacePath: "/code/app" });
+		expect(service.store.getState().servers[key]).toBeDefined();
+
+		const result = await service.forgetSession(sessionId);
+
+		expect(result).toEqual(ok(undefined));
+		expect(service.store.getState().servers[key]).toBeUndefined();
+	});
+
+	it("SET-05 forgets nothing for an unknown chat", async () => {
+		const service = serviceWith(vi.fn() as unknown as SidecarClient["request"], {
+			agentOf: () => err(appError("session_unknown", "That chat no longer exists.")),
+		});
+		service.store.setState({ servers: { preserved: { state: "loading" } } });
+
+		const result = await service.forgetSession(sessionId);
+
+		expect(result.ok).toBe(false);
+		expect(service.store.getState().servers).toEqual({ preserved: { state: "loading" } });
+	});
+
 	it("SET-05 returns the unknown-chat error without asking the sidecar", async () => {
 		const request = vi.fn();
 		const service = serviceWith(request as unknown as SidecarClient["request"], {

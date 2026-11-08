@@ -156,6 +156,30 @@ export class PortService {
 		});
 	}
 
+	/**
+	 * Picks `count` free blocks and runs `use` with them inside the allocation queue, so a workspace
+	 * created meanwhile waits until `use` has stored them (APP-17's import writes many at once).
+	 */
+	withPorts<T>(count: number, use: (ports: number[]) => Promise<Result<T>>): Promise<Result<T>> {
+		return this.#allocations.run("allocate", async () => {
+			if (count === 0) return use([]);
+			const stored = await this.#deps.repos.workspaces.listPorts();
+			if (!stored.ok) return stored;
+			const listening = await this.#listening();
+			if (!listening.ok) return listening;
+			const taken = new Set(stored.value);
+			for (const entry of listening.value) taken.add(entry.port);
+			const ports: number[] = [];
+			for (let index = 0; index < count; index++) {
+				const port = allocatePort(taken);
+				if (!port.ok) return port;
+				ports.push(port.value);
+				taken.add(port.value);
+			}
+			return use(ports);
+		});
+	}
+
 	/** Lists TCP ports in LISTEN state for processes whose folder is inside the workspace. */
 	async listListening(
 		_workspaceId: WorkspaceId,

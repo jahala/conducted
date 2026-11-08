@@ -2915,38 +2915,28 @@
 		"by": "seed"
 	},
 	"label:R10727056": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10727344": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10727824": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"note": "Checked by hand: not a match. Ours shows the sample value \"TOKEN\" in settings-environment, which is data, not this wording.",
-		"by": "hand",
-		"backlog": "SET-05",
-		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10728254": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "MCP server connection form takes a Client ID, Client secret, Token and Headers.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10750930": {
 		"status": "matched",
@@ -2957,12 +2947,10 @@
 		"by": "seed"
 	},
 	"label:R10751739": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "MCP import lists Claude Desktop and Claude Code plugins as sources.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10754989": {
 		"status": "matched",
@@ -2973,12 +2961,10 @@
 		"by": "seed"
 	},
 	"label:R10755170": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "MCP import lists Claude Desktop and Claude Code plugins as sources.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"label:R10787831": {
 		"status": "decided",

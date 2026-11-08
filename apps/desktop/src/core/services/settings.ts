@@ -1899,6 +1899,15 @@ export class SettingsService {
 		});
 	}
 
+	/**
+	 * Makes git ignore the repository's `.conducted/` folder except its shared settings file, as
+	 * saving a local setting does. The import from Conductor calls it for a local settings file it
+	 * wrote (APP-17).
+	 */
+	excludeLocalSettingsFromGit(repoRootPath: string): Promise<Result<void>> {
+		return this.#ensureGitExclude(repoRootPath);
+	}
+
 	async #ensureGitExclude(repoRootPath: string): Promise<Result<void>> {
 		const fs = this.#deps.platform.fs;
 		const excludePath = `${repoRootPath.replace(/\/+$/, "")}/.git/info/exclude`;

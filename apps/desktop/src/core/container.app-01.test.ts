@@ -72,6 +72,7 @@ const SERVICE_NAMES = Object.keys({
 	updates: true,
 	system: true,
 	commands: true,
+	conductorImport: true,
 } satisfies Record<keyof Services, true>);
 
 function recordingDatabase(events: string[]): Database {
