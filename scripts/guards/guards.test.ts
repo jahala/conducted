@@ -344,10 +344,36 @@ describe("our name", () => {
 		put("apps/desktop/src/core/a.test.ts", 'const text = "Conductor";\n');
 		put("apps/desktop/src-tauri/src/d.rs", '//! d\nconst M: &str = "Open in Conductor";\n');
 		const messages = checkOurName(root).map((p) => p.message);
+		// The walk lists files in name order, the same on macOS and Linux.
 		expect(messages).toEqual([
-			"apps/desktop/src-tauri/src/d.rs:2 names Conductor in a product string; our app is Conducted",
 			"apps/desktop/src/core/a.ts:2 names Conductor in a product string; our app is Conducted",
 			"apps/desktop/src/features/b.tsx:7 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src-tauri/src/d.rs:2 names Conductor in a product string; our app is Conducted",
+		]);
+	});
+
+	test("lets the import from Conductor name it, and only there", () => {
+		put(
+			"apps/desktop/src/core/conductor-import/plan.ts",
+			'/** p */\nexport const m = "Import from Conductor";\n',
+		);
+		put(
+			"apps/desktop/src/features/conductor-import/Dialog.tsx",
+			'/** d */\nexport const t = "From Conductor";\n',
+		);
+		put(
+			"apps/desktop/src-tauri/src/conductor_import.rs",
+			'//! r\nconst M: &str = "The database of Conductor";\n',
+		);
+		put("apps/desktop/src/core/conductor-importer.ts", '/** e */\nexport const m = "Conductor";\n');
+		put(
+			"apps/desktop/src/core/not-conductor-import/x.ts",
+			'/** x */\nexport const m = "Conductor";\n',
+		);
+		const messages = checkOurName(root).map((p) => p.message);
+		expect(messages).toEqual([
+			"apps/desktop/src/core/conductor-importer.ts:2 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src/core/not-conductor-import/x.ts:2 names Conductor in a product string; our app is Conducted",
 		]);
 	});
 });

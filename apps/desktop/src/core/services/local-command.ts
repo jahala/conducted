@@ -49,14 +49,6 @@ export function localExecutionForHost(
 	return host?.kind === "cloud" && setting<boolean>(REMOTE_EXECUTION_SETTING) !== false;
 }
 
-/** True when this workspace may ask the Mac to run a command. */
-export function offersLocalExecution(
-	workspace: Workspace,
-	setting: <T>(key: string) => T,
-): boolean {
-	return localExecutionForHost(workspace.host, setting);
-}
-
 function sameCloudHost(host: Host, origin: Host | null): boolean {
 	return (
 		host.kind === "cloud" &&

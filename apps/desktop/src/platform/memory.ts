@@ -22,6 +22,9 @@
  * `enforceFileScope` the file commands refuse a path outside the default roots and the registered
  * ones with `fs_out_of_scope`, as files.rs does (the contract case "fs.register-root" holds it),
  * and without it every path is reachable, so a service test can seed files anywhere.
+ * A Conductor database is a map of table rows (`controls.conductorDatabases`); a copy is one more
+ * entry under the import's folder, and the read and the secret moves answer as conductor_import.rs
+ * does (APP-17).
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
@@ -44,6 +47,7 @@ import type {
 	CloudRequest,
 	CloudResponse,
 	CloudUninstallInput,
+	ConductorImport,
 	Database,
 	Dialogs,
 	FileDropEvent,
@@ -78,7 +82,12 @@ import type {
 	Unsubscribe,
 	Updater,
 } from "./platform.ts";
-import { platformError } from "./platform.ts";
+import {
+	CONDUCTOR_COPY_FOLDER,
+	CONDUCTOR_COUNTED_TABLES,
+	CONDUCTOR_READ_TABLES,
+	platformError,
+} from "./platform.ts";
 import { stripTerminalEscapes } from "./terminal-escapes.ts";
 
 /** A scripted answer for a shell command. Return null when the script does not know the command. */
@@ -214,11 +223,23 @@ export interface MemoryPlatformControls {
 	}): void;
 	/** Secrets by key. */
 	readonly secrets: Map<string, string>;
+	/**
+	 * Conductor databases by absolute path, each a map of table name to rows (APP-17). A copy the
+	 * import makes is one more entry, under the app data folder's `conductor-import` folder.
+	 */
+	readonly conductorDatabases: Map<string, MemoryConductorDatabase>;
+	/** Puts a Conductor database at `path`, as the contract's control does. */
+	seedConductorDatabase(path: string, tables: MemoryConductorDatabase): void;
+	/** The database at `path` and the files beside it, as one text. */
+	conductorFingerprint(path: string): string;
 	/** Log lines written through `app.writeLog`. */
 	readonly logs: readonly { level: string; message: string }[];
 	/** Returns the number of listeners handed out by the Platform that were never unsubscribed. */
 	dispose(): number;
 }
+
+/** A Conductor database as the in-memory stand-in keeps it: rows by table name (APP-17). */
+export type MemoryConductorDatabase = Record<string, readonly Readonly<Record<string, unknown>>[]>;
 
 /** One process of the app, as the process table lists it. */
 export interface MemoryProcess {
@@ -421,6 +442,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const modified = new Map<string, number>();
 	const trashed = new Map<string, string>();
 	const secrets = new Map<string, string>();
+	const conductorDatabases = new Map<string, MemoryConductorDatabase>();
+	let conductorCopies = 0;
 	const logs: { level: string; message: string }[] = [];
 	const shellCalls: ShellCommand[] = [];
 	const shellScripts: ShellScript[] = [];
@@ -999,6 +1022,116 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 	};
 
+	// ---------------------------------------------------------------- import from Conductor (APP-17)
+
+	const copyFolder = `${paths.appData}/${CONDUCTOR_COPY_FOLDER}`;
+	const cloneDatabase = (source: MemoryConductorDatabase): MemoryConductorDatabase =>
+		Object.fromEntries(
+			Object.entries(source).map(([table, rows]) => [table, rows.map((row) => ({ ...row }))]),
+		);
+	const ownCopy = (copyPath: string): Result<MemoryConductorDatabase> => {
+		const inFolder =
+			copyPath.startsWith(`${copyFolder}/`) && !copyPath.slice(copyFolder.length + 1).includes("/");
+		const found = inFolder ? conductorDatabases.get(copyPath) : undefined;
+		return found === undefined
+			? err(
+					platformError("conductor_import_bad_copy", `${copyPath} is not a copy this import made.`),
+				)
+			: ok(found);
+	};
+	const conductorImport: ConductorImport = {
+		find: async (sourcePath) => {
+			const source = sourcePath.startsWith("/") ? conductorDatabases.get(sourcePath) : undefined;
+			return ok(source === undefined ? null : JSON.stringify(source).length);
+		},
+		copy: async (sourcePath) => {
+			const source = sourcePath.startsWith("/") ? conductorDatabases.get(sourcePath) : undefined;
+			if (source === undefined) {
+				return err(
+					platformError("conductor_import_missing", `No database was found at ${sourcePath}.`),
+				);
+			}
+			const copyPath = `${copyFolder}/conductor-${clock.now()}-${++conductorCopies}.db`;
+			const copy = cloneDatabase(source);
+			conductorDatabases.set(copyPath, copy);
+			const text = JSON.stringify(copy);
+			files.set(copyPath, text);
+			return ok({ copyPath, bytes: text.length });
+		},
+		read: async (copyPath) => {
+			const copy = ownCopy(copyPath);
+			if (!copy.ok) return copy;
+			const tables: Record<string, Readonly<Record<string, unknown>>[] | null> = {};
+			for (const table of CONDUCTOR_READ_TABLES) {
+				const rows = copy.value[table];
+				tables[table] =
+					rows === undefined
+						? null
+						: table === "env_vars"
+							? rows.map((row) => ({
+									key: row.key,
+									scope: row.scope,
+									context: row.context,
+									has_value: row.value !== null && row.value !== undefined,
+								}))
+							: rows.map((row) => ({ ...row }));
+			}
+			const counts: Record<string, number | null> = {};
+			for (const table of CONDUCTOR_COUNTED_TABLES) {
+				counts[table] = copy.value[table]?.length ?? null;
+			}
+			return ok({ tables, counts });
+		},
+		moveSecrets: async (copyPath, moves) => {
+			const copy = ownCopy(copyPath);
+			if (!copy.ok) return copy;
+			const written: string[] = [];
+			const undo = (): void => {
+				for (const key of written) secrets.delete(key);
+			};
+			for (const move of moves) {
+				const row = (copy.value.env_vars ?? []).find(
+					(candidate) =>
+						candidate.key === move.name &&
+						candidate.scope === move.scope &&
+						candidate.context === move.context,
+				);
+				const value = row?.value;
+				if (typeof value !== "string") {
+					undo();
+					return err(
+						platformError(
+							"conductor_import_secret_missing",
+							`The copy holds no value for ${move.name}.`,
+						),
+					);
+				}
+				if (secrets.has(move.keychainKey)) {
+					undo();
+					return err(
+						platformError(
+							"conductor_import_secret_exists",
+							`The Keychain already holds a value for ${move.name}; the import does not replace it.`,
+						),
+					);
+				}
+				secrets.set(move.keychainKey, value);
+				written.push(move.keychainKey);
+			}
+			return ok(written);
+		},
+		discardCopies: async () => {
+			let removed = 0;
+			for (const path of [...conductorDatabases.keys()]) {
+				if (!path.startsWith(`${copyFolder}/`)) continue;
+				conductorDatabases.delete(path);
+				files.delete(path);
+				removed++;
+			}
+			return ok(removed);
+		},
+	};
+
 	const notifications: Notifications = {
 		notify: async (input) => {
 			notificationsShown.push({ ...input });
@@ -1567,6 +1700,20 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			dialogAnswers.push(answers);
 		},
 		secrets,
+		conductorDatabases,
+		seedConductorDatabase: (path, tables) => {
+			conductorDatabases.set(path, cloneDatabase(tables));
+		},
+		conductorFingerprint: (path) => {
+			const folder = path.slice(0, path.lastIndexOf("/") + 1);
+			const beside = [...files.entries()]
+				.filter(([file]) => file.startsWith(folder))
+				.sort(([a], [b]) => a.localeCompare(b));
+			return JSON.stringify({
+				database: conductorDatabases.get(path) ?? null,
+				files: beside.map(([file, text]) => [file, text, modified.get(file) ?? null]),
+			});
+		},
 		get logs() {
 			return logs;
 		},
@@ -1596,6 +1743,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		http,
 		cloud,
 		portForward,
+		conductorImport,
 	};
 
 	return { platform, controls };

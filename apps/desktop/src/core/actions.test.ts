@@ -34,6 +34,7 @@ const GROUPS = [
 	"agents",
 	"programs",
 	"accounts",
+	"conductorImport",
 	"app",
 ];
 
@@ -87,6 +88,10 @@ describe("DATA-01 createActions", () => {
 			cloud: {
 				run: () => actions.cloud.unpair(),
 				path: "cloudPairing.unpair",
+			},
+			conductorImport: {
+				run: () => actions.conductorImport.preview(),
+				path: "conductorImport.preview",
 			},
 			portForwards: {
 				run: () => actions.portForwards.add("w" as never, 3000),

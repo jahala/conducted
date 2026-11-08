@@ -22,9 +22,13 @@ export interface Problem {
 	message: string;
 }
 
+/**
+ * Every file under `dir` whose path from `root` matches, in name order. The disk's own order differs
+ * between macOS and Linux, so sorting keeps every guard's output the same on both.
+ */
 export function* walk(root: string, dir: string, match: RegExp): Generator<string> {
 	if (!existsSync(dir)) return;
-	for (const name of readdirSync(dir)) {
+	for (const name of readdirSync(dir).sort()) {
 		if (SKIP_DIRS.has(name)) continue;
 		const path = join(dir, name);
 		if (statSync(path).isDirectory()) yield* walk(root, path, match);

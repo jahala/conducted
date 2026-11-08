@@ -33,7 +33,7 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import { type AgentLaunch, type Host, idleLiveState } from "@conducted/protocol";
+import { type AgentLaunch, type Host, idleLiveState, LOCAL_HOST } from "@conducted/protocol";
 import {
 	type AcpAgent,
 	type AgentKind,
@@ -70,13 +70,15 @@ import {
 import { createHostRoutedSidecar } from "./cloud/router.ts";
 import { type CloudSettingsService, createCloudSettings } from "./cloud/settings.ts";
 import { type CloudTransport, createCloudTransport } from "./cloud/transport.ts";
+import type { OfferedModels } from "./conductor-import/plan.ts";
+import { ConductorImportService } from "./conductor-import/service.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { checkHost } from "./host.ts";
-import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
+import { createLookups, defaultSessionConfig, type Lookups, newChatConfig } from "./lookups.ts";
 import type { DiagnosticsCapture, Session, Workspace } from "./model.ts";
 import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
@@ -170,6 +172,7 @@ export interface ContainerInputs {
 
 export interface Services {
 	settings: SettingsService;
+	conductorImport: ConductorImportService;
 	repo: RepoService;
 	workspace: WorkspaceService;
 	sections: SectionsService;
@@ -1259,6 +1262,48 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 	});
 
+	// APP-17: the import from Conductor. It starts imported chats from a new chat's config and
+	// reloads the stores that show imported rows once it has written them.
+	const conductorImport = new ConductorImportService({
+		platform,
+		db: platform.db,
+		repositories: () => repositories,
+		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
+		git: gitRunner,
+		toml: inputs.toml,
+		settings,
+		chatDefaults: () => newChatConfig(LOCAL_HOST, setting),
+		offeredModels: async () => {
+			const offered: OfferedModels = {};
+			for (const agent of ["claude", "codex", "cursor"] as const) {
+				const listed = await agentCatalog.loadModels(agent);
+				offered[agent] = listed.ok ? listed.value.map((model) => model.id) : null;
+			}
+			return offered;
+		},
+		workspacesRoot: () =>
+			expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
+		withPorts: (count, use) => ports.withPorts(count, use),
+		reload: async () => {
+			const steps = [
+				() => repo.start(),
+				() => workspace.start(),
+				() => sessions.start(),
+				() => sections.start(),
+				() => favoriteModels.start(),
+				() => settings.reloadFromDisk(),
+				() => settings.loadEnvVars("global"),
+			];
+			for (const step of steps) {
+				const done = await step();
+				if (!done.ok) return done;
+			}
+			return ok(undefined);
+		},
+		log,
+		now: () => clock.now(),
+	});
+
 	const services: Services = {
 		settings,
 		repo,
@@ -1295,6 +1340,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		updates,
 		system,
 		commands,
+		conductorImport,
 	};
 	const actions = createActions(services, platform, { requestQuit: () => requestQuit() });
 
@@ -1339,6 +1385,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		{ name: "sections", phase: "services", fatal: false, run: () => sections.start() },
 		{ name: "favorite models", phase: "services", fatal: false, run: () => favoriteModels.start() },
+		{
+			name: "import copies",
+			phase: "services",
+			fatal: false,
+			// Removes a copy a crashed import left, and looks for Conductor's database (APP-17).
+			run: () => conductorImport.start(),
+		},
 		{ name: "context windows", phase: "services", fatal: false, run: () => contextWindows.start() },
 		{ name: "terminals", phase: "services", fatal: false, run: () => terminals.start() },
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },

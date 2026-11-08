@@ -39,6 +39,8 @@ import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platfor
 import type { FileSyncView } from "./cloud/file-sync.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type { CloudWorkspaceResources } from "./cloud/state.ts";
+import type { ImportPreview } from "./conductor-import/plan.ts";
+import type { ConductorImportState, ImportOutcome } from "./conductor-import/service.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -420,6 +422,8 @@ export interface Queries {
 	useSystemInfo(): Loadable<SystemInfo>;
 	/** Whether the app has Full Disk Access. */
 	useFullDiskAccess(): Loadable<boolean>;
+	/** The import from Conductor: whether its database is here, the dry run and the outcome (APP-17). */
+	useConductorImport(): ConductorImportState;
 }
 
 // ---------------------------------------------------------------- actions
@@ -811,6 +815,16 @@ export interface Actions {
 		/** The Worker's shareable preview URL for one remote port. */
 		previewUrl: Act<[workspaceId: WorkspaceId, remotePort: number], string>;
 	};
+	conductorImport: {
+		/** Looks for Conductor's database again. Null when there is none. */
+		find: Act<[], { bytes: number } | null>;
+		/** The dry run: copies Conductor's database and lists what would come over. */
+		preview: Act<[], ImportPreview>;
+		/** Imports what the last dry run showed, all or nothing. */
+		run: Act<[], ImportOutcome>;
+		/** Drops the dry run and its copy. */
+		cancel: Act;
+	};
 	app: {
 		runCommand: Act<[commandId: string]>;
 		/** Quits the app the way the menu's Quit does: asks first while agents are working. */
@@ -836,3 +850,16 @@ export interface Actions {
 		runXcodeLicenseFix: Act;
 	};
 }
+
+/** The import from Conductor's view types, for its screens (APP-17). */
+export type {
+	ImportKind,
+	ImportPreview,
+	KindCount,
+	LeftOut,
+	NotBrought,
+	PartNote,
+	ScriptMention,
+	ScriptRename,
+} from "./conductor-import/plan.ts";
+export type { ConductorImportState, ImportOutcome } from "./conductor-import/service.ts";
