@@ -1,7 +1,7 @@
 /**
  * @feature SET-02 Settings search function
- * Owns: the pure fuzzy search over the settings index, and the index built from the settings and
- * command registries.
+ * Owns: the pure fuzzy search over the settings index, and the index built from the settings,
+ * page and command registries.
  * Behaviour: ui-map.md 6 (fuzzy over all setting labels, descriptions and keywords, top 30
  * results). Conductor shares one fuzzy utility between settings search and pickers (ui-map.md 8);
  * this file calls the app's shared matcher rather than writing a second one.
@@ -32,7 +32,7 @@ const USER_PAGE_OF: Partial<Record<SettingPage, UserSettingsPageId>> = {
 	general: "general",
 	account: "account",
 	appearance: "appearance",
-	models: "default-models",
+	models: "models",
 	git: "git",
 	agents: "agents",
 	environment: "environment",
@@ -58,17 +58,74 @@ const WEIGHTED_FIELDS = [
 	{ text: (setting: SearchableSetting) => setting.keywords.join(" "), weight: 1 },
 ] as const;
 
-/** Every setting and command that can be found by search, in registry order. */
+/**
+ * Conductor's page entries: one per page and agent harness, titles and descriptions that only
+ * settings search shows (renderApp @11300535-@11302737). A repository page's entry is offered
+ * only while a repository is picked, so it needs one.
+ */
+const PANELS: readonly SearchableSetting[] = [
+	{
+		key: "panel:appearance",
+		title: "Appearance settings",
+		description: "Theme, typography, color, and editor appearance.",
+		keywords: [],
+		page: "appearance",
+	},
+	{
+		key: "panel:agents:claude",
+		title: "Claude Code harness",
+		description: "Configure Claude Code authentication and behavior.",
+		keywords: ["claude", "harness", "provider"],
+		page: "agents",
+	},
+	{
+		key: "panel:agents:codex",
+		title: "Codex harness",
+		description: "Configure Codex authentication and behavior.",
+		keywords: ["codex", "harness", "provider"],
+		page: "agents",
+	},
+	{
+		key: "panel:agents:cursor",
+		title: "Cursor harness",
+		description: "Configure Cursor authentication and behavior.",
+		keywords: ["cursor", "harness", "provider"],
+		page: "agents",
+	},
+	{
+		key: "panel:agents",
+		title: "Agent settings",
+		description: "Configure Claude Code, Codex, Cursor, and ACP agents.",
+		keywords: ["agents", "harness", "authentication"],
+		page: "agents",
+	},
+	{
+		key: "panel:environment",
+		title: "Environment settings",
+		description: "Environment variables, files, and preview URLs.",
+		keywords: ["environment", "variables"],
+		page: "environment",
+	},
+	{
+		key: "panel:scripts",
+		title: "Repository scripts",
+		description: "Setup and archive scripts for the selected repository.",
+		keywords: ["scripts", "setup", "archive"],
+		page: { repoPage: "scripts" },
+	},
+];
+
+/** Every setting, page and command that can be found by search, in registry order. */
 export function buildSettingsIndex(): SearchableSetting[] {
 	const index: SearchableSetting[] = [];
 	for (const setting of SETTINGS) {
-		if (setting.page === "state") continue;
+		if (setting.page === "state" || setting.searchable === false) continue;
 		const userPage = USER_PAGE_OF[setting.page];
 		const repoPage = REPO_PAGE_OF[setting.page];
 		const common = {
 			key: setting.key,
-			title: setting.title,
-			description: setting.description,
+			title: setting.searchTitle ?? setting.title,
+			description: setting.searchDescription ?? setting.description,
 			keywords: setting.searchTerms,
 		};
 		if (repoPage !== undefined) {
@@ -77,6 +134,7 @@ export function buildSettingsIndex(): SearchableSetting[] {
 			index.push({ ...common, page: userPage });
 		}
 	}
+	index.push(...PANELS);
 	for (const command of COMMANDS) {
 		index.push({
 			key: `${COMMAND_KEY_PREFIX}${command.id}`,

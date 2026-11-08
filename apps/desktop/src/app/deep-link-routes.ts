@@ -441,7 +441,7 @@ export function createDeepLinkOpener(
 			},
 			settings: (target) => {
 				if (target.kind === "user") {
-					void navigate({ to: "/settings/$page", params: { page: target.page } });
+					void navigate({ to: "/settings/user/$page", params: { page: target.page } });
 				} else {
 					void navigate({
 						to: "/settings/repos/$repoId/$page",

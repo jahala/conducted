@@ -822,7 +822,7 @@ export class RepoService {
 			if (found.ok && found.value.isDirectory) return last;
 		}
 		const root = expandHome(
-			this.#deps.settings.get<string>("conducted_root_path"),
+			this.#deps.settings.get<string>("conductor_root_path"),
 			this.#deps.platform.fs.paths.home,
 		);
 		return joinFolder(root, "repos");

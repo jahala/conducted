@@ -508,7 +508,9 @@ describe("s1-core join", () => {
 				test.memory.controls.emitDeepLink("conducted://settings/experimental");
 			});
 
-			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/experimental"));
+			await waitFor(() =>
+				expect(router.state.location.pathname).toBe("/settings/user/experimental"),
+			);
 		} finally {
 			await test.container.stop();
 			test.close();

@@ -145,6 +145,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0016_terminal_host.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 17,
+            description: "root_path_key",
+            sql: include_str!("../migrations/0017_root_path_key.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

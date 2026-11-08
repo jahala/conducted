@@ -10,9 +10,9 @@
  *                                /dashboard                                            Kanban board
  *                                /backlog                                              workspaces saved to start later
  *                                /create                                               new workspace page
- *   (no sidebar)                 /settings, /settings/$page, /diagnostics, /first-run-onboarding
- * Our design choices: `/settings` redirects to `/settings/general` (Conductor redirects /settings/user to
- * /settings/user/general). Repository pages have their own route, `/settings/repos/$repoId/$page`, and pass
+ *   (no sidebar)                 /settings, /settings/user, /settings/user/$page, /diagnostics, /first-run-onboarding
+ * Our design choices: user settings pages sit under `/settings/user/$page`, as Conductor's do, and
+ * `/settings` and `/settings/user` redirect to `/settings/user/general`. Repository pages have their own route, `/settings/repos/$repoId/$page`, and pass
  * the page to the settings screen as `repo:<repoId>:<page>`. The workspace param is `$workspaceId`, not
  * `$localWorkspaceId`, because there are no cloud workspaces.
  * Must handle: an unknown address (NotFoundScreen); an error outside every screen's own boundary
@@ -100,7 +100,7 @@ function NavigationShortcuts() {
 		return true;
 	});
 	useCommandHandler("app.openSettings", "base", () => {
-		void navigate({ to: "/settings/$page", params: { page: "general" } });
+		void navigate({ to: "/settings/user/$page", params: { page: "general" } });
 		return true;
 	});
 	useCommandHandler("app.quit", "base", () => {
@@ -374,13 +374,21 @@ const settingsIndexRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/settings",
 	beforeLoad: () => {
-		throw redirect({ to: "/settings/$page", params: { page: "general" } });
+		throw redirect({ to: "/settings/user/$page", params: { page: "general" } });
+	},
+});
+
+const userSettingsIndexRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/settings/user",
+	beforeLoad: () => {
+		throw redirect({ to: "/settings/user/$page", params: { page: "general" } });
 	},
 });
 
 const settingsRoute = createRoute({
 	getParentRoute: () => rootRoute,
-	path: "/settings/$page",
+	path: "/settings/user/$page",
 	component: function SettingsRoute() {
 		const { page } = settingsRoute.useParams();
 		// Settings draws its own title bar row (Back and its top bar), so no FullPage strip.
@@ -439,6 +447,7 @@ const routeTree = rootRoute.addChildren([
 		createWorkspaceRoute,
 	]),
 	settingsIndexRoute,
+	userSettingsIndexRoute,
 	settingsRoute,
 	repoSettingsRoute,
 	diagnosticsRoute,
