@@ -18,7 +18,7 @@
  * Test first: a name with an open pull request becomes name-v2.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
-import { isGithubRemoteUrl } from "../services/github.ts";
+import { isGithubRemoteUrl } from "../github-text.ts";
 import { branchRename, branchShowCurrent, remoteGetUrl } from "./commands.ts";
 import { prListForBranch } from "./gh-commands.ts";
 import type { GitRunner } from "./runner.ts";

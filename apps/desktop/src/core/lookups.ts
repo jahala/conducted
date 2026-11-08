@@ -52,13 +52,12 @@ import type { PrWorkspaceContext } from "./services/github.ts";
 import { localExecutionForHost } from "./services/local-command.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
+import { FIRST_CHAT_APP_TOOLS, type WorkspaceState } from "./services/workspace.ts";
 import {
-	FIRST_CHAT_APP_TOOLS,
 	NEW_CHAT_EFFORT_FALLBACK,
 	NEW_CHAT_MODEL_FALLBACK,
 	remoteNameFromConfig,
-	type WorkspaceState,
-} from "./services/workspace.ts";
+} from "./workspace-helpers.ts";
 
 export interface LookupSources {
 	workspaces: () => StoreApi<WorkspaceState>;

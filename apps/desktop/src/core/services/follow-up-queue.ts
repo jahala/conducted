@@ -38,15 +38,12 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { createLatestWins } from "../async/latest-wins.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { agentCanSteer, byPosition } from "../follow-up-queue.ts";
 import type { QueuedMessage } from "../model.ts";
 
 export type SendMode = "auto" | "queue" | "steer";
 /** `steer_unsupported`: the user asked to steer an agent that cannot take a steer. */
 export type SendDecision = "send_now" | "queue" | "steer" | "steer_unsupported";
-
-/** ACP agents (OpenCode, Pi) cannot take a message in the middle of a turn. */
-export const agentCanSteer = (config: Pick<SessionConfig, "agent">): boolean =>
-	config.agent !== "acp";
 
 /**
  * Decides what happens to a message the user sends. `auto` follows the user's default setting,
@@ -531,9 +528,4 @@ export class FollowUpQueue {
 		}));
 		return failure === undefined ? ok(undefined) : err(failure);
 	}
-}
-
-/** Queue rows are shown in their stored order. */
-export function byPosition(a: QueuedMessage, b: QueuedMessage): number {
-	return a.position - b.position || a.id.localeCompare(b.id);
 }

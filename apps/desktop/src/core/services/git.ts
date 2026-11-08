@@ -172,7 +172,15 @@ import {
 	type WorktreeEntry,
 } from "../git/status.ts";
 import { resolveBaseCommit } from "../git/worktree.ts";
+import {
+	branchNameWithoutRemote,
+	CONTINUE_NOTE_FAILED_MESSAGE,
+	PULL_UP_TO_DATE_MESSAGE,
+	PULLED_LATEST_MESSAGE,
+	workspaceRelativePath,
+} from "../git-text.ts";
 import type { GitState, PullRequestAction, SparseCheckoutSettings } from "../model.ts";
+import { isSafeRefName } from "../workspace-helpers.ts";
 import {
 	type AgentPullStrategy,
 	commitAndPushInstruction,
@@ -184,21 +192,8 @@ import {
 } from "./agent-instructions.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
-import { isSafeRefName } from "./workspace.ts";
 
 const DEPTH_RANK: Readonly<Record<PollDepth, number>> = { metadata: 0, uncommitted: 1, full: 2 };
-
-/**
- * A path a screen sends, checked to stay inside the workspace folder. Absolute paths, `..`
- * segments and NUL bytes are refused, so `${cwd}/${path}` cannot reach another folder.
- */
-export function workspaceRelativePath(path: string): Result<string> {
-	const outside = (): Result<string> =>
-		err(appError("path_outside_workspace", `"${path}" is not inside the workspace folder.`));
-	if (path === "" || path.startsWith("/") || path.includes("\u0000")) return outside();
-	if (path.split("/").some((part) => part === "..")) return outside();
-	return ok(path);
-}
 
 /**
  * A commit id from a screen. It may not start with `-` or hold white space, so git cannot read it
@@ -323,14 +318,6 @@ export function parseCheckedOutBranches(text: string): string[] {
 		"",
 	);
 }
-
-/** Shown when a pull finds nothing to bring in. */
-export const PULL_UP_TO_DATE_MESSAGE = "Pulled latest changes. You're up to date!";
-/** Shown after a pull brings in new commits (services-map 3.6.4 step 4). */
-export const PULLED_LATEST_MESSAGE = "Pulled latest changes.";
-
-/** Shown when the "Branch continued" note or its chat message cannot be attached. */
-export const CONTINUE_NOTE_FAILED_MESSAGE = "Failed to attach continue context";
 
 /** The note a continued workspace leaves for its agent (inventory:toast row 578). */
 const CONTINUE_NOTE_FILE_NAME = "Branch continued.md";
@@ -585,19 +572,6 @@ export interface GitServiceDeps {
 	 * scope then returns an error instead of guessing.
 	 */
 	stackOf?: (workspaceId: WorkspaceId) => Promise<Result<readonly StackRangeMember[]>>;
-}
-
-/**
- * A branch name that can be fetched and used as a pull request base: refs and a leading remote
- * name are removed. The target as the user entered it is what the workspace stores.
- */
-export function branchNameWithoutRemote(branch: string, remote: string): string {
-	const heads = /^refs\/heads\/(.+)$/.exec(branch);
-	if (heads?.[1] !== undefined) return heads[1];
-	const remotes = /^refs\/remotes\/[^/]+\/(.+)$/.exec(branch);
-	if (remotes?.[1] !== undefined) return remotes[1];
-	if (remote.length > 0 && branch.startsWith(`${remote}/`)) return branch.slice(remote.length + 1);
-	return branch;
 }
 
 /**

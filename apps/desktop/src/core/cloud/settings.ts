@@ -18,6 +18,7 @@
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Cloud, CloudPairing } from "../../platform/platform.ts";
+import { CLOUD_ENV_SAVE_FAILED, CLOUD_SETTINGS_UNREACHABLE } from "../cloud-messages.ts";
 
 /** The name and email a cloud workspace commits with (services-map 4.2.7 `gitIdentity`). */
 export interface CloudGitIdentity {
@@ -32,15 +33,8 @@ export interface CloudSettings {
 	envVars: Record<string, string>;
 }
 
-/** Conductor's message when its cloud settings cannot be reached, with our name (D002). */
-export const CLOUD_SETTINGS_UNREACHABLE =
-	"Conducted could not connect to cloud settings. Try again.";
-
 /** What Conductor says when the cloud commit identity could not be changed. */
 export const CLOUD_GIT_IDENTITY_FAILED = "Couldn't update Git identity";
-
-/** What the Environment page says when a variable could not be saved. */
-export const CLOUD_ENV_SAVE_FAILED = "Couldn't update your environment variables";
 
 /** The settings a Worker that has never been given any answers with. */
 export function emptyCloudSettings(): CloudSettings {

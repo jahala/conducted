@@ -4,7 +4,8 @@
  * Test first: allocatePort with 55000 and 55010 taken returns 55020.
  */
 import { describe, expect, it } from "vitest";
-import { allocatePort, expandPreviewUrl, PORT_BASE, PORT_BLOCK_SIZE, PORT_MAX } from "./ports.ts";
+import { expandPreviewUrl } from "../ports.ts";
+import { allocatePort, PORT_BASE, PORT_BLOCK_SIZE, PORT_MAX } from "./ports.ts";
 
 const SSH_PORT = 22;
 

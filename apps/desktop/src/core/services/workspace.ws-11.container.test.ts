@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedRepo } from "../../test/container.ts";
 import { sessionConfig } from "../db/test-fixtures.ts";
+import { NO_READY_REPOSITORY_MESSAGE } from "../workspace-helpers.ts";
 import { WorkspaceService } from "./workspace.ts";
 
 describe("WS-11 a backlog draft outlives its project", () => {
@@ -40,7 +41,7 @@ describe("WS-11 a backlog draft outlives its project", () => {
 			const started = await actions.workspaces.startFromBacklog(saved.value.id);
 			expect(started.ok).toBe(false);
 			if (!started.ok) {
-				expect(started.error.message).toBe(WorkspaceService.NO_READY_REPOSITORY_MESSAGE);
+				expect(started.error.message).toBe(NO_READY_REPOSITORY_MESSAGE);
 			}
 
 			expect((await actions.workspaces.setBacklogRepo(saved.value.id, otherRepo.id)).ok).toBe(true);

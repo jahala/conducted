@@ -37,12 +37,11 @@ import {
 import type { Platform } from "../../platform/platform.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import type { Session, Workspace } from "../model.ts";
+import { buildDeepLink, DEEP_LINK_SCHEME } from "../notifications.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 
 export const SETTLE_DELAY_MS = 2_000;
 export const NOTIFICATION_TITLE_MAX = 50;
-export const DEEP_LINK_SCHEME = "conducted";
-
 export type NotificationKind =
 	| "finished"
 	| "failed"
@@ -95,12 +94,6 @@ export const notificationTitle = (title: string): string => {
 	return characters.length <= NOTIFICATION_TITLE_MAX
 		? title
 		: `${characters.slice(0, NOTIFICATION_TITLE_MAX - 1).join("")}…`;
-};
-
-export const buildDeepLink = (workspaceId: WorkspaceId, sessionId: SessionId | null): string => {
-	const params = new URLSearchParams({ id: workspaceId });
-	if (sessionId !== null) params.set("session", sessionId);
-	return `${DEEP_LINK_SCHEME}://workspace?${params.toString()}`;
 };
 
 export interface ParsedDeepLink {

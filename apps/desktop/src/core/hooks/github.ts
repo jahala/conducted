@@ -22,13 +22,13 @@ import type {
 	RepoNameCheck,
 	StackEntryView,
 } from "../model.ts";
+import { projectFolderName } from "../project-templates.ts";
 import {
 	canListGithubIssues,
 	canListGithubPullRequests,
 	toGitHubAccessView,
 } from "../services/github.ts";
 import { linearIssueToView } from "../services/linear.ts";
-import { projectFolderName } from "../services/project-templates.ts";
 import { useBranchCommits } from "./git.ts";
 import { useDiffComments } from "./review.ts";
 

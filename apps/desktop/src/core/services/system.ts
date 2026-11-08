@@ -79,6 +79,7 @@ import { copyFileKeepingMode } from "../fs-helpers.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
 import { isImagePath } from "../media-files.ts";
 import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
+import { PROGRAM_DISPLAY_NAMES } from "../system.ts";
 
 export interface SystemState {
 	/** The agent programs: Claude Code, Codex and Cursor's SDK. */
@@ -113,15 +114,6 @@ const AGENT_PROGRAMS: readonly ManagedProgram[] = ["claude", "codex", "cursor"];
 
 /** The helper programs the app downloads for its own commands and lists under Helpers. */
 const HELPER_PROGRAMS: readonly ManagedProgram[] = ["gh", "watchexec"];
-
-/** The names the program list and the program errors show. */
-export const PROGRAM_DISPLAY_NAMES: Readonly<Record<ManagedProgram, string>> = {
-	claude: "Claude Code",
-	codex: "Codex",
-	gh: "GitHub CLI (gh)",
-	watchexec: "watchexec",
-	cursor: "Cursor SDK",
-};
 
 /** The states in which the program manager is still getting a program ready. */
 const PREPARING: ReadonlySet<ProgramState> = new Set([

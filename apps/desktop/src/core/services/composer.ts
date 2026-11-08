@@ -61,13 +61,17 @@ import {
 	isInsideFolder,
 } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import {
+	attachmentFileName,
+	chatTranscriptFileName,
+	planFileName,
+	userAttachmentName,
+} from "../composer-files.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";
 import { createSnippetCache } from "./snippets-cache.ts";
 
-export const PASTE_ATTACHMENT_MIN_LINES = 90;
-export const PASTE_ATTACHMENT_MIN_CHARS = 5_000;
 export const DRAFT_SAVE_DEBOUNCE_MS = 400;
 /** The whole draft store holds at most 5 MiB, like Conductor's composer-drafts store. */
 export const DRAFT_STORE_LIMIT_BYTES = 5 * 1024 * 1024;
@@ -145,56 +149,9 @@ export function classifyAttachment(fileName: string): AttachmentClass {
 	return "file";
 }
 
-/** True when pasted text is long enough to become an attachment instead of staying in the editor. */
-export const convertsToAttachment = (text: string): boolean =>
-	text.length > PASTE_ATTACHMENT_MIN_CHARS || text.split("\n").length > PASTE_ATTACHMENT_MIN_LINES;
-
 /** The stored kind of a file. A PDF is its own kind; the rest follow the name rule above. */
 export function attachmentKindOf(fileName: string): AttachmentClass {
 	return fileName.toLowerCase().endsWith(".pdf") ? "pdf" : classifyAttachment(fileName);
-}
-
-/**
- * File names the app keeps for its own context files (services-map.md 5A.6.2 item 6, 5B.8.3): the PR,
- * review and fix-errors instructions, GitHub and Linear issue files, and terminal output.
- */
-const RESERVED_CONTEXT_NAMES: readonly RegExp[] = [
-	/^PR instructions\.md$/i,
-	/^Review request\.md$/i,
-	/^Fix errors instructions\.md$/i,
-	/^\[GITHUB\]-\d+\.md$/i,
-	/^\[LINEAR\]-\w{1,7}-\d+\.md$/i,
-	/^terminal-output(-.*)?\.txt$/i,
-];
-
-/**
- * The name a user's picked, dropped or pasted file is attached under. A reserved context name cannot be
- * used, so the app would never take the user's file for its own.
- * Our design choice: such a file is renamed to `attached-<name>` instead of refused, so it still attaches.
- */
-function userAttachmentName(name: string): string {
-	return RESERVED_CONTEXT_NAMES.some((pattern) => pattern.test(name)) ? `attached-${name}` : name;
-}
-
-/** Keeps a file name inside the staging folder. A name without an extension gets `.txt`. */
-export function attachmentFileName(name: string): string {
-	const cleaned = name.replace(/[/\\]/g, "-").replace(/\.\./g, "-").trim();
-	const base = cleaned.length === 0 ? "terminal-selection" : cleaned;
-	return base.includes(".") ? base : `${base}.txt`;
-}
-
-/**
- * The file name an attached chat transcript is saved under (CHAT-26). Conductor names a chat with
- * no title "chat" here.
- */
-export function chatTranscriptFileName(title: string | null): string {
-	const trimmed = title?.trim() ?? "";
-	return attachmentFileName(`Transcript of ${trimmed.length === 0 ? "chat" : trimmed}.md`);
-}
-
-/** The file name an attached plan is saved under: its title, as Markdown (CHAT-26). */
-export function planFileName(title: string): string {
-	return attachmentFileName(title.toLowerCase().endsWith(".md") ? title : `${title}.md`);
 }
 
 const emptyDraft = (): Draft => ({ text: "", attachmentPaths: [] });

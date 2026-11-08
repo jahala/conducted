@@ -20,11 +20,11 @@ import type { AgentLaunch, appToSidecarRequests, ResultOf } from "@conducted/pro
 import type { AcpAgent, AgentKind, AppError, Result, SessionId } from "@conducted/shared";
 import { err, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { agentKey } from "../agent-catalog.ts";
 import type { Loadable } from "../api.ts";
 import { createLatestWins, type LatestTicket } from "../async/latest-wins.ts";
 import type { McpServerView } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
-import { agentKey } from "./agent-catalog.ts";
 
 type ListedServer = ResultOf<typeof appToSidecarRequests.listMcpServers>["servers"][number];
 

@@ -16,7 +16,7 @@ export interface Rule {
 }
 
 export interface RuleContext {
-	/** The names of the places our own gazetteer lists (core/services/place-gazetteer.ts). */
+	/** The names of the places our own gazetteer lists (core/place-gazetteer.ts). */
 	places: Set<string>;
 }
 

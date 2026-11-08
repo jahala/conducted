@@ -60,6 +60,7 @@ import { programsBinDir, setupLogFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ActionTarget, Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
+import { defaultRunAction } from "../run-scripts.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 import type { PortService } from "./ports.ts";
 import {
@@ -109,15 +110,6 @@ export function quoteShellArg(value: string): string {
 /** The command a run action starts: its command followed by its quoted arguments. */
 export function actionCommand(action: Pick<RunAction, "command" | "args">): string {
 	return [action.command, ...action.args.map(quoteShellArg)].join(" ").trim();
-}
-
-/**
- * The action the Run button starts: the first marked default, else the first. Hidden actions are
- * skipped, so a hidden default does not run by itself.
- */
-export function defaultRunAction(actions: readonly RunAction[]): RunAction | null {
-	const visible = actions.filter((action) => !action.hidden);
-	return visible.find((action) => action.isDefault) ?? visible[0] ?? null;
 }
 
 /**

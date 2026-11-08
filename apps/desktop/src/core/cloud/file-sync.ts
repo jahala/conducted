@@ -40,6 +40,13 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Cloud, FileSystem, Opener } from "../../platform/platform.ts";
+import {
+	type FileSyncView,
+	LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+	SYNC_FAILED_LABEL,
+	SYNC_FOLDER_UNAVAILABLE_LABEL,
+	SYNC_OFF_LABEL,
+} from "../file-sync-view.ts";
 import type { Workspace } from "../model.ts";
 import { cloudJson } from "./host-runtime.ts";
 
@@ -62,15 +69,8 @@ export const SYNC_POLL_MS = 5_000;
  * margin. A dial: raise it only with a new measurement.
  */
 export const MIRROR_FILE_LIMIT_BYTES = CLOUD_MIRROR_FILE_LIMIT_BYTES;
-export const SYNC_OFF_LABEL = "Sync files is off";
-export const SYNC_FOLDER_UNAVAILABLE_LABEL = "Sync folder unavailable";
-export const SYNC_FAILED_LABEL = "Sync files failed";
-export const LOCAL_TERMINAL_UNAVAILABLE_LABEL = "Local terminal unavailable";
 export const OUTSIDE_MIRROR_MESSAGE = "File is outside the synced workspace";
 export const OPEN_DOWNLOADS_FAILED_MESSAGE = "Could not open Downloads. Try again.";
-/** Conductor's error when a local-mirror preview is opened before the mirror exists (CLOUD-11). */
-export const PREVIEW_MIRROR_UNAVAILABLE_MESSAGE =
-	"Couldn't open preview: local workspace mirror is unavailable.";
 
 /** One workspace's sync status, as the service keeps it. */
 export interface FileSyncStatus {
@@ -81,29 +81,6 @@ export interface FileSyncStatus {
 	files: number;
 	truncated: boolean;
 }
-
-/**
- * What a screen shows. `local` is a Mac workspace, which has no sync; `off` is the setting turned
- * off before a mirror exists; `unavailable` means the mirror folder is gone.
- */
-export type FileSyncView =
-	| { state: "local" }
-	| { state: "off"; label: typeof SYNC_OFF_LABEL }
-	| {
-			state: "unavailable";
-			label: typeof SYNC_FOLDER_UNAVAILABLE_LABEL;
-			localTerminalLabel: typeof LOCAL_TERMINAL_UNAVAILABLE_LABEL;
-	  }
-	| { state: "syncing"; label: string; mirrorPath: string }
-	| {
-			state: "synced";
-			label: string;
-			mirrorPath: string;
-			lastSyncedAt: number;
-			files: number;
-			truncated: boolean;
-	  }
-	| { state: "failed"; label: typeof SYNC_FAILED_LABEL; message: string };
 
 export interface FileSyncState {
 	byWorkspace: Readonly<Record<string, FileSyncStatus>>;

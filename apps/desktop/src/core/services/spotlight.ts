@@ -56,6 +56,7 @@ import {
 import { CHECKPOINT_REF_PREFIX, checkpointRef, PRE_SPOTLIGHT_CHECKPOINT_ID } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RunAction, Terminal, Workspace } from "../model.ts";
+import { SPOTLIGHT_ACTION_ID } from "../spotlight.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 import { actionsForWorkspace, quoteShellArg } from "./run-scripts.ts";
 import type { TerminalsService } from "./terminals.ts";
@@ -69,9 +70,6 @@ export interface SpotlightState {
 	 */
 	problems: Readonly<Record<string, { code: string; message: string }>>;
 }
-
-/** The id of the synthetic Spotlight entry in the run list (services-map.md 5A.2.1). */
-export const SPOTLIGHT_ACTION_ID = "spotlight";
 
 /**
  * A repository's run list for one workspace: its actions, expanded into the host variants that
@@ -101,10 +99,6 @@ export function runListFor(
 		},
 	];
 }
-
-/** Shown in the Run tab while Spotlight runs (services-map.md 5A.2.5, the moved branch pointer). */
-export const SPOTLIGHT_BRANCH_NOTICE =
-	"Spotlight is running. Until you stop it, the repository root's branch points at this workspace's latest changes.";
 
 export interface SpotlightPreflight {
 	ok: boolean;

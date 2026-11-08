@@ -94,8 +94,9 @@
  * "none" whatever the local state.
  */
 import type { AppError } from "@conducted/shared";
+import { capabilitiesFor } from "../local-git-forge.ts";
 import type { CheckRun, GitState, PullRequest } from "../model.ts";
-import { capabilitiesFor, type LocalPrInfo } from "../services/local-git-forge.ts";
+import type { LocalPrInfo } from "../services/local-git-forge.ts";
 import { hasMergeConflict, isActivePullRequest, reviewIsBlocking } from "./pull-request-status.ts";
 
 export type GitHeaderActionId =

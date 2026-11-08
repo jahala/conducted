@@ -37,9 +37,10 @@ import {
 	type SessionId,
 	type TurnId,
 } from "@conducted/shared";
+import { contextWindowAgent } from "../context-windows.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Session } from "../model.ts";
-import { contextWindowAgent, reportedContextWindow } from "../services/context-windows.ts";
+import { reportedContextWindow } from "../services/context-windows.ts";
 import type { SidecarClient } from "./tunnel.ts";
 
 export interface IngestOutcome {

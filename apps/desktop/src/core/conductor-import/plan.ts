@@ -42,6 +42,7 @@ import type { ConductorSecretMove, ConductorSnapshot } from "../../platform/plat
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { EnvVar } from "../db/env-vars.ts";
 import type { WorkspaceInsert } from "../db/workspaces.ts";
+import { type FavoriteModel, MAX_FAVORITES } from "../favorite-model.ts";
 import type { WorktreeEntry } from "../git/status.ts";
 import type {
 	DiffComment,
@@ -53,22 +54,15 @@ import type {
 	WorkspaceState,
 } from "../model.ts";
 import type { SettingValue } from "../registries/settings.ts";
-import {
-	type FavoriteModel,
-	MAX_FAVORITES,
-	sameFavoriteChoice,
-} from "../services/favorite-models.ts";
+import { sameFavoriteChoice } from "../services/favorite-models.ts";
 import {
 	envVarKeychainKey,
-	isReservedEnvVarName,
 	type SettingsFileContents,
 	validateEnvVarName,
 } from "../services/settings.ts";
-import {
-	NEW_CHAT_EFFORT_FALLBACK,
-	NEW_CHAT_MODEL_FALLBACK,
-	worktreeFolderFor,
-} from "../services/workspace.ts";
+import { worktreeFolderFor } from "../services/workspace.ts";
+import { isReservedEnvVarName } from "../settings-helpers.ts";
+import { NEW_CHAT_EFFORT_FALLBACK, NEW_CHAT_MODEL_FALLBACK } from "../workspace-helpers.ts";
 import {
 	type ConductorRepo,
 	type ConductorRows,

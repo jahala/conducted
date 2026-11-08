@@ -68,6 +68,7 @@ import { createLatestWins } from "../async/latest-wins.ts";
 import type { EnvVar } from "../db/env-vars.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { parseDotenv } from "../dotenv.ts";
 import { showSettingsFileAt, symbolicRefRemoteHead } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { ActionTarget, EnvScope, EnvVarView } from "../model.ts";
@@ -79,7 +80,14 @@ import {
 	type SettingValue,
 	tomlKeys,
 } from "../registries/settings.ts";
-import { parseDotenv, resolveEnvFilePath } from "./dotenv.ts";
+import {
+	actionIdsEqual,
+	type DroppedReason,
+	type DroppedSetting,
+	ENV_SAVE_FAILED_MESSAGE,
+	isReservedEnvVarName,
+} from "../settings-helpers.ts";
+import { resolveEnvFilePath } from "./dotenv.ts";
 
 export interface TomlCodec {
 	parse(text: string): Result<Record<string, unknown>>;
@@ -292,32 +300,6 @@ export function resolveSettingAction(action: SettingAction): ResolvedSettingActi
 	};
 }
 
-/**
- * Trims an action id: drops a leading dash, turns dashes into spaces, removes anything that is
- * not a letter or digit, collapses spaces, then turns the spaces back into dashes.
- */
-export function normalizeActionId(raw: string): string {
-	return raw
-		.replace(/^-+/, "")
-		.replace(/-/g, " ")
-		.replace(/[^A-Za-z0-9 ]/g, "")
-		.replace(/\s+/g, " ")
-		.trim()
-		.replace(/ /g, "-");
-}
-
-/** Compares two action ids the way the product does: case-insensitive, after normalising. */
-export const actionIdsEqual = (left: string, right: string): boolean =>
-	normalizeActionId(left).toLowerCase() === normalizeActionId(right).toLowerCase();
-
-/** A readable label from an action id: "my-dev-server" becomes "My dev server". */
-export function actionLabel(id: string): string {
-	const words = normalizeActionId(id).replace(/-/g, " ").split(" ").filter(Boolean);
-	return words.map((word, index) => (index === 0 ? capitalize(word) : word)).join(" ");
-}
-
-const capitalize = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
-
 /** A legacy single run script becomes the default local action named "run". */
 export function legacyRunAction(command: string): ResolvedSettingAction {
 	return {
@@ -525,26 +507,6 @@ export const envVarKeychainKey = (scope: "global" | { repoId: RepoId }, name: st
 export const envScopeKey = (scope: EnvScope): string =>
 	scope === "global" ? "global" : `repo:${scope.repoId}`;
 
-/**
- * Names the app fills in itself. They are refused in the form so a saved variable never fights the
- * app's own value (services-map.md 4.2.8 and 5A.1.2).
- */
-export const RESERVED_ENV_VAR_NAMES: readonly string[] = [
-	"CONDUCTED_WORKSPACE_ID",
-	"CONDUCTED_WORKSPACE_NAME",
-	"CONDUCTED_WORKSPACE_PATH",
-	"CONDUCTED_ROOT_PATH",
-	"CONDUCTED_DEFAULT_BRANCH",
-	"CONDUCTED_PORT",
-	"CONDUCTED_PATH_PREFIX",
-];
-
-export const isReservedEnvVarName = (name: string): boolean =>
-	name.startsWith("CONDUCTED_") || RESERVED_ENV_VAR_NAMES.includes(name);
-
-export const ENV_SAVE_FAILED_MESSAGE = "Couldn't update your environment variables";
-export const ENV_FILES_FAILED_MESSAGE = "Failed to update env files";
-
 /** A settings file's sentinel for "this value is in the Keychain". */
 export const ENV_VAR_KEYCHAIN_MARKER = "conductor-keychain";
 /** A settings file's sentinel for "remove the inherited value". */
@@ -617,19 +579,6 @@ function parseEnvVars(
 }
 
 // ---------------------------------------------------------------- file shapes
-
-export type DroppedReason =
-	| "unreadable-file"
-	| "invalid-file"
-	| "unknown-key"
-	| "wrong-type"
-	| "unsupported-value";
-
-export interface DroppedSetting {
-	file: string;
-	key: string;
-	reason: DroppedReason;
-}
 
 /** A raw entry of a settings file that this service does not understand, kept for the next write. */
 export interface PreservedEntry {

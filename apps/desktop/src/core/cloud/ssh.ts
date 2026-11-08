@@ -30,6 +30,7 @@ import type {
 	Shell,
 } from "../../platform/platform.ts";
 import type { Workspace } from "../model.ts";
+import { customSshKeyMissing, expandSshKeyPath } from "../ssh-key.ts";
 import { cloudJson } from "./host-runtime.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
@@ -43,8 +44,6 @@ export const SSH_KEY_FOLDER = ".conducted/ssh";
 export const SSH_KEY_NAME = "id_ed25519";
 /** The SSH config files this app owns under `~/.ssh`. */
 export const SSH_CONFIG_NAME = "conducted_config";
-/** The setting that chooses the private key; empty means the auto-generated one. */
-export const SSH_KEY_PATH_SETTING = "ssh_key_path";
 export const SSH_CONFIG_DIR_NAME = "conducted_config.d";
 export const SSH_APP_CONFIG_NAME = "ssh.config";
 
@@ -201,19 +200,6 @@ function uniqueHostname(workspace: Workspace, taken: ReadonlySet<string>): strin
 		const candidate = `${sanitizeSshHostname(workspace.directoryName)}-${index}`;
 		if (!taken.has(candidate)) return candidate;
 	}
-}
-
-/** Expands a leading `~` in `ssh_key_path`, as Conductor does, so no shell is needed. */
-export function expandSshKeyPath(value: string, home: string): string {
-	const trimmed = value.trim();
-	if (trimmed === "~") return home;
-	if (trimmed.startsWith("~/")) return `${home}/${trimmed.slice(2)}`;
-	return trimmed;
-}
-
-/** Conductor's error when a custom key's `.pub` half cannot be read. */
-export function customSshKeyMissing(keyPath: string): string {
-	return `Custom SSH public key not found at ${keyPath}.pub`;
 }
 
 /** The key path and its public text: the chosen key, or generated once when none is chosen. */

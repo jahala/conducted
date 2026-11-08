@@ -1,18 +1,23 @@
 /**
  * @feature DATA-01 Query hook contract for screens
  * @feature COMP-09 Prompt snippets
- * Owns: the composer hooks: the draft for a chat and the saved snippets.
+ * @feature COMP-05 # PR and issue mentions
+ * Owns: the composer hooks: the draft for a chat, the saved snippets, and the '#' menu's search and
+ * attach calls.
  * Behaviour: services-map.md 1.3; core/hooks.ts states the contract; ui-map.md 5.1 (the snippet
  * picker loads its list once).
  * Must handle: a chat with no saved draft yet; the snippet list before its first read answers, after
  * a failed read, and after a snippet is saved or deleted.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
+import type { Result, WorkspaceId } from "@conducted/shared";
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { Draft, Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
+import type { PrMentionItem, PrMentionSearchResult } from "../mention-search.ts";
 import type { Snippet } from "../model.ts";
+import { attachPrMention, searchPrMentions } from "../services/mention-search.ts";
 
 const EMPTY_DRAFT: Draft = { text: "", attachmentPaths: [] };
 
@@ -37,3 +42,20 @@ export const useSnippets: Queries["useSnippets"] = () => {
 		return { state: "loading" };
 	}, [snippetError, snippets]);
 };
+
+export interface PrMentionQueries {
+	search(workspaceId: WorkspaceId, query: string): Promise<Result<PrMentionSearchResult>>;
+	attach(workspaceId: WorkspaceId, item: PrMentionItem): Promise<Result<string>>;
+}
+
+/** The '#' menu's search and attach calls, bound to the container's services. */
+export function usePrMentionQueries(): PrMentionQueries {
+	const { services } = useServices();
+	return useMemo(
+		() => ({
+			search: (workspaceId, query) => searchPrMentions(services, workspaceId, query),
+			attach: (workspaceId, item) => attachPrMention(services, workspaceId, item),
+		}),
+		[services],
+	);
+}

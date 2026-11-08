@@ -6,8 +6,9 @@
 import { type AttachmentId, appError, err, ok, type SessionId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { Platform } from "../../platform/platform.ts";
+import { attachmentFileName } from "../composer-files.ts";
 import type { Attachment } from "../model.ts";
-import { attachmentFileName, ComposerService } from "./composer.ts";
+import { ComposerService } from "./composer.ts";
 
 const sessionId = "s1" as SessionId;
 

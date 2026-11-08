@@ -12,7 +12,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PLACE_GAZETTEER } from "../../apps/desktop/src/core/services/place-gazetteer.ts";
+import { PLACE_GAZETTEER } from "../../apps/desktop/src/core/place-gazetteer.ts";
 import { routePath } from "./checks.ts";
 import {
 	BACKEND_INVENTORIES,

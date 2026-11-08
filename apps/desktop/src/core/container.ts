@@ -80,6 +80,7 @@ import { ShellGitRunner } from "./git/runner.ts";
 import { checkHost } from "./host.ts";
 import { createLookups, defaultSessionConfig, type Lookups, newChatConfig } from "./lookups.ts";
 import type { DiagnosticsCapture, Session, Workspace } from "./model.ts";
+import { buildDeepLink } from "./notifications.ts";
 import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
@@ -105,7 +106,7 @@ import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalCommandService } from "./services/local-command.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
-import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { NotificationService, type SoundPlayer } from "./services/notifications.ts";
 import { PortForwardsService } from "./services/port-forwards.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
@@ -120,7 +121,6 @@ import {
 	DEFAULT_TERMINAL_OUTPUT_LINES,
 	NO_TERMINAL_OUTPUT,
 	TerminalsService,
-	terminalLimit,
 } from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { expandHome, type PlaceNames, WorkspaceService } from "./services/workspace.ts";
@@ -136,6 +136,7 @@ import { EventIngest } from "./sidecar/ingest.ts";
 import { SessionResume } from "./sidecar/resume.ts";
 import { type SidecarClient, SidecarTunnel } from "./sidecar/tunnel.ts";
 import { isArchivedWorkspace } from "./status/archived.ts";
+import { terminalLimit } from "./terminals.ts";
 
 /**
  * How long a quit waits for the container to stop before the app quits anyway. Our choice (D064):

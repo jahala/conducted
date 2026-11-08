@@ -139,6 +139,7 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database, FileSystem } from "../../platform/platform.ts";
+import { parseAgentKey } from "../agent-catalog.ts";
 import type { Draft, Loadable, NewWorkspaceInput } from "../api.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins, type LatestWins } from "../async/latest-wins.ts";
@@ -153,20 +154,21 @@ import {
 	stringifyJson,
 } from "../db/row-codec.ts";
 import type { StoredSessionEvent } from "../db/session-events.ts";
+import { agentCanSteer } from "../follow-up-queue.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
+import { type FailedSend, GOAL_EMPTY, GOAL_UNAVAILABLE, sessionWaitsForUser } from "../sessions.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
-import { parseAgentKey } from "./agent-catalog.ts";
+import type { HistoryHit } from "../transcript.ts";
 import type { ComposerService } from "./composer.ts";
-import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
+import { chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
 import { localExecutionForHost } from "./local-command.ts";
 import type { NotificationService } from "./notifications.ts";
 import {
 	createHistorySearch,
 	formatTranscript,
-	type HistoryHit,
 	planCallsInEvent,
 	plansInEvent,
 	planTitleOf,
@@ -184,17 +186,6 @@ export interface AgentMessenger {
 		text: string,
 		options?: { newChat?: boolean; config?: Partial<SessionConfig> },
 	): Promise<Result<SessionId>>;
-}
-
-/** A message the user sent that the sidecar did not accept. The chat offers Retry and Discard. */
-export interface FailedSend {
-	messageId: MessageId;
-	turnId: TurnId;
-	text: string;
-	attachmentPaths: string[];
-	at: number;
-	delivery: "new_turn" | "steer";
-	error: AppError;
 }
 
 /** A message held in memory before it is handed to the sidecar, shown as a running turn meanwhile. */
@@ -289,13 +280,6 @@ function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 	return canonicalJson(a) === canonicalJson(b);
 }
 
-/**
- * Conductor's messages for a goal it cannot set (ui-map.md 3.5, the toast inventory). The goal
- * bar and the `/goal` slash command show the same words, so they import them from here.
- */
-export const GOAL_UNAVAILABLE = "Codex goals are not available in this chat.";
-export const GOAL_EMPTY = "Enter a goal first.";
-
 /** A config write is tried this many times before its failure is reported. */
 const CONFIG_WRITE_ATTEMPTS = 3;
 
@@ -345,20 +329,6 @@ function reviewConfigFrom(
 		effort,
 		fastMode: setting<boolean>("review_fast_mode"),
 	});
-}
-
-/**
- * True when a chat is blocked on the user right now: it has a card the user must answer, either in
- * the app's own map or in the live state the sidecar sent.
- */
-export function sessionWaitsForUser(
-	state: Pick<SessionsState, "openInteractions" | "liveStates">,
-	sessionId: SessionId,
-): boolean {
-	return (
-		state.openInteractions[sessionId] !== undefined ||
-		state.liveStates[sessionId]?.openInteraction !== undefined
-	);
 }
 
 /** Open chats are listed newest first, by the last message and then by creation time. */

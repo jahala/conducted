@@ -1,7 +1,7 @@
 import { appError } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
+import { capabilitiesFor } from "../local-git-forge.ts";
 import type { GitState, PullRequest } from "../model.ts";
-import { capabilitiesFor } from "../services/local-git-forge.ts";
 import { computeGitHeader, type GitHeaderInputs } from "./git-header.ts";
 
 const gitState = (overrides: Partial<GitState> = {}): GitState => ({

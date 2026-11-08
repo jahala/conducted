@@ -14,13 +14,10 @@ import {
 	gitUnscripted,
 } from "../../test/fake-git-runner.ts";
 import type { GitRunner } from "../git/runner.ts";
+import { GITHUB_FORGE_CAPABILITIES, LOCAL_GIT_FORGE_CAPABILITIES } from "../local-git-forge.ts";
 import { getSettingDef } from "../registries/settings.ts";
 import type { WorkspaceGitContext } from "./git.ts";
-import {
-	GITHUB_FORGE_CAPABILITIES,
-	LOCAL_GIT_FORGE_CAPABILITIES,
-	LocalGitForge,
-} from "./local-git-forge.ts";
+import { LocalGitForge } from "./local-git-forge.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 const workspaceId = "ws-git-14" as WorkspaceId;

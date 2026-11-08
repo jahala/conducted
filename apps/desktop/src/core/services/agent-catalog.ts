@@ -73,9 +73,10 @@ import {
 	signInEnvVars,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { ACP_AGENTS, AGENT_KINDS, appError, err, ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain } from "../../platform/platform.ts";
+import { agentKey } from "../agent-catalog.ts";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { withoutProviderKeys } from "../cloud/router.ts";
@@ -107,9 +108,6 @@ export interface AgentCatalogState {
 	configFiles?: Readonly<Record<string, Loadable<AgentConfigFile>>>;
 }
 
-export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
-	acpAgent === undefined ? agent : `${agent}:${acpAgent}`;
-
 /**
  * The store key of one agent's model list on one host. A cloud workspace keeps its own list,
  * because the sandbox's agent programs are its own (services-map 5B.5.1, CLOUD-04).
@@ -127,45 +125,6 @@ export const preWorkspaceSlashKey = (
 	agent: AgentKind,
 	acpAgent?: AcpAgent,
 ): string => `repo:${repoRootPath}:${agentKey(agent, acpAgent)}`;
-
-/** The name the user sees. ACP agents share one agent kind but keep their own names. */
-export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent }): string {
-	if (choice.agent === "claude") return "Claude Code";
-	if (choice.agent === "codex") return "Codex";
-	if (choice.agent === "cursor") return "Cursor";
-	if (choice.acpAgent === "pi") return "Pi";
-	if (choice.acpAgent === "opencode") return "OpenCode";
-	return "ACP agent";
-}
-
-/**
- * Every agent the app can run, in Conductor's order (Pi is ours, D098). The composer's picker,
- * the loadout and the review model picker share it, so a new agent is added in one place.
- */
-export const AGENT_CHOICES: readonly { agent: AgentKind; acpAgent?: AcpAgent }[] = [
-	{ agent: "claude" },
-	{ agent: "codex" },
-	{ agent: "cursor" },
-	{ agent: "acp", acpAgent: "opencode" },
-	{ agent: "acp", acpAgent: "pi" },
-];
-
-/**
- * Reads the agent a stored `agentKey` names, or null when it names no agent this app can run.
- * The review model stores its agent beside its model, so a chat starts with the agent that offers
- * the model rather than with the default chat's.
- */
-export function parseAgentKey(key: string): { agent: AgentKind; acpAgent?: AcpAgent } | null {
-	const parts = key.split(":");
-	if (parts.length === 1) {
-		const agent = parts[0] as AgentKind;
-		return agent !== "acp" && AGENT_KINDS.includes(agent) ? { agent } : null;
-	}
-	if (parts.length !== 2) return null;
-	const [agent, acpAgent] = parts;
-	if (agent !== "acp" || !ACP_AGENTS.includes(acpAgent as AcpAgent)) return null;
-	return { agent: "acp", acpAgent: acpAgent as AcpAgent };
-}
 
 export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
@@ -197,13 +156,6 @@ export interface AgentCatalogServiceDeps {
 	/** Reads and writes the Codex TOML config (SET-08). Absent only in tests that do not sync. */
 	toml?: TomlCodec;
 }
-
-/** The category order the sync dialog shows (SET-08). */
-export const CONFIG_SYNC_CATEGORIES: readonly ConfigSyncCategory[] = [
-	"mcp_servers",
-	"slash_commands",
-	"skills",
-];
 
 /** The store key of one preview: the source agent and its selected categories. */
 export function configSyncKey(

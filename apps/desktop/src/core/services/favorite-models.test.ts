@@ -1,10 +1,7 @@
 import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import {
-	type FavoriteModel,
-	FavoriteModelsService,
-	type FavoriteModelsServiceDeps,
-} from "./favorite-models.ts";
+import type { FavoriteModel } from "../favorite-model.ts";
+import { FavoriteModelsService, type FavoriteModelsServiceDeps } from "./favorite-models.ts";
 
 const choice = (model: string): FavoriteModel["config"] => ({
 	agent: "claude",

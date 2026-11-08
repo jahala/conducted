@@ -29,7 +29,7 @@ import {
 import { isTooLargeToRender } from "../git/diff.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { parseNumstat } from "../git/status.ts";
-import { workspaceRelativePath } from "./git.ts";
+import { workspaceRelativePath } from "../git-text.ts";
 
 export const FILE_DIFF_CACHE_BYTES = 25 * 1024 * 1024;
 
