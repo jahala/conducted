@@ -219,6 +219,7 @@ export function createActions(
 		},
 		mcp: {
 			refresh: (sessionId) => services.mcp.refreshSession(sessionId),
+			forget: (sessionId) => services.mcp.forgetSession(sessionId),
 		},
 		attachments: {
 			add: (sessionId, paths) => services.composer.addAttachments(sessionId, paths),

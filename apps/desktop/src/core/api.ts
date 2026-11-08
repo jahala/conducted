@@ -698,6 +698,8 @@ export interface Actions {
 	mcp: {
 		/** Asks the agent to check its MCP servers again. */
 		refresh: Act<[sessionId: SessionId]>;
+		/** Drops a chat's cached MCP list, so the next look reads the agent's config again. */
+		forget: Act<[sessionId: SessionId]>;
 	};
 	attachments: {
 		/** Copies files into app storage for a chat and returns where the copies are. */
