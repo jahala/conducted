@@ -30,7 +30,7 @@ import {
 } from "../../../core/hooks.ts";
 import type { AgentProgramView } from "../../../core/model.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
-import { PROGRAM_DISPLAY_NAMES } from "../../../core/services/system.ts";
+import { PROGRAM_DISPLAY_NAMES } from "../../../core/system.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";

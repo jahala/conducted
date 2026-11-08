@@ -48,7 +48,7 @@ import {
 	useSetting,
 	useWorkspaces,
 } from "../../core/hooks.ts";
-import { HISTORY_SEARCH_MIN_QUERY, type HistoryHit } from "../../core/services/transcript.ts";
+import { HISTORY_SEARCH_MIN_QUERY, type HistoryHit } from "../../core/transcript.ts";
 import { SearchIcon } from "../../ui/icons.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import type { OverlayProps } from "../../ui/overlay-props.ts";

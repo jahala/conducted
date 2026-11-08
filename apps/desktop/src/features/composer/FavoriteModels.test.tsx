@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { FavoriteModel, FavoriteModelsService } from "../../core/services/favorite-models.ts";
+import type { FavoriteModel } from "../../core/favorite-model.ts";
+import type { FavoriteModelsService } from "../../core/services/favorite-models.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { Toaster, toast } from "../../ui/Toast.tsx";
 import { FavoriteModels } from "./FavoriteModels.tsx";

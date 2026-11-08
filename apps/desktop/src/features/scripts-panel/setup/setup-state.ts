@@ -20,7 +20,7 @@
  */
 
 import type { SetupView } from "../../../core/model.ts";
-import { SETUP_LOG_MISSING_MESSAGE } from "../../../core/services/workspace.ts";
+import { SETUP_LOG_MISSING_MESSAGE } from "../../../core/workspace-helpers.ts";
 
 export type SetupTabKind =
 	| "no_script"

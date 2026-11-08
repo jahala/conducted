@@ -34,7 +34,7 @@ import {
 	useWorkspace,
 } from "../../core/hooks.ts";
 import type { KanbanStatus, Section } from "../../core/model.ts";
-import { buildDeepLink } from "../../core/services/notifications.ts";
+import { buildDeepLink } from "../../core/notifications.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { AlertDialog, AlertDialogContent } from "../../ui/AlertDialog.tsx";
 import {

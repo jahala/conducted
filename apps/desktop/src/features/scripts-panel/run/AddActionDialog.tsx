@@ -16,7 +16,7 @@
  */
 import { useEffect, useId, useRef, useState } from "react";
 import type { ActionTarget } from "../../../core/model.ts";
-import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/services/settings.ts";
+import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/settings-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";

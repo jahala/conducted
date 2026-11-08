@@ -42,8 +42,8 @@ import {
 	useLinearAccess,
 	useWorkspace,
 } from "../../core/hooks.ts";
+import { githubSetupNeeded } from "../../core/mention-search.ts";
 import type { IssueView } from "../../core/model.ts";
-import { githubSetupNeeded } from "../../core/services/mention-search.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toast } from "../../ui/Toast.tsx";

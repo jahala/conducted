@@ -9,7 +9,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChangedFile } from "../../../core/api.ts";
-import type { GraphiteBranch } from "../../../core/services/graphite.ts";
+import type { GraphiteBranch } from "../../../core/graphite.ts";
 import { GraphiteStackView, type GraphiteStackViewProps } from "./GraphiteStackView.tsx";
 
 afterEach(cleanup);

@@ -19,10 +19,10 @@
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useMemo, useState } from "react";
+import { chatTranscriptFileName, planFileName } from "../../core/composer-files.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useDraft, usePlans, useSessions } from "../../core/hooks.ts";
 import type { PlanEntry, Session } from "../../core/model.ts";
-import { chatTranscriptFileName, planFileName } from "../../core/services/composer.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { ChatIcon, FileTextIcon } from "../../ui/icons.tsx";

@@ -19,8 +19,8 @@
  * Test first: pasting "TOKEN=abc" into the name field fills name "TOKEN" and value "abc".
  */
 import { type ClipboardEvent, useState } from "react";
-import { parseDotenv } from "../../../core/services/dotenv.ts";
-import { isReservedEnvVarName } from "../../../core/services/settings.ts";
+import { parseDotenv } from "../../../core/dotenv.ts";
+import { isReservedEnvVarName } from "../../../core/settings-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label, Textarea } from "../../../ui/Input.tsx";
 import { Sheet, SheetContent } from "../../../ui/Sheet.tsx";

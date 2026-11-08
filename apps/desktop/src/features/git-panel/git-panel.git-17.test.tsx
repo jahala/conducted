@@ -20,8 +20,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
+import { CONTINUE_NOTE_FAILED_MESSAGE } from "../../core/git-text.ts";
 import type { PullRequest, Workspace } from "../../core/model.ts";
-import { CONTINUE_NOTE_FAILED_MESSAGE } from "../../core/services/git.ts";
 import type { ShellCommand, ShellOutput } from "../../platform/platform.ts";
 import {
 	createTestContainer,

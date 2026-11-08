@@ -34,13 +34,13 @@
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
+import { parseDotenv } from "../../../core/dotenv.ts";
 import { useActions, useEnvVars, useRepos, useSetting } from "../../../core/hooks.ts";
 import type { EnvScope, EnvVarView } from "../../../core/model.ts";
-import { parseDotenv } from "../../../core/services/dotenv.ts";
 import {
 	ENV_FILES_FAILED_MESSAGE,
 	ENV_SAVE_FAILED_MESSAGE,
-} from "../../../core/services/settings.ts";
+} from "../../../core/settings-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { PlusIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";

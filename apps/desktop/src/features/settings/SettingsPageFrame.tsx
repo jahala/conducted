@@ -14,7 +14,7 @@
 import { type ReactNode, useEffect } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
-import type { DroppedReason, DroppedSetting } from "../../core/services/settings.ts";
+import type { DroppedReason, DroppedSetting } from "../../core/settings-helpers.ts";
 import { Alert, AlertDescription, AlertTitle } from "../../ui/Alert.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";

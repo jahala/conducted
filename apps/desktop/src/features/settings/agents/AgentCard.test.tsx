@@ -1,7 +1,7 @@
 import type { AgentInstall } from "@conducted/protocol";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
+import { agentDisplayName } from "../../../core/agent-catalog.ts";
 import { AgentCard, agentState } from "./AgentCard.tsx";
 
 const install = (changes: Partial<AgentInstall> = {}): AgentInstall => ({

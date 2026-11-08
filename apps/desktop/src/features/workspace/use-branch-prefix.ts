@@ -9,7 +9,7 @@
  * Test first: a workspace row on "sam/fix-login" is named "Fix login" while the GitHub login is sam.
  */
 import { useGitHubAccess, useSetting } from "../../core/hooks.ts";
-import { branchPrefixFor } from "../../core/services/workspace.ts";
+import { branchPrefixFor } from "../../core/workspace-helpers.ts";
 
 export function useBranchPrefix(): string {
 	const type = useSetting<string>("branch_prefix_type");

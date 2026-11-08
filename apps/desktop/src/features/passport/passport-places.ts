@@ -4,7 +4,7 @@
  * the list of places the map shows.
  * Behaviour: frontend.md 6 (a workspace folder is named after a place), ui-map.md 4 (Passport plots
  * them and labels them 'CITIES VISITED', '[NOT VISITED]' and '[ARCHIVED]').
- * Our design choice: the places are our own gazetteer (core/services/place-gazetteer.ts, D002),
+ * Our design choice: the places are our own gazetteer (core/place-gazetteer.ts, D002),
  * the same list the workspace namer picks from, so every named workspace has a position. A folder
  * named before that, or renamed by hand, can still miss it, and is listed without a position.
  * Must handle: a name with no entry (no position, still listed); two workspaces with the same place
@@ -13,11 +13,7 @@
  * Test first: 'lisbon-v2' matches 'Lisbon' and gives its latitude and longitude.
  */
 import type { Workspace } from "../../core/model.ts";
-import {
-	type GazetteerPlace,
-	PLACE_GAZETTEER,
-	placeKey,
-} from "../../core/services/place-gazetteer.ts";
+import { type GazetteerPlace, PLACE_GAZETTEER, placeKey } from "../../core/place-gazetteer.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 
 export interface PlacePosition {

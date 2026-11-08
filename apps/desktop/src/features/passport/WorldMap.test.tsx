@@ -8,7 +8,7 @@ import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Workspace, WorkspaceState } from "../../core/model.ts";
-import type { GazetteerPlace } from "../../core/services/place-gazetteer.ts";
+import type { GazetteerPlace } from "../../core/place-gazetteer.ts";
 import { LAND_RINGS } from "./land-outline.ts";
 import type { PassportPlace } from "./passport-places.ts";
 import { WorldMap } from "./WorldMap.tsx";

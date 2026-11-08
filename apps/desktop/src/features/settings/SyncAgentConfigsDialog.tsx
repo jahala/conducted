@@ -11,9 +11,9 @@
  * other agent's config.
  */
 import { useState } from "react";
+import { CONFIG_SYNC_CATEGORIES } from "../../core/agent-catalog.ts";
 import { useActions, useConfigSyncPreview } from "../../core/hooks.ts";
 import type { ConfigSyncCategory, ConfigSyncResult } from "../../core/model.ts";
-import { CONFIG_SYNC_CATEGORIES } from "../../core/services/agent-catalog.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";

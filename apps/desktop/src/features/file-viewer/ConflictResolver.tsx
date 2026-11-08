@@ -28,7 +28,7 @@ import {
 	CONFLICT_SAVED_NOT_STAGED,
 	type ConflictHunk,
 	parseConflictMarkers,
-} from "../../core/services/workspace-files.ts";
+} from "../../core/workspace-files.ts";
 import { toastError } from "../../ui/Toast.tsx";
 
 const CHOICES: readonly { value: ConflictChoice; label: string }[] = [

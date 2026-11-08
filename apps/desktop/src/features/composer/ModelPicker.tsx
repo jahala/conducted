@@ -39,10 +39,10 @@ import type { SessionId } from "@conducted/shared";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { AGENT_CHOICES, agentDisplayName, agentKey } from "../../core/agent-catalog.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/hooks.ts";
-import { AGENT_CHOICES, agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import {

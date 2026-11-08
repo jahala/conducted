@@ -77,12 +77,14 @@ import { useStore } from "zustand";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useLiveShortcut, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
 import {
-	attachPrMention,
-	type PrMentionItem,
-	searchPrMentions,
-} from "../../core/services/mention-search.ts";
+	useActions,
+	useLiveShortcut,
+	usePrMentionQueries,
+	useSlashCommands,
+	useWorkspace,
+} from "../../core/hooks.ts";
+import type { PrMentionItem } from "../../core/mention-search.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { BlocksIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -212,6 +214,7 @@ function TerminalCommandStatus({
 export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProps) {
 	const actions = useActions();
 	const { services } = useServices();
+	const prMentions = usePrMentionQueries();
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const narrow = useNarrowLayout(containerRef);
 	const [editor, setEditorState] = useState<Editor | null>(null);
@@ -319,13 +322,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	}, [services, workspaceId]);
 
 	const searchMentionRows = useCallback(
-		(query: string) => searchPrMentions(services, workspaceId, query),
-		[services, workspaceId],
+		(query: string) => prMentions.search(workspaceId, query),
+		[prMentions, workspaceId],
 	);
 
 	const attachMentionRow = useCallback(
-		(item: PrMentionItem) => attachPrMention(services, workspaceId, item),
-		[services, workspaceId],
+		(item: PrMentionItem) => prMentions.attach(workspaceId, item),
+		[prMentions, workspaceId],
 	);
 
 	const reportPrMentionError = useCallback((error: AppError) => {
