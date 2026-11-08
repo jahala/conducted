@@ -1076,7 +1076,13 @@ describe("s1-ui-1 join batch features", () => {
 		);
 
 		const frame = (await screen.findByTitle("Visualization")) as HTMLIFrameElement;
-		expect(frame.getAttribute("srcdoc") ?? "").toContain("<h1>Revenue chart</h1>");
+		// The page is served from the visualization scheme, not inlined as srcdoc (#466).
+		await waitFor(() =>
+			expect(frame.getAttribute("src")).toMatch(/^visualization:\/\/localhost\//),
+		);
+		expect(test.memory.controls.visualizationPages.get(frame.getAttribute("src") ?? "")).toContain(
+			"<h1>Revenue chart</h1>",
+		);
 		expect(frame.getAttribute("sandbox") ?? "").toContain("allow-scripts");
 		expect(frame.getAttribute("sandbox") ?? "").not.toContain("allow-same-origin");
 	});

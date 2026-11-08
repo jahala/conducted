@@ -6,17 +6,21 @@
  * "Open"; a path outside the workspace shows "Visualization is outside the workspace:"; a file that
  * cannot be read shows "Couldn’t load visualization"); ui-map.md 3.3 (chat items).
  * Data: the file text comes from useFileContent; the workspace root from useWorkspace; the home
- * folder from the Platform for a path that starts with "~".
+ * folder from the Platform for a path that starts with "~"; the frame's address from
+ * `platform.visualizations`, which serves the document from the Rust shell (visualization.rs).
  * Must handle: a path outside the workspace root (absolute, climbing with "..", or "~") shows the
  * notice and loads nothing; a missing file shows the load failure and loads when the file appears;
- * a page that runs scripts is sandboxed without same-origin access, and its policy blocks loads,
- * fetches and form posts for every script, even one before `<head>` (a script that points the frame
- * itself at a web address is outside the frame's policy; only the app's own policy covers that);
+ * a page that runs scripts is sandboxed without same-origin access; its scripts run although the
+ * app's own policy allows no inline script, because the page is served from its own origin with
+ * its own policy, which blocks loads, fetches and form posts for every script (a script that
+ * points the frame itself at a web address is outside the frame's policy; only the app's own
+ * policy and navigation guard cover that); a page the shell cannot serve shows the load failure;
+ * the page is dropped from the shell when its frame goes, also when the shell answers after that;
  * the frame follows its content up to a maximum height, then scrolls; the file changing on disk
  * reloads the frame.
  * Our design choice: the frame is isolated from the app by an opaque origin, so a visualization can
- * never read the app's storage or call Tauri commands. `CodexVisualizationForWrite` mounts it under a
- * Codex chat's write card when the written path is an HTML file.
+ * never read the app's storage or the key Tauri commands need. `CodexVisualizationForWrite` mounts
+ * it under a Codex chat's write card when the written path is an HTML file.
  * Test first: a path outside the workspace root renders "Visualization is outside the workspace:"
  * with the path and loads no frame.
  */
@@ -26,6 +30,7 @@ import { useServices } from "../../core/context.tsx";
 import { useChat, useFileContent, useWorkspace } from "../../core/hooks.ts";
 import { workspaceRelativePath } from "../../core/services/git.ts";
 import { Button } from "../../ui/Button.tsx";
+import { FRAME_SANDBOX, frameDocument, HEIGHT_MESSAGE } from "./visualization-frame.ts";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
 export interface CodexVisualizationProps {
@@ -43,30 +48,6 @@ const LOADING = "Loading visualization...";
 /** The frame starts this tall, follows its content, and scrolls once it reaches the maximum. */
 const MIN_FRAME_HEIGHT = 96;
 const MAX_FRAME_HEIGHT = 480;
-const HEIGHT_MESSAGE = "conducted-visualization";
-
-const FRAME_POLICY =
-	"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; form-action 'none'";
-
-/** A doctype at the start of the page, with any whitespace and comments before it. */
-const LEADING_DOCTYPE = /^\uFEFF?(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i;
-
-/**
- * The document the frame loads. Its policy comes first, right after a leading doctype, so it
- * applies to every script of the page, even one written before `<head>`. A doctype stays first,
- * so the page keeps its standards mode. The document then reports its height as the content
- * changes so the frame can follow it. The page keeps its own markup and scripts.
- */
-const HEIGHT_SCRIPT = `<script>(function(){function report(){parent.postMessage({type:"${HEIGHT_MESSAGE}",height:Math.ceil(document.documentElement.scrollHeight)},"*")}addEventListener("load",report);if(typeof ResizeObserver==="function"){new ResizeObserver(report).observe(document.documentElement)}report()})();</script>`;
-
-function frameDocument(html: string): string {
-	const policy = `<meta http-equiv="Content-Security-Policy" content="${FRAME_POLICY}">`;
-	const doctype = LEADING_DOCTYPE.exec(html)?.[0] ?? "";
-	const withPolicy = `${doctype}${policy}${html.slice(doctype.length)}`;
-	return /<\/body>/i.test(withPolicy)
-		? withPolicy.replace(/<\/body>/i, (body) => `${HEIGHT_SCRIPT}${body}`)
-		: `${withPolicy}${HEIGHT_SCRIPT}`;
-}
 
 type ResolvedPath = { ok: true; relative: string } | { ok: false };
 
@@ -142,6 +123,50 @@ function OutsideFrame({ path }: { path: string }) {
 	);
 }
 
+type ServedPage = { state: "serving" } | { state: "ready"; url: string } | { state: "failed" };
+
+/**
+ * Hands the frame's document to the Rust shell, which serves it from the visualization scheme
+ * with the frame's own policy, and drops it again when the frame goes. An answer that arrives
+ * after the frame is gone is released at once.
+ */
+function useServedPage(html: string): ServedPage {
+	const { platform } = useServices();
+	const [page, setPage] = useState<ServedPage>({ state: "serving" });
+
+	useEffect(() => {
+		const { visualizations, app } = platform;
+		let live = true;
+		let servedId: string | null = null;
+		const release = (id: string) => {
+			void visualizations.release(id).then((released) => {
+				if (!released.ok) {
+					app.writeLog("warn", `Could not drop a visualization page: ${released.error.message}`);
+				}
+			});
+		};
+		setPage({ state: "serving" });
+		void visualizations.serve(frameDocument(html)).then((served) => {
+			if (!served.ok) {
+				if (live) setPage({ state: "failed" });
+				return;
+			}
+			if (!live) {
+				release(served.value.id);
+				return;
+			}
+			servedId = served.value.id;
+			setPage({ state: "ready", url: served.value.url });
+		});
+		return () => {
+			live = false;
+			if (servedId !== null) release(servedId);
+		};
+	}, [html, platform]);
+
+	return page;
+}
+
 function FramedHtml({
 	html,
 	path,
@@ -153,6 +178,7 @@ function FramedHtml({
 }) {
 	const frameRef = useRef<HTMLIFrameElement>(null);
 	const [height, setHeight] = useState(MIN_FRAME_HEIGHT);
+	const page = useServedPage(html);
 
 	useEffect(() => {
 		const onMessage = (event: MessageEvent) => {
@@ -167,15 +193,16 @@ function FramedHtml({
 		return () => window.removeEventListener("message", onMessage);
 	}, []);
 
+	if (page.state === "failed") return <FailedFrame path={path} onOpen={onOpen} />;
 	return (
 		<FrameChrome>
 			<FrameHeader path={path} onOpen={onOpen} />
 			<iframe
 				ref={frameRef}
 				title="Visualization"
-				sandbox="allow-scripts"
+				sandbox={FRAME_SANDBOX}
 				referrerPolicy="no-referrer"
-				srcDoc={frameDocument(html)}
+				src={page.state === "ready" ? page.url : undefined}
 				style={{ height }}
 				className="w-full border-0"
 			/>

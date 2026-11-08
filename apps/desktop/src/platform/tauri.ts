@@ -108,6 +108,8 @@ import type {
 	TreeEntry,
 	Unsubscribe,
 	Updater,
+	VisualizationPage,
+	Visualizations,
 } from "./platform.ts";
 import { platformError } from "./platform.ts";
 import {
@@ -373,6 +375,8 @@ export const COMMANDS = {
 	conductorImportRead: "conductor_import_read", // APP-17
 	conductorImportMoveSecrets: "conductor_import_move_secrets", // APP-17
 	conductorImportDiscard: "conductor_import_discard", // APP-17
+	visualizationServe: "visualization_serve", // CHAT-22
+	visualizationRelease: "visualization_release", // CHAT-22
 	notify: "notify",
 	setDockBadge: "set_dock_badge",
 	notificationTakePending: "notification_take_pending",
@@ -1518,6 +1522,15 @@ export function createTauriConductorImport(bindings: TauriBindings): ConductorIm
 	};
 }
 
+/** `visualization_serve { document }`, `visualization_release { id }` (CHAT-22). */
+export function createTauriVisualizations(bindings: TauriBindings): Visualizations {
+	return {
+		serve: (document) =>
+			invokeResult<VisualizationPage>(bindings, COMMANDS.visualizationServe, { document }),
+		release: (id) => invokeResult<void>(bindings, COMMANDS.visualizationRelease, { id }),
+	};
+}
+
 /**
  * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, then the groups above.
  * The database opens on its first statement, so the startup version check runs before the plugin's
@@ -1561,6 +1574,7 @@ export async function createTauriPlatform(
 		cloud: createTauriCloud(bindings),
 		portForward: createTauriPortForward(bindings),
 		conductorImport: createTauriConductorImport(bindings),
+		visualizations: createTauriVisualizations(bindings),
 	};
 	return ok(platform);
 }

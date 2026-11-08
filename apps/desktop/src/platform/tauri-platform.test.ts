@@ -623,6 +623,7 @@ describe("PLAT-02 Tauri Platform build", () => {
 				"programs",
 				"http",
 				"conductorImport",
+				"visualizations",
 			].sort(),
 		);
 	});

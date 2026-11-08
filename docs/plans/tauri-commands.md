@@ -97,6 +97,10 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `conductorImport.read`                           | `conductor_import_read`                                                      | conductor_import.rs |                                        |
 | `conductorImport.moveSecrets`                    | `conductor_import_move_secrets`                                              | conductor_import.rs |                                        |
 | `conductorImport.discardCopies`                  | `conductor_import_discard`                                                   | conductor_import.rs |                                        |
+| `visualizations.serve`                           | `visualization_serve { document }`                                           | visualization.rs    |                                        |
+| `visualizations.release`                         | `visualization_release { id }`                                               | visualization.rs    |                                        |
+
+The `visualization` URI scheme (visualization.rs, CHAT-22) serves each page `visualization_serve` stored at `visualization://localhost/<id>`, with the page's own content security policy as a header. The app's policy lists the scheme in `frame-src` only.
 
 Commands outside the Platform interface:
 

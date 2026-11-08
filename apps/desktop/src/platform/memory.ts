@@ -25,6 +25,9 @@
  * A Conductor database is a map of table rows (`controls.conductorDatabases`); a copy is one more
  * entry under the import's folder, and the read and the secret moves answer as conductor_import.rs
  * does (APP-17).
+ * Visualization pages (CHAT-22) are kept by address, at most `VISUALIZATION_MAX_PAGES` pages and
+ * `VISUALIZATION_MAX_STORE_BYTES` UTF-8 bytes, the oldest dropped first, as visualization.rs keeps
+ * them; `controls.visualizationPages` is what the scheme would serve.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
@@ -81,12 +84,15 @@ import type {
 	TreeEntry,
 	Unsubscribe,
 	Updater,
+	Visualizations,
 } from "./platform.ts";
 import {
 	CONDUCTOR_COPY_FOLDER,
 	CONDUCTOR_COUNTED_TABLES,
 	CONDUCTOR_READ_TABLES,
 	platformError,
+	VISUALIZATION_MAX_PAGES,
+	VISUALIZATION_MAX_STORE_BYTES,
 } from "./platform.ts";
 import { stripTerminalEscapes } from "./terminal-escapes.ts";
 
@@ -232,6 +238,8 @@ export interface MemoryPlatformControls {
 	seedConductorDatabase(path: string, tables: MemoryConductorDatabase): void;
 	/** The database at `path` and the files beside it, as one text. */
 	conductorFingerprint(path: string): string;
+	/** The visualization pages the scheme would serve, by address, oldest first (CHAT-22). */
+	readonly visualizationPages: ReadonlyMap<string, string>;
 	/** Log lines written through `app.writeLog`. */
 	readonly logs: readonly { level: string; message: string }[];
 	/** Returns the number of listeners handed out by the Platform that were never unsubscribed. */
@@ -1552,6 +1560,44 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		setQuitHandlerReady: async () => {},
 	};
 
+	// CHAT-22: the pages visualization.rs would serve, by address, oldest first.
+	const visualizationPages = new Map<string, { id: string; document: string; bytes: number }>();
+	const utf8 = new TextEncoder();
+	const visualizations: Visualizations = {
+		serve: async (document) => {
+			const bytes = utf8.encode(document).length;
+			if (bytes > VISUALIZATION_MAX_STORE_BYTES) {
+				return err(
+					platformError(
+						"visualization_too_large",
+						`The visualization is ${bytes} bytes; at most ${VISUALIZATION_MAX_STORE_BYTES} can be shown.`,
+					),
+				);
+			}
+			const stored = () =>
+				[...visualizationPages.values()].reduce((total, page) => total + page.bytes, 0);
+			for (const url of visualizationPages.keys()) {
+				if (
+					visualizationPages.size < VISUALIZATION_MAX_PAGES &&
+					stored() + bytes <= VISUALIZATION_MAX_STORE_BYTES
+				) {
+					break;
+				}
+				visualizationPages.delete(url);
+			}
+			const id = ids.uuid().replaceAll("-", "");
+			const url = `visualization://localhost/${id}`;
+			visualizationPages.set(url, { id, document, bytes });
+			return ok({ id, url });
+		},
+		release: async (id) => {
+			for (const [url, page] of visualizationPages) {
+				if (page.id === id) visualizationPages.delete(url);
+			}
+			return ok(undefined);
+		},
+	};
+
 	const controls: MemoryPlatformControls = {
 		scriptShell: (script) => {
 			shellScripts.unshift(script);
@@ -1714,6 +1760,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				files: beside.map(([file, text]) => [file, text, modified.get(file) ?? null]),
 			});
 		},
+		get visualizationPages() {
+			return new Map([...visualizationPages].map(([url, page]) => [url, page.document]));
+		},
 		get logs() {
 			return logs;
 		},
@@ -1744,6 +1793,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		cloud,
 		portForward,
 		conductorImport,
+		visualizations,
 	};
 
 	return { platform, controls };

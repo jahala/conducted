@@ -28,7 +28,13 @@
  */
 import { type AppError, ok, type Result } from "@conducted/shared";
 import type { CloudScript } from "../platform/memory.ts";
-import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "../platform/platform.ts";
+import {
+	type Platform,
+	type ProgramStatus,
+	type SpeechEvent,
+	type Unsubscribe,
+	VISUALIZATION_MAX_STORE_BYTES,
+} from "../platform/platform.ts";
 
 export type ContractGroup = keyof Platform;
 
@@ -562,6 +568,18 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"secrets move into the Keychain all or nothing",
 		"moveSecrets writes each value under its key and returns the keys; a missing value or a key the Keychain holds fails the call and leaves the Keychain as it was.",
 		"controls",
+	),
+	c(
+		"visualizations",
+		"serve-release",
+		"each visualization gets its own address on the scheme",
+		"Two serves of different documents answer two different ids, each with the address visualization://localhost/<id>; release is Ok, and a second release of the same id is Ok too.",
+	),
+	c(
+		"visualizations",
+		"too-large",
+		"a visualization over the store's size is its own error",
+		"serve of a document over VISUALIZATION_MAX_STORE_BYTES UTF-8 bytes returns Err with visualization_too_large.",
 	),
 	c(
 		"portForward",
@@ -2023,6 +2041,31 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert((await fingerprint(source)) === before, "discarding touched Conductor's files");
 	},
 
+	"visualizations.serve-release": async (ctx) => {
+		const first = expectOk(ctx, await ctx.platform.visualizations.serve("<p>first</p>"), "serve");
+		const second = expectOk(ctx, await ctx.platform.visualizations.serve("<p>second</p>"), "serve");
+		ctx.assert(first.id !== second.id, `two serves answered the same id ${first.id}`);
+		for (const page of [first, second]) {
+			ctx.assert(
+				page.url === `visualization://localhost/${page.id}`,
+				`the address ${page.url} is not on the scheme with its id`,
+			);
+		}
+		expectOk(ctx, await ctx.platform.visualizations.release(first.id), "release");
+		expectOk(ctx, await ctx.platform.visualizations.release(first.id), "second release");
+		expectOk(ctx, await ctx.platform.visualizations.release(second.id), "release");
+	},
+
+	"visualizations.too-large": async (ctx) => {
+		const served = await ctx.platform.visualizations.serve(
+			"x".repeat(VISUALIZATION_MAX_STORE_BYTES + 1),
+		);
+		ctx.assert(
+			!served.ok && served.error.code === "visualization_too_large",
+			"a document over the store's size was not visualization_too_large",
+		);
+	},
+
 	"conductorImport.missing": async (ctx) => {
 		const copied = await ctx.platform.conductorImport.copy(`${ctx.outside}/none/conductor.db`);
 		ctx.assert(
@@ -2335,6 +2378,8 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"keychain.get",
 		"keychain.delete",
 	],
+	"visualizations.serve-release": ["visualizations.serve", "visualizations.release"],
+	"visualizations.too-large": ["visualizations.serve"],
 	"portForward.start-stop": [
 		"portForward.findAvailableLocalPort",
 		"portForward.start",
