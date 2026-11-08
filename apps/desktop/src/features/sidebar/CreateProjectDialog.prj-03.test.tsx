@@ -109,7 +109,8 @@ describe("PRJ-03 Quick start", () => {
 		const create = vi
 			.spyOn(test.container.actions.projects, "createFromTemplate")
 			.mockResolvedValue(ok(created));
-		render(<QuickStartFlow open onOpenChange={() => {}} />, { wrapper });
+		const onAdded = vi.fn();
+		render(<QuickStartFlow open onOpenChange={() => {}} onAdded={onAdded} />, { wrapper });
 
 		fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "My App" } });
 		fireEvent.change(screen.getByLabelText("Parent folder"), { target: { value: "/code" } });
@@ -118,6 +119,8 @@ describe("PRJ-03 Quick start", () => {
 
 		await waitFor(() => expect(create).toHaveBeenCalledWith("My App", "/code", "nextjs"));
 		expect(await screen.findByText("Create a private GitHub repo?")).toBeTruthy();
+		// The new project goes to the place that started Quick start, to open it.
+		expect(onAdded).toHaveBeenCalledWith(created);
 	});
 
 	it("shows why a project name is not usable and keeps Create disabled", () => {

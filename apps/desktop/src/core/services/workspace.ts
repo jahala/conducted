@@ -285,6 +285,21 @@ export function newWorkspaceSessionConfig(defaults: NewWorkspaceSessionDefaults)
 	};
 }
 
+/**
+ * The first chat's config from the user's defaults, for a workspace made without the create form:
+ * a deep link's plan, and the first workspace of a project just added (Conductor's
+ * autoCreateWorkspace).
+ */
+export function newWorkspaceConfigFromSettings(setting: <T>(key: string) => T): SessionConfig {
+	return newWorkspaceSessionConfig({
+		model: setting<string>("default_model"),
+		effort: setting<string>("default_claude_effort_level"),
+		fastMode: setting<boolean>("default_fast_mode"),
+		planMode: setting<boolean>("default_plan_mode"),
+		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
+	});
+}
+
 /** Shown when the workspace is made but cannot join the chosen section. */
 export const SECTION_PLACEMENT_FAILED_MESSAGE =
 	"The workspace was created, but it couldn't be added to the section. You can move it from the sidebar.";
@@ -860,6 +875,22 @@ export class WorkspaceService {
 			if (!registered.ok) return registered;
 		}
 		return ok(undefined);
+	}
+
+	/**
+	 * Backs `Actions.workspaces.createFirst`: a just-added project's first workspace, from the
+	 * default branch with the user's default chat settings and no first message, as Conductor's
+	 * repo-created step makes it (renderApp @1713146, autoCreateWorkspace).
+	 */
+	createFirst(repoId: RepoId): Promise<Result<Workspace>> {
+		return this.create({
+			repoId,
+			from: { kind: "default" },
+			prompt: "",
+			attachmentPaths: [],
+			config: newWorkspaceConfigFromSettings(this.#deps.setting),
+			sectionId: null,
+		});
 	}
 
 	/** Backs `Actions.workspaces.create`: row first, then worktree, setup, and the first chat. */

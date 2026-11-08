@@ -23,20 +23,28 @@ import { useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useRepos } from "../../core/hooks.ts";
+import type { Repo } from "../../core/model.ts";
 import { Button, type ButtonProps } from "../../ui/Button.tsx";
 import { ChevronDownIcon, FolderIcon, FolderPlusIcon, GlobeIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { CloneGithubDialog } from "./CloneGithubDialog.tsx";
 import { QuickStartFlow } from "./CreateProjectDialog.tsx";
+import { useOpenAddedProject } from "./use-open-added-project.ts";
 
 /**
  * The three ways to add a project, shared by this button and the new-workspace project menu: open a
  * folder, clone from GitHub, or quick start from a template. `dialogs` renders the clone and quick start
  * dialogs; place it once next to the menu that opens them.
  */
-export function useAddProject() {
+/**
+ * The add-project actions and their dialogs. `onAdded` is what happens to the new project; by
+ * default its first workspace is made and opened, as Conductor does.
+ */
+export function useAddProject(options: { onAdded?: (repo: Repo) => void } = {}) {
 	const actions = useActions();
+	const openAdded = useOpenAddedProject();
+	const onAdded = options.onAdded ?? ((repo: Repo) => void openAdded(repo));
 	const [busy, setBusy] = useState(false);
 	const [cloneOpen, setCloneOpen] = useState(false);
 	const [quickStartOpen, setQuickStartOpen] = useState(false);
@@ -54,7 +62,11 @@ export function useAddProject() {
 				}
 				if (picked.value === null) return;
 				const result = await actions.projects.addLocal(picked.value);
-				if (!result.ok) toastError("Couldn't add the project", result.error);
+				if (!result.ok) {
+					toastError("Couldn't add the project", result.error);
+					return;
+				}
+				onAdded(result.value);
 			} finally {
 				setBusy(false);
 			}
@@ -62,8 +74,8 @@ export function useAddProject() {
 
 	const dialogs = (
 		<>
-			{cloneOpen ? <CloneGithubDialog open onOpenChange={setCloneOpen} /> : null}
-			<QuickStartFlow open={quickStartOpen} onOpenChange={setQuickStartOpen} />
+			{cloneOpen ? <CloneGithubDialog open onOpenChange={setCloneOpen} onCloned={onAdded} /> : null}
+			<QuickStartFlow open={quickStartOpen} onOpenChange={setQuickStartOpen} onAdded={onAdded} />
 		</>
 	);
 

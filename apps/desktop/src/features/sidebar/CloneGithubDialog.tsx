@@ -23,13 +23,14 @@ import type { Loadable } from "../../core/api.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useGitHubOwners, useGitHubRepos } from "../../core/hooks.ts";
-import type { GitHubRepoSummary } from "../../core/model.ts";
+import type { GitHubRepoSummary, Repo } from "../../core/model.ts";
 import { Button, type ButtonProps } from "../../ui/Button.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { Input, Label } from "../../ui/Input.tsx";
 import { GitBranchIcon } from "../../ui/icons.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
+import { useOpenAddedProject } from "./use-open-added-project.ts";
 
 /** The user's most recently updated repositories, for the dialog's "Recent repos" list. */
 function useRecentGithubRepos(): Loadable<GitHubRepoSummary[]> {
@@ -102,9 +103,11 @@ function RepositoryList({
 export interface CloneGithubDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** What the place that opened the dialog does with the cloned project. */
+	onCloned: (repo: Repo) => void;
 }
 
-export function CloneGithubDialog({ open, onOpenChange }: CloneGithubDialogProps) {
+export function CloneGithubDialog({ open, onOpenChange, onCloned }: CloneGithubDialogProps) {
 	const actions = useActions();
 	const repoStore = useServices().services.repo.store;
 	const cloneProgress = useStore(repoStore, (state) => state.cloneProgress);
@@ -174,6 +177,7 @@ export function CloneGithubDialog({ open, onOpenChange }: CloneGithubDialogProps
 					return;
 				}
 				onOpenChange(false);
+				onCloned(result.value);
 			} finally {
 				setBusy(false);
 			}
@@ -355,13 +359,16 @@ export function CloneGithubButton({
 	className,
 }: CloneGithubButtonProps) {
 	const [open, setOpen] = useState(false);
+	const openAdded = useOpenAddedProject();
 	return (
 		<>
 			<Button variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
 				<GitBranchIcon />
 				Open GitHub project
 			</Button>
-			{open ? <CloneGithubDialog open onOpenChange={setOpen} /> : null}
+			{open ? (
+				<CloneGithubDialog open onOpenChange={setOpen} onCloned={(repo) => void openAdded(repo)} />
+			) : null}
 		</>
 	);
 }

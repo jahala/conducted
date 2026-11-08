@@ -51,7 +51,7 @@ import type { Container } from "../core/container.ts";
 import { useServices } from "../core/context.tsx";
 import { getSettingDef } from "../core/registries/settings.ts";
 import { DEEP_LINK_SCHEME, parseDeepLink } from "../core/services/notifications.ts";
-import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
+import { newWorkspaceConfigFromSettings } from "../core/services/workspace.ts";
 import { parseSettingsPage, type SettingsTarget } from "../features/settings/settings-pages.ts";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { EnabledSettingNotice } from "./EnabledSettingNotice.tsx";
@@ -426,13 +426,7 @@ export function createDeepLinkOpener(
 				from: { kind: "default" },
 				prompt: plan,
 				attachmentPaths: [],
-				config: newWorkspaceSessionConfig({
-					model: services.settings.get<string>("default_model"),
-					effort: services.settings.get<string>("default_claude_effort_level"),
-					fastMode: services.settings.get<boolean>("default_fast_mode"),
-					planMode: services.settings.get<boolean>("default_plan_mode"),
-					requireToolApproval: services.settings.get<boolean>("tool_approvals_enabled"),
-				}),
+				config: newWorkspaceConfigFromSettings((key) => services.settings.get(key)),
 				sectionId: null,
 			});
 			return created.ok ? ok(undefined) : created;

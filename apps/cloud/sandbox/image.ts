@@ -33,7 +33,7 @@ export const IMAGE = {
 	sandboxImage:
 		"cloudflare/sandbox:1.0.3@sha256:fc1740c3cba26461f0ab1771287c84018ab2cca43a70ebb823087c85d780aaec",
 	/** The app version the sidecar logs; the test keeps it equal to package.json. */
-	appVersion: "0.3.2",
+	appVersion: "0.3.3",
 	/** Debian trixie's git and ripgrep. */
 	gitVersion: "1:2.47.3-0+deb13u1",
 	ripgrepVersion: "14.1.1-1+b4",

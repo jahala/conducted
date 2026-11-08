@@ -39,6 +39,7 @@ import { Input, Label } from "../../ui/Input.tsx";
 import { FileCodeIcon, FolderPlusIcon } from "../../ui/icons.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { toast } from "../../ui/Toast.tsx";
+import { useOpenAddedProject } from "./use-open-added-project.ts";
 
 /** A drawn letter in a circle, our own mark for a template whose logo is someone else's. */
 function LetterMark({ letter }: { letter: string }) {
@@ -428,10 +429,12 @@ export function CreateGithubRepoDialog({
 export interface QuickStartFlowProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** What the place that started Quick start does with the new project. */
+	onAdded: (repo: Repo) => void;
 }
 
 /** Runs Create project, then offers to create the private GitHub repository for the new project. */
-export function QuickStartFlow({ open, onOpenChange }: QuickStartFlowProps) {
+export function QuickStartFlow({ open, onOpenChange, onAdded }: QuickStartFlowProps) {
 	const [repo, setRepo] = useState<Repo | null>(null);
 
 	useEffect(() => {
@@ -441,6 +444,7 @@ export function QuickStartFlow({ open, onOpenChange }: QuickStartFlowProps) {
 	const created = (newRepo: Repo) => {
 		setRepo(newRepo);
 		onOpenChange(false);
+		onAdded(newRepo);
 	};
 
 	return (
@@ -473,13 +477,14 @@ export function QuickStartButton({
 	className,
 }: QuickStartButtonProps) {
 	const [open, setOpen] = useState(false);
+	const openAdded = useOpenAddedProject();
 	return (
 		<>
 			<Button variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
 				<FolderPlusIcon />
 				Quick start
 			</Button>
-			<QuickStartFlow open={open} onOpenChange={setOpen} />
+			<QuickStartFlow open={open} onOpenChange={setOpen} onAdded={(repo) => void openAdded(repo)} />
 		</>
 	);
 }

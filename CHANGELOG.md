@@ -3,6 +3,21 @@
 Release notes, newest first. `pnpm release` writes each version's section from the commit subjects
 since the last tag, and the GitHub release body is cut from that section (PLAT-39).
 
+## 0.3.3 (2026-11-08)
+
+### Fixes
+
+- stop sending the menu the keys Rust keeps fixed (#484)
+- adding a project opens a new workspace in it, as Conductor does (#477)
+
+### Releases
+
+- publish the Homebrew cask from each stable release (PLAT-42) (#483)
+
+### Tests
+
+- keep auto maintenance from outliving a commit (#476)
+
 ## 0.3.2 (2026-11-07)
 
 ### Cloud
