@@ -2,7 +2,9 @@ name: Catalogue shots
 
 # Draws every state of the states catalogue (docs/engineering.md, "States catalogue") in Chromium
 # and uploads the PNGs, so a screen change can be read beside Conductor's captures without a
-# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens.
+# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The same
+# job runs the browser check of the Codex visualization frame under the app's production policy
+# (scripts/visualization/frame-policy.browser.ts, issue #466).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -10,6 +12,9 @@ on:
       - "apps/desktop/src/**"
       - "scripts/catalogue/**"
       - "apps/desktop/vite.catalogue.config.ts"
+      - "apps/desktop/src-tauri/tauri.conf.json"
+      - "apps/desktop/src-tauri/src/visualization.rs"
+      - "scripts/visualization/**"
 
 permissions:
   contents: read
@@ -42,3 +47,6 @@ jobs:
           name: catalogue-shots
           path: .context/shots/ours/
           retention-days: 14
+      - name: The visualization frame runs its scripts under the production policy
+        if: ${{ !cancelled() }}
+        run: bun scripts/visualization/frame-policy.browser.ts
