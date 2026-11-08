@@ -344,10 +344,11 @@ describe("our name", () => {
 		put("apps/desktop/src/core/a.test.ts", 'const text = "Conductor";\n');
 		put("apps/desktop/src-tauri/src/d.rs", '//! d\nconst M: &str = "Open in Conductor";\n');
 		const messages = checkOurName(root).map((p) => p.message);
+		// The walk lists files in name order, the same on macOS and Linux.
 		expect(messages).toEqual([
-			"apps/desktop/src-tauri/src/d.rs:2 names Conductor in a product string; our app is Conducted",
 			"apps/desktop/src/core/a.ts:2 names Conductor in a product string; our app is Conducted",
 			"apps/desktop/src/features/b.tsx:7 names Conductor in a product string; our app is Conducted",
+			"apps/desktop/src-tauri/src/d.rs:2 names Conductor in a product string; our app is Conducted",
 		]);
 	});
 
