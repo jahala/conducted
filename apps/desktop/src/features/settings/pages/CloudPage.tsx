@@ -20,7 +20,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { CloudMcpServer } from "../../../core/cloud/settings.ts";
 import {
 	CLOUD_ENV_SAVE_FAILED,
-	CLOUD_MCP_SAVE_FAILED,
+	CLOUD_MCP_ADD_FAILED,
+	CLOUD_MCP_DELETE_FAILED,
+	CLOUD_MCP_UPDATE_FAILED,
 	CLOUD_SETTINGS_UNREACHABLE,
 } from "../../../core/cloud/settings.ts";
 import { useServices } from "../../../core/context.tsx";
@@ -117,9 +119,10 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 
 	/** Saves one cloud MCP server; false keeps the panel open with the Worker's reason. */
 	const saveMcpServer = async (name: string, server: CloudMcpServer): Promise<boolean> => {
+		const isNew = settings?.mcpServers[name] === undefined;
 		const saved = await actions.cloud.saveMcpServer(name, server);
 		if (!saved.ok) {
-			toastError(CLOUD_MCP_SAVE_FAILED, saved.error);
+			toastError(isNew ? CLOUD_MCP_ADD_FAILED : CLOUD_MCP_UPDATE_FAILED, saved.error);
 			return false;
 		}
 		return true;
@@ -128,7 +131,7 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 	const removeMcpServer = async (name: string): Promise<boolean> => {
 		const removed = await actions.cloud.removeMcpServer(name);
 		if (!removed.ok) {
-			toastError(CLOUD_MCP_SAVE_FAILED, removed.error);
+			toastError(CLOUD_MCP_DELETE_FAILED, removed.error);
 			return false;
 		}
 		return true;
@@ -139,7 +142,11 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 	): Promise<boolean> => {
 		const imported = await actions.cloud.importMcpServers(servers);
 		if (!imported.ok) {
-			toastError(CLOUD_MCP_SAVE_FAILED, imported.error);
+			const count = Object.keys(servers).length;
+			toastError(
+				count === 1 ? "Couldn't add 1 MCP server" : `Couldn't add ${count} MCP servers`,
+				imported.error,
+			);
 			return false;
 		}
 		return true;

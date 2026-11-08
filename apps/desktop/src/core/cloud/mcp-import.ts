@@ -89,6 +89,9 @@ const SOURCES = {
 	codex: "Codex",
 } as const;
 
+/** Conductor's own words for header text it cannot read (renderApp `Inr`). */
+const HEADER_LINES_MESSAGE = 'Enter headers as one "Header-Name: value" per line';
+
 /**
  * The headers a user typed for one server: one `Name: value` per line. A blank line is ignored;
  * a line without a name and a value, or with a name that is not a header, refuses the whole text.
@@ -101,11 +104,11 @@ export function headerLines(
 		const line = raw.trim();
 		if (line === "") continue;
 		const colon = line.indexOf(":");
-		if (colon < 1) return { ok: false, message: "One header per line, in the form Name: value" };
+		if (colon < 1) return { ok: false, message: HEADER_LINES_MESSAGE };
 		const name = line.slice(0, colon).trim();
 		const value = line.slice(colon + 1).trim();
 		if (!HEADER_NAME.test(name) || value === "") {
-			return { ok: false, message: `"${line}" is not a header in the form Name: value` };
+			return { ok: false, message: HEADER_LINES_MESSAGE };
 		}
 		headers[name] = value;
 	}
@@ -356,7 +359,7 @@ export function createCloudMcpImport(deps: CloudMcpImportDeps): CloudMcpImport {
 				return err(
 					appError(
 						"cloud_mcp_scan_failed",
-						"The local MCP servers could not be read.",
+						"Couldn't read local MCP configs",
 						cause instanceof Error ? { message: cause.message } : null,
 					),
 				);

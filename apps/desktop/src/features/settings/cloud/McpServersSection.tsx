@@ -24,7 +24,6 @@ import {
 	uniqueMcpServerName,
 } from "../../../core/cloud/mcp-import.ts";
 import type { CloudMcpAuth, CloudMcpServer } from "../../../core/cloud/settings.ts";
-import { CLOUD_MCP_SAVE_FAILED } from "../../../core/cloud/settings.ts";
 import { useActions } from "../../../core/hooks.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
@@ -66,13 +65,12 @@ function nameProblem(name: string): string | null {
 function urlProblem(url: string): string | null {
 	try {
 		const parsed = new URL(url);
-		if (parsed.protocol !== "https:") return "Enter a URL that starts with https://";
-		if (parsed.username !== "" || parsed.password !== "") {
-			return "The URL must not hold a username or password.";
-		}
+		if (parsed.protocol !== "https:") return "Enter an HTTPS server URL";
+		// A user name or password in the URL would reach the sandbox, so it is not a valid URL here.
+		if (parsed.username !== "" || parsed.password !== "") return "Enter a valid server URL";
 		return null;
 	} catch {
-		return "Enter a URL that starts with https://";
+		return "Enter a valid server URL";
 	}
 }
 
@@ -81,16 +79,6 @@ function authLabel(server: CloudMcpServer): string {
 	if (server.authType === "bearer") return "Bearer token";
 	if (server.authType === "headers") return "Custom headers";
 	return "None";
-}
-
-/** The row's key facts, never a credential. */
-function serverSummary(server: CloudMcpServer): string {
-	if (server.authType === "bearer") return "Bearer token configured";
-	if (server.authType === "headers") {
-		const count = Object.keys(server.headers ?? {}).length;
-		return count === 0 ? "No headers" : `${count} header${count === 1 ? "" : "s"} configured`;
-	}
-	return "No authentication";
 }
 
 interface Draft {
@@ -167,7 +155,7 @@ function draftProblem(
 		const lines = headerLines(draft.headersText);
 		if (!lines.ok) return { message: lines.message };
 		if (Object.keys(lines.headers).length === 0) {
-			return { message: "Enter at least one header." };
+			return { message: "Enter headers" };
 		}
 		return { server: { url, authType: "headers", headers: lines.headers } };
 	}
@@ -230,10 +218,7 @@ export function CloudMcpServersSection({
 							return (
 								<TableRow key={name}>
 									<TableCell>
-										<div className="flex flex-col">
-											<span className="font-medium text-fg">{name}</span>
-											<span className="text-xs text-fg-muted">{serverSummary(server)}</span>
-										</div>
+										<span className="font-medium text-fg">{name}</span>
 									</TableCell>
 									<TableCell className="max-w-72 truncate font-mono text-fg-muted">
 										{server.url}
@@ -252,9 +237,7 @@ export function CloudMcpServersSection({
 												onClick={() => {
 													void onRemove(name).then((removed) => {
 														if (!removed) {
-															toast.error(CLOUD_MCP_SAVE_FAILED, {
-																description: "Check your connection and try again.",
-															});
+															toast.error("Check your connection and try again.");
 														}
 													});
 												}}
@@ -415,7 +398,7 @@ function AddEditServerSheet({
 								id="mcp-server-headers"
 								value={draft.headersText}
 								onChange={(event) => update({ headersText: event.target.value })}
-								placeholder={"X-Api-Key: value\nOne header per line"}
+								placeholder="Header-Name: value"
 								className="min-h-28 font-mono"
 							/>
 						</Field>
@@ -523,9 +506,8 @@ function ImportLocalSheet({
 			setError("Check your connection and try again.");
 			return;
 		}
-		toast(
-			`Imported ${Object.keys(toImport).length} MCP server${Object.keys(toImport).length === 1 ? "" : "s"}`,
-		);
+		const added = Object.keys(toImport).length;
+		toast(added === 1 ? "Added 1 MCP server" : `Added ${added} MCP servers`);
 		onClose();
 	};
 
@@ -575,7 +557,7 @@ function ImportLocalSheet({
 										<TableRow key={candidate.url}>
 											<TableCell>
 												<Checkbox
-													aria-label={`Import ${candidate.name}`}
+													aria-label={candidate.name}
 													checked={chosen.has(candidate.url)}
 													onCheckedChange={() => toggle(candidate.url)}
 												/>
@@ -605,8 +587,7 @@ function ImportLocalSheet({
 					) : skipped > 0 ? (
 						<EmptyState
 							compact
-							title="No servers to import"
-							body="Only remote (HTTPS) servers were found."
+							title="No servers to import — only remote (HTTPS) servers are supported"
 						/>
 					) : (
 						<EmptyState compact title="All local MCP servers are already added" />

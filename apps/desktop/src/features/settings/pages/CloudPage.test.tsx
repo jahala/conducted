@@ -162,7 +162,8 @@ describe("CLOUD-17 CloudPage", () => {
 			}),
 		);
 		expect(await screen.findByText("linear")).toBeTruthy();
-		expect(screen.getByText("Bearer token configured")).toBeTruthy();
+		// The row names its authentication with Conductor's label, and never the token.
+		expect(screen.getByText("Bearer token")).toBeTruthy();
 		expect(screen.queryByText("lin_api_x")).toBeNull();
 	});
 
@@ -199,7 +200,7 @@ describe("CLOUD-17 CloudPage", () => {
 		);
 
 		fireEvent.click(await screen.findByRole("button", { name: "Import from local" }));
-		fireEvent.click(await screen.findByRole("checkbox", { name: "Import localServer" }));
+		fireEvent.click(await screen.findByRole("checkbox", { name: "localServer" }));
 		fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
 		await waitFor(() =>

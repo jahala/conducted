@@ -59,7 +59,10 @@ export const CLOUD_GIT_IDENTITY_FAILED = "Couldn't update Git identity";
 export const CLOUD_ENV_SAVE_FAILED = "Couldn't update your environment variables";
 
 /** What the page says when an MCP server could not be saved. */
-export const CLOUD_MCP_SAVE_FAILED = "Couldn't update MCP servers";
+/** Conductor's own words for a cloud MCP server that could not be added, changed or deleted. */
+export const CLOUD_MCP_ADD_FAILED = "Couldn't add this MCP server";
+export const CLOUD_MCP_UPDATE_FAILED = "Couldn't update this MCP server";
+export const CLOUD_MCP_DELETE_FAILED = "Couldn't delete this MCP server";
 
 /** The settings a Worker that has never been given any answers with. */
 export function emptyCloudSettings(): CloudSettings {
@@ -287,10 +290,7 @@ export function createCloudSettings(deps: CloudSettingsDeps): CloudSettingsServi
 		saveMcpServer: (name, server) =>
 			save(
 				(settings) => ({ ...settings, mcpServers: { ...settings.mcpServers, [name]: server } }),
-				{
-					code: "cloud_mcp_save_failed",
-					message: CLOUD_MCP_SAVE_FAILED,
-				},
+				{ code: "cloud_mcp_save_failed", message: CLOUD_MCP_UPDATE_FAILED },
 			),
 		removeMcpServer: (name) =>
 			save(
@@ -298,7 +298,7 @@ export function createCloudSettings(deps: CloudSettingsDeps): CloudSettingsServi
 					const { [name]: _removed, ...rest } = settings.mcpServers;
 					return { ...settings, mcpServers: rest };
 				},
-				{ code: "cloud_mcp_save_failed", message: CLOUD_MCP_SAVE_FAILED },
+				{ code: "cloud_mcp_save_failed", message: CLOUD_MCP_DELETE_FAILED },
 			),
 		importMcpServers: (servers) =>
 			save(
@@ -306,7 +306,7 @@ export function createCloudSettings(deps: CloudSettingsDeps): CloudSettingsServi
 					...settings,
 					mcpServers: { ...settings.mcpServers, ...servers },
 				}),
-				{ code: "cloud_mcp_save_failed", message: CLOUD_MCP_SAVE_FAILED },
+				{ code: "cloud_mcp_save_failed", message: CLOUD_MCP_ADD_FAILED },
 			),
 	};
 }
