@@ -850,3 +850,13 @@ Chosen:
 - **Where it sits (D098).** Conductor has no import, so it sits on General after Sync agent configs, which also brings things in from elsewhere, and on the first-run project step when Conductor's database is on this Mac. The `our-name` guard exempts the import's own files, which must name Conductor to the user.
 
 Why: each choice keeps rule 1 (nothing of Conductor's is written) and rule 7 (once per item) true by construction rather than by care, or follows what Conductor itself reads. The deviations from the plan's letter are facts the plan's author did not have.
+
+## D126. Screens depend on core's API and pure helpers, never its services, and Biome holds the line (2026-11-08)
+
+Proposed by the lead, closing #396; not yet ruled on by the owner.
+
+Context: `docs/architecture.md` said `features` and `ui` may import only `core/hooks.ts`, `core/api.ts`, `core/model.ts`, `ui`, `shared` and protocol types. Biome banned only `@tauri-apps/**` and `core/db`, so in practice the screens imported `core/services/*` about 50 times and other core internals about 80 times, each time reaching around the stated boundary.
+
+Chosen: `features` and `ui` may import `core/context.tsx`, `core/model.ts`, `core/hooks.ts`, `core/api.ts`, anything under `core/registries/`, `core/status/` and `core/async/`, the pure helper modules under `core/` outside `core/services/`, other features, `ui`, `shared`, protocol types and `app/command-dispatcher.ts`. They must not import `core/services/**`, `core/container.ts`, `core/db/**`, `core/cloud/**`, `core/git/**`, `core/conductor-import/**` or `@tauri-apps/**`. Test files and `src/test/**` are exempt because they wire real containers. Each pure helper, constant or type a screen needed moved out of its service file into a `core/` module named for what it holds, with the service importing it from there; a helper that does I/O stays in its service and the screen reaches it through `Actions` or a hook. Biome's `noRestrictedImports` carries the ban, and `scripts/guards/boundaries.test.ts` probes every banned path and one allowed import.
+
+Why: the boundary is what stops a screen from reading the database or a service's internals, and stating it in prose alone let it erode. Moving the pure parts gives each value one home, so the screens and the services cannot drift apart.
