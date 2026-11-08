@@ -26,6 +26,7 @@ import { useServices } from "../../core/context.tsx";
 import { useChat, useFileContent, useWorkspace } from "../../core/hooks.ts";
 import { workspaceRelativePath } from "../../core/services/git.ts";
 import { Button } from "../../ui/Button.tsx";
+import { FRAME_SANDBOX, frameDocument, HEIGHT_MESSAGE } from "./visualization-frame.ts";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
 export interface CodexVisualizationProps {
@@ -43,30 +44,6 @@ const LOADING = "Loading visualization...";
 /** The frame starts this tall, follows its content, and scrolls once it reaches the maximum. */
 const MIN_FRAME_HEIGHT = 96;
 const MAX_FRAME_HEIGHT = 480;
-const HEIGHT_MESSAGE = "conducted-visualization";
-
-const FRAME_POLICY =
-	"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; form-action 'none'";
-
-/** A doctype at the start of the page, with any whitespace and comments before it. */
-const LEADING_DOCTYPE = /^\uFEFF?(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i;
-
-/**
- * The document the frame loads. Its policy comes first, right after a leading doctype, so it
- * applies to every script of the page, even one written before `<head>`. A doctype stays first,
- * so the page keeps its standards mode. The document then reports its height as the content
- * changes so the frame can follow it. The page keeps its own markup and scripts.
- */
-const HEIGHT_SCRIPT = `<script>(function(){function report(){parent.postMessage({type:"${HEIGHT_MESSAGE}",height:Math.ceil(document.documentElement.scrollHeight)},"*")}addEventListener("load",report);if(typeof ResizeObserver==="function"){new ResizeObserver(report).observe(document.documentElement)}report()})();</script>`;
-
-function frameDocument(html: string): string {
-	const policy = `<meta http-equiv="Content-Security-Policy" content="${FRAME_POLICY}">`;
-	const doctype = LEADING_DOCTYPE.exec(html)?.[0] ?? "";
-	const withPolicy = `${doctype}${policy}${html.slice(doctype.length)}`;
-	return /<\/body>/i.test(withPolicy)
-		? withPolicy.replace(/<\/body>/i, (body) => `${HEIGHT_SCRIPT}${body}`)
-		: `${withPolicy}${HEIGHT_SCRIPT}`;
-}
 
 type ResolvedPath = { ok: true; relative: string } | { ok: false };
 
@@ -173,7 +150,7 @@ function FramedHtml({
 			<iframe
 				ref={frameRef}
 				title="Visualization"
-				sandbox="allow-scripts"
+				sandbox={FRAME_SANDBOX}
 				referrerPolicy="no-referrer"
 				srcDoc={frameDocument(html)}
 				style={{ height }}
