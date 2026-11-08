@@ -2,7 +2,8 @@
  * @feature catalogue Chat events for catalogue seeds
  * Owns: a small builder that writes a chat's events in order, each a few seconds after the last, with
  * ids that never repeat: user messages, agent text and thinking, tool calls with their results, todo
- * lists, usage, checkpoints with the files a turn changed, and the turn's end.
+ * lists, usage, notices and errors, checkpoints with the files a turn changed, and the turn's end
+ * with its outcome.
  * Behaviour: packages/protocol/src/events.ts and agent-message.ts are the shapes; the sidecar's runners
  * send Claude's tools with Claude's input names (file_path, old_string, command), which the tool cards
  * read.
@@ -14,6 +15,7 @@ import type {
 	FileChange,
 	SessionConfig,
 	SessionEvent,
+	UserMessageSender,
 } from "@conducted/protocol";
 import type { CheckpointId, EventId, MessageId, ToolUseId, TurnId } from "@conducted/shared";
 import { CLAUDE_CONFIG } from "./seeds.ts";
@@ -25,23 +27,30 @@ export interface ToolStep {
 	/** Null leaves the call running, with no result yet. */
 	output: string | null;
 	isError?: boolean;
+	/** The sub-agent call this call ran inside, so the Subagent card nests it. */
+	parent?: ToolUseId;
 }
 
 export interface Conversation {
 	/** Every event written so far, in order. */
 	readonly events: SessionEvent[];
 	/** Starts a new turn with the user's message and its start checkpoint. Returns the turn id. */
-	user(text: string, options?: { attachmentPaths?: string[]; config?: SessionConfig }): TurnId;
+	user(
+		text: string,
+		options?: { attachmentPaths?: string[]; config?: SessionConfig; sender?: UserMessageSender },
+	): TurnId;
 	/** One agent message with these items. */
 	agent(turn: TurnId, items: AgentItem[]): void;
 	text(turn: TurnId, text: string): void;
 	thinking(turn: TurnId, text: string): void;
-	/** A tool call and, unless `output` is null, its result in a second message. */
-	tool(turn: TurnId, step: ToolStep): void;
+	/** A tool call and, unless `output` is null, its result in a second message. Returns its id. */
+	tool(turn: TurnId, step: ToolStep): ToolUseId;
 	usage(turn: TurnId, contextUsedTokens: number): void;
 	/** The end checkpoint with the files the turn changed, then the turn's end. */
-	end(turn: TurnId, changes?: FileChange[]): void;
+	end(turn: TurnId, changes?: FileChange[], outcome?: TurnOutcome): void;
 }
+
+export type TurnOutcome = Extract<SessionEvent, { type: "turn_ended" }>["outcome"];
 
 /** A builder whose first event is at `startAt`, `stepMs` apart, with ids starting with `prefix`. */
 export function conversation(prefix: string, startAt: number, stepMs = 4_000): Conversation {
@@ -71,6 +80,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 				attachmentPaths: options.attachmentPaths ?? [],
 				delivery: "new_turn",
 				config: options.config ?? CLAUDE_CONFIG,
+				...(options.sender === undefined ? {} : { sender: options.sender }),
 			});
 			events.push({
 				...next(),
@@ -93,6 +103,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 					tool: step.tool,
 					rawName: step.rawName,
 					input: step.input,
+					...(step.parent === undefined ? {} : { parentToolUseId: step.parent }),
 				},
 			]);
 			if (step.output !== null) {
@@ -103,9 +114,11 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 						output: step.output,
 						isError: step.isError ?? false,
 						truncated: false,
+						...(step.parent === undefined ? {} : { parentToolUseId: step.parent }),
 					},
 				]);
 			}
+			return toolUseId;
 		},
 		usage: (turn, contextUsedTokens) =>
 			agent(turn, [
@@ -121,7 +134,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 					model: "claude-opus-4-7",
 				},
 			]),
-		end(turn, changes) {
+		end(turn, changes, outcome = "success") {
 			events.push({
 				...next(),
 				type: "checkpoint",
@@ -130,7 +143,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 				checkpointId: `${turn}-end` as CheckpointId,
 				...(changes === undefined ? {} : { changes }),
 			});
-			events.push({ ...next(), type: "turn_ended", turnId: turn, outcome: "success" });
+			events.push({ ...next(), type: "turn_ended", turnId: turn, outcome });
 		},
 	};
 }

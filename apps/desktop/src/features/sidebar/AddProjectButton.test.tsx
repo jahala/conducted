@@ -6,17 +6,24 @@ import type { Repo } from "../../core/model.ts";
 
 const state = vi.hoisted(() => ({
 	addLocal: vi.fn(),
+	createFirst: vi.fn(),
+	navigate: vi.fn(),
 	pick: vi.fn(),
 	toastError: vi.fn(),
 	repos: { state: "ready", data: [] } as Loadable<Repo[]>,
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
-	useActions: () => ({ projects: { addLocal: state.addLocal }, app: { pickFolder: state.pick } }),
+	useActions: () => ({
+		projects: { addLocal: state.addLocal },
+		workspaces: { createFirst: state.createFirst },
+		app: { pickFolder: state.pick },
+	}),
 	useGitHubOwners: () => ({ state: "loading" }),
 	useRepoNameCheck: () => ({ state: "loading" }),
 	useRepos: () => state.repos,
 }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => state.navigate }));
 vi.mock("../../ui/Toast.tsx", () => ({
 	toast: { success: vi.fn() },
 	toastError: state.toastError,
@@ -42,6 +49,8 @@ const repo = (id: string, name: string, updatedAt: number): Repo => ({
 
 beforeEach(() => {
 	state.addLocal.mockReset();
+	state.createFirst.mockReset();
+	state.navigate.mockReset();
 	state.pick.mockReset();
 	state.toastError.mockReset();
 	state.repos = { state: "ready", data: [] };
@@ -54,12 +63,20 @@ describe("PRJ-01 AddProjectButton", () => {
 		expect(screen.getByRole("button", { name: /Open project/ })).toBeTruthy();
 	});
 
-	it("adds the folder the user picked", async () => {
+	it("adds the folder the user picked, then opens a new workspace in it", async () => {
 		state.pick.mockResolvedValue(ok("/code/app"));
-		state.addLocal.mockResolvedValue(ok({}));
+		state.addLocal.mockResolvedValue(ok(repo("r1", "app", 1)));
+		state.createFirst.mockResolvedValue(ok({ id: "w1" }));
 		render(<AddProjectButton />);
 		fireEvent.click(screen.getByRole("button", { name: /Add a project/ }));
 		await waitFor(() => expect(state.addLocal).toHaveBeenCalledWith("/code/app"));
+		await waitFor(() =>
+			expect(state.navigate).toHaveBeenCalledWith({
+				to: "/repository/$repositoryId/workspace/$workspaceId",
+				params: { repositoryId: "r1", workspaceId: "w1" },
+			}),
+		);
+		expect(state.createFirst).toHaveBeenCalledWith("r1");
 		expect(state.toastError).not.toHaveBeenCalled();
 	});
 
@@ -112,7 +129,8 @@ describe("PRJ-01 Add project menu", () => {
 	it("opens the folder dialog from Open project in the menu", async () => {
 		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
 		state.pick.mockResolvedValue(ok("/code/other"));
-		state.addLocal.mockResolvedValue(ok({}));
+		state.addLocal.mockResolvedValue(ok(repo("repo-2", "other", 1)));
+		state.createFirst.mockResolvedValue(ok({ id: "w2" }));
 		render(<AddProjectButton />);
 		fireEvent.keyDown(screen.getByRole("button", { name: /Add a project/ }), { key: "Enter" });
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Open project" }));

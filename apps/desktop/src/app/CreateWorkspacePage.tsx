@@ -64,11 +64,8 @@ import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
-import {
-	AddProjectButton,
-	AddProjectItems,
-	useAddProject,
-} from "../features/sidebar/AddProjectButton.tsx";
+import { AddProjectActions } from "../features/sidebar/AddProjectActions.tsx";
+import { AddProjectItems, useAddProject } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { cn } from "../ui/cn.ts";
 import { Dialog, DialogContent } from "../ui/Dialog.tsx";
@@ -419,7 +416,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 				<EmptyState
 					title="Add a project to get started"
 					body="A workspace is a git worktree of one of your projects. Add a project first."
-					action={<AddProjectButton variant="default" size="lg" />}
+					action={<AddProjectActions />}
 				/>
 			</div>
 		);
@@ -1056,7 +1053,9 @@ function ProjectMenu({
 	disabled: boolean;
 	onPick: (id: RepoId) => void;
 }) {
-	const add = useAddProject();
+	// Added from here, a project becomes this page's choice rather than opening a workspace, as
+	// Conductor's new-workspace dialog keeps it (renderApp @1713146, the consume() branch).
+	const add = useAddProject({ onAdded: (repo) => onPick(repo.id) });
 	return (
 		<>
 			<Menu>

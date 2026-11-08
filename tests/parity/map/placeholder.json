@@ -68,32 +68,32 @@
 		"owner": "hand"
 	},
 	"placeholder:R4632855": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Add-action dialog icon picker with 'Search icons' and 'No icons found'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R4978748": {
 		"status": "matched",
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div:nth-of-type(38) > div > div:nth-of-type(1) > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(38) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"placeholder:R4987113": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Add-action dialog: 'Action name'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"placeholder:R5444083": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-09",
 		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
@@ -109,7 +109,7 @@
 	},
 	"placeholder:R5645838": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"class": "wording",
 		"backlog": "REV-07",
@@ -117,21 +117,20 @@
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"placeholder:R5652247": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "REV-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "settings-key-bindings",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(12) > article > div:nth-of-type(1) > p",
+		"by": "seed-unsure"
 	},
 	"placeholder:R5664306": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-09",
-		"item": "Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-link-issue",
+		"via": "placeholder",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5685793": {
 		"status": "gap",
@@ -158,7 +157,7 @@
 	},
 	"placeholder:R8170318": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"class": "wording",
 		"backlog": "AGENT-08",
@@ -172,12 +171,13 @@
 		"by": "hand"
 	},
 	"placeholder:R9234039": {
-		"status": "matched",
-		"state": "composer-model-picker",
-		"via": "aria-label",
-		"role": "textbox",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced",
+		"backlog": "COMP-02",
+		"item": "Model picker 'Model' submenu with 'Search models' and 'No models found'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"placeholder:R9369318": {
 		"status": "gap",
@@ -219,12 +219,12 @@
 		"by": "seed"
 	},
 	"placeholder:R10182992": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "WS-01",
-		"item": "Repo picker ('Switch repo', 'Repository on <host>', 'Add repository') with its states",
-		"owner": "hand"
+		"status": "matched",
+		"state": "first-run",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button > span:nth-of-type(2)",
+		"by": "seed-unsure"
 	},
 	"placeholder:R10189388": {
 		"status": "gap",
@@ -250,11 +250,12 @@
 		"owner": "hand"
 	},
 	"placeholder:R10672939": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-appearance",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(11) > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R10680280": {
 		"status": "gap",
@@ -265,12 +266,13 @@
 		"owner": "hand"
 	},
 	"placeholder:R10696051": {
-		"status": "matched",
-		"state": "settings-environment",
-		"via": "placeholder",
-		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > form > div:nth-of-type(1) > div:nth-of-type(2) > input",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Settings",
+		"backlog": "SET-04",
+		"item": "Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"placeholder:R10770889": {
 		"status": "decided",
@@ -301,7 +303,7 @@
 		"state": "settings-agents",
 		"via": "aria-label",
 		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > input",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > input",
 		"by": "seed"
 	},
 	"placeholder:R10958311": {
@@ -321,48 +323,53 @@
 		"owner": "hand"
 	},
 	"placeholder:R11021601": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11117637": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "SET-02",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "text",
+		"role": "label",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > fieldset > label:nth-of-type(2)",
+		"by": "seed"
 	},
 	"placeholder:R11129925": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Settings: General"
+		"screen": "inventory-controls Settings: General",
+		"backlog": "GIT-08",
+		"item": "Git settings: the remote picker's placeholder reads 'Select remote...'",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"placeholder:R11133626": {
 		"status": "matched",
-		"state": "home-sort-menu",
+		"state": "sidebar-section-edit",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > span:nth-of-type(1)",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > label",
 		"by": "seed"
 	},
 	"placeholder:R11133908": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "CLOUD-17",
-		"item": "Conductor shows \"Email\" (placeholder, inventory-controls Settings: General); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-git",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > input:nth-of-type(2)",
+		"by": "seed"
 	},
 	"placeholder:R11138955": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "SET-02",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-git-custom-prefix",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > fieldset > div > input",
+		"by": "seed"
 	},
 	"placeholder:R11204617": {
 		"status": "decided",
@@ -378,18 +385,18 @@
 	},
 	"placeholder:R11267721": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
 		"owner": "rule:neighbour"
 	},
 	"placeholder:R11281056": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "PRJ-05",
-		"item": "Repo icon picker: 'Icons', 'Emoji', 'Favicon', 'Upload', 'Search emoji', 'Remove emoji'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-repo-icon-picker",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R11319420": {
 		"status": "gap",
@@ -428,12 +435,12 @@
 		"by": "seed"
 	},
 	"placeholder:R11515575": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-09",
-		"item": "Snippet picker with 'Search snippets...', loading state and 'Create snippet'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-snippet-picker",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11570753": {
 		"status": "gap",

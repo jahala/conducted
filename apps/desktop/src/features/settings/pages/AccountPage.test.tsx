@@ -30,7 +30,7 @@ async function mountPage(access: GithubAccess) {
 async function openGitHub(name: "Manage" | "Connect") {
 	const row = await screen.findByRole("region", { name: "GitHub" });
 	fireEvent.click(within(row).getByRole("button", { name }));
-	return screen.findByRole("dialog", { name: "GitHub" });
+	return screen.findByRole("dialog", { name: /GitHub/ });
 }
 
 describe("SET-02 AccountPage", () => {
@@ -147,5 +147,39 @@ describe("SET-02 AccountPage", () => {
 		expect(within(dialog).getByLabelText("Personal access token")).toBeTruthy();
 		expect(within(dialog).getByRole("button", { name: "Check again" })).toBeTruthy();
 		expect(dialog.querySelector('[data-setting-key="gh_auth_method"]')).not.toBeNull();
+	});
+});
+
+describe("SET-02 AccountPage Connect GitHub dialog", () => {
+	it("uses Conductor's Connect GitHub copy, offers other sign-in options, and says the sign-in is unfinished", async () => {
+		const { Toaster } = await import("../../../ui/Toast.tsx");
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		test.container.services.github.store.setState((state) => ({
+			...state,
+			access: { status: "signed_out" },
+		}));
+		vi.spyOn(test.container.actions.app, "recheckGitHubAccess").mockResolvedValue(ok(undefined));
+		render(
+			<ServicesProvider container={test.container}>
+				<AccountPage />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		const row = await screen.findByRole("region", { name: "GitHub" });
+		fireEvent.click(within(row).getByRole("button", { name: "Connect" }));
+		const dialog = await screen.findByRole("dialog", { name: "Connect GitHub" });
+		expect(
+			within(dialog).getByText(
+				"This action needs GitHub access. Sign in with the GitHub CLI to continue.",
+			),
+		).toBeTruthy();
+		expect(within(dialog).getByRole("button", { name: "Other sign-in options" })).toBeTruthy();
+
+		fireEvent.click(within(dialog).getByRole("button", { name: "Check again" }));
+		expect(
+			await screen.findByText("GitHub isn't connected yet. Finish the sign-in and try again."),
+		).toBeTruthy();
 	});
 });

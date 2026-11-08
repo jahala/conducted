@@ -136,12 +136,9 @@
 		"owner": "rule:cite"
 	},
 	"table:port_forwards": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "Table port_forwards.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "port_forwards",
+		"by": "seed"
 	},
 	"table:favorite_models": {
 		"status": "matched",

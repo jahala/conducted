@@ -213,20 +213,14 @@
 		"by": "seed"
 	},
 	"settings_key:always_allow_local_execution": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-14",
-		"owner": "hand",
-		"note": "Cloud agents running commands on the Mac."
+		"status": "matched",
+		"ours": "always_allow_local_execution",
+		"by": "seed"
 	},
 	"settings_key:auto_sync_files_in_new_cloud_workspaces": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"item": "Settings auto_sync_files_in_new_cloud_workspaces and file_include_globs drive remote file sync.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "auto_sync_files_in_new_cloud_workspaces",
+		"by": "seed"
 	},
 	"settings_key:always_show_context_wheel": {
 		"status": "matched",
@@ -538,13 +532,9 @@
 		"owner": "rule:name"
 	},
 	"settings_key:garry_mode": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our General setting now stores this choice under the same key; migration 0014 moves rows written under our earlier name."
+		"status": "matched",
+		"ours": "garry_mode",
+		"by": "seed"
 	},
 	"settings_key:gh_auth_method": {
 		"status": "matched",

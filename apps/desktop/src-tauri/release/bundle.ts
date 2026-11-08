@@ -28,7 +28,7 @@
  * report that names `NSMicrophoneUsageDescription`.
  */
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { lstatSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -170,6 +170,30 @@ export function diskImagePath(appPath: string): string {
 	return join(dirname(appPath), `${basename(appPath, ".app")}.dmg`);
 }
 
+/** The room hdiutil gets beyond the app's own bytes: 20 percent plus 64 MiB (a dial). */
+const DISK_IMAGE_SLACK = 1.2;
+const DISK_IMAGE_EXTRA_MB = 64;
+
+/**
+ * The working size of a disk image for an app of `bytes`, in MiB. hdiutil's own guess from
+ * `-srcfolder` ran out of room on CI once the app carried the cloud sandbox's build ("No space
+ * left on device", v0.3.0), so the image is sized from the copy it holds.
+ */
+export function diskImageSizeMegabytes(bytes: number): number {
+	return Math.ceil((bytes / 1024 / 1024) * DISK_IMAGE_SLACK) + DISK_IMAGE_EXTRA_MB;
+}
+
+/** The bytes of every file under `folder`, counting a symbolic link as itself, not its target. */
+function folderBytes(folder: string): number {
+	let total = 0;
+	for (const entry of readdirSync(folder, { withFileTypes: true })) {
+		const path = join(folder, entry.name);
+		if (entry.isDirectory()) total += folderBytes(path);
+		else total += lstatSync(path).size;
+	}
+	return total;
+}
+
 /**
  * Makes a compressed disk image from an app that is already signed and notarised. The image holds
  * a copy of that app and the usual Applications shortcut; Tauri is not asked to bundle again,
@@ -206,6 +230,8 @@ export async function createDiskImage(
 				basename(appPath, ".app"),
 				"-srcfolder",
 				staging,
+				"-size",
+				`${diskImageSizeMegabytes(folderBytes(staging))}m`,
 				"-ov",
 				"-format",
 				"UDZO",

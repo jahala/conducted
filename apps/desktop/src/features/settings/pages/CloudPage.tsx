@@ -11,14 +11,18 @@
  * removeCloudEnvVar for edits, useSetting("enterprise_data_privacy") for the privacy note.
  * Children: environment/EnvVarTable and environment/AddEnvVarForm, as on the Environment page.
  * Must handle: a Mac with no Worker (a designed empty state naming the Connections page), a Worker
- * that cannot be reached (the page's own "Conductor could not connect to cloud settings. Try
+ * that cannot be reached (the page's own "Conducted could not connect to cloud settings. Try
  * again."), no variables (the table's empty state), a name the Worker refuses (its message, the
  * panel stays open), and values never reaching a log.
  * Test first: a refused name keeps the add panel open and shows the Worker's reason.
  */
 import { useEffect, useMemo, useState } from "react";
 import type { CloudMcpServer } from "../../../core/cloud/settings.ts";
-import { CLOUD_ENV_SAVE_FAILED, CLOUD_MCP_SAVE_FAILED } from "../../../core/cloud/settings.ts";
+import {
+	CLOUD_ENV_SAVE_FAILED,
+	CLOUD_MCP_SAVE_FAILED,
+	CLOUD_SETTINGS_UNREACHABLE,
+} from "../../../core/cloud/settings.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useCloudSettings, useSetting } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
@@ -44,7 +48,7 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 	useEffect(() => {
 		void service.load().then((result) => {
 			if (!result.ok) {
-				toast.error("Conductor could not connect to cloud settings. Try again.");
+				toast.error(CLOUD_SETTINGS_UNREACHABLE);
 			}
 		});
 	}, [service]);
@@ -152,7 +156,7 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 				<div className="py-4">
 					<EmptyState
 						tone="failed"
-						title="Conductor could not connect to cloud settings. Try again."
+						title={CLOUD_SETTINGS_UNREACHABLE}
 						body="The Worker did not answer. Check that it is deployed and that this Mac is paired with it."
 						action={
 							<Button variant="default" onClick={() => void service.load()}>

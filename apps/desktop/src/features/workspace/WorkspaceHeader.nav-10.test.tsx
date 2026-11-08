@@ -30,6 +30,7 @@ const state = vi.hoisted(() => ({
 			directoryName: "quiet-meadow",
 			path: "/code/workspaces/quiet-meadow",
 			state: "ready",
+			host: { kind: "local" },
 		},
 	} as Loadable<Workspace>,
 	repos: {
@@ -53,6 +54,7 @@ const workspace = (over: Partial<Workspace> = {}): Workspace =>
 		directoryName: "quiet-meadow",
 		path: "/code/workspaces/quiet-meadow",
 		state: "ready",
+		host: { kind: "local" },
 		...over,
 	}) as Workspace;
 
@@ -61,6 +63,12 @@ vi.mock("../../core/hooks.ts", () => ({
 	useRepos: () => state.repos,
 	useBranches: () => ({ state: "ready", data: ["main", "develop"] }),
 	useSetting: (key: string) => state.settings[key] ?? "",
+	useCloudWorkspace: () => ({
+		status: "unknown",
+		resources: { cpu: null, memory: null, disk: null },
+		agentCostUsd: null,
+		error: null,
+	}),
 	useGitHubAccess: () => ({ state: "loading" }),
 	useActions: () => ({
 		app: { copyText: state.copyText, openUrl: state.openUrl },

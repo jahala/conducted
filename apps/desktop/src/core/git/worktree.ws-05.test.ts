@@ -86,6 +86,12 @@ function makeFs(overrides: Partial<FileSystem> = {}): {
 		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 		...overrides,
+		async readBytes() {
+			return ok(new Uint8Array());
+		},
+		async writeBytes() {
+			return ok(undefined);
+		},
 	} satisfies FileSystem;
 	return { fs, trashed };
 }

@@ -9,7 +9,7 @@
  * email used for commits in cloud workspaces"). Conductor stores them in its hosted settings
  * service; ours are the Worker's because the Mac has its own Worker (D018, D106).
  * Must handle: an unpaired Mac (a plain message, no request); a Worker that cannot be reached (the
- * page's own "Conductor could not connect to cloud settings. Try again."); a refused token; a
+ * page's own "Conducted could not connect to cloud settings. Try again."); a refused token; a
  * Worker answer that is not the settings shape; a save that fails, which leaves the saved settings
  * as they were and names the thing that did not change.
  * Our design choice: one settings object and one request helper, so a read and every save share
@@ -48,9 +48,9 @@ export interface CloudSettings {
 	mcpServers: Record<string, CloudMcpServer>;
 }
 
-/** What Conductor says when its cloud settings cannot be reached. */
+/** Conductor's message when its cloud settings cannot be reached, with our name (D002). */
 export const CLOUD_SETTINGS_UNREACHABLE =
-	"Conductor could not connect to cloud settings. Try again.";
+	"Conducted could not connect to cloud settings. Try again.";
 
 /** What Conductor says when the cloud commit identity could not be changed. */
 export const CLOUD_GIT_IDENTITY_FAILED = "Couldn't update Git identity";

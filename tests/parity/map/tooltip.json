@@ -1,25 +1,27 @@
 {
 	"tooltip:M1432993": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-06",
-		"item": "'This message could not be displayed.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-errors",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > div > span",
+		"by": "seed"
 	},
 	"tooltip:M2690256": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-map 6. Settings",
-		"backlog": "CHAT-12",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-deployments",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"by": "seed"
 	},
 	"tooltip:R1717507": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-errors",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"tooltip:R2973448": {
 		"status": "gap",
@@ -60,12 +62,12 @@
 		"by": "hand"
 	},
 	"tooltip:R8048058": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-24",
-		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-mermaid",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(2) > span > span",
+		"by": "seed"
 	},
 	"tooltip:R8414164": {
 		"status": "decided",
@@ -84,19 +86,18 @@
 	"tooltip:R8821619": {
 		"status": "matched",
 		"state": "home-archived",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(4) > span",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(4)",
 		"by": "seed"
 	},
 	"tooltip:R8843427": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"class": "wording",
-		"backlog": "REV-08",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"tooltip:R8922004": {
 		"status": "decided",
@@ -117,19 +118,20 @@
 		"by": "hand"
 	},
 	"tooltip:R9523634": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-notices",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > span",
+		"by": "seed"
 	},
 	"tooltip:R9525824": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Turn footer 'Copy final message' and 'Copy summary'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-turn-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(6) > span",
+		"by": "seed"
 	},
 	"tooltip:R9535913": {
 		"status": "gap",
@@ -141,27 +143,28 @@
 	},
 	"tooltip:R9587964": {
 		"status": "matched",
-		"state": "chat-finished",
+		"state": "sidebar-sections",
 		"via": "aria-label",
 		"role": "button",
 		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > span > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"tooltip:R9642788": {
-		"status": "matched",
-		"state": "git-diff",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Chat view",
+		"backlog": "REV-08",
+		"item": "File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')",
+		"owner": "hand",
+		"by": "hand"
 	},
 	"tooltip:R10033594": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PR-06",
-		"item": "'Request review'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-tab",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > section:nth-of-type(5) > div > div:nth-of-type(2) > div > button > span",
+		"by": "seed"
 	},
 	"tooltip:R10720405": {
 		"status": "decided",

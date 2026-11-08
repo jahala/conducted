@@ -16,7 +16,7 @@ import { cn } from "../../ui/cn.ts";
 import {
 	CheckIcon,
 	FileTextIcon,
-	FolderPlusIcon,
+	FolderIcon,
 	GitBranchIcon,
 	TerminalIcon,
 } from "../../ui/icons.tsx";
@@ -33,7 +33,7 @@ export interface OpenInItemProps {
 const iconFor = (category: OpenInCategory) => {
 	switch (category) {
 		case "finder":
-			return FolderPlusIcon;
+			return FolderIcon;
 		case "terminal":
 			return TerminalIcon;
 		case "git_tool":

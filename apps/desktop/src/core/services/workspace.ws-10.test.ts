@@ -145,7 +145,7 @@ async function harness(
 		},
 		checkpointerPath: "/res/bin/checkpointer.sh",
 		repoConfig: async () => ok({} as never),
-		setting: <T>(key: string) => (key === "conducted_root_path" ? "~/conducted" : undefined) as T,
+		setting: <T>(key: string) => (key === "conductor_root_path" ? "~/conducted" : undefined) as T,
 		now: () => 7000,
 	};
 

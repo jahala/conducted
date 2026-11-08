@@ -13,8 +13,9 @@
  * path in `app/startup.ts`); `start` runs once (a second call returns the first result); after the
  * steps it wires the dock badge, notification clicks, the hourly update check, the keep-awake scan
  * and its 10-second timer, the quit guard and the Spotlight heal; a quit (asked for, or confirmed
- * while agents work) runs `stop` first and then quits, because the Rust shell exits at once; editor
- * drafts of a workspace that left the store are dropped; deep links have one subscriber,
+ * while agents work) runs `stop` first and then quits, because the Rust shell exits at once, and
+ * `quit` gives a screen that cannot reach the quit listener (a failed or wrong-CPU start) that same
+ * path; editor drafts of a workspace that left the store are dropped; deep links have one subscriber,
  * the command dispatcher (NAV-14), which is mounted with the app root and hands them to NAV-17's
  * opener, so this file does not listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
@@ -82,6 +83,7 @@ import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { type CloudPairingService, createCloudPairing } from "./services/cloud-pairing.ts";
+import { CloudWorkspaceService } from "./services/cloud-workspace.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { ContextWindowService } from "./services/context-windows.ts";
@@ -99,6 +101,7 @@ import {
 	REMOTE_KEEP_AWAKE_SETTING_KEY,
 } from "./services/keep-awake.ts";
 import { createLinearHttp, LinearService } from "./services/linear.ts";
+import { LocalCommandService } from "./services/local-command.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
@@ -125,6 +128,7 @@ import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-progra
 import {
 	createSidecarNotificationHandlers,
 	createSidecarRequestHandlers,
+	type LocalCommandPort,
 	type SidecarHandlerPorts,
 } from "./sidecar/handlers.ts";
 import { EventIngest } from "./sidecar/ingest.ts";
@@ -177,6 +181,7 @@ export interface Services {
 	linear: LinearService;
 	cloudPairing: CloudPairingService;
 	cloudDeploy: CloudDeployService;
+	cloudWorkspace: CloudWorkspaceService;
 	cloudSettings: CloudSettingsService;
 	cloudMcpImport: CloudMcpImport;
 	cloudFileSync: FileSyncService;
@@ -231,6 +236,12 @@ export interface Container {
 	 * is logged. Safe to call twice. A quit request runs it before the app quits.
 	 */
 	stop(): Promise<void>;
+	/**
+	 * Stops the app and then quits, with the same time limit as a quit request (D064). A screen
+	 * that cannot reach the quit listener (a failed or wrong-CPU start) calls this instead of
+	 * quitting straight away, so no work in flight is left behind. Safe before `start`.
+	 */
+	quit(): void;
 }
 
 interface StartStep {
@@ -393,6 +404,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		log: (level, message, data) => platform.app.writeLog(level, message, data),
 	});
+	// CLOUD-14: the local-command port is bound to the host whose tunnel carries the request.
+	const localCommandFrom = (origin: Host | null): LocalCommandPort => ({
+		run: (params) => localCommand.run(params, origin),
+	});
 	const handlerPorts: SidecarHandlerPorts = {
 		interactions: {
 			request: (request) => sessions.requestInteraction(request),
@@ -463,6 +478,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				return found.ok ? git.setTargetBranchFromAgent(found.value.id, branch) : found;
 			},
 		},
+		localCommand: localCommandFrom(null),
 		shellEnv: {
 			captureFailed: (params) => {
 				log(
@@ -500,7 +516,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		const existing = cloudTunnels.get(key);
 		if (existing !== undefined) return clientOf(existing);
 		const transport = createCloudTransport(platform.cloud, host);
-		const cloudTunnel = new SidecarTunnel({ transport, ...tunnelDeps });
+		const cloudTunnel = new SidecarTunnel({
+			transport,
+			...tunnelDeps,
+			requestHandlers: createSidecarRequestHandlers({
+				...handlerPorts,
+				localCommand: localCommandFrom(host),
+			}),
+		});
 		cloudTransports.push(transport);
 		cloudTunnels.set(key, cloudTunnel);
 		void cloudTunnel.start().then((started) => {
@@ -575,10 +598,19 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.repoOf(id);
 			return found.ok ? ok(found.value.name) : found;
 		},
-		rootPath: () => expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+		rootPath: () => expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
 		setting,
 		now: () => clock.now(),
 	});
+	/**
+	 * The mirrored folder of a cloud workspace on this Mac (CLOUD-11): its Mac terminals and run
+	 * actions run there. The sync is asked to fill it first; the folder check that follows decides,
+	 * so a failed refresh leaves a mirror that is already on disk usable.
+	 */
+	const localFolderOf = async (workspaceId: WorkspaceId): Promise<Result<string>> => {
+		await cloudFileSync.ensureMirror(workspaceId);
+		return cloudFileSync.mirrorPathOf(workspaceId);
+	};
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
 		cloudClientFor: (host) => tunnelForHost(host),
@@ -760,6 +792,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		scrollbackLimitBytes: () => setting<number>("terminal_scrollback_limit_bytes"),
 		now: () => clock.now(),
 		pathPrefixFor: () => system.pathPrefix(),
+		localFolderFor: localFolderOf,
 	});
 	const composer = new ComposerService({
 		platform,
@@ -783,6 +816,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (!output.ok) return output;
 			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
 			return ok({ text: output.value.output, source: output.value.source });
+		},
+		// CLOUD-11: a cloud workspace's attachments go into the sandbox through its Worker.
+		cloudUpload: async (sessionId, sourcePath, relativePath) => {
+			const found = lookups.workspaceOfSession(sessionId);
+			if (!found.ok) return found;
+			return cloudFileSync.uploadFile(found.value.id, sourcePath, relativePath);
 		},
 		// CHAT-26: another chat's transcript and one plan, read when the user attaches them.
 		transcriptOf: (sessionId) => sessions.transcriptOf(sessionId),
@@ -896,6 +935,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
 	});
+	// CLOUD-14: a cloud agent's command runs on the Mac, so its shell is the raw platform's, not
+	// the host-routed one; its long output is written through the routed file system, which puts a
+	// cloud workspace's file in its sandbox.
+	const localCommand = new LocalCommandService({
+		workspaceOfSession: (sessionId) => lookups.workspaceOfSession(sessionId),
+		shell: inputs.platform.shell,
+		fs: platform.fs,
+		homePath: () => platform.fs.paths.home,
+		openApproval: (request) => sessions.requestInteraction(request, { local: true }),
+		withdrawApproval: (interactionId) => sessions.withdrawInteraction(interactionId),
+		notify: (input) => notifications.notify(input),
+		setting,
+		setSetting: (key, value) => settings.set(key, value),
+		newId: () => ids.uuid(),
+		log,
+	});
 	const anyChatWorking = (): boolean =>
 		Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working");
 	const anyRemoteControlConnected = (): boolean =>
@@ -927,6 +982,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				workspace.path,
 			),
 		pathPrefixFor: () => system.pathPrefix(),
+		localFolderFor: localFolderOf,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -946,6 +1002,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		settings,
 	});
+	// The cloud header's status, meters and agent cost read the workspace store and its events.
+	// Built before the workspace service so a restart can re-read the status at once (CLOUD-15).
+	const cloudWorkspace = new CloudWorkspaceService({
+		platform,
+		repos: repositories,
+	});
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		cloud: platform.cloud,
@@ -955,6 +1017,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		portForwards,
+		cloudState: cloudWorkspace,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
@@ -1217,6 +1280,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		linear,
 		cloudPairing,
 		cloudDeploy,
+		cloudWorkspace,
 		portForwards,
 		cloudSettings,
 		cloudMcpImport,
@@ -1242,7 +1306,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		system,
 		commands,
 	};
-	const actions = createActions(services, platform);
+	const actions = createActions(services, platform, { requestQuit: () => requestQuit() });
 
 	// ---- startup ----
 	const steps: StartStep[] = [
@@ -1264,6 +1328,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		{ name: "repos", phase: "services", fatal: true, run: () => repo.start() },
 		{ name: "workspaces", phase: "services", fatal: true, run: () => workspace.start() },
+		{
+			name: "cloud workspaces",
+			phase: "services",
+			fatal: false,
+			run: () => cloudWorkspace.start(),
+		},
 		{
 			name: "git cache",
 			phase: "services",
@@ -1477,33 +1547,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		}, UPDATE_CHECK_INTERVAL_MS);
 		(updateTimer as unknown as { unref?: () => void }).unref?.();
 
-		let quitPromptOpen = false;
-		cleanups.push(
-			platform.app.onQuitRequested(() => {
-				if (updates.isSafeToQuit()) {
-					stopThenQuit();
-					return;
-				}
-				// Agents are still working. Ask before quitting, and only one prompt at a time.
-				if (quitPromptOpen) return;
-				quitPromptOpen = true;
-				void platform.dialogs
-					.confirm({
-						title: "Quit Conducted?",
-						message: "Agents are still working. Quitting stops their turns and running commands.",
-						okLabel: "Quit",
-					})
-					.then((confirmed) => {
-						quitPromptOpen = false;
-						if (confirmed) stopThenQuit();
-					})
-					.catch((cause: unknown) => {
-						quitPromptOpen = false;
-						const message = messageOf(cause);
-						log("warn", `Could not ask whether to quit: ${message}`);
-					});
-			}),
-		);
+		cleanups.push(platform.app.onQuitRequested(requestQuit));
 		await platform.app.setQuitHandlerReady();
 	};
 
@@ -1587,6 +1631,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		});
 		// The local listeners are Rust's, but their timers and event listener are this service's.
 		await step("port forwards", () => portForwards.stop());
+		await step("cloud workspace polls", () => cloudWorkspace.stop());
 	};
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:
@@ -1621,6 +1666,34 @@ export function createContainer(inputs: ContainerInputs): Container {
 		);
 	};
 
+	// Every way to quit asks the same way: the menu's Quit (through Rust's quit hook) and the Quit
+	// command (Cmd+Q in the window, the command palette). While agents work it asks first, one
+	// prompt at a time; then it stops and quits.
+	let quitPromptOpen = false;
+	const requestQuit = (): void => {
+		if (services.updates.isSafeToQuit()) {
+			stopThenQuit();
+			return;
+		}
+		if (quitPromptOpen) return;
+		quitPromptOpen = true;
+		void platform.dialogs
+			.confirm({
+				title: "Quit Conducted?",
+				message: "Agents are still working. Quitting stops their turns and running commands.",
+				okLabel: "Quit",
+			})
+			.then((confirmed) => {
+				quitPromptOpen = false;
+				if (confirmed) stopThenQuit();
+			})
+			.catch((cause: unknown) => {
+				quitPromptOpen = false;
+				const message = messageOf(cause);
+				log("warn", `Could not ask whether to quit: ${message}`);
+			});
+	};
+
 	return {
 		platform: rawPlatform,
 		services,
@@ -1632,6 +1705,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return started;
 		},
 		stop,
+		quit: stopThenQuit,
 	};
 }
 

@@ -33,10 +33,13 @@ export const useEnvVars: Queries["useEnvVars"] = (scope) => {
 	return value ?? { state: "loading" };
 };
 
-/** The chat whose workspace screen is open. The Agents page reads its MCP servers. */
-export const useViewingSessionId = (): SessionId | null => {
+/**
+ * The chat last on screen. Settings is a page of its own, so no chat is on screen while it is
+ * open; the Agents page reads this chat's MCP servers.
+ */
+export const useLastViewedSessionId = (): SessionId | null => {
 	const store = useServices().services.sessions.store;
-	return useStore(store, (state) => state.viewingSessionId);
+	return useStore(store, (state) => state.lastViewedSessionId);
 };
 
 export const useMcpServers: Queries["useMcpServers"] = (sessionId) => {

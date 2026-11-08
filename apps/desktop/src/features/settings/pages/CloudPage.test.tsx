@@ -130,7 +130,7 @@ describe("CLOUD-17 CloudPage", () => {
 		);
 
 		expect(
-			await screen.findByText("Conductor could not connect to cloud settings. Try again."),
+			await screen.findByText("Conducted could not connect to cloud settings. Try again."),
 		).toBeTruthy();
 	});
 

@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Input } from "../../ui/Input.tsx";
 import { SettingRow } from "./SettingRow.tsx";
 
@@ -58,16 +58,41 @@ describe("SET-02 SettingRow", () => {
 				disabledReason={null}
 				highlighted
 				saveError="The settings file is read-only."
-				onResetToShared={() => undefined}
+				onReset={() => undefined}
 			>
 				<Input aria-label="Demo control" />
 			</SettingRow>,
 		);
 
 		expect(screen.getByRole("alert").textContent).toContain("The settings file is read-only.");
-		expect(screen.getByRole("button", { name: "Reset to shared settings" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Setting actions" })).toBeTruthy();
 		expect(
 			document.querySelector('[data-setting-key="demo"]')?.getAttribute("data-highlighted"),
 		).toBe("true");
+	});
+});
+
+describe("SET-02 SettingRow actions menu", () => {
+	it("puts Reset behind Conductor's 'Setting actions' menu", async () => {
+		const { fireEvent } = await import("@testing-library/react");
+		const onReset = vi.fn();
+		render(
+			<SettingRow
+				settingKey="demo"
+				title="Demo setting"
+				description={null}
+				disabledReason={null}
+				highlighted={false}
+				saveError={null}
+				onReset={onReset}
+			>
+				<Input aria-label="Demo control" />
+			</SettingRow>,
+		);
+
+		fireEvent.keyDown(screen.getByRole("button", { name: "Setting actions" }), { key: "Enter" });
+		const item = await screen.findByRole("menuitem", { name: "Reset" });
+		fireEvent.click(item);
+		expect(onReset).toHaveBeenCalledTimes(1);
 	});
 });

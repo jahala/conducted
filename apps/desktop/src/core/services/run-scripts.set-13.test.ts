@@ -59,6 +59,7 @@ const action: RunAction = {
 	hidden: false,
 	icon: null,
 	origin: "local",
+	availableIn: ["local", "cloud"],
 };
 
 const baseConfig: RepoConfig = {
@@ -67,7 +68,7 @@ const baseConfig: RepoConfig = {
 	runMode: "concurrent",
 	archiveScript: "bun run clean",
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",
@@ -114,8 +115,11 @@ function harness(options: { pathPrefixFor?: () => Promise<Result<string>> } = {}
 		async mkdirp() {
 			return ok(undefined);
 		},
+		async exists() {
+			return true;
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
-	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp"> & {
+	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
 		paths: FileSystem["paths"];
 	};
 	const service = new RunScriptsService({

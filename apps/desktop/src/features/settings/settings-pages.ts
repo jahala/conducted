@@ -28,7 +28,7 @@ export type UserSettingsPageId =
 	| "account"
 	| "appearance"
 	| "key-bindings"
-	| "default-models"
+	| "models"
 	| "git"
 	| "connections"
 	| "agents"
@@ -55,7 +55,7 @@ export const USER_SETTINGS_PAGES: readonly {
 	{ id: "account", title: "Account", group: "personal" },
 	{ id: "appearance", title: "Appearance", group: "personal" },
 	{ id: "key-bindings", title: "Keyboard shortcuts", group: "personal" },
-	{ id: "default-models", title: "Default models", group: "personal" },
+	{ id: "models", title: "Default models", group: "personal" },
 	{ id: "git", title: "Git", group: "personal" },
 	{ id: "agents", title: "Agents", group: "agents_and_environment" },
 	{ id: "environment", title: "Environment", group: "agents_and_environment" },

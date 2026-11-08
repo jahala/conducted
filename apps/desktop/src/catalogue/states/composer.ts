@@ -1,15 +1,19 @@
 /**
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat), the composer with a draft and two attached
- * files, the composer with the model picker open, and the slash command menu after typing "/".
- * Behaviour: ui-map.md 3.5 (composer), COMP-01 (drafts and attachments).
+ * files, the composer with the model picker open, the slash command menu after typing "/", the "+"
+ * menu, the Create snippet dialog, the snippet picker with no snippets yet, the Link issue dialog
+ * with atlas's GitHub issues and Linear not connected.
+ * Behaviour: ui-map.md 3.5 (composer and its "+" menu), 3.10 (Link issue), 5.1 and 5.2 (snippets),
+ * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import type { Session, Workspace } from "../../core/model.ts";
-import { chatRoute, refreshGit, seedCast } from "../cast.ts";
+import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { click, find, shows } from "../dom.ts";
 import { addChat } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
+import { CATALOGUE_NOW, DAY, HOUR } from "../time.ts";
 import type { World } from "../world.ts";
 
 /** The cast, with a new, empty chat open in arbor. */
@@ -17,8 +21,9 @@ async function newChat(
 	world: World,
 	after: (context: AfterContext, chat: Session) => Promise<void>,
 	ready: Scene["ready"],
+	git: GitWorld = {},
 ): Promise<Scene> {
-	const cast = await seedCast(world);
+	const cast = await seedCast(world, git);
 	const chat = await addChat(world, cast.arbor, { title: null });
 	const workspace: Workspace = cast.arbor;
 	return {
@@ -41,6 +46,9 @@ const LOG = `09:12:04 GET /login?next=%2Fbilling 200
 09:12:09 POST /login 303 location=/
 09:12:09 GET / 200
 `;
+
+/** The composer's "+" button. */
+const PLUS_MENU = "Add attachments, link issues, and more";
 
 /** Types into the composer as a keyboard does: the editor reads the browser's own text input. */
 async function typeInComposer(document: Document, text: string): Promise<void> {
@@ -113,6 +121,73 @@ export const COMPOSER_STATES: CatalogueState[] = [
 					await click(document, "button", "Model picker");
 				},
 				(document) => shows(document, "Cycle effort"),
+			),
+	},
+	{
+		id: "composer-plus-menu",
+		group: "Composer",
+		title: "Composer with its + menu open",
+		seed: (world) =>
+			newChat(
+				world,
+				({ document }) => click(document, "button", PLUS_MENU),
+				(document) => shows(document, "Add snippet"),
+			),
+	},
+	{
+		id: "composer-create-snippet",
+		group: "Composer",
+		title: "The Create snippet dialog, from the + menu",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Add snippet");
+				},
+				(document) => shows(document, "Create snippet"),
+			),
+	},
+	{
+		id: "composer-snippet-picker",
+		group: "Composer",
+		title: "The snippet picker with no snippets saved yet",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Insert snippet", { prefix: true });
+				},
+				(document) => shows(document, "No saved snippets yet."),
+			),
+	},
+	{
+		id: "composer-link-issue",
+		group: "Composer",
+		title: "The Link issue dialog: atlas's GitHub issues, and Linear not connected",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Link issue", { prefix: true });
+				},
+				(document) => shows(document, "Recent issues"),
+				{
+					issues: [
+						{
+							number: 412,
+							title: "Sign-in drops the page the user asked for",
+							updatedAt: CATALOGUE_NOW - 2 * HOUR,
+						},
+						{
+							number: 398,
+							title: "Session cookie is not renewed on activity",
+							updatedAt: CATALOGUE_NOW - 3 * DAY,
+						},
+					],
+				},
 			),
 	},
 ];

@@ -560,6 +560,15 @@ export const COMMANDS = [
 		feature: "WS-08",
 	},
 	{
+		id: "workspace.openRemoteInApp",
+		title: "Open cloud workspace remotely in app",
+		category: "Workspace",
+		defaultShortcuts: ["Cmd+Alt+O"],
+		configurable: true,
+		scope: "global",
+		feature: "CLOUD-12",
+	},
+	{
 		id: "workspace.copyLink",
 		title: "Copy link",
 		category: "Workspace",

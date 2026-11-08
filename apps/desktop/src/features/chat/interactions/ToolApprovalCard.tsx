@@ -11,7 +11,7 @@
  * 'Yes', the second choice, any further choice, 'No'. It is drawn inside the composer's box in
  * place of the text box (renderApp @9315874), so it has no frame of its own.
  * Our design choice: Our decisions are allow, allow_edits_for_session, allow_with_suggested_rules,
- * always_allow and deny (see the protocol). The buttons between Yes and No come from
+ * allow_for_session, always_allow and deny (see the protocol). The buttons between Yes and No come from
  * approvalChoices in approval-tool.ts, which holds Conductor's labels and the ones we keep. Ours
  * keeps the agent's reason above the tool card, the blocked-path line, and an optional message
  * that goes with 'No', which Conductor's card does not have: it is one more full-width row right
@@ -60,6 +60,7 @@ const OUTCOME: Record<Decision, string> = {
 	allow: "Allowed",
 	allow_edits_for_session: "Allowed all edits for this session",
 	allow_with_suggested_rules: "Allowed with the suggested rules",
+	allow_for_session: "Allowed for this session",
 	always_allow: "Always allowed",
 	deny: "Denied",
 };

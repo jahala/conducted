@@ -22,6 +22,7 @@ import {
 	CommandHint,
 	type CommandRegistry,
 	createCommandRegistry,
+	FIXED_MENU_COMMAND_IDS,
 	useCommandDispatcher,
 	useCommandHandler,
 } from "./command-dispatcher.ts";
@@ -34,7 +35,7 @@ const unusedDatabase: Database = {
 };
 
 const clock = { now: () => 1_000 };
-function buildHarness() {
+function buildHarness(options: { rejectFixed?: boolean } = {}) {
 	const ids = createTestIds();
 	const memory = createMemoryPlatform({ clock, ids, database: unusedDatabase });
 	const menuListeners = new Set<(commandId: string) => void>();
@@ -53,6 +54,16 @@ function buildHarness() {
 		menu: {
 			setShortcuts: (shortcuts) => {
 				shortcutCalls.push(shortcuts);
+				if (options.rejectFixed === true) {
+					// The Rust shell keeps Cmd+Q and Cmd+, fixed and refuses a binding for them.
+					const applied = shortcuts
+						.map((shortcut) => shortcut.commandId)
+						.filter((commandId) => !FIXED_MENU_COMMAND_IDS.includes(commandId));
+					const rejected = shortcuts
+						.map((shortcut) => shortcut.commandId)
+						.filter((commandId) => FIXED_MENU_COMMAND_IDS.includes(commandId));
+					return Promise.resolve(ok({ applied, rejected }));
+				}
 				return memory.platform.menu.setShortcuts(shortcuts);
 			},
 			onCommand: (listener) => {
@@ -150,6 +161,31 @@ describe("NAV-14 useCommandDispatcher", () => {
 			commandId: "view.toggleLeftSidebar",
 			accelerator: "CmdOrCtrl+B",
 		});
+	});
+
+	it("sends no accelerator for a menu item Rust keeps fixed", async () => {
+		const { shortcutCalls, wrapper } = buildHarness();
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
+
+		await waitFor(() => expect(shortcutCalls.length).toBeGreaterThan(0));
+		expect(FIXED_MENU_COMMAND_IDS.length).toBeGreaterThan(0);
+		const sent = shortcutCalls[0] ?? [];
+		for (const commandId of FIXED_MENU_COMMAND_IDS) {
+			expect(sent.find((shortcut) => shortcut.commandId === commandId)).toBeUndefined();
+		}
+	});
+
+	it("logs no menu warning on a clean start", async () => {
+		const { memory, shortcutCalls, wrapper } = buildHarness({ rejectFixed: true });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
+
+		await waitFor(() => expect(shortcutCalls.length).toBeGreaterThan(0));
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(
+			memory.controls.logs.some((entry) => entry.message.startsWith("The menu rejected shortcuts")),
+		).toBe(false);
 	});
 
 	it("updates the menu accelerators after a rebind", async () => {

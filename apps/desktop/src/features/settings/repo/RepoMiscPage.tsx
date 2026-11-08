@@ -8,18 +8,19 @@
  * title and "Repository paths and workspace file behavior." The branch and the remote are on the
  * repository's Git page (repo/RepoGitPage.tsx), as Conductor has them. Files to copy is PRJ-04; the
  * copy itself runs in the workspace service.
- * Data: useRepos (path, icon), useRepoConfig (copyFiles, previewUrlTemplate), useWorkspaces (the
- * count the removal dialog names), useSetting(conducted_root_path), useActions().projects
+ * Data: useRepos (path, icon), useRepoConfig (copyFiles, previewUrls), useWorkspaces (the
+ * count the removal dialog names), useSetting(conductor_root_path), useActions().projects
  * (updateConfig, remove).
  * Children: FilesToCopyField, RemoveRepoDialog.
- * Must handle: root path and workspaces path shown read-only with the warning not to move them; a
- * preview URL template validated with the workspace port variable; files to copy as patterns; and
- * removal that also removes workspaces (confirm with the count). The icon row shows the current
- * avatar and opens the Change repository icon picker (PRJ-05).
+ * Must handle: root path and workspaces path shown read-only with the warning not to move them; an
+ * ordered list of preview URL templates, each with an optional name and a URL validated with the
+ * workspace port variable, saved 500 ms after the last edit, with add, remove and move up or down;
+ * files to copy as patterns; and removal that also removes workspaces (confirm with the count). The
+ * icon row shows the current avatar and opens the Change repository icon picker (PRJ-05).
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useActions,
 	useRepoConfig,
@@ -28,10 +29,13 @@ import {
 	useWorkspaces,
 } from "../../../core/hooks.ts";
 import type { RepoConfig } from "../../../core/model.ts";
+import { previewUrlsToText } from "../../../core/registries/settings.ts";
 import { expandPreviewUrl } from "../../../core/services/ports.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
-import { Input, Label } from "../../../ui/Input.tsx";
+import { IconButton } from "../../../ui/IconButton.tsx";
+import { Input } from "../../../ui/Input.tsx";
+import { ArrowDownIcon, ArrowUpIcon, PlusIcon, TrashIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
@@ -41,6 +45,15 @@ import { FilesToCopyField } from "./FilesToCopyField.tsx";
 import { RemoveRepoDialog } from "./RemoveRepoDialog.tsx";
 
 const SAMPLE_PORT = 55_000;
+/** Conductor waits this long after the last edit before saving a preview URL. */
+const SAVE_DELAY_MS = 500;
+
+interface PreviewRow {
+	id: number;
+	name: string;
+	url: string;
+	error: string | null;
+}
 
 function previewUrlProblem(template: string): string | null {
 	const trimmed = template.trim();
@@ -55,23 +68,47 @@ function previewUrlProblem(template: string): string | null {
 	}
 }
 
+function emptyRow(id: number): PreviewRow {
+	return { id, name: "", url: "", error: null };
+}
+
 export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const repos = useRepos();
 	const config = useRepoConfig(repoId);
 	const workspaces = useWorkspaces();
-	const rootPath = useSetting<string>("conducted_root_path");
+	const rootPath = useSetting<string>("conductor_root_path");
 	const actions = useActions();
-	const [preview, setPreview] = useState("");
-	const [previewError, setPreviewError] = useState<string | null>(null);
+	const nextRowId = useRef(0);
+	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const lastSaved = useRef<string | null>(null);
+	const configRef = useRef<RepoConfig | null>(null);
+	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const [removing, setRemoving] = useState(false);
 	const [iconOpen, setIconOpen] = useState(false);
 	const readyConfig = config.state === "ready" ? config.data : null;
+	configRef.current = readyConfig;
 
 	useEffect(() => {
 		if (readyConfig === null) return;
-		setPreview(readyConfig.previewUrlTemplate ?? "");
-		setPreviewError(null);
+		const text = previewUrlsToText(readyConfig.previewUrls);
+		// A config update that this page just wrote must not replace newer edits.
+		if (lastSaved.current === text) return;
+		lastSaved.current = text;
+		const rows = readyConfig.previewUrls.map((entry) => ({
+			id: nextRowId.current++,
+			name: entry.name,
+			url: entry.url,
+			error: null,
+		}));
+		setPreviewRows(rows.length > 0 ? rows : [emptyRow(nextRowId.current++)]);
 	}, [readyConfig]);
+
+	useEffect(
+		() => () => {
+			if (saveTimer.current !== null) clearTimeout(saveTimer.current);
+		},
+		[],
+	);
 
 	const save = async (next: RepoConfig): Promise<boolean> => {
 		const saved = await actions.projects.updateConfig(repoId, next);
@@ -82,14 +119,72 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		return true;
 	};
 
-	const savePreview = () => {
-		if (config.state !== "ready") return;
-		const problem = previewUrlProblem(preview);
-		setPreviewError(problem);
-		if (problem !== null) return;
-		const next = preview.trim() === "" ? null : preview.trim();
-		if (next === config.data.previewUrlTemplate) return;
-		void save({ ...config.data, previewUrlTemplate: next });
+	/** Validates every row; saves the non-empty entries in the order shown when all are valid. */
+	const savePreviewRows = (rows: PreviewRow[]): void => {
+		const problems = rows.map((row) => previewUrlProblem(row.url));
+		if (problems.some((problem) => problem !== null)) {
+			setPreviewRows(rows.map((row, index) => ({ ...row, error: problems[index] ?? null })));
+			return;
+		}
+		const entries = rows
+			.map((row) => ({ name: row.name.trim(), url: row.url.trim() }))
+			.filter((entry) => entry.url !== "");
+		const text = previewUrlsToText(entries);
+		if (text === lastSaved.current) return;
+		const current = configRef.current;
+		if (current === null) return;
+		const previous = lastSaved.current;
+		lastSaved.current = text;
+		void save({ ...current, previewUrls: entries }).then((saved) => {
+			if (!saved) lastSaved.current = previous;
+		});
+	};
+
+	/** Conductor saves 500 ms after the last edit, not when a field loses focus. */
+	const schedulePreviewSave = (rows: PreviewRow[]): void => {
+		if (saveTimer.current !== null) clearTimeout(saveTimer.current);
+		saveTimer.current = setTimeout(() => {
+			saveTimer.current = null;
+			savePreviewRows(rows);
+		}, SAVE_DELAY_MS);
+	};
+
+	const changePreviewRow = (id: number, field: "name" | "url", value: string): void => {
+		const next = previewRows.map((row) =>
+			row.id === id ? { ...row, [field]: value, error: null } : row,
+		);
+		setPreviewRows(next);
+		schedulePreviewSave(next);
+	};
+
+	const blurPreviewRow = (): void => {
+		const problems = previewRows.map((row) => previewUrlProblem(row.url));
+		setPreviewRows(previewRows.map((row, index) => ({ ...row, error: problems[index] ?? null })));
+	};
+
+	const addPreviewRow = (): void => {
+		const next = [...previewRows, emptyRow(nextRowId.current++)];
+		setPreviewRows(next);
+		schedulePreviewSave(next);
+	};
+
+	const removePreviewRow = (id: number): void => {
+		const remaining = previewRows.filter((row) => row.id !== id);
+		const next = remaining.length > 0 ? remaining : [emptyRow(nextRowId.current++)];
+		setPreviewRows(next);
+		schedulePreviewSave(next);
+	};
+
+	const movePreviewRow = (index: number, offset: number): void => {
+		const target = index + offset;
+		const current = previewRows[index];
+		const other = previewRows[target];
+		if (current === undefined || other === undefined) return;
+		const next = [...previewRows];
+		next[index] = other;
+		next[target] = current;
+		setPreviewRows(next);
+		schedulePreviewSave(next);
 	};
 
 	const repoValue =
@@ -171,23 +266,84 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										</div>
 									</div>
 
-									<div className="flex flex-col gap-1.5 border-t border-border pt-4">
-										<Label htmlFor="repo-preview-url">Preview URLs</Label>
-										<p className="text-sm text-fg-muted">
-											The terminal panel's Open URLs. Use $CONDUCTED_PORT for the workspace port.
-										</p>
-										<Input
-											id="repo-preview-url"
-											value={preview}
-											placeholder="http://localhost:$CONDUCTED_PORT"
-											className="font-mono"
-											error={previewError ?? undefined}
-											onChange={(event) => {
-												setPreview(event.target.value);
-												setPreviewError(null);
-											}}
-											onBlur={savePreview}
-										/>
+									<div className="flex flex-col gap-3 border-t border-border pt-4">
+										<div>
+											<p className="text-sm font-medium text-fg">Preview URLs</p>
+											<p className="text-sm text-fg-muted">
+												The terminal panel's Open URLs. The first URL is the default; additional
+												URLs appear in its menu. Use $CONDUCTED_PORT for the workspace port. Leave
+												blank to detect a URL from output.
+											</p>
+										</div>
+										<div className="flex flex-col gap-2">
+											{previewRows.map((row, index) => (
+												<div key={row.id} className="flex items-start gap-2">
+													<Input
+														aria-label={`Name ${index + 1}`}
+														value={row.name}
+														placeholder="Name"
+														className="w-32 shrink-0 text-xs"
+														autoCapitalize="off"
+														autoCorrect="off"
+														spellCheck={false}
+														onChange={(event) =>
+															changePreviewRow(row.id, "name", event.target.value)
+														}
+													/>
+													<div className="min-w-0 flex-1">
+														<Input
+															aria-label={`Preview URL ${index + 1}`}
+															value={row.url}
+															placeholder="http://localhost:$CONDUCTED_PORT"
+															className="font-mono text-xs"
+															autoCapitalize="off"
+															autoCorrect="off"
+															spellCheck={false}
+															error={row.error ?? undefined}
+															onChange={(event) =>
+																changePreviewRow(row.id, "url", event.target.value)
+															}
+															onBlur={blurPreviewRow}
+														/>
+													</div>
+													{previewRows.length > 1 ? (
+														<div className="flex shrink-0 flex-col">
+															<IconButton
+																label="Move preview URL up"
+																size="xs"
+																icon={<ArrowUpIcon className="size-3" />}
+																disabled={index === 0}
+																onClick={() => movePreviewRow(index, -1)}
+															/>
+															<IconButton
+																label="Move preview URL down"
+																size="xs"
+																icon={<ArrowDownIcon className="size-3" />}
+																disabled={index === previewRows.length - 1}
+																onClick={() => movePreviewRow(index, 1)}
+															/>
+														</div>
+													) : null}
+													<IconButton
+														label="Remove preview URL"
+														size="sm"
+														icon={<TrashIcon className="size-3.5" />}
+														disabled={
+															previewRows.length === 1 &&
+															row.name.trim() === "" &&
+															row.url.trim() === ""
+														}
+														onClick={() => removePreviewRow(row.id)}
+													/>
+												</div>
+											))}
+										</div>
+										<div>
+											<Button variant="outline" size="sm" onClick={addPreviewRow}>
+												<PlusIcon className="size-3" />
+												Add preview URL
+											</Button>
+										</div>
 									</div>
 
 									<div className="flex flex-col gap-2 border-t border-border pt-4">

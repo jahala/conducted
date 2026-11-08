@@ -4,7 +4,8 @@
  * Conductor uses ("Sync files is off", "Sync folder unavailable", "Sync files failed") and the
  * local-terminal reason as its title.
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import type { TerminalId } from "@conducted/shared";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScriptsPanelTabs } from "./ScriptsPanelTabs.tsx";
 
@@ -59,5 +60,50 @@ describe("CLOUD-11 the scripts panel file-sync state", () => {
 	it("shows no sync state on a Mac workspace", () => {
 		render(<ScriptsPanelTabs {...base} fileSync={{ state: "local" }} />);
 		expect(screen.queryByText("Sync files is off")).toBeNull();
+	});
+
+	it("offers a Cloud and a Local terminal in a cloud workspace", async () => {
+		const onNewTerminal = vi.fn();
+		render(
+			<ScriptsPanelTabs
+				{...base}
+				cloudWorkspace
+				onNewTerminal={onNewTerminal}
+				fileSync={{
+					state: "synced",
+					label: "Files in sync",
+					mirrorPath: "/m",
+					lastSyncedAt: 1,
+					files: 1,
+					truncated: false,
+				}}
+			/>,
+		);
+
+		fireEvent.keyDown(screen.getByRole("button", { name: "New terminal" }), { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Local terminal" }));
+
+		expect(onNewTerminal).toHaveBeenCalledWith("local");
+	});
+
+	it("shows each terminal's own host beside its name", () => {
+		render(
+			<ScriptsPanelTabs
+				{...base}
+				cloudWorkspace
+				terminals={[
+					{ id: "t1" as TerminalId, title: "Terminal 1", ended: false, hostKind: "cloud" },
+					{ id: "t2" as TerminalId, title: "Terminal 2", ended: false, hostKind: "local" },
+				]}
+				fileSync={{ state: "local" }}
+			/>,
+		);
+
+		expect(
+			screen.getByText("Terminal 1").parentElement?.querySelector('[data-host="cloud"]'),
+		).toBeTruthy();
+		expect(
+			screen.getByText("Terminal 2").parentElement?.querySelector('[data-host="local"]'),
+		).toBeTruthy();
 	});
 });

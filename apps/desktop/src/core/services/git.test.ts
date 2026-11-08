@@ -230,6 +230,16 @@ describe("GIT-02 git service polling", () => {
 		expect(service.store.getState().byWorkspace[workspaceId]).toBeUndefined();
 	});
 
+	it("keeps the answer of a detached HEAD, which has no branch rather than another one", async () => {
+		const { runner } = pollRunner("");
+		const service = makeService(runner);
+		const result = await service.refresh(workspaceId, "full");
+		expect(result.ok).toBe(true);
+		const snapshot = service.store.getState().byWorkspace[workspaceId]?.snapshot;
+		expect(snapshot?.branch).toBeNull();
+		expect(service.stateOf(workspaceId)?.branch).toBe("");
+	});
+
 	it("records a lookup failure in the workspace entry", async () => {
 		const { runner } = pollRunner();
 		const service = makeService(runner, {

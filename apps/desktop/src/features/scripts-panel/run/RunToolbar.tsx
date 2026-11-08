@@ -4,9 +4,10 @@
  * Open button whose menu lists every preview URL.
  * Behaviour: ui-map.md 3.7, "Run" paragraph and "Preview and open buttons"; the button text comes
  * from run-button-label.ts and the URL list from PreviewUrlMenu.
- * Must handle: one action only (the select is hidden), many actions (the select lists them), the
- * Open button disabled until a URL is known (with the reason as its title), several URLs opening
- * from the menu, and the button text changing without the layout jumping (fixed minimum width).
+ * Must handle: one action only (the select is hidden), many actions (the select lists them), a
+ * cloud workspace's "Cloud" and "Local" groups (CLOUD-09), the Open button disabled until a URL is
+ * known (with the reason as its title), several URLs opening from the menu, and the button text
+ * changing without the layout jumping (fixed minimum width).
  * Test first: with a detected localhost URL the Open button is enabled and opens it.
  */
 import { Button } from "../../../ui/Button.tsx";
@@ -15,12 +16,12 @@ import { PreviewUrlMenu } from "./PreviewUrlMenu.tsx";
 import type { RunButtonModel } from "./run-button-label.ts";
 
 export interface RunToolbarProps {
-	actions: { id: string; label: string }[];
+	actions: { id: string; label: string; group?: string }[];
 	selectedActionId: string;
 	onSelectAction: (id: string) => void;
 	button: RunButtonModel;
 	onButtonClick: () => void;
-	urls: { label: string; url: string; source?: "run_output" | "detected_port" | "template" }[];
+	urls: { label: string; url: string; source?: "run_output" | "template" }[];
 	onOpenUrl: (url: string) => void;
 	defaultUrl?: string | null;
 	onSetDefault?: (url: string) => void;
@@ -43,7 +44,11 @@ export function RunToolbar({
 				<Select
 					aria-label="Select task"
 					value={selectedActionId}
-					options={actions.map((action) => ({ value: action.id, label: action.label }))}
+					options={actions.map((action) => ({
+						value: action.id,
+						label: action.label,
+						...(action.group === undefined ? {} : { group: action.group }),
+					}))}
 					onValueChange={onSelectAction}
 					size="sm"
 				/>

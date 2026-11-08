@@ -74,7 +74,11 @@ function makeTest() {
 		return null;
 	});
 	const renderDialog = (
-		options: { open?: boolean; onOpenChange?: (open: boolean) => void } = {},
+		options: {
+			open?: boolean;
+			onOpenChange?: (open: boolean) => void;
+			onCloned?: (repo: Repo) => void;
+		} = {},
 	) => {
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		return render(
@@ -83,6 +87,7 @@ function makeTest() {
 					<CloneGithubDialog
 						open={options.open ?? true}
 						onOpenChange={options.onOpenChange ?? (() => {})}
+						onCloned={options.onCloned ?? (() => {})}
 					/>
 				</ServicesProvider>
 			</QueryClientProvider>,
@@ -92,6 +97,17 @@ function makeTest() {
 }
 
 describe("PRJ-02 Clone GitHub repo dialog", () => {
+	it("suggests a folder when it opens, as Conductor does, so Clone needs only a repository", async () => {
+		const { renderDialog } = makeTest();
+		renderDialog();
+
+		await waitFor(() =>
+			expect((screen.getByLabelText("Location") as HTMLInputElement).value).toBe(
+				"/Users/conducted/conducted/repos",
+			),
+		);
+	});
+
 	it("lists the owner's repositories and fills the URL when one is chosen", async () => {
 		const { renderDialog } = makeTest();
 		renderDialog();
@@ -128,7 +144,8 @@ describe("PRJ-02 Clone GitHub repo dialog", () => {
 	it("clones the repository into the chosen location", async () => {
 		const { container, renderDialog } = makeTest();
 		const clone = vi.spyOn(container.actions.projects, "clone").mockResolvedValue(ok(clonedRepo));
-		renderDialog();
+		const onCloned = vi.fn();
+		renderDialog({ onCloned });
 
 		fireEvent.change(screen.getByLabelText("Repository URL"), {
 			target: { value: "git@github.com:octocat/alpha.git" },
@@ -139,6 +156,8 @@ describe("PRJ-02 Clone GitHub repo dialog", () => {
 		await waitFor(() =>
 			expect(clone).toHaveBeenCalledWith("git@github.com:octocat/alpha.git", "/code"),
 		);
+		// The place that opened the dialog gets the clone, to open it (useOpenAddedProject).
+		await waitFor(() => expect(onCloned).toHaveBeenCalledWith(clonedRepo));
 	});
 
 	it("shows why a clone failed and keeps the dialog open", async () => {

@@ -1,13 +1,18 @@
 /**
  * @feature catalogue States of the settings pages
  * Owns: every settings page, the personal ones and atlas's repository pages, with the cast's two
- * projects in the navigation; the selects whose options are wording (themes, sounds, effort levels,
- * output styles), each open; and the Agents page's provider dialog with the Bedrock access-key form.
+ * projects in the navigation; the settings search results that show Conductor's search copy; the
+ * selects whose options are wording (themes, sounds, effort levels,
+ * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
+ * Git page with a custom branch prefix; the Advanced page asking before it changes the root
+ * folder; the Agents page's MCP servers for the chat last open; the Environment page's documented
+ * variables; atlas's Add action dialog and icon picker; and the Agents page's provider dialog with the Bedrock
+ * access-key form.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
-import { seedCast } from "../cast.ts";
-import { click, find, shows } from "../dom.ts";
+import { chatRoute, seedCast } from "../cast.ts";
+import { click, find, shows, typeInto } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
 
 const page = (id: string, title: string, page: string, text: string): CatalogueState => ({
@@ -16,7 +21,7 @@ const page = (id: string, title: string, page: string, text: string): CatalogueS
 	title,
 	seed: async (world) => {
 		await seedCast(world);
-		return { route: `/settings/${page}`, ready: (document) => shows(document, text) };
+		return { route: `/settings/user/${page}`, ready: (document) => shows(document, text) };
 	},
 });
 
@@ -34,6 +39,42 @@ const repoPage = (id: string, title: string, page: string, text: string): Catalo
 	},
 });
 
+/** The settings search box with a query typed, showing Conductor's search copy for a setting. */
+const searchState = (id: string, title: string, query: string, shown: string): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		return {
+			route: "/settings/user/general",
+			after: ({ document }) => typeInto(document, "input", "Search settings", query),
+			ready: (document) => shows(document, shown),
+		};
+	},
+});
+
+/** One of atlas's repository settings pages while settings search holds a query. */
+const repoSearchState = (
+	id: string,
+	title: string,
+	page: string,
+	query: string,
+	shown: string,
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		return {
+			route: `/settings/repos/${cast.atlas.id}/${page}`,
+			after: ({ document }) => typeInto(document, "input", "Search settings", query),
+			ready: (document) => shows(document, shown),
+		};
+	},
+});
+
 /** The Agents page while the sidecar has not said which agents are installed, or when it fails to. */
 const agentsWhile = (mode: "hold" | "fail"): CatalogueState => ({
 	id: mode === "hold" ? "settings-agents-loading" : "settings-agents-error",
@@ -44,7 +85,7 @@ const agentsWhile = (mode: "hold" | "fail"): CatalogueState => ({
 		await seedCast(world);
 		if (mode === "hold") world.holdSidecar("getAgentInstalls");
 		else world.failSidecar("getAgentInstalls");
-		return { route: "/settings/agents" };
+		return { route: "/settings/user/agents" };
 	},
 });
 
@@ -77,7 +118,7 @@ const selectOpen = (id: string, title: string, page: string, control: string): C
 	seed: async (world) => {
 		await seedCast(world);
 		return {
-			route: `/settings/${page}`,
+			route: `/settings/user/${page}`,
 			after: ({ document }) => openSelect(document, control),
 			ready: (document) => document.querySelector("[role=listbox]") !== null,
 		};
@@ -86,6 +127,74 @@ const selectOpen = (id: string, title: string, page: string, control: string): C
 
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
+	// Settings search results, which draw Conductor's search copy for a setting or page.
+	searchState(
+		"settings-search-mono-font",
+		"Settings search: Mono Font",
+		"mono font geist monospace",
+		"Font used for code and diffs.",
+	),
+	searchState(
+		"settings-search-terminal-font",
+		"Settings search: Terminal font",
+		"terminal font family size",
+		"Font family and size for the terminal.",
+	),
+	searchState(
+		"settings-search-code-theme",
+		"Settings search: Code theme",
+		"syntax highlighting theme",
+		"Syntax highlighting theme for code and diffs.",
+	),
+	searchState(
+		"settings-search-markdown",
+		"Settings search: Markdown Style",
+		"rendering style for markdown files",
+		"Rendering style for markdown files.",
+	),
+	searchState(
+		"settings-search-appearance",
+		"Settings search: Appearance settings",
+		"appearance typography",
+		"Theme, typography, color, and editor appearance.",
+	),
+	searchState(
+		"settings-search-agent-settings",
+		"Settings search: Agent settings",
+		"agent settings",
+		"Configure Claude Code, Codex, Cursor, and ACP agents.",
+	),
+	searchState(
+		"settings-search-claude-harness",
+		"Settings search: Claude Code harness",
+		"claude harness provider",
+		"Configure Claude Code authentication and behavior.",
+	),
+	searchState(
+		"settings-search-codex-harness",
+		"Settings search: Codex harness",
+		"codex harness provider",
+		"Configure Codex authentication and behavior.",
+	),
+	searchState(
+		"settings-search-cursor-harness",
+		"Settings search: Cursor harness",
+		"cursor harness provider",
+		"Configure Cursor authentication and behavior.",
+	),
+	searchState(
+		"settings-search-environment",
+		"Settings search: Environment settings",
+		"environment variables preview urls",
+		"Environment variables, files, and preview URLs.",
+	),
+	repoSearchState(
+		"settings-search-repository-scripts",
+		"atlas: Settings search: Repository scripts",
+		"scripts",
+		"scripts setup archive repository",
+		"Setup and archive scripts for the selected repository.",
+	),
 	page(
 		"settings-agents",
 		"Agents: Claude Code and Codex installed and signed in",
@@ -97,7 +206,7 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-account", "Account", "account", "Account"),
 	page("settings-appearance", "Appearance", "appearance", "Appearance"),
 	page("settings-key-bindings", "Keyboard shortcuts", "key-bindings", "Keyboard shortcuts"),
-	page("settings-default-models", "Default models", "default-models", "Default models"),
+	page("settings-default-models", "Default models", "models", "Default models"),
 	page("settings-git", "Git", "git", "Branch name prefix"),
 	page("settings-connections", "Connections", "connections", "Connections"),
 	page("settings-environment", "Environment", "environment", "Environment"),
@@ -131,7 +240,7 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	selectOpen(
 		"settings-models-style-menu",
 		"Default models, the Claude output style menu open",
-		"default-models",
+		"models",
 		"Claude output style",
 	),
 	{
@@ -142,7 +251,7 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		seed: async (world) => {
 			await seedCast(world);
 			return {
-				route: "/settings/default-models",
+				route: "/settings/user/models",
 				after: ({ document }) => click(document, "button", "Claude Code", { prefix: true }),
 				ready: (document) => document.querySelector("[role=menu]") !== null,
 			};
@@ -151,13 +260,13 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	selectOpen(
 		"settings-models-codex-thinking-menu",
 		"Default models, the Codex thinking level menu open",
-		"default-models",
+		"models",
 		"Codex thinking level",
 	),
 	selectOpen(
 		"settings-models-personality-menu",
 		"Default models, the Codex personality menu open",
-		"default-models",
+		"models",
 		"Codex personality",
 	),
 	{
@@ -167,13 +276,156 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		seed: async (world) => {
 			await seedCast(world);
 			return {
-				route: "/settings/agents",
+				route: "/settings/user/agents",
 				after: async ({ document }) => {
 					await click(document, "button", "API key");
 					await choose(document, "Provider", "Amazon Bedrock");
 					await choose(document, "Bedrock credentials", "AWS access keys");
 				},
 				ready: (document) => shows(document, "Secret access key"),
+			};
+		},
+	},
+	selectOpen(
+		"settings-general-send-key-menu",
+		"General, the send key menu open",
+		"general",
+		"Send messages with",
+	),
+	selectOpen(
+		"settings-general-follow-up-menu",
+		"General, the follow-up behaviour menu open",
+		"general",
+		"Follow-up behavior",
+	),
+	selectOpen(
+		"settings-git-pr-target-menu",
+		"Git, the menu of where pull requests open",
+		"git",
+		"Open pull requests in",
+	),
+	{
+		id: "settings-git-delete-branch-warning",
+		group: "Settings",
+		title: "Git, delete branch on archive turned on, with Conductor's warning",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/git",
+				after: ({ document }) => click(document, "[role=switch]", "Delete branch on archive"),
+				ready: (document) => shows(document, "Warning: archived workspaces will be unrecoverable"),
+			};
+		},
+	},
+	{
+		id: "settings-git-custom-prefix",
+		group: "Settings",
+		title: "Git, with a custom branch prefix not typed yet",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/git",
+				after: ({ document }) => click(document, "label", "Custom"),
+				ready: (document) =>
+					document.querySelector('input[placeholder="e.g. feature/ or myname-"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-advanced-root-path",
+		group: "Settings",
+		title: "Advanced, asking before the root folder changes",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.queueDialogAnswers({ folder: "/Users/sam/Projects/conducted" });
+			return {
+				route: "/settings/user/advanced",
+				after: ({ document }) => click(document, "button", "Browse"),
+				ready: (document) => shows(document, "Change root path?"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-add-action",
+		group: "Settings",
+		title: "atlas: Actions, the Add action dialog",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: ({ document }) => click(document, "button", "Add"),
+				ready: (document) => document.querySelector('input[placeholder="My action"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-environment-documented",
+		group: "Settings",
+		title: "Environment, the documented variables shown",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/environment",
+				after: ({ document }) =>
+					click(document, "button", "Show documented variables", { prefix: true }),
+				ready: (document) => shows(document, "Routes HTTP requests through a proxy."),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-picker",
+		group: "Settings",
+		title: "atlas: Misc, the repository icon picker",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: ({ document }) => click(document, "button", "Change repository icon"),
+				ready: (document) => document.querySelector('input[placeholder="Search emoji"]') !== null,
+			};
+		},
+	},
+	{
+		// MCP status is per chat: the Agents page lists the servers of the chat last on screen.
+		id: "settings-agents-mcp",
+		group: "Settings",
+		title:
+			"Agents, the MCP servers of arbor's chat: connected, needing sign-in, failed, turned off",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.answerSidecar({
+				listMcpServers: () => ({
+					servers: [
+						{
+							name: "github",
+							status: "connected",
+							toolCount: 41,
+							scope: "user",
+							transport: "http",
+						},
+						{ name: "linear", status: "needs_auth", scope: "user", transport: "http" },
+						{
+							name: "postgres",
+							status: "failed",
+							scope: "project",
+							transport: "stdio",
+							error: "connect ECONNREFUSED 127.0.0.1:5432",
+						},
+						{ name: "sentry", status: "disabled", scope: "plugin", transport: "sse" },
+					],
+				}),
+			});
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await find(document, "button", "MCP status");
+					await app.router.navigate({ to: "/settings/user/$page", params: { page: "agents" } });
+					// The servers sit below the agent's own settings; scroll them into view.
+					await find(document, "td,span,p", "Needs auth");
+					const servers = await find(document, "section", "MCP servers");
+					servers.scrollIntoView({ block: "start" });
+				},
+				ready: (document) => shows(document, "Needs auth"),
 			};
 		},
 	},

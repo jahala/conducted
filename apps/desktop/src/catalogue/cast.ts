@@ -7,17 +7,25 @@
  * Behaviour: ui-map.md 3.8 (workspace status: working, needs permission, needs answer, needs plan review,
  * idle, archived).
  * Must handle: a chat that is working gets its running turn after the app starts (see live.ts); the
- * waiting chats get the interaction request and the live state that shows it.
+ * waiting chats get the interaction request and the live state that shows it; and the Mac is paired
+ * with a Worker (the memory Platform's default), so its personal cloud settings answer the Git
+ * page's Git identity row (D113).
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
 import type { Interaction } from "@conducted/protocol";
-import type { ToolUseId } from "@conducted/shared";
+import { ok, type ToolUseId } from "@conducted/shared";
 import type { Repo, Session, Workspace } from "../core/model.ts";
 import type { StartedApp } from "../main.tsx";
 import type { ShellScript } from "../platform/memory.ts";
 import { type Conversation, conversation } from "./conversation.ts";
 import type { ScriptedFile, ScriptedRepo } from "./git-repo.ts";
-import { type ScriptedPr, scriptGitHub } from "./github.ts";
+import {
+	type GitHubFailure,
+	type ScriptedIssue,
+	type ScriptedPr,
+	type ScriptedStack,
+	scriptGitHub,
+} from "./github.ts";
 import { deliverEvents, openInteraction, setLiveState } from "./live.ts";
 import { addChat, addEvents, addRepo, addWorkspace } from "./seeds.ts";
 import { CATALOGUE_NOW, DAY, HOUR, MINUTE } from "./time.ts";
@@ -259,6 +267,21 @@ export async function seedCast(world: World, git: GitWorld = {}): Promise<Cast> 
 			"Upgrade the service to Node 24 and fix whatever breaks.",
 			"Done. Node 24 is in `.node-version` and the Dockerfile, and the one failing test used a removed `url.parse` call. The pull request is open.",
 		).events,
+	);
+
+	// The catalogue's Mac is paired with a Worker, so answer the personal cloud settings that Worker
+	// holds. Without an answer the Git page shows the unreachable error in place of the Git identity
+	// row a paired Mac has (D113).
+	world.memory.controls.scriptCloud((request) =>
+		request.path === "/settings" && request.method === "GET"
+			? ok({
+					status: 200,
+					body: JSON.stringify({
+						gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
+						envVars: {},
+					}),
+				})
+			: null,
 	);
 
 	const cast = { atlas, relay, arbor, beacon, canyon, delta, ember, fjord, grove, chats };
@@ -585,6 +608,25 @@ export interface GitWorld {
 	prs?: ScriptedPr[];
 	/** arbor's folder is no longer a git repository, so every git command fails. */
 	arborBroken?: boolean;
+	/** arbor has no branch checked out (a detached HEAD). */
+	arborDetached?: boolean;
+	/** arbor against its upstream, when not the default of in step with it. */
+	arborUpstream?: { ahead: number; behind: number };
+	/** arbor's remote branch was force-pushed after its tip was pushed. */
+	arborRemoteRewritten?: boolean;
+	/** Every request to GitHub's API fails this way. */
+	github?: GitHubFailure;
+	/** The GitHub stacks pull requests belong to. */
+	stacks?: ScriptedStack[];
+	/** atlas's open issues on GitHub. */
+	issues?: ScriptedIssue[];
+	/** The merge methods atlas allows on GitHub; all three unless given. */
+	mergeMethods?: { squash: boolean; rebase: boolean; merge: boolean };
+	/**
+	 * What `gt state` prints in atlas's clone, as Graphite's JSON of branches; without it, `gt` is
+	 * not installed.
+	 */
+	graphiteState?: Record<string, unknown>;
 }
 
 /**
@@ -630,7 +672,7 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 	}
 	world.plantRepo({
 		path: cast.arbor.path,
-		branch: cast.arbor.branch,
+		branch: options.arborDetached === true ? "" : cast.arbor.branch,
 		target: "origin/main",
 		files: arborFiles,
 		commits: [
@@ -645,8 +687,12 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 				at: (CATALOGUE_NOW - 11 * MINUTE) / 1000,
 			},
 		],
-		upstream: { ahead: arborFiles.every((file) => file.committed) ? 0 : 1, behind: 0 },
+		upstream: options.arborUpstream ?? {
+			ahead: arborFiles.every((file) => file.committed) ? 0 : 1,
+			behind: 0,
+		},
 		behindTarget: 2,
+		remoteRewritten: options.arborRemoteRewritten,
 	});
 	if (options.arborBroken === true) {
 		world.scriptShell((command) =>
@@ -662,7 +708,31 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 				: null,
 		);
 	}
-	world.scriptShell(scriptGitHub(options.prs ?? []));
+	world.scriptShell(
+		scriptGitHub({
+			prs: options.prs,
+			failure: options.github,
+			stacks: options.stacks,
+			issues: options.issues,
+			mergeMethods: options.mergeMethods,
+		}),
+	);
+	const graphiteState = options.graphiteState;
+	if (graphiteState !== undefined) {
+		world.scriptShell((command) => {
+			if (command.program !== "gt" || command.cwd !== cast.atlas.rootPath) return null;
+			const [verb] = command.args;
+			if (verb === "--version")
+				return { ok: true, value: { stdout: "1.6.2\n", stderr: "", exitCode: 0 } };
+			if (verb === "state") {
+				return {
+					ok: true,
+					value: { stdout: JSON.stringify(graphiteState), stderr: "", exitCode: 0 },
+				};
+			}
+			return null;
+		});
+	}
 	for (const repo of [cast.atlas, cast.relay]) {
 		world.memory.controls.files.set(`${repo.rootPath}/.conducted/settings.toml`, PROJECT_SETTINGS);
 	}

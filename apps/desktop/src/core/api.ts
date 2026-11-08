@@ -39,6 +39,7 @@ import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platfor
 import type { FileSyncView } from "./cloud/file-sync.ts";
 import type { LocalMcpScan } from "./cloud/mcp-import.ts";
 import type { CloudGitIdentity, CloudMcpServer, CloudSettings } from "./cloud/settings.ts";
+import type { CloudWorkspaceResources } from "./cloud/state.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -168,6 +169,17 @@ export interface PortForwardEntry {
 export interface DetectedRemotePort {
 	port: number;
 	processName: string | null;
+}
+
+/** What a cloud workspace's header shows (CLOUD-15). */
+export interface CloudWorkspaceView {
+	/** The sandbox's state. Unknown until the first answer, or when the Worker cannot be reached. */
+	status: "unknown" | "running" | "stopped";
+	resources: CloudWorkspaceResources;
+	/** The estimated cost of every agent turn so far, in US dollars. Null before the first read. */
+	agentCostUsd: number | null;
+	/** The last Worker error, shown in place of a status it could not read. */
+	error: string | null;
 }
 
 /** What the Ports tab shows for a cloud workspace: its forwards, switches and discovery. */
@@ -307,6 +319,8 @@ export interface Queries {
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
 	/** The forwarding switches, forwards and discovered ports of a cloud workspace (CLOUD-10). */
 	usePortForwards(workspaceId: WorkspaceId): PortForwardView;
+	/** A cloud workspace's status, resource meters and agent cost (CLOUD-15). */
+	useCloudWorkspace(workspaceId: WorkspaceId): CloudWorkspaceView;
 	useSetting<T>(key: string): T;
 	useAgentInstalls(): Loadable<AgentInstall[]>;
 	useModels(agent: AgentKind, acpAgent?: AcpAgent, host?: Host): Loadable<ModelInfo[]>;
@@ -417,6 +431,8 @@ export interface Actions {
 	projects: {
 		addLocal: Act<[path: string], Repo>;
 		clone: Act<[url: string, parentDir: string], Repo>;
+		/** The folder the clone and Quick start dialogs suggest: the last one used, or `<root>/repos`. */
+		defaultCloneDirectory: Act<[], string>;
 		createFromTemplate: Act<[name: string, parentDir: string, template: string], Repo>;
 		/** Creates a GitHub repository for a local project and pushes it. Returns the repository URL. */
 		createGitHubRepo: Act<
@@ -437,6 +453,8 @@ export interface Actions {
 	};
 	workspaces: {
 		create: Act<[input: NewWorkspaceInput], Workspace>;
+		/** A just-added project's first workspace, with the default chat settings (Conductor's autoCreateWorkspace). */
+		createFirst: Act<[repoId: RepoId], Workspace>;
 		archive: Act<[id: WorkspaceId, options: { deleteBranch: boolean }]>;
 		/** `clearChats` is "Clear & unarchive": the chats are removed before the workspace comes back. */
 		unarchive: Act<
@@ -444,12 +462,16 @@ export interface Actions {
 			UnarchiveOutcome
 		>;
 		remove: Act<[id: WorkspaceId]>;
+		/** Saves a cloud workspace's work, stops its sandbox and starts it again (CLOUD-15). */
+		restart: Act<[id: WorkspaceId]>;
 		rename: Act<[id: WorkspaceId, name: string]>;
 		setPinned: Act<[id: WorkspaceId, pinned: boolean]>;
 		setKanbanStatus: Act<[id: WorkspaceId, status: KanbanStatus]>;
 		setTargetBranch: Act<[id: WorkspaceId, branch: string]>;
 		setLinkedPaths: Act<[id: WorkspaceId, paths: string[]]>;
 		openIn: Act<[id: WorkspaceId, appName: string]>;
+		/** A cloud workspace's SSH door: `ssh <name>.conducted`, for the clipboard (CLOUD-12). */
+		copySshCommand: Act<[id: WorkspaceId], string>;
 		markRead: Act<[id: WorkspaceId]>;
 		markUnread: Act<[id: WorkspaceId]>;
 		/** Remembers the open chat tab, so it is open again after a restart. */
@@ -621,8 +643,14 @@ export interface Actions {
 		activateApp: Act<[workspaceId: WorkspaceId, port: number]>;
 	};
 	terminals: {
-		/** `command` is typed into the new shell when it starts. */
-		create: Act<[workspaceId: WorkspaceId, options?: { command?: string }], Terminal>;
+		/**
+		 * `command` is typed into the new shell when it starts. In a cloud workspace `hostKind`
+		 * picks the sandbox (the default) or the Mac in the local mirror (CLOUD-11).
+		 */
+		create: Act<
+			[workspaceId: WorkspaceId, options?: { command?: string; hostKind?: "local" | "cloud" }],
+			Terminal
+		>;
 		/** Opens the repository's terminal in its main clone, creating it the first time. */
 		openForRepo: Act<[repoId: RepoId], Terminal>;
 		/** Starts a new shell in a terminal whose shell has ended, below a divider line. */
@@ -696,6 +724,8 @@ export interface Actions {
 	};
 	settings: {
 		set: Act<[key: string, value: unknown]>;
+		/** Removes a stored setting so its registry default (or the layer above) applies again. */
+		reset: Act<[key: string]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
 		/**
@@ -790,6 +820,8 @@ export interface Actions {
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
+		/** Quits the app the way the menu's Quit does: asks first while agents are working. */
+		quit: Act;
 		checkForUpdates: Act;
 		installUpdate: Act;
 		exportLogs: Act<[], string>;

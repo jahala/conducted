@@ -440,28 +440,19 @@
 		"owner": "rule:name"
 	},
 	"tauri_command:find_available_local_port": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "find_available_local_port picks a free local port for a forward.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "find_available_local_port",
+		"by": "seed"
 	},
 	"tauri_command:start_port_forward": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "start_port_forward forwards a cloud workspace port to the Mac.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "start_port_forward",
+		"by": "seed"
 	},
 	"tauri_command:stop_port_forward": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "stop_port_forward stops a port forward.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "stop_port_forward",
+		"by": "seed"
 	},
 	"tauri_command:resolve_port_forward_token": {
 		"status": "gap",
@@ -480,12 +471,9 @@
 		"note": "Port forwarding from a cloud workspace."
 	},
 	"tauri_command:list_port_forwards": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "list_port_forwards lists active port forwards.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "list_port_forwards",
+		"by": "seed"
 	},
 	"tauri_command:get_or_create_local_storage_encryption_key": {
 		"status": "gap",

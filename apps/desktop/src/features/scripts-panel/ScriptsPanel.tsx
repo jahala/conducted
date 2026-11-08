@@ -53,10 +53,13 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const all = terminals.state === "ready" ? terminals.data : [];
 	const interactive = all.filter((terminal) => terminal.kind === "terminal");
+	// Only a cloud workspace shows a host beside each terminal's name (CLOUD-09).
+	const cloudWorkspace = workspace.state === "ready" && workspace.data.host.kind === "cloud";
 	const terminalTabs = interactive.map((terminal) => ({
 		id: terminal.id,
 		title: terminal.title,
 		ended: terminal.endedAt !== null,
+		...(cloudWorkspace ? { hostKind: terminal.hostKind } : {}),
 	}));
 	const limit = terminalLimit(Boolean(tabFreakMode));
 	const atLimit = terminalTabs.length >= limit;
@@ -92,9 +95,12 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 						? "completed"
 						: "idle";
 
-	const newTerminal = (): void => {
+	const newTerminal = (hostKind?: "local" | "cloud"): void => {
 		void (async () => {
-			const created = await actions.terminals.create(workspaceId);
+			const created = await actions.terminals.create(
+				workspaceId,
+				hostKind === undefined ? undefined : { hostKind },
+			);
 			if (!created.ok) {
 				toastError("Couldn't open a terminal", created.error);
 				return;
@@ -135,6 +141,7 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 				terminalLimit={limit}
 				collapsed={collapsed}
 				fileSync={fileSync}
+				cloudWorkspace={cloudWorkspace}
 				onSelect={setPicked}
 				onNewTerminal={newTerminal}
 				onCloseTerminal={closeTerminal}

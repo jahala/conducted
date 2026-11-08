@@ -1,7 +1,8 @@
 /**
  * @feature DATA-01 Repository for the session_events table
+ * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * Owns: the chat's append-only event log: append, read in order, mark reverted, find turns cut
- * off by a crash.
+ * off by a crash, and sum a workspace's reported agent cost.
  * Behaviour: sessions.md section 5 (durable events, acknowledgement after the write),
  * services-map.md 2.3.3 (append event, revert events), sessions-and-chats.md "How chats are stored".
  * Must handle: append is idempotent on (session_id, event_id) and assigns the next idx in the same
@@ -11,7 +12,15 @@
  * Test first: appending the same event id twice stores one row, and a new event id gets idx + 1.
  */
 import { type SessionEvent, zSessionEvent } from "@conducted/protocol";
-import { type EventId, err, ok, type Result, type SessionId, type TurnId } from "@conducted/shared";
+import {
+	type EventId,
+	err,
+	ok,
+	type Result,
+	type SessionId,
+	type TurnId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
@@ -127,6 +136,19 @@ export const SESSION_EVENTS_SQL = {
 		GROUP BY session_id, turn_id
 		HAVING SUM(type = 'user_message') > 0 AND SUM(type = 'turn_ended') = 0
 		ORDER BY MIN(idx)`,
+	/**
+	 * The estimated cost of every agent turn a workspace's chats reported, in US dollars. A usage
+	 * item without a cost adds nothing; a reverted turn is history, so it is left out. This backs
+	 * the cloud header's "Agent cost" (CLOUD-15), which Conductor reads from its hosted backend.
+	 */
+	workspaceCost: `SELECT COALESCE(SUM(json_extract(item.value, '$.costUsd')), 0) AS cost_usd
+		FROM session_events e
+		JOIN sessions s ON s.id = e.session_id
+		JOIN workspaces w ON w.id = s.workspace_id
+		JOIN json_each(e.content, '$.message.items') item
+		WHERE w.id = $1 AND e.type = 'agent' AND e.reverted_at IS NULL
+			AND json_extract(item.value, '$.kind') = 'usage'
+			AND json_extract(item.value, '$.costUsd') IS NOT NULL`,
 } as const;
 
 export interface SessionEventRepository {
@@ -165,6 +187,8 @@ export interface SessionEventRepository {
 	findInterruptedTurns(
 		sessionId?: SessionId,
 	): Promise<Result<{ sessionId: SessionId; turnId: TurnId }[]>>;
+	/** SESSION_EVENTS_SQL.workspaceCost. Zero when no turn reported a cost. */
+	workspaceCost(workspaceId: WorkspaceId): Promise<Result<number>>;
 }
 
 export function createSessionEventRepository(
@@ -232,6 +256,15 @@ export function createSessionEventRepository(
 			return rows.ok
 				? ok(rows.value.map((row) => ({ sessionId: row.session_id, turnId: row.turn_id })))
 				: err(rows.error);
+		},
+		workspaceCost: async (workspaceId) => {
+			const rows = await selectRows<{ cost_usd: number }>(
+				db,
+				SESSION_EVENTS_SQL.workspaceCost,
+				[workspaceId],
+				"Reading a workspace's agent cost",
+			);
+			return rows.ok ? ok(rows.value[0]?.cost_usd ?? 0) : err(rows.error);
 		},
 	};
 }
