@@ -55,3 +55,36 @@ test("folders of killed runs are removed, live ones are kept", () => {
 	expect(existsSync(join(dir, "live"))).toBe(true);
 	rmSync(dir, { recursive: true, force: true });
 });
+
+/** What `git config --get <key>` says inside a wrapped run, given extra environment. */
+function gitConfigInRun(key: string, extra: Record<string, string> = {}): string {
+	const outer = mkdtempSync(join(tmpdir(), "runs-"));
+	try {
+		const run = Bun.spawnSync(["bun", script, "git", "config", "--get", key], {
+			env: { ...process.env, ...extra, TMPDIR: `${outer}/` },
+			stderr: "pipe",
+			stdout: "pipe",
+		});
+		return run.stdout.toString().trim();
+	} finally {
+		rmSync(outer, { recursive: true, force: true });
+	}
+}
+
+// Issue #458: a commit starts a detached `git maintenance run --auto` that can write into a test's
+// repository after the test removed it, so the run's temp folder is not empty at the end.
+test("git's background maintenance is off for every git process in a run", () => {
+	expect(gitConfigInRun("maintenance.auto")).toBe("false");
+	expect(gitConfigInRun("gc.auto")).toBe("0");
+	expect(gitConfigInRun("gc.autoDetach")).toBe("false");
+});
+
+test("a run keeps the git settings its caller already passed through the environment", () => {
+	const caller = {
+		GIT_CONFIG_COUNT: "1",
+		GIT_CONFIG_KEY_0: "user.name",
+		GIT_CONFIG_VALUE_0: "Sam",
+	};
+	expect(gitConfigInRun("user.name", caller)).toBe("Sam");
+	expect(gitConfigInRun("maintenance.auto", caller)).toBe("false");
+});
