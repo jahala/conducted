@@ -174,7 +174,7 @@ export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) 
 							<div className="flex items-center gap-2">
 								{isAuth ? (
 									<Link
-										to="/settings/$page"
+										to="/settings/user/$page"
 										params={{ page: "agents" }}
 										className="inline-flex h-7 items-center rounded-md border border-border-strong px-2.5 text-xs font-book text-fg hover:bg-hover"
 									>

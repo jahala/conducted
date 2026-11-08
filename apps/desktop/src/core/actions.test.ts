@@ -146,8 +146,8 @@ describe("DATA-01 createActions", () => {
 				path: "composer.removeSnippet",
 			},
 			settings: {
-				run: () => actions.settings.set("theme", "dark"),
-				path: "settings.set",
+				run: () => actions.settings.reset("theme"),
+				path: "settings.delete",
 			},
 			agents: {
 				run: () => actions.agents.refresh(),

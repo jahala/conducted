@@ -191,3 +191,50 @@ describe("PLAT-24 Full Disk Access row", () => {
 		).toBeTruthy();
 	});
 });
+
+describe("SET-02 GeneralPage send key failures", () => {
+	it("says when a send-key change fails, in Conductor's words", async () => {
+		const { appError, err } = await import("@conducted/shared");
+		const { Toaster } = await import("../../../ui/Toast.tsx");
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		vi.spyOn(test.container.actions.settings, "set").mockResolvedValue(
+			err(appError("settings_write_failed", "The settings file is read-only")),
+		);
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		const trigger = screen.getByRole("combobox", { name: "Send messages with" });
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		const option = await screen.findByRole("option", { name: "⌘ Enter" });
+		fireEvent.keyDown(option, { key: "Enter" });
+
+		expect(await screen.findByText("Failed to update message send key")).toBeTruthy();
+	});
+
+	it("says when resetting the send key fails", async () => {
+		const { appError, err } = await import("@conducted/shared");
+		const { Toaster } = await import("../../../ui/Toast.tsx");
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		await test.container.actions.settings.set("message_send_key", "cmd-enter");
+		vi.spyOn(test.container.actions.settings, "set").mockResolvedValue(
+			err(appError("settings_write_failed", "The settings file is read-only")),
+		);
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		fireEvent.keyDown(screen.getByRole("button", { name: "Setting actions" }), { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Reset" }));
+
+		expect(await screen.findByText("Failed to reset message send key")).toBeTruthy();
+	});
+});

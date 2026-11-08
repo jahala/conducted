@@ -599,7 +599,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.repoOf(id);
 			return found.ok ? ok(found.value.name) : found;
 		},
-		rootPath: () => expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+		rootPath: () => expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
 		setting,
 		now: () => clock.now(),
 	});
@@ -1282,7 +1282,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return offered;
 		},
 		workspacesRoot: () =>
-			expandHome(setting<string>("conducted_root_path"), platform.fs.paths.home),
+			expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
 		withPorts: (count, use) => ports.withPorts(count, use),
 		reload: async () => {
 			const steps = [

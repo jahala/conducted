@@ -333,3 +333,18 @@ describe("SET-02 AdvancedPage", () => {
 		);
 	});
 });
+
+describe("SET-02 AdvancedPage root path dialog", () => {
+	it("names the old and new root path, as Conductor's dialog does", async () => {
+		const mounted = await mountPage();
+		await mounted.container.actions.settings.set("conductor_root_path", "/work/old");
+		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/work/new"));
+
+		fireEvent.click(await screen.findByRole("button", { name: "Browse" }));
+		expect(await screen.findByText("Change root path?")).toBeTruthy();
+		expect(screen.getByText("Old root path:")).toBeTruthy();
+		expect(screen.getByText("/work/old")).toBeTruthy();
+		expect(screen.getByText("New root path:")).toBeTruthy();
+		expect(screen.getByText("/work/new")).toBeTruthy();
+	});
+});

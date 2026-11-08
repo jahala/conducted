@@ -860,10 +860,10 @@ export class WorkspaceService {
 		return logError === null ? ok(undefined) : err(logError);
 	}
 
-	/** The folder new worktrees go to: the `conducted_root_path` setting, with `~` expanded. */
+	/** The folder new worktrees go to: the `conductor_root_path` setting, with `~` expanded. */
 	#worktreesRoot(): string {
 		return expandHome(
-			this.#deps.setting<string>("conducted_root_path"),
+			this.#deps.setting<string>("conductor_root_path"),
 			this.#deps.platform.fs.paths.home,
 		);
 	}
