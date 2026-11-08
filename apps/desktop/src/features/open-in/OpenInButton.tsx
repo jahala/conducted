@@ -19,6 +19,8 @@ import type { OpenInApp } from "./open-in-apps.ts";
 
 export interface OpenInButtonProps {
 	defaultApp: OpenInApp | null;
+	/** True for a cloud workspace, whose editor opens over SSH ("Open via SSH"). */
+	remote?: boolean;
 	busy: boolean;
 	disabledReason: string | null;
 	onOpenDefault: () => void;
@@ -28,6 +30,7 @@ export interface OpenInButtonProps {
 
 export function OpenInButton({
 	defaultApp,
+	remote = false,
 	busy,
 	disabledReason,
 	onOpenDefault,
@@ -49,11 +52,28 @@ export function OpenInButton({
 				className="rounded-r-none"
 				loading={busy}
 				disabled={disabled}
-				aria-label={defaultApp === null ? "Open in" : `Open in ${defaultApp.label}`}
-				title={disabledReason ?? (defaultApp === null ? undefined : `Open in ${defaultApp.label}`)}
+				aria-label={
+					remote ? "Open via SSH" : defaultApp === null ? "Open in" : `Open in ${defaultApp.label}`
+				}
+				title={
+					disabledReason ??
+					(remote
+						? "Open via SSH"
+						: defaultApp === null
+							? undefined
+							: `Open in ${defaultApp.label}`)
+				}
 				onClick={openDefault}
 			>
-				{defaultApp === null ? "Open in" : <OpenInAppIcon app={defaultApp} />}
+				{defaultApp === null ? (
+					remote ? (
+						"Open via SSH"
+					) : (
+						"Open in"
+					)
+				) : (
+					<OpenInAppIcon app={defaultApp} />
+				)}
 			</Button>
 			<MenuTrigger asChild>
 				<Button

@@ -191,7 +191,7 @@ describe("SET-05 MCP servers section", () => {
 		const workspace = await seedWorkspace(test.container);
 		const created = await test.container.services.sessions.create(workspace.id, sessionConfig);
 		if (!created.ok) throw new Error("could not create a session");
-		test.container.services.sessions.store.setState({ viewingSessionId: created.value.id });
+		test.container.services.sessions.setViewing(created.value.id);
 
 		const request = vi.spyOn(test.container.sidecar, "request").mockResolvedValue({
 			ok: true,
@@ -227,5 +227,30 @@ describe("SET-05 MCP servers section", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Copy log" }));
 
 		await waitFor(() => expect(test?.memory.controls.clipboardText).toBe("permission denied"));
+	});
+
+	it("SET-05 lists the servers of the chat last on screen once its pane closed for Settings", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const created = await test.container.services.sessions.create(workspace.id, sessionConfig);
+		if (!created.ok) throw new Error("could not create a session");
+		// The chat pane records the chat it shows, and clears it when it unmounts. Settings is a
+		// page of its own, so opening it unmounts every chat pane first.
+		test.container.services.sessions.setViewing(created.value.id);
+		test.container.services.sessions.setViewing(null);
+
+		vi.spyOn(test.container.sidecar, "request").mockResolvedValue({
+			ok: true,
+			value: { servers: [{ name: "linear", status: "needs_auth", scope: "user" }] },
+		});
+
+		render(
+			<ServicesProvider container={test.container}>
+				<McpServersPanel />
+			</ServicesProvider>,
+		);
+
+		expect(await screen.findByText("linear")).toBeTruthy();
+		expect(screen.queryByText("Open a chat to see its MCP servers.")).toBeNull();
 	});
 });

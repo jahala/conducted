@@ -250,6 +250,11 @@ export interface SessionsState {
 		>
 	>;
 	viewingSessionId: SessionId | null;
+	/**
+	 * The chat last on screen. It stays when the chat's pane closes, so a page without chats
+	 * (Settings) can still read that chat, as the Agents page reads its MCP servers.
+	 */
+	lastViewedSessionId: SessionId | null;
 }
 
 /** One chat's card on screen. */
@@ -562,6 +567,7 @@ export class SessionsService implements AgentMessenger {
 			acpConfigOptions: {},
 			openInteractions: {},
 			viewingSessionId: null,
+			lastViewedSessionId: null,
 		}));
 	}
 
@@ -798,6 +804,7 @@ export class SessionsService implements AgentMessenger {
 					),
 				},
 				viewingSessionId: state.viewingSessionId === id ? null : state.viewingSessionId,
+				lastViewedSessionId: state.lastViewedSessionId === id ? null : state.lastViewedSessionId,
 			};
 		});
 		return ok(undefined);
@@ -868,6 +875,7 @@ export class SessionsService implements AgentMessenger {
 				workspace.value.workspacePath,
 				resolvedMessageId,
 				paths,
+				workspace.value.host.kind,
 			);
 			if (!materialized.ok) return materialized;
 			paths = materialized.value;
@@ -2096,12 +2104,15 @@ export class SessionsService implements AgentMessenger {
 	// ---- called by the views ----
 
 	/**
-	 * Remembers the chat on screen, so notifications can skip it. Opening a workspace's chat also
-	 * clears its unread chats through `markAllRead`; that call belongs to the chat screen.
+	 * Remembers the chat on screen, so notifications can skip it, and the chat last on screen,
+	 * which a null (no chat on screen) leaves as it was. Opening a workspace's chat also clears its
+	 * unread chats through `markAllRead`; that call belongs to the chat screen.
 	 */
 	setViewing(sessionId: SessionId | null): void {
-		if (this.store.getState().viewingSessionId === sessionId) return;
-		this.store.setState({ viewingSessionId: sessionId });
+		const state = this.store.getState();
+		const lastViewed = sessionId ?? state.lastViewedSessionId;
+		if (state.viewingSessionId === sessionId && state.lastViewedSessionId === lastViewed) return;
+		this.store.setState({ viewingSessionId: sessionId, lastViewedSessionId: lastViewed });
 	}
 
 	/** Backs `useChat`. Null for an unknown chat. */

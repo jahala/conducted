@@ -430,6 +430,8 @@ export interface Actions {
 	projects: {
 		addLocal: Act<[path: string], Repo>;
 		clone: Act<[url: string, parentDir: string], Repo>;
+		/** The folder the clone and Quick start dialogs suggest: the last one used, or `<root>/repos`. */
+		defaultCloneDirectory: Act<[], string>;
 		createFromTemplate: Act<[name: string, parentDir: string, template: string], Repo>;
 		/** Creates a GitHub repository for a local project and pushes it. Returns the repository URL. */
 		createGitHubRepo: Act<
@@ -450,6 +452,8 @@ export interface Actions {
 	};
 	workspaces: {
 		create: Act<[input: NewWorkspaceInput], Workspace>;
+		/** A just-added project's first workspace, with the default chat settings (Conductor's autoCreateWorkspace). */
+		createFirst: Act<[repoId: RepoId], Workspace>;
 		archive: Act<[id: WorkspaceId, options: { deleteBranch: boolean }]>;
 		/** `clearChats` is "Clear & unarchive": the chats are removed before the workspace comes back. */
 		unarchive: Act<
@@ -465,6 +469,8 @@ export interface Actions {
 		setTargetBranch: Act<[id: WorkspaceId, branch: string]>;
 		setLinkedPaths: Act<[id: WorkspaceId, paths: string[]]>;
 		openIn: Act<[id: WorkspaceId, appName: string]>;
+		/** A cloud workspace's SSH door: `ssh <name>.conducted`, for the clipboard (CLOUD-12). */
+		copySshCommand: Act<[id: WorkspaceId], string>;
 		markRead: Act<[id: WorkspaceId]>;
 		markUnread: Act<[id: WorkspaceId]>;
 		/** Remembers the open chat tab, so it is open again after a restart. */
@@ -636,8 +642,14 @@ export interface Actions {
 		activateApp: Act<[workspaceId: WorkspaceId, port: number]>;
 	};
 	terminals: {
-		/** `command` is typed into the new shell when it starts. */
-		create: Act<[workspaceId: WorkspaceId, options?: { command?: string }], Terminal>;
+		/**
+		 * `command` is typed into the new shell when it starts. In a cloud workspace `hostKind`
+		 * picks the sandbox (the default) or the Mac in the local mirror (CLOUD-11).
+		 */
+		create: Act<
+			[workspaceId: WorkspaceId, options?: { command?: string; hostKind?: "local" | "cloud" }],
+			Terminal
+		>;
 		/** Opens the repository's terminal in its main clone, creating it the first time. */
 		openForRepo: Act<[repoId: RepoId], Terminal>;
 		/** Starts a new shell in a terminal whose shell has ended, below a divider line. */
@@ -711,6 +723,8 @@ export interface Actions {
 	};
 	settings: {
 		set: Act<[key: string, value: unknown]>;
+		/** Removes a stored setting so its registry default (or the layer above) applies again. */
+		reset: Act<[key: string]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
 		/**
@@ -797,6 +811,8 @@ export interface Actions {
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
+		/** Quits the app the way the menu's Quit does: asks first while agents are working. */
+		quit: Act;
 		checkForUpdates: Act;
 		installUpdate: Act;
 		exportLogs: Act<[], string>;

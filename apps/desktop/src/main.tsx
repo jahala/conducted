@@ -212,7 +212,7 @@ function StartupRoot({
 					onRetry={() => window.location.reload()}
 					onCopyDiagnostics={() => copyDiagnostics(container, blocker)}
 					onQuit={() => {
-						void container.platform.app.quit();
+						container.quit();
 					}}
 					onContinueAnyway={() => setContinuedWrongCpu(true)}
 					downloadUrl={APPLE_SILICON_DOWNLOAD_URL}
@@ -229,7 +229,7 @@ function StartupRoot({
 			onRetry={() => window.location.reload()}
 			onCopyDiagnostics={() => copyDiagnostics(container, blocker)}
 			onQuit={() => {
-				void container.platform.app.quit();
+				container.quit();
 			}}
 		/>
 	);

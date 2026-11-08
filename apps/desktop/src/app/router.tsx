@@ -10,9 +10,9 @@
  *                                /dashboard                                            Kanban board
  *                                /backlog                                              workspaces saved to start later
  *                                /create                                               new workspace page
- *   (no sidebar)                 /settings, /settings/$page, /diagnostics, /first-run-onboarding
- * Our design choices: `/settings` redirects to `/settings/general` (Conductor redirects /settings/user to
- * /settings/user/general). Repository pages have their own route, `/settings/repos/$repoId/$page`, and pass
+ *   (no sidebar)                 /settings, /settings/user, /settings/user/$page, /diagnostics, /first-run-onboarding
+ * Our design choices: user settings pages sit under `/settings/user/$page`, as Conductor's do, and
+ * `/settings` and `/settings/user` redirect to `/settings/user/general`. Repository pages have their own route, `/settings/repos/$repoId/$page`, and pass
  * the page to the settings screen as `repo:<repoId>:<page>`. The workspace param is `$workspaceId`, not
  * `$localWorkspaceId`, because there are no cloud workspaces.
  * Must handle: an unknown address (NotFoundScreen); an error outside every screen's own boundary
@@ -44,6 +44,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
+import { useActions } from "../core/hooks.ts";
 import { canShowWorkspaceRoute } from "../core/workspace-open.ts";
 import { NextUnreadController } from "../features/chat/NextUnreadButton.tsx";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
@@ -69,11 +70,13 @@ import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 
 /**
  * The window controls' keyboard shortcuts, which follow the same history the buttons use, and the
- * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings.
+ * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings. Cmd+Q
+ * (and Quit in the palette) quits the way the menu's Quit does, asking first while agents work.
  */
 function NavigationShortcuts() {
 	const router = useRouter();
 	const navigate = useNavigate();
+	const actions = useActions();
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	useCommandHandler("app.openDiagnostics", "base", () => {
 		void navigate({ to: "/diagnostics" });
@@ -97,7 +100,11 @@ function NavigationShortcuts() {
 		return true;
 	});
 	useCommandHandler("app.openSettings", "base", () => {
-		void navigate({ to: "/settings/$page", params: { page: "general" } });
+		void navigate({ to: "/settings/user/$page", params: { page: "general" } });
+		return true;
+	});
+	useCommandHandler("app.quit", "base", () => {
+		void actions.app.quit();
 		return true;
 	});
 	return null;
@@ -367,13 +374,21 @@ const settingsIndexRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/settings",
 	beforeLoad: () => {
-		throw redirect({ to: "/settings/$page", params: { page: "general" } });
+		throw redirect({ to: "/settings/user/$page", params: { page: "general" } });
+	},
+});
+
+const userSettingsIndexRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/settings/user",
+	beforeLoad: () => {
+		throw redirect({ to: "/settings/user/$page", params: { page: "general" } });
 	},
 });
 
 const settingsRoute = createRoute({
 	getParentRoute: () => rootRoute,
-	path: "/settings/$page",
+	path: "/settings/user/$page",
 	component: function SettingsRoute() {
 		const { page } = settingsRoute.useParams();
 		// Settings draws its own title bar row (Back and its top bar), so no FullPage strip.
@@ -432,6 +447,7 @@ const routeTree = rootRoute.addChildren([
 		createWorkspaceRoute,
 	]),
 	settingsIndexRoute,
+	userSettingsIndexRoute,
 	settingsRoute,
 	repoSettingsRoute,
 	diagnosticsRoute,

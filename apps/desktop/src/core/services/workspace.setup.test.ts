@@ -163,7 +163,7 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 
 	const settings: Record<string, unknown> = {
 		worktree_push_auto_setup_remote: true,
-		conducted_root_path: "~/conducted",
+		conductor_root_path: "~/conducted",
 	};
 	const deps = {
 		platform: {

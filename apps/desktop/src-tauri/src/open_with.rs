@@ -1,4 +1,5 @@
 //! @feature PLAT-19 Detect installed editors and terminals for "Open in"
+//! @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
 //!
 //! Owns: revealing a path in Finder, opening a folder or file in another app, and finding which
 //! of the known editors, terminals and git tools are installed.
@@ -20,6 +21,8 @@
 //! - "Finder" means `reveal_in_finder` for a file and opening the folder for a folder.
 //! - The path must exist; otherwise fail with `open_with_missing_path`.
 //! - An app that was uninstalled since detection fails with `open_with_not_installed`.
+//! - `open_remote` runs VS Code's or Cursor's `--remote ssh-remote+<host>` and Zed's `ssh://`
+//!   URL on this Mac; another app is `remote_open_unsupported` with Conductor's message.
 //! - Terminal apps open a new window in the folder. For a file path they open its parent folder.
 //! - `reveal_in_finder` selects the item in a Finder window (`open -R`).
 //! - `app_icon` reads a known app's own icon, as Conductor does for its Open in buttons: the
@@ -507,6 +510,100 @@ pub async fn open_with(app_name: String, path: String) -> CommandResult<()> {
     run_open(&action)
 }
 
+/// The argv that opens a remote folder over SSH in one of the three editors Conductor supports
+/// (CLOUD-12). VS Code and Cursor share the `--remote ssh-remote+` form; Zed takes an `ssh://` URL.
+pub fn remote_editor_argv(
+    app_name: &str,
+    host: &str,
+    path: &str,
+    zed_cli: &Path,
+) -> Option<Vec<String>> {
+    match app_name {
+        "Visual Studio Code" => Some(vec![
+            "code".to_string(),
+            "--remote".to_string(),
+            format!("ssh-remote+{host}"),
+            path.to_string(),
+        ]),
+        "Cursor" => Some(vec![
+            "cursor".to_string(),
+            "--remote".to_string(),
+            format!("ssh-remote+{host}"),
+            path.to_string(),
+        ]),
+        "Zed" => Some(vec![
+            zed_cli.display().to_string(),
+            format!("ssh://{host}{}", encode_remote_path(path)),
+        ]),
+        _ => None,
+    }
+}
+
+/// Percent-encodes a remote path for a Zed URL, keeping its slashes and leaving `#` out of the
+/// URL's fragment.
+fn encode_remote_path(path: &str) -> String {
+    let absolute = if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("/{path}")
+    };
+    let mut encoded = String::new();
+    for byte in absolute.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                encoded.push(byte as char);
+            }
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded.replace('#', "%23")
+}
+
+/// Opens a cloud workspace's folder in a local editor over its SSH door (CLOUD-12). The command
+/// runs on this Mac; the editor talks to the sandbox through the SSH config entry.
+#[tauri::command]
+pub async fn open_remote(app_name: String, host: String, path: String) -> CommandResult<()> {
+    let home = dirs::home_dir().ok_or_else(|| CommandError::Failed {
+        code: "remote_open_failed",
+        message: "Could not find the home folder.".to_string(),
+    })?;
+    let zed_cli = zed_cli_path(&home);
+    let argv = remote_editor_argv(&app_name, &host, &path, &zed_cli).ok_or_else(|| {
+        CommandError::Failed {
+            code: "remote_open_unsupported",
+            message: "Remote open is only supported for VS Code, Cursor, and Zed".to_string(),
+        }
+    })?;
+    let output = Command::new(&argv[0])
+        .args(&argv[1..])
+        .output()
+        .map_err(|error| CommandError::Failed {
+            code: "remote_open_failed",
+            message: format!("Could not run {}: {error}", argv[0]),
+        })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(CommandError::Failed {
+            code: "remote_open_failed",
+            message: if stderr.is_empty() {
+                format!("{} could not open the cloud workspace.", argv[0])
+            } else {
+                stderr
+            },
+        });
+    }
+    Ok(())
+}
+
+/// The Zed CLI inside the app bundle, from `/Applications` or `~/Applications`.
+fn zed_cli_path(home: &Path) -> PathBuf {
+    let installed = Path::new("/Applications/Zed.app/Contents/MacOS/cli");
+    if installed.exists() {
+        return installed.to_path_buf();
+    }
+    home.join("Applications/Zed.app/Contents/MacOS/cli")
+}
+
 /// A known app's own icon as a PNG data URL, or `None` when it has no icon file to read.
 #[tauri::command]
 pub async fn app_icon<R: Runtime>(
@@ -880,6 +977,42 @@ mod tests {
             .expect_err("an unknown app is refused");
 
         assert_eq!(error_code(error), "open_with_unknown_app");
+    }
+
+    #[test]
+    fn cloud_12_remote_editor_commands_match_the_three_supported_apps() {
+        let zed = Path::new("/Applications/Zed.app/Contents/MacOS/cli");
+        assert_eq!(
+            remote_editor_argv("Cursor", "oslo.conducted", "/workspace/oslo", zed),
+            Some(vec![
+                "cursor".to_string(),
+                "--remote".to_string(),
+                "ssh-remote+oslo.conducted".to_string(),
+                "/workspace/oslo".to_string(),
+            ])
+        );
+        assert_eq!(
+            remote_editor_argv(
+                "Visual Studio Code",
+                "oslo.conducted",
+                "/workspace/oslo",
+                zed
+            ),
+            Some(vec![
+                "code".to_string(),
+                "--remote".to_string(),
+                "ssh-remote+oslo.conducted".to_string(),
+                "/workspace/oslo".to_string(),
+            ])
+        );
+        assert_eq!(
+            remote_editor_argv("Zed", "oslo.conducted", "/workspace/oslo", zed),
+            Some(vec![
+                zed.display().to_string(),
+                "ssh://oslo.conducted/workspace/oslo".to_string(),
+            ])
+        );
+        assert!(remote_editor_argv("Finder", "oslo.conducted", "/workspace/oslo", zed).is_none());
     }
 
     #[test]

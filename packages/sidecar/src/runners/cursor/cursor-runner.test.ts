@@ -333,7 +333,7 @@ describe("AGENT-09 Cursor runner", () => {
 		const root = await folder("cursor-store-");
 		const previous = process.env.CURSOR_RIPGREP_PATH;
 		const binaries = path.join(root, "agent-binaries");
-		const installed = cursorSdkFiles(binaries, process.arch);
+		const installed = cursorSdkFiles(binaries, process.arch, process.platform);
 		const imported: string[] = [];
 		const ports: SidecarPorts = {
 			app: new FakeApp(),
@@ -413,7 +413,7 @@ describe("AGENT-09 Cursor runner", () => {
 					"current",
 					"node_modules",
 					"@cursor",
-					`sdk-darwin-${process.arch}`,
+					`sdk-${process.platform}-${process.arch}`,
 					"bin",
 					"rg",
 				),

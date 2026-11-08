@@ -123,7 +123,7 @@ function RepoSwitchRow({
 			disabledReason={null}
 			highlighted={false}
 			saveError={error}
-			onResetToShared={resolved?.own === true ? () => void reset() : undefined}
+			onReset={resolved?.own === true ? () => void reset() : undefined}
 		>
 			<Switch
 				aria-label={def.title}

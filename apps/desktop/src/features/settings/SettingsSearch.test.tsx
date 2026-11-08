@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsSearch } from "./SettingsSearch.tsx";
 import type { SearchableSetting } from "./settings-search.ts";
@@ -26,7 +26,9 @@ describe("SET-02 SettingsSearch", () => {
 		const input = screen.getByRole("searchbox", { name: "Search settings" });
 		fireEvent.change(input, { target: { value: "zoom" } });
 
-		const results = screen.getAllByRole("button");
+		const results = within(
+			screen.getByRole("list", { name: "Settings search results" }),
+		).getAllByRole("button");
 		expect(results[0]?.textContent).toContain("App zoom");
 		fireEvent.keyDown(input, { key: "Enter" });
 
@@ -69,5 +71,22 @@ describe("SET-02 SettingsSearch", () => {
 			target: { value: "nothing" },
 		});
 		expect(screen.getByText("No settings match your search.")).toBeTruthy();
+	});
+});
+
+describe("SET-02 SettingsSearch controls", () => {
+	it("names the shortcut and clears the query with Conductor's controls", () => {
+		render(
+			<SettingsSearch
+				index={[setting("zoom", "App zoom")]}
+				onOpen={() => undefined}
+				searchShortcut="⌘F"
+			/>,
+		);
+		expect(screen.getByLabelText("Search settings shortcut")).toBeTruthy();
+		const input = screen.getByRole("searchbox", { name: "Search settings" }) as HTMLInputElement;
+		fireEvent.change(input, { target: { value: "zoom" } });
+		fireEvent.click(screen.getByRole("button", { name: "Clear settings search" }));
+		expect(input.value).toBe("");
 	});
 });

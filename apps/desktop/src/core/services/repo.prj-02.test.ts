@@ -143,8 +143,11 @@ interface FakePlatform {
 	platform: RepoServiceDeps["platform"];
 }
 
-function makePlatform(options: { dirs?: readonly string[] } = {}): FakePlatform {
+function makePlatform(
+	options: { dirs?: readonly string[]; unwritable?: readonly string[] } = {},
+): FakePlatform {
 	const dirs = new Set(options.dirs ?? []);
+	const unwritable = new Set(options.unwritable ?? []);
 	const fs = {
 		async stat(path: string) {
 			if (!dirs.has(path)) return err(appError("fs_missing", `missing ${path}`));
@@ -159,7 +162,9 @@ function makePlatform(options: { dirs?: readonly string[] } = {}): FakePlatform 
 		async writeTextAtomic() {
 			return ok(undefined);
 		},
-		async mkdirp() {
+		async mkdirp(path: string) {
+			if (unwritable.has(path)) return err(appError("fs_io", `cannot create ${path}`));
+			dirs.add(path);
 			return ok(undefined);
 		},
 		async readDir() {
@@ -182,7 +187,18 @@ function makePlatform(options: { dirs?: readonly string[] } = {}): FakePlatform 
 	return { platform: { fs, dialogs, opener: {} as Opener, shell: {} as Shell } };
 }
 
-function makeService(options: { dirs?: readonly string[] } = {}) {
+function makeService(
+	options: {
+		dirs?: readonly string[];
+		unwritable?: readonly string[];
+		settings?: Record<string, unknown>;
+	} = {},
+) {
+	const prefs = new Map<string, unknown>([
+		["conductor_root_path", "~/conducted"],
+		["last_clone_directory", ""],
+		...Object.entries(options.settings ?? {}),
+	]);
 	const repos = makeRepos();
 	const git = makeGit();
 	const platform = makePlatform(options);
@@ -191,11 +207,17 @@ function makeService(options: { dirs?: readonly string[] } = {}) {
 		platform: platform.platform,
 		git: git.git,
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
-		settings: {} as RepoServiceDeps["settings"],
+		settings: {
+			get: <T>(key: string) => prefs.get(key) as T,
+			set: async (key: string, value: unknown) => {
+				prefs.set(key, value);
+				return ok(undefined);
+			},
+		} as unknown as RepoServiceDeps["settings"],
 		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 		ids: createTestIds(),
 	});
-	return { service, repos, git };
+	return { service, repos, git, prefs };
 }
 
 const must = <T>(result: Result<T>): T => {
@@ -330,6 +352,39 @@ describe("PRJ-02 cloning from GitHub", () => {
 	});
 });
 
+describe("PRJ-02 where a clone goes by default, as in Conductor", () => {
+	it("suggests the last clone folder while it still exists", async () => {
+		const ctx = makeService({ dirs: ["/code"], settings: { last_clone_directory: "/code" } });
+		expect(await ctx.service.defaultCloneDirectory()).toBe("/code");
+	});
+
+	it("suggests <root>/repos when there is no last folder or it is gone", async () => {
+		expect(await makeService().service.defaultCloneDirectory()).toBe("/home/me/conducted/repos");
+		const gone = makeService({ settings: { last_clone_directory: "/old/place" } });
+		expect(await gone.service.defaultCloneDirectory()).toBe("/home/me/conducted/repos");
+	});
+
+	it("clones into a folder that does not exist yet, as git clone does", async () => {
+		const url = "https://github.com/octo/repo.git";
+		const ctx = makeService();
+		seedCloneReplies(ctx, url, "/home/me/conducted/repos/repo");
+
+		const repo = must(await ctx.service.clone(url, "/home/me/conducted/repos"));
+
+		expect(repo.rootPath).toBe("/home/me/conducted/repos/repo");
+	});
+
+	it("remembers the folder of a clone that worked", async () => {
+		const url = "https://github.com/octo/repo.git";
+		const ctx = makeService({ dirs: ["/code"] });
+		seedCloneReplies(ctx, url, "/code/repo");
+
+		must(await ctx.service.clone(url, "/code"));
+
+		expect(ctx.prefs.get("last_clone_directory")).toBe("/code");
+	});
+});
+
 describe("PRJ-02 refusing a clone", () => {
 	it("requires a URL and a folder", async () => {
 		const ctx = makeService();
@@ -352,8 +407,8 @@ describe("PRJ-02 refusing a clone", () => {
 		if (!result.ok) expect(result.error.code).toBe("repo_url_invalid");
 	});
 
-	it("refuses a location that is missing", async () => {
-		const ctx = makeService({ dirs: [] });
+	it("refuses a location that is missing and cannot be created", async () => {
+		const ctx = makeService({ dirs: [], unwritable: ["/code"] });
 
 		const result = await ctx.service.clone("https://github.com/octo/repo.git", "/code");
 

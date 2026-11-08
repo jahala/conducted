@@ -36,6 +36,7 @@ const baseState = (overrides: Partial<SessionsState> = {}): SessionsState => ({
 	sending: {},
 	openInteractions: {},
 	viewingSessionId: null,
+	lastViewedSessionId: null,
 	...overrides,
 });
 

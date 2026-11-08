@@ -1,14 +1,16 @@
 /**
  * @feature SET-02 Advanced settings page
- * Owns: the Advanced page of Settings: where files live, agent program paths, and terminal
- * history size.
+ * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
+ * Owns: the Advanced page of Settings: where files live, agent program paths, the SSH private key
+ * path, and terminal history size.
  * Behaviour: ui-map.md 6, "Advanced" table; services-map.md 4.2.3. The "set upstream on plain
  * push" row stays on the Git page (one home per setting). Rows come from the settings registry
  * (SET-01).
  * Our design choice: a program path is checked against the file system before it is saved. An
  * invalid path is refused with a reason, so a saved path is always a path that exists.
  * Must handle: a path that does not exist, an empty value meaning the bundled program, and a root
- * folder change that asks for confirmation first.
+ * folder change that asks for confirmation first and names the old and new path (D037 keeps the
+ * existing data, unlike Conductor's wipe).
  * Test first: saving a non-existent program path shows the error and does not call settings.set.
  *
  * PLAT-28 also renders the Agent binaries section here: the state of the Claude Code and Codex
@@ -37,8 +39,9 @@ import { toast, toastError } from "../../../ui/Toast.tsx";
 import { PROGRAM_PATHS, ProgramPathRow } from "../program-path.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
+import { SshKeyPathRow } from "../ssh-key-path.tsx";
 
-const ROOT_PATH_KEY = "conducted_root_path";
+const ROOT_PATH_KEY = "conductor_root_path";
 
 export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
@@ -109,10 +112,12 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				/>
 			))}
 
+			<SshKeyPathRow focusSettingKey={focusSettingKey} />
+
 			<RegistrySettingRows
 				page="advanced"
 				focusSettingKey={focusSettingKey}
-				exclude={[ROOT_PATH_KEY, ...PROGRAM_PATHS.map((program) => program.key)]}
+				exclude={[ROOT_PATH_KEY, "ssh_key_path", ...PROGRAM_PATHS.map((program) => program.key)]}
 			/>
 
 			<AgentBinaries />
@@ -130,7 +135,18 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 					description="New repositories and workspaces will use the new folder. Existing ones stay where they are."
 					confirmLabel="Change root path"
 					onConfirm={() => void saveRoot()}
-				/>
+				>
+					<div className="space-y-2 text-sm">
+						<div className="flex items-start gap-2">
+							<span className="shrink-0 text-fg-muted">Old root path:</span>
+							<span className="font-mono break-all">{rootPath}</span>
+						</div>
+						<div className="flex items-start gap-2">
+							<span className="shrink-0 text-fg-muted">New root path:</span>
+							<span className="font-mono break-all">{pendingRoot}</span>
+						</div>
+					</div>
+				</AlertDialogContent>
 			</AlertDialog>
 		</SettingsPageFrame>
 	);

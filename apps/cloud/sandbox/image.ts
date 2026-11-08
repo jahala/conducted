@@ -13,7 +13,8 @@
  * Dockerfile says to run the build script first).
  * Our design choice: the base is the Node image by digest, not a moving tag, so the same Dockerfile
  * builds the same image. Claude Code and Codex come from the vendors' own Linux releases; gh comes
- * from the GitHub CLI release the app pins. Git and ripgrep are the Debian trixie builds.
+ * from the GitHub CLI release the app pins; Cursor's SDK comes from npm at the version the app
+ * installs on demand (D083, D123). Git and ripgrep are the Debian trixie builds.
  * Test first: `programPath("claude")` is
  * `/opt/conducted/agent-binaries/claude/2.1.308/claude`.
  */
@@ -32,7 +33,7 @@ export const IMAGE = {
 	sandboxImage:
 		"cloudflare/sandbox:1.0.3@sha256:fc1740c3cba26461f0ab1771287c84018ab2cca43a70ebb823087c85d780aaec",
 	/** The app version the sidecar logs; the test keeps it equal to package.json. */
-	appVersion: "0.2.1",
+	appVersion: "0.3.3",
 	/** Debian trixie's git and ripgrep. */
 	gitVersion: "1:2.47.3-0+deb13u1",
 	ripgrepVersion: "14.1.1-1+b4",
@@ -49,6 +50,25 @@ export const IMAGE = {
 			version: "2.100.0",
 			source: "github:cli/cli v2.100.0 gh_2.100.0_linux_amd64.tar.gz",
 		},
+	},
+	/**
+	 * Cursor's SDK, at the version the app installs on demand (AGENT-09, D083). The native package
+	 * is the one the loader names for this image's platform and CPU; the packages are the app's
+	 * release feed's exact tree (D123).
+	 */
+	cursorSdk: {
+		version: "1.3.1",
+		native: "@cursor/sdk-linux-x64",
+		packages: [
+			{ name: "@cursor/sdk", version: "1.3.1" },
+			{ name: "@cursor/sdk-linux-x64", version: "1.3.1" },
+			{ name: "@bufbuild/protobuf", version: "1.10.0" },
+			{ name: "@connectrpc/connect", version: "1.7.0" },
+			{ name: "@connectrpc/connect-web", version: "1.7.0" },
+			{ name: "@statsig/js-client", version: "3.31.0" },
+			{ name: "@statsig/client-core", version: "3.31.0" },
+			{ name: "zod", version: "4.6.7" },
+		],
 	},
 	/** The app's bin folder: the managed-program links and our three shell scripts. */
 	binDir: "/opt/conducted/bin",
@@ -69,4 +89,14 @@ export type ImageProgramName = keyof typeof IMAGE.programs;
 /** The managed copy's path: `<agent-binaries>/<program>/<version>/<program>`. */
 export function programPath(name: ImageProgramName): string {
 	return `${IMAGE.agentBinariesDir}/${name}/${IMAGE.programs[name].version}/${name}`;
+}
+
+/** One version of Cursor's SDK tree: `<agent-binaries>/cursor/<version>`. */
+export function cursorSdkFolder(): string {
+	return `${IMAGE.agentBinariesDir}/cursor/${IMAGE.cursorSdk.version}`;
+}
+
+/** The `cursor/current` link the sidecar's loader reads, as binaries.rs leaves it (D083). */
+export function cursorSdkCurrentLink(): string {
+	return `${IMAGE.agentBinariesDir}/cursor/current`;
 }

@@ -1366,3 +1366,14 @@ RUN-06	control	'Copilot' row in the Big terminal 'New tab preset' radio list (bu
 RUN-06	action	Choosing the 'Copilot' row saves `copilot --allow-all` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #403	missing
 RUN-06	control	'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command	other-runners 9; inventory label #404	missing
 RUN-06	action	Choosing the 'Gemini' row saves `gemini -y` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #404	missing
+CLOUD-15	control	Cloud workspace header's rename control is named 'Rename workspace'	inventory aria_label R@5625996	missing
+REV-03	control	Draft comment attachment offers 'Edit in diff viewer' (aria), which opens the comment in the diff	inventory aria_label R@8842839	missing
+REV-08	control	File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')	inventory tooltip R@9642788	missing
+SET-07	region	Git: the Scripts page description reads 'Commands that run when workspaces are set up or archived.'	inventory description R@11028884	missing
+SET-05	control	MCP servers page has an 'Installed' and a 'Recommended' tab	inventory text R@10778993	missing
+SET-02	region	Experimental page description ends 'Expect breaking changes.'	inventory text R@11709231	missing
+SET-04	control	Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'	inventory placeholder R@10696051	missing
+GIT-08	control	Git settings: the remote picker's placeholder reads 'Select remote...'	inventory placeholder R@11129925	missing
+NAV-08	region	Palette search result for an agent shows the 'Agent' kind label	inventory text R@9307562	missing
+COMP-02	control	Model picker effort levels include 'Ultracode' (Claude)	inventory literal M@320179	missing
+COMP-02	control	Model picker footer names the effort shortcut 'Cycle effort'	inventory literal R@9245336	missing

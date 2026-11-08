@@ -468,7 +468,9 @@ function AgentColumn({
 				) : !available ? (
 					<button
 						type="button"
-						onClick={() => void navigate({ to: "/settings/$page", params: { page: "agents" } })}
+						onClick={() =>
+							void navigate({ to: "/settings/user/$page", params: { page: "agents" } })
+						}
 						className="h-10 w-full border-b border-border text-xs text-fg-muted outline-none hover:bg-muted hover:text-fg focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset"
 					>
 						Configure {name}

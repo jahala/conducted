@@ -410,6 +410,29 @@ describe("APP-01 after start", () => {
 		await harness.container.stop();
 	});
 
+	it("the Quit command asks and quits the same way as the menu's Quit", async () => {
+		const harness = build();
+		stubStartup(harness);
+		const safe = vi
+			.spyOn(harness.container.services.updates, "isSafeToQuit")
+			.mockReturnValue(false);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const confirm = vi.spyOn(harness.memory.platform.dialogs, "confirm");
+
+		await harness.container.start();
+
+		harness.memory.controls.queueDialogAnswers({ confirm: false });
+		harness.container.actions.app.quit();
+		await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+		expect(quit).not.toHaveBeenCalled();
+
+		safe.mockReturnValue(true);
+		harness.container.actions.app.quit();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		await harness.container.stop();
+	});
+
 	it("quits once the stop limit passes, even when a stop step never ends", async () => {
 		const harness = build();
 		stubStartup(harness);
@@ -443,6 +466,28 @@ describe("APP-01 after start", () => {
 		harness.memory.controls.emitQuitRequested();
 		// A second request while the first one stops the app does not stop or quit twice.
 		harness.memory.controls.emitQuitRequested();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		expect(flush).toHaveBeenCalledTimes(1);
+		expect(detach).toHaveBeenCalledTimes(1);
+		const [flushedAt] = flush.mock.invocationCallOrder;
+		const [detachedAt] = detach.mock.invocationCallOrder;
+		const [quitAt] = quit.mock.invocationCallOrder;
+		expect(flushedAt).toBeLessThan(quitAt ?? 0);
+		expect(detachedAt).toBeLessThan(quitAt ?? 0);
+	});
+
+	it("quits through the same stop-first path for a screen that cannot send the quit request", async () => {
+		const harness = build();
+		stubStartup(harness);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const flush = vi.spyOn(harness.container.services.composer, "flush");
+		const detach = vi.mocked(harness.container.sidecar.stop);
+
+		await harness.container.start();
+		harness.container.quit();
+		// A second call while the first one stops the app does not stop or quit twice.
+		harness.container.quit();
 		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
 
 		expect(flush).toHaveBeenCalledTimes(1);

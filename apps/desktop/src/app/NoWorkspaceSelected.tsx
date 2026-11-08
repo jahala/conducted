@@ -12,9 +12,7 @@
  * the empty window can still be moved.
  * Test first: renders the heading and a region for the add-project action.
  */
-import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
-import { CloneGithubButton } from "../features/sidebar/CloneGithubDialog.tsx";
-import { QuickStartButton } from "../features/sidebar/CreateProjectDialog.tsx";
+import { AddProjectActions } from "../features/sidebar/AddProjectActions.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import { FullPage } from "./FullPage.tsx";
@@ -27,11 +25,7 @@ export function NoWorkspaceSelected() {
 				body="Add a project, then give each task its own workspace. Pick a workspace in the sidebar to continue where you left off."
 				action={
 					<NotBuiltYet area="Add project">
-						<div className="flex flex-wrap items-center justify-center gap-2">
-							<AddProjectButton variant="default" size="lg" />
-							<CloneGithubButton size="lg" />
-							<QuickStartButton size="lg" />
-						</div>
+						<AddProjectActions />
 					</NotBuiltYet>
 				}
 			/>

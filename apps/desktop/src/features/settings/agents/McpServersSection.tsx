@@ -14,7 +14,7 @@
  */
 import type { AppError, SessionId } from "@conducted/shared";
 import { useState } from "react";
-import { useActions, useMcpServers, useViewingSessionId } from "../../../core/hooks.ts";
+import { useActions, useLastViewedSessionId, useMcpServers } from "../../../core/hooks.ts";
 import type { McpServerView } from "../../../core/model.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
@@ -170,11 +170,12 @@ export function McpServersSection({
 }
 
 /**
- * The Agents page's MCP region. It reads the chat whose workspace screen is open, because MCP
- * status is per chat: the sidecar answers from that chat's agent, workspace and launch.
+ * The Agents page's MCP region. It reads the chat last on screen, because MCP status is per chat:
+ * the sidecar answers from that chat's agent, workspace and launch. Settings replaces the
+ * workspace screen, so no chat is on screen while this page is open.
  */
 export function McpServersPanel() {
-	const viewingSessionId = useViewingSessionId();
+	const viewingSessionId = useLastViewedSessionId();
 	if (viewingSessionId === null) {
 		return (
 			<McpServersSection

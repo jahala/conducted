@@ -405,6 +405,9 @@ describe("SET-01 checklist", () => {
 				case "string-list":
 					expect(Array.isArray(value), key).toBe(true);
 					break;
+				case "preview-urls":
+					expect(typeof value, key).toBe("string");
+					break;
 			}
 		}
 	});

@@ -26,7 +26,7 @@ const config = (changes: Partial<RepoConfig> = {}): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [".env"],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: null,
@@ -143,7 +143,7 @@ describe("SET-07 RepoGitPage", () => {
 		const toggle = await screen.findByRole("switch", { name: "Delete branch on archive" });
 		await waitFor(() => expect((toggle as HTMLButtonElement).disabled).toBe(false));
 		expect(toggle.getAttribute("aria-checked")).toBe("false");
-		expect(screen.queryByRole("button", { name: "Reset to shared settings" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Setting actions" })).toBeNull();
 
 		fireEvent.click(toggle);
 
@@ -152,7 +152,10 @@ describe("SET-07 RepoGitPage", () => {
 		expect(own.ok && own.value).toMatchObject({ value: true, source: "repo-local" });
 		expect(settings.get("delete_branch_on_archive")).toBe(false);
 
-		fireEvent.click(await screen.findByRole("button", { name: "Reset to shared settings" }));
+		fireEvent.keyDown(await screen.findByRole("button", { name: "Setting actions" }), {
+			key: "Enter",
+		});
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Reset" }));
 
 		await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
 		const back = await settings.getForRepo("delete_branch_on_archive", repo.rootPath, null);

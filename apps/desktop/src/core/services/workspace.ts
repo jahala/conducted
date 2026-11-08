@@ -32,7 +32,9 @@
  * name stops creation with its error, while a failed read of the file list or the default config
  * is shown as a warning; the file commands reach a folder outside `~/conducted` only once it is
  * registered (PLAT-02), so a start registers the workspaces folder and every saved workspace's
- * folder, and a create or unarchive registers the workspaces folder before it looks in it.
+ * folder, and a create or unarchive registers the workspaces folder before it looks in it; a start
+ * that cannot read the table keeps its error in `loadError`, so the sidebar shows the failure
+ * instead of an empty list (DATA-01).
  * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
  * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
  * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
@@ -89,6 +91,8 @@
  * CLOUD-10: archive and delete stop the workspace's port forwards first, since its sandbox sleeps
  * (D110). Every path that archives or deletes one does this: the menu, archive-on-merge and a
  * repository removal.
+ * CLOUD-12: Open in on a cloud workspace runs VS Code, Cursor or Zed over its SSH door, and
+ * `copySshCommand` returns Conductor's `ssh <name>.conducted`. Both live in `core/cloud/ssh.ts`.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
  * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix;
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
@@ -119,6 +123,7 @@ import {
 	restartCloudWorkspace,
 	stopCloudWorkspace,
 } from "../cloud/lifecycle.ts";
+import { ensureSshSession, openRemoteWorkspace, type SshDeps, sshCommand } from "../cloud/ssh.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-helpers.ts";
@@ -278,6 +283,21 @@ export function newWorkspaceSessionConfig(defaults: NewWorkspaceSessionDefaults)
 		additionalDirectories: [],
 		appTools: FIRST_CHAT_APP_TOOLS,
 	};
+}
+
+/**
+ * The first chat's config from the user's defaults, for a workspace made without the create form:
+ * a deep link's plan, and the first workspace of a project just added (Conductor's
+ * autoCreateWorkspace).
+ */
+export function newWorkspaceConfigFromSettings(setting: <T>(key: string) => T): SessionConfig {
+	return newWorkspaceSessionConfig({
+		model: setting<string>("default_model"),
+		effort: setting<string>("default_claude_effort_level"),
+		fastMode: setting<boolean>("default_fast_mode"),
+		planMode: setting<boolean>("default_plan_mode"),
+		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
+	});
 }
 
 /** Shown when the workspace is made but cannot join the chosen section. */
@@ -632,6 +652,12 @@ export interface SetupRun {
 
 export interface WorkspaceState {
 	loaded: boolean;
+	/**
+	 * The error that stopped the workspace table from loading. A failed start keeps no rows, so without
+	 * this the sidebar would show "No workspaces yet" for a database failure (DATA-01). A retry clears
+	 * it.
+	 */
+	loadError: AppError | null;
 	/** Workspaces saved to the backlog, not started yet (WS-11). */
 	backlogLoaded: boolean;
 	backlogById: Readonly<Record<string, BacklogWorkspace>>;
@@ -675,7 +701,7 @@ export interface BranchNameSuggester {
 }
 
 export interface WorkspaceServiceDeps {
-	platform: Pick<Platform, "fs" | "opener" | "shell">;
+	platform: Pick<Platform, "fs" | "opener" | "shell" | "portForward">;
 	/** The Worker door a cloud workspace's archive and delete use (CLOUD-08). */
 	cloud?: Cloud;
 	/**
@@ -751,6 +777,7 @@ export class WorkspaceService {
 		this.#deps = deps;
 		this.store = createStore<WorkspaceState>(() => ({
 			loaded: false,
+			loadError: null,
 			backlogLoaded: false,
 			backlogById: {},
 			workspacesById: {},
@@ -767,7 +794,7 @@ export class WorkspaceService {
 	async start(): Promise<Result<void>> {
 		const listed = await this.#deps.repos.workspaces.listAll();
 		if (!listed.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true }));
+			this.store.setState((state) => ({ ...state, loaded: true, loadError: listed.error }));
 			return listed;
 		}
 		// The file commands reach a workspace folder only once it is registered, on every start.
@@ -780,7 +807,7 @@ export class WorkspaceService {
 			...local.map((workspace) => workspace.path),
 		]);
 		if (!reachable.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true }));
+			this.store.setState((state) => ({ ...state, loaded: true, loadError: reachable.error }));
 			return reachable;
 		}
 		const workspacesById: Record<string, Workspace> = {};
@@ -811,7 +838,12 @@ export class WorkspaceService {
 		}
 		const backlog = await this.#deps.repos.backlogWorkspaces.list();
 		if (!backlog.ok) {
-			this.store.setState((state) => ({ ...state, loaded: true, backlogLoaded: true }));
+			this.store.setState((state) => ({
+				...state,
+				loaded: true,
+				loadError: backlog.error,
+				backlogLoaded: true,
+			}));
 			return backlog;
 		}
 		const backlogById: Record<string, BacklogWorkspace> = {};
@@ -819,6 +851,7 @@ export class WorkspaceService {
 		this.store.setState((state) => ({
 			...state,
 			loaded: true,
+			loadError: null,
 			backlogLoaded: true,
 			backlogById,
 			workspacesById,
@@ -827,10 +860,10 @@ export class WorkspaceService {
 		return logError === null ? ok(undefined) : err(logError);
 	}
 
-	/** The folder new worktrees go to: the `conducted_root_path` setting, with `~` expanded. */
+	/** The folder new worktrees go to: the `conductor_root_path` setting, with `~` expanded. */
 	#worktreesRoot(): string {
 		return expandHome(
-			this.#deps.setting<string>("conducted_root_path"),
+			this.#deps.setting<string>("conductor_root_path"),
 			this.#deps.platform.fs.paths.home,
 		);
 	}
@@ -842,6 +875,22 @@ export class WorkspaceService {
 			if (!registered.ok) return registered;
 		}
 		return ok(undefined);
+	}
+
+	/**
+	 * Backs `Actions.workspaces.createFirst`: a just-added project's first workspace, from the
+	 * default branch with the user's default chat settings and no first message, as Conductor's
+	 * repo-created step makes it (renderApp @1713146, autoCreateWorkspace).
+	 */
+	createFirst(repoId: RepoId): Promise<Result<Workspace>> {
+		return this.create({
+			repoId,
+			from: { kind: "default" },
+			prompt: "",
+			attachmentPaths: [],
+			config: newWorkspaceConfigFromSettings(this.#deps.setting),
+			sectionId: null,
+		});
 	}
 
 	/** Backs `Actions.workspaces.create`: row first, then worktree, setup, and the first chat. */
@@ -2281,6 +2330,8 @@ export class WorkspaceService {
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		checkHost(workspace.host, "open-in");
+		// A cloud workspace has no folder on this Mac: its editor opens over SSH (CLOUD-12).
+		if (workspace.host.kind === "cloud") return this.openRemoteIn(id, appName);
 		if (appName === KALEIDOSCOPE_APP) {
 			const cwd = workspace.path;
 			const changed = await this.#deps.git.runChecked(diffQuietHead(), { cwd });
@@ -2291,6 +2342,53 @@ export class WorkspaceService {
 			}
 		}
 		return this.#deps.platform.opener.openWith(appName, workspace.path);
+	}
+
+	/**
+	 * Backs `Actions.workspaces.openRemoteIn` (CLOUD-12): opens a cloud workspace's folder in VS
+	 * Code, Cursor or Zed over its SSH door. Another app gets Conductor's refusal.
+	 */
+	async openRemoteIn(id: WorkspaceId, appName: string): Promise<Result<void>> {
+		const workspace = this.store.getState().workspacesById[id];
+		if (workspace === undefined)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (workspace.host.kind === "local") return this.openIn(id, appName);
+		const deps = this.#sshDeps();
+		if (deps === null)
+			return err(appError("cloud_not_paired", "This Mac is not paired with a cloud Workspace."));
+		return openRemoteWorkspace(deps, workspace, appName);
+	}
+
+	/**
+	 * Backs `Actions.workspaces.copySshCommand`: opens the workspace's SSH door and returns
+	 * Conductor's `ssh <name>.conducted` text for the clipboard.
+	 */
+	async copySshCommand(id: WorkspaceId): Promise<Result<string>> {
+		const workspace = this.store.getState().workspacesById[id];
+		if (workspace === undefined)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (workspace.host.kind === "local")
+			return err(appError("ssh_not_cloud", "Only a cloud workspace can be opened over SSH."));
+		const deps = this.#sshDeps();
+		if (deps === null)
+			return err(appError("cloud_not_paired", "This Mac is not paired with a cloud Workspace."));
+		const session = await ensureSshSession(deps, workspace);
+		if (!session.ok) return session;
+		return ok(sshCommand(session.value.hostname));
+	}
+
+	/** The Platform slice the SSH door uses, or null when the composition root kept the Worker out. */
+	#sshDeps(): SshDeps | null {
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) return null;
+		return {
+			fs: this.#deps.platform.fs,
+			shell: this.#deps.platform.shell,
+			opener: this.#deps.platform.opener,
+			portForward: this.#deps.platform.portForward,
+			cloud,
+			sshKeyPath: () => this.#deps.setting<string>("ssh_key_path"),
+		};
 	}
 
 	/** Backs `Actions.workspaces.setActiveSession`: remembers the chat tab for the next launch. */

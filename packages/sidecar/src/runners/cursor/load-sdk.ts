@@ -9,11 +9,13 @@
  * The loader reads `cursor/current/node_modules/@cursor/sdk/package.json`, imports the file its
  * `bun` export names, and takes `createAgentPlatform` and `AuthenticationError` from it. Nothing
  * is read or imported at startup: `locate()` reads one package.json for the Agents list, and
- * `load()` imports at the first Cursor chat.
+ * `load()` imports at the first Cursor chat. The native package follows the running platform and
+ * CPU: `@cursor/sdk-darwin-<cpu>` on the Mac and `@cursor/sdk-linux-<cpu>` in the sandbox image.
  * Must handle: the SDK not installed (`cursor_sdk_missing`, pointing to the Advanced page, where
  * the program manager installs it); a package.json that cannot be read or has no `bun` entry, an
  * import that fails (a syntax error, a missing dependency), a module without the two calls, and an
- * install without the native package of this CPU (all `cursor_sdk_load_failed`, keeping the cause);
+ * install without the native package of this platform and CPU (all `cursor_sdk_load_failed`,
+ * keeping the cause);
  * a second load (the same SDK, no second import); one platform per store folder, so two chats of
  * one workspace share the SDK's SQLite store.
  * Our design choice: the native package (ripgrep, the shell parser) is named to the SDK through
@@ -41,13 +43,20 @@ export const CURSOR_SDK_PACKAGE = "@cursor/sdk";
 /** The entry @cursor/sdk 1.3.1 names under `exports["."].bun`. */
 export const CURSOR_SDK_ENTRY = "./dist/bundled/index.js";
 
+/** The native package @cursor/sdk publishes for a platform and CPU. */
+export function cursorNativePackageName(platform: string, cpu: string): string {
+	return `${CURSOR_SDK_PACKAGE}-${platform}-${cpu}`;
+}
+
 const MISSING_MESSAGE =
 	"Cursor's SDK is not installed. Install it on the Advanced page of Settings.";
 
 export interface CursorSdkLoaderDeps {
 	/** The program manager's folder (`CONDUCTED_AGENT_BINARIES_DIR`). */
 	agentBinariesDir: string;
-	/** This Mac's CPU as Node names it: `arm64` or `x64`. */
+	/** The running platform as Node names it: `darwin` on the Mac, `linux` in the sandbox. */
+	platform: string;
+	/** This machine's CPU as Node names it: `arm64` or `x64`. */
 	cpu: string;
 	/** Reads a text file; `null` when it does not exist. */
 	readText(target: string): Promise<Result<string | null, AppError>>;
@@ -103,7 +112,7 @@ export function createCursorSdkLoader(deps: CursorSdkLoaderDeps): CursorSdkLoade
 	const tree = path.join(deps.agentBinariesDir, CURSOR_SDK_PROGRAM, CURSOR_CURRENT_LINK);
 	const modules = path.join(tree, "node_modules");
 	const sdkFolder = path.join(modules, CURSOR_SDK_PACKAGE);
-	const nativeName = `${CURSOR_SDK_PACKAGE}-darwin-${deps.cpu}`;
+	const nativeName = cursorNativePackageName(deps.platform, deps.cpu);
 	const nativeFolder = path.join(modules, nativeName);
 	let loaded: Promise<Result<CursorSdk, AppError>> | null = null;
 

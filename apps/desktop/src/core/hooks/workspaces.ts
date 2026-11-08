@@ -3,7 +3,8 @@
  * Owns: the workspace hooks and the open-in-app list. The status rule reads git state through
  * GitService.stateOf, so there is one builder for the sidebar and the Git panel.
  * Behaviour: services-map.md 1.3, 2.5; core/hooks.ts states the contract.
- * Must handle: a workspace that no longer exists, a status that has not loaded yet.
+ * Must handle: a workspace that no longer exists, a status that has not loaded yet, a workspace
+ * table whose load failed (`loadError`, shown as an error rather than an empty list).
  * Test first: the test for a hook body lives with the feature that implements it.
  */
 import { idleLiveState } from "@conducted/protocol";
@@ -54,21 +55,26 @@ function sameChatStatus(
 export const useWorkspaces: Queries["useWorkspaces"] = () => {
 	const store = useServices().services.workspace.store;
 	const loaded = useStore(store, (state) => state.loaded);
+	const loadError = useStore(store, (state) => state.loadError);
 	const workspacesById = useStore(store, (state) => state.workspacesById);
 	return useMemo<Loadable<Workspace[]>>(() => {
 		if (!loaded) return { state: "loading" };
+		// A failed load leaves no rows; an empty ready list would read as "no workspaces" (DATA-01).
+		if (loadError !== null) return { state: "error", error: loadError };
 		const data = Object.values(workspacesById).sort(
 			(left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
 		);
 		return { state: "ready", data };
-	}, [loaded, workspacesById]);
+	}, [loaded, loadError, workspacesById]);
 };
 export const useWorkspace: Queries["useWorkspace"] = (id) => {
 	const store = useServices().services.workspace.store;
 	const loaded = useStore(store, (state) => state.loaded);
+	const loadError = useStore(store, (state) => state.loadError);
 	const workspace = useStore(store, (state) => state.workspacesById[id]);
 	return useMemo<Loadable<Workspace>>(() => {
 		if (!loaded) return { state: "loading" };
+		if (loadError !== null) return { state: "error", error: loadError };
 		if (workspace === undefined) {
 			return {
 				state: "error",
@@ -76,7 +82,7 @@ export const useWorkspace: Queries["useWorkspace"] = (id) => {
 			};
 		}
 		return { state: "ready", data: workspace };
-	}, [loaded, workspace]);
+	}, [loaded, loadError, workspace]);
 };
 
 export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) => {

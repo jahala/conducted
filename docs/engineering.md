@@ -118,6 +118,8 @@ Pushing the tag runs `.github/workflows/release.yml` on a GitHub-hosted macOS ru
 
 The steps live in `scripts/release-ci.ts`, `scripts/release/` and `apps/desktop/src-tauri/release/bundle.ts`. Credentials reach them from one edge: the keychain on the Mac, environment variables from repository secrets in CI. A missing credential names itself and stops the run, so CI never publishes a signed build that was not notarised. The secrets are named in `.github/workflows/release.yml`; set their values by piping, never on a command line.
 
+After the release exists, the same workflow updates the Homebrew cask in `jahala/homebrew-tap`: it hashes the published disk image, writes `Casks/conducted.rb` with `scripts/release/cask.ts`, and pushes it with a deploy key that may write only to that tap. A pre-release leaves the cask on the newest stable release (PLAT-42).
+
 Anyone can check that a published file came from this repository's code:
 
     gh attestation verify <file> --repo jahala/conducted

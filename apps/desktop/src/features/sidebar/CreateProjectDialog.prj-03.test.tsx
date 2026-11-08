@@ -109,7 +109,8 @@ describe("PRJ-03 Quick start", () => {
 		const create = vi
 			.spyOn(test.container.actions.projects, "createFromTemplate")
 			.mockResolvedValue(ok(created));
-		render(<QuickStartFlow open onOpenChange={() => {}} />, { wrapper });
+		const onAdded = vi.fn();
+		render(<QuickStartFlow open onOpenChange={() => {}} onAdded={onAdded} />, { wrapper });
 
 		fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "My App" } });
 		fireEvent.change(screen.getByLabelText("Parent folder"), { target: { value: "/code" } });
@@ -118,6 +119,8 @@ describe("PRJ-03 Quick start", () => {
 
 		await waitFor(() => expect(create).toHaveBeenCalledWith("My App", "/code", "nextjs"));
 		expect(await screen.findByText("Create a private GitHub repo?")).toBeTruthy();
+		// The new project goes to the place that started Quick start, to open it.
+		expect(onAdded).toHaveBeenCalledWith(created);
 	});
 
 	it("shows why a project name is not usable and keeps Create disabled", () => {
@@ -135,6 +138,18 @@ describe("PRJ-03 Quick start", () => {
 });
 
 describe("PRJ-03 Create project dialog layout", () => {
+	it("suggests the parent folder when it opens, as Conductor does", async () => {
+		render(<CreateProjectDialog open onOpenChange={() => {}} onCreated={() => {}} />, {
+			wrapper,
+		});
+
+		await waitFor(() =>
+			expect((screen.getByLabelText("Parent folder") as HTMLInputElement).value).toBe(
+				"/Users/conducted/conducted/repos",
+			),
+		);
+	});
+
 	it("follows Conductor's wording: folder line, parent placeholder, New on gstack, Create with its keys", () => {
 		render(<CreateProjectDialog open onOpenChange={() => {}} onCreated={() => {}} />, {
 			wrapper,

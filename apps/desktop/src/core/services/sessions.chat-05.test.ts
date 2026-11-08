@@ -93,6 +93,7 @@ const workspace = {
 	repoRootPath: sampleRepo.rootPath,
 	targetBranch: sampleWorkspace.targetBranch,
 	placeholderBranch: sampleWorkspace.branchIsPlaceholder,
+	host: { kind: "local" as const },
 	port: sampleWorkspace.port,
 };
 

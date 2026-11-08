@@ -248,7 +248,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	};
 
 	const openSettings = (page: string) => {
-		void navigate({ to: "/settings/$page", params: { page } });
+		void navigate({ to: "/settings/user/$page", params: { page } });
 		close();
 		return true;
 	};

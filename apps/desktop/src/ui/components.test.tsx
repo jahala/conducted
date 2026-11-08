@@ -200,6 +200,23 @@ describe("Menu", () => {
 });
 
 describe("Dialog", () => {
+	it("stays inside the window and scrolls when it is taller, as Conductor's does", () => {
+		render(
+			<Dialog open>
+				<DialogContent title="Clone GitHub repo">
+					<p>Body</p>
+				</DialogContent>
+			</Dialog>,
+		);
+		const dialog = screen.getByRole("dialog", { name: "Clone GitHub repo" });
+		// The positioner ends 2rem above the window's bottom; the dialog fills at most that and scrolls.
+		const positioner = dialog.parentElement;
+		expect(positioner?.className).toContain("bottom-0");
+		expect(positioner?.className).toContain("pb-8");
+		expect(dialog.className).toContain("max-h-full");
+		expect(dialog.className).toContain("overflow-y-auto");
+	});
+
 	it("shows title and description and asks to close on Escape", async () => {
 		const onOpenChange = vi.fn();
 		render(

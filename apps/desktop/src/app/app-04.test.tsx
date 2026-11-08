@@ -4,8 +4,16 @@ import { renderWithRouter } from "../test/render-with-router.tsx";
 import { NoWorkspaceSelected } from "./NoWorkspaceSelected.tsx";
 import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 
+// The landing's layout only: what the three add-project buttons do is covered over the real
+// container in router.nav-02.test.tsx ("adding a project opens a workspace in it").
 vi.mock("../features/sidebar/AddProjectButton.tsx", () => ({
 	AddProjectButton: () => <button type="button">Add a project</button>,
+}));
+vi.mock("../features/sidebar/CloneGithubDialog.tsx", () => ({
+	CloneGithubButton: () => <button type="button">Open GitHub project</button>,
+}));
+vi.mock("../features/sidebar/CreateProjectDialog.tsx", () => ({
+	QuickStartButton: () => <button type="button">Quick start</button>,
 }));
 
 afterEach(cleanup);

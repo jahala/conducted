@@ -269,11 +269,9 @@
 		"owner": "rule:cite"
 	},
 	"route:R10181173": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "APP-03",
-		"owner": "hand"
+		"status": "matched",
+		"ours": "/diagnostics",
+		"by": "seed"
 	},
 	"route:R10198052": {
 		"status": "decided",
@@ -282,11 +280,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R10407696": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-06",
-		"owner": "hand"
+		"status": "matched",
+		"ours": "/dashboard",
+		"by": "seed"
 	},
 	"route:R10410820": {
 		"status": "decided",
@@ -423,13 +419,10 @@
 		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/environment`. A segment cannot equal a state's full route."
 	},
 	"route:R11784112": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/connections`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens; our full route is /settings/user/connections.",
+		"by": "hand"
 	},
 	"route:R11784178": {
 		"status": "decided",

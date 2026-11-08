@@ -4,7 +4,8 @@
  * the control for a registry setting, and the save state pages share. A row shows no "User" or
  * "Repository" marker, as Conductor's rows show none (D098).
  * Behaviour: ui-map.md 6 (each setting has a title, a description and scopes user or repository;
- * per-repository settings offer a reset to the shared file's value).
+ * per-repository settings offer a reset to the shared file's value). Row actions sit behind the
+ * menu button Conductor names "Setting actions", whose one item is Reset (renderApp @8700214).
  * Our design choice: the control is passed in as children, so one row serves toggles, selects,
  * text fields and custom blocks. `RegistrySettingRows` renders a page's settings from the registry
  * so every page uses one control implementation.
@@ -25,6 +26,8 @@ import {
 	useEffect,
 	useState,
 } from "react";
+import { useStore } from "zustand";
+import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import {
 	getSettingDef,
@@ -37,8 +40,11 @@ import {
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Input, Label, Textarea } from "../../ui/Input.tsx";
+import { MoreHorizontalIcon } from "../../ui/icons.tsx";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { Switch } from "../../ui/Switch.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { ExternalLink } from "../chat/ExternalLink.tsx";
 
 const DISABLED_TAGS = new Set(["input", "button", "select", "textarea", "fieldset"]);
@@ -71,8 +77,10 @@ export interface SettingRowProps {
 	disabledReason: ReactNode | null;
 	highlighted: boolean;
 	saveError: string | null;
-	/** Shown when a repository value overrides the user value, with a way back. */
-	onResetToShared?: () => void;
+	/** Conductor's row actions menu holds this one Reset action, when the row has one to offer. */
+	onReset?: () => void;
+	/** The menu item's label (Conductor's default is "Reset"). */
+	resetLabel?: string;
 	/** The control sits under the text at full width, as Conductor lays out path fields. */
 	stacked?: boolean;
 	children: ReactNode;
@@ -87,7 +95,8 @@ export function SettingRow({
 	disabledReason,
 	highlighted,
 	saveError,
-	onResetToShared,
+	onReset,
+	resetLabel = "Reset",
 	stacked = false,
 	children,
 }: SettingRowProps) {
@@ -98,7 +107,7 @@ export function SettingRow({
 			data-setting-key={settingKey}
 			data-highlighted={highlighted ? "true" : undefined}
 			className={cn(
-				"flex flex-col gap-3 border-t border-border py-5 first:border-t-0 first:pt-0",
+				"relative flex flex-col gap-3 border-t border-border py-5 first:border-t-0 first:pt-0",
 				highlighted && "rounded-md bg-accent/10 px-3 ring-1 ring-accent",
 			)}
 		>
@@ -134,11 +143,22 @@ export function SettingRow({
 							{saveError}
 						</p>
 					) : null}
-					{onResetToShared ? (
-						<Button variant="link" size="sm" className="self-start" onClick={onResetToShared}>
-							Reset to shared settings
-						</Button>
-					) : null}
+					{onReset === undefined ? null : (
+						<Menu>
+							<MenuTrigger asChild>
+								<button
+									type="button"
+									aria-label="Setting actions"
+									className="absolute top-4 right-0 flex size-6 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+								>
+									<MoreHorizontalIcon className="size-4" />
+								</button>
+							</MenuTrigger>
+							<MenuContent align="end">
+								<MenuItem onSelect={() => onReset()}>{resetLabel}</MenuItem>
+							</MenuContent>
+						</Menu>
+					)}
 				</div>
 				<fieldset
 					disabled={disabledReason !== null}
@@ -399,7 +419,18 @@ function RegistrySettingRow({
 }) {
 	const layout = layoutFor?.(def) ?? null;
 	const stored = useSetting<SettingValue>(def.key);
+	const actions = useActions();
+	const { services } = useServices();
+	// Conductor's row actions menu appears only when the setting is set in the current scope.
+	const configured = useStore(
+		services.settings.store,
+		(state) => state.values[def.key] !== undefined,
+	);
 	const unavailable = unavailableFor?.(def) ?? null;
+	const reset = async () => {
+		const result = await actions.settings.reset(def.key);
+		if (!result.ok) toastError("Failed to reset setting", result.error);
+	};
 	// A switch whose feature cannot run reads off, whatever is stored (Conductor's Graphite row).
 	const value = unavailable !== null && def.type === "bool" ? def.shownInverted === true : stored;
 	const [localError, setLocalError] = useState<string | null>(null);
@@ -427,6 +458,7 @@ function RegistrySettingRow({
 			disabledReason={unavailable}
 			highlighted={focusSettingKey === def.key}
 			saveError={localError ?? saves.errorOf(def.key)}
+			{...(configured ? { onReset: () => void reset() } : {})}
 		>
 			<SettingControl
 				def={def}

@@ -4,17 +4,18 @@
  * live output of the running action.
  * Behaviour: ui-map.md 3.7, "Run" paragraph; services-map.md 5A.1.3 and 5A.1.4 (concurrent or
  * exclusive run mode). The button's words come from run-button-label.ts.
- * Data: useRunState (actions, running, detectedPorts), useWorkspace (archived check, port and repo
- * id), useRepoConfig (the Preview URLs template), useActions().run, useUrlOpeners.
+ * Data: useRunState (actions, running), useWorkspace (archived check, port and repo id),
+ * useRepoConfig (the ordered Preview URLs list), useActions().run, useUrlOpeners.
  * Children: RunToolbar with PreviewUrlMenu, RunEmptyState, and the output's RunTerminalSlot: the app
  * shell's surface layer draws the terminal over it, so it stays mounted across workspace switches and
  * the workspace's last output shows again (NAV-15, app/surface-registry.tsx).
  * CLOUD-09: in a cloud workspace an action that can run in both places appears twice, under the
  * "Cloud" and "Local" groups, and the cloud variant is the default (services-map 5A.1.6).
- * RUN-03: the Open menu lists the Run tab URL, the detected ports and the repository template, and
- * the "Open localhost URL" shortcut (Cmd+Shift+B) opens the first one. Open uses the in-app browser
- * tab when "In-app browser preview" is on, else the system browser. A template entry that is not a
- * valid URL is named in a status line under the toolbar.
+ * RUN-03: the Open menu lists the repository's Preview URLs in order (the first is Open). When
+ * none are set, it lists the run-output URL instead; detected ports are on the Ports tab, not
+ * here. The "Open localhost URL" shortcut (Cmd+Shift+B) opens the first URL. Open uses the in-app
+ * browser tab when "In-app browser preview" is on, else the system browser. A template entry that
+ * is not a valid URL is named in a status line under the toolbar.
  * Must handle: no actions (empty state), loading, the picked action disappearing (falls back to the
  * default), a run starting while setup is running (button says Waiting for setup), a stop that is
  * not confirmed (the error is shown, the retained outcome stays in view, and the button returns to
@@ -33,6 +34,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { RunTerminalSlot, useRunSurfaceTerminal } from "../../../app/surface-registry.tsx";
+import { PREVIEW_MIRROR_UNAVAILABLE_MESSAGE } from "../../../core/cloud/file-sync.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/services/run-scripts.ts";
@@ -70,36 +72,46 @@ interface RunPreviewProps
 	workspaceId: WorkspaceId;
 	workspacePort: number;
 	runOutputUrl: string | null;
-	detectedPorts: readonly number[];
+	/** True when the picked action is a cloud workspace's Local variant (CLOUD-11). */
+	localVariant: boolean;
 }
 
 /**
- * The toolbar over the repository template, the run output and the detected ports (RUN-03). A
- * template entry that is not a valid URL is named under the toolbar, so a typo does not just
- * remove the URL. Open follows the in-app browser setting through `useUrlOpeners`.
+ * The toolbar over the repository's Preview URLs, or the run-output URL when none are set
+ * (RUN-03). A template entry that is not a valid URL is named under the toolbar, so a typo does
+ * not just remove the URL. Open follows the in-app browser setting through `useUrlOpeners`.
  */
 function RunPreview({
 	repoId,
 	workspaceId,
 	workspacePort,
 	runOutputUrl,
-	detectedPorts,
+	localVariant,
 	...toolbar
 }: RunPreviewProps) {
 	const config = useRepoConfig(repoId);
 	const open = useUrlOpeners(workspaceId);
-	const template = config.state === "ready" ? config.data.previewUrlTemplate : null;
+	const cloudFileSync = useServices().services.cloudFileSync;
+	const openPreview = (url: string): void => {
+		void (async () => {
+			if (localVariant && !(await cloudFileSync.mirrorReady(workspaceId))) {
+				toast(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE);
+				return;
+			}
+			open.preview(url);
+		})();
+	};
+	const templates = config.state === "ready" ? config.data.previewUrls : [];
 	const { urls, problems } = buildPreviewUrls({
 		runOutputUrl,
-		detectedPorts,
-		template,
+		templates,
 		workspacePort,
 	});
 
 	useCommandHandler("terminal.openLocalhost", "area", () => {
 		const target = urls[0];
 		if (target === undefined) return false;
-		open.preview(target.url);
+		openPreview(target.url);
 		return true;
 	});
 
@@ -108,7 +120,7 @@ function RunPreview({
 			<RunToolbar
 				{...toolbar}
 				urls={urls}
-				onOpenUrl={open.preview}
+				onOpenUrl={openPreview}
 				defaultUrl={urls[0]?.url ?? null}
 			/>
 			{[...new Set(problems)].map((problem) => (
@@ -297,7 +309,7 @@ export function RunTab({ workspaceId }: RunTabProps) {
 				workspaceId={workspaceId}
 				workspacePort={workspace.data.port}
 				runOutputUrl={active?.url ?? null}
-				detectedPorts={run.data.detectedPorts.map((entry) => entry.port)}
+				localVariant={selected.runAvailability === "local" && workspace.data.host.kind === "cloud"}
 				actions={available.map((entry) => ({
 					id: entry.id,
 					label: entry.label,

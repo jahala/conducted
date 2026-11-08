@@ -166,7 +166,7 @@ describe("NAV-08 CommandPalette", () => {
 		await waitFor(() => expect(document.querySelector("[cmdk-item]")).not.toBeNull());
 		fireEvent.keyDown(input, { key: "Enter" });
 
-		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/general"));
+		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/general"));
 	});
 
 	it("says so when the apps to open a workspace in cannot be listed", async () => {

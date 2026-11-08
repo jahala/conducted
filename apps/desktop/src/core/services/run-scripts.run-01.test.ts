@@ -86,7 +86,7 @@ const config = (patch: Partial<RepoConfig> = {}): RepoConfig => ({
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName: "origin",
@@ -128,6 +128,8 @@ function harness(
 			call: number,
 		) => Promise<Result<{ terminalId: TerminalId; exit: Promise<number | null> }>>;
 		stop?: (id: TerminalId) => Promise<Result<void>>;
+		/** The mirror a cloud workspace's local variant runs in (CLOUD-11). */
+		localFolder?: Result<string>;
 	} = {},
 ) {
 	let nextTerminal = 0;
@@ -148,8 +150,11 @@ function harness(
 		async mkdirp() {
 			return ok(undefined);
 		},
+		async exists() {
+			return true;
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
-	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp"> & {
+	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
 		paths: FileSystem["paths"];
 	};
 	const workspaces =
@@ -162,6 +167,9 @@ function harness(
 			ok(workspaces.find((workspace) => workspace.id === id) ?? workspaceFor(id)),
 		repoFor: async () => ok(repo),
 		fs,
+		...(options.localFolder === undefined
+			? {}
+			: { localFolderFor: async () => options.localFolder as Result<string> }),
 	});
 	return { service, runScript, stop, end, writeTextAtomic };
 }
@@ -681,5 +689,25 @@ describe("RUN-01 run targets expand by workspace kind", () => {
 		expect(started.ok).toBe(false);
 		if (!started.ok) expect(started.error.message).toBe("Local terminal unavailable");
 		expect(runScript).not.toHaveBeenCalled();
+	});
+
+	it("runs a local-mirror action in the mirror on this Mac", async () => {
+		const mirror = "/Users/me/conducted/remote-workspace-sync/project/w1";
+		const { service, runScript } = harness({
+			workspaces: [
+				workspaceFor(ws, { host: { kind: "cloud", url: "https://w.example", vmId: "vm" } }),
+			],
+			config: config({
+				runScripts: [action({ cwd: "$CONDUCTED_WORKSPACE_PATH/src" })],
+			}),
+			localFolder: ok(mirror),
+		});
+
+		const started = await service.start(ws, "dev:local");
+
+		expect(started.ok).toBe(true);
+		const input = runScript.mock.calls[0]?.[0] as RunInput & { hostKind?: string };
+		expect(input).toMatchObject({ cwd: `${mirror}/src`, hostKind: "local" });
+		expect(input.env.CONDUCTED_WORKSPACE_PATH).toBe(mirror);
 	});
 });

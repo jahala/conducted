@@ -6,7 +6,12 @@
  * platform contract checks it.
  */
 import type { Host } from "@conducted/protocol";
-import { ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	CLOUD_MIRROR_FILE_LIMIT_BYTES,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform } from "../../platform/memory.ts";
 import { unusedDatabase } from "../../test/memory-platform.ts";
@@ -53,6 +58,7 @@ function harness(options: { autoSync?: boolean } = {}) {
 		database: unusedDatabase,
 	});
 	const remote: Record<string, string> = {};
+	const remoteBytes: Record<string, Uint8Array> = {};
 	let directories = new Set<string>(["/workspace/oslo"]);
 	memory.controls.scriptCloud((request) => {
 		if (request.path !== "/w/vm-1/files") return null;
@@ -69,25 +75,40 @@ function harness(options: { autoSync?: boolean } = {}) {
 						size: 0,
 						modifiedAt: 0,
 					})),
-				...Object.keys(remote)
+				...[...Object.keys(remote), ...Object.keys(remoteBytes)]
 					.filter((path) => path.startsWith(`${root}/`))
 					.map((path) => ({
 						path,
 						isDirectory: false,
 						isSymlink: false,
-						size: Buffer.byteLength(remote[path] ?? ""),
+						size: remoteBytes[path]?.length ?? Buffer.byteLength(remote[path] ?? ""),
 						modifiedAt: 0,
 					})),
 			];
 			return ok({ status: 200, body: JSON.stringify({ entries, truncated: false }) });
 		}
-		if (body.operation === "read") {
-			const text = remote[body.path ?? ""];
-			if (text === undefined) return ok({ status: 404, body: "{}" });
-			return ok({ status: 200, body: JSON.stringify({ text }) });
+		if (body.operation === "read" || body.operation === "readBytes") {
+			const path = body.path ?? "";
+			const bytes =
+				remoteBytes[path] ??
+				(remote[path] === undefined ? undefined : new TextEncoder().encode(remote[path]));
+			if (bytes === undefined) return ok({ status: 404, body: "{}" });
+			if (body.operation === "read") {
+				return ok({ status: 200, body: JSON.stringify({ text: new TextDecoder().decode(bytes) }) });
+			}
+			return ok({
+				status: 200,
+				body: JSON.stringify({ base64: Buffer.from(bytes).toString("base64") }),
+			});
 		}
-		if (body.operation === "write") {
-			remote[body.path ?? ""] = String((request.body as { text?: string }).text ?? "");
+		if (body.operation === "write" || body.operation === "writeBytes") {
+			const path = body.path ?? "";
+			const bytes = (request.body as { base64?: string }).base64;
+			if (bytes !== undefined) {
+				remoteBytes[path] = new Uint8Array(Buffer.from(bytes, "base64"));
+			} else {
+				remote[path] = String((request.body as { text?: string }).text ?? "");
+			}
 			return ok({ status: 200, body: "{}" });
 		}
 		return null;
@@ -109,6 +130,7 @@ function harness(options: { autoSync?: boolean } = {}) {
 		memory,
 		mirror,
 		remote,
+		remoteBytes,
 		setDirectories: (paths: string[]) => {
 			directories = new Set(paths);
 		},
@@ -219,5 +241,74 @@ describe("CLOUD-11 the local mirror", () => {
 		expect(uploaded.ok).toBe(true);
 		expect(h.remote["/workspace/oslo/src/a.ts"]).toBe("const a = 1;\n");
 		expect(h.memory.controls.files.get(`${h.mirror}/src/a.ts`)).toBe("const a = 1;\n");
+	});
+
+	it("mirrors a binary file byte for byte", async () => {
+		const h = harness();
+		h.remoteBytes["/workspace/oslo/logo.png"] = new Uint8Array([0x89, 0x50, 0x00, 0xff]);
+
+		const synced = await h.service.syncNow(WORKSPACE_ID);
+
+		expect(synced.ok).toBe(true);
+		expect([...(h.memory.controls.blobs.get(`${h.mirror}/logo.png`) ?? [])]).toEqual([
+			0x89, 0x50, 0x00, 0xff,
+		]);
+	});
+
+	it("mirrors a text file larger than 2 MiB", async () => {
+		const h = harness();
+		const large = "x".repeat(3 * 1024 * 1024);
+		h.remote["/workspace/oslo/big.txt"] = large;
+
+		const synced = await h.service.syncNow(WORKSPACE_ID);
+
+		expect(synced.ok).toBe(true);
+		expect(h.memory.controls.files.get(`${h.mirror}/big.txt`)).toBe(large);
+	});
+
+	it("uploads a binary file into the sandbox", async () => {
+		const h = harness();
+		h.memory.controls.blobs.set("/tmp/logo.png", new Uint8Array([0x00, 0xff, 0x10]));
+
+		const uploaded = await h.service.uploadFile(WORKSPACE_ID, "/tmp/logo.png", "logo.png");
+
+		expect(uploaded.ok).toBe(true);
+		expect([...(h.remoteBytes["/workspace/oslo/logo.png"] ?? [])]).toEqual([0x00, 0xff, 0x10]);
+	});
+
+	it("leaves a file over the read limit out and names its size", async () => {
+		const h = harness();
+		const size = CLOUD_MIRROR_FILE_LIMIT_BYTES + 1;
+		h.remoteBytes["/workspace/oslo/video.mp4"] = new Uint8Array(size);
+
+		const synced = await h.service.syncNow(WORKSPACE_ID);
+
+		expect(synced.ok).toBe(true);
+		expect(h.memory.controls.blobs.has(`${h.mirror}/video.mp4`)).toBe(false);
+		expect(h.memory.controls.files.has(`${h.mirror}/video.mp4`)).toBe(false);
+		const baseline = JSON.parse(
+			String(h.memory.controls.files.get(`${h.mirror}.sync/baseline.json`)),
+		);
+		expect(baseline.skipped).toEqual([
+			{
+				path: "video.mp4",
+				reason: expect.stringContaining("cloud read limit"),
+				size,
+			},
+		]);
+	});
+
+	it("does not read an oversize file again while its size is unchanged", async () => {
+		const h = harness();
+		h.remoteBytes["/workspace/oslo/video.mp4"] = new Uint8Array(CLOUD_MIRROR_FILE_LIMIT_BYTES + 1);
+
+		await h.service.syncNow(WORKSPACE_ID);
+		await h.service.syncNow(WORKSPACE_ID);
+
+		const reads = h.memory.controls.cloudRequests.filter((request) => {
+			const body = request.body as { operation?: string; path?: string };
+			return body.operation === "readBytes" && body.path === "/workspace/oslo/video.mp4";
+		});
+		expect(reads).toHaveLength(0);
 	});
 });

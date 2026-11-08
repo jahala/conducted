@@ -5,19 +5,30 @@
  * mount, and bytes are acknowledged once.
  */
 import { appError, err, ok, type TerminalId, type WorkspaceId } from "@conducted/shared";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { StrictMode, useEffect } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	act,
+	cleanup,
+	fireEvent,
+	type RenderResult,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
+import { type ReactElement, type ReactNode, StrictMode, useEffect } from "react";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
+import { ServicesProvider } from "../../core/context.tsx";
 import type { Terminal, TerminalConnection } from "../../core/model.ts";
+import type { SettingValue } from "../../core/registries/settings.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import type { TerminalAppearance } from "./terminal-theme.ts";
 
 const state = vi.hoisted(() => ({
 	connection: { state: "loading" } as Loadable<TerminalConnection>,
-	openUrl: vi.fn(),
-	copyText: vi.fn(),
-	restart: vi.fn(),
+	openUrl: vi.fn() as unknown as MockInstance,
+	copyText: vi.fn() as unknown as MockInstance,
+	restart: vi.fn() as unknown as MockInstance,
 	terminals: { state: "ready", data: [] } as Loadable<Terminal[]>,
 	settings: {
 		terminal_font_family: "",
@@ -30,16 +41,7 @@ const state = vi.hoisted(() => ({
 	surface: { find: vi.fn(() => null), focus: vi.fn(), clear: vi.fn() },
 }));
 
-vi.mock("../../core/hooks.ts", () => ({
-	useTerminalConnection: () => state.connection,
-	useActions: () => ({
-		app: { openUrl: state.openUrl, copyText: state.copyText },
-		terminals: { restart: state.restart },
-	}),
-	useTerminals: () => state.terminals,
-	useSetting: (key: string) => state.settings[key],
-}));
-
+// seam: RUN-06 the real surface is xterm's browser-only DOM layer; the screen around it is what these tests own.
 vi.mock("./TerminalSurface.tsx", () => ({
 	TerminalSurface: (props: {
 		connection?: TerminalConnection;
@@ -113,14 +115,52 @@ const appearance: TerminalAppearance = {
 const terminalId = "t1" as TerminalId;
 const workspaceId = "w1" as WorkspaceId;
 
+/** The real container the screen runs on; the outside calls it makes are spies on its Platform. */
+let test: TestContainer;
+let openUrl: MockInstance;
+let writeText: MockInstance;
+let restart: MockInstance;
+
+/**
+ * Renders the screen inside the real container, with the rows a test scripted. The hooks read the
+ * container's stores, so the test writes what it would have mocked before: the terminal row, its
+ * live connection and the settings.
+ */
+function renderView(ui: ReactElement): RenderResult {
+	test.container.services.terminals.store.setState((current) => ({
+		...current,
+		connections: { ...current.connections, [terminalId]: state.connection },
+		byWorkspace: {
+			...current.byWorkspace,
+			[workspaceId]: state.terminals.state === "ready" ? state.terminals.data : [],
+		},
+	}));
+	test.container.services.settings.store.setState((current) => ({
+		...current,
+		values: { ...current.values, ...(state.settings as Record<string, SettingValue>) },
+	}));
+	return render(ui, {
+		wrapper: ({ children }: { children: ReactNode }) => (
+			<ServicesProvider container={test.container}>{children}</ServicesProvider>
+		),
+	});
+}
+
 beforeEach(() => {
+	test = createTestContainer();
+	state.received = [];
+	state.appearance = null;
+	state.surface.find.mockClear();
+	openUrl = vi.spyOn(test.memory.platform.opener, "openUrl");
+	openUrl.mockResolvedValue(undefined);
+	state.openUrl = openUrl;
+	writeText = vi.spyOn(test.memory.platform.clipboard, "writeText");
+	writeText.mockResolvedValue(undefined);
+	state.copyText = writeText;
+	restart = vi.spyOn(test.container.services.terminals, "restart");
+	restart.mockResolvedValue(ok(undefined));
+	state.restart = restart;
 	state.connection = { state: "loading" };
-	state.openUrl.mockReset();
-	state.openUrl.mockResolvedValue(ok(undefined));
-	state.copyText.mockReset();
-	state.copyText.mockResolvedValue(ok(undefined));
-	state.restart.mockReset();
-	state.restart.mockResolvedValue(ok(undefined));
 	state.terminals = { state: "ready", data: [] };
 	state.settings = {
 		terminal_font_family: "",
@@ -128,15 +168,13 @@ beforeEach(() => {
 		terminal_scrollback_limit_bytes: 10_000_000,
 		experimental_tab_freak_mode: false,
 	};
-	state.received = [];
-	state.appearance = null;
-	state.surface.find.mockClear();
 });
 afterEach(() => {
 	cleanup();
-	vi.clearAllMocks();
+	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 	delete document.documentElement.dataset.theme;
+	test.close();
 });
 
 describe("RUN-06 terminal view buffering", () => {
@@ -180,7 +218,7 @@ describe("RUN-06 terminal view buffering", () => {
 	it("delivers live output when the view renders inside StrictMode", () => {
 		const source = fakeConnection();
 		state.connection = { state: "ready", data: source };
-		render(
+		renderView(
 			<StrictMode>
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />
 			</StrictMode>,
@@ -195,7 +233,7 @@ describe("RUN-06 terminal view", () => {
 	it("shows the ended banner with the exit code", async () => {
 		state.connection = { state: "ready", data: fakeConnection({ ended: { exitCode: 2 } }) };
 		const onNewTerminal = vi.fn();
-		render(
+		renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -212,7 +250,7 @@ describe("RUN-06 terminal view", () => {
 	it("updates the banner when the process exits", async () => {
 		const source = fakeConnection();
 		state.connection = { state: "ready", data: source };
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		act(() => source.exit(7));
@@ -222,7 +260,7 @@ describe("RUN-06 terminal view", () => {
 	it("opens find on Cmd+F and keeps the surface mounted when hidden", () => {
 		const source = fakeConnection();
 		state.connection = { state: "ready", data: source };
-		const { container, rerender } = render(
+		const { container, rerender } = renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -249,7 +287,7 @@ describe("RUN-06 terminal view", () => {
 	it("keeps Ctrl+F and Ctrl+W for the shell and acts only on Cmd", () => {
 		const onClose = vi.fn();
 		state.connection = { state: "ready", data: fakeConnection() };
-		const { container } = render(
+		const { container } = renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -275,7 +313,7 @@ describe("RUN-06 terminal view", () => {
 	it("starts a new terminal on Cmd+T", () => {
 		const onNewTerminal = vi.fn();
 		state.connection = { state: "ready", data: fakeConnection() };
-		const { container } = render(
+		const { container } = renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -304,7 +342,7 @@ describe("RUN-06 terminal view", () => {
 					: "rgb(10, 10, 10)",
 		}));
 		state.connection = { state: "ready", data: fakeConnection() };
-		render(<TerminalView terminalId={terminalId} workspaceId={workspaceId} />);
+		renderView(<TerminalView terminalId={terminalId} workspaceId={workspaceId} />);
 
 		expect(state.appearance?.fontFamily).toContain("Fira Code");
 		expect(state.appearance?.fontSize).toBe(18);
@@ -323,7 +361,7 @@ describe("RUN-06 terminal view", () => {
 			state: "ready",
 			data: [{ id: "other", kind: "terminal", endedAt: null } as Terminal],
 		};
-		render(
+		renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -347,7 +385,7 @@ describe("RUN-06 terminal view", () => {
 				(_, index) => ({ id: `t${index}`, kind: "terminal", endedAt: null }) as Terminal,
 			),
 		};
-		render(
+		renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -365,7 +403,7 @@ describe("RUN-06 terminal view", () => {
 	it("does not name the limit when the caller disables New terminal for another reason", async () => {
 		state.connection = { state: "ready", data: fakeConnection({ ended: { exitCode: 1 } }) };
 		state.terminals = { state: "ready", data: [] };
-		render(
+		renderView(
 			<TerminalView
 				terminalId={terminalId}
 				workspaceId={workspaceId}
@@ -384,7 +422,7 @@ describe("RUN-06 terminal view", () => {
 			source.ended = null;
 			return ok(undefined);
 		});
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		expect(await screen.findByText("Shell exited with status 1.")).toBeTruthy();
@@ -397,7 +435,7 @@ describe("RUN-06 terminal view", () => {
 		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
 		state.connection = { state: "ready", data: fakeConnection({ ended: { exitCode: 1 } }) };
 		state.restart.mockResolvedValue(err(appError("pty_spawn", "The shell could not start.")));
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(await screen.findByRole("button", { name: "Restart" }));
@@ -405,14 +443,13 @@ describe("RUN-06 terminal view", () => {
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't restart the terminal", expect.anything()),
 		);
 		expect(screen.getByText("Shell exited with status 1.")).toBeTruthy();
-		toastSpy.mockRestore();
 	});
 
 	it("tells the user when a confirmed terminal link cannot be opened", async () => {
 		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
-		state.openUrl.mockResolvedValue(err(appError("open_failed", "No browser is set up.")));
+		state.openUrl.mockRejectedValue(new Error("No browser is set up."));
 		state.connection = { state: "ready", data: fakeConnection() };
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
@@ -420,14 +457,13 @@ describe("RUN-06 terminal view", () => {
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't open the link", expect.anything()),
 		);
-		toastSpy.mockRestore();
 	});
 
 	it("copies the surface's selection through the app action and reports a failure", async () => {
 		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
-		state.copyText.mockResolvedValue(err(appError("clipboard", "The clipboard is busy.")));
+		state.copyText.mockRejectedValue(new Error("The clipboard is busy."));
 		state.connection = { state: "ready", data: fakeConnection() };
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "copy-selection" }));
@@ -435,7 +471,6 @@ describe("RUN-06 terminal view", () => {
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't copy the selection", expect.anything()),
 		);
-		toastSpy.mockRestore();
 	});
 
 	describe("find", () => {
@@ -448,7 +483,7 @@ describe("RUN-06 terminal view", () => {
 
 		it("searches from the top when the query changes while find is open", () => {
 			state.connection = { state: "ready", data: fakeConnection() };
-			render(
+			renderView(
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 			);
 			const input = openFind();
@@ -464,7 +499,7 @@ describe("RUN-06 terminal view", () => {
 
 		it("shows 'Invalid pattern' and does not search for a broken regular expression", () => {
 			state.connection = { state: "ready", data: fakeConnection() };
-			render(
+			renderView(
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 			);
 			const input = openFind();
@@ -477,7 +512,7 @@ describe("RUN-06 terminal view", () => {
 
 		it("searches again when the case or regex option changes", () => {
 			state.connection = { state: "ready", data: fakeConnection() };
-			render(
+			renderView(
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 			);
 			const input = openFind();
@@ -499,7 +534,7 @@ describe("RUN-06 terminal view", () => {
 
 		it("does not search again when an unrelated render happens while find is open", () => {
 			state.connection = { state: "ready", data: fakeConnection() };
-			const { rerender } = render(
+			const { rerender } = renderView(
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 			);
 			const input = openFind();
@@ -519,7 +554,7 @@ describe("RUN-06 terminal view", () => {
 
 	it("asks before opening a terminal link", async () => {
 		state.connection = { state: "ready", data: fakeConnection() };
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
@@ -536,7 +571,7 @@ describe("RUN-06 terminal view", () => {
 			state: "error",
 			error: { code: "terminal_unknown", message: "That terminal no longer exists." },
 		};
-		render(
+		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		expect(screen.getByText("Couldn't open the terminal")).toBeTruthy();

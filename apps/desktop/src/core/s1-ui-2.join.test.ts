@@ -177,7 +177,7 @@ describe("s1-ui-2 join", () => {
 			const router = await openApp(test.container, "/");
 
 			fireEvent.keyDown(document.body, { key: ",", metaKey: true });
-			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/general"));
+			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/general"));
 
 			await screen.findByRole("navigation", { name: "Settings" });
 			const settingsScreen = await screen.findByTestId("settings-screen");
@@ -189,7 +189,7 @@ describe("s1-ui-2 join", () => {
 			expect(await screen.findByRole("button", { name: /App zoom/ })).toBeTruthy();
 			fireEvent.keyDown(search, { key: "Enter" });
 
-			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/appearance"));
+			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/appearance"));
 			expect(await screen.findByRole("heading", { name: "Appearance" })).toBeTruthy();
 			await waitFor(() =>
 				expect(
@@ -217,9 +217,9 @@ describe("s1-ui-2 join", () => {
 		const test = createTestContainer();
 		try {
 			await test.container.services.settings.start();
-			const router = await openApp(test.container, "/settings/general");
+			const router = await openApp(test.container, "/settings/user/general");
 			await screen.findByRole("heading", { name: "General" });
-			expect(router.state.location.pathname).toBe("/settings/general");
+			expect(router.state.location.pathname).toBe("/settings/user/general");
 
 			fireEvent.keyDown(document, { key: "t", metaKey: true, altKey: true });
 

@@ -20,6 +20,7 @@
  * `internal_remote_local_execution_mcp` (CLOUD-14), because both are built user controls.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
+import type { PreviewUrlEntry } from "../model.ts";
 
 export type SettingPage =
 	| "general"
@@ -73,6 +74,12 @@ export type SettingDef = {
 	title: string;
 	/** The line under the title on the page and in search results. */
 	description: string;
+	/** The title settings search shows, where Conductor keeps it apart from the page's (ui-map 6). */
+	searchTitle?: string;
+	/** The description settings search shows, where Conductor keeps it apart from the page's. */
+	searchDescription?: string;
+	/** False for a row that shares one search result with another (Conductor's Terminal font). */
+	searchable?: false;
 	/**
 	 * False where Conductor's row on the page shows no line under its title (D098): the page leaves
 	 * the description out, and search still shows it.
@@ -100,6 +107,7 @@ export type SettingDef = {
 		| { type: "number"; default: number; min?: number; max?: number }
 		| { type: "enum"; default: string; options: readonly { value: string; label: string }[] }
 		| { type: "string-list"; default: readonly string[] }
+		| { type: "preview-urls"; default: string }
 	);
 
 const SETTINGS_TABLE = [
@@ -353,6 +361,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Code theme",
 		description: "Syntax highlighting colors for code blocks and editors.",
+		searchDescription: "Syntax highlighting theme for code and diffs.",
 		searchTerms: [
 			"syntax",
 			"highlight",
@@ -408,6 +417,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Mono Font",
 		description: "Font used for code and diffs",
+		searchDescription: "Font used for code and diffs.",
 		searchTerms: ["monospace", "typeface", "font family", "geist"],
 		feature: "SET-06",
 		type: "string",
@@ -419,6 +429,7 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Markdown Style",
 		description: "Rendering style for markdown files",
+		searchDescription: "Rendering style for markdown files.",
 		searchTerms: ["tufte", "prose", "typography", "markdown"],
 		feature: "SET-06",
 		type: "enum",
@@ -435,6 +446,8 @@ const SETTINGS_TABLE = [
 		scopes: ["user"],
 		title: "Terminal Font",
 		description: "Enter font name exactly as installed, e.g. Arial, Papyrus, FiraCode Nerd Font",
+		searchTitle: "Terminal font",
+		searchDescription: "Font family and size for the terminal.",
 		searchTerms: ["monospace", "typeface", "terminal", "font"],
 		feature: "SET-06",
 		type: "string",
@@ -448,6 +461,7 @@ const SETTINGS_TABLE = [
 		title: "Terminal Font Size",
 		description: "Text size in points for terminals.",
 		pageDescription: false,
+		searchable: false,
 		searchTerms: ["size", "points", "terminal", "text"],
 		feature: "SET-06",
 		type: "number",
@@ -1446,7 +1460,8 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
-	// Our design choice: the list holds URLs only; the file reader keeps the optional name of each entry.
+	// Our design choice: the file holds one JSON string of `{name, url}` entries, as Conductor's
+	// does. A plain string or a list of strings from an older file still reads as URLs with no name.
 	{
 		key: "open_url_template",
 		page: "misc",
@@ -1458,8 +1473,8 @@ const SETTINGS_TABLE = [
 		tomlKey: "preview_urls",
 		fileLayers: "user-and-repo",
 		feature: "RUN-03",
-		type: "string-list",
-		default: [],
+		type: "preview-urls",
+		default: "",
 	},
 	{
 		key: "file_include_globs",
@@ -1487,9 +1502,10 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: true,
 	},
-	// Our design choice: the key and the default folder are named after the app, as the research gives no default.
+	// The key keeps Conductor's name (D020); the default folder is named after the app, as the
+	// research gives no default (D012). A stored row under our earlier name moves in migration 0017.
 	{
-		key: "conducted_root_path",
+		key: "conductor_root_path",
 		page: "advanced",
 		scopes: ["user"],
 		title: "Conducted root directory",
@@ -1539,6 +1555,18 @@ const SETTINGS_TABLE = [
 		tomlKey: "opencode_executable_path",
 		fileLayers: "user-and-repo",
 		feature: "SET-03",
+		type: "string",
+		default: "",
+	},
+	{
+		key: "ssh_key_path",
+		page: "advanced",
+		scopes: ["user"],
+		title: "SSH private key path",
+		description:
+			"Use your own SSH key for cloud workspace access. Leave empty to auto-generate a key.",
+		searchTerms: ["ssh", "key", "cloud", "workspace", "path", "private"],
+		feature: "CLOUD-12",
 		type: "string",
 		default: "",
 	},
@@ -1993,10 +2021,61 @@ export function searchSettings(query: string, limit = 30): SettingDef[] {
 const invalid = (def: SettingDef, why: string) =>
 	err(appError("setting_invalid", `"${def.key}" ${why}.`));
 
+/** One entry of a raw preview URL list: an object with a URL, or a plain URL string. */
+function previewUrlsFromArray(raw: readonly unknown[]): PreviewUrlEntry[] | null {
+	const entries: PreviewUrlEntry[] = [];
+	for (const item of raw) {
+		if (typeof item === "string") {
+			const url = item.trim();
+			if (url !== "") entries.push({ name: "", url });
+			continue;
+		}
+		if (typeof item !== "object" || item === null || Array.isArray(item)) return null;
+		const record = item as Record<string, unknown>;
+		if (typeof record.url !== "string") return null;
+		const url = record.url.trim();
+		if (url === "") continue;
+		entries.push({ name: typeof record.name === "string" ? record.name.trim() : "", url });
+	}
+	return entries;
+}
+
+/**
+ * Reads a preview URL setting. Conductor stores a JSON string of `{name, url}` entries; a plain
+ * string (one URL) and a list of strings (an older file) still read as URLs with no name.
+ */
+export function previewUrlsFrom(raw: unknown): PreviewUrlEntry[] | null {
+	if (typeof raw === "string") {
+		const text = raw.trim();
+		if (text === "") return [];
+		if (text.startsWith("[")) {
+			try {
+				const parsed: unknown = JSON.parse(text);
+				if (Array.isArray(parsed)) return previewUrlsFromArray(parsed);
+			} catch {
+				// A plain URL that starts with "[" is kept as one entry, as Conductor does.
+			}
+		}
+		return [{ name: "", url: text }];
+	}
+	if (Array.isArray(raw)) return previewUrlsFromArray(raw);
+	return null;
+}
+
+/** Writes the setting as Conductor does: one JSON string, or an empty string for no entries. */
+export function previewUrlsToText(entries: readonly PreviewUrlEntry[]): string {
+	const cleaned = entries
+		.map((entry) => ({ name: entry.name.trim(), url: entry.url.trim() }))
+		.filter((entry) => entry.url !== "");
+	return cleaned.length === 0 ? "" : JSON.stringify(cleaned);
+}
+
 /**
  * Checks a raw value against a setting and returns it in the right type.
  * The settings table stores text, so bool accepts "true" and "false", number accepts numeric text,
- * and string-list accepts one entry per line. Null means "no value set" and is always accepted.
+ * and string-list accepts one entry per line. Preview URLs accept Conductor's JSON string, a plain
+ * string or a list of strings, and are returned as the JSON string. Null means "no value set" and
+ * is always accepted.
  */
 export function coerceSettingValue(def: SettingDef, raw: unknown): Result<SettingValue> {
 	if (raw === null) {
@@ -2050,6 +2129,11 @@ export function coerceSettingValue(def: SettingDef, raw: unknown): Result<Settin
 				);
 			}
 			return invalid(def, "must be a list of text lines");
+		}
+		case "preview-urls": {
+			const entries = previewUrlsFrom(raw);
+			if (entries === null) return invalid(def, "must be a list of preview URLs");
+			return ok(previewUrlsToText(entries));
 		}
 	}
 }

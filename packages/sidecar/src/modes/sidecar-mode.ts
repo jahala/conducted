@@ -74,6 +74,7 @@ import {
 	newEnvironmentMarker,
 	nodeProcessFacts,
 	PARENT_PID_ENV,
+	type ProcessFacts,
 } from "../adapters/environment.ts";
 import { createNodeFilesAdapters } from "../adapters/files.ts";
 import { createNodeMemoryProbePorts } from "../adapters/memory.ts";
@@ -740,11 +741,19 @@ export interface SidecarComposition {
 /** The agents whose programs the app downloads and keeps (PLAT-28, D021). */
 const MANAGED_AGENTS: ReadonlySet<string> = new Set(["claude", "codex"]);
 
-/** Builds every module of the host from the ports, in dependency order. Starts nothing. */
-export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): SidecarComposition {
+/**
+ * Builds every module of the host from the ports, in dependency order. Starts nothing. The process
+ * facts default to this process; the join test passes the sandbox's Linux facts to drive the same
+ * wiring the image runs.
+ */
+export function composeSidecar(
+	config: SidecarConfig,
+	ports: SidecarPorts,
+	facts: ProcessFacts = nodeProcessFacts,
+): SidecarComposition {
 	const { app, clock, ids, logger } = ports;
 	const files = createNodeFilesAdapters({});
-	const environment = createProcessEnvironment(nodeProcessFacts);
+	const environment = createProcessEnvironment(facts);
 	const sleep = createSleep(nodeTimers);
 	const queue = createKeyedQueue();
 	const outbox = new FileEventOutbox({ storage: ports.outboxStorage, queue, clock, logger });
@@ -786,6 +795,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 	});
 	const cursorSdk = createCursorSdkLoader({
 		agentBinariesDir: config.agentBinariesDir,
+		platform: environment.platform,
 		cpu: environment.arch,
 		readText: ports.readText,
 		importModule: ports.importCursorSdk,

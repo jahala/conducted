@@ -53,7 +53,7 @@ const repoConfig = (createPr: string | null, remoteName: string | null = null): 
 	runMode: "concurrent",
 	archiveScript: null,
 	copyFiles: [],
-	previewUrlTemplate: null,
+	previewUrls: [],
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
 	remoteName,
@@ -77,6 +77,7 @@ const makeLookups = (
 		workspaces: () =>
 			createStore<WorkspaceState>(() => ({
 				loaded: true,
+				loadError: null,
 				backlogLoaded: true,
 				backlogById: {},
 				workspacesById: { [row.id]: row },
@@ -102,6 +103,7 @@ const makeLookups = (
 				sending: {},
 				openInteractions: {},
 				viewingSessionId: null,
+				lastViewedSessionId: null,
 			})),
 	});
 };

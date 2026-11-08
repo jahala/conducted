@@ -18,8 +18,10 @@
  * own any more; the picker reaches it when a Codex model is chosen.
  * Must handle: a search for the review agent, effort or fast mode (this row is highlighted), an
  * empty review model (the default model's name and effort are shown), an empty effort (the
- * default's), the models still loading (the trigger names the stored id), an agent that is not
- * installed (its models are left out), and a save that fails (the row's error line).
+ * default's), a default loadout that cannot be read (the new chat's own fallbacks from
+ * core/services/workspace.ts, so the two rules have one home), the models still loading (the
+ * trigger names the stored id), an agent that is not installed (its models are left out), and a
+ * save that fails (the row's error line).
  * Test first: picks the review model, its effort and fast mode in one picker, as Conductor does.
  * Test first: lists every agent's models, and stores the chosen agent with its model.
  */
@@ -33,6 +35,10 @@ import {
 	parseAgentKey,
 } from "../../../core/services/agent-catalog.ts";
 import type { FavoriteModel } from "../../../core/services/favorite-models.ts";
+import {
+	NEW_CHAT_EFFORT_FALLBACK,
+	NEW_CHAT_MODEL_FALLBACK,
+} from "../../../core/services/workspace.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { ChevronDownIcon } from "../../../ui/icons.tsx";
 import {
@@ -163,8 +169,11 @@ export function ReviewModelRow({ focusSettingKey }: { focusSettingKey: string | 
 	const choice: Choice = {
 		agent: agent.agent,
 		...(agent.agent === "acp" ? { acpAgent: agent.acpAgent } : {}),
-		model: storedModel !== "" ? storedModel : (fallback?.model ?? ""),
-		effort: storedEffort !== "" ? (storedEffort as Effort) : (fallback?.effort ?? "high"),
+		model: storedModel !== "" ? storedModel : (fallback?.model ?? NEW_CHAT_MODEL_FALLBACK),
+		effort:
+			storedEffort !== ""
+				? (storedEffort as Effort)
+				: (fallback?.effort ?? NEW_CHAT_EFFORT_FALLBACK),
 		fastMode,
 	};
 	const model = list.find((item) => item.id === choice.model);
