@@ -852,6 +852,7 @@ Chosen:
 - **Where it sits (D098).** Conductor has no import, so it sits on General after Sync agent configs, which also brings things in from elsewhere, and on the first-run project step when Conductor's database is on this Mac. The `our-name` guard exempts the import's own files, which must name Conductor to the user.
 
 Why: each choice keeps rule 1 (nothing of Conductor's is written) and rule 7 (once per item) true by construction rather than by care, or follows what Conductor itself reads. The deviations from the plan's letter are facts the plan's author did not have.
+Since D130: chats bring their history; the bullets "Chats come over without their messages" (as to messages) and "Chat history waits for the spike" are replaced.
 
 ## D125. Large services are split along their feature ids when next changed, with no size gate (2026-11-08)
 
@@ -933,3 +934,19 @@ Chosen:
 - **The history check leaves the ruled difference out.** The spike compares each turn's main transcript. Conductor leaves late work out of it, and now so do we; a known-case test reads `match`. Work whose parent call is stored in no row is the other ruled difference: Conductor takes every sub-agent message out of the main transcript (`vmt` @1427544) and shows none of it, ours keeps it at the top level. The spike leaves those entries out of the comparison and prints how many (`scripts/conductor-import/spike.ts`, `withoutOrphanedWork`). On the owner's backup copy, 63 parent ids are stored in no row.
 
 Why: the owner's ruling. Late work stays visible, in the card it belongs to, where Conductor loses it.
+
+## D130. How APP-18 brings chat history from Conductor (2026-11-11)
+
+Proposed by the APP-18 PR; not yet ruled on by the owner. Replaces D124's two bullets on chat history.
+
+Context: the lead's spike run on a copy of the owner's database met D100's pass mark: all 288 Claude chats read the same as in Conductor, and 100% of 3,172,282 rows map (#555). One chat has about 400,000 rows, and the spike held a whole chat in memory at about 426 MB per 200,000 rows. The work used only Conductor's schema and made-up data.
+
+Chosen:
+
+- **After the rows, one chat at a time.** History is written once the import's rows have committed, in one transaction per chat that counts the events and reads the first back. A chat whose history fails comes over without it and is named with the reason; the others go on.
+- **Which chats.** A chat brings its history when its agent has a mapping (`CONDUCTOR_MAPPED_AGENTS` in the protocol, Claude today) and it is in Conducted with no event of its own: one the import brings now, or one an earlier import brought without history. A chat with any event is never added to. A second import adds nothing, a failed chat gets its history on the next import, and a chat the user used since the dry run is left as it is.
+- **Two reads, memory bounded by one.** The Rust shell pages a chat's sent rows by rowid without their content, then fetches rows by rowid. Neither needs an index on Conductor's table, whose indexes are not known. The sidecar's mapper keeps a few numbers per row, sets the order Conductor shows, and maps the rows a read at a time. The desktop cannot import the sidecar, so it reaches the mapper over RPC. The spike runs the same mapper over rows in memory, so it measures what ships.
+- **Each turn ends.** The mapping adds a `turn_ended` event to each shown turn, decided by its last result as our runner decides it (`resultErrorItem`). A turn with no result ends interrupted and shows "This turn stopped before it finished.", where Conductor shows nothing; the rows do not say it finished. Without an end, every imported turn would show that, and startup repair would add an end to each.
+- **Times.** An event's `at` is Conductor's time. It is received at the import's time, so the data lifetime job, which ages events by when they were received and scans from a watermark, treats imported events as events received at import.
+
+Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The history matches Conductor's chat by the spike's measure; the one visible difference (an interrupted turn's notice) is reported here instead of hidden by inventing an outcome.
