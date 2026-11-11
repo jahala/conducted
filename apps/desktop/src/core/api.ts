@@ -707,6 +707,15 @@ export interface Actions {
 		/** Runs a shell code block from the chat in a new terminal and returns it. */
 		runCommand: Act<[workspaceId: WorkspaceId, command: string], Terminal>;
 		close: Act<[id: TerminalId]>;
+		/**
+		 * Moves a terminal's tab between the centre strip and the bottom panel, keeping its live
+		 * shell and scrollback (#527). Refused for a terminal of another workspace, a script
+		 * terminal, and a terminal already in that strip.
+		 */
+		move: Act<
+			[workspaceId: WorkspaceId, id: TerminalId, placement: Terminal["placement"]],
+			Terminal
+		>;
 	};
 	files: {
 		/**
