@@ -5,7 +5,8 @@
  * slash command, Glob, List files and a plain Bash call with its raw input shown; and a design fix
  * that activates a skill, reads a mockup image, asks the user, retries an edit Claude Code refused
  * and opens the edit that worked; a turn that keeps a task list, runs JavaScript in a Node
- * REPL and generates an image; and a reply with a Mermaid diagram.
+ * REPL and generates an image; a reply with a Mermaid diagram; and a background helper whose work
+ * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -339,6 +340,68 @@ async function mermaidChat(world: World): Promise<Scene> {
 	};
 }
 
+/**
+ * canyon's helper chat: the first turn starts a background helper and ends; the helper's work
+ * arrives while the second turn runs, naming the first turn's Task call as its parent.
+ */
+async function backgroundHelperChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.canyon, { title: "Audit the settings copy" });
+	const talk = conversation("canyon-helper", CATALOGUE_NOW - 14 * MINUTE);
+	const first = talk.user(
+		"Start a helper that checks every settings label against the copy deck, then keep going.",
+	);
+	const helper = talk.tool(first, {
+		tool: "sub_agent",
+		rawName: "Task",
+		input: {
+			description: "Check the settings labels against the copy deck",
+			prompt:
+				"Compare each label in src/settings with docs/copy-deck.md and list the ones that differ.",
+			run_in_background: true,
+		},
+		output: "Async agent launched. It reports back when it finishes.",
+	});
+	talk.text(first, "The helper is checking the labels in the background.");
+	talk.end(first);
+	const second = talk.user("While it runs, rename the Danger zone heading to Delete workspace.");
+	talk.agent(second, [{ kind: "text", text: "Reading the copy deck first." }], helper);
+	talk.tool(second, {
+		tool: "grep",
+		rawName: "Grep",
+		input: { pattern: "label=", path: "src/settings" },
+		output: "src/settings/general.tsx:14\nsrc/settings/danger-zone.tsx:9",
+		parent: helper,
+	});
+	talk.tool(second, {
+		tool: "edit",
+		rawName: "Edit",
+		input: {
+			file_path: `${CANYON}/src/settings/danger-zone.tsx`,
+			old_string: "Danger zone",
+			new_string: "Delete workspace",
+		},
+		output: "The file was edited.",
+	});
+	talk.agent(
+		second,
+		[{ kind: "text", text: "Two labels differ from the deck: Danger zone and Sync now." }],
+		helper,
+	);
+	talk.text(second, "The heading now reads Delete workspace.");
+	talk.end(second);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.canyon, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.canyon);
+			await openRow(document, "Subagent");
+		},
+		ready: (document) => shows(document, "Two labels differ from the deck"),
+	};
+}
+
 export const TOOL_STATES: CatalogueState[] = [
 	{
 		id: "chat-tool-cards-review",
@@ -364,5 +427,12 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A reply with a Mermaid sequence diagram",
 		seed: mermaidChat,
+	},
+	{
+		id: "chat-subagent-late-work",
+		group: "Workspace chat",
+		title:
+			"A background helper's work from the next turn, opened inside the card of the turn that started it",
+		seed: backgroundHelperChat,
 	},
 ];
