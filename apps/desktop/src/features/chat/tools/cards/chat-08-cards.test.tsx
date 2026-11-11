@@ -189,6 +189,21 @@ describe("CHAT-08 sub-agent card", () => {
 		expect(screen.getAllByText("Reading")).toHaveLength(1);
 	});
 
+	it("shows the prompt the agent handed the sub-agent when its label is opened", async () => {
+		await renderInRouter(
+			<SubAgentCard
+				call={view("sub_agent", {
+					description: "Look into it",
+					prompt: "Read the two callers and say which is safe.",
+				})}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Prompt" }));
+		expect(screen.getByText("Read the two callers and say which is safe.")).toBeTruthy();
+	});
+
 	it("shows the sub-agent's final answer", async () => {
 		await renderInRouter(
 			<SubAgentCard

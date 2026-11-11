@@ -25,7 +25,7 @@ export function TaskCreateCard({ call, defaultExpanded }: ToolCardProps) {
 				) : raw.length > 0 ? (
 					<ToolOutput muted>{raw}</ToolOutput>
 				) : (
-					<p className="text-xs text-fg-subtle">Creating task.</p>
+					<p className="text-xs text-fg-subtle">Loading task...</p>
 				)
 			}
 		/>
