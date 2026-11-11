@@ -8,6 +8,8 @@
  * visible for every control.
  * Must handle: width sized to the expected input (callers pass it), placeholder in fg-subtle, disabled and
  * read-only states, an error state with its message linked by aria-describedby, a label tied to its field.
+ * Our design choice: `height` names the two heights Conductor uses, 32px for a form and 28px for the
+ * settings search field, so a caller never leaves both height classes on the element.
  * Test first: a Label with htmlFor names its Input, and the Input shows the accent edge class on focus.
  */
 
@@ -26,11 +28,20 @@ function edgeClass(focused: boolean, error: string | undefined): string {
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 	/** Message shown under the field and read with it. */
 	error?: string;
+	/** `md` is the 32px form field; `sm` is Conductor's 28px settings search field. */
+	height?: "sm" | "md";
 	ref?: Ref<HTMLInputElement>;
 }
 
+/** Conductor's two field heights: a form's 32px and the settings search field's 28px. */
+const heightClass: Record<NonNullable<InputProps["height"]>, string> = {
+	sm: "h-7",
+	md: "h-8",
+};
+
 export function Input({
 	error,
+	height = "md",
 	className,
 	id,
 	ref,
@@ -54,7 +65,13 @@ export function Input({
 				ref={ref}
 				aria-invalid={error ? true : ariaInvalid}
 				aria-describedby={describedBy}
-				className={cn(fieldClass, "h-8 px-3", edgeClass(focused, error), className)}
+				className={cn(
+					fieldClass,
+					heightClass[height],
+					"px-3",
+					edgeClass(focused, error),
+					className,
+				)}
 				onFocus={(event) => {
 					setFocused(true);
 					onFocus?.(event);

@@ -18,7 +18,7 @@
  *                 useSetupState, useInstalledApps, useAppIcon
  *   sections.ts   useSections
  *   chats.ts      useSessions, useChat, useClosedSessions, usePlans, useChangedSinceTurn
- *   cloud.ts      useCloudPairing, useOrganizations, useCloudReadiness
+ *   cloud.ts      useCloudPairing, useCloudDeploy, useOrganizations, useCloudReadiness
  *   composer.ts   useDraft, useSnippets
  *   git.ts        useGitState, useChangedFiles, useFileDiff, useBranchCommits, useBranches
  *   github.ts     useCheckLog, usePullRequestActivity, useStack, useIssues, usePullRequestList,
