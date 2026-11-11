@@ -24,8 +24,10 @@ jobs:
   typescript:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # A hung test would otherwise run for GitHub's default of six hours.
-    timeout-minutes: 15
+    # A hung test would otherwise run for GitHub's default of six hours. A full run takes 9 to 12
+    # minutes (2026-11-11), and slow package mirrors pushed two runs past 15, so the limit sits well
+    # above a normal run: it catches a hang, not slowness.
+    timeout-minutes: 30
     steps:
       # Two commits deep: a pull request's run checks out the merge commit, and its first parent
       # is main's tip, the base the changed-only test run compares with.
