@@ -50,10 +50,10 @@ export interface HistoryDeps {
 	copyPath: string;
 	/** The import's time: when the events are received. */
 	now: number;
-	limits?: HistoryLimits;
 }
 
 export interface HistoryFailure {
+	sessionId: string;
 	label: string;
 	reason: string;
 }
@@ -74,8 +74,13 @@ export async function importChatHistories(
 	const outcome: HistoryOutcome = { chats: 0, changed: 0, failed: [] };
 	for (const chat of chats) {
 		const brought = await importOne(chat, deps);
-		if (!brought.ok) outcome.failed.push({ label: chat.label, reason: brought.error.message });
-		else if (brought.value === "brought") outcome.chats++;
+		if (!brought.ok) {
+			outcome.failed.push({
+				sessionId: chat.sessionId,
+				label: chat.label,
+				reason: brought.error.message,
+			});
+		} else if (brought.value === "brought") outcome.chats++;
 		else outcome.changed++;
 	}
 	return outcome;
@@ -107,7 +112,7 @@ async function indexChat(
 	historyId: string,
 	deps: HistoryDeps,
 ): Promise<Result<void>> {
-	const limits = deps.limits ?? HISTORY_LIMITS;
+	const limits = HISTORY_LIMITS;
 	let after = 0;
 	for (;;) {
 		const page = await deps.conductorImport.readMessageKeys(
@@ -137,7 +142,7 @@ async function writeChat(
 	tx: Database,
 	deps: HistoryDeps,
 ): Promise<Result<"brought" | "changed">> {
-	const limits = deps.limits ?? HISTORY_LIMITS;
+	const limits = HISTORY_LIMITS;
 	const events = deps.repositoriesOn(tx).sessionEvents;
 	const before = await events.count(chat.sessionId);
 	if (!before.ok) return before;

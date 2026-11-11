@@ -38,7 +38,7 @@ import {
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { applyImportPlan, type ImportedCounts } from "./apply.ts";
 import { parseConductorRows } from "./conductor-rows.ts";
-import { type HistoryLimits, type HistoryOutcome, importChatHistories } from "./history.ts";
+import { type HistoryOutcome, importChatHistories } from "./history.ts";
 import {
 	type ChatDefaults,
 	type ConductedState,
@@ -81,8 +81,6 @@ export interface ConductorImportServiceDeps {
 	git: Pick<GitRunner, "stdout">;
 	/** The sidecar, which maps chat history (APP-18). */
 	sidecar: Pick<SidecarClient, "request">;
-	/** How much one history read takes; the defaults unless a test sets them. */
-	historyLimits?: HistoryLimits;
 	toml: TomlCodec;
 	settings: Pick<SettingsService, "updateSettingsFile" | "excludeLocalSettingsFromGit">;
 	/** The config a new chat starts with, which an imported chat starts from. */
@@ -220,7 +218,6 @@ export class ConductorImportService {
 							sidecar: this.#deps.sidecar,
 							copyPath: planned.copyPath,
 							now: this.#deps.now(),
-							limits: this.#deps.historyLimits,
 						}),
 					})
 				: applied;

@@ -156,8 +156,8 @@ function HistoryResult({ history }: { history: HistoryOutcome }) {
 							it and continues from the agent's own transcript.
 						</span>
 						<ul className="mt-1 flex flex-col gap-1">
-							{history.failed.map((failure, index) => (
-								<li key={`${index}:${failure.label}`}>
+							{history.failed.map((failure) => (
+								<li key={failure.sessionId}>
 									{failure.label}: {failure.reason}
 								</li>
 							))}

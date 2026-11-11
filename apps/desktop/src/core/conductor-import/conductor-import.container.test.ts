@@ -743,7 +743,11 @@ describe("APP-18 chat history from Conductor, through the container", () => {
 
 		expect(outcome.history.chats).toBe(1);
 		expect(outcome.history.failed).toEqual([
-			{ label: "A chat in lima", reason: expect.stringContaining("The mapping stopped.") },
+			{
+				sessionId: "s-3",
+				label: "A chat in lima",
+				reason: expect.stringContaining("The mapping stopped."),
+			},
 		]);
 		expect(test.container.services.sessions.store.getState().sessions["s-3"]).toBeDefined();
 		expect(await eventCount(test, "s-3")).toBe(0);
