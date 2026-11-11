@@ -902,4 +902,3 @@ Left out, and why:
 - A cloud create does not copy the Mac's included files (such as `.env`) into the sandbox, so no secret enters it (cloud-and-remote.md, "Secrets never enter the sandbox"), and the clone names its remote `origin` whatever the project's `remote_name` says.
 
 Why: it is Conductor's own control in Conductor's place, the smallest set of its behaviour that one local and one cloud entry need, and it reuses the create path and the Worker routes that exist, adding only the readiness route.
-
