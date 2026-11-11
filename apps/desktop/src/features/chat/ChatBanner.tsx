@@ -1,7 +1,7 @@
 /**
  * @feature CHAT-06 Chat banners; CHAT-27 Visible auto-retry with Retry now
  * Owns: Notices and errors in the list: interrupted, history compacted, compacting, session limit
- * reached, sign-in needed, 'This message could not be displayed.', the agent's own retry progress
+ * reached, sign-in needed, 'This content could not be displayed.', the agent's own retry progress
  * with Retry now, and Retry in new chat on a failed turn.
  * Behaviour: ui-map.md 3.3 (Banners in the list; 'Something went wrong, retrying n/m' with Retry
  * now while the agent retries by itself; the error card offers Retry in new chat), 7.4 (agent
@@ -124,7 +124,7 @@ export function ChatRetryBanner({ retry, onRetryNow, retryInNewChat }: ChatRetry
 export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) {
 	const actions = useActions();
 	const copy = (text: string) => {
-		void reportFailure(actions.app.copyText(text), "Couldn't copy the message");
+		void reportFailure(actions.app.copyText(text), "Failed to copy message");
 	};
 
 	if (block.kind === "notice") {
@@ -150,7 +150,7 @@ export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) 
 	const item = block.item;
 	const isAuth = item.code === AGENT_ERROR_CODES.authRequired;
 	const message =
-		item.message.trim().length === 0 ? "This message could not be displayed." : item.message;
+		item.message.trim().length === 0 ? "This content could not be displayed." : item.message;
 
 	return (
 		<ContextMenu

@@ -6,7 +6,7 @@
  * A finished turn folds runs of its tool calls and messages into one row each (fold-turn.ts), unless
  * "Expand all tool calls" is on.
  * Behaviour: frontend.md 5 (one item per turn), ui-map.md 3.3 (user message with attachments and
- * mention chips; assistant text; thinking; footer; 'Interrupted by user'; per-turn boundary;
+ * mention chips; assistant text; thinking; footer; 'Cancelled' on a stopped turn; per-turn boundary;
  * 'Something went wrong, retrying n/m' with Retry now and Retry in new chat).
  * Measured from Conductor 0.92.1 (renderApp @9595770): the turn is a column with 4px gaps, 28px sides and
  * 8px top and bottom; the user message gets 12px more above and below. The working line sits in the
@@ -14,7 +14,7 @@
  * Our design choice: Wrapped in the shared ErrorBoundary so one broken turn does not hide the
  * others. Blocks render through ChatBlockView.
  * Must handle: A running turn (nothing folded, no footer yet); a turn that ended in error (one banner:
- * none of its own when an error block of the turn already shows the same error), cancelled ("Interrupted by user") or cut off by a crash (a different line, since the user did not stop it);
+ * none of its own when an error block of the turn already shows the same error), cancelled ("Cancelled") or cut off by a crash (a different line, since the user did not stop it);
  * a block that streams keeps its place on screen (keys come from position, not text); a reverted turn (dimmed, labelled); steers not yet read by the
  * agent (marked pending); footer actions are always visible, on every turn; the agent's retry line names
  * the attempt, Retry now stops the turn and sends the message again, and Retry in new chat hands the turn
@@ -67,7 +67,7 @@ function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "er
 	if (turn.outcome === "cancelled") {
 		return {
 			kind: "notice",
-			item: { kind: "notice", notice: "info", text: "Interrupted by user" },
+			item: { kind: "notice", notice: "info", text: "Cancelled" },
 		};
 	}
 	if (turn.outcome === "interrupted") {
@@ -172,7 +172,7 @@ export const TurnItem = memo(function TurnItem({
 				resetKey={turn.turnId}
 				fallback={() => (
 					<div role="status" className="rounded-lg border border-border bg-surface px-4 py-3">
-						<p className="text-sm font-medium text-fg">This chat turn failed to render.</p>
+						<p className="text-sm font-medium text-fg">This chat turn failed to render</p>
 						<p className="text-xs text-fg-muted">Other turns are still available.</p>
 					</div>
 				)}

@@ -46,7 +46,7 @@ describe("CHAT-06 chat banners", () => {
 				block={{ kind: "error", item: { kind: "error", code: "x", message: "", retryable: false } }}
 			/>,
 		);
-		expect(screen.getByText("This message could not be displayed.")).toBeTruthy();
+		expect(screen.getByText("This content could not be displayed.")).toBeTruthy();
 	});
 
 	it("names a session limit in the banner", () => {
