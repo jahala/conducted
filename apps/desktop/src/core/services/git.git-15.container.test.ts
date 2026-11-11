@@ -20,44 +20,6 @@ const argv = (command: ShellCommand): readonly string[] =>
 	command.program === "git" && command.args[0] === "-c" ? command.args.slice(2) : command.args;
 
 describe("GIT-15 through the real container", () => {
-	it("opens a changed file in the external diff tool from the real action", async () => {
-		const harness = createTestContainer();
-		try {
-			const repo = await seedRepo(harness.container, { rootPath: "/code/projects/git-15" });
-			expect((await harness.container.services.repo.loadConfig(repo.id)).ok).toBe(true);
-			const workspace = await seedWorkspace(harness.container, {
-				repoId: repo.id,
-				path: "/code/workspaces/git-15",
-			});
-			const commands: string[][] = [];
-			harness.memory.controls.scriptShell((command) => {
-				const args = argv(command);
-				commands.push([...args]);
-				if (args[0] === "diff" && args[1] === "--quiet") return output("", "", 1);
-				if (args[0] === "-c" && args[1]?.startsWith("difftool.ksdiff.cmd=")) return output();
-				return null;
-			});
-
-			const result = await harness.container.actions.git.openInDiffTool(workspace.id, "src/[a].ts");
-
-			expect(result).toEqual(ok(undefined));
-			const tool = commands.find((args) => args.includes("difftool"));
-			expect(tool).toEqual([
-				"-c",
-				'difftool.ksdiff.cmd=ksdiff --partial-changeset --relative-path "$MERGED" -- "$LOCAL" "$REMOTE"',
-				"difftool",
-				"--tool=ksdiff",
-				"--no-prompt",
-				"HEAD",
-				"--",
-				":(literal)src/[a].ts",
-			]);
-		} finally {
-			await harness.container.stop();
-			harness.close();
-		}
-	});
-
 	it("Open in Kaleidoscope shows the working tree's changes in Kaleidoscope, as Conductor does", async () => {
 		const harness = createTestContainer();
 		try {
