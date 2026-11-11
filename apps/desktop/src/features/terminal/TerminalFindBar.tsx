@@ -5,7 +5,7 @@
  * Behaviour: ui-map.md 3.7 ("Find in terminal", Cmd+F).
  * Open question: xterm's search addon (@xterm/addon-search) is not installed, so the search walks
  * `Terminal.buffer` instead.
- * Must handle: no match, a broken regular expression ("Invalid pattern", not "No results"), Next
+ * Must handle: no match, a broken regular expression (Conductor's "Invalid regular expression", not "No results"), Next
  * wrapping back to the only match, case and regex toggles, Enter and Shift+Enter, Escape closing and
  * returning focus to the terminal, and the query kept when the bar closes and opens again.
  * Test first: searching for text that is in the scrollback reports a match and Next moves to the
@@ -185,7 +185,7 @@ export function TerminalFindBar({
 					title={patternError}
 					className="shrink-0 pr-1 text-2xs text-danger"
 				>
-					Invalid pattern
+					Invalid regular expression
 				</span>
 			) : hasMatch === false ? (
 				<span aria-live="polite" className="shrink-0 pr-1 text-2xs text-danger">

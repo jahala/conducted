@@ -17,7 +17,8 @@ const xterm = vi.hoisted(() => {
 		keyHandler: ((event: KeyboardEvent) => boolean) | null;
 		dataHandler: ((data: string) => void) | null;
 		resizeHandler: ((size: { cols: number; rows: number }) => void) | null;
-	} = { keyHandler: null, dataHandler: null, resizeHandler: null };
+		selectionHandler: (() => void) | null;
+	} = { keyHandler: null, dataHandler: null, resizeHandler: null, selectionHandler: null };
 	const terminal = {
 		options: {} as Record<string, unknown>,
 		open: vi.fn(),
@@ -31,6 +32,10 @@ const xterm = vi.hoisted(() => {
 		}),
 		onResize: vi.fn((handler: (size: { cols: number; rows: number }) => void) => {
 			state.resizeHandler = handler;
+			return { dispose: vi.fn() };
+		}),
+		onSelectionChange: vi.fn((handler: () => void) => {
+			state.selectionHandler = handler;
 			return { dispose: vi.fn() };
 		}),
 		onExit: vi.fn(() => ({ dispose: vi.fn() })),
@@ -139,6 +144,32 @@ describe("RUN-06 terminal surface", () => {
 		expect(xterm.terminal.dispose).toHaveBeenCalledTimes(1);
 		expect(xterm.fit.dispose).toHaveBeenCalledTimes(1);
 		expect(observers[0]?.disconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it("reports the selection as it changes", () => {
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe = vi.fn();
+				unobserve = vi.fn();
+				disconnect = vi.fn();
+			},
+		);
+		const onSelectionChange = vi.fn();
+		xterm.terminal.getSelection.mockReturnValue("picked text");
+		render(
+			<TerminalSurface
+				connection={fakeConnection()}
+				appearance={appearance()}
+				visible
+				ended={false}
+				focusOnMount={false}
+				onCopy={vi.fn()}
+				onSelectionChange={onSelectionChange}
+			/>,
+		);
+		act(() => xterm.state.selectionHandler?.());
+		expect(onSelectionChange).toHaveBeenCalledWith("picked text");
 	});
 
 	it("acknowledges each output chunk once it has been written to the screen", () => {

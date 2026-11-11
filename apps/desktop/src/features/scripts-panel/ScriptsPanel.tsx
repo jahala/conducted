@@ -31,7 +31,11 @@ import {
 } from "../../core/hooks.ts";
 import { terminalLimit } from "../../core/terminals.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
+import {
+	TERMINAL_SETTINGS_MESSAGES,
+	terminalSettingsProblem,
+} from "../terminal/terminal-settings.ts";
 import { PortsTab } from "./ports/PortsTab.tsx";
 import { RunTab } from "./run/RunTab.tsx";
 import { type ScriptsPanelTabId, ScriptsPanelTabs } from "./ScriptsPanelTabs.tsx";
@@ -46,7 +50,8 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const fileSync = useFileSyncStatus(workspaceId);
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
 	const actions = useActions();
-	const runService = useServices().services.runScripts;
+	const services = useServices().services;
+	const runService = services.runScripts;
 	const portError = useStore(runService.store, (state) => state.portErrors[workspaceId]);
 	const [picked, setPicked] = useState<ScriptsPanelTabId | null>(null);
 	const [collapsed, setCollapsed] = useState(false);
@@ -100,6 +105,12 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const newTerminal = (hostKind?: "local" | "cloud"): void => {
 		void (async () => {
+			const problem = terminalSettingsProblem(services.settings.store.getState());
+			if (problem !== null) {
+				if (problem === "loading") toast.warning(TERMINAL_SETTINGS_MESSAGES.loading);
+				else toast.error(TERMINAL_SETTINGS_MESSAGES.failed);
+				return;
+			}
 			const created = await actions.terminals.create(workspaceId, {
 				placement: "panel",
 				...(hostKind === undefined ? {} : { hostKind }),
