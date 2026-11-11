@@ -6,6 +6,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ModelInfo } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
+import { ConductorHistoryImports } from "../import/history-imports.ts";
 import { createLogger } from "../logging/logger.ts";
 import { AgentProgramChoices } from "../models/agent-programs.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
@@ -81,6 +82,7 @@ function deps(shellEnv: ShellEnvProvider): HandlerDeps {
 		},
 		shellEnv,
 		utilityPrompt: { run: async () => ok({ text: "" }) },
+		conductorHistory: new ConductorHistoryImports(),
 		setLogLevel: () => {},
 		logger: testLogger,
 	};

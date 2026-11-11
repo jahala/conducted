@@ -12,7 +12,8 @@
  * Our design choice: in a centre terminal tab and in the Run tab the view is drawn by the app shell's
  * surface layer (NAV-15, app/surface-registry.tsx, ui-map.md 8), so it stays mounted while another
  * tab or workspace is open. The Scripts panel's Setup and Terminal N tabs mount it directly. Either way it still tolerates being unmounted and mounted again
- * (a workspace switch in the Scripts panel, a restart) by replaying saved history.
+ * (a workspace switch in the Scripts panel, a move between strips, a restart) by replaying the
+ * scrollback the connection gives, read in the same step as it subscribes.
  * Must handle: a terminal that has ended (history shown, banner with exit code), a terminal that
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),
@@ -62,7 +63,7 @@ import { resolveTerminalAppearance, type TerminalAppearance } from "./terminal-t
  * StrictMode's development remount does not leave the terminal without a PTY listener.
  */
 export class BufferedTerminalConnection implements TerminalConnection {
-	readonly history: Uint8Array;
+	#history: Uint8Array;
 	readonly #source: TerminalConnection;
 	#unsubscribe: TerminalUnsubscribe | null = null;
 	#pending: Uint8Array[] = [];
@@ -71,7 +72,16 @@ export class BufferedTerminalConnection implements TerminalConnection {
 
 	constructor(source: TerminalConnection) {
 		this.#source = source;
-		this.history = source.history;
+		this.#history = source.history;
+	}
+
+	/**
+	 * The scrollback to replay before live output, as the source gave it when this view subscribed.
+	 * Reading it in the same step as subscribing means no output falls between the two, even while
+	 * another view of the terminal (the strip it is leaving, #527) still listens.
+	 */
+	get history(): Uint8Array {
+		return this.#history;
 	}
 
 	/** The exit state can change when a finished shell is restarted. */
@@ -86,6 +96,7 @@ export class BufferedTerminalConnection implements TerminalConnection {
 	start(): void {
 		if (this.#started) return;
 		this.#started = true;
+		this.#history = this.#source.history;
 		this.#unsubscribe = this.#source.onData((chunk) => {
 			if (this.#listeners.size === 0) {
 				this.#pending.push(chunk);

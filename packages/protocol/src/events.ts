@@ -76,7 +76,11 @@ export const zTurnEndedEvent = z.object({
 	...base,
 	type: z.literal("turn_ended"),
 	turnId: zTurnId,
-	outcome: z.enum(["success", "error", "cancelled", "interrupted"]),
+	/**
+	 * How the turn ended. "unrecorded": it ended, but nothing records how. An imported Conductor turn
+	 * with no result is one; Conductor shows nothing for it, and nor does our chat (D130).
+	 */
+	outcome: z.enum(["success", "error", "cancelled", "interrupted", "unrecorded"]),
 	error: z.string().optional(),
 });
 

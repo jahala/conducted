@@ -7,6 +7,7 @@
  * names are ours. There is no health method: a sidecar that is alive and connected counts as
  * healthy (D028).
  */
+import type { AgentKind } from "@conducted/shared";
 import { z } from "zod";
 import { zSessionEvent } from "./events.ts";
 import {
@@ -217,6 +218,38 @@ export type RemoteControlStatus = z.infer<typeof zRemoteControlStatus>;
 
 const zAgentRef = { agent: zAgentKind, acpAgent: zAcpAgent.optional() };
 
+/**
+ * The agents whose Conductor chat history the sidecar maps (APP-18). The dry run reads it to say
+ * which chats come with their history; the other agents' chats come without it.
+ */
+export const CONDUCTOR_MAPPED_AGENTS = ["claude"] as const satisfies readonly AgentKind[];
+
+/**
+ * One row of Conductor's `session_messages` without its content, as the chat history import's
+ * first read gives it (APP-18). `rowid` is the row's place in the table; `chars` the length of
+ * its content, so the second read can keep to a size.
+ */
+export const zConductorMessageKey = z.object({
+	rowid: z.number().int(),
+	role: z.string().nullable(),
+	turn_id: z.string().nullable(),
+	sent_at: z.string().nullable(),
+	created_at: z.string().nullable(),
+	chars: z.number().int().nonnegative(),
+});
+/** One row of Conductor's `session_messages` with its content and place, as the second read gives it. */
+export const zConductorPlacedRow = z.object({
+	rowid: z.number().int(),
+	id: z.string(),
+	role: z.string().nullable(),
+	content: z.string().nullable(),
+	sent_at: z.string().nullable(),
+	created_at: z.string().nullable(),
+	turn_id: z.string().nullable(),
+});
+export type ConductorMessageKey = z.infer<typeof zConductorMessageKey>;
+export type ConductorPlacedRow = z.infer<typeof zConductorPlacedRow>;
+
 // ---------------------------------------------------------------- UI -> sidecar
 
 export const appToSidecarRequests = {
@@ -408,6 +441,36 @@ export const appToSidecarRequests = {
 	 * "/compact" as message text (Claude) do not need this.
 	 */
 	compact: method(z.object({ sessionId: zSessionId }), z.object({ started: z.boolean() })),
+	/**
+	 * APP-18, the chat history import's first read: more of one Conductor chat's rows, without
+	 * their content. The first call for a `historyId` opens its mapping; one mapping is open at a
+	 * time, so a new one drops any other.
+	 */
+	indexConductorHistory: method(
+		z.object({
+			historyId: z.string().min(1),
+			agent: zAgentKind,
+			config: zSessionConfig,
+			keys: z.array(zConductorMessageKey),
+		}),
+		empty,
+	),
+	/**
+	 * APP-18, the second read: maps `rows`, the rows the last answer named (none on the first
+	 * call), and names the next rows to read, at most `maxRows` holding at most `maxChars` of
+	 * content (at least one row). `next` null: every row is mapped and the mapping is closed.
+	 */
+	mapConductorHistory: method(
+		z.object({
+			historyId: z.string().min(1),
+			rows: z.array(zConductorPlacedRow),
+			maxRows: z.number().int().positive(),
+			maxChars: z.number().int().positive(),
+		}),
+		z.object({ events: z.array(zSessionEvent), next: z.array(z.number().int()).nullable() }),
+	),
+	/** APP-18: drops a mapping that will not be finished, such as one whose chat failed. */
+	closeConductorHistory: method(z.object({ historyId: z.string().min(1) }), empty),
 	/** ACP only: the agent's own chat options beyond the model, with their current values. */
 	listAcpConfigOptions: method(
 		z.object({ sessionId: zSessionId }),

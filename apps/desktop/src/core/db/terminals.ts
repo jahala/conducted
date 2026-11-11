@@ -3,7 +3,8 @@
  * Owns: terminal tabs and script runs (setup, run, spotlight) of a workspace, and the one
  * terminal of each repository (workspace_id null, repo_id set; migration 0004). A terminal also
  * says which host it runs on (host_kind, migration 0016, CLOUD-11) and which strip its tab belongs
- * to (placement, migration 0018, issue #482). Scrollback files
+ * to (placement, migration 0018, issue #482), which a move between the strips rewrites (#527).
+ * Scrollback files
  * are written by the Rust shell and not touched here; the screen state for a restore is a JSON
  * column.
  * Behaviour: services-map.md 2.3.5 (terminal_sessions: upsert, delete) and 5A (terminals).
@@ -91,6 +92,7 @@ export const TERMINALS_SQL = {
 	setScreenState: "UPDATE terminals SET screen_state = $1 WHERE id = $2",
 	markEnded:
 		"UPDATE terminals SET ended_at = $1, exit_code = $2 WHERE id = $3 AND ended_at IS NULL",
+	setPlacement: "UPDATE terminals SET placement = $1 WHERE id = $2",
 	delete: "DELETE FROM terminals WHERE id = $1",
 } as const;
 
@@ -118,6 +120,8 @@ export interface TerminalRepository {
 	setScreenState(id: TerminalId, json: string | null): Promise<Result<void>>;
 	/** TERMINALS_SQL.markEnded. `ok(false)` when it had already ended. */
 	markEnded(id: TerminalId, endedAt: number, exitCode: number | null): Promise<Result<boolean>>;
+	/** TERMINALS_SQL.setPlacement. `ok(false)` when no such terminal exists. */
+	setPlacement(id: TerminalId, placement: Terminal["placement"]): Promise<Result<boolean>>;
 	/**
 	 * TERMINALS_SQL.delete, with the saved screen in the row. The Rust shell's scrollback file is not
 	 * touched here.
@@ -204,6 +208,15 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 				TERMINALS_SQL.markEnded,
 				[endedAt, exitCode, id],
 				"Ending a terminal",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		setPlacement: async (id, placement) => {
+			const written = await executeStatement(
+				db,
+				TERMINALS_SQL.setPlacement,
+				[placement, id],
+				"Moving a terminal",
 			);
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},

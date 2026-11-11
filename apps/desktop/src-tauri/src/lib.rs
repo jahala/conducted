@@ -829,6 +829,8 @@ pub fn run() {
             conductor_import::conductor_import_find,
             conductor_import::conductor_import_copy,
             conductor_import::conductor_import_read,
+            conductor_import::conductor_import_read_message_keys,
+            conductor_import::conductor_import_read_messages,
             conductor_import::conductor_import_move_secrets,
             conductor_import::conductor_import_discard,
             visualization::visualization_serve,

@@ -56,7 +56,7 @@ How they talk:
 | Which host a workspace's calls may use (D092)        | `apps/desktop/src/core/host.ts` (`checkHost`)          | lookups, terminals, workspace lifecycle; the chat context carries it                                                                                                    |
 | Which runtime runs a workspace's calls (CLOUD-03)    | `apps/desktop/src/core/cloud/`                         | the shell and file adapters and the host-routed sidecar client                                                                                                          |
 | The active organisation and what it lists (CLOUD-19) | `apps/desktop/src/core/organization.ts`                | the sidebar's switcher, `useWorkspaces`, the new-workspace page, the create path's GitHub check                                                                         |
-| Conductor's rows as ours, for the import (APP-17)    | `apps/desktop/src/core/conductor-import/`              | the Settings row and first-run offer; chat events map in `packages/sidecar/src/import/` for the spike                                                                   |
+| Conductor's rows as ours, for the import (APP-17)    | `apps/desktop/src/core/conductor-import/`              | the Settings row and first-run offer; chat history maps in `packages/sidecar/src/import/`, over RPC for the import and directly for the spike                           |
 
 ### Sidecar I/O edges
 

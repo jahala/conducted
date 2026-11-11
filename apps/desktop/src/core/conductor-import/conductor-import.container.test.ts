@@ -1,11 +1,23 @@
 // @vitest-environment node
-import { ok } from "@conducted/shared";
+import { ok, type SessionId } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+	conductorChatRows,
+	done,
+	KNOWN_CHAT,
+	manyTurns,
+	said,
+	text,
+	wrote,
+} from "../../test/conductor-chat.ts";
 import { buildConductorFixture } from "../../test/conductor-fixture.ts";
-import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { createTestContainer, seedSessionEvent, type TestContainer } from "../../test/container.ts";
 import { failingOnExecute } from "../../test/failing-database.ts";
-import { answerSidecar } from "../../test/sidecar-answers.ts";
+import { answerSidecar, type SidecarCall, sidecarRefuses } from "../../test/sidecar-answers.ts";
+import { answerHistory } from "../../test/sidecar-history.ts";
 import { DIFF_COMMENTS_SQL } from "../db/diff-comments.ts";
+import { SESSION_EVENTS_SQL } from "../db/session-events.ts";
+import { userMessageEvent } from "../db/test-fixtures.ts";
 import { conductorDatabasePath } from "./plan.ts";
 
 const HOME = "/Users/conducted";
@@ -27,7 +39,8 @@ setup = "pnpm i"
 `;
 const CLEANUP_SH = "#!/bin/sh\necho $CONDUCTOR_ROOT_PATH\n";
 
-const fixture = () =>
+/** The made-up Conductor database. `longChat` gives chat s-3 that many turns of five rows. */
+const fixture = (longChat?: number) =>
 	buildConductorFixture({
 		repos: [
 			{
@@ -239,6 +252,29 @@ const fixture = () =>
 			{ session_id: "s-1", session_index: 0, event_id: "e1", event_type: "userMessage" },
 			{ session_id: "s-1", session_index: 1, event_id: "e2", event_type: "agent" },
 		],
+		session_messages: [
+			...conductorChatRows("s-1", KNOWN_CHAT),
+			// A queued message is not in Conductor's chat, so it never comes over.
+			{ id: "s-1-queued", session_id: "s-1", role: "user", content: "Later", turn_id: null },
+			...conductorChatRows("s-2", [
+				{ turnId: "t-1", rows: [said("Hello Codex"), wrote({ type: "agent_message" })] },
+			]),
+			...conductorChatRows(
+				"s-3",
+				longChat === undefined
+					? [
+							{
+								turnId: "t-1",
+								rows: [said("Hi"), wrote(text("u-s3", "Hello.")), wrote(done("Hello."))],
+							},
+						]
+					: manyTurns(longChat),
+				100,
+			),
+			// Their chats stay behind (a failed workspace; an ACP chat), so their history does too.
+			...conductorChatRows("s-4", [{ turnId: "t-1", rows: [said("Lost")] }], 200),
+			...conductorChatRows("s-5", [{ turnId: "t-1", rows: [said("Pi"), said("Again")] }], 300),
+		],
 		terminal_sessions: [{ session_id: "t-1", workspace_id: "w-active", cwd: "/tmp" }],
 	});
 
@@ -277,6 +313,7 @@ afterEach(async () => {
 
 async function setUp(
 	options: Parameters<typeof createTestContainer>[0] = {},
+	setup: { longChat?: number; answer?: (call: SidecarCall) => unknown } = {},
 ): Promise<TestContainer> {
 	const test = createTestContainer(options);
 	current = test;
@@ -295,7 +332,7 @@ async function setUp(
 			path: `${test.memory.platform.fs.paths.appData}/bin/${program}`,
 		});
 	}
-	controls.seedConductorDatabase(conductorDatabasePath(HOME), fixture());
+	controls.seedConductorDatabase(conductorDatabasePath(HOME), fixture(setup.longChat));
 	controls.addFolder(ROOT);
 	controls.addFolder(`${WORKTREES}/oslo`);
 	controls.addFolder(`${WORKTREES}/rome`);
@@ -304,11 +341,12 @@ async function setUp(
 	controls.files.set(`${ROOT}/conductor.json`, '{"scripts":{"setup":"old"}}');
 	controls.files.set(`${ROOT}/scripts/cleanup.sh`, CLEANUP_SH);
 	controls.files.set(`${ROOT}/.git/HEAD`, "ref: refs/heads/main\n");
-	answerSidecar(test, (call) =>
+	const history = answerHistory((call) =>
 		call.method === "listModels"
 			? { models: call.params.agent === "claude" ? [modelInfo("opus"), modelInfo("sonnet")] : [] }
 			: {},
 	);
+	answerSidecar(test, (call) => setup.answer?.(call) ?? history(call));
 	controls.scriptShell((command) => {
 		if (command.program === "lsof") return ok({ exitCode: 1, stdout: "", stderr: "" });
 		if (command.args.join(" ").endsWith("worktree list --porcelain") && command.cwd === ROOT) {
@@ -425,8 +463,18 @@ describe("APP-17 import from Conductor, through the container", () => {
 			},
 		]);
 		expect(preview.notBrought.map((item) => item.what)).toEqual(
-			expect.arrayContaining(["chat history", "terminal tabs"]),
+			expect.arrayContaining(["Conductor's event log", "terminal tabs"]),
 		);
+		// s-1 has 23 sent rows (its queued one is not counted) and s-3 has 3.
+		expect(preview.history).toEqual({
+			comes: { chats: 2, rows: 26 },
+			alreadyThere: { chats: 0, rows: 0 },
+			notMapped: [
+				{ agent: "codex", chats: 1, rows: 2 },
+				{ agent: "acp", chats: 1, rows: 2 },
+			],
+			withChatsLeftOut: { chats: 1, rows: 1 },
+		});
 	});
 
 	it("imports in one go, checks the counts, and keeps Conductor's files as they were", async () => {
@@ -581,5 +629,215 @@ describe("APP-17 import from Conductor, through the container", () => {
 		must(await test.container.services.conductorImport.preview());
 		must(await test.container.services.conductorImport.run());
 		expect(test.memory.controls.conductorDatabases.size).toBe(1);
+	});
+});
+
+/** What our chat shows of each turn: the user's message and steers, the top-level blocks, the end. */
+function shown(test: TestContainer, sessionId: string) {
+	const view = test.container.services.sessions.chatView(sessionId as SessionId);
+	return (view?.turns ?? []).map((turn) => ({
+		user: turn.userMessage?.text ?? null,
+		steers: turn.steers.map((steer) => steer.text),
+		blocks: turn.blocks.map((block) => {
+			if (block.kind === "text") return `text: ${block.text}`;
+			if (block.kind === "tool") {
+				const inside = block.call.blocks.map((child) =>
+					child.kind === "text"
+						? `text: ${child.text}`
+						: child.kind === "tool"
+							? `tool: ${child.call.item.rawName}`
+							: child.kind,
+				);
+				return inside.length === 0
+					? `tool: ${block.call.item.rawName}`
+					: `tool: ${block.call.item.rawName} [${inside.join("; ")}]`;
+			}
+			if (block.kind === "notice") return `notice: ${block.item.text}`;
+			return block.kind;
+		}),
+		outcome: turn.outcome,
+	}));
+}
+
+async function eventCount(test: TestContainer, sessionId: string): Promise<number> {
+	const rows = await test.database.select<{ n: number }>(
+		"SELECT COUNT(*) AS n FROM session_events WHERE session_id = $1",
+		[sessionId],
+	);
+	return Number(rows[0]?.n ?? -1);
+}
+
+/** The known chat (conductor-chat.ts) as our chat shows it, worked out by hand. */
+const KNOWN_CHAT_SHOWN = [
+	{
+		user: "Please fix the failing test.",
+		steers: ["Also check the other test."],
+		blocks: [
+			"thinking",
+			"text: I will read the test first.",
+			"tool: Read",
+			"tool: Task [text: Looking at the other test.; tool: Grep]",
+			"tool: Edit",
+			"text: Fixed. The test passes now.",
+		],
+		outcome: "success",
+	},
+	{
+		user: null,
+		steers: [],
+		blocks: ["notice: Compacting...", "notice: Chat history compacted"],
+		outcome: "success",
+	},
+	{ user: "Thanks!", steers: [], blocks: ["text: Glad to help."], outcome: "success" },
+];
+
+describe("APP-18 chat history from Conductor, through the container", () => {
+	it("brings a Claude chat's history, which our chat shows turn by turn", async () => {
+		const test = await setUp();
+		must(await test.container.services.conductorImport.preview());
+		const outcome = must(await test.container.services.conductorImport.run());
+
+		must(await test.container.services.sessions.open("s-1" as SessionId));
+		expect(shown(test, "s-1")).toEqual(KNOWN_CHAT_SHOWN);
+		expect(outcome.history).toEqual({ chats: 2, changed: 0, failed: [] });
+		// Each imported event is received at the import's time; its own time is Conductor's.
+		const times = await test.database.select<{ received_at: number; content: string }>(
+			"SELECT received_at, content FROM session_events WHERE session_id = 's-1' ORDER BY idx",
+		);
+		expect(new Set(times.map((row) => row.received_at))).toEqual(new Set([1_700_000_000_000]));
+		expect(JSON.parse(times[0]?.content ?? "{}").at).toBe(Date.UTC(2026, 0, 2, 3, 0, 0));
+		// Every turn ended, so startup repair finds nothing to close.
+		const open = await test.database.select(SESSION_EVENTS_SQL.findInterruptedTurnsForSession, [
+			"s-1",
+		]);
+		expect(open).toEqual([]);
+	});
+
+	it("a chat of an agent with no mapping comes over without history", async () => {
+		const test = await setUp();
+		must(await test.container.services.conductorImport.preview());
+		must(await test.container.services.conductorImport.run());
+
+		expect(test.container.services.sessions.store.getState().sessions["s-2"]).toBeDefined();
+		expect(await eventCount(test, "s-2")).toBe(0);
+	});
+
+	it("a chat whose history fails comes without it, is named, and the others are whole", async () => {
+		let reads = 0;
+		const test = await setUp(
+			{},
+			{
+				longChat: 500,
+				// The long chat's second read fails, after its first read's events were written.
+				answer: (call) => {
+					const forLongChat = String(call.params.historyId).endsWith(":s-3");
+					if (call.method !== "mapConductorHistory" || !forLongChat) return undefined;
+					reads++;
+					return reads === 3 ? sidecarRefuses("The mapping stopped.") : undefined;
+				},
+			},
+		);
+		const preview = must(await test.container.services.conductorImport.preview());
+		expect(preview.history.comes).toEqual({ chats: 2, rows: 23 + 2500 });
+		const outcome = must(await test.container.services.conductorImport.run());
+
+		expect(outcome.history.chats).toBe(1);
+		expect(outcome.history.failed).toEqual([
+			{
+				sessionId: "s-3",
+				label: "A chat in lima",
+				reason: expect.stringContaining("The mapping stopped."),
+			},
+		]);
+		expect(test.container.services.sessions.store.getState().sessions["s-3"]).toBeDefined();
+		expect(await eventCount(test, "s-3")).toBe(0);
+		must(await test.container.services.sessions.open("s-1" as SessionId));
+		expect(shown(test, "s-1")).toEqual(KNOWN_CHAT_SHOWN);
+		expect(test.container.services.conductorImport.store.getState().history?.failed).toHaveLength(
+			1,
+		);
+
+		// The next import brings the failed chat's history, and adds nothing to the others.
+		const s1Events = await eventCount(test, "s-1");
+		const again = must(await test.container.services.conductorImport.preview());
+		expect(again.history.comes).toEqual({ chats: 1, rows: 2500 });
+		expect(again.history.alreadyThere).toEqual({ chats: 1, rows: 23 });
+		const retried = must(await test.container.services.conductorImport.run());
+		expect(retried.history).toEqual({ chats: 1, changed: 0, failed: [] });
+		expect(await eventCount(test, "s-3")).toBe(500 * 5 + 500);
+		expect(await eventCount(test, "s-1")).toBe(s1Events);
+	});
+
+	it("a second import adds no history", async () => {
+		const test = await setUp();
+		must(await test.container.services.conductorImport.preview());
+		must(await test.container.services.conductorImport.run());
+		const before = {
+			s1: await eventCount(test, "s-1"),
+			s3: await eventCount(test, "s-3"),
+		};
+
+		const again = must(await test.container.services.conductorImport.preview());
+		expect(again.history).toMatchObject({
+			comes: { chats: 0, rows: 0 },
+			alreadyThere: { chats: 2, rows: 26 },
+		});
+		const outcome = must(await test.container.services.conductorImport.run());
+		expect(outcome.history).toEqual({ chats: 0, changed: 0, failed: [] });
+		expect({ s1: await eventCount(test, "s-1"), s3: await eventCount(test, "s-3") }).toEqual(
+			before,
+		);
+	});
+
+	it("a chat used since the dry run keeps what it has and gains no history", async () => {
+		const test = await setUp(
+			{},
+			{
+				answer: (call) =>
+					call.method === "mapConductorHistory" && String(call.params.historyId).endsWith(":s-3")
+						? sidecarRefuses("The mapping stopped.")
+						: undefined,
+			},
+		);
+		must(await test.container.services.conductorImport.preview());
+		must(await test.container.services.conductorImport.run());
+		expect(await eventCount(test, "s-3")).toBe(0);
+
+		const again = must(await test.container.services.conductorImport.preview());
+		expect(again.history.comes).toEqual({ chats: 1, rows: 3 });
+		// The user sends a message in the chat before going ahead.
+		await seedSessionEvent(
+			test.container,
+			"s-3" as SessionId,
+			userMessageEvent("e-own", "turn-own", 1_700_000_000_000),
+			1_700_000_000_000,
+		);
+		const outcome = must(await test.container.services.conductorImport.run());
+
+		expect(outcome.history).toEqual({ chats: 0, changed: 1, failed: [] });
+		expect(await eventCount(test, "s-3")).toBe(1);
+	});
+
+	it("a chat with a message too large to carry comes without history, and says why", async () => {
+		const test = await setUp();
+		const database = fixture();
+		const rows = [...(database.session_messages ?? [])];
+		const huge = rows.findIndex((row) => row.session_id === "s-3" && row.role === "assistant");
+		rows[huge] = { ...rows[huge], content: JSON.stringify(text("u-huge", "y".repeat(6_000_001))) };
+		test.memory.controls.seedConductorDatabase(conductorDatabasePath(HOME), {
+			...database,
+			session_messages: rows,
+		});
+		must(await test.container.services.conductorImport.preview());
+		const outcome = must(await test.container.services.conductorImport.run());
+
+		expect(outcome.history.failed).toEqual([
+			expect.objectContaining({
+				sessionId: "s-3",
+				reason: expect.stringContaining("more than the import can carry"),
+			}),
+		]);
+		expect(await eventCount(test, "s-3")).toBe(0);
+		expect(await eventCount(test, "s-1")).toBeGreaterThan(0);
 	});
 });

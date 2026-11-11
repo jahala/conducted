@@ -346,7 +346,7 @@ export interface ChatTurn {
 	startCheckpointId: string | null;
 	endCheckpointId: string | null;
 	changes: FileChange[];
-	outcome: "running" | "success" | "error" | "cancelled" | "interrupted";
+	outcome: "running" | "success" | "error" | "cancelled" | "interrupted" | "unrecorded";
 	error: string | null;
 	/** When the turn started and ended, in milliseconds since the epoch. Null end while it runs. */
 	startedAt: number;

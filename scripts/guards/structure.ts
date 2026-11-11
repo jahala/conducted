@@ -9,7 +9,8 @@
  *  3. migration-list: the `.sql` files, the list in `db.rs` and `migrations.lock` agree.
  *  4. placeholder-tests: no test asserts placeholder text or reads a backlog row's status.
  *  5. test-only-exports: no exported function, component, hook or class is used by tests alone,
- *     in the files of a feature that is built (a stub or planned feature's files are skipped).
+ *     in the files of a feature that is built (a stub or planned feature's files are skipped). A
+ *     script in `scripts/` that uses it, such as the chat history spike, is a user, not a test.
  *  6. unwired-deps: a composition root passes every optional dependency, or says it is unwired.
  * Guards 4 to 6 count violations per file against `structure-baseline.json`. A count may not
  * rise, and a baseline higher than the real count fails too, so every fix lowers it (D055).
@@ -453,6 +454,12 @@ export const EXPORT_PROJECTS = [
 	{ config: "packages/sidecar/tsconfig.json", src: "packages/sidecar/src/" },
 ];
 
+/**
+ * Projects whose own exports guard 5 does not scan, but whose files use the exports it does: the
+ * repository's scripts, which a person runs (the chat history spike imports the sidecar's mapping).
+ */
+export const EXPORT_USER_PROJECTS = ["scripts/tsconfig.json"];
+
 /** The composition roots guard 6 reads, with the tsconfig of each. */
 export const ROOT_FILES = [
 	{ config: "apps/desktop/tsconfig.json", file: "apps/desktop/src/core/container.ts" },
@@ -640,30 +647,7 @@ async function scanProjectExports(
 		const featureStatus = status.get(fileFeature(sourceFile.text) ?? "");
 		if (featureStatus === "stub" || featureStatus === "planned") continue;
 		for (const candidate of exportedCandidates(sourceFile, file)) {
-			const anchor = candidate.referenceNode ?? candidate.node;
-			const entries = await project.checker.getReferencedSymbolsForNode(
-				anchor,
-				anchor.getStart(sourceFile),
-			);
-			let production = 0;
-			let tests = 0;
-			const seen = new Set<string>();
-			for (const entry of entries) {
-				for (const handle of entry.references) {
-					const key = `${handle.path}:${handle.index}`;
-					if (seen.has(key)) continue;
-					seen.add(key);
-					const node = await handle.resolve();
-					if (node === undefined || isLinkNode(node)) continue;
-					if (candidate.repositoryMethod === true && isImplementation(node)) continue;
-					const sameSpot =
-						normal(handle.path) === normal(sourceFile.path) &&
-						node.getStart() === anchor.getStart(sourceFile);
-					if (sameSpot) continue;
-					if (isTestPath(normal(handle.path))) tests += 1;
-					else production += 1;
-				}
-			}
+			const { production, tests } = await countUses(project, sourceFile, candidate);
 			if (production === 0) {
 				if (candidate.repositoryMethod === true) {
 					if (tests > 0 && !hasUnwiredMarker(sourceFile, candidate.node, status)) {
@@ -676,20 +660,78 @@ async function scanProjectExports(
 	return found;
 }
 
+/** How many references to a candidate are in production code and how many in tests. */
+async function countUses(
+	project: OpenProject["project"],
+	sourceFile: SourceFile,
+	candidate: Candidate,
+): Promise<{ production: number; tests: number }> {
+	const anchor = candidate.referenceNode ?? candidate.node;
+	const entries = await project.checker.getReferencedSymbolsForNode(
+		anchor,
+		anchor.getStart(sourceFile),
+	);
+	let production = 0;
+	let tests = 0;
+	const seen = new Set<string>();
+	for (const entry of entries) {
+		for (const handle of entry.references) {
+			const key = `${handle.path}:${handle.index}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			const node = await handle.resolve();
+			if (node === undefined || isLinkNode(node)) continue;
+			if (candidate.repositoryMethod === true && isImplementation(node)) continue;
+			const sameSpot =
+				normal(handle.path) === normal(sourceFile.path) &&
+				node.getStart() === anchor.getStart(sourceFile);
+			if (sameSpot) continue;
+			if (isTestPath(normal(handle.path))) tests += 1;
+			else production += 1;
+		}
+	}
+	return { production, tests };
+}
+
+/** Whether a script outside the tests uses the export a violation names. */
+async function usedByScripts(
+	root: string,
+	users: readonly OpenProject[],
+	violation: Violation,
+): Promise<boolean> {
+	for (const open of users) {
+		const sourceFile = await open.project.program.getSourceFile(join(root, violation.file));
+		if (sourceFile === undefined) continue;
+		for (const candidate of exportedCandidates(sourceFile, violation.file)) {
+			if (candidate.name !== violation.name) continue;
+			const { production } = await countUses(open.project, sourceFile, candidate);
+			if (production > 0) return true;
+		}
+	}
+	return false;
+}
+
 /** Exported functions, components, hooks and classes whose only users are tests. */
 export async function scanTestOnlyExports(root: string): Promise<Violation[]> {
 	const { status } = backlogStatus(root, "test-only-exports");
 	const configs = EXPORT_PROJECTS.filter((entry) => existsSync(join(root, entry.config)));
+	const userConfigs = EXPORT_USER_PROJECTS.filter((config) => existsSync(join(root, config)));
 	return withProjects(
 		root,
-		configs.map((entry) => entry.config),
+		[...configs.map((entry) => entry.config), ...userConfigs],
 		async (projects) => {
 			const found: Violation[] = [];
 			for (const open of projects) {
-				const src = EXPORT_PROJECTS.find((entry) => entry.config === open.config)?.src ?? "";
-				found.push(...(await scanProjectExports(root, open, src, status)));
+				const scanned = EXPORT_PROJECTS.find((entry) => entry.config === open.config);
+				if (scanned === undefined) continue;
+				found.push(...(await scanProjectExports(root, open, scanned.src, status)));
 			}
-			return found;
+			const users = projects.filter((open) => userConfigs.includes(open.config));
+			const kept: Violation[] = [];
+			for (const violation of found) {
+				if (!(await usedByScripts(root, users, violation))) kept.push(violation);
+			}
+			return kept;
 		},
 	);
 }

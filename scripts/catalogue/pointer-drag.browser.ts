@@ -2,8 +2,8 @@
  * @feature Every in-app drag (issue #529)
  * Owns: the browser check that each in-app move the issue lists works with a real pointer drag in
  * the environment the app's window gives the page: the sidebar (Pinned, a section, rows, section
- * headers and project headers), the tab strip and its split panes, the follow-up queue, the
- * favourite models and a Kanban card.
+ * headers and project headers), the tab strip and its split panes, a terminal between the bottom
+ * panel and the centre (issue #527), the follow-up queue, the favourite models and a Kanban card.
  * Behaviour: Tauri's window drag-drop handler answers every HTML5 drag for file drops, so the page
  * gets a drag's `dragstart` but never its `dragover` or `drop` (the Loadout's check, issue #481).
  * Conductor's own drags are pointer driven: a press, a move past the 4px threshold, then a release
@@ -296,6 +296,68 @@ async function main(): Promise<number> {
 			check("tabs: a tab dragged to the right edge splits the centre", pane === 1, `${pane} panes`);
 		} finally {
 			await split.close();
+		}
+
+		// --- Terminals: the bottom panel's terminal tab dragged onto the centre strip moves there,
+		// and a centre terminal tab dragged onto the panel moves back (issue #527).
+		const terminals = await open(browser, url, "workspace-terminal-drag");
+		try {
+			const strip = terminals.getByRole("tablist", { name: "Workspace tabs" });
+			const panelTab = (name: string) =>
+				terminals.locator('[role="tablist"]:not([aria-label="Workspace tabs"]) [role="tab"]', {
+					hasText: name,
+				});
+			const stripBox = await strip.boundingBox();
+			const lastTab = await strip.getByRole("tab").last().boundingBox();
+			if (stripBox === null || lastTab === null) throw new Error("The centre strip has no box.");
+			await drag(terminals, panelTab("Terminal 1"), {
+				x: lastTab.x + lastTab.width + 12,
+				y: stripBox.y + stripBox.height / 2,
+			});
+			const inCentre = await strip
+				.getByRole("tab", { name: "Terminal 1" })
+				.waitFor({ timeout: HANG_MS })
+				.then(
+					() => true,
+					() => false,
+				);
+			const selected = await strip
+				.getByRole("tab", { name: "Terminal 1" })
+				.getAttribute("aria-selected", { timeout: 2_000 })
+				.then(
+					(value) => value,
+					() => null,
+				);
+			const leftPanel = (await panelTab("Terminal 1").count()) === 0;
+			check(
+				"terminals: a panel terminal dragged onto the centre strip moves there and opens",
+				inCentre && leftPanel && selected === "true",
+				`in centre ${inCentre}, left panel ${leftPanel}, selected ${selected ?? "?"}`,
+			);
+
+			// The panel's Setup tab is inside the panel, so releasing on it drops on the panel.
+			const setup = panelTab("Setup");
+			await drag(terminals, strip.getByRole("tab", { name: "Terminal 2" }), await middle(setup));
+			const inPanel = await panelTab("Terminal 2")
+				.waitFor({ timeout: HANG_MS })
+				.then(
+					() => true,
+					() => false,
+				);
+			const panelSelected = await panelTab("Terminal 2")
+				.getAttribute("aria-selected", { timeout: 2_000 })
+				.then(
+					(value) => value,
+					() => null,
+				);
+			const leftCentre = (await strip.getByRole("tab", { name: "Terminal 2" }).count()) === 0;
+			check(
+				"terminals: a centre terminal dragged onto the panel moves there and opens",
+				inPanel && leftCentre && panelSelected === "true",
+				`in panel ${inPanel}, left centre ${leftCentre}, selected ${panelSelected ?? "?"}`,
+			);
+		} finally {
+			await terminals.close();
 		}
 
 		// --- Queue: a row dragged above another reorders it.

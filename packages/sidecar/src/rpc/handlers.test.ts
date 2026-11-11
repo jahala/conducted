@@ -5,6 +5,7 @@ import {
 	type ModelInfo,
 } from "@conducted/protocol";
 import { appError, type EventId, err, ok, type SessionId } from "@conducted/shared";
+import { ConductorHistoryImports } from "../import/history-imports.ts";
 import { createLogger } from "../logging/logger.ts";
 import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { buildHandlers, type HandlerDeps } from "./handlers.ts";
@@ -83,6 +84,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 				ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 		},
 		utilityPrompt: { run: async () => ok({ text: "" }) },
+		conductorHistory: new ConductorHistoryImports(),
 		setLogLevel: () => {},
 		logger: testLogger,
 		...overrides,

@@ -120,6 +120,45 @@ describe("NAV-10 tab layout", () => {
 		expect(holders).toHaveLength(1);
 	});
 
+	it("places a tab from outside the centre at the drop index and makes it active", () => {
+		const placed = applyTabAction({
+			layout: withTabs(["one", "two"]),
+			action: { type: "place", tab: tab("terminal"), toGroupId: "group-main", index: 1 },
+		});
+		expect(placed.kind).toBe("group");
+		if (placed.kind !== "group") return;
+		expect(placed.tabs.map((current) => current.ref)).toEqual(["one", "terminal", "two"]);
+		expect(placed.activeRef).toBe("terminal");
+	});
+
+	it("places a tab the tree already holds once, at the drop index", () => {
+		const placed = applyTabAction({
+			layout: withTabs(["one", "two", "terminal"]),
+			action: { type: "place", tab: tab("terminal"), toGroupId: "group-main", index: 0 },
+		});
+		expect(listGroups(placed).flatMap((group) => group.tabs.map((current) => current.ref))).toEqual(
+			["terminal", "one", "two"],
+		);
+	});
+
+	it("places a tab at the end of a group without an index, and refuses a group that is gone", () => {
+		const layout = withTabs(["one"]);
+		const placed = applyTabAction({
+			layout,
+			action: { type: "place", tab: tab("terminal"), toGroupId: "group-main" },
+		});
+		expect(findTabGroup(placed, "terminal")?.tabs.map((current) => current.ref)).toEqual([
+			"one",
+			"terminal",
+		]);
+		expect(
+			applyTabAction({
+				layout,
+				action: { type: "place", tab: tab("terminal"), toGroupId: "group-gone" },
+			}),
+		).toBe(layout);
+	});
+
 	it("closing the last tab of a group removes the group and keeps the neighbour", () => {
 		const split = splitOff("two");
 		const closed = applyTabAction({ layout: split, action: { type: "close", ref: "two" } });

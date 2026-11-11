@@ -38,6 +38,22 @@ export function nextTerminalAfterClose(
 	return remaining[Math.min(index, remaining.length - 1)] ?? null;
 }
 
+/**
+ * The tab that becomes active when `leavingId`, the active terminal, moves to the centre. As
+ * Conductor's right-panel store picks it when a terminal leaves (main bundle, its destroyTerminal):
+ * the one before it, or the next one when it was first. Null when no terminal is left.
+ */
+export function terminalAfterMoveOut(
+	ids: readonly TerminalId[],
+	leavingId: TerminalId,
+): TerminalId | null {
+	const index = ids.indexOf(leavingId);
+	const remaining = ids.filter((id) => id !== leavingId);
+	if (remaining.length === 0) return null;
+	if (index <= 0) return remaining[0] ?? null;
+	return ids[index - 1] ?? null;
+}
+
 export function TerminalTabBody({
 	workspaceId,
 	terminalId,

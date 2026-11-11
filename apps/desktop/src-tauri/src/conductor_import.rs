@@ -1,8 +1,11 @@
 //! @feature APP-17 Import from Conductor: the read-only copy and the secret moves
+//! @feature APP-18 Chat history from Conductor: the two reads of a chat's messages
 //!
 //! Owns: finding Conductor's database, copying it into a folder the import owns, reading the tables the import
 //! maps from that copy, moving environment variable values from the copy straight into the
-//! Keychain, and removing the copies.
+//! Keychain, and removing the copies. For chat history (APP-18): each chat's count of sent
+//! `session_messages` rows in the snapshot, a page of one chat's rows without their content
+//! (`read_message_keys`), and one chat's rows by rowid with their content (`read_messages`).
 //!
 //! Behaviour: docs/plans/migrate-from-conductor.md, safety rules 1 (Conductor's files are only
 //! read), 3 (Keychain entries the import made are removed on rollback) and 6 (secrets never show).
@@ -22,6 +25,10 @@
 //! - A table Conductor does not have (an older schema) reads as `null`, never as an empty list.
 //!   A BLOB value in a read table is an error that names the table and column.
 //! - `env_vars.value` never leaves this module: the read answers `has_value` in its place.
+//! - The history reads take only sent rows (`sent_at` set), the rows Conductor's chat shows, of
+//!   one chat; a page of keys is in rowid order after the rowid given, so the next page starts
+//!   where it ended; a read by rowid returns only that chat's rows. A copy without
+//!   `session_messages` gives no rows, and its snapshot `messageRows` is `null`.
 //! - Moving secrets writes each value into the Keychain under the key the app chose. A move whose
 //!   value is missing (`conductor_import_secret_missing`) or whose key the Keychain already holds
 //!   (`conductor_import_secret_exists`) fails the whole call, and every entry this call wrote is
@@ -97,6 +104,9 @@ pub struct Snapshot {
     pub tables: Map<String, Value>,
     /// Row counts of the counted tables. `None` when the table does not exist.
     pub counts: Map<String, Value>,
+    /// Sent `session_messages` rows per chat id. `None` when the table does not exist.
+    #[serde(rename = "messageRows")]
+    pub message_rows: Value,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -347,7 +357,12 @@ fn json_value(table: &str, column: &str, value: ValueRef<'_>) -> CommandResult<V
 }
 
 /// Every row of `sql` as an object keyed by column name.
-fn read_rows(connection: &Connection, table: &str, sql: &str) -> CommandResult<Vec<Value>> {
+fn read_rows<P: rusqlite::Params>(
+    connection: &Connection,
+    table: &str,
+    sql: &str,
+    params: P,
+) -> CommandResult<Vec<Value>> {
     let mut statement = connection
         .prepare(sql)
         .map_err(|error| read_error(table, error))?;
@@ -357,7 +372,7 @@ fn read_rows(connection: &Connection, table: &str, sql: &str) -> CommandResult<V
         .map(|name| name.to_string())
         .collect();
     let mut rows = statement
-        .query([])
+        .query(params)
         .map_err(|error| read_error(table, error))?;
     let mut out = Vec::new();
     while let Some(row) = rows.next().map_err(|error| read_error(table, error))? {
@@ -387,7 +402,7 @@ pub fn read_snapshot(copy: &Path) -> CommandResult<Snapshot> {
         } else {
             format!("SELECT * FROM \"{table}\"")
         };
-        let mut rows = read_rows(&connection, table, &sql)?;
+        let mut rows = read_rows(&connection, table, &sql, [])?;
         if *table == "env_vars" {
             for row in &mut rows {
                 if let Some(object) = row.as_object_mut() {
@@ -414,7 +429,70 @@ pub fn read_snapshot(copy: &Path) -> CommandResult<Snapshot> {
             .map_err(|error| read_error(table, error))?;
         counts.insert((*table).to_string(), Value::from(count));
     }
-    Ok(Snapshot { tables, counts })
+    let message_rows = if table_exists(&connection, MESSAGES)? {
+        let mut per_chat = Map::new();
+        for row in read_rows(
+            &connection,
+            MESSAGES,
+            "SELECT session_id, COUNT(*) AS n FROM session_messages
+             WHERE sent_at IS NOT NULL AND session_id IS NOT NULL GROUP BY session_id",
+            [],
+        )? {
+            if let (Some(id), Some(n)) = (row["session_id"].as_str(), row["n"].as_i64()) {
+                per_chat.insert(id.to_string(), Value::from(n));
+            }
+        }
+        Value::Object(per_chat)
+    } else {
+        Value::Null
+    };
+    Ok(Snapshot {
+        tables,
+        counts,
+        message_rows,
+    })
+}
+
+/// The table chat history is read from (issue #512).
+const MESSAGES: &str = "session_messages";
+
+/// Up to `limit` sent rows of one chat after rowid `after`, in rowid order, without their content.
+pub fn read_message_keys(
+    copy: &Path,
+    session_id: &str,
+    after: i64,
+    limit: i64,
+) -> CommandResult<Vec<Value>> {
+    let connection = open_copy(copy)?;
+    if !table_exists(&connection, MESSAGES)? {
+        return Ok(Vec::new());
+    }
+    read_rows(
+        &connection,
+        MESSAGES,
+        "SELECT rowid, role, turn_id, sent_at, created_at, COALESCE(length(content), 0) AS chars
+         FROM session_messages WHERE session_id = ?1 AND sent_at IS NOT NULL AND rowid > ?2
+         ORDER BY rowid LIMIT ?3",
+        rusqlite::params![session_id, after, limit.max(1)],
+    )
+}
+
+/// The sent rows of one chat with these rowids, with their content, in rowid order.
+pub fn read_messages(copy: &Path, session_id: &str, rowids: &[i64]) -> CommandResult<Vec<Value>> {
+    let connection = open_copy(copy)?;
+    if !table_exists(&connection, MESSAGES)? {
+        return Ok(Vec::new());
+    }
+    let wanted = Value::from(rowids.to_vec()).to_string();
+    read_rows(
+        &connection,
+        MESSAGES,
+        "SELECT rowid, id, role, content, sent_at, created_at, turn_id FROM session_messages
+         WHERE session_id = ?1 AND sent_at IS NOT NULL
+           AND rowid IN (SELECT value FROM json_each(?2))
+         ORDER BY rowid",
+        rusqlite::params![session_id, wanted],
+    )
 }
 
 /// Moves each value from the copy into `service`. All or nothing: a failure removes what this
@@ -566,6 +644,39 @@ pub async fn conductor_import_read<R: Runtime>(
     blocking("conductor_import_read_failed", move || {
         let copy = check_copy(Path::new(&copy_path), &folder)?;
         read_snapshot(&copy)
+    })
+    .await
+}
+
+/// A page of one chat's message rows without their content, from a copy the import made.
+#[tauri::command]
+pub async fn conductor_import_read_message_keys<R: Runtime>(
+    app: AppHandle<R>,
+    copy_path: String,
+    session_id: String,
+    after_rowid: i64,
+    limit: i64,
+) -> CommandResult<Vec<Value>> {
+    let folder = copy_folder(&app)?;
+    blocking("conductor_import_read_failed", move || {
+        let copy = check_copy(Path::new(&copy_path), &folder)?;
+        read_message_keys(&copy, &session_id, after_rowid, limit)
+    })
+    .await
+}
+
+/// One chat's message rows by rowid, with their content, from a copy the import made.
+#[tauri::command]
+pub async fn conductor_import_read_messages<R: Runtime>(
+    app: AppHandle<R>,
+    copy_path: String,
+    session_id: String,
+    rowids: Vec<i64>,
+) -> CommandResult<Vec<Value>> {
+    let folder = copy_folder(&app)?;
+    blocking("conductor_import_read_failed", move || {
+        let copy = check_copy(Path::new(&copy_path), &folder)?;
+        read_messages(&copy, &session_id, &rowids)
     })
     .await
 }
@@ -724,6 +835,78 @@ mod tests {
         assert_eq!(snapshot.counts["session_events"], 2);
         assert_eq!(snapshot.counts["terminal_sessions"], Value::Null);
         assert_eq!(snapshot.tables["workspaces"], Value::Null);
+    }
+
+    #[test]
+    fn app_18_a_chats_messages_are_read_in_pages_of_keys_then_by_rowid() {
+        let conductor = TempDir::new("history");
+        let source = conductor_database(&conductor);
+        let connection = Connection::open(&source).expect("open source");
+        connection
+            .execute_batch(
+                "CREATE TABLE session_messages (id TEXT PRIMARY KEY, session_id TEXT, role TEXT,
+                    content TEXT, created_at TEXT, sent_at TEXT, turn_id TEXT);
+                 INSERT INTO session_messages VALUES ('m1', 's', 'user', 'Hello', 'c1', 't1', 'turn');
+                 INSERT INTO session_messages VALUES ('m2', 'other', 'user', 'Elsewhere', 'c2', 't2', 'x');
+                 INSERT INTO session_messages VALUES ('m3', 's', 'assistant', '{\"type\":\"result\"}', 'c3', 't3', 'turn');
+                 INSERT INTO session_messages VALUES ('m4', 's', 'user', 'Queued', 'c4', NULL, NULL);
+                 INSERT INTO session_messages VALUES ('m5', 's', 'assistant', NULL, 'c5', 't5', 'turn');",
+            )
+            .expect("seed messages");
+        drop(connection);
+        let imports = TempDir::new("history-copies");
+        let copy = copy_database(&source, &imports.path).expect("copy");
+        let copy = Path::new(&copy.copy_path);
+
+        let snapshot = read_snapshot(copy).expect("read");
+        assert_eq!(snapshot.message_rows["s"], 3);
+        assert_eq!(snapshot.message_rows["other"], 1);
+
+        let first = read_message_keys(copy, "s", 0, 2).expect("first page");
+        let rowids: Vec<i64> = first
+            .iter()
+            .map(|row| row["rowid"].as_i64().expect("rowid"))
+            .collect();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0]["chars"], 5);
+        assert_eq!(first[0]["turn_id"], "turn");
+        assert!(first[0].get("content").is_none());
+        let last = rowids.last().copied().expect("a rowid");
+        let second = read_message_keys(copy, "s", last, 2).expect("second page");
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0]["chars"], 0);
+        assert!(
+            read_message_keys(copy, "s", second[0]["rowid"].as_i64().expect("rowid"), 2)
+                .expect("past the end")
+                .is_empty()
+        );
+
+        let other = read_message_keys(copy, "other", 0, 10).expect("other chat");
+        let mut wanted = rowids.clone();
+        wanted.push(other[0]["rowid"].as_i64().expect("rowid"));
+        let rows = read_messages(copy, "s", &wanted).expect("rows");
+        let ids: Vec<&str> = rows
+            .iter()
+            .map(|row| row["id"].as_str().expect("id"))
+            .collect();
+        assert_eq!(ids, vec!["m1", "m3"]);
+        assert_eq!(rows[1]["content"], "{\"type\":\"result\"}");
+    }
+
+    #[test]
+    fn app_18_a_copy_without_messages_reads_no_history() {
+        let conductor = TempDir::new("no-history");
+        let source = conductor_database(&conductor);
+        let imports = TempDir::new("no-history-copies");
+        let copy = copy_database(&source, &imports.path).expect("copy");
+        let copy = Path::new(&copy.copy_path);
+        assert_eq!(read_snapshot(copy).expect("read").message_rows, Value::Null);
+        assert!(
+            read_message_keys(copy, "s", 0, 10)
+                .expect("keys")
+                .is_empty()
+        );
+        assert!(read_messages(copy, "s", &[1]).expect("rows").is_empty());
     }
 
     #[test]

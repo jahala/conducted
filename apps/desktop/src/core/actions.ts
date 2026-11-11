@@ -195,6 +195,7 @@ export function createActions(
 			restart: (id) => services.terminals.restart(id),
 			runCommand: (workspaceId, command) => services.terminals.runCommand(workspaceId, command),
 			close: (id) => services.terminals.close(id),
+			move: (workspaceId, id, placement) => services.terminals.move(workspaceId, id, placement),
 		},
 		files: {
 			write: (workspaceId, path, text, expectedModifiedAt) =>
