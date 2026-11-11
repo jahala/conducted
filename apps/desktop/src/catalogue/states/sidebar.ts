@@ -106,7 +106,8 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		"Sidebar: a pinned workspace's actions menu",
 		"Unpin",
 		async ({ document }) => {
-			rightClickOn(await findFirst(document, "[data-workspace-pinned-drop] [data-workspace-id]"));
+			// The row's link is the context menu's trigger; its wrapper only carries the drag.
+			rightClickOn(await findFirst(document, "[data-workspace-pinned-drop] [data-workspace-id] a"));
 		},
 	),
 	sectionsState(
