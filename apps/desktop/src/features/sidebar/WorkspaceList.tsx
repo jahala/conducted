@@ -3,8 +3,8 @@
  * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: loading projects and workspaces and choosing what the list region shows: skeleton rows, an error with
  * retry, an empty state, or the grouped list. CLOUD-19: the list holds the active organisation's
- * workspaces: this Mac's while it is active, and the paired Worker's while that is (main `Nst`,
- * @922363, as Conductor's sidebar filters them).
+ * workspaces: this Mac's while it is active, and the paired Worker's while that is.
+ * Behaviour (CLOUD-19): Conductor's sidebar filter, main @922363.
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections, main list grouped by status or project).
  * Our design choice: this component only decides the state and hands the saved sections to
  * <GroupedWorkspaces>, which owns the rows.
