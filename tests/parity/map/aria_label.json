@@ -32,11 +32,12 @@
 		"owner": "rule:cite"
 	},
 	"aria_label:R1959218": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"aria_label:R2049152": {
 		"status": "matched",
@@ -179,12 +180,12 @@
 		"by": "seed"
 	},
 	"aria_label:R4632115": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Conductor shows \"Choose action icon\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(1) > button",
+		"by": "seed"
 	},
 	"aria_label:R4987086": {
 		"status": "matched",
@@ -211,13 +212,12 @@
 		"by": "seed"
 	},
 	"aria_label:R5017441": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"aria_label:R5434122": {
 		"status": "matched",

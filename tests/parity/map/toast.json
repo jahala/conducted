@@ -283,13 +283,12 @@
 		"owner": "rule:quote"
 	},
 	"toast:R2035043": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Project created.\" (message, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R2213309": {
 		"status": "gap",
@@ -448,12 +447,11 @@
 	},
 	"toast:R5007891": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "RUN-01",
 		"item": "Conductor shows \"Unable to start: workspace or repository not found\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R5432175": {
 		"status": "gap",
@@ -1019,20 +1017,18 @@
 		"by": "hand"
 	},
 	"toast:R10085340": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Conductor shows \"Terminal settings are still loading.\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's terminal-settings query notice. Ours loads settings before the shell mounts, so this loading state cannot occur (an internal difference, no user-visible state).",
+		"by": "hand"
 	},
 	"toast:R10085400": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Terminal settings that cannot load show \"Failed to load terminal settings.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "terminal-settings-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10105621": {
 		"status": "gap",
@@ -1250,20 +1246,16 @@
 		"by": "hand"
 	},
 	"toast:R11050680": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Refreshing GitHub data can fail with \"Couldn't refresh GitHub\".",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D029",
+		"note": "Conductor's GitHub App connection refresh. D029 keeps the gh login and the Keychain token, and no GitHub App connection.",
+		"by": "hand"
 	},
 	"toast:R11050766": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Conductor shows \"Some GitHub details couldn't be updated\" (toast, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D029",
+		"note": "Part-failure message of Conductor's GitHub App connection refresh, which D029 leaves out.",
+		"by": "hand"
 	},
 	"toast:R11086629": {
 		"status": "decided",
@@ -1826,7 +1818,7 @@
 	},
 	"toast:R11699632": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "RUN-06",
 		"item": "Terminal text selected by the user can be sent to the chat as a file named terminal-selection plus the time.",

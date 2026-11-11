@@ -909,12 +909,12 @@
 		"owner": "hand"
 	},
 	"label:M952497": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PR-01",
-		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "github-token-rejected",
+		"via": "text",
+		"role": "button",
+		"selector": "div > section > ol > li > button",
+		"by": "seed"
 	},
 	"label:M1092304": {
 		"status": "gap",
@@ -2860,31 +2860,28 @@
 		"by": "seed"
 	},
 	"label:R10676910": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "'Amp' row in the Big terminal 'New tab preset' radio list (bundle @10676910), with `amp` shown as its command",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(1) > label:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10676977": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "'Copilot' row in the Big terminal 'New tab preset' radio list (bundle @10676977), with `copilot --allow-all` shown as its command",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(1) > label:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10677047": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(1) > label:nth-of-type(6) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10677114": {
 		"status": "matched",

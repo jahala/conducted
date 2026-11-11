@@ -74,6 +74,7 @@ export function AddActionDialog({
 	const [draft, setDraft] = useState<ActionDraft>(initial);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const iconSearchRef = useRef<HTMLInputElement | null>(null);
 	const nameId = useId();
 	const commandId = useId();
 	const cwdId = useId();
@@ -193,14 +194,20 @@ export function AddActionDialog({
 					<div className="flex flex-col gap-1.5">
 						<span className="text-sm font-medium leading-none text-fg">Icon</span>
 						<div className="flex items-center gap-2">
-							<span className="flex size-8 items-center justify-center rounded-md bg-muted text-fg-muted">
+							<button
+								type="button"
+								aria-label="Choose action icon"
+								onClick={() => iconSearchRef.current?.focus()}
+								className="flex size-8 items-center justify-center rounded-md bg-muted text-fg-muted transition-colors hover:bg-hover hover:text-fg"
+							>
 								<ActionIcon name={draft.icon} />
-							</span>
+							</button>
 							<span className="text-xs text-fg-muted">{draft.icon ?? "The default play icon"}</span>
 						</div>
 						<ActionIconPicker
 							selected={draft.icon}
 							onSelect={(iconName) => set({ icon: iconName })}
+							searchInputRef={iconSearchRef}
 						/>
 					</div>
 

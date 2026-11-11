@@ -16,11 +16,12 @@
 		"owner": "rule:cite"
 	},
 	"placeholder:R1959277": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "create-github-repo-no-owner",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"placeholder:R2255965": {
 		"status": "matched",
@@ -61,11 +62,12 @@
 		"by": "hand"
 	},
 	"placeholder:R4379343": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files",
-		"backlog": "RUN-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "terminal-find",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > search > input",
+		"by": "seed"
 	},
 	"placeholder:R4632855": {
 		"status": "matched",
@@ -258,12 +260,12 @@
 		"by": "seed"
 	},
 	"placeholder:R10680280": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Experimental: 'Big terminal mode' with preset and custom commands",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R10696051": {
 		"status": "gap",

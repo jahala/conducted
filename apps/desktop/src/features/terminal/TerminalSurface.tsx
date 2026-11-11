@@ -56,6 +56,8 @@ export interface TerminalSurfaceProps {
 	onOpenLink?: (url: string) => void;
 	/** Copies the selection (Cmd+C). The caller reports a failed copy. */
 	onCopy: (text: string) => void;
+	/** The text selected in the terminal, as it changes. Empty when nothing is selected. */
+	onSelectionChange?: (text: string) => void;
 	ref?: Ref<TerminalSurfaceHandle>;
 }
 
@@ -123,6 +125,7 @@ export function TerminalSurface({
 	focusOnMount,
 	onOpenLink,
 	onCopy,
+	onSelectionChange,
 	ref,
 }: TerminalSurfaceProps) {
 	const containerRef = useRef<HTMLElement>(null);
@@ -135,6 +138,8 @@ export function TerminalSurface({
 	openLinkRef.current = onOpenLink;
 	const copyRef = useRef(onCopy);
 	copyRef.current = onCopy;
+	const selectionRef = useRef(onSelectionChange);
+	selectionRef.current = onSelectionChange;
 	endedRef.current = ended;
 
 	useImperativeHandle(
@@ -189,6 +194,9 @@ export function TerminalSurface({
 					.resize(cols, rows)
 					.then(reportFailure("Couldn't resize the terminal", "terminal-resize"));
 			}
+		});
+		const selection = terminal.onSelectionChange(() => {
+			selectionRef.current?.(terminal.getSelection());
 		});
 		const userInput = terminal.onData((data) => {
 			if (endedRef.current) return;
@@ -284,6 +292,7 @@ export function TerminalSurface({
 			output();
 			userInput.dispose();
 			sendSize.dispose();
+			selection.dispose();
 			linkProvider.dispose();
 			terminal.dispose();
 			fitAddon.dispose();

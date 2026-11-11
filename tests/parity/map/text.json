@@ -179,27 +179,28 @@
 		"by": "hand"
 	},
 	"text:R1957512": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Quick start repo-name checks 'This repository already exists.' and 'Repository name is available.'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"text:R1957806": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"git init\" (text, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "code",
+		"selector": "div:nth-of-type(3) > div > p > code:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R1959093": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"text:R1959931": {
 		"status": "matched",
@@ -210,20 +211,20 @@
 		"by": "seed"
 	},
 	"text:R1960086": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Open GitHub settings\" (text, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "create-github-repo-owners-error",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div > button > span",
+		"by": "seed"
 	},
 	"text:R1960727": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Quick start repo-name checks 'This repository already exists.' and 'Repository name is available.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > label",
+		"by": "seed"
 	},
 	"text:R1961386": {
 		"status": "gap",
@@ -234,44 +235,44 @@
 		"owner": "rule:cite"
 	},
 	"text:R1961474": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Repository name must include letters or numbers.\" (text, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "create-github-repo-invalid-name",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R1961592": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Couldn't check repository availability.\" (text, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "create-github-repo-check-failed",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R1961706": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Checking repository availability...\" (text, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "create-github-repo-no-owner",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R1961805": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Quick start repo-name checks 'This repository already exists.' and 'Repository name is available.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "create-github-repo-taken",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R1961905": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Quick start repo-name checks 'This repository already exists.' and 'Repository name is available.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R1962412": {
 		"status": "matched",
@@ -290,15 +291,12 @@
 		"by": "seed"
 	},
 	"text:R2035684": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"note": "Our Create project dialog documents a two-dialog flow (CreateProjectDialog.tsx): it creates the folder and project, then offers the private repository. Claiming all three in this dialog's description would be false.",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Create a local folder, private GitHub repo, and first workspace.\" (region, Unplaced); ours says \"Create a local folder from a template and add it as a project.\" on Create project dialog (parity gap, wording).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "create-project",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(5) > div > p",
+		"by": "seed"
 	},
 	"text:R2035905": {
 		"status": "matched",
@@ -309,13 +307,12 @@
 		"by": "seed"
 	},
 	"text:R2036417": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Name must include letters or numbers.\" (region, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "create-project-invalid-name",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R2036542": {
 		"status": "matched",
@@ -1010,12 +1007,12 @@
 		"by": "seed"
 	},
 	"text:R4633180": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Add-action dialog icon picker with 'Search icons' and 'No icons found'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-add-action-icons",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"text:R4971674": {
 		"status": "decided",
@@ -1044,12 +1041,12 @@
 		"by": "seed"
 	},
 	"text:R5014678": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run button 'Run <label>', 'Run <label> again', 'Stop <label>', 'Starting...', 'Stopping...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-stopping",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R5015072": {
 		"status": "matched",
@@ -1060,13 +1057,12 @@
 		"by": "seed"
 	},
 	"text:R5017572": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"text:R5018396": {
 		"status": "matched",
@@ -1133,37 +1129,36 @@
 		"by": "seed"
 	},
 	"text:R5020313": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Conductor shows \"Couldn't load actions.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "run-load-failed",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"text:R5020935": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run empty: 'Run tests or a development server to test changes in this workspace'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-empty",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > p",
+		"by": "seed"
 	},
 	"text:R5021705": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-empty",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div > div > button:nth-of-type(3) > span",
+		"by": "seed"
 	},
 	"text:R5022582": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run button 'Run <label>', 'Run <label> again', 'Stop <label>', 'Starting...', 'Stopping...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-starting",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R5022850": {
 		"status": "matched",
@@ -3981,18 +3976,18 @@
 	},
 	"text:R10678723": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "settings-big-terminal",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > legend > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10678806": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "settings-big-terminal",
 		"via": "text",
-		"role": "div",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(3) > div > div > div:nth-of-type(2)",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > legend > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10686757": {
@@ -4821,12 +4816,12 @@
 		"by": "hand"
 	},
 	"text:R11048106": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Token field warns 'That doesn't look like a GitHub token. Are you sure?'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "account-github-token-warning",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R11052485": {
 		"status": "matched",

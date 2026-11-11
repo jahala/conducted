@@ -20,6 +20,7 @@ import { GOAL_STATES } from "./goals.ts";
 import { OPEN_IN_STATES } from "./open-in.ts";
 import { OVERLAY_STATES } from "./overlays.ts";
 import { PAGE_STATES } from "./pages.ts";
+import { PAR_RUN_STATES } from "./par-runs.ts";
 import { PR_TAB_STATES } from "./pr-tab.ts";
 import { PR_HEADER_STATES } from "./pull-request.ts";
 import { QUEUE_STATES } from "./queue.ts";
@@ -57,6 +58,7 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...DEEP_LINK_STATES,
 	...DRAG_STATES,
 	...COMMENT_STATES,
+	...PAR_RUN_STATES,
 	...CLOUD_STATES,
 ];
 

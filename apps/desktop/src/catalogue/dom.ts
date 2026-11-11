@@ -1,7 +1,8 @@
 /**
  * @feature catalogue What an after-step does on the page, as a user would
  * Owns: finding a control by its role and accessible text, waiting a bounded number of frames for it to
- * appear, and clicking or typing into it with real DOM events, so the app's own handlers run.
+ * appear, and clicking or typing into it with real DOM events (Cmd and Alt modifiers included), so
+ * the app's own handlers run.
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
 
@@ -81,11 +82,17 @@ export async function rightClick(
 export function press(
 	document: Document,
 	key: string,
-	modifiers: { meta?: boolean } = {},
+	modifiers: { meta?: boolean; alt?: boolean } = {},
 ): boolean {
 	if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 	const target = document.body;
-	const init = { key, bubbles: true, cancelable: true, metaKey: modifiers.meta === true };
+	const init = {
+		key,
+		bubbles: true,
+		cancelable: true,
+		metaKey: modifiers.meta === true,
+		altKey: modifiers.alt === true,
+	};
 	const down = new KeyboardEvent("keydown", init);
 	target.dispatchEvent(down);
 	target.dispatchEvent(new KeyboardEvent("keyup", init));
@@ -138,11 +145,12 @@ export const shows = (document: Document, text: string): boolean =>
 export async function pressUntilTaken(
 	document: Document,
 	key: string,
-	modifiers: { meta?: boolean } = {},
+	modifiers: { meta?: boolean; alt?: boolean } = {},
 ): Promise<void> {
 	for (let frame = 0; frame < MAX_FRAMES; frame++) {
 		if (press(document, key, modifiers)) return;
 		await nextFrame();
 	}
-	throw new Error(`The app never took the key ${modifiers.meta === true ? "Cmd+" : ""}${key}.`);
+	const chord = `${modifiers.meta === true ? "Cmd+" : ""}${modifiers.alt === true ? "Alt+" : ""}`;
+	throw new Error(`The app never took the key ${chord}${key}.`);
 }

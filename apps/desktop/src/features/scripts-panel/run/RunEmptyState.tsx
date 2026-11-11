@@ -26,7 +26,7 @@ export function RunEmptyState({
 	return (
 		<EmptyState
 			title="Run tests or a development server"
-			body="Run tests or a development server to test changes in this workspace."
+			body="Run tests or a development server to test changes in this workspace"
 			action={
 				<div className="flex flex-wrap items-center justify-center gap-2">
 					<Button variant="outline" size="sm" disabled={!canAskAgent} onClick={onAskAgent}>

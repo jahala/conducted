@@ -17,7 +17,12 @@ import { createContext, type ReactNode, useContext, useRef, useState } from "rea
 import { createSingleFlight, type SingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSessions, useSetting, useWorkspace } from "../../core/hooks.ts";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
+import { bigTerminalCommand, customTerminalCommands } from "../terminal/big-terminal.ts";
+import {
+	TERMINAL_SETTINGS_MESSAGES,
+	terminalSettingsProblem,
+} from "../terminal/terminal-settings.ts";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 const NewTabFlightContext = createContext<SingleFlight | null>(null);
@@ -48,11 +53,14 @@ export function useNewTab({
 	onSearchChange: (patch: Partial<WorkspaceSearch>) => void;
 }): NewTabActions {
 	const actions = useActions();
-	const sessions = useServices().services.sessions;
+	const services = useServices().services;
+	const sessions = services.sessions;
 	const openChats = useSessions(workspaceId);
 	const workspace = useWorkspace(workspaceId);
 	const bigTerminalMode = useSetting<boolean>("experimental_big_terminal_mode");
-	const startupCommand = useSetting<string>("big_terminal_preset");
+	const preset = useSetting<string>("big_terminal_preset");
+	const customCommands = useSetting<string>("big_terminal_custom_commands");
+	const toolApprovals = useSetting<boolean>("tool_approvals_enabled");
 	const provided = useContext(NewTabFlightContext);
 	const local = useRef<SingleFlight | null>(null);
 	if (local.current === null) local.current = createSingleFlight();
@@ -80,13 +88,19 @@ export function useNewTab({
 
 	const newTerminal = (): Promise<boolean> =>
 		flight.run(`${keyPrefix}:newTerminal`, async () => {
-			const command =
-				bigTerminalMode && startupCommand !== null && startupCommand.trim() !== ""
-					? { command: startupCommand.trim() }
-					: undefined;
+			const problem = terminalSettingsProblem(services.settings.store.getState());
+			if (problem !== null) {
+				if (problem === "loading") toast.warning(TERMINAL_SETTINGS_MESSAGES.loading);
+				else toast.error(TERMINAL_SETTINGS_MESSAGES.failed);
+				return false;
+			}
+			const command = bigTerminalMode
+				? bigTerminalCommand(preset, customTerminalCommands(customCommands), toolApprovals)
+				: null;
+			const startup = command === null ? undefined : { command };
 			const created = await actions.terminals.create(workspaceId, {
 				placement: "centre",
-				...(command === undefined ? {} : command),
+				...(startup === undefined ? {} : startup),
 			});
 			if (!created.ok) {
 				toastError("Couldn't open a terminal", created.error);

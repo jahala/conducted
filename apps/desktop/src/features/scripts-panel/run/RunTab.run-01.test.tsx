@@ -5,12 +5,12 @@
  * Test first: with one action and no running process the toolbar shows "Run <label>".
  */
 import { appError, ok, type TerminalId } from "@conducted/shared";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../../app/command-dispatcher.ts";
 import type { RunState } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
+import type { Repo, RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
@@ -57,16 +57,18 @@ afterEach(() => {
 	for (const test of containers.splice(0)) test.close();
 });
 
-async function setup(
-	runScripts: RunAction[],
-): Promise<{ test: ReturnType<typeof createTestContainer>; workspace: Workspace }> {
+async function setup(runScripts: RunAction[]): Promise<{
+	test: ReturnType<typeof createTestContainer>;
+	workspace: Workspace;
+	repo: Repo;
+}> {
 	const test = createTestContainer();
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id });
 	const updated = await test.container.services.repo.updateConfig(repo.id, config(runScripts));
 	if (!updated.ok) throw new Error(updated.error.message);
-	return { test, workspace };
+	return { test, workspace, repo };
 }
 
 describe("RUN-01 run tab", () => {
@@ -171,6 +173,37 @@ describe("RUN-01 run tab", () => {
 		expect(await screen.findByText("The saved run history is not readable.")).toBeTruthy();
 	});
 
+	it("says the actions could not be loaded and offers Retry", async () => {
+		const { test, workspace, repo } = await setup([dev]);
+		const loadConfig = vi
+			.spyOn(test.container.services.repo, "loadConfig")
+			.mockResolvedValue(ok(config([dev])));
+		test.container.services.repo.store.setState((state) => {
+			const configs = { ...state.configs };
+			delete configs[repo.id];
+			return {
+				...state,
+				configs,
+				configErrors: {
+					...(state.configErrors ?? {}),
+					[repo.id]: appError("repo_config_invalid", "The repository settings are not readable."),
+				},
+			};
+		});
+
+		render(
+			<ServicesProvider container={test.container}>
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
+			</ServicesProvider>,
+		);
+
+		expect(await screen.findByText("Couldn't load actions.")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(loadConfig).toHaveBeenCalledWith(repo.id);
+	});
+
 	it("offers the empty state when the repository has no actions", async () => {
 		const { test, workspace } = await setup([]);
 
@@ -184,7 +217,7 @@ describe("RUN-01 run tab", () => {
 
 		expect(await screen.findByRole("button", { name: "Add action" })).toBeTruthy();
 		expect(
-			screen.getByText("Run tests or a development server to test changes in this workspace."),
+			screen.getByText("Run tests or a development server to test changes in this workspace"),
 		).toBeTruthy();
 	});
 });

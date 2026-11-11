@@ -8,7 +8,7 @@
  * icon and reported in the log).
  * Test first: searching "play" narrows the grid to icons whose name contains it.
  */
-import { useEffect, useState } from "react";
+import { type RefObject, useEffect, useState } from "react";
 import { cn } from "../../../ui/cn.ts";
 import { Input } from "../../../ui/Input.tsx";
 
@@ -86,9 +86,11 @@ export function ActionIcon({ name, className }: ActionIconProps) {
 export interface ActionIconPickerProps {
 	selected: string | null;
 	onSelect: (iconName: string) => void;
+	/** The search field, so the dialog's Choose action icon button can put the cursor in it. */
+	searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
-export function ActionIconPicker({ selected, onSelect }: ActionIconPickerProps) {
+export function ActionIconPicker({ selected, onSelect, searchInputRef }: ActionIconPickerProps) {
 	const [query, setQuery] = useState("");
 	const needle = query.trim().toLowerCase();
 	const icons =
@@ -99,6 +101,7 @@ export function ActionIconPicker({ selected, onSelect }: ActionIconPickerProps) 
 	return (
 		<div className="flex flex-col gap-2">
 			<Input
+				ref={searchInputRef}
 				type="search"
 				aria-label="Search icons"
 				placeholder="Search icons"

@@ -81,6 +81,8 @@ async function mount(): Promise<{
 	await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
 		workspace.id,
 	]);
+	// The app loads settings before any screen shows; a new terminal waits for them.
+	must(await test.container.services.settings.start());
 	must(await test.container.services.workspace.start());
 	const chat = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 	must(await test.container.services.sessions.start());

@@ -25,7 +25,7 @@ describe("RUN-01 run empty state", () => {
 
 		expect(onAddAction).toHaveBeenCalledTimes(1);
 		expect(
-			screen.getByText("Run tests or a development server to test changes in this workspace."),
+			screen.getByText("Run tests or a development server to test changes in this workspace"),
 		).toBeTruthy();
 	});
 

@@ -18,8 +18,10 @@ const CLOUD: Host = { kind: "cloud", url: "https://conducted.example.workers.dev
 
 let test: TestContainer;
 
-beforeEach(() => {
+beforeEach(async () => {
 	test = createTestContainer();
+	// The app loads settings before any screen shows; a new terminal waits for them.
+	expect((await test.container.services.settings.start()).ok).toBe(true);
 });
 
 afterEach(() => {

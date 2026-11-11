@@ -27,14 +27,18 @@
  * token is saved only after the user confirms the warning.
  * Must handle: `gh` not installed (install help and no sign-in command), signed out, the
  * saml-sso-required and missing-scope failure classes, a token warning before saving, the Keychain
- * refusing a write (message, nothing shown as saved), and disconnecting GitHub or Linear after a
- * confirmation.
+ * refusing a write (message, nothing shown as saved), a refresh that fails ("Couldn't refresh
+ * GitHub"), and disconnecting GitHub or Linear after a confirmation.
  * Test first: with `gh` not installed the page shows the install help and no sign-in command.
  */
 import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
-import { githubFailureMessage, githubTokenWarning } from "../../../core/github-text.ts";
+import {
+	GITHUB_REFRESH_FAILED_MESSAGE,
+	githubFailureMessage,
+	githubTokenWarning,
+} from "../../../core/github-text.ts";
 import { useActions, useGitHubAccess, useLinearAccess } from "../../../core/hooks.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
@@ -73,7 +77,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const checkAgain = async () => {
 		const result = await actions.app.recheckGitHubAccess();
 		if (!result.ok) {
-			toastError("Couldn't check GitHub access", result.error);
+			toastError(GITHUB_REFRESH_FAILED_MESSAGE, result.error);
 			return;
 		}
 		if (services.github.store.getState().access.status !== "ok") {
