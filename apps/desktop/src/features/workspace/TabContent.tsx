@@ -2,8 +2,9 @@
  * @feature NAV-10 Tab content
  * Owns: showing the content of the open tab: chat, terminal, file, review comment, pull request or browser
  * preview, each from its own feature.
- * Behaviour: ui-map.md 3.2 (tab content by type; empty group shows New chat, Browser, Local terminal; error
- * cards "This chat tab failed to render").
+ * Behaviour: ui-map.md 3.2 (tab content by type; empty group shows New chat, Browser, Local terminal; the
+ * chat error card reads "This chat tab failed to render" and "Switch tabs or try rendering this chat
+ * again." with "Try again", renderApp @10065314).
  * Our design choice: each tab is mounted under its own identity and sits in its own boundary, so a
  * crash in one tab clears when the user opens another and no state carries from one chat to the next.
  * A terminal tab renders only an empty slot: the app shell's surface layer draws the terminal over it and
@@ -19,6 +20,8 @@ import type { WorkspaceId } from "@conducted/shared";
 import { TerminalTabSlot } from "../../app/surface-registry.tsx";
 import { useWorkspace } from "../../core/hooks.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
+import { Button } from "../../ui/Button.tsx";
+import { EmptyState } from "../../ui/EmptyState.tsx";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { BrowserTab } from "../browser-preview/BrowserTab.tsx";
@@ -82,12 +85,18 @@ function TabBody({
 				<NotBuiltYet area="Chat" resetKey={key}>
 					<ErrorBoundary
 						resetKey={key}
-						fallback={() => (
-							<div
-								role="alert"
-								className="flex h-full items-center justify-center p-6 text-sm text-danger"
-							>
-								This chat tab failed to render. Open another tab and come back.
+						fallback={(_error, reset) => (
+							<div role="alert" className="h-full">
+								<EmptyState
+									tone="failed"
+									title="This chat tab failed to render"
+									body="Switch tabs or try rendering this chat again."
+									action={
+										<Button variant="secondary" size="sm" onClick={reset}>
+											Try again
+										</Button>
+									}
+								/>
 							</div>
 						)}
 					>
