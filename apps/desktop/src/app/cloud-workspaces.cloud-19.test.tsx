@@ -3,7 +3,8 @@
  * Owns: the journey through the app's own root, the real container, the in-memory Platform and a
  * scripted Worker: on a paired Mac, choose the cloud entry in the sidebar's switcher, create two
  * cloud workspaces from the new-workspace page, and see each saved with a cloud host, opened, and
- * its first chat started on the Worker.
+ * its first chat started on the Worker; and that switching back reopens the workspace that was
+ * open in that entry.
  * Behaviour: issue #491 and Conductor 0.92.1's flow (the switcher's cloud organisation makes the
  * new-workspace page create in the cloud, renderApp `BXa`, main `aV`).
  * Test first: on a paired Mac the cloud entry creates two cloud workspaces from the new-workspace
@@ -17,7 +18,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Workspace } from "../core/model.ts";
 import { scriptWorker } from "../test/cloud-worker.ts";
-import { createTestContainer, seedRepo, type TestContainer } from "../test/container.ts";
+import {
+	createTestContainer,
+	seedRepo,
+	seedWorkspace,
+	type TestContainer,
+} from "../test/container.ts";
 import { toast } from "../ui/Toast.tsx";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
@@ -137,5 +143,52 @@ describe("CLOUD-19 creating cloud workspaces from the app", () => {
 		expect(test.memory.controls.shellCalls.some((call) => call.args.includes("worktree"))).toBe(
 			false,
 		);
+	});
+
+	it("switching back reopens the workspace that was open in that entry", async () => {
+		const test = createTestContainer();
+		open = test;
+		const { services } = test.container;
+		scriptWorker(test);
+		must(await services.settings.start());
+		must(await services.cloudPairing.start());
+		const repo = await seedRepo(test.container, { name: "api" });
+		const local = await seedWorkspace(test.container, { repoId: repo.id, directoryName: "oslo" });
+		const cloud = await seedWorkspace(test.container, {
+			repoId: repo.id,
+			directoryName: "lisbon",
+			path: "/workspace/ws-lisbon",
+			host: { kind: "cloud", url: WORKER, vmId: "ws-lisbon" },
+		});
+		const localPath = `/repository/${repo.id}/workspace/${local.id}`;
+		const cloudPath = `/repository/${repo.id}/workspace/${cloud.id}`;
+		const router = createAppRouter(createMemoryHistory({ initialEntries: [localPath] }));
+		render(
+			<ServicesProvider container={test.container}>
+				<AppProviders client={createQueryClient(() => {})}>
+					<VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 200 }}>
+						<RouterProvider router={router} />
+					</VirtuosoMockContext.Provider>
+				</AppProviders>
+			</ServicesProvider>,
+		);
+		await router.load();
+		const choose = async (name: RegExp) => {
+			fireEvent.keyDown(await screen.findByRole("button", { name: "Account menu" }), {
+				key: "Enter",
+			});
+			fireEvent.click(await screen.findByRole("menuitem", { name }));
+		};
+
+		// The Worker has no remembered workspace yet, so the screen stays where it is.
+		await choose(/conducted\.example\.workers\.dev/);
+		await waitFor(() => expect(services.settings.get("active_organization")).toBe("cloud"));
+		expect(router.state.location.pathname).toBe(localPath);
+
+		await router.navigate({ to: cloudPath });
+		await choose(/My Mac/);
+		await waitFor(() => expect(router.state.location.pathname).toBe(localPath));
+		await choose(/conducted\.example\.workers\.dev/);
+		await waitFor(() => expect(router.state.location.pathname).toBe(cloudPath));
 	});
 });
