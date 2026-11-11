@@ -111,6 +111,11 @@ export const zAgentMessage = z.object({
 	agent: zAgentKind,
 	/** The agent's own id for this message, when it has one. */
 	nativeId: z.string().optional(),
+	/**
+	 * The call that started the sub-agent that wrote this message. The chat keeps every item of
+	 * such a message inside that call, as Conductor does, instead of in the main transcript.
+	 */
+	parentToolUseId: zToolUseId.optional(),
 	items: z.array(zAgentItem),
 	raw: z.unknown().optional(),
 });

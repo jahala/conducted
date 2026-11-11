@@ -9,8 +9,9 @@
 		"build": "tsc -p . && vite build && bun ../../scripts/catalogue/check-bundle.ts dist",
 		"tauri": "tauri",
 		"typecheck": "tsc -p .",
-		"test": "vitest run",
-		"test:coverage": "vitest run --coverage"
+		"test": "vitest run --project unit",
+		"test:macos": "vitest run --project macos",
+		"test:coverage": "vitest run --project unit --coverage"
 	},
 	"dependencies": {
 		"@codemirror/commands": "^6.11.1",

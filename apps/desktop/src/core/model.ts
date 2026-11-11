@@ -309,8 +309,8 @@ export interface ToolCallView {
 	toolUseId: ToolUseId;
 	item: Extract<AgentItem, { kind: "tool_call" }>;
 	result: Extract<AgentItem, { kind: "tool_result" }> | null;
-	/** Calls made by a sub-agent started by this call. */
-	children: ToolCallView[];
+	/** What a sub-agent started by this call showed, in order, kept inside its card. */
+	blocks: ChatBlock[];
 }
 
 export type ChatBlock =

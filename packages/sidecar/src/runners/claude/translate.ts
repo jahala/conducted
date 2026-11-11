@@ -28,7 +28,8 @@
  *  - `raw` keeps the original message so a later translator version can re-read old events
  * Must handle:
  *  - a tool_result for a dropped TodoWrite call (state in the translator, not a global)
- *  - sub-agent messages (parent_tool_use_id set) keep the link on call and result
+ *  - sub-agent messages (parent_tool_use_id set) carry the link on the message, and on their
+ *    call and result
  *  - unknown message types and unknown content blocks: ignored with a debug log, never a throw
  *  - translating the same message twice can differ: the translator keeps per-chat state, and a
  *    second init means the process respawned, which resets that state
@@ -338,9 +339,16 @@ export class ClaudeTranslator {
 	private agentMessage(source: unknown, items: AgentItem[]): AgentMessage {
 		const uuid = (source as { uuid?: unknown }).uuid;
 		const nativeId = typeof uuid === "string" && uuid !== "" ? uuid : undefined;
-		return nativeId === undefined
-			? { agent: "claude", items, raw: source }
-			: { agent: "claude", nativeId, items, raw: source };
+		const parent = (source as { parent_tool_use_id?: unknown }).parent_tool_use_id;
+		const parentToolUseId =
+			typeof parent === "string" && parent !== "" ? (parent as ToolUseId) : undefined;
+		return {
+			agent: "claude",
+			...(nativeId === undefined ? {} : { nativeId }),
+			...(parentToolUseId === undefined ? {} : { parentToolUseId }),
+			items,
+			raw: source,
+		};
 	}
 }
 
