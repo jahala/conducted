@@ -266,7 +266,12 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-default-models", "Default models", "models", "Default models"),
 	page("settings-git", "Git", "git", "Branch name prefix"),
 	page("settings-connections", "Connections", "connections", "Connections"),
-	page("settings-cloud", "Cloud: the Worker, its deploy and pairing, and cloud variables", "cloud", "Deploy to Cloudflare"),
+	page(
+		"settings-cloud",
+		"Cloud: the Worker, its deploy and pairing, and cloud variables",
+		"cloud",
+		"Deploy to Cloudflare",
+	),
 	page("settings-environment", "Environment", "environment", "Environment"),
 	page("settings-remote-control", "Remote control", "remote-control", "Remote control"),
 	page("settings-experimental", "Experimental", "experimental", "Experimental"),
