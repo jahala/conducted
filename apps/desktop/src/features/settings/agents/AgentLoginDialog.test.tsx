@@ -17,6 +17,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			<AgentLoginDialog
 				open
 				agentName="Codex"
+				agent="codex"
 				flow={deviceFlow}
 				error={null}
 				onOpenUrl={vi.fn()}
@@ -37,6 +38,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			<AgentLoginDialog
 				open
 				agentName="Codex"
+				agent="codex"
 				flow={deviceFlow}
 				error={null}
 				onOpenUrl={onOpenUrl}
@@ -45,7 +47,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
+		fireEvent.click(screen.getByRole("button", { name: "Open device authorization" }));
 
 		expect(onOpenUrl).toHaveBeenCalledWith("https://example.com/device");
 	});
@@ -56,6 +58,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			<AgentLoginDialog
 				open
 				agentName="Codex"
+				agent="codex"
 				flow={deviceFlow}
 				error={null}
 				signedIn
@@ -86,7 +89,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			/>,
 		);
 
-		expect(screen.getByText("claude setup-token")).toBeTruthy();
+		expect(screen.getAllByText("claude setup-token").length).toBeGreaterThan(0);
 		expect(screen.getByLabelText("Paste code from Claude")).toBeTruthy();
 	});
 
@@ -109,7 +112,7 @@ describe("SET-03 AgentLoginDialog", () => {
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
 			target: { value: "code-123" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
 		expect(onFinish).toHaveBeenCalledWith("code-123");
 	});
@@ -120,6 +123,7 @@ describe("SET-03 AgentLoginDialog", () => {
 			<AgentLoginDialog
 				open
 				agentName="Codex"
+				agent="codex"
 				flow={deviceFlow}
 				error="The sign-in timed out."
 				onOpenUrl={vi.fn()}
@@ -129,7 +133,7 @@ describe("SET-03 AgentLoginDialog", () => {
 		);
 
 		expect(screen.getByRole("alert").textContent).toBe("The sign-in timed out.");
-		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		fireEvent.click(screen.getByRole("button", { name: "Restart device authorization" }));
 
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
@@ -152,5 +156,48 @@ describe("SET-03 AgentLoginDialog", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
 		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("draws Conductor's Codex device-code steps and plan choice", () => {
+		const onOpenUrl = vi.fn();
+		render(
+			<AgentLoginDialog
+				open
+				agentName="Codex"
+				agent="codex"
+				flow={deviceFlow}
+				error={null}
+				onOpenUrl={onOpenUrl}
+				onOpenChange={vi.fn()}
+				onRetry={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByText("Authorize Conducted to use your ChatGPT subscription.")).toBeTruthy();
+		expect(screen.getByText("Enable device code authorization for Codex.")).toBeTruthy();
+		expect(screen.getByText("Enter this code when OpenAI asks for it:")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Business plan" }));
+		fireEvent.click(screen.getByRole("button", { name: "Open ChatGPT admin settings" }));
+		expect(onOpenUrl).toHaveBeenCalledWith(expect.stringContaining("chatgpt.com/admin"));
+	});
+
+	it("asks for the pasted Claude code with Conductor's placeholder", () => {
+		render(
+			<AgentLoginDialog
+				open
+				agentName="Claude Code"
+				agent="claude"
+				flow={{ instructions: "Paste the code." }}
+				error={null}
+				requiresCode
+				onOpenUrl={vi.fn()}
+				onOpenChange={vi.fn()}
+				onRetry={vi.fn()}
+			/>,
+		);
+
+		expect((screen.getByLabelText("Paste code from Claude") as HTMLInputElement).placeholder).toBe(
+			"Paste here",
+		);
 	});
 });

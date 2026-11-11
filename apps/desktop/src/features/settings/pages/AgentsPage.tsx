@@ -26,6 +26,7 @@
  * page to check a path (a new hook or action, listed in docs/reports/parity-gaps-2026-11-07.md).
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
+ * version check, Codex's toast after a ChatGPT login offers Conductor's "Manage usage" action,
  * version check ("Validation failed" with its warning), a sign-in in progress, a finished sign-in
  * that toasts Conductor's success sentence and restarts the agent's idle chats, and a refresh after
  * the user installs a program in a terminal.
@@ -111,8 +112,15 @@ export function AgentsPage() {
 		const id = login.loginId ?? "codex";
 		if (announced.current === id) return;
 		announced.current = id;
-		toast("Codex now uses your ChatGPT plan");
-	}, [login, signedIn, loginInstall?.authMethod]);
+		toast("Codex now uses your ChatGPT plan", {
+			action: {
+				label: "Manage usage",
+				onClick: () => {
+					void actions.app.openUrl("https://chatgpt.com/codex/settings/usage");
+				},
+			},
+		});
+	}, [login, signedIn, loginInstall?.authMethod, actions.app.openUrl]);
 
 	/** Conductor's Refresh: the icon spins and the button waits until the check settles. */
 	const refresh = async () => {
@@ -384,6 +392,7 @@ export function AgentsPage() {
 				<AgentLoginDialog
 					open
 					agentName={login.name}
+					agent={login.agent}
 					flow={login.flow}
 					error={login.error}
 					signedIn={signedIn}
