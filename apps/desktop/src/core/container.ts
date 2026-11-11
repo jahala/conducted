@@ -1013,6 +1013,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		cloud: platform.cloud,
+		ids,
 		git: gitRunner,
 		repos: repositories,
 		placeNames: inputs.placeNames,

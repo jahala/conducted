@@ -297,6 +297,11 @@ export interface NewWorkspaceInput {
 	attachmentPaths: string[];
 	config: SessionConfig;
 	sectionId: SectionId | null;
+	/**
+	 * The paired Worker to create this workspace in (CLOUD-19), as Conductor's create call takes its
+	 * `hostingServerUrl`. Absent: the workspace is made on this Mac.
+	 */
+	cloudUrl?: string;
 }
 
 // ---------------------------------------------------------------- queries
