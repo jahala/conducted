@@ -296,9 +296,7 @@ export function DiffView({
 				<ErrorBoundary
 					resetKey={`${diff.path}:${diff.oldText?.length ?? -1}:${diff.newText?.length ?? -1}:${
 						forceRender
-					}:${preferences.layout}:${preferences.wrapLines}:${
-						preferences.hideWhitespaceChanges
-					}:${preferences.entireFile}`}
+					}:${preferences.layout}:${preferences.wrapLines}:${preferences.hideWhitespaceChanges}`}
 					fallback={(_error, reset) => (
 						<DiffWarning kind="render_failed" onAction={reset} onDismiss={reset} />
 					)}

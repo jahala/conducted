@@ -9,13 +9,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { FileDiff } from "../../core/api.ts";
 import { DiffView } from "./DiffView.tsx";
 import { toDiffOptions } from "./diff-options.ts";
+import { diffThemeFor } from "./diff-theme.ts";
 import type { DiffPreferences } from "./diff-types.ts";
 
 afterEach(cleanup);
 
 const preferences: DiffPreferences = {
 	layout: "split",
-	entireFile: false,
 	hideWhitespaceChanges: false,
 	wrapLines: true,
 	ligatures: true,
@@ -67,6 +67,68 @@ describe("REV-02 DiffView with the real renderer", () => {
 		await waitFor(
 			() => {
 				expect(host?.shadowRoot?.innerHTML ?? "").toContain("font-variant-ligatures: none");
+			},
+			{ timeout: 8_000 },
+		);
+	});
+
+	it("colours a Rust diff with the user's theme and shows a line number per line", async () => {
+		const rust: FileDiff = {
+			path: "src/main.rs",
+			oldText: "fn main() {}\n",
+			newText: "fn main() {\n    let count = 1;\n}\n",
+			patch: "",
+			binary: false,
+			tooLarge: false,
+		};
+		const { container } = render(
+			<DiffView
+				diff={rust}
+				preferences={{ ...preferences, layout: "unified" }}
+				theme={diffThemeFor("default", "dark")}
+				forceRender={false}
+				onForceRender={() => {}}
+			/>,
+		);
+		const host = container.querySelector("diffs-container");
+		await waitFor(
+			() => {
+				const html = host?.shadowRoot?.innerHTML ?? "";
+				expect(html).toContain("var(--color-code-keyword)");
+				expect(html).toContain("var(--color-code-number)");
+				const numbers = Array.from(
+					host?.shadowRoot?.querySelectorAll("[data-line-number-content]") ?? [],
+				).map((node) => node.textContent);
+				expect(numbers).toEqual(["1", "1", "2", "3"]);
+			},
+			{ timeout: 8_000 },
+		);
+	});
+
+	it("colours a TypeScript diff with a named code theme", async () => {
+		const ts: FileDiff = {
+			path: "src/a.ts",
+			oldText: "const a = 1;\n",
+			newText: "const a = 2;\nexport { a };\n",
+			patch: "",
+			binary: false,
+			tooLarge: false,
+		};
+		const { container } = render(
+			<DiffView
+				diff={ts}
+				preferences={{ ...preferences, layout: "unified" }}
+				theme={diffThemeFor("dracula", "dark")}
+				forceRender={false}
+				onForceRender={() => {}}
+			/>,
+		);
+		const host = container.querySelector("diffs-container");
+		await waitFor(
+			() => {
+				const html = host?.shadowRoot?.innerHTML ?? "";
+				expect(html).toContain("data-line-number-content");
+				expect(html).toMatch(/style="color:#[0-9a-fA-F]{6}"/);
 			},
 			{ timeout: 8_000 },
 		);

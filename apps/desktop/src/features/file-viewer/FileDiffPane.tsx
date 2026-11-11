@@ -6,7 +6,8 @@
  * rows above the diff, so each conflict can be resolved without leaving the tab. The rows read the
  * working file, whatever side the diff's scope compares.
  * Behaviour: ui-map.md 3.2 (File tab, diff mode); services-map.md 3.4 (diff sources per scope);
- * inventory-messages-sidecar.md "Merge conflicts in the editor".
+ * inventory-messages-sidecar.md "Merge conflicts in the editor". The diff's Shiki colours come
+ * from the code theme setting (diff/diff-theme.ts), and every line shows its number.
  * Data: useFileDiff, useDiffComments, useFileContent (the working file the conflict rows read),
  * useActions().comments and files.resolveConflicts.
  * Children: diff/DiffView, ConflictResolver, FileTabState (loading and error).
@@ -20,11 +21,18 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { DiffScope, FileDiff } from "../../core/api.ts";
-import { useActions, useDiffComments, useFileContent, useFileDiff } from "../../core/hooks.ts";
+import {
+	useActions,
+	useDiffComments,
+	useFileContent,
+	useFileDiff,
+	useSetting,
+} from "../../core/hooks.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useThemeType } from "../../ui/use-theme-type.ts";
 import { DiffView } from "../diff/DiffView.tsx";
+import { diffThemeFor } from "../diff/diff-theme.ts";
 import type { CommentHandlers, DiffPreferences } from "../diff/diff-types.ts";
 import { ConflictResolver } from "./ConflictResolver.tsx";
 import { FileTabState } from "./FileTabState.tsx";
@@ -49,6 +57,7 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 	const [previous, setPrevious] = useState<FileDiff | null>(null);
 	const [forceRender, setForceRender] = useState(false);
 	const themeType = useThemeType();
+	const codeTheme = useSetting<string>("code_theme");
 
 	useEffect(() => {
 		if (diff.state === "ready") setPrevious(diff.data);
@@ -134,7 +143,7 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 					commentHandlers={handlers}
 					forceRender={forceRender}
 					onForceRender={() => setForceRender(true)}
-					theme={{ name: "", type: themeType }}
+					theme={diffThemeFor(codeTheme, themeType)}
 					updating={diff.state === "loading" && previous !== null}
 				/>
 			</div>
