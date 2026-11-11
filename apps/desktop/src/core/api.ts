@@ -662,9 +662,17 @@ export interface Actions {
 		/**
 		 * `command` is typed into the new shell when it starts. In a cloud workspace `hostKind`
 		 * picks the sandbox (the default) or the Mac in the local mirror (CLOUD-11).
+		 * `placement` says which strip its tab belongs to; the centre is the default.
 		 */
 		create: Act<
-			[workspaceId: WorkspaceId, options?: { command?: string; hostKind?: "local" | "cloud" }],
+			[
+				workspaceId: WorkspaceId,
+				options?: {
+					command?: string;
+					hostKind?: "local" | "cloud";
+					placement?: "centre" | "panel";
+				},
+			],
 			Terminal
 		>;
 		/** Opens the repository's terminal in its main clone, creating it the first time. */
