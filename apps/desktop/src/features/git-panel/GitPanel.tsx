@@ -62,6 +62,12 @@ import type { DiffScope } from "../../core/api.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import {
+	CONTINUE_NOTE_FAILED_MESSAGE,
+	PULL_UP_TO_DATE_MESSAGE,
+	PULLED_LATEST_MESSAGE,
+} from "../../core/git-text.ts";
+import { forgeForRemoteUrl } from "../../core/github-text.ts";
+import {
 	useActions,
 	useDiffComments,
 	useGitState,
@@ -70,14 +76,8 @@ import {
 	useWorkspace,
 	useWorkspaceStatus,
 } from "../../core/hooks.ts";
+import { capabilitiesFor } from "../../core/local-git-forge.ts";
 import type { GitPanelTab } from "../../core/model.ts";
-import {
-	CONTINUE_NOTE_FAILED_MESSAGE,
-	PULL_UP_TO_DATE_MESSAGE,
-	PULLED_LATEST_MESSAGE,
-} from "../../core/services/git.ts";
-import { forgeForRemoteUrl } from "../../core/services/github.ts";
-import { capabilitiesFor } from "../../core/services/local-git-forge.ts";
 import {
 	computeGitHeader,
 	type GitHeaderActionId,

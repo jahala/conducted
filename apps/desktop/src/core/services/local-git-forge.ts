@@ -25,42 +25,10 @@ import { createLatestWins } from "../async/latest-wins.ts";
 import { mergeTreeWriteTree, revListLeftRightCount } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { parseLeftRightCount } from "../git/status.ts";
+import type { ForgeCapabilities } from "../local-git-forge.ts";
 import { mergeIntoTargetInstruction } from "./agent-instructions.ts";
 import { targetBranchName, type WorkspaceGitContext } from "./git.ts";
 import type { AgentMessenger } from "./sessions.ts";
-
-/**
- * What a forge can do, for the actions that read it: the Git header's Ready for review,
- * auto-merge and Approve (`git-header.ts`), and the panel's Merge, which goes to GitHub or to the
- * agent (`GitPanel.tsx`). services-map 5B.1.5 lists more capabilities; a flag joins this list when
- * an action reads it.
- */
-export interface ForgeCapabilities {
-	/** Calls to the forge's own service: an approve is one. */
-	remoteRequests: boolean;
-	markReady: boolean;
-	merge: boolean;
-	autoMerge: boolean;
-}
-
-export const GITHUB_FORGE_CAPABILITIES: ForgeCapabilities = {
-	remoteRequests: true,
-	markReady: true,
-	merge: true,
-	autoMerge: true,
-};
-
-export const LOCAL_GIT_FORGE_CAPABILITIES: ForgeCapabilities = {
-	remoteRequests: false,
-	markReady: false,
-	merge: false,
-	autoMerge: false,
-};
-
-/** The capabilities of one forge. Only GitHub can act on the remote. */
-export function capabilitiesFor(forge: "github" | "local"): ForgeCapabilities {
-	return forge === "github" ? GITHUB_FORGE_CAPABILITIES : LOCAL_GIT_FORGE_CAPABILITIES;
-}
 
 /** The pull request information a local-git workspace shows in place of GitHub's. */
 export interface LocalPrInfo {

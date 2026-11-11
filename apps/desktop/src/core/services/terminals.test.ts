@@ -1,6 +1,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import { buildScriptEnv, terminalLimit } from "./terminals.ts";
+import { terminalLimit } from "../terminals.ts";
+import { buildScriptEnv } from "./terminals.ts";
 
 describe("buildScriptEnv", () => {
 	const input = {

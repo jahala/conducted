@@ -16,8 +16,8 @@
 import type { AgentLogin } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useCallback, useRef, useState } from "react";
+import { agentDisplayName, agentKey } from "./agent-catalog.ts";
 import { useActions } from "./hooks.ts";
-import { agentDisplayName, agentKey } from "./services/agent-catalog.ts";
 
 export interface AgentLoginSelection {
 	agent: AgentKind;

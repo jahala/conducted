@@ -29,7 +29,7 @@ import {
 	useTerminals,
 	useWorkspace,
 } from "../../core/hooks.ts";
-import { terminalLimit } from "../../core/services/terminals.ts";
+import { terminalLimit } from "../../core/terminals.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { PortsTab } from "./ports/PortsTab.tsx";

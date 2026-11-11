@@ -18,10 +18,10 @@ import type { SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect } from "react";
 import { useStore } from "zustand";
+import { agentKey } from "../agent-catalog.ts";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import {
-	agentKey,
 	categoriesOfConfigSyncKey,
 	configSyncKey,
 	modelsKey,

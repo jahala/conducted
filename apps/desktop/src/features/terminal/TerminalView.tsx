@@ -28,7 +28,7 @@ import {
 } from "react";
 import { useActions, useSetting, useTerminalConnection, useTerminals } from "../../core/hooks.ts";
 import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
-import { terminalLimit as limitForMode } from "../../core/services/terminals.ts";
+import { terminalLimit as limitForMode } from "../../core/terminals.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";

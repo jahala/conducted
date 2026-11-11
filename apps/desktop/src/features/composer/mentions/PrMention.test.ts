@@ -3,10 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { createElement, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type {
-	PrMentionItem,
-	PrMentionSearchResult,
-} from "../../../core/services/mention-search.ts";
+import type { PrMentionItem, PrMentionSearchResult } from "../../../core/mention-search.ts";
 import { settleEditorTeardown } from "../../../test/composer-teardown.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
 import { createPrMention, type PrMentionDeps } from "./PrMention.ts";

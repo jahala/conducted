@@ -16,11 +16,8 @@
  * Test first: echo $CONDUCTOR_PORT becomes echo $CONDUCTED_PORT with one rename listed.
  */
 import type { SettingValue } from "../registries/settings.ts";
-import {
-	RESERVED_ENV_VAR_NAMES,
-	type SettingAction,
-	type SettingsFileContents,
-} from "../services/settings.ts";
+import type { SettingAction, SettingsFileContents } from "../services/settings.ts";
+import { RESERVED_ENV_VAR_NAMES } from "../settings-helpers.ts";
 
 /** The script settings of the `[scripts]` table, by our key (the same as Conductor's). */
 export const SCRIPT_KEYS = [

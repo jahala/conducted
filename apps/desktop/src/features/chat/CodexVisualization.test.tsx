@@ -168,11 +168,17 @@ describe("CHAT-22 Codex visualization", () => {
 			"<p>Second chart</p>",
 		);
 		await act(() => first.client.refetchQueries());
-		await waitFor(() => expect(first.pages().size).toBe(2));
-		const sources = screen
-			.getAllByTitle("Visualization")
-			.map((frame) => frame.getAttribute("src") ?? "");
-		expect(new Set(sources).size).toBe(2);
+		// Wait for what the screen shows: the shell can hold both pages before React has put the
+		// second page's address on its frame, which a busy machine shows as one frame.
+		let sources: string[] = [];
+		await waitFor(() => {
+			sources = screen
+				.getAllByTitle("Visualization")
+				.map((frame) => frame.getAttribute("src") ?? "")
+				.filter((source) => source !== "");
+			expect(new Set(sources).size).toBe(2);
+		});
+		expect(first.pages().size).toBe(2);
 		const pages = sources.map((source) => first.pages().get(source) ?? "");
 		expect(pages.filter((page) => page.includes("First chart"))).toHaveLength(1);
 		expect(pages.filter((page) => page.includes("Second chart"))).toHaveLength(1);

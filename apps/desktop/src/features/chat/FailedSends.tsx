@@ -16,7 +16,7 @@ import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
-import type { FailedSend } from "../../core/services/sessions.ts";
+import type { FailedSend } from "../../core/sessions.ts";
 import { reportFailure } from "./report-failure.ts";
 import { UserMessage } from "./UserMessage.tsx";
 

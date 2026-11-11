@@ -33,8 +33,8 @@
 import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
+import { agentDisplayName, agentKey } from "../../../core/agent-catalog.ts";
 import { useActions, useAgentInstalls } from "../../../core/hooks.ts";
-import { agentDisplayName, agentKey } from "../../../core/services/agent-catalog.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input } from "../../../ui/Input.tsx";

@@ -27,8 +27,8 @@
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useServices } from "../../core/context.tsx";
+import { workspaceRelativePath } from "../../core/git-text.ts";
 import { useChat, useFileContent, useWorkspace } from "../../core/hooks.ts";
-import { workspaceRelativePath } from "../../core/services/git.ts";
 import { Button } from "../../ui/Button.tsx";
 import { FRAME_SANDBOX, frameDocument, HEIGHT_MESSAGE } from "./visualization-frame.ts";
 import { useWorkspaceLinks } from "./workspace-links.ts";

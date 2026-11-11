@@ -15,14 +15,9 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform } from "../../platform/memory.ts";
 import { unusedDatabase } from "../../test/memory-platform.ts";
+import { SYNC_FAILED_LABEL, SYNC_OFF_LABEL } from "../file-sync-view.ts";
 import type { Workspace } from "../model.ts";
-import {
-	FileSyncService,
-	guardedRelativePath,
-	OUTSIDE_MIRROR_MESSAGE,
-	SYNC_FAILED_LABEL,
-	SYNC_OFF_LABEL,
-} from "./file-sync.ts";
+import { FileSyncService, guardedRelativePath, OUTSIDE_MIRROR_MESSAGE } from "./file-sync.ts";
 
 const CLOUD: Host = { kind: "cloud", url: "https://w.example.dev", vmId: "vm-1" };
 const WORKSPACE_ID = "ws-1" as WorkspaceId;

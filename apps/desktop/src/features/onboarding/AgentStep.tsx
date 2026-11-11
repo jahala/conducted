@@ -17,8 +17,8 @@
 import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useState } from "react";
+import { agentDisplayName, agentKey } from "../../core/agent-catalog.ts";
 import { useActions, useAgentInstalls } from "../../core/hooks.ts";
-import { agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
 import { useAgentLogin } from "../../core/use-agent-login.ts";
 import { Alert, AlertDescription } from "../../ui/Alert.tsx";
 import { Badge, type BadgeTone } from "../../ui/Badge.tsx";

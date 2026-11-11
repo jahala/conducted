@@ -14,8 +14,9 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
+import { githubSetupNeeded, PR_MENTION_LIMIT } from "../mention-search.ts";
 import type { GithubAccess } from "./github.ts";
-import { githubSetupNeeded, PR_MENTION_LIMIT, searchPrMentions } from "./mention-search.ts";
+import { searchPrMentions } from "./mention-search.ts";
 
 const REMOTE = "https://github.com/octo/repo.git";
 

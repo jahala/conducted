@@ -13,7 +13,7 @@
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";
-import type { FileSyncView } from "../../core/cloud/file-sync.ts";
+import type { FileSyncView } from "../../core/file-sync-view.ts";
 import { cn } from "../../ui/cn.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import {

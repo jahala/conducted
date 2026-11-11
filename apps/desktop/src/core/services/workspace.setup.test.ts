@@ -16,13 +16,13 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, Workspace } from "../model.ts";
+import { SETUP_FAILED_MESSAGE } from "../workspace-helpers.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 import {
 	COPY_FILE_SIZE_LIMIT,
 	DEFAULT_COPY_FILES,
 	matchesCopyPattern,
 	parseWorktreeInclude,
-	SETUP_FAILED_MESSAGE,
 	selectIncludedPaths,
 	WorkspaceService,
 	type WorkspaceServiceDeps,

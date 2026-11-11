@@ -36,11 +36,11 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
-import type { FileSyncView } from "./cloud/file-sync.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type { CloudWorkspaceResources } from "./cloud/state.ts";
 import type { ImportPreview } from "./conductor-import/plan.ts";
 import type { ConductorImportState, ImportOutcome } from "./conductor-import/service.ts";
+import type { FileSyncView } from "./file-sync-view.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,

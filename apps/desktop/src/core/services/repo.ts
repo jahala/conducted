@@ -95,7 +95,14 @@ import {
 } from "../git/commands.ts";
 import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
+import { isGithubRemoteUrl } from "../github-text.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
+import {
+	GSTACK_TEMPLATE_URL,
+	isProjectTemplate,
+	type ProjectTemplate,
+	projectFolderName,
+} from "../project-templates.ts";
 import {
 	coerceSettingValue,
 	getSettingDef,
@@ -104,17 +111,8 @@ import {
 	type SettingValue,
 } from "../registries/settings.ts";
 import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.ts";
-import { isGithubRemoteUrl } from "./github.ts";
+import { actionIdsEqual, actionLabel, type DroppedSetting } from "../settings-helpers.ts";
 import {
-	GSTACK_TEMPLATE_URL,
-	isProjectTemplate,
-	type ProjectTemplate,
-	projectFolderName,
-} from "./project-templates.ts";
-import {
-	actionIdsEqual,
-	actionLabel,
-	type DroppedSetting,
 	mergeSettingActions,
 	type SettingAction,
 	type SettingsFileContents,

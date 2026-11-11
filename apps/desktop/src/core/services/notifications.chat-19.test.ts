@@ -12,8 +12,9 @@ import { createTestContainer, seedWorkspace } from "../../test/container.ts";
 import { createRepositories } from "../db/repositories.ts";
 import { userMessageEvent } from "../db/test-fixtures.ts";
 import type { Session, Workspace } from "../model.ts";
+import { buildDeepLink } from "../notifications.ts";
 import { getSettingDef } from "../registries/settings.ts";
-import { buildDeepLink, isSuppressed, SETTLE_DELAY_MS } from "./notifications.ts";
+import { isSuppressed, SETTLE_DELAY_MS } from "./notifications.ts";
 
 const CONFIG: SessionConfig = {
 	agent: "claude",

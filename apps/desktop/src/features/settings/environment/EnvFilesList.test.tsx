@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseDotenv } from "../../../core/services/dotenv.ts";
+import { parseDotenv } from "../../../core/dotenv.ts";
 import { EnvFilesList, pathInsideRepository } from "./EnvFilesList.tsx";
 
 afterEach(cleanup);

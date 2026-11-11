@@ -26,19 +26,19 @@
  * Test first: lists every agent's models, and stores the chosen agent with its model.
  */
 import type { Effort, ModelInfo } from "@conducted/protocol";
-import { useAgentInstalls, useModels, useSetting } from "../../../core/hooks.ts";
-import { getSettingDef, pageDescriptionOf } from "../../../core/registries/settings.ts";
 import {
 	AGENT_CHOICES,
 	agentDisplayName,
 	agentKey,
 	parseAgentKey,
-} from "../../../core/services/agent-catalog.ts";
-import type { FavoriteModel } from "../../../core/services/favorite-models.ts";
+} from "../../../core/agent-catalog.ts";
+import type { FavoriteModel } from "../../../core/favorite-model.ts";
+import { useAgentInstalls, useModels, useSetting } from "../../../core/hooks.ts";
+import { getSettingDef, pageDescriptionOf } from "../../../core/registries/settings.ts";
 import {
 	NEW_CHAT_EFFORT_FALLBACK,
 	NEW_CHAT_MODEL_FALLBACK,
-} from "../../../core/services/workspace.ts";
+} from "../../../core/workspace-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { ChevronDownIcon } from "../../../ui/icons.tsx";
 import {

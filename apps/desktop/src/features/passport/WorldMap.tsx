@@ -16,7 +16,7 @@
  * Test first: given two places the map renders two focusable markers named after them.
  */
 import { type PointerEvent, useRef, useState, type WheelEvent } from "react";
-import type { GazetteerPlace } from "../../core/services/place-gazetteer.ts";
+import type { GazetteerPlace } from "../../core/place-gazetteer.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { LAND_RINGS } from "./land-outline.ts";

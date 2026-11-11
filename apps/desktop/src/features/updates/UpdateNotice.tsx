@@ -27,7 +27,7 @@ import { useStore } from "zustand";
 import { fireAndForget } from "../../core/async/fire-and-forget.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting, useUpdateStatus } from "../../core/hooks.ts";
-import { UPDATE_FOCUS_RECHECK_MS } from "../../core/services/updates.ts";
+import { UPDATE_FOCUS_RECHECK_MS } from "../../core/updates.ts";
 import { AlertDialog, AlertDialogContent } from "../../ui/AlertDialog.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";

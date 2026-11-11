@@ -10,7 +10,7 @@ import {
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
-import { NEW_CHAT_EFFORT_FALLBACK } from "../../../core/services/workspace.ts";
+import { NEW_CHAT_EFFORT_FALLBACK } from "../../../core/workspace-helpers.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { EFFORT_LABELS } from "../../composer/ModelPicker.tsx";
 import { DefaultModelsPage } from "./DefaultModelsPage.tsx";

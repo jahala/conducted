@@ -9,7 +9,8 @@
  * Test first: reads names, export prefixes, quotes and comments.
  */
 import { describe, expect, it } from "vitest";
-import { parseDotenv, resolveEnvFilePath } from "./dotenv.ts";
+import { parseDotenv } from "../dotenv.ts";
+import { resolveEnvFilePath } from "./dotenv.ts";
 
 describe("SET-04 dotenv", () => {
 	it("reads names, export prefixes, quotes and comments", () => {

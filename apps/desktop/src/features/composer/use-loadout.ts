@@ -14,9 +14,9 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
+import type { FavoriteModel } from "../../core/favorite-model.ts";
 import { useSetting } from "../../core/hooks.ts";
 import { defaultModelChoice } from "../../core/lookups.ts";
-import type { FavoriteModel } from "../../core/services/favorite-models.ts";
 
 export interface LoadoutEntry {
 	/** "default" for the default model, else the favourite's id. */

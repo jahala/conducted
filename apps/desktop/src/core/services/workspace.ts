@@ -79,7 +79,7 @@
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), drawn from the gazetteer the Passport
- * map reads (core/services/place-gazetteer.ts), and the composition root passes it. Creation copies the repository's included files, counts the
+ * map reads (core/place-gazetteer.ts), and the composition root passes it. Creation copies the repository's included files, counts the
  * worktree files, then runs setup in a terminal. Warnings and the first message of a failed
  * creation live in the service's in-memory store: the contract's `Workspace` row has no field for
  * them, and the create page reads them back after the action returns. The composition root
@@ -167,9 +167,21 @@ import type {
 	Session,
 	Workspace,
 } from "../model.ts";
+import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "../place-gazetteer.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
+import {
+	branchPrefixFor,
+	invalidRefNameError,
+	isSafeRefName,
+	NEW_CHAT_EFFORT_FALLBACK,
+	NEW_CHAT_MODEL_FALLBACK,
+	NO_READY_REPOSITORY_MESSAGE,
+	normaliseLinkedPaths,
+	remoteNameFromConfig,
+	SETUP_FAILED_MESSAGE,
+	SETUP_LOG_MISSING_MESSAGE,
+} from "../workspace-helpers.ts";
 import type { GitCache } from "./git-cache.ts";
-import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "./place-gazetteer.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 
 export interface PlaceNames {
@@ -250,15 +262,6 @@ export const FIRST_CHAT_APP_TOOLS = {
 	setTargetBranch: true,
 } as const;
 
-/** A new chat's model when the setting is empty: the agent's own default. */
-export const NEW_CHAT_MODEL_FALLBACK = "default";
-
-/**
- * A new chat's effort when the setting is empty ("Model default"). A chat config needs a level, so
- * it opens at "high" until the protocol can say "the model's own default".
- */
-export const NEW_CHAT_EFFORT_FALLBACK = "high";
-
 /** The settings a new workspace's first chat takes from the create form or a deep link. */
 export interface NewWorkspaceSessionDefaults {
 	model: string;
@@ -334,16 +337,6 @@ export function classifyUnarchive(facts: {
 	if (facts.archiveCommit !== null && facts.branchTip !== facts.archiveCommit)
 		return "branchDiverged";
 	return "happy";
-}
-
-/** The branch prefix Conductor's Git setting chooses (ui-map 6): GitHub login, custom text, or none. */
-export function branchPrefixFor(type: string, custom: string, githubLogin: string | null): string {
-	if (type === "none") return "";
-	if (type === "custom") return custom;
-	if (type === "github_username") {
-		return githubLogin === null || githubLogin === "" ? "" : `${githubLogin}/`;
-	}
-	return "";
 }
 
 /** Expands a leading `~` in the configured root folder, so no shell is needed to read it. */
@@ -521,71 +514,6 @@ async function copyDirectory(
 	return ok(undefined);
 }
 
-/**
- * True when git accepts `name` as a branch name (or a remote name) and no git or gh command can
- * read it as an option. A name that starts with `-` is refused for that reason.
- */
-export function isSafeRefName(name: string): boolean {
-	if (name === "" || name === "@" || name.startsWith("-") || name.startsWith("/")) return false;
-	if (name.endsWith("/") || name.endsWith(".") || name.includes("..") || name.includes("//")) {
-		return false;
-	}
-	if (name.includes("@{")) return false;
-	for (const char of name) {
-		const code = char.charCodeAt(0);
-		if (code <= 0x20 || code === 0x7f || "~^:?*[\\".includes(char)) return false;
-	}
-	return !name.split("/").some((part) => part.startsWith(".") || part.endsWith(".lock"));
-}
-
-/** The message for a branch, prefix or remote name that git would refuse. */
-export const invalidRefNameError = (name: string): AppError =>
-	appError(
-		"workspace_branch_invalid",
-		`"${name}" can't be used as a Git branch or remote name. Check the branch prefix in settings.`,
-	);
-
-/** The remote a repository uses when its config names none (ui-map 6 Git, services-map 3.1). */
-export const DEFAULT_REMOTE_NAME = "origin";
-
-/**
- * The remote name the repository config picks, or `DEFAULT_REMOTE_NAME` when it names none. One
- * rule for creation and for every git and pull request caller (DATA-09). A configured name git
- * could read as an option is an error, never passed to a command.
- */
-export function remoteNameFromConfig(config: RepoConfig): Result<string> {
-	const name = config.remoteName?.trim() ?? "";
-	if (name === "") return ok(DEFAULT_REMOTE_NAME);
-	return isSafeRefName(name) ? ok(name) : err(invalidRefNameError(name));
-}
-
-/**
- * The folders a workspace may link, as one clean list: empty entries and duplicates are dropped,
- * and a path that is not absolute is refused because the agents and the sidecar need absolute
- * paths. A trailing slash is removed, except on the root folder.
- */
-export function normaliseLinkedPaths(paths: readonly string[]): Result<string[]> {
-	const cleaned: string[] = [];
-	const seen = new Set<string>();
-	for (const raw of paths) {
-		const trimmed = raw.trim();
-		if (trimmed === "") continue;
-		if (!trimmed.startsWith("/")) {
-			return err(
-				appError(
-					"linked_path_invalid",
-					`"${trimmed}" is not an absolute folder path, so it can't be linked.`,
-				),
-			);
-		}
-		const path = trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
-		if (seen.has(path)) continue;
-		seen.add(path);
-		cleaned.push(path);
-	}
-	return ok(cleaned);
-}
-
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -618,12 +546,6 @@ export type SetupState =
 /** Shown when the app was quit or crashed while setup was running (services-map.md 2.4.6). */
 export const SETUP_INTERRUPTED_MESSAGE =
 	"The app quit while setup was running. Run setup again to finish it.";
-
-/** The words for a setup script that failed (inventory:toast main row 463). */
-export const SETUP_FAILED_MESSAGE = "Setup script failed. Check the setup tab for logs.";
-
-/** Shown when a saved setup transcript cannot be read (ui-map.md 3.7). */
-export const SETUP_LOG_MISSING_MESSAGE = "No logs were recorded, or they have expired.";
 
 /** Shown when archive is asked for while a chat is still running (inventory:toast). */
 export const ARCHIVE_RUNNING_CHATS_MESSAGE =
@@ -2454,10 +2376,6 @@ export class WorkspaceService {
 		return this.#deps.sessions.firstDraftOf(id);
 	}
 
-	/** Shown when a backlog workspace is started but its repository is gone (ui-map 3.9). */
-	static readonly NO_READY_REPOSITORY_MESSAGE =
-		"No ready repository. Pick one to start this workspace.";
-
 	/**
 	 * Backs `Actions.workspaces.addToBacklog`: saves the draft without making a worktree. Refused
 	 * while the "Unstarted workspaces" setting is off, which is where the rule lives; screens only
@@ -2507,13 +2425,13 @@ export class WorkspaceService {
 			return err(appError("workspace_unknown", "That backlog workspace no longer exists."));
 		}
 		if (entry.repoId === null) {
-			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+			return err(appError("repo_unknown", NO_READY_REPOSITORY_MESSAGE));
 		}
 		const repoId = entry.repoId;
 		const repo = await this.#deps.repos.repos.get(repoId);
 		if (!repo.ok) return repo;
 		if (repo.value === null) {
-			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+			return err(appError("repo_unknown", NO_READY_REPOSITORY_MESSAGE));
 		}
 		// The entry goes first: a removal that fails starts nothing, so a second Start can never
 		// make a second workspace from the same draft.

@@ -20,11 +20,12 @@ import { draftFile } from "./app-paths.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { agentEvent, sampleSession, turnEndedEvent, userMessageEvent } from "./db/test-fixtures.ts";
 import { checkpointRef, turnCheckpointId } from "./git/refs.ts";
+import { buildDeepLink } from "./notifications.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS } from "./services/checkpoint.ts";
 import { GIT_CACHE_VERSION, type GitCacheEntry, prInfoCacheFile } from "./services/git-cache.ts";
 import type { WorkspacePrEntry } from "./services/github.ts";
 import { type LinearIssue, linearIssueContextPath } from "./services/linear.ts";
-import { buildDeepLink, SETTLE_DELAY_MS } from "./services/notifications.ts";
+import { SETTLE_DELAY_MS } from "./services/notifications.ts";
 
 const DAY = 86_400_000;
 const START = 1_800_000_000_000;

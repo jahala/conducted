@@ -14,8 +14,9 @@
  * flight (spinner, no double click), the merge queue, and merged and closed pull requests.
  * Test first: with a head mismatch error the bar shows the explanation and does not retry.
  */
+
+import { GITHUB_HEAD_MISMATCH_MESSAGE } from "../../core/github-text.ts";
 import type { PullRequest } from "../../core/model.ts";
-import { GITHUB_HEAD_MISMATCH_MESSAGE } from "../../core/services/github.ts";
 import { Button } from "../../ui/Button.tsx";
 import { summarizeChecks } from "../git-panel/checks/checks-summary.ts";
 

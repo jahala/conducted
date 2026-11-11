@@ -10,14 +10,8 @@ import { ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import { graphiteState } from "../git/gh-commands.ts";
-import {
-	GRAPHITE_POLL_INTERVAL_MS,
-	type GraphiteBranch,
-	GraphiteService,
-	type GraphiteStack,
-	graphiteStackOf,
-	parseGraphiteState,
-} from "./graphite.ts";
+import { type GraphiteBranch, type GraphiteStack, graphiteStackOf } from "../graphite.ts";
+import { GRAPHITE_POLL_INTERVAL_MS, GraphiteService, parseGraphiteState } from "./graphite.ts";
 
 const repo = "/code/repo";
 

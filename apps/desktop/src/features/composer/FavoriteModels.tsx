@@ -25,10 +25,10 @@
  */
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
+import { agentDisplayName } from "../../core/agent-catalog.ts";
 import { useServices } from "../../core/context.tsx";
+import type { FavoriteModel } from "../../core/favorite-model.ts";
 import { useLiveShortcut } from "../../core/hooks.ts";
-import { agentDisplayName } from "../../core/services/agent-catalog.ts";
-import type { FavoriteModel } from "../../core/services/favorite-models.ts";
 import { cn } from "../../ui/cn.ts";
 import {
 	ArrowUpRightIcon,

@@ -22,9 +22,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
+import { agentCanSteer, byPosition } from "../../core/follow-up-queue.ts";
 import { useActions } from "../../core/hooks.ts";
 import type { QueuedMessage } from "../../core/model.ts";
-import { agentCanSteer, byPosition } from "../../core/services/follow-up-queue.ts";
 import { Button } from "../../ui/Button.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 

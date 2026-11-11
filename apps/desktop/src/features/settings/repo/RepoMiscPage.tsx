@@ -29,8 +29,8 @@ import {
 	useWorkspaces,
 } from "../../../core/hooks.ts";
 import type { RepoConfig } from "../../../core/model.ts";
+import { expandPreviewUrl } from "../../../core/ports.ts";
 import { previewUrlsToText } from "../../../core/registries/settings.ts";
-import { expandPreviewUrl } from "../../../core/services/ports.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { IconButton } from "../../../ui/IconButton.tsx";

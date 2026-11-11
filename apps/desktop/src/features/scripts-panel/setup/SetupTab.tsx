@@ -21,11 +21,11 @@ import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useSessions, useSetupState, useWorkspace } from "../../../core/hooks.ts";
 import type { SetupView } from "../../../core/model.ts";
+import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import {
 	SETUP_FAILED_MESSAGE,
 	SETUP_LOG_MISSING_MESSAGE,
-} from "../../../core/services/workspace.ts";
-import { isArchivedWorkspace } from "../../../core/status/archived.ts";
+} from "../../../core/workspace-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";

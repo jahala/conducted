@@ -29,11 +29,10 @@ import type { ModelInfo } from "@conducted/protocol";
 import type { Result } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { type DragEvent, useEffect, useRef, useState } from "react";
+import { AGENT_CHOICES, agentDisplayName } from "../../../core/agent-catalog.ts";
 import { useServices } from "../../../core/context.tsx";
+import { type FavoriteModel, LOADOUT_SIZE } from "../../../core/favorite-model.ts";
 import { useActions, useAgentInstalls, useModels } from "../../../core/hooks.ts";
-import { AGENT_CHOICES, agentDisplayName } from "../../../core/services/agent-catalog.ts";
-import type { FavoriteModel } from "../../../core/services/favorite-models.ts";
-import { LOADOUT_SIZE } from "../../../core/services/favorite-models.ts";
 import { cn } from "../../../ui/cn.ts";
 import { CheckIcon, GripVerticalIcon } from "../../../ui/icons.tsx";
 import {

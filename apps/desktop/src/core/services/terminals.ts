@@ -79,9 +79,9 @@ import { stripTerminalEscapes } from "../../platform/terminal-escapes.ts";
 import type { Loadable } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
-import { LOCAL_TERMINAL_UNAVAILABLE_LABEL } from "../cloud/file-sync.ts";
 import { openCloudTerminal } from "../cloud/terminal.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { LOCAL_TERMINAL_UNAVAILABLE_LABEL } from "../file-sync-view.ts";
 import { checkHost } from "../host.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
@@ -268,8 +268,6 @@ export function buildScriptEnv(input: ScriptEnvInput): Record<string, string> {
  * Most terminals one workspace may have. Our design choice: 5, or 10 with the experimental "tab
  * freak mode" setting, because the research does not state the default (services-map.md 5A.9).
  */
-export const terminalLimit = (tabFreakMode: boolean): number => (tabFreakMode ? 10 : 5);
-
 export type TerminalOutputSource = "auto" | "run_script" | "spotlight" | "terminal";
 
 /** Lines returned when the caller does not ask for a positive number. From the research. */

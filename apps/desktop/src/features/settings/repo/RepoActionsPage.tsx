@@ -24,10 +24,9 @@
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
-import { useActions, useRepoConfig } from "../../../core/hooks.ts";
+import { useActions, useHiddenRunActions, useRepoConfig } from "../../../core/hooks.ts";
 import type { RepoConfig, RunAction } from "../../../core/model.ts";
-import { readHiddenRunActions } from "../../../core/services/repo.ts";
-import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/services/settings.ts";
+import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/settings-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { PlusIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
@@ -61,16 +60,16 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [draft, setDraft] = useState<ActionDraft>(EMPTY_DRAFT);
 
+	const hiddenRunActions = useHiddenRunActions(repoId);
 	useEffect(() => {
-		const read = readHiddenRunActions(repoId);
-		if (read.ok) {
-			setHiddenIds(read.value);
+		if (hiddenRunActions.ok) {
+			setHiddenIds(hiddenRunActions.value);
 			setHiddenError(null);
 			return;
 		}
 		setHiddenIds([]);
-		setHiddenError(read.error.message);
-	}, [repoId]);
+		setHiddenError(hiddenRunActions.error.message);
+	}, [hiddenRunActions]);
 
 	const save = async (
 		config: RepoConfig,

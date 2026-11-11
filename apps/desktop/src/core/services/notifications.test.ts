@@ -1,7 +1,7 @@
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
+import { buildDeepLink } from "../notifications.ts";
 import {
-	buildDeepLink,
 	dockBadgeCount,
 	isSuppressed,
 	notificationTitle,

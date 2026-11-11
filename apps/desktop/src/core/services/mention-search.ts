@@ -16,51 +16,18 @@
  * Test first: with `gh` missing, the search says to install it and still lists Linear issues.
  */
 import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
-import type { GitHubAccess } from "../model.ts";
+import {
+	type GitHubSetupNeeded,
+	githubSetupNeeded,
+	PR_MENTION_LIMIT,
+	type PrMentionItem,
+	type PrMentionSearchResult,
+} from "../mention-search.ts";
 import type { GithubService } from "./github.ts";
 import { toGitHubAccessView } from "./github.ts";
 import type { LinearService } from "./linear.ts";
 import type { RepoService } from "./repo.ts";
 import type { WorkspaceService } from "./workspace.ts";
-
-export interface PrMentionItem {
-	kind: "pull_request" | "issue";
-	provider: "github" | "linear";
-	/** The pull request or GitHub issue number; null for a Linear issue. */
-	number: number | null;
-	/** What the user sees: "#12" or "ENG-12". */
-	identifier: string;
-	title: string;
-	/** The item's web address, when its source reports one. */
-	url?: string;
-	/** The provider's id, for attaching an issue. */
-	id: string;
-}
-
-export interface PrMentionSearchResult {
-	items: readonly PrMentionItem[];
-	/** One line above the rows when a source is unavailable but another can answer. */
-	notice?: string;
-}
-
-/** At most this many rows show in the '#' menu. */
-export const PR_MENTION_LIMIT = 20;
-
-/** What has to happen before GitHub can list anything, or null when it can be asked. */
-export type GitHubSetupNeeded = "gh_missing" | "signed_out" | "offline";
-
-/** The one rule for which GitHub sign-in states stop a list (the '#' menu and Link issue). */
-export function githubSetupNeeded(access: GitHubAccess): GitHubSetupNeeded | null {
-	switch (access.state) {
-		case "gh_missing":
-		case "signed_out":
-			return access.state;
-		case "unknown":
-			return access.reason === "offline" ? "offline" : null;
-		case "signed_in":
-			return null;
-	}
-}
 
 const SETUP_NOTICE: Readonly<Record<GitHubSetupNeeded, string>> = {
 	gh_missing: "Install GitHub CLI (gh) to list pull requests and issues.",

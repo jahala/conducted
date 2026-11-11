@@ -17,7 +17,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { type ReactElement, useState } from "react";
 import { useActions, useLiveShortcut } from "../../core/hooks.ts";
 import type { Session } from "../../core/model.ts";
-import { buildDeepLink } from "../../core/services/notifications.ts";
+import { buildDeepLink } from "../../core/notifications.ts";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../ui/ContextMenu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";

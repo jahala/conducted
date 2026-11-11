@@ -16,15 +16,14 @@ import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { OFFLINE_FALLBACK_MESSAGE } from "../git/worktree.ts";
 import type { BacklogWorkspace, Repo, RepoConfig, Session, Workspace } from "../model.ts";
+import { branchPrefixFor, isSafeRefName } from "../workspace-helpers.ts";
 import { allocatePort } from "./ports.ts";
 import {
 	baseBranchFor,
-	branchPrefixFor,
 	CHAT_CREATION_FAILED_MESSAGE,
 	classifyUnarchive,
 	createPlaceNames,
 	expandHome,
-	isSafeRefName,
 	SECTION_PLACEMENT_FAILED_MESSAGE,
 	WorkspaceService,
 	type WorkspaceServiceDeps,

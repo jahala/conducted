@@ -26,9 +26,9 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { githubRepositoryFromRemote } from "../../core/github-text.ts";
 import { useActions, useBranches, useRepos, useWorkspace } from "../../core/hooks.ts";
 import type { Repo } from "../../core/model.ts";
-import { githubRepositoryFromRemote } from "../../core/services/github.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";

@@ -13,10 +13,11 @@ import { REPOS_SQL, repoToParams } from "../db/repos.ts";
 import { createRepositories, type Repositories } from "../db/repositories.ts";
 import { sampleRepo, sampleSession, sampleWorkspace, workspaceId } from "../db/test-fixtures.ts";
 import { WORKSPACES_SQL, workspaceToParams } from "../db/workspaces.ts";
+import { agentCanSteer } from "../follow-up-queue.ts";
 import type { QueuedMessage } from "../model.ts";
 import { getCommand } from "../registries/commands.ts";
 import { getSettingDef } from "../registries/settings.ts";
-import { agentCanSteer, chooseDelivery, FollowUpQueue } from "./follow-up-queue.ts";
+import { chooseDelivery, FollowUpQueue } from "./follow-up-queue.ts";
 
 let store: TestDatabase;
 let repositories: Repositories;

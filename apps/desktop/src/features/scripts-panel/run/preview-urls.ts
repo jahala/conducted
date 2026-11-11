@@ -13,7 +13,7 @@
  * Test first: a template is labelled by its name, or by its expanded URL when the name is empty.
  */
 import type { PreviewUrlEntry } from "../../../core/model.ts";
-import { expandPreviewUrl } from "../../../core/services/ports.ts";
+import { expandPreviewUrl } from "../../../core/ports.ts";
 
 export interface PreviewUrl {
 	label: string;

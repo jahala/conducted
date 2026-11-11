@@ -8,8 +8,8 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { GITHUB_HEAD_MISMATCH_MESSAGE } from "../../core/github-text.ts";
 import type { CheckRun, PullRequest } from "../../core/model.ts";
-import { GITHUB_HEAD_MISMATCH_MESSAGE } from "../../core/services/github.ts";
 import { PrMergeBar } from "./PrMergeBar.tsx";
 
 afterEach(cleanup);

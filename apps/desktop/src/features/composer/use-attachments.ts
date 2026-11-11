@@ -29,9 +29,9 @@ import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useOverlayStore } from "../../app/overlay-store.ts";
+import { convertsToAttachment } from "../../core/composer-files.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
-import { convertsToAttachment } from "../../core/services/composer.ts";
 import { toast, toastError } from "../../ui/Toast.tsx";
 
 export interface UseAttachmentsProps {
