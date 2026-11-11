@@ -7,6 +7,7 @@
  * names are ours. There is no health method: a sidecar that is alive and connected counts as
  * healthy (D028).
  */
+import type { AgentKind } from "@conducted/shared";
 import { z } from "zod";
 import { zSessionEvent } from "./events.ts";
 import {
@@ -216,6 +217,12 @@ export const zRemoteControlStatus = z.object({
 export type RemoteControlStatus = z.infer<typeof zRemoteControlStatus>;
 
 const zAgentRef = { agent: zAgentKind, acpAgent: zAcpAgent.optional() };
+
+/**
+ * The agents whose Conductor chat history the sidecar maps (APP-18). The dry run reads it to say
+ * which chats come with their history; the other agents' chats come without it.
+ */
+export const CONDUCTOR_MAPPED_AGENTS = ["claude"] as const satisfies readonly AgentKind[];
 
 /**
  * One row of Conductor's `session_messages` without its content, as the chat history import's

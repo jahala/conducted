@@ -57,12 +57,13 @@
  * shows them.
  */
 import type { SDKMessage, SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
-import type {
-	AgentMessage,
-	ConductorMessageKey,
-	ConductorPlacedRow,
-	SessionConfig,
-	SessionEvent,
+import {
+	type AgentMessage,
+	CONDUCTOR_MAPPED_AGENTS,
+	type ConductorMessageKey,
+	type ConductorPlacedRow,
+	type SessionConfig,
+	type SessionEvent,
 } from "@conducted/protocol";
 import {
 	type AgentKind,
@@ -93,7 +94,7 @@ export interface ReadBudget {
 }
 
 /** The agents whose payloads this mapping translates. Chats of other agents are not mapped yet. */
-export const MAPPED_AGENTS: ReadonlySet<AgentKind> = new Set<AgentKind>(["claude"]);
+export const MAPPED_AGENTS: ReadonlySet<AgentKind> = new Set<AgentKind>(CONDUCTOR_MAPPED_AGENTS);
 
 /** A row's kind, by its role. Any role Conductor does not know counts as "other". */
 export const ROW_KINDS = ["user", "agent", "summary", "other"] as const;
@@ -262,23 +263,24 @@ interface Place {
 const earlier = (a: Place, b: Place): boolean =>
 	a.at < b.at || (a.at === b.at && a.rowid < b.rowid);
 
-/** What the first read learned of one turn: where it starts and each row's place and size. */
+/** What the first read learned of one turn: where it starts, and whether Conductor shows it. */
 interface TurnIndex {
 	turnId: string;
 	firstUser: Place | null;
 	firstSeen: Place;
-	rowids: number[];
-	sentAts: number[];
-	createdAts: number[];
-	chars: number[];
 }
 
-/** One turn in the order Conductor shows it, with its rows in their order. */
-interface PlannedTurn {
-	index: TurnIndex;
-	shown: boolean;
-	/** Positions into the index's lists, in the order the turn shows them. */
-	order: number[];
+/**
+ * Each row the first read gave, one column per field and one entry per row, for the whole chat.
+ * Plain number lists, so a row costs a few numbers whatever its content holds.
+ */
+interface RowColumns {
+	rowid: number[];
+	sentAt: number[];
+	createdAt: number[];
+	chars: number[];
+	/** The row's turn, as its place in the list of turns. */
+	turn: number[];
 }
 
 /** A row the current read asked for. */
@@ -317,9 +319,12 @@ export class ConductorHistoryMapper {
 	) as Record<RowKind, RowCount>;
 	readonly #unmapped = zeroed(UNMAPPED_REASONS);
 	readonly #leftOut = zeroed(LEFT_OUT_REASONS);
-	readonly #turns = new Map<string, TurnIndex>();
-	#plan: PlannedTurn[] | null = null;
-	#cursor = { turn: 0, position: 0 };
+	readonly #turnIds = new Map<string, number>();
+	readonly #turns: TurnIndex[] = [];
+	#rows: RowColumns = { rowid: [], sentAt: [], createdAt: [], chars: [], turn: [] };
+	/** Row places in the order the chat shows them, once planned; and whether each turn shows. */
+	#plan: { order: number[]; shown: boolean[] } | null = null;
+	#cursor = 0;
 	#wanted: Wanted[] | null = null;
 	#open: OpenTurn | null = null;
 	#events: SessionEvent[] = [];
@@ -353,20 +358,20 @@ export class ConductorHistoryMapper {
 	 */
 	nextRead(budget: ReadBudget): Result<number[] | null, string> {
 		if (this.#wanted !== null) return err("The last read has not been mapped yet.");
-		const plan = this.#planned();
+		const { order } = this.#planned();
+		const rows = this.#rows;
 		const wanted: Wanted[] = [];
 		let chars = 0;
-		while (this.#cursor.turn < plan.length && wanted.length < budget.rows) {
-			const turn = plan[this.#cursor.turn];
-			const position = turn?.order[this.#cursor.position];
-			if (turn === undefined || position === undefined) break;
-			const size = turn.index.chars[position] ?? 0;
+		while (this.#cursor < order.length && wanted.length < budget.rows) {
+			const place = order[this.#cursor] ?? 0;
+			const size = rows.chars[place] ?? 0;
 			if (wanted.length > 0 && chars + size > budget.chars) break;
 			chars += size;
-			const last = this.#cursor.position === turn.order.length - 1;
-			wanted.push({ rowid: turn.index.rowids[position] ?? -1, turn: this.#cursor.turn, last });
-			if (last) this.#cursor = { turn: this.#cursor.turn + 1, position: 0 };
-			else this.#cursor = { turn: this.#cursor.turn, position: this.#cursor.position + 1 };
+			const turn = rows.turn[place] ?? 0;
+			this.#cursor++;
+			const next = order[this.#cursor];
+			const last = next === undefined || rows.turn[next] !== turn;
+			wanted.push({ rowid: rows.rowid[place] ?? -1, turn, last });
 		}
 		if (wanted.length === 0) return ok(null);
 		this.#wanted = wanted;
@@ -377,16 +382,18 @@ export class ConductorHistoryMapper {
 	map(rows: readonly ConductorPlacedRow[]): Result<SessionEvent[], string> {
 		const wanted = this.#wanted;
 		if (wanted === null) return err("No read was asked for.");
-		const plan = this.#planned();
+		const { shown } = this.#planned();
 		const byRowid = new Map(rows.map((row) => [row.rowid, row]));
 		this.#events = [];
 		for (const entry of wanted) {
 			const row = byRowid.get(entry.rowid);
-			const planned = plan[entry.turn];
-			if (row === undefined || planned === undefined) {
+			const turn = this.#turns[entry.turn];
+			if (row === undefined || turn === undefined) {
 				return err("A row of the chat was not in the read; the copy changed while it was read.");
 			}
-			if (this.#open?.turn !== entry.turn) this.#open = this.#openTurn(entry.turn, planned);
+			if (this.#open?.turn !== entry.turn) {
+				this.#open = this.#openTurn(entry.turn, turn.turnId, shown[entry.turn] ?? false);
+			}
 			this.#take(row, this.#open);
 			if (entry.last) this.#endTurn(this.#open);
 		}
@@ -413,61 +420,71 @@ export class ConductorHistoryMapper {
 	#index(key: ConductorMessageKey, kind: "user" | "agent"): void {
 		const turnId = key.turn_id ?? "";
 		const place = { at: millis(key.sent_at), rowid: key.rowid };
-		const turn = this.#turns.get(turnId) ?? {
-			turnId,
-			firstUser: null,
-			firstSeen: place,
-			rowids: [],
-			sentAts: [],
-			createdAts: [],
-			chars: [],
-		};
-		this.#turns.set(turnId, turn);
+		let index = this.#turnIds.get(turnId);
+		if (index === undefined) {
+			index = this.#turns.length;
+			this.#turnIds.set(turnId, index);
+			this.#turns.push({ turnId, firstUser: null, firstSeen: place });
+		}
+		const turn = this.#turns[index];
+		if (turn === undefined) return;
 		if (earlier(place, turn.firstSeen)) turn.firstSeen = place;
 		if (kind === "user" && (turn.firstUser === null || earlier(place, turn.firstUser))) {
 			turn.firstUser = place;
 		}
-		turn.rowids.push(key.rowid);
-		turn.sentAts.push(place.at);
-		turn.createdAts.push(millis(key.created_at));
-		turn.chars.push(key.chars);
+		const rows = this.#rows;
+		rows.rowid.push(key.rowid);
+		rows.sentAt.push(place.at);
+		rows.createdAt.push(millis(key.created_at));
+		rows.chars.push(key.chars);
+		rows.turn.push(index);
 	}
 
 	/**
 	 * Shown turns by their first user row's sent time, then the turns Conductor does not show,
 	 * whose rows are still read so they are counted. In a turn: sent time, creation time, rowid.
+	 * The times are dropped once the order is set.
 	 */
-	#planned(): PlannedTurn[] {
+	#planned(): { order: number[]; shown: boolean[] } {
 		if (this.#plan !== null) return this.#plan;
-		const bySeen = (a: TurnIndex, b: TurnIndex): number =>
-			a.firstSeen.at - b.firstSeen.at || a.firstSeen.rowid - b.firstSeen.rowid;
-		const turns = [...this.#turns.values()];
-		const shown = turns
-			.filter((turn) => turn.firstUser !== null)
-			.sort((a, b) => (a.firstUser?.at ?? 0) - (b.firstUser?.at ?? 0) || bySeen(a, b));
-		const hidden = turns.filter((turn) => turn.firstUser === null).sort(bySeen);
-		const order = (index: TurnIndex): number[] =>
-			index.rowids
-				.map((_, position) => position)
-				.sort(
-					(a, b) =>
-						(index.sentAts[a] ?? 0) - (index.sentAts[b] ?? 0) ||
-						(index.createdAts[a] ?? 0) - (index.createdAts[b] ?? 0) ||
-						(index.rowids[a] ?? 0) - (index.rowids[b] ?? 0),
-				);
-		this.#plan = [
-			...shown.map((index) => ({ index, shown: true, order: order(index) })),
-			...hidden.map((index) => ({ index, shown: false, order: order(index) })),
-		];
-		this.#turns.clear();
+		const turns = this.#turns;
+		const bySeen = (a: number, b: number): number => {
+			const left = turns[a]?.firstSeen ?? { at: 0, rowid: 0 };
+			const right = turns[b]?.firstSeen ?? { at: 0, rowid: 0 };
+			return left.at - right.at || left.rowid - right.rowid;
+		};
+		const indexes = turns.map((_, index) => index);
+		const shownTurns = indexes
+			.filter((index) => turns[index]?.firstUser != null)
+			.sort(
+				(a, b) => (turns[a]?.firstUser?.at ?? 0) - (turns[b]?.firstUser?.at ?? 0) || bySeen(a, b),
+			);
+		const hiddenTurns = indexes.filter((index) => turns[index]?.firstUser == null).sort(bySeen);
+		const rank: number[] = [];
+		[...shownTurns, ...hiddenTurns].forEach((index, position) => {
+			rank[index] = position;
+		});
+		const rows = this.#rows;
+		const order = rows.rowid
+			.map((_, place) => place)
+			.sort(
+				(a, b) =>
+					(rank[rows.turn[a] ?? 0] ?? 0) - (rank[rows.turn[b] ?? 0] ?? 0) ||
+					(rows.sentAt[a] ?? 0) - (rows.sentAt[b] ?? 0) ||
+					(rows.createdAt[a] ?? 0) - (rows.createdAt[b] ?? 0) ||
+					(rows.rowid[a] ?? 0) - (rows.rowid[b] ?? 0),
+			);
+		this.#rows = { ...rows, sentAt: [], createdAt: [] };
+		this.#turnIds.clear();
+		this.#plan = { order, shown: turns.map((turn) => turn.firstUser !== null) };
 		return this.#plan;
 	}
 
-	#openTurn(turn: number, planned: PlannedTurn): OpenTurn {
+	#openTurn(turn: number, turnId: string, shown: boolean): OpenTurn {
 		return {
 			turn,
-			turnId: planned.index.turnId,
-			shown: planned.shown,
+			turnId,
+			shown,
 			compacted: false,
 			firstUserRow: true,
 			held: null,
