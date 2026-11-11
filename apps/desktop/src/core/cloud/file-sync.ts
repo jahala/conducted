@@ -16,6 +16,12 @@
  * truncated rather than exhausting the app; a reveal that fails says "Could not open Downloads.
  * Try again."; a preview of a Local variant with no mirror says "Couldn't open preview: local
  * workspace mirror is unavailable.".
+ * The workspace's "Sync files" switch is saved on its row (`remoteFileSyncEnabled`, migration
+ * 0019), as Conductor keeps `remote_file_sync_enabled`, so a restart keeps it. The service reads
+ * it from the workspace and saves it through the workspace service before it starts or stops the
+ * sync; a save that fails changes nothing, so the switch keeps its stored value. A new cloud
+ * workspace takes the Advanced setting as its first value when it is created, as Conductor's
+ * create step does (`initialSyncEnabled`).
  * Our design choice: the mirror is built from the Worker's `/files list` and `/files readBytes`
  * routes, so it needs no second transport and the pairing token stays in Rust. The sync runs when the
  * file tree or a search asks for it and last ran more than five seconds ago, which is Conductor's
@@ -58,8 +64,16 @@ import { cloudJson } from "./host-runtime.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
 
-/** The Advanced setting that starts sync in a new cloud workspace. */
+/** The Advanced setting that gives a new cloud workspace's Sync files switch its first value. */
 export const AUTO_SYNC_SETTING = "auto_sync_files_in_new_cloud_workspaces";
+
+/**
+ * The Sync files switch a new workspace starts with: the Advanced setting for a cloud workspace,
+ * off for one on the Mac, which has no mirror (Conductor's create step, main bundle @1083318).
+ */
+export const initialSyncEnabled = (host: Host, autoSync: boolean): boolean =>
+	host.kind === "cloud" && autoSync;
+
 /** The folder under the Conducted root that holds every cloud workspace's mirror. */
 export const MIRROR_FOLDER = "remote-workspace-sync";
 /** The baseline file's name, kept in a sibling metadata folder so it never shows in the file tree. */
@@ -91,8 +105,6 @@ export interface FileSyncStatus {
 export interface FileSyncState {
 	byWorkspace: Readonly<Record<string, FileSyncStatus>>;
 	engaged: Readonly<Record<string, boolean>>;
-	/** The workspace's switch; absent means the Advanced setting decides (CLOUD-11). */
-	intent: Readonly<Record<string, boolean>>;
 }
 
 interface Baseline {
@@ -211,7 +223,8 @@ export interface FileSyncDeps {
 	repoNameOf: (id: WorkspaceId) => Result<string>;
 	/** The Conducted root, with `~` expanded (the `conductor_root_path` setting). */
 	rootPath: () => string;
-	setting: <T>(key: string) => T;
+	/** Saves the workspace's Sync files switch; the workspace service writes its row and store. */
+	saveEnabled: (id: WorkspaceId, enabled: boolean) => Promise<Result<void>>;
 	now: () => number;
 }
 
@@ -219,7 +232,6 @@ export class FileSyncService {
 	readonly store: StoreApi<FileSyncState> = createStore<FileSyncState>(() => ({
 		byWorkspace: {},
 		engaged: {},
-		intent: {},
 	}));
 	readonly #deps: FileSyncDeps;
 	readonly #flights = new Map<WorkspaceId, Promise<Result<void>>>();
@@ -228,25 +240,22 @@ export class FileSyncService {
 		this.#deps = deps;
 	}
 
-	/** True when the Advanced setting starts sync in a new cloud workspace. */
-	autoSyncEnabled(): boolean {
-		return this.#deps.setting<boolean>(AUTO_SYNC_SETTING) === true;
-	}
-
-	/** The workspace's own switch, falling back to the Advanced setting for its first value. */
+	/** The workspace's saved Sync files switch. */
 	isEnabled(workspaceId: WorkspaceId): boolean {
-		return this.store.getState().intent[workspaceId] ?? this.autoSyncEnabled();
+		const workspace = this.#deps.workspaceOf(workspaceId);
+		return workspace.ok && workspace.value.remoteFileSyncEnabled;
 	}
 
-	/** Turns the workspace's sync on or off, as the "Sync files" switch does. */
+	/**
+	 * Turns the workspace's sync on or off, as the "Sync files" switch does. The switch is saved
+	 * first; a failed save is returned and nothing else changes.
+	 */
 	async setEnabled(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
 		const workspace = this.#deps.workspaceOf(workspaceId);
 		if (!workspace.ok) return workspace;
 		if (workspace.value.host.kind !== "cloud") return ok(undefined);
-		this.store.setState((state) => ({
-			...state,
-			intent: { ...state.intent, [workspaceId]: enabled },
-		}));
+		const saved = await this.#deps.saveEnabled(workspaceId, enabled);
+		if (!saved.ok) return saved;
 		if (!enabled) {
 			this.stop(workspaceId);
 			return ok(undefined);
@@ -669,6 +678,6 @@ export class FileSyncService {
 
 	/** Stops every in-flight sync's status; the sync itself is harmless when it finishes. */
 	dispose(): void {
-		this.store.setState({ byWorkspace: {}, engaged: {}, intent: {} });
+		this.store.setState({ byWorkspace: {}, engaged: {} });
 	}
 }

@@ -5,14 +5,17 @@
  * matching service stores.
  * Behaviour: not applicable, test support only.
  * Must handle: every container input except the platform can be overridden, the app's database
- * can be wrapped (one held or failing statement) while the test reads the real one, ids are never a
- * constant, and `close` releases the database (a test that started the container awaits
+ * can be wrapped (one held or failing statement) while the test reads the real one, a second
+ * container can reopen the first one's database as a restarted app does, ids are never a
+ * constant, and `close` releases the database it opened (a test that started the container awaits
  * `container.stop()` first). Construction does not call `container.start()`, so a test decides
  * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
+
 import { LOCAL_HOST, type SessionEvent } from "@conducted/protocol";
 import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
+import { initialSyncEnabled } from "../core/cloud/file-sync.ts";
 import {
 	type Container,
 	type ContainerInputs,
@@ -54,6 +57,11 @@ export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">> & 
 	 * (`holdingOnExecute`, `failingOnSelect`). `TestContainer.database` stays the unwrapped one.
 	 */
 	wrapDatabase?: (database: Database) => Database;
+	/**
+	 * Another container's database, so this container is the app after a restart over the same
+	 * file. The container that opened it still owns it; this one's `close` leaves it open.
+	 */
+	restartOver?: Database;
 };
 
 export interface TestContainer {
@@ -67,15 +75,22 @@ export interface TestContainer {
 	close(): void;
 }
 
+/** A new migrated database that `close` releases, or a restarted app's shared one it leaves open. */
+function databaseFor(shared: Database | undefined): { database: Database; close: () => void } {
+	if (shared !== undefined) return { database: shared, close: () => {} };
+	const store = openTestDatabase();
+	return { database: store.database, close: () => store.close() };
+}
+
 /** Builds the real container over the in-memory Platform and a migrated database. */
 export function createTestContainer(options: TestContainerOptions = {}): TestContainer {
 	const clock = options.clock ?? FIXED_CLOCK;
 	const ids = options.ids ?? createTestIds();
-	const store = openTestDatabase();
+	const { database, close } = databaseFor(options.restartOver);
 	const memory = createMemoryPlatform({
 		clock,
 		ids,
-		database: options.wrapDatabase?.(store.database) ?? store.database,
+		database: options.wrapDatabase?.(database) ?? database,
 		version: "0.0.0-test",
 		channel: "dev",
 		enforceFileScope: options.enforceFileScope,
@@ -119,10 +134,10 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 	return {
 		container,
 		memory,
-		database: store.database,
+		database,
 		reported,
 		toasted,
-		close: () => store.close(),
+		close,
 	};
 }
 
@@ -216,6 +231,10 @@ export async function seedWorkspace(
 		linkedPaths: partial.linkedPaths ?? [],
 		setupLogPath: partial.setupLogPath ?? null,
 		host: partial.host ?? LOCAL_HOST,
+		// As the app's create step: a cloud workspace starts with the Advanced setting (on by
+		// default), one on this Mac with sync off.
+		remoteFileSyncEnabled:
+			partial.remoteFileSyncEnabled ?? initialSyncEnabled(partial.host ?? LOCAL_HOST, true),
 	});
 	must(await container.services.workspace.start());
 	return must(created);
