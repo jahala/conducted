@@ -164,20 +164,20 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R4421044": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-09",
-		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-sync-unavailable",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span > span",
+		"by": "seed"
 	},
 	"aria_label:R4421815": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-09",
-		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-waiting",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(3) > section > h2",
+		"by": "seed"
 	},
 	"aria_label:R4632115": {
 		"status": "gap",
@@ -221,44 +221,44 @@
 		"by": "hand"
 	},
 	"aria_label:R5434122": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > section > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"aria_label:R5434782": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Choose preview URL port\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(2) > div > button",
+		"by": "seed"
 	},
 	"aria_label:R5444519": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(1) > div > button > span",
+		"by": "seed"
 	},
 	"aria_label:R5445011": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > section > div > div:nth-of-type(2) > button:nth-of-type(3) > span",
+		"by": "seed"
 	},
 	"aria_label:R5446340": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(3) > button > span",
+		"by": "seed"
 	},
 	"aria_label:R5477936": {
 		"status": "matched",
@@ -793,12 +793,12 @@
 		"by": "hand"
 	},
 	"aria_label:R10434919": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Sidebar",
-		"backlog": "CLOUD-09",
-		"item": "Row badge 'Forwarding ports'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R10464425": {
 		"status": "matched",
@@ -1030,28 +1030,24 @@
 		"owner": "rule:neighbour"
 	},
 	"aria_label:R11156373": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(3) > input",
+		"by": "seed"
 	},
 	"aria_label:R11156789": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Local port\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
+		"by": "hand"
 	},
 	"aria_label:R11157100": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Add override\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
+		"by": "hand"
 	},
 	"aria_label:R11167685": {
 		"status": "decided",
