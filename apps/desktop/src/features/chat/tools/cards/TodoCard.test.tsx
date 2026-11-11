@@ -23,7 +23,7 @@ function view(
 			output === undefined
 				? null
 				: { kind: "tool_result", toolUseId, output, isError: false, truncated: false },
-		children: [],
+		blocks: [],
 	};
 }
 
