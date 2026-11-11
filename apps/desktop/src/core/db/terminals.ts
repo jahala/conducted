@@ -2,7 +2,8 @@
  * @feature DATA-01 Repository for the terminals table
  * Owns: terminal tabs and script runs (setup, run, spotlight) of a workspace, and the one
  * terminal of each repository (workspace_id null, repo_id set; migration 0004). A terminal also
- * says which host it runs on (host_kind, migration 0016, CLOUD-11). Scrollback files
+ * says which host it runs on (host_kind, migration 0016, CLOUD-11) and which strip its tab belongs
+ * to (placement, migration 0018, issue #482). Scrollback files
  * are written by the Rust shell and not touched here; the screen state for a restore is a JSON
  * column.
  * Behaviour: services-map.md 2.3.5 (terminal_sessions: upsert, delete) and 5A (terminals).
@@ -22,13 +23,7 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { Terminal } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import {
-	executeExisting,
-	executeStatement,
-	executeVoid,
-	inTransaction,
-	selectRows,
-} from "./row-codec.ts";
+import { executeStatement, executeVoid, inTransaction, selectRows } from "./row-codec.ts";
 
 export interface TerminalRow {
 	id: TerminalId;
@@ -37,6 +32,7 @@ export interface TerminalRow {
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
 	cwd: string;
+	placement: "centre" | "panel";
 	host_kind: "local" | "cloud";
 	start_command: string | null;
 	screen_state: string | null;
@@ -52,6 +48,7 @@ export const terminalFromRow = (row: TerminalRow): Terminal => ({
 	kind: row.kind,
 	title: row.title,
 	cwd: row.cwd,
+	placement: row.placement,
 	hostKind: row.host_kind,
 	startCommand: row.start_command,
 	startedAt: row.started_at,
@@ -70,6 +67,7 @@ export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] =
 	terminal.kind,
 	terminal.title,
 	terminal.cwd,
+	terminal.placement,
 	terminal.hostKind,
 	terminal.startCommand,
 	terminal.screenState,
@@ -78,8 +76,8 @@ export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] =
 	terminal.exitCode,
 ];
 
-const COLUMNS = `id, workspace_id, repo_id, kind, title, cwd, host_kind, start_command,
-	screen_state, started_at, ended_at, exit_code`;
+const COLUMNS = `id, workspace_id, repo_id, kind, title, cwd, placement, host_kind,
+	start_command, screen_state, started_at, ended_at, exit_code`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const TERMINALS_SQL = {
@@ -88,7 +86,7 @@ export const TERMINALS_SQL = {
 	listByRepo: `SELECT ${COLUMNS} FROM terminals WHERE repo_id = $1 ORDER BY started_at, id`,
 	get: `SELECT ${COLUMNS} FROM terminals WHERE id = $1`,
 	insert: `INSERT INTO terminals (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		$11, $12)`,
+		$11, $12, $13)`,
 	getScreenState: "SELECT screen_state FROM terminals WHERE id = $1",
 	setScreenState: "UPDATE terminals SET screen_state = $1 WHERE id = $2",
 	markEnded:
@@ -99,7 +97,7 @@ export const TERMINALS_SQL = {
 /** What a caller supplies to record a new terminal. The repository adds id and start time. */
 export type NewTerminal = Pick<
 	Terminal,
-	"workspaceId" | "repoId" | "kind" | "title" | "cwd" | "startCommand"
+	"workspaceId" | "repoId" | "kind" | "title" | "cwd" | "startCommand" | "placement"
 > & {
 	/** Where it runs. Absent means the Mac, which is what rows before migration 0016 are. */
 	hostKind?: "local" | "cloud";
@@ -157,6 +155,7 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 					kind: input.kind,
 					title: input.title,
 					cwd: input.cwd,
+					placement: input.placement,
 					hostKind: input.hostKind ?? "local",
 					startCommand: input.startCommand,
 					startedAt: at,
@@ -178,6 +177,7 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 					kind: terminal.kind,
 					title: terminal.title,
 					cwd: terminal.cwd,
+					placement: terminal.placement,
 					hostKind: terminal.hostKind,
 					startCommand: terminal.startCommand,
 					startedAt: terminal.startedAt,

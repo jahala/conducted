@@ -945,6 +945,7 @@ describe("DATA-01 terminals repository", () => {
 				kind: "run",
 				title: "dev server",
 				cwd: "/code/workspaces/oslo",
+				placement: "panel",
 				startCommand: "bun dev",
 			}),
 		);
@@ -972,6 +973,7 @@ describe("DATA-01 terminals repository", () => {
 				kind: "terminal",
 				title: "zsh",
 				cwd: "/code/workspaces/oslo",
+				placement: "centre",
 				startCommand: null,
 			}),
 		);

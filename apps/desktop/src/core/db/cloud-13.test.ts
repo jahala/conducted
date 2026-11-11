@@ -123,6 +123,7 @@ async function seed(host: Host, name: string, port: number): Promise<WorkspaceId
 			kind: "terminal",
 			title: name,
 			cwd: `/code/workspaces/${name}`,
+			placement: "centre",
 			startCommand: null,
 		}),
 	);

@@ -268,6 +268,11 @@ export interface Terminal {
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
 	cwd: string;
+	/**
+	 * Where its tab belongs: the centre strip or the right panel's scripts panel. A terminal made
+	 * from one strip's "+" opens there and is listed only there (ui-map 3.2, 3.7).
+	 */
+	placement: "centre" | "panel";
 	/** Where the terminal runs: the Mac, or the sandbox of a cloud workspace (CLOUD-11). */
 	hostKind: "local" | "cloud";
 	/** A command typed into the shell when it starts, for example a "big terminal" preset. */

@@ -107,6 +107,7 @@ const terminal = (id: TerminalId, repoId: RepoId): Terminal => ({
 	kind: "terminal",
 	title: "Terminal 1",
 	cwd: ROOT,
+	placement: "centre",
 	hostKind: "local",
 	startCommand: null,
 	startedAt: 1,
