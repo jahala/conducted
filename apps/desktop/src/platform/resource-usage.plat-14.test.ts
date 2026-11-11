@@ -20,8 +20,16 @@ describe("PLAT-14 Tauri resource usage", () => {
 	it("PLAT-14 asks the Rust shell for usage of the given workspaces and returns the rows", async () => {
 		const calls: Call[] = [];
 		const rows = [
-			{ pid: 7, name: "sleep", cpuPercent: 1.5, memoryBytes: 1024, workspacePath: "/tmp/ws" },
-			{ pid: 8, name: "sh", cpuPercent: 0, memoryBytes: 2048 },
+			{
+				pid: 7,
+				ppid: 8,
+				label: "sleep",
+				cpuPercent: 1.5,
+				memoryBytes: 1024,
+				workspacePath: "/tmp/ws",
+				terminalId: "term-1",
+			},
+			{ pid: 8, ppid: 1, label: "sh", cpuPercent: 0, memoryBytes: 2048 },
 		];
 		const app = createTauriAppInfo(
 			commandBindings((command, args) => {

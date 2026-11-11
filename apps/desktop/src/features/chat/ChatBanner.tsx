@@ -2,20 +2,24 @@
  * @feature CHAT-06 Chat banners; CHAT-27 Visible auto-retry with Retry now
  * Owns: Notices and errors in the list: interrupted, history compacted, compacting, session limit
  * reached, sign-in needed, 'This message could not be displayed.', the agent's own retry progress
- * with Retry now, and Retry in new chat on a failed turn.
+ * with Retry now, Retry in new chat on a failed turn, and the views of the error that ended a turn:
+ * 'Error: <text>', the context window, the session limit with its reset time and help link, an
+ * overloaded server with 'Check Anthropic API status', and an image over the size limit.
  * Behaviour: ui-map.md 3.3 (Banners in the list; 'Something went wrong, retrying n/m' with Retry
  * now while the agent retries by itself; the error card offers Retry in new chat), 7.4 (agent
- * binary and auth problems are shown inline in chat).
+ * binary and auth problems are shown inline in chat). The turn error views and their words are
+ * Conductor's IQi (renderApp @9538488) and GFe (@9534766); GFe's retry button reads 'Retry'.
  * Our design choice: Sign-in and key problems link to the Agents settings page and show the agent's
  * own message, which names the problem (one auth code covers every agent). Retryable errors show
- * 'Try again', which resends the last message. 'Image too large' belongs to the composer's
- * attachment bar, not this list banner. Retry in new chat creates the chat and opens it, and one
- * request at a time starts it.
+ * 'Retry', which resends the last message. Every error keeps the title 'The agent reported an
+ * error' unless Conductor's view has a title of its own, and keeps Retry in new chat, which
+ * Conductor leaves off its session limit and image views. Retry in new chat creates the chat and
+ * opens it, and one request at a time starts it.
  * Must handle: Each notice kind has its own wording (the protocol's notice kinds: session_started,
  * compacted, rate_limit, model_changed, info); an error with `retryable` false has no retry; an
  * auto-retry line names the attempt and the agent's reason; a retry in a new chat that fails shows
  * a toast; text is selectable; error colour only for real errors, not for notices.
- * Test first: A 'compacted' notice reads as a quiet line; a retryable error shows a Try again
+ * Test first: A 'compacted' notice reads as a quiet line; a retryable error shows a Retry
  * button; the retry line names the attempt and Retry now calls back.
  */
 import { AGENT_ERROR_CODES, type LiveState } from "@conducted/protocol";
@@ -30,7 +34,10 @@ import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { XCircleIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { ExternalLink } from "./ExternalLink.tsx";
 import { reportFailure } from "./report-failure.ts";
+import { formatResetTime } from "./reset-time.ts";
+import type { TurnErrorView } from "./turn-error-view.ts";
 
 /** The turn whose message Retry in new chat sends again. */
 export interface RetryInNewChatTarget {
@@ -40,6 +47,8 @@ export interface RetryInNewChatTarget {
 
 export interface ChatBannerProps {
 	block: Extract<ChatBlock, { kind: "notice" | "error" }>;
+	/** The view of the error that ended the turn (turn-error-view.ts). Unset: the block's own error. */
+	view?: TurnErrorView;
 	/** Resends the last message. Without it a retryable error has no button. */
 	onRetry?: () => void;
 	/** The failed turn to send again in a new chat of the same workspace. */
@@ -121,7 +130,47 @@ export function ChatRetryBanner({ retry, onRetryNow, retryInNewChat }: ChatRetry
 	);
 }
 
-export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) {
+/** Conductor's titles for the views that carry one (IQi @9538488). Others keep our own title. */
+function errorTitle(isAuth: boolean, view: TurnErrorView | undefined): string {
+	if (isAuth) return "Authentication required";
+	if (view?.kind === "session_limit") return "Claude Code session limit reached";
+	if (view?.kind === "image_too_large") return "Image too large";
+	return "The agent reported an error";
+}
+
+const SESSION_LIMIT_NOTE =
+	"This limit is imposed by Anthropic and applies to all Claude Code usage.";
+const SESSION_LIMIT_HELP =
+	"https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan#h_50f6dec29d";
+const ANTHROPIC_STATUS = "https://status.anthropic.com/";
+
+/** The words of a turn's error view, in Conductor's wording (IQi @9538488, GFe @9534766). */
+function viewText(view: TurnErrorView): string | null {
+	switch (view.kind) {
+		case "error":
+			return `Error: ${view.text}`;
+		case "context_window":
+			return "Exceeded Claude's context window. Please compact using /compact, or summarize into a new chat.";
+		case "overloaded":
+			return "Anthropic's API servers are temporarily overloaded. Please try again in a few minutes.";
+		case "image_too_large":
+			return "Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward.";
+		case "session_limit":
+			return `${sessionLimitReset(view.resetsAt)} ${SESSION_LIMIT_NOTE}`;
+		case "sign_in":
+			return view.text;
+		case "interrupted":
+			return null;
+	}
+}
+
+function sessionLimitReset(resetsAt: number | null): string {
+	return resetsAt === null
+		? "Please try again later."
+		: `Your limit will be reset on ${formatResetTime(resetsAt)}.`;
+}
+
+export function ChatBanner({ block, view, onRetry, retryInNewChat }: ChatBannerProps) {
 	const actions = useActions();
 	const copy = (text: string) => {
 		void reportFailure(actions.app.copyText(text), "Couldn't copy the message");
@@ -149,8 +198,11 @@ export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) 
 
 	const item = block.item;
 	const isAuth = item.code === AGENT_ERROR_CODES.authRequired;
-	const message =
-		item.message.trim().length === 0 ? "This message could not be displayed." : item.message;
+	const shown = view === undefined ? item.message : (viewText(view) ?? item.message);
+	const message = shown.trim().length === 0 ? "This message could not be displayed." : shown;
+	const openStatus = () => {
+		void reportFailure(actions.app.openUrl(ANTHROPIC_STATUS), "Couldn't open the link");
+	};
 
 	return (
 		<ContextMenu
@@ -165,12 +217,24 @@ export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) 
 		>
 			<div>
 				<Alert tone="destructive" icon={<XCircleIcon />}>
-					<AlertTitle>
-						{isAuth ? "Authentication required" : "The agent reported an error"}
-					</AlertTitle>
+					<AlertTitle>{errorTitle(isAuth, view)}</AlertTitle>
 					<AlertDescription>
 						<div className="flex flex-col gap-2">
-							<span className="select-text">{message}</span>
+							<span className="select-text">
+								{message}
+								{view?.kind === "session_limit" ? (
+									<>
+										{" "}
+										<ExternalLink
+											url={SESSION_LIMIT_HELP}
+											title="Learn more about Claude Code limits"
+											className="font-medium text-fg underline underline-offset-2"
+										>
+											Learn more about Claude Code limits
+										</ExternalLink>
+									</>
+								) : null}
+							</span>
 							<div className="flex items-center gap-2">
 								{isAuth ? (
 									<Link
@@ -183,7 +247,12 @@ export function ChatBanner({ block, onRetry, retryInNewChat }: ChatBannerProps) 
 								) : null}
 								{item.retryable && onRetry ? (
 									<Button variant="secondary" size="sm" onClick={onRetry}>
-										Try again
+										Retry
+									</Button>
+								) : null}
+								{view?.kind === "overloaded" ? (
+									<Button variant="secondary" size="sm" onClick={openStatus}>
+										Check Anthropic API status
 									</Button>
 								) : null}
 								{retryInNewChat === undefined ? null : (

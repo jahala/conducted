@@ -158,6 +158,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 									canRun={canRun}
 									retry={index === data.turns.length - 1 ? data.liveState.retry : undefined}
 									expandAll={expandAll === true}
+									agent={data.session.config.agent}
 								/>
 							)}
 							context={{ working: workingOf(data) }}
