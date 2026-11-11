@@ -4,7 +4,8 @@ name: Catalogue shots
 # and uploads the PNGs, so a screen change can be read beside Conductor's captures without a
 # browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The same
 # job runs the browser check of the Codex visualization frame under the app's production policy
-# (scripts/visualization/frame-policy.browser.ts, issue #466).
+# (scripts/visualization/frame-policy.browser.ts, issue #466) and the pointer checks for every
+# in-app drag (scripts/catalogue/pointer-drag.browser.ts, issue #529).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -52,3 +53,6 @@ jobs:
       - name: The visualization frame runs its scripts under the production policy
         if: ${{ !cancelled() }}
         run: bun scripts/visualization/frame-policy.browser.ts
+      - name: Every in-app drag takes a real pointer drag
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/pointer-drag.browser.ts
