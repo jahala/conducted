@@ -1,9 +1,10 @@
 /**
  * @feature catalogue States of the sidebar's sections and view options
  * Owns: the sidebar with a pinned workspace and two of the user's sections (one collapsed, with its
- * count), a section's actions menu, the section dialog opened by Rename, the list's View options
- * menu (group, filter by project, sort), the new-workspace dialog's "Create in section" menu, and
- * the organisation switcher open with this Mac and the paired Worker (CLOUD-19).
+ * count), a section's actions menu, the section dialog opened by Rename and by New section, a
+ * pinned workspace's actions menu ('Unpin'), the list's View options menu (group, filter by project,
+ * sort), the new-workspace dialog's "Create in section" menu, and the organisation switcher open
+ * with this Mac and the paired Worker (CLOUD-19).
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections with name, emoji, collapse and count,
  * "Create in section", rename and delete; View options: group by Status or Project, filter by
  * project, sort by Updated or Created).
@@ -74,6 +75,34 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		async ({ document }) => {
 			await click(document, "button", "Actions for In review");
 			await click(document, "[role=menuitem]", "Rename");
+		},
+	),
+	sectionsState(
+		"sidebar-new-section",
+		"Sidebar: the New section dialog",
+		"Emoji (optional)",
+		async ({ document }) => {
+			await click(document, "button", "My workspaces actions");
+			await click(document, "[role=menuitem]", "New section…");
+		},
+	),
+	sectionsState(
+		"sidebar-workspace-actions",
+		"Sidebar: a pinned workspace's actions menu",
+		"Unpin",
+		({ document }) => {
+			const row = document.querySelector<HTMLElement>("[data-workspace-id]");
+			if (row === null) throw new Error("No sidebar workspace row to open.");
+			const box = row.getBoundingClientRect();
+			const init = {
+				bubbles: true,
+				cancelable: true,
+				button: 2,
+				clientX: box.left + box.width / 2,
+				clientY: box.top + box.height / 2,
+			};
+			row.dispatchEvent(new PointerEvent("pointerdown", { ...init, pointerType: "mouse" }));
+			row.dispatchEvent(new MouseEvent("contextmenu", init));
 		},
 	),
 	sectionsState(

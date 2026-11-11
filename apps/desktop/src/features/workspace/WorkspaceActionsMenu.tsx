@@ -15,7 +15,8 @@
  * when agents run and offers Conductor's recovery actions (`useArchiveWorkspace`); unarchive that
  * needs a new branch name (a small dialog asks for one); a restore that lost uncommitted changes
  * (the warning from `runUnarchive`); mark as read or unread follows the chats' unread count; move
- * to section lists the known sections and 'New section...'; a failed action shows a toast.
+ * to section lists the known sections and 'New section...'; a failed action shows a toast; Copy link
+ * says "Copied link", or "Failed to copy link" (renderApp @5493926).
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
@@ -189,9 +190,7 @@ function WorkspaceActionItems({
 		);
 
 	const moveTo = (section: Section) =>
-		void run("Couldn't move the workspace", () =>
-			actions.sections.place(workspaceId, section.id, 0),
-		);
+		void run("Couldn't move workspace", () => actions.sections.place(workspaceId, section.id, 0));
 
 	const startUnarchive = () =>
 		void runUnarchive(actions, workspaceId, { branchName: null, clearChats: false }).then(
@@ -286,11 +285,12 @@ function WorkspaceActionItems({
 					<ContextMenuItem onSelect={onRename}>Rename</ContextMenuItem>
 					<ContextMenuItem
 						shortcut={copyLinkShortcut ?? undefined}
-						onSelect={() =>
-							void run("Couldn't copy the link", () =>
-								actions.app.copyText(buildDeepLink(workspaceId, null)),
-							)
-						}
+						onSelect={() => {
+							void actions.app.copyText(buildDeepLink(workspaceId, null)).then((result) => {
+								if (result.ok) toast("Copied link");
+								else toast.error("Failed to copy link");
+							});
+						}}
 					>
 						Copy link
 					</ContextMenuItem>

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Section } from "../../core/model.ts";
 import { createTestContainer } from "../../test/container.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 
 afterEach(cleanup);
@@ -91,6 +92,44 @@ describe("NAV-04 SectionDialog", () => {
 			expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(
 				true,
 			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("toasts Conductor's 'Couldn't create section' when a new section fails", async () => {
+		const test = createTestContainer();
+		try {
+			const reported = vi.spyOn(toast, "error").mockImplementation(() => "");
+			vi.spyOn(test.container.actions.sections, "create").mockResolvedValue(
+				err(appError("db", "The database is locked.")),
+			);
+			renderWith(test.container, <SectionDialog open onOpenChange={vi.fn()} section={null} />);
+			fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+				target: { value: "Review" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Create" }));
+			await waitFor(() => expect(reported).toHaveBeenCalledWith("Couldn't create section"));
+			reported.mockRestore();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("toasts 'Section no longer exists' when the renamed section vanished", async () => {
+		const test = createTestContainer();
+		try {
+			const reported = vi.spyOn(toast, "error").mockImplementation(() => "");
+			vi.spyOn(test.container.actions.sections, "rename").mockResolvedValue(
+				err(appError("section_unknown", "That section no longer exists.")),
+			);
+			renderWith(test.container, <SectionDialog open onOpenChange={vi.fn()} section={section} />);
+			fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+				target: { value: "In review" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Save" }));
+			await waitFor(() => expect(reported).toHaveBeenCalledWith("Section no longer exists"));
+			reported.mockRestore();
 		} finally {
 			test.close();
 		}

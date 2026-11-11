@@ -4,7 +4,8 @@
  * Behaviour: ui-map.md 5.2 ('Section create or edit (name, emoji)'), 4 item 5.
  * Must handle: Empty name (submit disabled); a name that already exists (allowed, sections are told
  * apart by id); Enter submits; Escape closes; the action fails (error under the field, dialog stays
- * open).
+ * open, and Conductor's toast names it: "Couldn't create section", "Couldn't edit section", or
+ * "Section no longer exists" when the section vanished, renderApp @11511933).
  * Our design choice: The emoji is a short text field plus a small set of common choices, so the
  * picker needs no extra library. A section is renamed from the same dialog that creates it.
  * Test first: Submitting 'Review' with no emoji calls sections.create('Review', null).
@@ -18,6 +19,7 @@ import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { Input, Label } from "../../ui/Input.tsx";
+import { toast } from "../../ui/Toast.tsx";
 
 export interface SectionDialogProps {
 	open: boolean;
@@ -27,6 +29,12 @@ export interface SectionDialogProps {
 }
 
 const EMOJI_CHOICES = ["📌", "📝", "🚧", "🐛", "✨", "🧪", "🚀", "📚"] as const;
+
+/** Conductor's toast wording for a failed save (renderApp @11511933). */
+function sectionToast(section: Section | null, code: string): string {
+	if (code === "section_unknown") return "Section no longer exists";
+	return section === null ? "Couldn't create section" : "Couldn't edit section";
+}
 
 export function SectionDialog({ open, onOpenChange, section }: SectionDialogProps) {
 	const actions = useActions();
@@ -61,6 +69,7 @@ export function SectionDialog({ open, onOpenChange, section }: SectionDialogProp
 						: await actions.sections.rename(initial.current.id, trimmed, chosenEmoji);
 				if (!result.ok) {
 					setError(result.error.message);
+					toast.error(sectionToast(initial.current, result.error.code));
 					return;
 				}
 				onOpenChange(false);
