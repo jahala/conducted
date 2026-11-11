@@ -9,7 +9,7 @@
  * Test first: with the cloud entry active the page offers the Worker's repositories and creates
  * there.
  */
-import { ok, type Result } from "@conducted/shared";
+import { appError, err, ok, type Result } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -48,7 +48,12 @@ const must = <T,>(result: Result<T>): T => {
  * unread, as at the start of the app.
  */
 async function renderCloudPage(
-	options: { readiness?: CloudReadiness; dataPrivacy?: boolean; pairingRead?: boolean } = {},
+	options: {
+		readiness?: CloudReadiness;
+		dataPrivacy?: boolean;
+		pairingRead?: boolean;
+		workerDown?: boolean;
+	} = {},
 ) {
 	test = createTestContainer();
 	const { services, actions } = test.container;
@@ -57,6 +62,14 @@ async function renderCloudPage(
 	if (options.dataPrivacy === true)
 		must(await services.settings.set("enterprise_data_privacy", true));
 	scriptWorker(test, options.readiness === undefined ? {} : { readiness: options.readiness });
+	if (options.workerDown === true) {
+		// Later scripts are tried first: the Worker does not answer its readiness route.
+		test.memory.controls.scriptCloud((request) =>
+			request.path === "/readiness"
+				? err(appError("cloud_unreachable", "The Worker did not answer."))
+				: null,
+		);
+	}
 	if (options.pairingRead !== false) must(await services.cloudPairing.start());
 	await seedRepo(test.container, { name: "scratch", remoteUrl: null });
 	const github = await seedRepo(test.container, {
@@ -80,6 +93,11 @@ async function renderCloudPage(
 				getParentRoute: () => rootRoute,
 				path: "/repository/$repositoryId/workspace/$workspaceId",
 				component: () => <div>Workspace opened</div>,
+			}),
+			createRoute({
+				getParentRoute: () => rootRoute,
+				path: "/settings/user/$page",
+				component: () => <div>Settings opened</div>,
 			}),
 		]),
 		history: createMemoryHistory({ initialEntries: ["/create"] }),
@@ -151,6 +169,13 @@ describe("CLOUD-19 the new-workspace page in cloud mode", () => {
 			test?.close();
 			test = null;
 		}
+	});
+
+	it("View computer opens the Cloud page, where the Worker is paired (#489)", async () => {
+		const { router } = await renderCloudPage({ workerDown: true });
+		expect(await screen.findByText("Computer isn't ready yet.")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "View computer" }));
+		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/cloud"));
 	});
 
 	it("says it is checking the organization until the pairing is read", async () => {

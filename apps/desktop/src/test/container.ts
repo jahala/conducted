@@ -25,7 +25,7 @@ import type { NewWorkspace } from "../core/db/workspaces.ts";
 import type { Repo, Workspace } from "../core/model.ts";
 import type { SoundPlayer } from "../core/services/notifications.ts";
 import { tomlCodec } from "../core/services/toml-codec.ts";
-import type { PlaceNames } from "../core/services/workspace.ts";
+import type { PlaceNames } from "../core/services/workspace-creation.ts";
 import { writeRedactedReport } from "../features/diagnostics/diagnostics-report.ts";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";

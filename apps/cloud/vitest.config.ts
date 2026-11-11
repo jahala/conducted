@@ -5,8 +5,14 @@
  * the live run, so the tests cover the Worker's front door, the Durable Object's state and alarm,
  * and the turn-state reading. See docs/decisions.md D101.
  */
+import { join } from "node:path";
+import process from "node:process";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
+
+// CI names a folder here, and the run also writes a JUnit report into it, so
+// scripts/test-report.ts can list every failed test by file (ci.yml).
+const reports = process.env.CONDUCTED_TEST_REPORTS;
 
 export default defineConfig({
 	plugins: [
@@ -20,4 +26,12 @@ export default defineConfig({
 			},
 		}),
 	],
+	test: reports
+		? {
+				reporters: [
+					...configDefaults.reporters,
+					["junit", { outputFile: join(reports, "cloud.xml") }],
+				],
+			}
+		: {},
 });

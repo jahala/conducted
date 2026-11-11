@@ -44,9 +44,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      # The RUN-09 tests run the terminal shim in a real zsh, which this image does not ship.
-      - name: Install zsh
-        run: sudo apt-get update -qq && sudo apt-get install -qq --yes --no-install-recommends zsh
       # These call the coverage scripts directly, not `pnpm test`: the run-owned temp folder check
       # belongs to the test run and has nothing to say about report folders.
       - name: Desktop coverage (reports in apps/desktop/coverage)
@@ -110,6 +107,16 @@ jobs:
       # The toolchain file in this folder pins Rust, so rustup adds the component to that version.
       - name: Add the LLVM tools the coverage report needs
         run: rustup component add llvm-tools-preview
+      # The relay integration test starts the Worker in Cloudflare's local runtime, so this job
+      # installs the cloud package's wrangler and workerd, as ci.yml's Rust job does.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install the Worker runtime for the relay test
+        working-directory: .
+        run: pnpm install --frozen-lockfile --filter @conducted/cloud
       - name: Run the tests once with coverage on
         run: cargo llvm-cov --no-report
       - name: Write the reports (reports in apps/desktop/src-tauri/coverage)

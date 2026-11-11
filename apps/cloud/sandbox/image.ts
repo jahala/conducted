@@ -15,8 +15,7 @@
  * builds the same image. Claude Code and Codex come from the vendors' own Linux releases; gh comes
  * from the GitHub CLI release the app pins; Cursor's SDK comes from npm at the version the app
  * installs on demand (D083, D123). Git and ripgrep are the Debian trixie builds.
- * Test first: `programPath("claude")` is
- * `/opt/conducted/agent-binaries/claude/2.1.308/claude`.
+ * Test first: `programPath("claude")` is the path the managed-program table names.
  */
 
 /** The version the app pins, from `pinned_version` in `apps/desktop/src-tauri/src/binaries.rs`. */
@@ -39,12 +38,12 @@ export const IMAGE = {
 	ripgrepVersion: "14.1.1-1+b4",
 	programs: {
 		claude: {
-			version: "2.1.308",
-			source: "npm:@anthropic-ai/claude-code-linux-x64@2.1.308",
+			version: "2.1.322",
+			source: "npm:@anthropic-ai/claude-code-linux-x64@2.1.322",
 		},
 		codex: {
-			version: "0.164.0",
-			source: "github:openai/codex rust-v0.164.0 codex-x86_64-unknown-linux-musl.tar.gz",
+			version: "0.167.1",
+			source: "github:openai/codex rust-v0.167.1 codex-x86_64-unknown-linux-musl.tar.gz",
 		},
 		gh: {
 			version: "2.100.0",

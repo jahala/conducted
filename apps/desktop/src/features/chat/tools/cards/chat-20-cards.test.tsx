@@ -63,7 +63,7 @@ function view(tool: CanonicalTool, input: unknown, extra: Extra = {}): ToolCallV
 						isError: extra.isError ?? false,
 						truncated: false,
 					},
-		children: [],
+		blocks: [],
 	};
 }
 
