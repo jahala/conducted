@@ -27,7 +27,11 @@ jobs:
     # A hung test would otherwise run for GitHub's default of six hours.
     timeout-minutes: 15
     steps:
+      # Two commits deep: a pull request's run checks out the merge commit, and its first parent
+      # is main's tip, the base the changed-only test run compares with.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
         with:
@@ -46,6 +50,8 @@ jobs:
         run: pnpm exec biome ci .
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: shellcheck bin/*.sh
+      # A pull request runs the tests its changes can reach (scripts/run-tests.ts, rules in
+      # scripts/test-rules.ts); main runs every test after each merge, the net under that choice.
       - name: Tests (each runner also writes a JUnit report)
         id: tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -53,15 +59,17 @@ jobs:
           CONDUCTED_TEST_REPORTS: ${{ runner.temp }}/test-reports
         run: |
           mkdir -p "$CONDUCTED_TEST_REPORTS"
-          pnpm test
-      # One list of every failed test by file, also on the run's summary page. It fails when a
-      # report is missing, so a runner that crashed before writing one is never read as green.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            pnpm test:changed --since HEAD^1
+          else
+            pnpm test
+          fi
+      # One list of every failed test by file, also on the run's summary page. The test run names
+      # the runners it started in runners.txt; a runner whose report is missing fails this step,
+      # so one that crashed before writing it is never read as green.
       - name: Failed tests, by file
         if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
-        run: >-
-          bun scripts/test-report.ts "$RUNNER_TEMP/test-reports"
-          desktop=apps/desktop protocol=packages/protocol shared=packages/shared
-          sidecar=packages/sidecar scripts=.
+        run: xargs bun scripts/test-report.ts "$RUNNER_TEMP/test-reports" < "$RUNNER_TEMP/test-reports/runners.txt"
       - name: Build the web UI that ships inside the app
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm build
