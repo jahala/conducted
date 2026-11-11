@@ -17,11 +17,11 @@
  */
 import type { DragEvent, HTMLAttributes, Ref } from "react";
 import { cn } from "../../ui/cn.ts";
+import { FileTypeIcon } from "../../ui/file-icon.tsx";
 import {
 	ChatIcon,
 	CloseIcon,
 	CloudIcon,
-	FileIcon,
 	GlobeIcon,
 	LaptopIcon,
 	PullRequestIcon,
@@ -75,7 +75,7 @@ function TabIcon({ tab }: { tab: TabDescriptor }) {
 			}
 			return <TerminalIcon />;
 		case "file":
-			return <FileIcon />;
+			return <FileTypeIcon path={tab.title} className="size-3" />;
 		case "comment":
 			return <ChatIcon />;
 		case "pr":

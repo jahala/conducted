@@ -27,15 +27,16 @@ describe("REV-06 file tree row", () => {
 		expect(screen.queryByRole("img", { name: "Changed" })).toBeNull();
 	});
 
-	it("chooses the file icon from the file type", () => {
+	it("chooses the Material Icon Theme's icon from the file type", () => {
 		const view = render(<FileTreeRow {...row()} />);
-		const icon = view.container.querySelector("[data-file-icon]");
-		expect(icon?.getAttribute("data-kind")).toBe("code");
+		const icon = view.container.querySelector("img[data-file-icon]");
+		expect(icon?.getAttribute("data-file-icon")).toBe("typescript");
+		expect(icon?.getAttribute("src")).toBeTruthy();
 
 		view.rerender(<FileTreeRow {...row({ name: "README.md", path: "README.md" })} />);
-		expect(view.container.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe(
-			"document",
-		);
+		expect(
+			view.container.querySelector("img[data-file-icon]")?.getAttribute("data-file-icon"),
+		).toBe("readme");
 	});
 
 	// Conductor opens a file on one click (renderApp @2530991); this test asserted double click.
