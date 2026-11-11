@@ -1366,12 +1366,10 @@
 		"by": "hand"
 	},
 	"literal:R3122139": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-10",
-		"item": "File tab",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword in a bundled syntax highlighter's Coq language table (renderApp @3122132), not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R3122276": {
 		"status": "gap",
@@ -1600,12 +1598,10 @@
 		"owner": "hand"
 	},
 	"literal:R4381706": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files",
-		"backlog": "NAV-10",
-		"item": "File tab",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A Radix Tabs component's internal name prop (renderApp @4381699), not Conductor's wording.",
+		"by": "hand"
 	},
 	"literal:R4950293": {
 		"status": "matched",
@@ -2193,12 +2189,10 @@
 		"owner": "hand"
 	},
 	"literal:R9367168": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's own goal bar returns nothing for a completed goal (renderApp @9370317), so this label is never shown.",
+		"by": "hand"
 	},
 	"literal:R9368492": {
 		"status": "gap",
