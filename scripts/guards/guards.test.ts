@@ -320,12 +320,14 @@ describe("markers", () => {
 			'#!/usr/bin/env bash\n# Moves files to the Trash, never deletes.\ntrash "$dir"\n',
 		);
 		put("apps/desktop/src/features/c.tsx", '/** c */\nexport const STARTERS = ["Fix a TODO"];\n');
+		put("apps/desktop/src/features/d.ts", "/** d */\n// don't ship this, TODO: it's wrong\n");
 		const messages = checkMarkers(root).map((p) => p.message);
 		expect(messages.some((m) => m.startsWith("packages/a/src/x.ts:2"))).toBe(true);
 		expect(messages.some((m) => m.startsWith("apps/b/src/y.rs:2"))).toBe(true);
 		expect(messages.some((m) => m.startsWith("bin/z.sh:3"))).toBe(true);
 		expect(messages.some((m) => m.startsWith("bin/ok.sh"))).toBe(false);
 		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/c.tsx"))).toBe(false);
+		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/d.ts:2"))).toBe(true);
 	});
 });
 

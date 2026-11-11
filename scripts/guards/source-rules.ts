@@ -48,7 +48,11 @@ export function checkHeaders(root: string): Problem[] {
  */
 function withoutStringLiterals(text: string): string {
 	const blank = (match: string) => match.replace(/[^\n]/g, " ");
-	return text.replace(/"(?:[^"\\\n]|\\.)*"/g, blank).replace(/'(?:[^'\\\n]|\\.)*'/g, blank);
+	// An opening quote never follows a letter, so the apostrophes in a comment ("don't ... it's")
+	// are not read as a string that would hide a TODO between them.
+	return text
+		.replace(/(?<!\w)"(?:[^"\\\n]|\\.)*"/g, blank)
+		.replace(/(?<!\w)'(?:[^'\\\n]|\\.)*'/g, blank);
 }
 
 const MARKERS: { pattern: RegExp; files: RegExp; message: string; skipStrings?: boolean }[] = [
