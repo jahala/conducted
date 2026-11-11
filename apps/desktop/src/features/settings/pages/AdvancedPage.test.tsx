@@ -7,6 +7,13 @@ import { createTestContainer, type TestContainer } from "../../../test/container
 import { toast } from "../../../ui/Toast.tsx";
 import { AdvancedPage } from "./AdvancedPage.tsx";
 
+const navigate = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-router")>()),
+	useNavigate: () => navigate,
+}));
+
 const claude: AgentProgramView = {
 	status: {
 		program: "claude",
@@ -27,6 +34,7 @@ let test: TestContainer | undefined;
 afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
+	navigate.mockReset();
 	test?.close();
 	test = undefined;
 });
@@ -391,6 +399,32 @@ describe("SET-02 AdvancedPage", () => {
 });
 
 describe("SET-02 AdvancedPage root path dialog", () => {
+	it("reloads chats and refreshes projects and workspaces, then goes Home", async () => {
+		const mounted = await mountPage();
+		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/work/new"));
+		const reloadChats = vi
+			.spyOn(mounted.container.services.sessions, "start")
+			.mockResolvedValue(ok(undefined));
+		const refreshRepos = vi
+			.spyOn(mounted.container.services.repo, "start")
+			.mockResolvedValue(ok(undefined));
+		const refreshWorkspaces = vi
+			.spyOn(mounted.container.services.workspace, "start")
+			.mockResolvedValue(ok(undefined));
+		const success = vi.spyOn(toast, "success");
+
+		fireEvent.click(await screen.findByRole("button", { name: "Browse" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Change root path" }));
+
+		await waitFor(() =>
+			expect(success).toHaveBeenCalledWith("Conducted root path changed successfully"),
+		);
+		expect(reloadChats).toHaveBeenCalledTimes(1);
+		expect(refreshRepos).toHaveBeenCalledTimes(1);
+		expect(refreshWorkspaces).toHaveBeenCalledTimes(1);
+		expect(navigate).toHaveBeenCalledWith({ to: "/" });
+	});
+
 	it("names the old and new root path, as Conductor's dialog does", async () => {
 		const mounted = await mountPage();
 		await mounted.container.actions.settings.set("conductor_root_path", "/work/old");

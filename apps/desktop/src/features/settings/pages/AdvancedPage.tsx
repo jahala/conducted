@@ -10,7 +10,8 @@
  * invalid path is refused with a reason, so a saved path is always a path that exists.
  * Must handle: a path that does not exist, an empty value meaning the bundled program, and a root
  * folder change that asks for confirmation first and names the old and new path (D037 keeps the
- * existing data, unlike Conductor's wipe).
+ * existing data, unlike Conductor's wipe). A finished change reloads the chats, refreshes projects
+ * and workspaces, opens Home and toasts, as Conductor does (renderApp @10966029).
  * Test first: saving a non-existent program path shows the error and does not call settings.set.
  *
  * PLAT-28 also renders the Agent binaries section here: the state of the Claude Code and Codex
@@ -22,7 +23,9 @@
  * programs themselves are downloaded and verified by the system service, not by this page.
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServices } from "../../../core/context.tsx";
 import {
 	useActions,
 	useAgentPrograms,
@@ -47,6 +50,8 @@ const ROOT_PATH_KEY = "conductor_root_path";
 export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
 	const actions = useActions();
+	const services = useServices().services;
+	const navigate = useNavigate();
 	const saves = useSettingSaves();
 	const rootPath = useSetting<string>(ROOT_PATH_KEY);
 	const [pendingRoot, setPendingRoot] = useState<string | null>(null);
@@ -66,7 +71,14 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 		setPendingRoot(null);
 		if (next === null) return;
 		const saved = await saves.save(ROOT_PATH_KEY, next);
-		if (saved) toast("Conducted root path changed successfully");
+		if (!saved) return;
+		// Conductor reloads its chat state, refreshes workspaces and repos, then opens Home
+		// (renderApp @10966029). D037 keeps the existing data, so the reload finds it unchanged.
+		await services.sessions.start();
+		await services.workspace.start();
+		await services.repo.start();
+		void navigate({ to: "/" });
+		toast.success("Conducted root path changed successfully");
 	};
 
 	return (
