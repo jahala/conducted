@@ -26,12 +26,17 @@ export default defineConfig({
 			},
 		}),
 	],
-	test: reports
-		? {
-				reporters: [
-					...configDefaults.reporters,
-					["junit", { outputFile: join(reports, "cloud.xml") }],
-				],
-			}
-		: {},
+	test: {
+		// A timeout catches a hang, never slowness (docs/engineering.md, as the desktop's tests).
+		testTimeout: 60_000,
+		hookTimeout: 60_000,
+		...(reports
+			? {
+					reporters: [
+						...configDefaults.reporters,
+						["junit", { outputFile: join(reports, "cloud.xml") }],
+					],
+				}
+			: {}),
+	},
 });

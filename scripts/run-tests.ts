@@ -298,7 +298,8 @@ export function commandFor(
 		const report = reports
 			? ["--reporter=junit", `--reporter-outfile=${join(reports, "scripts.xml")}`]
 			: [];
-		return ["bun", "test", ...report, ...paths];
+		// As the packages' own test scripts do: a timeout catches a hang, never slowness.
+		return ["bun", "test", "--timeout", "60000", ...report, ...paths];
 	}
 	const paths =
 		files === "all"
