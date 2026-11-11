@@ -18,15 +18,14 @@ import type { GitRunner } from "../git/runner.ts";
 import type { Repo, Workspace } from "../model.ts";
 import { SETUP_FAILED_MESSAGE } from "../workspace-helpers.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
+import { WorkspaceService, type WorkspaceServiceDeps } from "./workspace.ts";
 import {
 	COPY_FILE_SIZE_LIMIT,
 	DEFAULT_COPY_FILES,
 	matchesCopyPattern,
 	parseWorktreeInclude,
 	selectIncludedPaths,
-	WorkspaceService,
-	type WorkspaceServiceDeps,
-} from "./workspace.ts";
+} from "./workspace-creation.ts";
 
 const repo: Repo = {
 	id: "r1" as RepoId,

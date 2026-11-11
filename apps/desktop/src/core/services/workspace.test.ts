@@ -19,16 +19,18 @@ import type { BacklogWorkspace, Repo, RepoConfig, Session, Workspace } from "../
 import { branchPrefixFor, isSafeRefName } from "../workspace-helpers.ts";
 import { allocatePort } from "./ports.ts";
 import {
-	baseBranchFor,
-	CHAT_CREATION_FAILED_MESSAGE,
 	classifyUnarchive,
-	createPlaceNames,
 	expandHome,
-	SECTION_PLACEMENT_FAILED_MESSAGE,
 	WorkspaceService,
 	type WorkspaceServiceDeps,
-	worktreeFolderFor,
 } from "./workspace.ts";
+import {
+	baseBranchFor,
+	CHAT_CREATION_FAILED_MESSAGE,
+	createPlaceNames,
+	SECTION_PLACEMENT_FAILED_MESSAGE,
+	worktreeFolderFor,
+} from "./workspace-creation.ts";
 
 const output = (exitCode: number, stdout = "", stderr = ""): ShellOutput => ({
 	exitCode,

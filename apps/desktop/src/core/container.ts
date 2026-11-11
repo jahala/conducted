@@ -123,7 +123,8 @@ import {
 	TerminalsService,
 } from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
-import { expandHome, type PlaceNames, WorkspaceService } from "./services/workspace.ts";
+import { expandHome, WorkspaceService } from "./services/workspace.ts";
+import type { PlaceNames } from "./services/workspace-creation.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
 import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {

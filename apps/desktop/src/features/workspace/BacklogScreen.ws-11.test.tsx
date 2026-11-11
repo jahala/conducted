@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Workspace } from "../../core/model.ts";
-import { FIRST_CHAT_APP_TOOLS } from "../../core/services/workspace.ts";
+import { FIRST_CHAT_APP_TOOLS } from "../../core/services/workspace-creation.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../test/container.ts";
 import { BacklogScreen } from "./BacklogScreen.tsx";
 

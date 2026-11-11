@@ -19,7 +19,7 @@
  * Must handle: a search for the review agent, effort or fast mode (this row is highlighted), an
  * empty review model (the default model's name and effort are shown), an empty effort (the
  * default's), a default loadout that cannot be read (the new chat's own fallbacks from
- * core/services/workspace.ts, so the two rules have one home), the models still loading (the
+ * core/services/workspace-creation.ts, so the two rules have one home), the models still loading (the
  * trigger names the stored id), an agent that is not installed (its models are left out), and a
  * save that fails (the row's error line).
  * Test first: picks the review model, its effort and fast mode in one picker, as Conductor does.
