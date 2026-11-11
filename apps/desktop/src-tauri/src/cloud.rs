@@ -38,6 +38,9 @@
 //!   token never reaches the web view, is never logged, and is never printed. It reads the
 //!   Worker's resource names from its config's caller, creates the bucket only when it is
 //!   missing, and pairs this Mac with the URL wrangler printed.
+//! - While the deploy runs it emits `cloud://deploy` at each step it takes (issue #490), so the
+//!   page can say what it is waiting for. One `wrangler deploy` call builds the image, uploads the
+//!   Worker and sets the secret, so the shell names those three as one step rather than guessing.
 //! - The uninstall deletes the Worker, then its container application and images, then the bucket,
 //!   and unpairs. A resource the account does not have is skipped, so a second uninstall succeeds.
 //! - The SSH tunnel URL (CLOUD-12) is `wss://<worker>/w/<name>/ssh`, with no port query: the route
@@ -74,6 +77,8 @@ use crate::keychain;
 pub const EVENT_LINE: &str = "cloud://line";
 /// Event fired once when a relay ends. Payload: `RelayClosed`.
 pub const EVENT_CLOSED: &str = "cloud://closed";
+/// Event carrying one step of a running deploy. Payload: `DeployStep`.
+pub const EVENT_DEPLOY: &str = "cloud://deploy";
 /// The Keychain item that holds the Worker's pairing token (CLOUD-07).
 pub const PAIRING_TOKEN_KEY: &str = "cloud-pairing-token";
 /// The Keychain item that holds the URL of the Worker this token belongs to (CLOUD-07).
@@ -117,6 +122,13 @@ pub struct RelayLine {
 pub struct RelayClosed {
     pub relay_id: String,
     pub reason: String,
+}
+
+/// One step of a running deploy, named by the shell (CLOUD-08, issue #490).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeployStep {
+    pub step: String,
 }
 
 /// The bundled deploy folder inside the app's resources, and the file its build wrote.
@@ -992,8 +1004,9 @@ pub fn deploy_worker(
     resources: &Path,
     worker: &str,
     token: &str,
+    progress: &dyn Fn(&str),
 ) -> CommandResult<String> {
-    deploy_worker_with(wrangler, resources, worker, token, require_docker)
+    deploy_worker_with(wrangler, resources, worker, token, require_docker, progress)
 }
 
 /// The deploy's steps with the Docker check passed in, so a test can run them without Docker.
@@ -1003,6 +1016,7 @@ fn deploy_worker_with<F>(
     worker: &str,
     token: &str,
     docker: F,
+    progress: &dyn Fn(&str),
 ) -> CommandResult<String>
 where
     F: FnOnce() -> CommandResult<()>,
@@ -1029,10 +1043,12 @@ where
     }
     require_wrangler_version(wrangler, resources)?;
     // The docs build a Dockerfile image at deploy time; say so before anything is created.
+    progress("Checking Docker");
     docker()?;
     // wrangler writes its own state under the working folder; use the deploy's temp folder so the
     // app bundle is never written to.
     let folder = deploy_temp_folder()?;
+    progress("Creating the bucket");
     ensure_bucket(wrangler, &folder, worker)?;
     let config = folder.join("wrangler.jsonc");
     if let Err(error) = std::fs::write(
@@ -1054,6 +1070,9 @@ where
     };
     let config = config.to_string_lossy().into_owned();
     let secrets_arg = secrets.to_string_lossy().into_owned();
+    // One wrangler call builds the sandbox image, uploads the Worker and sets the secret, so the
+    // shell names that whole step rather than guessing where wrangler is inside it.
+    progress("Building the image and uploading the Worker");
     let result = run_checked(
         wrangler,
         &[
@@ -1104,8 +1123,17 @@ pub async fn cloud_deploy(
     let token = make_pairing_token()?;
     let wrangler = Wrangler::new();
     let with_token = token.clone();
+    let progress_app = app.clone();
     let url = blocking("cloud_deploy_failed", move || {
-        deploy_worker(&wrangler, &resources, &worker, &with_token)
+        let progress = |step: &str| {
+            let _ = progress_app.emit(
+                EVENT_DEPLOY,
+                DeployStep {
+                    step: step.to_string(),
+                },
+            );
+        };
+        deploy_worker(&wrangler, &resources, &worker, &with_token, &progress)
     })
     .await?;
     let base = checked_worker_url(&url)?;
@@ -1119,6 +1147,12 @@ pub async fn cloud_deploy(
             )
         })?;
     let pair_url = route_url(&base, PAIR_PATH)?;
+    let _ = app.emit(
+        EVENT_DEPLOY,
+        DeployStep {
+            step: String::from("Pairing this Mac"),
+        },
+    );
     ask_worker_for_pairing(&client, &pair_url, &token).await?;
     write_pairing(&base, &token).await?;
     Ok(CloudDeployPayload {
@@ -1793,6 +1827,7 @@ mod tests {
             "conducted-dev-c08-test",
             "the-token",
             || Ok(()),
+            &|_step| {},
         )
         .expect("a deploy");
         assert_eq!(url, "https://conducted-dev-c08-test.example.workers.dev");
@@ -1832,6 +1867,41 @@ mod tests {
             })
             .count();
         assert_eq!(leftovers, 0);
+    }
+
+    #[test]
+    fn a_deploy_reports_the_steps_it_is_on() {
+        let (folder, wrangler, _record) = fake_wrangler(
+            "#!/bin/sh\n\
+             case \"$1\" in\n\
+             --version) echo \"4.158.0\"; exit 0 ;;\n\
+             r2) exit 0 ;;\n\
+             deploy) echo \"  https://conducted-dev-c08-steps.example.workers.dev\"; exit 0 ;;\n\
+             esac\n\
+             exit 1\n",
+        );
+        let resources = resources_folder(&folder);
+        let steps = std::cell::RefCell::new(Vec::new());
+        let progress = |step: &str| steps.borrow_mut().push(step.to_string());
+        deploy_worker_with(
+            &wrangler,
+            &resources,
+            "conducted-dev-c08-steps",
+            "the-token",
+            || Ok(()),
+            &progress,
+        )
+        .expect("a deploy");
+        // The shell names each step it takes; wrangler's image build and upload are one step
+        // because one `wrangler deploy` call does both (issue #490).
+        assert_eq!(
+            steps.into_inner(),
+            vec![
+                String::from("Checking Docker"),
+                String::from("Creating the bucket"),
+                String::from("Building the image and uploading the Worker"),
+            ]
+        );
     }
 
     #[test]

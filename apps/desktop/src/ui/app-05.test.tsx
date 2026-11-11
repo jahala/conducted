@@ -181,6 +181,30 @@ describe("APP-05 Popover and hover card", () => {
 		fireEvent.focus(screen.getByRole("button", { name: "Context" }));
 		expect(await screen.findByText("Context usage")).toBeTruthy();
 	});
+
+	it("anchors a controlled panel to a field, keeping the keyboard in the field", async () => {
+		render(
+			<Popover
+				anchor={
+					<div>
+						<input aria-label="Search" />
+					</div>
+				}
+				open
+				padded={false}
+				className="p-1"
+				onOpenChange={() => undefined}
+			>
+				<p>Search results</p>
+			</Popover>,
+		);
+		const field = screen.getByLabelText("Search") as HTMLInputElement;
+		field.focus();
+		const content = await screen.findByText("Search results");
+		expect(document.activeElement).toBe(field);
+		expect(content.parentElement?.className).toContain("p-1");
+		expect(content.parentElement?.className).not.toContain("p-3");
+	});
 });
 
 describe("APP-05 ContextMenu", () => {

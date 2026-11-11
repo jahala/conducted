@@ -43,6 +43,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployEvent,
 	CloudDeployInput,
 	CloudDeployResult,
 	CloudPairing,
@@ -152,6 +153,8 @@ export interface MemoryPlatformControls {
 	emitCloudLine(relayId: string, line: string): boolean;
 	/** Ends one relay, as the Worker or the network would. False when the relay is not open. */
 	emitCloudClosed(relayId: string, reason: string): boolean;
+	/** Reports one deploy step, as the Rust shell would while `cloud_deploy` runs (CLOUD-08). */
+	emitCloudDeployStep(step: string): void;
 	/** Makes the next `shell.start` stay running until the caller cancels it. */
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
@@ -1366,6 +1369,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const cloudScripts: CloudScript[] = [];
 	const cloudDeployScripts: CloudDeployScript[] = [];
+	const cloudDeployListeners = new Set<(event: CloudDeployEvent) => void>();
 	const cloudDeploys: CloudDeployInput[] = [];
 	const cloudUninstalls: CloudUninstallInput[] = [];
 	const cloudRequests: CloudRequest[] = [];
@@ -1413,6 +1417,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		uninstall: async (input = {}) => {
 			cloudUninstalls.push(input);
 			return ok(undefined);
+		},
+		onDeployEvent: (listener) => {
+			cloudDeployListeners.add(listener);
+			return () => cloudDeployListeners.delete(listener);
 		},
 		request: async (request) => {
 			cloudRequests.push(request);
@@ -1613,6 +1621,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		scriptCloudDeploy: (script) => {
 			cloudDeployScripts.unshift(script);
+		},
+		emitCloudDeployStep: (step) => {
+			for (const listener of cloudDeployListeners) listener({ step });
 		},
 		get cloudDeploys() {
 			return cloudDeploys;

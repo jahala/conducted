@@ -18,7 +18,7 @@ import {
 	COPY_FILE_SIZE_LIMIT,
 	type CopyIncludedFilesDeps,
 	copyIncludedFiles,
-} from "./workspace.ts";
+} from "./workspace-creation.ts";
 
 const repo = (rootPath: string): Repo => ({
 	id: "r1" as RepoId,

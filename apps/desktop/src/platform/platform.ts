@@ -828,6 +828,11 @@ export interface CloudDeployResult {
 	url: string;
 }
 
+/** The step a running deploy is on, as the Rust shell reports it (CLOUD-08). */
+export interface CloudDeployEvent {
+	step: string;
+}
+
 /** What an uninstall overrides: the same optional name a deploy used. */
 export type CloudUninstallInput = CloudDeployInput;
 
@@ -863,6 +868,11 @@ export interface Cloud {
 	 * this Mac (CLOUD-08). The token is made in Rust and never reaches the web view.
 	 */
 	deploy(input?: CloudDeployInput): Promise<Result<CloudDeployResult>>;
+	/**
+	 * The step a deploy is on while it runs, reported by the shell (CLOUD-08). The deploy is one
+	 * command, so a listener stays subscribed for the app's lifetime and filters by `deploying`.
+	 */
+	onDeployEvent(listener: (event: CloudDeployEvent) => void): Unsubscribe;
 	/**
 	 * Deletes what the deploy made, in the order that stops billing: the Worker, its container
 	 * application and images, then the R2 bucket. It also removes this Mac's pairing (CLOUD-08).
