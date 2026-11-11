@@ -12,7 +12,6 @@ afterEach(cleanup);
 
 const preferences: DiffPreferences = {
 	layout: "unified",
-	entireFile: false,
 	hideWhitespaceChanges: false,
 	wrapLines: true,
 	ligatures: true,
@@ -23,6 +22,7 @@ const baseProps = {
 	oldPath: null,
 	editDisabledReason: null,
 	previewAvailable: true,
+	rawAvailable: true,
 	preferences,
 	onPreferencesChange: () => {},
 	dirty: false,
@@ -89,7 +89,7 @@ describe("REV-08 FileTabHeader", () => {
 			Array.from(group.querySelectorAll("button")).map((button) =>
 				button.getAttribute("aria-label"),
 			),
-		).toEqual(["Unified view", "Split view", "Edit", "Preview"]);
+		).toEqual(["Unified view", "Split view", "Entire file", "Edit", "Preview"]);
 		fireEvent.click(screen.getByRole("button", { name: "Copy file contents to clipboard" }));
 		expect(onCopy).toHaveBeenCalledWith("const a = 1;\n");
 	});
@@ -110,5 +110,24 @@ describe("REV-08 FileTabHeader", () => {
 		expect(screen.getByLabelText("Unsaved changes")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 		expect(onSave).toHaveBeenCalledTimes(1);
+	});
+
+	it("offers Conductor's read-only Entire file view for a text file", () => {
+		const onModeChange = vi.fn();
+		const { rerender } = render(
+			<FileTabHeader {...baseProps} mode="diff" onModeChange={onModeChange} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Entire file" }));
+		expect(onModeChange).toHaveBeenCalledWith("raw");
+
+		rerender(
+			<FileTabHeader {...baseProps} rawAvailable={false} mode="diff" onModeChange={onModeChange} />,
+		);
+		expect(screen.queryByRole("button", { name: "Entire file" })).toBeNull();
+	});
+
+	it("shows the file's language icon on the path chip", () => {
+		render(<FileTabHeader {...baseProps} path="src/main.rs" mode="diff" onModeChange={() => {}} />);
+		expect(document.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe("rust");
 	});
 });
