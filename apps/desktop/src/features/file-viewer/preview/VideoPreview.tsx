@@ -192,7 +192,7 @@ export function VideoPreview({ url, fileName, onOpenExternally }: VideoPreviewPr
 				>
 					<track kind="captions" />
 				</video>
-				<div className="flex items-center gap-2 bg-black/60 px-2 py-1 text-xs text-white">
+				<div className="flex items-center gap-2 bg-media/60 px-2 py-1 text-xs text-on-media">
 					<input
 						type="range"
 						min={0}
@@ -268,7 +268,7 @@ export function VideoPreview({ url, fileName, onOpenExternally }: VideoPreviewPr
 					</button>
 				</div>
 				{playFailed ? (
-					<p role="alert" className="px-2 py-1 text-xs text-white">
+					<p role="alert" className="px-2 py-1 text-xs text-on-media">
 						The video could not play.
 					</p>
 				) : null}
