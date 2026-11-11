@@ -30,7 +30,7 @@ const call = (output: string | null, asked = questions): ToolCallView => {
 			output === null
 				? null
 				: { kind: "tool_result", toolUseId, output, isError: false, truncated: false },
-		children: [],
+		blocks: [],
 	};
 };
 

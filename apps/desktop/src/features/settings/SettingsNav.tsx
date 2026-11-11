@@ -145,7 +145,7 @@ export function SettingsNav({
 									onClick={() => onNavigate({ kind: "user", page: page.id })}
 								>
 									<Icon className="size-4 shrink-0" />
-									<span className="truncate">{page.title}</span>
+									<span className="min-w-0 flex-1 truncate">{page.title}</span>
 								</button>
 							);
 						})}
@@ -188,7 +188,7 @@ export function SettingsNav({
 										>
 											{repo.name.slice(0, 1).toUpperCase() || "?"}
 										</span>
-										<span className="truncate">{repo.name}</span>
+										<span className="min-w-0 flex-1 truncate">{repo.name}</span>
 									</button>
 									{open ? (
 										<div className="mt-1 ml-4 flex flex-col gap-1 border-l border-border pl-2">
@@ -212,7 +212,7 @@ export function SettingsNav({
 														}
 													>
 														<Icon className="size-4 shrink-0" />
-														<span className="truncate">{page.title}</span>
+														<span className="min-w-0 flex-1 truncate">{page.title}</span>
 													</button>
 												);
 											})}
@@ -238,7 +238,7 @@ export function SettingsNav({
 									onClick={() => onNavigate({ kind: "user", page: page.id })}
 								>
 									<Icon className="size-4 shrink-0" />
-									<span className="truncate">{page.title}</span>
+									<span className="min-w-0 flex-1 truncate">{page.title}</span>
 								</button>
 							);
 						})}

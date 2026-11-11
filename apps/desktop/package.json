@@ -9,8 +9,9 @@
 		"build": "tsc -p . && vite build && bun ../../scripts/catalogue/check-bundle.ts dist",
 		"tauri": "tauri",
 		"typecheck": "tsc -p .",
-		"test": "vitest run",
-		"test:coverage": "vitest run --coverage"
+		"test": "vitest run --project unit",
+		"test:macos": "vitest run --project macos",
+		"test:coverage": "vitest run --project unit --coverage"
 	},
 	"dependencies": {
 		"@codemirror/commands": "^6.11.1",
@@ -39,6 +40,7 @@
 		"@xterm/xterm": "^6.0.0",
 		"cmdk": "^1.1.1",
 		"json-rpc-2.0": "^1.8.1",
+		"material-icon-theme": "5.1.0",
 		"mermaid": "12.3.0",
 		"radix-ui": "^1.8.1",
 		"react": "^19.1.0",

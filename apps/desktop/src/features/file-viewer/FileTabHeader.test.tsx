@@ -36,6 +36,15 @@ const baseProps = {
 };
 
 describe("REV-08 FileTabHeader", () => {
+	it("shows the file's own Material icon in the path chip", () => {
+		const { container } = render(
+			<FileTabHeader {...baseProps} path="src/main.rs" mode="diff" onModeChange={() => {}} />,
+		);
+		const icon = container.querySelector("img[data-file-icon]");
+		expect(icon?.getAttribute("data-file-icon")).toBe("rust");
+		expect(icon?.getAttribute("src")).toBeTruthy();
+	});
+
 	it("disables the Edit toggle for a deleted file and gives the reason", () => {
 		render(
 			<FileTabHeader

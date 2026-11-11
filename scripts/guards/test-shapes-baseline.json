@@ -17,7 +17,6 @@
 		"apps/desktop/src/core/services/github.test.ts": 3,
 		"apps/desktop/src/core/services/pr-polling.pr-03.test.ts": 2,
 		"apps/desktop/src/core/services/settings.test.ts": 2,
-		"apps/desktop/src/core/services/workspace.setup.test.ts": 1,
 		"apps/desktop/src/features/dashboard/kanban.test.ts": 2,
 		"apps/desktop/src/features/terminal/terminal-theme.test.ts": 2,
 		"apps/desktop/src/platform/contract.test.ts": 1,

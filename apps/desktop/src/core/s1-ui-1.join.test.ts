@@ -107,7 +107,7 @@ function toolView(tool: CanonicalTool, input: unknown, output?: string): ToolCal
 			output === undefined
 				? null
 				: { kind: "tool_result", toolUseId, output, isError: false, truncated: false },
-		children: [],
+		blocks: [],
 	};
 }
 

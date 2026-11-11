@@ -52,7 +52,7 @@ import { useServices } from "../core/context.tsx";
 import { DEEP_LINK_SCHEME } from "../core/notifications.ts";
 import { getSettingDef } from "../core/registries/settings.ts";
 import { parseDeepLink } from "../core/services/notifications.ts";
-import { newWorkspaceConfigFromSettings } from "../core/services/workspace.ts";
+import { newWorkspaceConfigFromSettings } from "../core/services/workspace-creation.ts";
 import { parseSettingsPage, type SettingsTarget } from "../features/settings/settings-pages.ts";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { EnabledSettingNotice } from "./EnabledSettingNotice.tsx";
