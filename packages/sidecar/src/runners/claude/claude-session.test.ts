@@ -554,7 +554,9 @@ describe("AGENT-02 Claude session", () => {
 		await session.dispose();
 	});
 
-	test("an API error turn shows one error and ends with an error outcome", async () => {
+	// Conductor renders the assistant message's blocks whatever its `error` (kpa @9558460) and
+	// draws the failed result as "Claude Code error: <text>" (Rpa @9564247).
+	test("an API error turn shows its text as text, one result error, and ends with an error outcome", async () => {
 		const text = "API Error: 500 Internal server error";
 		const { query } = scriptedQuery((user, s) => {
 			s.emit(init());
@@ -576,10 +578,14 @@ describe("AGENT-02 Claude session", () => {
 
 		const outcome = await session.runTurn(turnInput(), callbacks(messages));
 
-		expect(outcome).toEqual({ kind: "error", message: text, retryable: false });
-		const errors = messages.flatMap((message) => message.items).filter((i) => i.kind === "error");
-		expect(errors).toHaveLength(1);
-		expect(errors[0]).toMatchObject({ kind: "error", message: text });
+		const shown = `Claude Code error: ${text}`;
+		expect(outcome).toEqual({ kind: "error", message: shown, retryable: true });
+		const items = messages.flatMap((message) => message.items);
+		expect(items).toContainEqual({ kind: "text", text });
+		const errors = items.filter((i) => i.kind === "error");
+		expect(errors).toEqual([
+			{ kind: "error", code: "agent_error", message: shown, retryable: true },
+		]);
 		await session.dispose();
 	});
 

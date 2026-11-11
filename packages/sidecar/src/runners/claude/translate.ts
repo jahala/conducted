@@ -9,15 +9,13 @@
  *    true, because the runner asks for summarized thinking), tool_use blocks become tool_call items
  *    with the canonical tool from tool-names.ts and parentToolUseId from parent_tool_use_id;
  *    TodoWrite becomes a todo item instead of a tool_call, and its result is dropped
- *  - an assistant message with an error: authentication_failed becomes an agent_auth_required
- *    error so the chat can offer sign-in; other errors become error items, retryable for rate
- *    limits and overload
+ *  - an assistant message with an error is translated like any other: its text stays text, as
+ *    Conductor renders it (renderApp kpa @9558460)
  *  - user with tool_result blocks: tool_result items, output cut by truncateOutput
- *  - result: a usage item (usage.ts); is_error results also produce an error item with the
- *    result text and retryable true for rate-limit and overload errors, unless the turn's own
- *    assistant message already reported the error. An API error arrives twice, as an assistant
- *    message with `error` and as a result with `is_error` and the same text (the SDK's types); the
- *    assistant's item is kept, because its error code tells a sign-in error from the rest
+ *  - result: a usage item (usage.ts); an is_error result also produces the turn's one error item,
+ *    by Conductor's rules for a failed result (`resultErrorItem`, renderApp Rpa @9564247). An API
+ *    error arrives twice, as an assistant message with `error` and as a result with `is_error` and
+ *    the same text (the SDK's types): the first is the text, the second the error view
  *  - system compact_boundary and a successful compact: notice "compacted"; system status
  *    "compacting": notice "info" with "Compacting..."; system init: notice "session_started"
  *    once per process; rate_limit_event with status other than "allowed": notice "rate_limit"
@@ -44,8 +42,7 @@
  * decided in turn-tracker.ts; a foreign result still yields a usage item here. `raw` keeps the
  * whole SDK message, including uncut tool output, until the lifetime job removes it. The
  * session_state_changed message only disarms the watchdog here; its in-progress report belongs to
- * AGENT-15 (self-started-turns.ts). The session-limit and rate-limit error codes let the chat word
- * their banners.
+ * AGENT-15 (self-started-turns.ts).
  */
 import type {
 	SDKAssistantMessage,
@@ -54,7 +51,12 @@ import type {
 	SDKUserMessage,
 	SDKUserMessageReplay,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_ERROR_CODES, type AgentItem, type AgentMessage } from "@conducted/protocol";
+import {
+	AGENT_ERROR_CODES,
+	type AgentItem,
+	type AgentMessage,
+	isClaudeSignInErrorText,
+} from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { contentToText, truncateOutput } from "../output.ts";
@@ -69,8 +71,6 @@ export interface ClaudeTranslatorState {
 	lastReportedCostUsd: number;
 	/** True after the first system init message of this process was translated. */
 	sessionStartedReported: boolean;
-	/** True when an assistant message of the main agent reported an error since the last result. */
-	turnErrorShown: boolean;
 }
 
 type SystemMessage = Extract<SDKMessage, { type: "system" }>;
@@ -98,7 +98,6 @@ export class ClaudeTranslator {
 		droppedToolUses: new Set(),
 		lastReportedCostUsd: 0,
 		sessionStartedReported: false,
-		turnErrorShown: false,
 	};
 
 	constructor(protected readonly deps: { logger: Logger }) {}
@@ -130,14 +129,10 @@ export class ClaudeTranslator {
 	}
 
 	private assistant(message: SDKAssistantMessage): AgentMessage[] {
+		// An assistant message with `error` (an API error, a limit, a sign-in failure) is shown like
+		// any other: its blocks as blocks. Conductor does the same (kpa @9558460); the turn's result
+		// carries the error view.
 		const parentToolUseId = message.parent_tool_use_id ?? undefined;
-		if (message.error !== undefined) {
-			// A sub-agent's error is not the main turn's, so only the main agent's hides the result's.
-			if (parentToolUseId === undefined) this.state.turnErrorShown = true;
-			const text = contentToText(message.message.content).trim();
-			return [this.agentMessage(message, [this.assistantError(message.error, text)])];
-		}
-
 		const items: AgentItem[] = [];
 		for (const block of message.message.content) {
 			switch (block.type) {
@@ -208,17 +203,8 @@ export class ClaudeTranslator {
 		if (typeof message.total_cost_usd === "number") {
 			this.state.lastReportedCostUsd = message.total_cost_usd;
 		}
-		const errorShown = this.state.turnErrorShown;
-		this.state.turnErrorShown = false;
-		if (message.is_error && !errorShown) {
-			const error = resultError(message);
-			items.push({
-				kind: "error",
-				code: errorCodeFromText(error.message, "agent_error"),
-				message: error.message,
-				retryable: error.retryable,
-			});
-		}
+		const error = resultErrorItem(message);
+		if (error !== null) items.push(error);
 		return [this.agentMessage(message, items)];
 	}
 
@@ -298,34 +284,6 @@ export class ClaudeTranslator {
 	private resetProcessState(): void {
 		this.state.droppedToolUses.clear();
 		this.state.lastReportedCostUsd = 0;
-		this.state.turnErrorShown = false;
-	}
-
-	private assistantError(error: string, text: string): Extract<AgentItem, { kind: "error" }> {
-		if (error === "authentication_failed") {
-			return {
-				kind: "error",
-				code: AGENT_ERROR_CODES.authRequired,
-				message: text === "" ? "Authentication required. Sign in to Claude." : text,
-				retryable: false,
-			};
-		}
-		const message = text === "" ? assistantErrorText(error) : text;
-		const retryable =
-			!/session limit/i.test(message) &&
-			(error === "rate_limit" || error === "overloaded" || error === "server_error");
-		const fallback =
-			error === "rate_limit"
-				? "agent_rate_limit"
-				: error === "overloaded"
-					? "agent_overloaded"
-					: `agent_${error}`;
-		return {
-			kind: "error",
-			code: errorCodeFromText(message, fallback),
-			message,
-			retryable,
-		};
 	}
 
 	private notice(
@@ -352,59 +310,53 @@ export class ClaudeTranslator {
 	}
 }
 
-function assistantErrorText(error: string): string {
-	switch (error) {
-		case "rate_limit":
-			return "Rate limit reached.";
-		case "overloaded":
-			return "The service is overloaded. Try again shortly.";
-		case "billing_error":
-			return "The account could not be billed for this request.";
-		case "model_not_found":
-			return "The chosen model is not available.";
-		case "max_output_tokens":
-			return "The answer reached the model's output limit.";
-		default:
-			return `Claude reported an error: ${error}.`;
-	}
-}
+type ErrorItem = Extract<AgentItem, { kind: "error" }>;
 
-/** The text of an is_error result and whether trying again may help. The turn tracker uses it too. */
-export function resultError(message: SDKResultMessage): { message: string; retryable: boolean } {
-	const text = resultErrorText(message);
-	return { message: text, retryable: resultErrorRetryable(message, text) };
-}
+/** Conductor's prefix for an error line that only carries diagnostics (renderApp Npa @9565934). */
+const DIAGNOSTIC_PREFIX = "[ede_diagnostic]";
 
-function resultErrorText(message: SDKResultMessage): string {
-	const successText = (message as { result?: unknown }).result;
-	if (typeof successText === "string" && successText.trim() !== "") return successText;
+/**
+ * The error item a failed result shows, or null when it shows none. The turn tracker uses it too,
+ * so the turn's error and the item carry the same words and the chat shows the error once.
+ * Conductor's rules (renderApp Rpa @9564247):
+ *  - the text is the first error line that is not a diagnostic, else the result text, reworded
+ *    by TQi @9537800 ("Session cancelled:" reads "Session interrupted:")
+ *  - a success result whose text is a sign-in error (SQi @9517557) shows the sign-in view
+ *  - a result whose error lines are all diagnostics shows nothing
+ *  - every other failed result reads "Claude Code error: <text>", or "Claude Code error" without
+ *    text, with Retry (GFe @9534766 offers it by default)
+ */
+export function resultErrorItem(message: SDKResultMessage): ErrorItem | null {
+	if (!message.is_error) return null;
 	const errors = (message as { errors?: unknown }).errors;
-	if (Array.isArray(errors)) {
-		const lines = errors.filter(
-			(line): line is string => typeof line === "string" && line.trim() !== "",
-		);
-		if (lines.length > 0) return lines.join("\n");
+	const lines = Array.isArray(errors)
+		? errors.filter((line): line is string => typeof line === "string")
+		: [];
+	const shown = lines.filter((line) => !line.startsWith(DIAGNOSTIC_PREFIX));
+	const resultText = (message as { result?: unknown }).result;
+	const result = typeof resultText === "string" ? resultText : undefined;
+	const text = interruptedWording(shown[0] ?? result);
+
+	if (message.subtype === "success" && isClaudeSignInErrorText(result)) {
+		return {
+			kind: "error",
+			code: AGENT_ERROR_CODES.authRequired,
+			message: text ?? "",
+			retryable: false,
+		};
 	}
-	if (message.subtype === "error_max_turns") {
-		return "The agent reached its maximum number of turns.";
-	}
-	return "The agent reported an error.";
+	if (lines.length > 0 && shown.length === 0) return null;
+	return {
+		kind: "error",
+		code: "agent_error",
+		message: text ? `Claude Code error: ${text}` : "Claude Code error",
+		retryable: true,
+	};
 }
 
-function resultErrorRetryable(message: SDKResultMessage, text: string): boolean {
-	const status = (message as { api_error_status?: unknown }).api_error_status;
-	if (typeof status === "number" && (status === 429 || status >= 500)) return true;
-	if (/session limit/i.test(text)) return false;
-	return /rate limit|too many requests|overloaded|over capacity|temporarily unavailable/i.test(
-		text,
-	);
-}
-
-function errorCodeFromText(text: string, fallback: string): string {
-	if (/session limit/i.test(text)) return "agent_session_limit";
-	if (/rate limit|too many requests/i.test(text)) return "agent_rate_limit";
-	if (/overload|over capacity/i.test(text)) return "agent_overloaded";
-	return fallback;
+/** Conductor words a cancelled session as interrupted (renderApp TQi @9537800). */
+function interruptedWording(text: string | undefined): string | undefined {
+	return text?.replace(/^Session cancelled:/, "Session interrupted:");
 }
 
 function rateLimitText(
