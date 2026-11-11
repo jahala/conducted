@@ -90,6 +90,7 @@ export function createActions(
 		sessions: {
 			create: (workspaceId, config) => services.sessions.create(workspaceId, config),
 			close: (id) => services.sessions.close(id),
+			clear: (id) => services.sessions.clear(id),
 			reopen: (id) => services.sessions.reopen(id),
 			rename: (id, title) => services.sessions.rename(id, title),
 			send: (id, text, attachmentPaths, delivery) =>

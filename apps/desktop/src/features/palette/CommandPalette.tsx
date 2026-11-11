@@ -302,9 +302,8 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		}
 
 		if (item.id === "workspace.moveToSection") {
-			setSubpage("sections");
-			setQuery("");
-			setSelectedId(undefined);
+			// The command's own handler opens the section sub-page; stay open for the second step.
+			runCommand("workspace.moveToSection");
 			return;
 		}
 		if (item.id === "nav.quickOpenFile") {
@@ -324,7 +323,9 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			return;
 		}
 		if (item.id === "app.openPassport") {
-			showOverlay("passport");
+			// The command's handler opens the Passport overlay; closing the palette here would close
+			// that overlay too.
+			runCommand("app.openPassport");
 			return;
 		}
 		if (item.id === "app.openSettings") {
@@ -396,6 +397,15 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		}
 		close();
 	};
+
+	// Move to section is the palette's own two-step choice: its Workspace actions group picks the
+	// command, then the Sections sub-page picks the section.
+	useCommandHandler("workspace.moveToSection", "modal", () => {
+		setSubpage("sections");
+		setQuery("");
+		setSelectedId(undefined);
+		return true;
+	});
 
 	useCommandHandler("palette.nextTab", "modal", () => {
 		setTab((current) => nextPaletteTab(current, 1));

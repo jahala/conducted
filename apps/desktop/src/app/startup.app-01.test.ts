@@ -211,4 +211,18 @@ describe("APP-01 global handlers", () => {
 		expect(drop.defaultPrevented).toBe(true);
 		dispose();
 	});
+
+	it("blocks the web view's browser menu while installed and stops when it is removed", () => {
+		recordLogs();
+		const dispose = installGlobalHandlers({ app: test.container.platform.app });
+		const contextMenu = (): boolean => {
+			const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+			document.body.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+
+		expect(contextMenu()).toBe(true);
+		dispose();
+		expect(contextMenu()).toBe(false);
+	});
 });

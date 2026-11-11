@@ -458,7 +458,16 @@ export interface Actions {
 		create: Act<[input: NewWorkspaceInput], Workspace>;
 		/** A just-added project's first workspace, with the default chat settings (Conductor's autoCreateWorkspace). */
 		createFirst: Act<[repoId: RepoId], Workspace>;
-		archive: Act<[id: WorkspaceId, options: { deleteBranch: boolean }]>;
+		archive: Act<
+			[
+				id: WorkspaceId,
+				options: {
+					deleteBranch: boolean;
+					discardGitOperationState?: boolean;
+					stopRunningAgents?: boolean;
+				},
+			]
+		>;
 		/** `clearChats` is "Clear & unarchive": the chats are removed before the workspace comes back. */
 		unarchive: Act<
 			[id: WorkspaceId, options: { branchName: string | null; clearChats: boolean }],
@@ -502,7 +511,13 @@ export interface Actions {
 	};
 	sessions: {
 		create: Act<[workspaceId: WorkspaceId, config: SessionConfig], Session>;
-		close: Act<[id: SessionId]>;
+		/**
+		 * Hides a chat, stops its agent and makes the next chat active. Closing the last chat starts
+		 * a new one. Returns the chat that becomes active, so the caller opens its tab.
+		 */
+		close: Act<[id: SessionId], Session>;
+		/** `/clear`: starts a replacement chat, makes it active and hides the old one. */
+		clear: Act<[id: SessionId], Session>;
 		reopen: Act<[id: SessionId]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */

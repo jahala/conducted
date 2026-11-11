@@ -18,11 +18,12 @@
  * "repo:" form; `go()` navigates to that address.
  * Must handle: an unknown page string (designed "page not found" state with a link to General),
  * a repository id that no longer exists, repositories still loading, Esc and the Back button
- * leaving the settings screen, and a search result opening its page and highlighting the setting.
+ * returning to the previous screen (Home when there is no history), and a search result opening its
+ * page and highlighting the setting.
  * Test first: page "git" renders the Git page, and "nope" renders the page-not-found state.
  */
 import type { RepoId } from "@conducted/shared";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useLiveShortcut, useRepos } from "../../core/hooks.ts";
@@ -122,6 +123,7 @@ function RepoPage({ page, repoId }: { page: RepoSettingsPageId; repoId: RepoId }
 
 export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps) {
 	const navigate = useNavigate();
+	const router = useRouter();
 	const parsed = parseSettingsPage(page);
 	const repos = useRepos();
 	const [focusSettingKey, setFocusSettingKey] = useState<string | null>(null);
@@ -161,6 +163,10 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 	const leave = () => {
 		if (onBack !== undefined) {
 			onBack();
+			return;
+		}
+		if (router.history.canGoBack()) {
+			router.history.back();
 			return;
 		}
 		void navigate({ to: "/" });

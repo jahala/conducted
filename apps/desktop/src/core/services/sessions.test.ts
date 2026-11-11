@@ -35,6 +35,7 @@ let repositories: Repositories;
 let now: number;
 let nextId: number;
 let service: SessionsService;
+let sidecarRequest: ReturnType<typeof vi.fn>;
 
 const settings: Record<string, unknown> = {
 	default_model: "opus",
@@ -50,10 +51,11 @@ const settings: Record<string, unknown> = {
 };
 
 const harness = (): SessionsService => {
+	sidecarRequest = vi.fn();
 	const deps = {
 		db: database,
 		repositories: () => repositories,
-		sidecar: { request: vi.fn(), notify: vi.fn() },
+		sidecar: { request: sidecarRequest, notify: vi.fn() },
 		composer: { materializeForSend: vi.fn(), clearDraft: vi.fn() },
 		queue: { enqueue: vi.fn(), release: vi.fn(), pauseOnCancel: vi.fn() },
 		notifications: { onLiveStateChanged: vi.fn() },
@@ -146,19 +148,54 @@ describe("CHAT-01 sessions service", () => {
 	it("closes a chat into history and reopens it", async () => {
 		seedWorkspace();
 		const created = must(await service.create(workspaceId, sampleSession.config));
+		const other = must(await service.create(workspaceId, sampleSession.config));
 
 		now = 3000;
-		expect(await service.close(created.id)).toEqual({ ok: true, value: undefined });
+		const closed = await service.close(created.id);
+		expect(closed).toMatchObject({ ok: true, value: { id: other.id } });
 		let state = service.store.getState();
-		expect(state.byWorkspace[workspaceId]).toEqual([]);
+		expect(state.byWorkspace[workspaceId]).toEqual([other.id]);
 		expect(state.sessions[created.id]?.closedAt).toBe(3000);
 		expect(must(await repositories.sessions.get(created.id))?.closedAt).toBe(3000);
 
 		now = 4000;
 		expect(await service.reopen(created.id)).toEqual({ ok: true, value: undefined });
 		state = service.store.getState();
-		expect(state.byWorkspace[workspaceId]).toEqual([created.id]);
+		expect(state.byWorkspace[workspaceId]).toEqual([created.id, other.id]);
 		expect(state.sessions[created.id]?.closedAt).toBeNull();
+	});
+
+	it("closing the last chat starts a replacement and makes it active", async () => {
+		seedWorkspace();
+		const created = must(await service.create(workspaceId, sampleSession.config));
+
+		now = 3000;
+		const closed = await service.close(created.id);
+		expect(closed.ok).toBe(true);
+		if (!closed.ok) return;
+		expect(closed.value.id).not.toBe(created.id);
+		const state = service.store.getState();
+		expect(state.byWorkspace[workspaceId]).toEqual([closed.value.id]);
+		expect(state.sessions[created.id]?.closedAt).toBe(3000);
+	});
+
+	it("stopping a hidden working chat asks the sidecar to cancel it", async () => {
+		seedWorkspace();
+		const created = must(await service.create(workspaceId, sampleSession.config));
+		const other = must(await service.create(workspaceId, sampleSession.config));
+		service.store.setState((state) => ({
+			liveStates: {
+				...state.liveStates,
+				[created.id]: { ...idleLiveState, status: "working" },
+			},
+		}));
+		sidecarRequest.mockResolvedValue(ok({ wasWorking: true, droppedMessageIds: [] }));
+
+		const closed = await service.close(created.id);
+		expect(closed).toMatchObject({ ok: true, value: { id: other.id } });
+		await vi.waitFor(() =>
+			expect(sidecarRequest).toHaveBeenCalledWith("cancel", { sessionId: created.id }),
+		);
 	});
 
 	it("renames a chat and refuses an empty name", async () => {
