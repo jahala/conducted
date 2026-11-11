@@ -51,8 +51,10 @@ export interface PointerDragOptions<P, T> {
 	/** The caller's target under the point, or undefined when the point is outside every target. */
 	targetAt(point: PointerDragPoint): PointerDragHit<T> | undefined;
 	onDrop(payload: P, target: T, point: PointerDragPoint): void;
-	/** A drag released outside every target, cancelled with Escape, or cancelled by the pointer. */
+	/** A drag cancelled with Escape or by the pointer. */
 	onCancel?(payload: P): void;
+	/** A drag released outside every target; a cancelled drag calls `onCancel` instead. */
+	onReleaseOutside?(payload: P): void;
 }
 
 /** The part of a click this module reads to swallow the click that ends a drag. */
@@ -68,6 +70,8 @@ export interface PointerDrag<P, T> {
 	cancel(): void;
 	/** True when this click ends a drag: it is swallowed and the flag cleared. */
 	consumeClick(event: PointerDragClick): boolean;
+	/** Clears the click guard, so a press on a control that cannot drag starts a fresh question. */
+	resetClick(): void;
 	isDragging: boolean;
 }
 
@@ -147,8 +151,13 @@ export function usePointerDrag<P, T>(options: PointerDragOptions<P, T>): Pointer
 				if (!wasActive) return;
 				const point = { x: endEvent.clientX, y: endEvent.clientY };
 				const hit = optionsRef.current.targetAt(point);
-				if (hit === undefined) optionsRef.current.onCancel?.(current);
-				else optionsRef.current.onDrop(current, hit.target, point);
+				if (hit === undefined) {
+					const outside = optionsRef.current.onReleaseOutside;
+					if (outside === undefined) optionsRef.current.onCancel?.(current);
+					else outside(current);
+					return;
+				}
+				optionsRef.current.onDrop(current, hit.target, point);
 			};
 
 			const cancelled = (cancelEvent: PointerEvent): void => {
@@ -188,5 +197,9 @@ export function usePointerDrag<P, T>(options: PointerDragOptions<P, T>): Pointer
 		return true;
 	}, []);
 
-	return { drag, start, cancel, consumeClick, isDragging: drag !== null };
+	const resetClick = useCallback(() => {
+		clickAfterDrag.current = false;
+	}, []);
+
+	return { drag, start, cancel, consumeClick, resetClick, isDragging: drag !== null };
 }
