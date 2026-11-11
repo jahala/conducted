@@ -22,7 +22,11 @@ export default defineConfig({
 	},
 	test: {
 		environment: "jsdom",
-		setupFiles: ["./src/test/setup.ts"],
+		setupFiles: ["./src/test/setup.ts", "./src/test/hang-timeouts.ts"],
+		// A timeout catches a hang, never slowness: a loaded machine or runner must not fail a test
+		// that would finish. Testing Library's waits are set in src/test/hang-timeouts.ts.
+		testTimeout: 60_000,
+		hookTimeout: 60_000,
 		// Two kinds of test. `unit` runs everywhere and is the default (`pnpm test`). `macos` needs
 		// programs only macOS ships, such as /bin/zsh, so it runs in CI's macOS job
 		// (`pnpm test:macos`).

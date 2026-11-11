@@ -246,6 +246,8 @@ describe("the commands", () => {
 		expect(commandFor(runner("scripts"), ["scripts/a.test.ts"], "/r")).toEqual([
 			"bun",
 			"test",
+			"--timeout",
+			"60000",
 			"--reporter=junit",
 			"--reporter-outfile=/r/scripts.xml",
 			"./scripts/a.test.ts",
@@ -257,7 +259,7 @@ describe("the commands", () => {
 		const { runners, commands } = commandsFor(everything);
 		expect(commands).toEqual([
 			["pnpm", "-r", "--no-bail", "test"],
-			["bun", "test", "./scripts"],
+			["bun", "test", "--timeout", "60000", "./scripts"],
 		]);
 		expect(runnerList(runners)).toBe(
 			"desktop=apps/desktop\ncloud=apps/cloud\nsidecar=packages/sidecar\nprotocol=packages/protocol\nshared=packages/shared\nscripts=.\n",

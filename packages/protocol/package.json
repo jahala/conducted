@@ -7,7 +7,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc -p .",
-		"test": "bun test ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/protocol.xml}"
+		"test": "bun test --timeout 60000 ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/protocol.xml}"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.4.4"
