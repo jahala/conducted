@@ -1,9 +1,14 @@
 /**
- * @feature APP-18 Conductor's chat history as our session events, for the chat history spike
- * Owns: `mapConductorMessages`, which turns one chat's rows of Conductor's `session_messages`
- * table into our session events, and counts per row kind how many it mapped and how many it could
- * not, why it could not, and which mapped rows it left out because Conductor does not show them;
- * `MAPPED_AGENTS`, the agents it maps; `ConductorMessageRow`, the columns it reads.
+ * @feature APP-18 Conductor's chat history as our session events
+ * Owns: `ConductorHistoryMapper`, which maps one chat's rows of Conductor's `session_messages`
+ * table into our session events in two reads, so a chat of any size is held one read at a time:
+ * first every row's columns without its content (`addKeys`), then the rows themselves in the
+ * order Conductor shows them, a budget at a time (`nextRead`, `map`); `mapConductorMessages`,
+ * the same mapping over rows already in memory, which the spike measures
+ * (scripts/conductor-import/spike.ts); the counts per row kind of what it mapped, could not map
+ * and why, and which mapped rows it left out because Conductor does not show them;
+ * `MAPPED_AGENTS`, the agents it maps; `ConductorMessageRow`, the columns it reads. The two reads'
+ * row shapes are the protocol's (`ConductorMessageKey`, `ConductorPlacedRow`).
  * Behaviour: services-map.md 2.2 and 2.4.3 (`session_messages` is the table Conductor's chat
  * reads; a sent row has a turn id) and frontend.md section 5 ("What one turn shows"). The rules,
  * each from Conductor's web bundle (main-BE1h_1MP.js, offsets in its own comment):
@@ -31,17 +36,34 @@
  * summary, an unknown role, a payload the translator fails on) is counted unmapped by reason and
  * never throws; a queued row (no sent time) is not in Conductor's chat, so it is left out; an
  * agent row of an agent other than Claude is unmapped until its translator is written; nothing
- * here logs, so no message text leaves this function except in the events it returns.
- * Our design choice: the mapping lives in the sidecar beside the runners' translators. The import
- * can only bring history once the spike's pass mark is met (D100); this function is what the spike
- * measures (scripts/conductor-import/spike.ts) and what that import will run (D124). The spike's
- * Conductor side (conductor-transcript.ts) reads the same rows by its own code, so that the
- * comparison tests this mapping instead of agreeing with it.
+ * here logs, so no message text leaves this function except in the events it returns. The order
+ * depends only on each row's times and its place in the table (`rowid`, the table's order, which
+ * breaks a tie as Conductor's `ORDER BY sent_at, rowid` does), never on the order rows arrive in,
+ * so the second read may fetch them in any order; a read cuts a turn when the turn is larger than
+ * the budget, and the mapper carries the turn over: a "Compacted" reply whose turn has not yet
+ * shown a compaction is held, with the rows after it, until the turn shows one or ends; a row the
+ * second read did not return is an error, and the chat maps to nothing.
+ * Our design choice: each shown turn that produced an event ends with a `turn_ended` event, as
+ * our runner ends one (turn-tracker.ts): its last top-level result that is not a background
+ * task's (`num_turns` 0) decides success or error, by the translator's `resultErrorItem`, so the
+ * error reads as the result's error item already shows it. A turn with no such result ends
+ * `interrupted`: nothing in Conductor's rows says it finished. Without an end, our chat would show
+ * every imported turn as stopped and startup repair would add an end to each.
+ * Our design choice: the mapping lives in the sidecar beside the runners' translators, and the
+ * import drives it over RPC (history-imports.ts). The spike's Conductor side (conductor-
+ * transcript.ts) reads the same rows by its own code, so the comparison tests this mapping
+ * instead of agreeing with it.
  * Test first: maps each turn to its user message, steers and agent events, in the order Conductor
  * shows them.
  */
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentMessage, SessionConfig, SessionEvent } from "@conducted/protocol";
+import type { SDKMessage, SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+	AgentMessage,
+	ConductorMessageKey,
+	ConductorPlacedRow,
+	SessionConfig,
+	SessionEvent,
+} from "@conducted/protocol";
 import {
 	type AgentKind,
 	type EventId,
@@ -52,7 +74,7 @@ import {
 	type TurnId,
 } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { ClaudeTranslator } from "../runners/claude/translate.ts";
+import { ClaudeTranslator, resultErrorItem } from "../runners/claude/translate.ts";
 
 /** One row of Conductor's `session_messages`: the columns its chat reads to show a message. */
 export interface ConductorMessageRow {
@@ -62,6 +84,12 @@ export interface ConductorMessageRow {
 	sent_at: string | null;
 	created_at: string | null;
 	turn_id: string | null;
+}
+
+/** The most rows and content characters one read of the second pass may ask for. */
+export interface ReadBudget {
+	rows: number;
+	chars: number;
 }
 
 /** The agents whose payloads this mapping translates. Chats of other agents are not mapped yet. */
@@ -96,12 +124,15 @@ export interface RowCount {
 	unmapped: number;
 }
 
-export interface MappedHistory {
-	events: SessionEvent[];
+export interface HistoryCounts {
 	counts: Record<RowKind, RowCount>;
 	unmapped: Record<UnmappedReason, number>;
 	/** Mapped rows that add no event, because Conductor's chat does not show them. */
 	leftOut: Record<LeftOutReason, number>;
+}
+
+export interface MappedHistory extends HistoryCounts {
+	events: SessionEvent[];
 }
 
 /** A logger that writes nothing: the translator's debug lines may quote a payload. */
@@ -122,7 +153,6 @@ interface ReadRow {
 	kind: "user" | "agent";
 	turnId: string;
 	sentAt: number;
-	createdAt: number;
 	/** The user's text for a user row, the agent payload for an agent row. */
 	text: string;
 	payload: Payload | null;
@@ -163,17 +193,12 @@ function payloadOf(content: string | null): Result<Payload, "unreadable"> {
 	return typeof payload.type === "string" ? ok(payload) : err("unreadable");
 }
 
-/** Reads one sent row, or names why it cannot be mapped. */
-function readRow(row: ConductorMessageRow, kind: RowKind): Result<ReadRow, UnmappedReason> {
-	if (kind === "other") return err("unknown role");
-	if (kind === "summary") return err("summary");
-	if (row.turn_id === null) return err("no turn");
-	const base = {
-		id: row.id,
-		turnId: row.turn_id,
-		sentAt: millis(row.sent_at),
-		createdAt: millis(row.created_at),
-	};
+/** Reads one sent row of a user or agent kind with a turn, or names why it cannot be mapped. */
+function readRow(
+	row: ConductorMessageRow,
+	kind: "user" | "agent",
+): Result<ReadRow, UnmappedReason> {
+	const base = { id: row.id, turnId: row.turn_id ?? "", sentAt: millis(row.sent_at) };
 	if (kind === "user") return ok({ ...base, kind, text: row.content ?? "", payload: null });
 	const payload = payloadOf(row.content);
 	return payload.ok ? ok({ ...base, kind, text: "", payload: payload.value }) : err(payload.error);
@@ -225,129 +250,382 @@ function isCompactedReply(payload: Payload): boolean {
 	return texts.length === 1 && typeof only?.text === "string" && only.text.trim() === "Compacted";
 }
 
-/** In Conductor's order within a turn: sent time, then creation time, then the table's order. */
-const inTurnOrder = (a: ReadRow, b: ReadRow): number =>
-	a.sentAt - b.sentAt || a.createdAt - b.createdAt;
+/** A result that ends a turn: top-level, and not a background task's mini result (num_turns 0). */
+const endsTurn = (payload: Payload): boolean =>
+	payload.type === "result" && !bySubAgent(payload) && payload.num_turns !== 0;
+
+/** Where a row sits: its sent time, then its place in the table. */
+interface Place {
+	at: number;
+	rowid: number;
+}
+const earlier = (a: Place, b: Place): boolean =>
+	a.at < b.at || (a.at === b.at && a.rowid < b.rowid);
+
+/** What the first read learned of one turn: where it starts and each row's place and size. */
+interface TurnIndex {
+	turnId: string;
+	firstUser: Place | null;
+	firstSeen: Place;
+	rowids: number[];
+	sentAts: number[];
+	createdAts: number[];
+	chars: number[];
+}
+
+/** One turn in the order Conductor shows it, with its rows in their order. */
+interface PlannedTurn {
+	index: TurnIndex;
+	shown: boolean;
+	/** Positions into the index's lists, in the order the turn shows them. */
+	order: number[];
+}
+
+/** A row the current read asked for. */
+interface Wanted {
+	rowid: number;
+	turn: number;
+	last: boolean;
+}
+
+/** The state of the turn being mapped, carried from one read to the next. */
+interface OpenTurn {
+	turn: number;
+	turnId: string;
+	shown: boolean;
+	compacted: boolean;
+	firstUserRow: boolean;
+	/** Rows held since a "Compacted" reply, until the turn shows a compaction or ends. */
+	held: ReadRow[] | null;
+	lastResult: Payload | null;
+	lastAt: number;
+	emitted: boolean;
+}
+
+const UNBOUNDED: ReadBudget = { rows: Number.POSITIVE_INFINITY, chars: Number.POSITIVE_INFINITY };
 
 /**
- * Maps one chat's rows, given in the order Conductor's chat reads them (sent time, then rowid).
- * `config` is the chat's config, which our user_message events carry; `agent` picks the
- * translator for its agent rows.
+ * Maps one chat. Call `addKeys` with every row's columns, then repeat `nextRead` and `map` with
+ * the rows it names until `nextRead` answers null; `summary` gives the counts.
+ */
+export class ConductorHistoryMapper {
+	readonly #config: SessionConfig;
+	readonly #translates: boolean;
+	readonly #translator = new ClaudeTranslator({ logger: SILENT });
+	readonly #counts = Object.fromEntries(
+		ROW_KINDS.map((kind) => [kind, { rows: 0, mapped: 0, unmapped: 0 }]),
+	) as Record<RowKind, RowCount>;
+	readonly #unmapped = zeroed(UNMAPPED_REASONS);
+	readonly #leftOut = zeroed(LEFT_OUT_REASONS);
+	readonly #turns = new Map<string, TurnIndex>();
+	#plan: PlannedTurn[] | null = null;
+	#cursor = { turn: 0, position: 0 };
+	#wanted: Wanted[] | null = null;
+	#open: OpenTurn | null = null;
+	#events: SessionEvent[] = [];
+
+	constructor(chat: { agent: AgentKind; config: SessionConfig }) {
+		this.#config = chat.config;
+		this.#translates = MAPPED_AGENTS.has(chat.agent);
+	}
+
+	/** Takes the columns of more rows, in any order. Refused once the second read has begun. */
+	addKeys(keys: readonly ConductorMessageKey[]): Result<void, string> {
+		if (this.#plan !== null) return err("The rows were already planned.");
+		for (const key of keys) {
+			const kind = kindOf(key.role);
+			this.#counts[kind].rows++;
+			if (key.sent_at === null) {
+				this.#skip(kind, "queued message");
+				continue;
+			}
+			if (kind === "other") this.#fail(kind, "unknown role");
+			else if (kind === "summary") this.#fail(kind, "summary");
+			else if (key.turn_id === null) this.#fail(kind, "no turn");
+			else this.#index(key, kind);
+		}
+		return ok(undefined);
+	}
+
+	/**
+	 * The rowids of the next rows to read, in the order they show, at most `budget` of them (and at
+	 * least one); null once every row has been read and mapped.
+	 */
+	nextRead(budget: ReadBudget): Result<number[] | null, string> {
+		if (this.#wanted !== null) return err("The last read has not been mapped yet.");
+		const plan = this.#planned();
+		const wanted: Wanted[] = [];
+		let chars = 0;
+		while (this.#cursor.turn < plan.length && wanted.length < budget.rows) {
+			const turn = plan[this.#cursor.turn];
+			const position = turn?.order[this.#cursor.position];
+			if (turn === undefined || position === undefined) break;
+			const size = turn.index.chars[position] ?? 0;
+			if (wanted.length > 0 && chars + size > budget.chars) break;
+			chars += size;
+			const last = this.#cursor.position === turn.order.length - 1;
+			wanted.push({ rowid: turn.index.rowids[position] ?? -1, turn: this.#cursor.turn, last });
+			if (last) this.#cursor = { turn: this.#cursor.turn + 1, position: 0 };
+			else this.#cursor = { turn: this.#cursor.turn, position: this.#cursor.position + 1 };
+		}
+		if (wanted.length === 0) return ok(null);
+		this.#wanted = wanted;
+		return ok(wanted.map((entry) => entry.rowid));
+	}
+
+	/** Maps the rows the last `nextRead` named, given in any order, and returns their events. */
+	map(rows: readonly ConductorPlacedRow[]): Result<SessionEvent[], string> {
+		const wanted = this.#wanted;
+		if (wanted === null) return err("No read was asked for.");
+		const plan = this.#planned();
+		const byRowid = new Map(rows.map((row) => [row.rowid, row]));
+		this.#events = [];
+		for (const entry of wanted) {
+			const row = byRowid.get(entry.rowid);
+			const planned = plan[entry.turn];
+			if (row === undefined || planned === undefined) {
+				return err("A row of the chat was not in the read; the copy changed while it was read.");
+			}
+			if (this.#open?.turn !== entry.turn) this.#open = this.#openTurn(entry.turn, planned);
+			this.#take(row, this.#open);
+			if (entry.last) this.#endTurn(this.#open);
+		}
+		this.#wanted = null;
+		const events = this.#events;
+		this.#events = [];
+		return ok(events);
+	}
+
+	summary(): HistoryCounts {
+		return { counts: this.#counts, unmapped: this.#unmapped, leftOut: this.#leftOut };
+	}
+
+	#fail(kind: RowKind, reason: UnmappedReason): void {
+		this.#counts[kind].unmapped++;
+		this.#unmapped[reason]++;
+	}
+
+	#skip(kind: RowKind, reason: LeftOutReason): void {
+		this.#counts[kind].mapped++;
+		this.#leftOut[reason]++;
+	}
+
+	#index(key: ConductorMessageKey, kind: "user" | "agent"): void {
+		const turnId = key.turn_id ?? "";
+		const place = { at: millis(key.sent_at), rowid: key.rowid };
+		const turn = this.#turns.get(turnId) ?? {
+			turnId,
+			firstUser: null,
+			firstSeen: place,
+			rowids: [],
+			sentAts: [],
+			createdAts: [],
+			chars: [],
+		};
+		this.#turns.set(turnId, turn);
+		if (earlier(place, turn.firstSeen)) turn.firstSeen = place;
+		if (kind === "user" && (turn.firstUser === null || earlier(place, turn.firstUser))) {
+			turn.firstUser = place;
+		}
+		turn.rowids.push(key.rowid);
+		turn.sentAts.push(place.at);
+		turn.createdAts.push(millis(key.created_at));
+		turn.chars.push(key.chars);
+	}
+
+	/**
+	 * Shown turns by their first user row's sent time, then the turns Conductor does not show,
+	 * whose rows are still read so they are counted. In a turn: sent time, creation time, rowid.
+	 */
+	#planned(): PlannedTurn[] {
+		if (this.#plan !== null) return this.#plan;
+		const bySeen = (a: TurnIndex, b: TurnIndex): number =>
+			a.firstSeen.at - b.firstSeen.at || a.firstSeen.rowid - b.firstSeen.rowid;
+		const turns = [...this.#turns.values()];
+		const shown = turns
+			.filter((turn) => turn.firstUser !== null)
+			.sort((a, b) => (a.firstUser?.at ?? 0) - (b.firstUser?.at ?? 0) || bySeen(a, b));
+		const hidden = turns.filter((turn) => turn.firstUser === null).sort(bySeen);
+		const order = (index: TurnIndex): number[] =>
+			index.rowids
+				.map((_, position) => position)
+				.sort(
+					(a, b) =>
+						(index.sentAts[a] ?? 0) - (index.sentAts[b] ?? 0) ||
+						(index.createdAts[a] ?? 0) - (index.createdAts[b] ?? 0) ||
+						(index.rowids[a] ?? 0) - (index.rowids[b] ?? 0),
+				);
+		this.#plan = [
+			...shown.map((index) => ({ index, shown: true, order: order(index) })),
+			...hidden.map((index) => ({ index, shown: false, order: order(index) })),
+		];
+		this.#turns.clear();
+		return this.#plan;
+	}
+
+	#openTurn(turn: number, planned: PlannedTurn): OpenTurn {
+		return {
+			turn,
+			turnId: planned.index.turnId,
+			shown: planned.shown,
+			compacted: false,
+			firstUserRow: true,
+			held: null,
+			lastResult: null,
+			lastAt: 0,
+			emitted: false,
+		};
+	}
+
+	#take(row: ConductorPlacedRow, open: OpenTurn): void {
+		const kind = row.role === "user" ? "user" : "agent";
+		const read = readRow(row, kind);
+		if (!read.ok) {
+			this.#fail(kind, read.error);
+			return;
+		}
+		if (!open.shown) {
+			this.#skip(kind, "turn without a user message");
+			return;
+		}
+		open.lastAt = Math.max(open.lastAt, read.value.sentAt);
+		const payload = read.value.payload;
+		const topLevel = payload !== null && !bySubAgent(payload);
+		if (topLevel && marksCompaction(payload)) open.compacted = true;
+		if (open.held !== null) {
+			open.held.push(read.value);
+			if (open.compacted) this.#release(open);
+			return;
+		}
+		if (topLevel && !open.compacted && isCompactedReply(payload)) {
+			open.held = [read.value];
+			return;
+		}
+		this.#emit(read.value, open);
+	}
+
+	/** Maps the rows held since a "Compacted" reply, now that the turn decided what it hides. */
+	#release(open: OpenTurn): void {
+		const held = open.held ?? [];
+		open.held = null;
+		for (const row of held) this.#emit(row, open);
+	}
+
+	#endTurn(open: OpenTurn): void {
+		this.#release(open);
+		if (!open.emitted) return;
+		const turnId = open.turnId as TurnId;
+		const base = { eventId: `${open.turnId}:end` as EventId, at: open.lastAt, turnId };
+		const error =
+			this.#translates && open.lastResult !== null
+				? resultErrorItem(open.lastResult as unknown as SDKResultMessage)
+				: null;
+		const outcome =
+			!this.#translates || open.lastResult === null
+				? "interrupted"
+				: error === null
+					? "success"
+					: "error";
+		this.#events.push(
+			outcome === "error" && error !== null
+				? { ...base, type: "turn_ended", outcome, error: error.message }
+				: { ...base, type: "turn_ended", outcome },
+		);
+	}
+
+	/** The one-row step of the mapping: the row's events, in order, or why it adds none. */
+	#emit(row: ReadRow, open: OpenTurn): void {
+		const turnId = row.turnId as TurnId;
+		const at = row.sentAt;
+		const userMessage = (text: string, delivery: "new_turn" | "steer"): SessionEvent => ({
+			eventId: row.id as EventId,
+			at,
+			type: "user_message",
+			messageId: row.id as MessageId,
+			turnId,
+			text,
+			attachmentPaths: [],
+			delivery,
+			config: this.#config,
+		});
+		const push = (made: SessionEvent[]): void => {
+			made.forEach((event, part) => {
+				this.#events.push(
+					part === 0 ? event : { ...event, eventId: `${row.id}:${part}` as EventId },
+				);
+			});
+			if (made.length > 0) open.emitted = true;
+		};
+		if (row.payload === null) {
+			const delivery = open.firstUserRow ? "new_turn" : "steer";
+			open.firstUserRow = false;
+			if (isCompactCommand(row.text)) this.#skip("user", "compact command");
+			else {
+				this.#counts.user.mapped++;
+				push([userMessage(row.text, delivery)]);
+			}
+			return;
+		}
+		const payload = row.payload;
+		const topLevel = !bySubAgent(payload);
+		if (topLevel && open.compacted && isCompactedReply(payload)) {
+			this.#skip("agent", "compacted reply");
+			return;
+		}
+		const typed = topLevel && payload.type === "user" ? bubbleText(payload) : null;
+		if (typed !== null && isCompactCommand(typed)) {
+			this.#skip("agent", "compact command");
+			return;
+		}
+		if (!this.#translates) {
+			this.#fail("agent", "untranslated");
+			return;
+		}
+		let messages: AgentMessage[];
+		try {
+			messages = this.#translator.translate(payload as unknown as SDKMessage);
+		} catch {
+			// A payload of a shape the SDK's types do not allow; Conductor shows a placeholder.
+			this.#fail("agent", "untranslated");
+			return;
+		}
+		this.#counts.agent.mapped++;
+		if (endsTurn(payload)) open.lastResult = payload;
+		const made: SessionEvent[] = [];
+		if (typed !== null && typed.trim() !== "") made.push(userMessage(typed, "steer"));
+		for (const message of messages) {
+			made.push({ eventId: row.id as EventId, at, type: "agent", turnId, message });
+		}
+		push(made);
+	}
+}
+
+/**
+ * Maps one chat's rows already in memory. A row's place in the list stands for its place in the
+ * table, so give them in the order Conductor's chat reads them (sent time, then rowid). `config` is
+ * the chat's config, which our user_message events carry; `agent` picks the translator.
  */
 export function mapConductorMessages(
 	rows: readonly ConductorMessageRow[],
 	chat: { agent: AgentKind; config: SessionConfig },
 ): MappedHistory {
-	const counts = Object.fromEntries(
-		ROW_KINDS.map((kind) => [kind, { rows: 0, mapped: 0, unmapped: 0 }]),
-	) as Record<RowKind, RowCount>;
-	const unmapped = zeroed(UNMAPPED_REASONS);
-	const leftOut = zeroed(LEFT_OUT_REASONS);
-	const fail = (kind: RowKind, reason: UnmappedReason) => {
-		counts[kind].unmapped++;
-		unmapped[reason]++;
-	};
-	const skip = (kind: RowKind, reason: LeftOutReason) => {
-		counts[kind].mapped++;
-		leftOut[reason]++;
-	};
-
-	// Group the readable rows by turn, keeping the first user row of each turn as it was read.
-	const turns = new Map<string, { rows: ReadRow[]; startedAt: number | null }>();
-	for (const row of rows) {
-		const kind = kindOf(row.role);
-		counts[kind].rows++;
-		if (row.sent_at === null) {
-			skip(kind, "queued message");
-			continue;
-		}
-		const read = readRow(row, kind);
-		if (!read.ok) {
-			fail(kind, read.error);
-			continue;
-		}
-		const turn = turns.get(read.value.turnId) ?? { rows: [], startedAt: null };
-		turns.set(read.value.turnId, turn);
-		turn.rows.push(read.value);
-		if (read.value.kind === "user" && turn.startedAt === null) turn.startedAt = read.value.sentAt;
-	}
-
-	const translator = new ClaudeTranslator({ logger: SILENT });
-	const translates = MAPPED_AGENTS.has(chat.agent);
+	const mapper = new ConductorHistoryMapper(chat);
+	const placed = rows.map((row, rowid) => ({ ...row, rowid }));
+	mapper.addKeys(
+		placed.map((row) => ({
+			rowid: row.rowid,
+			role: row.role,
+			turn_id: row.turn_id,
+			sent_at: row.sent_at,
+			created_at: row.created_at,
+			chars: row.content?.length ?? 0,
+		})),
+	);
 	const events: SessionEvent[] = [];
-	const shown: { rows: ReadRow[]; startedAt: number }[] = [];
-	for (const turn of turns.values()) {
-		if (turn.startedAt === null) {
-			for (const row of turn.rows) skip(row.kind, "turn without a user message");
-		} else {
-			shown.push({ rows: turn.rows, startedAt: turn.startedAt });
-		}
+	const read = mapper.nextRead(UNBOUNDED);
+	if (read.ok && read.value !== null) {
+		const mapped = mapper.map(placed);
+		if (mapped.ok) events.push(...mapped.value);
 	}
-	shown.sort((a, b) => a.startedAt - b.startedAt);
-
-	for (const turn of shown) {
-		const ordered = [...turn.rows].sort(inTurnOrder);
-		const compacted = ordered.some(
-			(row) => row.payload !== null && !bySubAgent(row.payload) && marksCompaction(row.payload),
-		);
-		let firstUserRow = true;
-		for (const row of ordered) {
-			const turnId = row.turnId as TurnId;
-			const at = row.sentAt;
-			const userMessage = (text: string, delivery: "new_turn" | "steer"): SessionEvent => ({
-				eventId: row.id as EventId,
-				at,
-				type: "user_message",
-				messageId: row.id as MessageId,
-				turnId,
-				text,
-				attachmentPaths: [],
-				delivery,
-				config: chat.config,
-			});
-			if (row.payload === null) {
-				const delivery = firstUserRow ? "new_turn" : "steer";
-				firstUserRow = false;
-				if (isCompactCommand(row.text)) skip("user", "compact command");
-				else {
-					counts.user.mapped++;
-					events.push(userMessage(row.text, delivery));
-				}
-				continue;
-			}
-			const payload = row.payload;
-			const topLevel = !bySubAgent(payload);
-			if (topLevel && compacted && isCompactedReply(payload)) {
-				skip("agent", "compacted reply");
-				continue;
-			}
-			const typed = topLevel && payload.type === "user" ? bubbleText(payload) : null;
-			if (typed !== null && isCompactCommand(typed)) {
-				skip("agent", "compact command");
-				continue;
-			}
-			if (!translates) {
-				fail("agent", "untranslated");
-				continue;
-			}
-			let messages: AgentMessage[];
-			try {
-				messages = translator.translate(payload as unknown as SDKMessage);
-			} catch {
-				// A payload of a shape the SDK's types do not allow; Conductor shows a placeholder.
-				fail("agent", "untranslated");
-				continue;
-			}
-			counts.agent.mapped++;
-			const made: SessionEvent[] = [];
-			if (typed !== null && typed.trim() !== "") made.push(userMessage(typed, "steer"));
-			for (const message of messages) {
-				made.push({ eventId: row.id as EventId, at, type: "agent", turnId, message });
-			}
-			made.forEach((event, part) => {
-				events.push(part === 0 ? event : { ...event, eventId: `${row.id}:${part}` as EventId });
-			});
-		}
-	}
-	return { events, counts, unmapped, leftOut };
+	return { events, ...mapper.summary() };
 }

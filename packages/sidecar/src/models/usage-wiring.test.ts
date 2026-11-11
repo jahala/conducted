@@ -25,6 +25,7 @@ import type {
 	CheckpointRequest,
 	CheckpointService,
 } from "../checkpoints/checkpoint-service.ts";
+import { ConductorHistoryImports } from "../import/history-imports.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
 import { AgentProgramChoices } from "../models/agent-programs.ts";
@@ -269,6 +270,7 @@ function handlerDeps(manager: DefaultSessionManager, logger: Logger): HandlerDep
 		usage: new SessionUsageReader({ logger, sessions: manager }),
 		shellEnv: fakeShellEnv(),
 		utilityPrompt,
+		conductorHistory: new ConductorHistoryImports(),
 		setLogLevel: () => {},
 		logger,
 	};
