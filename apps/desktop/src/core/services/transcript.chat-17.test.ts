@@ -13,7 +13,12 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 	return result.value;
 };
 
-function toolBlock(rawName: string, input: unknown, output: string): ChatBlock {
+function toolBlock(
+	rawName: string,
+	input: unknown,
+	output: string,
+	blocks: ChatBlock[] = [],
+): ChatBlock {
 	const call: ToolCallView = {
 		toolUseId: "tool-1" as ToolUseId,
 		item: {
@@ -30,7 +35,7 @@ function toolBlock(rawName: string, input: unknown, output: string): ChatBlock {
 			isError: false,
 			truncated: false,
 		},
-		children: [],
+		blocks,
 	};
 	return { kind: "tool", call };
 }
@@ -131,6 +136,24 @@ describe("CHAT-17 formatTranscript", () => {
 		expect(text).toContain("Thinking: The logs are under /tmp.");
 		expect(text).toContain('Input: {"command":"ls /tmp"}');
 		expect(text).toContain("Output:\none\ntwo");
+	});
+
+	it("writes a sub-agent's blocks under the call that holds them", () => {
+		const text = formatTranscript(
+			[
+				turn({
+					blocks: [
+						toolBlock("Task", { description: "Look" }, "Found it.", [
+							{ kind: "text", text: "A note from the sub-agent." },
+						]),
+					],
+				}),
+			],
+			"concise",
+		);
+
+		expect(text).toContain("[tool] Task");
+		expect(text).toContain("  A note from the sub-agent.");
 	});
 
 	it("leaves a reverted turn out", () => {

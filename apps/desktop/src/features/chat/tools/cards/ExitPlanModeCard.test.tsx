@@ -36,7 +36,7 @@ const view = (
 						isError: changes.isError ?? false,
 						truncated: false,
 					},
-		children: [],
+		blocks: [],
 	};
 };
 

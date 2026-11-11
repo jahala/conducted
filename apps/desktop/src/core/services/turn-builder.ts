@@ -48,7 +48,9 @@ export interface PendingSend {
 	delivery?: "new_turn" | "steer";
 }
 
-type Entry = { kind: "block"; block: ChatBlock } | { kind: "tool"; call: ToolCallView };
+type Entry =
+	| { kind: "block"; block: ChatBlock; parent: string | undefined }
+	| { kind: "tool"; call: ToolCallView; parent: string | undefined };
 
 interface TurnDraft {
 	turnId: ChatTurn["turnId"];
@@ -57,6 +59,8 @@ interface TurnDraft {
 	entries: Entry[];
 	/** Every call in the turn, by tool-use id, whether top-level or nested. */
 	calls: Map<string, ToolCallView>;
+	/** The call each nested call belongs to, by tool-use id. */
+	parents: Map<string, string>;
 	/** Results seen before their call could be paired with it. */
 	results: Map<string, ToolResultItem>;
 	usage: Usage | null;
@@ -77,6 +81,7 @@ function emptyDraft(turnId: ChatTurn["turnId"], at: number): TurnDraft {
 		steers: [],
 		entries: [],
 		calls: new Map(),
+		parents: new Map(),
 		results: new Map(),
 		usage: null,
 		startCheckpointId: null,
@@ -104,34 +109,46 @@ function addUsage(current: Usage | null, item: UsageItem): Usage {
 	};
 }
 
-function applyItem(draft: TurnDraft, item: AgentItem): void {
+function applyItem(draft: TurnDraft, item: AgentItem, parent: string | undefined): void {
 	switch (item.kind) {
 		case "text":
-			draft.entries.push({ kind: "block", block: { kind: "text", text: item.text } });
+			draft.entries.push({
+				kind: "block",
+				block: { kind: "text", text: item.text },
+				parent,
+			});
 			return;
 		case "thinking":
 			draft.entries.push({
 				kind: "block",
 				block: { kind: "thinking", text: item.text, summarized: item.summarized },
+				parent,
 			});
 			return;
 		case "tool_call": {
-			const call: ToolCallView = { toolUseId: item.toolUseId, item, result: null, children: [] };
+			const owner = item.parentToolUseId ?? parent;
+			const call: ToolCallView = {
+				toolUseId: item.toolUseId,
+				item,
+				result: null,
+				blocks: [],
+			};
 			draft.calls.set(item.toolUseId, call);
-			draft.entries.push({ kind: "tool", call });
+			if (owner !== undefined) draft.parents.set(item.toolUseId, owner);
+			draft.entries.push({ kind: "tool", call, parent: owner });
 			return;
 		}
 		case "tool_result":
 			draft.results.set(item.toolUseId, item);
 			return;
 		case "todo":
-			draft.entries.push({ kind: "block", block: { kind: "todo", item } });
+			draft.entries.push({ kind: "block", block: { kind: "todo", item }, parent });
 			return;
 		case "notice":
-			draft.entries.push({ kind: "block", block: { kind: "notice", item } });
+			draft.entries.push({ kind: "block", block: { kind: "notice", item }, parent });
 			return;
 		case "error":
-			draft.entries.push({ kind: "block", block: { kind: "error", item } });
+			draft.entries.push({ kind: "block", block: { kind: "error", item }, parent });
 			return;
 		case "usage":
 			draft.usage = addUsage(draft.usage, item);
@@ -145,6 +162,7 @@ function applyItem(draft: TurnDraft, item: AgentItem): void {
 					kind: "notice",
 					item: { kind: "notice", notice: "info", text: `Unsupported message item${kind}` },
 				},
+				parent,
 			});
 		}
 	}
@@ -153,16 +171,16 @@ function applyItem(draft: TurnDraft, item: AgentItem): void {
 function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState): void {
 	switch (event.type) {
 		case "user_message":
-			if (event.delivery === "new_turn") {
-				if (draft.userMessage === null) {
-					draft.userMessage = {
-						messageId: event.messageId,
-						text: event.text,
-						attachmentPaths: event.attachmentPaths,
-						at: event.at,
-						sender: event.sender ?? null,
-					};
-				}
+			// The first user message starts the turn; Conductor shows every later one as a steer,
+			// whichever kind of event carried it.
+			if (event.delivery === "new_turn" && draft.userMessage === null) {
+				draft.userMessage = {
+					messageId: event.messageId,
+					text: event.text,
+					attachmentPaths: event.attachmentPaths,
+					at: event.at,
+					sender: event.sender ?? null,
+				};
 				return;
 			}
 			draft.steers.push({
@@ -173,7 +191,9 @@ function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState)
 			});
 			return;
 		case "agent":
-			for (const item of event.message.items) applyItem(draft, item);
+			for (const item of event.message.items) {
+				applyItem(draft, item, event.message.parentToolUseId);
+			}
 			return;
 		case "checkpoint":
 			if (event.phase === "start") {
@@ -190,26 +210,25 @@ function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState)
 }
 
 /**
- * The call that should hold `call`, or undefined when it belongs at the top level. A missing
- * parent, a call that names itself, and a parent chain that loops all keep the call at the top
- * level, so no call disappears from the chat.
+ * The call that should hold an entry, or undefined when it belongs at the top level. A missing
+ * parent, an entry that names itself, and a parent chain that loops all keep it at the top level,
+ * so nothing disappears from the chat.
  */
-function parentCall(
-	calls: Map<string, ToolCallView>,
-	call: ToolCallView,
+function holderCall(
+	draft: TurnDraft,
+	parentId: string,
+	selfId: string | undefined,
 ): ToolCallView | undefined {
-	const parentId = call.item.parentToolUseId;
-	if (parentId === undefined || parentId === call.toolUseId) return undefined;
-	const parent = calls.get(parentId);
+	if (selfId !== undefined && parentId === selfId) return undefined;
+	const parent = draft.calls.get(parentId);
 	if (parent === undefined) return undefined;
 
-	const seen = new Set<string>([call.toolUseId]);
-	let current: ToolCallView | undefined = parent;
+	const seen = new Set<string>(selfId === undefined ? [] : [selfId]);
+	let current: string | undefined = parentId;
 	while (current !== undefined) {
-		if (seen.has(current.toolUseId)) return undefined;
-		seen.add(current.toolUseId);
-		const next: string | undefined = current.item.parentToolUseId;
-		current = next === undefined ? undefined : calls.get(next);
+		if (seen.has(current)) return undefined;
+		seen.add(current);
+		current = draft.parents.get(current);
 	}
 	return parent;
 }
@@ -220,19 +239,18 @@ function finalize(draft: TurnDraft, liveState: LiveState, isLast: boolean): Chat
 		if (result !== undefined) call.result = result;
 	}
 
-	// Nest a sub-agent call under the call that started it. A call whose parent is missing or
-	// whose parent chain loops stays at the top level, so every call still renders.
+	// Keep a sub-agent's blocks and calls inside the call that started it. An entry whose parent
+	// is missing or whose parent chain loops stays at the top level, so every call still renders.
 	const blocks: ChatBlock[] = [];
 	for (const entry of draft.entries) {
-		if (entry.kind === "block") {
-			blocks.push(entry.block);
-			continue;
-		}
-		const parent = parentCall(draft.calls, entry.call);
+		const selfId = entry.kind === "tool" ? entry.call.toolUseId : undefined;
+		const parent = entry.parent === undefined ? undefined : holderCall(draft, entry.parent, selfId);
 		if (parent === undefined) {
-			blocks.push({ kind: "tool", call: entry.call });
+			blocks.push(entry.kind === "block" ? entry.block : { kind: "tool", call: entry.call });
+		} else if (entry.kind === "block") {
+			parent.blocks.push(entry.block);
 		} else {
-			parent.children.push(entry.call);
+			parent.blocks.push({ kind: "tool", call: entry.call });
 		}
 	}
 

@@ -174,6 +174,15 @@ describe("AGENT-03 Claude translation", () => {
 		]);
 	});
 
+	test("a sub-agent's message carries the call that started it", () => {
+		const t = translator();
+		const messages = t.translate(
+			assistant([{ type: "text", text: "inner" }], { parent: "parent-1" }),
+		);
+		expect(messages[0]?.parentToolUseId as string).toBe("parent-1");
+		expect(messages[0]?.items).toEqual([{ kind: "text", text: "inner" }]);
+	});
+
 	test("a large tool result keeps its end and says how much was cut", () => {
 		const t = translator();
 		const text = `${"x".repeat(MAX_TOOL_OUTPUT_CHARS)}THE END`;
