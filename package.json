@@ -11,6 +11,7 @@
 		"format": "biome format --write .",
 		"test": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts pnpm run test:all",
 		"test:all": "pnpm -r --no-bail test; packages=$?; bun test ./scripts ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/scripts.xml}; scripts=$?; exit $((packages || scripts))",
+		"test:macos": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts pnpm --dir apps/desktop run test:macos",
 		"guards": "bun scripts/guards/run.ts",
 		"stubs": "bun scripts/check-stubs.ts",
 		"repo-rules": "bun scripts/repo-rules.ts",

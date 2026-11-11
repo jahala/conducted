@@ -44,9 +44,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      # The RUN-09 tests run the terminal shim in a real zsh, which this image does not ship.
-      - name: Install zsh
-        run: sudo apt-get update -qq && sudo apt-get install -qq --yes --no-install-recommends zsh
       # These call the coverage scripts directly, not `pnpm test`: the run-owned temp folder check
       # belongs to the test run and has nothing to say about report folders.
       - name: Desktop coverage (reports in apps/desktop/coverage)

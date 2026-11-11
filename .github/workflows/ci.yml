@@ -46,10 +46,6 @@ jobs:
         run: pnpm exec biome ci .
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: shellcheck bin/*.sh
-      # The RUN-09 tests run the terminal shim in a real zsh, which this image does not ship.
-      - name: Install zsh
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: sudo apt-get update -qq && sudo apt-get install -qq --yes --no-install-recommends zsh
       - name: Tests (each runner also writes a JUnit report)
         id: tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -84,7 +80,8 @@ jobs:
 
   rust:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
-    # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is checked on macOS.
+    # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is checked on macOS,
+    # and so are the desktop's tests that need macOS's own programs.
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
@@ -105,12 +102,22 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - name: Install the Worker runtime for the relay test
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      # The Worker's runtime for the relay test, and the desktop's test tools for the tests that
+      # need macOS's own programs.
+      - name: Install the Worker runtime and the desktop's test tools
         working-directory: .
-        run: pnpm install --frozen-lockfile --filter @conducted/cloud
+        run: pnpm install --frozen-lockfile --filter @conducted/cloud --filter "@conducted/desktop..."
       # As in the TypeScript job, a format failure does not hide a clippy or test failure.
       - run: cargo fmt --check
       - if: ${{ !cancelled() }}
         run: cargo clippy --all-targets -- -D warnings
       - if: ${{ !cancelled() }}
         run: cargo test
+      # The desktop's macOS tests (`*.macos.test.ts`): the terminal shim in the real /bin/zsh.
+      - name: Desktop tests that need macOS
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: pnpm test:macos
