@@ -37,10 +37,7 @@ import { useEffect, useRef, useState } from "react";
 import { agentDisplayName, agentKey } from "../../../core/agent-catalog.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useAgentInstalls } from "../../../core/hooks.ts";
-import {
-	agentLoginSuccessMessage,
-	restartIdleAgentChats,
-} from "../../../core/use-agent-login.ts";
+import { agentLoginSuccessMessage, restartIdleAgentChats } from "../../../core/use-agent-login.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input } from "../../../ui/Input.tsx";

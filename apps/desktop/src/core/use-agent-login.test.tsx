@@ -11,8 +11,8 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, type TestContainer } from "../test/container.ts";
-import { sampleSession, sampleWorkspace, sessionId } from "./db/test-fixtures.ts";
 import { ServicesProvider } from "./context.tsx";
+import { sampleSession, sampleWorkspace, sessionId } from "./db/test-fixtures.ts";
 import { type UseAgentLoginOptions, useAgentLogin } from "./use-agent-login.ts";
 
 afterEach(cleanup);

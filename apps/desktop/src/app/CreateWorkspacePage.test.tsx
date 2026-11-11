@@ -242,9 +242,7 @@ describe("WS-01 CreateWorkspacePage", () => {
 					},
 				},
 			});
-			return err(
-				appError("setup_failed", "Setup script failed. Check the setup tab for logs."),
-			);
+			return err(appError("setup_failed", "Setup script failed. Check the setup tab for logs."));
 		});
 		const open = vi
 			.spyOn(test.container.actions.attachments, "openExternally")
