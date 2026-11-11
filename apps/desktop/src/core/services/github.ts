@@ -104,8 +104,9 @@
  * restack flag. The readiness rules that read the merge states live in
  * core/status/stack-readiness.ts. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
- * calls `onMerged` and the workspace service archives the workspace, and calls
- * `onPullRequestChanged` when an open pull request's `updatedAt` changes so review comments sync.
+ * calls `onMerged` with the merged pull request and whether its stack still has open work, so the
+ * container can keep or archive the workspace, and calls `onPullRequestChanged` when an open pull
+ * request's `updatedAt` changes so review comments sync.
  * Test first: two merge calls at once send one `gh pr merge`.
  * PR-03 test first: two watched workspaces of one repository ask GitHub in one batched query.
  * PR-05 test first: two failing checks send one instruction with both log tails.
@@ -1056,6 +1057,32 @@ export interface PrWorkspaceContext {
 	customPrompt?: string | null;
 }
 
+/** The pull request whose merge the poll noticed, and whether its stack still has open work. */
+export interface MergedPullRequest {
+	number: number;
+	url: string;
+	/** True when a stack still has another open or draft pull request to merge. */
+	stackHasOpenPrs: boolean;
+}
+
+/**
+ * Whether a stack read after a merge found another pull request still open. A draft counts, as
+ * GitHub's stack members report it separately from "open".
+ */
+export function stackHasOpenPullRequests(
+	members: readonly { state: "open" | "draft" | "merged" | "closed" }[],
+): boolean {
+	return members.some((member) => member.state === "open" || member.state === "draft");
+}
+
+/**
+ * What Conductor does when the stack read fails during archive-on-merge: keep the workspace when
+ * the merged pull request is not the branch checked out here (a stack's other member merged).
+ */
+export function mergedBranchDiffers(mergedBranch: string | null, localBranch: string): boolean {
+	return mergedBranch !== null && mergedBranch !== "" && localBranch !== mergedBranch;
+}
+
 /** Why a catch-up did not rebase. Every one is a normal answer, not an error. */
 export type CatchUpSkipReason =
 	| "not_in_stack"
@@ -1087,7 +1114,7 @@ export interface GithubServiceDeps {
 	agent: AgentMessenger;
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<PrWorkspaceContext>>;
 	/** Called when a PR becomes merged, so the workspace service can archive on merge. */
-	onMerged: (workspaceId: WorkspaceId, prNumber: number) => void;
+	onMerged: (workspaceId: WorkspaceId, merged: MergedPullRequest) => void;
 	/**
 	 * Called when an open pull request's `updatedAt` changes, so review comments can be synced
 	 * (REV-04). The container always supplies it; tests that never poll may leave it out.
@@ -2247,7 +2274,7 @@ export class GithubService {
 			kind: "success",
 			cost: answer.value.cost ?? 1,
 		});
-		chunk.forEach((target, index) => {
+		for (const [index, target] of chunk.entries()) {
 			const node = answer.value.nodes[index] ?? null;
 			if (node === null) {
 				this.#noPrUntil.set(target.key, target.now + NO_PR_MEMORY_MS);
@@ -2255,14 +2282,14 @@ export class GithubService {
 					target.key,
 					ok({ pullRequest: null, unavailable: "no_pr", fetchedAt: target.now }),
 				);
-				return;
+				continue;
 			}
 			this.#noPrUntil.delete(target.key);
 			results.set(
 				target.key,
-				this.#toWorkspaceEntry(target.key, target.found, node, answer.value, target.now),
+				await this.#toWorkspaceEntry(target.key, target.found, node, answer.value, target.now),
 			);
-		});
+		}
 	}
 
 	#writeEntry(key: string, entry: WorkspacePrEntry): void {
@@ -2327,13 +2354,13 @@ export class GithubService {
 		return ok(undefined);
 	}
 
-	#toWorkspaceEntry(
+	async #toWorkspaceEntry(
 		key: string,
 		found: PrWorkspaceContext,
 		node: GraphqlPullRequestNode,
 		answer: RepositoryAnswer,
 		now: number,
-	): Result<WorkspacePrEntry> {
+	): Promise<Result<WorkspacePrEntry>> {
 		const raw = rawFromGraphql(node);
 		const headBranch = raw.headRefName ?? found.branch;
 		const state = pullRequestStateOf(raw.state, raw.isDraft);
@@ -2361,9 +2388,28 @@ export class GithubService {
 		pr.mergeable = reconcileMergeable(previous?.mergeable ?? null, pr.mergeable, sameHead);
 		this.#headByWorkspace.set(key, raw.headRefOid);
 		if (state === "merged" && previous?.state !== "merged") {
-			this.#deps.onMerged(found.workspaceId, raw.number);
+			this.#deps.onMerged(found.workspaceId, {
+				number: raw.number,
+				url: raw.url,
+				stackHasOpenPrs: await this.#stackHasOpenPullRequests(found, raw.headRefName ?? null),
+			});
 		}
 		return ok({ pullRequest: pr, unavailable: "none", fetchedAt: now });
+	}
+
+	/**
+	 * Whether a merged pull request leaves open work in its stack. A successful stack read answers
+	 * from its members; a failed read follows Conductor and keeps the workspace only when the
+	 * merged pull request is not the branch checked out here.
+	 */
+	async #stackHasOpenPullRequests(
+		found: PrWorkspaceContext,
+		mergedBranch: string | null,
+	): Promise<boolean> {
+		// Conductor reads the stack for this decision even when the stack view is turned off.
+		const stack = await this.readStack(found.workspaceId, { ignoreStackedSetting: true });
+		if (stack.ok) return stackHasOpenPullRequests(stack.value);
+		return mergedBranchDiffers(mergedBranch, found.branch);
 	}
 
 	/** The remote and branch as pushed, from the branch's configured upstream. */
@@ -3020,10 +3066,17 @@ export class GithubService {
 	 * stacks turned off in Settings, is an empty answer, not an error. The optional `stackEntry`
 	 * field is retried without when the host does not know it, and that host is remembered.
 	 */
-	async readStack(workspaceId: WorkspaceId): Promise<Result<StackEntryView[]>> {
+	async readStack(
+		workspaceId: WorkspaceId,
+		options: { ignoreStackedSetting?: boolean } = {},
+	): Promise<Result<StackEntryView[]>> {
 		const key = String(workspaceId);
 		const setting = this.#deps.setting;
-		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+		if (
+			options.ignoreStackedSetting !== true &&
+			setting !== undefined &&
+			setting<boolean>("github_stacked_prs_enabled") !== true
+		) {
 			this.#stackMembers.delete(key);
 			return ok([]);
 		}

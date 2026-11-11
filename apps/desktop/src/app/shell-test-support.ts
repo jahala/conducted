@@ -107,6 +107,7 @@ export function createShellContainer(fixture: ShellFixture = {}): ShellContainer
 		reportFailure: (title, error) => {
 			toastError(title, error);
 		},
+		showToast: () => undefined,
 	});
 	const { services } = container;
 	const repos = fixture.repos ?? [];

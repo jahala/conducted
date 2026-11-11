@@ -133,6 +133,10 @@ export function Toaster({ workspaceId }: ToasterProps = {}) {
 					error: "text-danger",
 					warning: "text-warning",
 					success: "text-success",
+					actionButton:
+						"ml-auto shrink-0 rounded-sm px-2 py-1 text-xs font-medium text-fg hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
+					cancelButton:
+						"ml-2 shrink-0 rounded-sm px-2 py-1 text-xs font-medium text-fg-muted hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
 				},
 			}}
 		/>

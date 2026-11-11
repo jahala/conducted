@@ -12,7 +12,9 @@
  * newest size is sent to the PTY), replaying history before live output with no duplicated lines,
  * dispose on unmount with no leaked listeners or observers, font or theme changes applied without
  * recreating the terminal, focus moving to the terminal each time `focusOnMount` turns true
- * without recreating it, copy and paste with the usual shortcuts, and keyboard focus ring.
+ * without recreating it, copy and paste with the usual shortcuts, the registry's terminal keys
+ * (`terminal-keys.ts`, applied here and kept from the dispatcher so they run once), and keyboard
+ * focus ring.
  * Test first: mounting then unmounting disposes the terminal and removes the resize observer.
  */
 import { FitAddon } from "@xterm/addon-fit";
@@ -28,6 +30,7 @@ import {
 	type TerminalFindMatch,
 	type TerminalFindOptions,
 } from "./TerminalFindBar.tsx";
+import { TERMINAL_OWNED_KEYS, type TerminalOwnedKey } from "./terminal-keys.ts";
 import type { TerminalAppearance } from "./terminal-theme.ts";
 
 export interface TerminalSurfaceHandle {
@@ -89,21 +92,27 @@ const reportFailure =
 		if (!result.ok) toastError(title, result.error, { id });
 	};
 
-const KEY_SEQUENCES: Record<string, string> = {
-	"meta+Backspace": "\u0015",
-	"meta+ArrowLeft": "\u0001",
-	"meta+ArrowRight": "\u0005",
-	"alt+ArrowLeft": "\u001bb",
-	"alt+ArrowRight": "\u001bf",
-};
+/** The key press in the registry's shortcut spelling, so it can be looked up in the owned list. */
+export function shortcutOfKey(event: {
+	key: string;
+	metaKey: boolean;
+	ctrlKey: boolean;
+	altKey: boolean;
+	shiftKey: boolean;
+}): string {
+	const modifiers = [
+		event.metaKey ? "Cmd" : null,
+		event.ctrlKey ? "Ctrl" : null,
+		event.altKey ? "Alt" : null,
+		event.shiftKey ? "Shift" : null,
+	].filter((part): part is string => part !== null);
+	return [...modifiers, event.key].join("+");
+}
 
-function sequenceFor(event: KeyboardEvent): string | null {
-	if (event.metaKey && event.key === "Backspace") return KEY_SEQUENCES["meta+Backspace"] ?? null;
-	if (event.metaKey && event.key === "ArrowLeft") return KEY_SEQUENCES["meta+ArrowLeft"] ?? null;
-	if (event.metaKey && event.key === "ArrowRight") return KEY_SEQUENCES["meta+ArrowRight"] ?? null;
-	if (event.altKey && event.key === "ArrowLeft") return KEY_SEQUENCES["alt+ArrowLeft"] ?? null;
-	if (event.altKey && event.key === "ArrowRight") return KEY_SEQUENCES["alt+ArrowRight"] ?? null;
-	return null;
+/** The registry-owned key this press means, or null when xterm should handle it normally. */
+export function ownedKeyFor(event: KeyboardEvent): TerminalOwnedKey | null {
+	const shortcut = shortcutOfKey(event);
+	return TERMINAL_OWNED_KEYS.find((key) => key.shortcut === shortcut) ?? null;
 }
 
 export function TerminalSurface({
@@ -235,20 +244,14 @@ export function TerminalSurface({
 					copyRef.current(terminal.getSelection());
 					return false;
 				}
-				if (key === "k") {
-					terminal.clear();
-					return false;
-				}
 			}
 
-			if (event.shiftKey && event.key === "Enter") {
-				terminal.input("\n", false);
-				return false;
-			}
-
-			const sequence = sequenceFor(event);
-			if (sequence !== null) {
-				terminal.input(sequence, false);
+			// The registry's terminal keys are xterm's own: apply the key here and keep xterm from
+			// sending anything else, so the root dispatcher never sees it (terminal-keys.ts).
+			const owned = ownedKeyFor(event);
+			if (owned !== null) {
+				if (owned.clear === true) terminal.clear();
+				else if (owned.sequence !== undefined) terminal.input(owned.sequence, false);
 				return false;
 			}
 			return true;

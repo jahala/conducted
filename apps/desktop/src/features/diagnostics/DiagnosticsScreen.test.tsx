@@ -33,12 +33,16 @@ function scriptEnvironment(container: TestContainer): void {
 	});
 }
 
-async function mountDiagnostics(options: { seedWorkspace?: boolean } = {}) {
+async function mountDiagnostics(options: { seedWorkspace?: boolean; from?: "workspace" } = {}) {
 	test = createTestContainer();
 	scriptEnvironment(test);
 	await test.container.services.settings.start();
 	const workspace = options.seedWorkspace === true ? await seedWorkspace(test.container) : null;
-	const router = createAppRouter(createMemoryHistory({ initialEntries: ["/diagnostics"] }));
+	const entries =
+		options.from === "workspace" && workspace !== null
+			? [`/repository/${workspace.repoId}/workspace/${workspace.id}`, "/diagnostics"]
+			: ["/diagnostics"];
+	const router = createAppRouter(createMemoryHistory({ initialEntries: entries }));
 	render(
 		<ServicesProvider container={test.container}>
 			<AppProviders client={createQueryClient(() => {})}>
@@ -175,8 +179,25 @@ describe("APP-03 diagnostics screen", () => {
 		]);
 	});
 
-	it("closes on Cmd+Escape and opens the developer tools on Cmd+Alt+I", async () => {
-		const { mounted, router } = await mountDiagnostics();
+	it("goes back to the workspace when Back is clicked", async () => {
+		const { workspace, router } = await mountDiagnostics({
+			seedWorkspace: true,
+			from: "workspace",
+		});
+		await screen.findByText("API_TOKEN");
+		const workspacePath = `/repository/${workspace?.repoId}/workspace/${workspace?.id}`;
+
+		fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+		await waitFor(() => expect(router.state.location.pathname).toBe(workspacePath));
+		expect(await screen.findByRole("main")).toBeTruthy();
+	});
+
+	it("returns to the previous screen on Cmd+Escape and opens the developer tools on Cmd+Alt+I", async () => {
+		const { mounted, router, workspace } = await mountDiagnostics({
+			seedWorkspace: true,
+			from: "workspace",
+		});
 		const inspector = vi.spyOn(mounted.container.platform.window, "toggleInspector");
 		await screen.findByText("API_TOKEN");
 		await waitFor(() => expect(router.state.location.pathname).toBe("/diagnostics"));
@@ -185,7 +206,11 @@ describe("APP-03 diagnostics screen", () => {
 		await waitFor(() => expect(inspector).toHaveBeenCalledTimes(1));
 
 		fireEvent.keyDown(document, { key: "Escape", metaKey: true });
-		await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe(
+				`/repository/${workspace?.repoId}/workspace/${workspace?.id}`,
+			),
+		);
 	});
 
 	it("opens the app logs from the app log viewer command", async () => {

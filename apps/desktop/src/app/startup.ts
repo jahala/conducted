@@ -18,6 +18,7 @@
 import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import type { Container } from "../core/container.ts";
 import type { Platform } from "../platform/platform.ts";
+import { installBrowserMenuGuard } from "./browser-menu.ts";
 
 export type StartupPhase = "database" | "settings" | "services" | "sidecar";
 
@@ -33,7 +34,7 @@ export type StartupState =
 	| { kind: "ready" };
 
 export interface StartupOptions {
-	/** Installs the process-wide error and drag-and-drop handlers. On unless a test says otherwise. */
+	/** Installs the process-wide error, drag-and-drop and browser-menu handlers. On unless a test says otherwise. */
 	installHandlers?: boolean;
 }
 
@@ -110,8 +111,9 @@ export async function runStartup(
 }
 
 /**
- * Installs the handlers that keep unhandled errors in the local log, forwards `console.error`, and stops
- * the webview from navigating to a file dropped on the window. Returns the function that removes them.
+ * Installs the handlers that keep unhandled errors in the local log, forwards `console.error`, stops the
+ * webview from navigating to a file dropped on the window, and blocks its own browser menu (APP-01's
+ * browser menu guard). Returns the function that removes them.
  */
 export function installGlobalHandlers(platform: Pick<Platform, "app">): () => void {
 	const log = (message: string, data: unknown): void =>
@@ -136,6 +138,8 @@ export function installGlobalHandlers(platform: Pick<Platform, "app">): () => vo
 		log("console.error", args.map(describeForLog).join(" "));
 	};
 
+	const removeBrowserMenuGuard = installBrowserMenuGuard();
+
 	window.addEventListener("error", onError);
 	window.addEventListener("unhandledrejection", onRejection);
 	window.addEventListener("dragenter", preventNavigation);
@@ -143,6 +147,7 @@ export function installGlobalHandlers(platform: Pick<Platform, "app">): () => vo
 	window.addEventListener("drop", preventNavigation);
 
 	return () => {
+		removeBrowserMenuGuard();
 		window.removeEventListener("error", onError);
 		window.removeEventListener("unhandledrejection", onRejection);
 		window.removeEventListener("dragenter", preventNavigation);

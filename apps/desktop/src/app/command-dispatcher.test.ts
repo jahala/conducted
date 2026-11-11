@@ -195,6 +195,18 @@ describe("NAV-14 dispatchCommand", () => {
 		expect(run).not.toHaveBeenCalled();
 	});
 
+	it("does not fall through to the runner when a screen handler declines", () => {
+		const registry = createCommandRegistry();
+		const run = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+		const failed = vi.fn();
+		// Cmd+2 with one workspace: the handler exists and returns false, so the command does
+		// nothing. The runner would answer command_unavailable and toast "not available yet".
+		registry.register("workspace.switch2", "base", () => false);
+		dispatchCommand("workspace.switch2", deps(registry, run, vi.fn(), failed));
+		expect(run).not.toHaveBeenCalled();
+		expect(failed).not.toHaveBeenCalled();
+	});
+
 	it("does not run a disabled command", () => {
 		const registry = createCommandRegistry();
 		const run = vi.fn().mockResolvedValue({ ok: true, value: undefined });

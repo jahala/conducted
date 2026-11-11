@@ -10,7 +10,8 @@
  * Must handle: every SetupTabKind in setup-state.ts, Stop while running, "Run setup again" after a
  * failure (it needs no chat), the fix action sending the failure log to the chat, a saved log
  * that fails to load (the error's own message, with Retry), a Run again that fails for a reason
- * other than the script failing (that reason shows in the toast), and an archived workspace.
+ * other than the script failing (that reason shows in the toast), a workspace whose initialization
+ * failed (Retry and Delete, Conductor's recovery row), and an archived workspace.
  * Our design choice: "Add manually" opens the repository pages of Settings, because the per-repo
  * Scripts page has no route of its own yet.
  * Test first: kind "failed" shows the failure log and a fix action that calls the chat action once.
@@ -31,6 +32,7 @@ import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { TerminalView } from "../../terminal/TerminalView.tsx";
+import { deleteWorkspace } from "../../workspace/archive-workspace.tsx";
 import { SetupEmptyState } from "./SetupEmptyState.tsx";
 import { SetupStatusBar } from "./SetupStatusBar.tsx";
 import { SETUP_TAB_TEXT, type SetupTabKind, setupTabKind } from "./setup-state.ts";
@@ -197,6 +199,11 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 		);
 	};
 
+	const removeWorkspace = (): void => {
+		setBusy(true);
+		void deleteWorkspace(actions, workspaceId).finally(() => setBusy(false));
+	};
+
 	const askAgentToFix = (): void => {
 		if (activeSession === undefined) return;
 		const sessionId = activeSession.id;
@@ -222,6 +229,26 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
+			{workspaceRow.state === "failed" && view.state !== "failed" ? (
+				<div
+					role="alert"
+					className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-raised p-3"
+				>
+					<span className="text-sm text-danger">Workspace initialization failed</span>
+					<Button type="button" size="sm" variant="outline" disabled={busy} onClick={runAgain}>
+						Retry
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="outlineDestructive"
+						disabled={busy}
+						onClick={removeWorkspace}
+					>
+						Delete
+					</Button>
+				</div>
+			) : null}
 			{showStatus && view.filesCopied !== null ? (
 				<p className="px-3 pt-2 text-xs text-fg-subtle">
 					{view.filesCopied} files in this workspace

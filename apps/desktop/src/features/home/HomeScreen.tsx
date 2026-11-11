@@ -8,7 +8,8 @@
  * 7.3 (loading skeleton with role="status"), 7.4 (error with retry).
  * Our design choice: owner filters, routine origin and team avatars are cloud features and are
  * left out. The strip has no title and the pinned group no heading, as in Conductor (D098). Filters
- * and sort are screen state, not saved settings, so leaving Home resets them.
+ * and sort are screen state, not saved settings, so leaving Home resets them. nav.viewArchived
+ * arrives once as `?archived=1`, sets Only archived and clears the search, then drops the flag.
  * Must handle: loading (skeleton cards with role="status"); error with retry; no workspaces;
  * filters that match nothing; Clear filters resets search, projects and the archived toggle while
  * leaving sort and Display alone; the archived filter (cards offer Unarchive, Open in Finder, Copy
@@ -17,7 +18,8 @@
  * Test first: with 60 workspaces the first page shows 50 cards and "Show more" shows the rest.
  */
 import type { Result } from "@conducted/shared";
-import { useCallback, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import { useRepos, useWorkspaces } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
@@ -167,9 +169,21 @@ export function HomeScreen() {
 	const workspaces = useWorkspaces();
 	const { repo, workspace } = useServices().services;
 	const now = useNow();
+	const navigate = useNavigate();
+	const search = useSearch({ strict: false }) as { archived?: string };
 	const [filters, setFilters] = useState<HomeFilterState>(INITIAL_FILTERS);
 	const [display, setDisplay] = useState<HomeDisplay>(defaultHomeDisplay);
 	const [pageCount, setPageCount] = useState(1);
+
+	// nav.viewArchived arrives as `?archived=1`: show Only archived and clear the search, as
+	// Conductor's handler does, then drop the flag so leaving and returning starts from the defaults.
+	const archiveOnlyRequested = search.archived === "1";
+	useEffect(() => {
+		if (!archiveOnlyRequested) return;
+		setFilters((current) => ({ ...current, archive: "archived", search: "" }));
+		setPageCount(1);
+		void navigate({ to: "/all-workspaces", search: {}, replace: true });
+	}, [archiveOnlyRequested, navigate]);
 
 	const changeFilters = useCallback((next: HomeFilterState) => {
 		setFilters(next);
